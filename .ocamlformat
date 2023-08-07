@@ -1,0 +1,8 @@
+profile = default
+version = 0.25.1
+margin=100
+break-before-in=auto
+break-infix=fit-or-vertical
+module-item-spacing=compact
+break-string-literals=never
+break-cases=fit-or-vertical

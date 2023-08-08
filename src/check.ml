@@ -58,11 +58,17 @@ let rec check : type a. a ctx -> a check -> value -> a term option =
       let* sval, sty = synth ctx stm in
       let* () = equal_val (level_of ctx) sty ty in
       return sval
-  (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam. *)
   | Lam _ -> (
+      (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam. *)
       match ty with
       | Inst { tm = ty; dim = _; tube; args } -> check_lam ctx tm ty tube args
       | Uninst ty -> check_lam ctx tm ty tube_zero Emp)
+  | Pi (dom, cod) ->
+      (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
+      let* cdom = check ctx dom (Uninst (UU D.zero)) in
+      let edom = eval_in_ctx ctx cdom in
+      let* ccod = check (Snoc (ctx, edom)) cod (Uninst (UU D.zero)) in
+      return (Term.Pi (cdom, ccod))
 
 and check_lam :
     type a m n f.
@@ -131,23 +137,6 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
   match tm with
   | Var v -> return (Term.Var v, Bwv.nth v ctx)
   | UU -> return (Term.UU, Uninst (UU D.zero))
-  | Pi (dom, cod) -> (
-      let* sdom, suu = synth ctx dom in
-      match suu with
-      (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
-      | Uninst (UU n) -> (
-          match compare n D.zero with
-          | Neq -> None
-          | Eq -> (
-              let edom = eval_in_ctx ctx sdom in
-              let* scod, suu = synth (Snoc (ctx, edom)) cod in
-              match suu with
-              | Uninst (UU n) -> (
-                  match compare n D.zero with
-                  | Eq -> return (Term.Pi (sdom, scod), Uninst (UU D.zero))
-                  | Neq -> None)
-              | _ -> None))
-      | _ -> None)
   | App _ ->
       (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
       let fn, args = spine tm in

@@ -161,9 +161,8 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
         return (Sym sx, symty)
       with Invalid_uninst_action -> None)
   | Asc (tm, ty) ->
-      let* sty, uu = synth ctx ty in
-      let* () = equal_val (level_of ctx) uu (Uninst (UU D.zero)) in
-      let ety = eval_in_ctx ctx sty in
+      let* cty = check ctx ty (Uninst (UU D.zero)) in
+      let ety = eval_in_ctx ctx cty in
       let* ctm = check ctx tm ety in
       return (ctm, ety)
 

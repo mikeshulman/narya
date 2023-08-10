@@ -8,6 +8,6 @@ type _ synth =
   | Id : 'a synth * 'a check * 'a check -> 'a synth
   | Refl : 'a synth -> 'a synth
   | Sym : 'a synth -> 'a synth
-  | Asc : 'a check * 'a synth -> 'a synth
+  | Asc : 'a check * 'a check -> 'a synth
 
 and _ check = Synth : 'a synth -> 'a check | Lam : 'a N.suc check -> 'a check

@@ -162,6 +162,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
   | Uninst ty -> (
       (* This case is the same, but simpler. *)
       let fa = s in
+      (* TODO: Hmm, actually this could be the identity instantiation of something *higher* dimensional. *)
       match compare (cod_deg fa) D.zero with
       (* We raise a custom exception here so that it can get caught by type synthesis, if we try to symmetrize something that's not at least 2-dimensional. *)
       | Neq -> raise Invalid_uninst_action

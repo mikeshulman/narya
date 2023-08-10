@@ -3,13 +3,11 @@
 type _ synth =
   | Var : 'a N.index -> 'a synth
   | UU : 'a synth
+  | Pi : 'a check * 'a N.suc check -> 'a synth
   | App : 'a synth * 'a check -> 'a synth
   | Id : 'a synth * 'a check * 'a check -> 'a synth
   | Refl : 'a synth -> 'a synth
   | Sym : 'a synth -> 'a synth
   | Asc : 'a check * 'a synth -> 'a synth
 
-and _ check =
-  | Synth : 'a synth -> 'a check
-  | Lam : 'a N.suc check -> 'a check
-  | Pi : 'a check * 'a N.suc check -> 'a check
+and _ check = Synth : 'a synth -> 'a check | Lam : 'a N.suc check -> 'a check

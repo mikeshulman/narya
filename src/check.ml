@@ -66,12 +66,6 @@ let rec check : type a. a ctx -> a check -> value -> a term option =
       | Uninst ty -> check_lam ctx tm ty tube_zero Emp
       (* A lambda-abstraction is never a type, so we can't check against it.  But this is a user error, not a bug, since the user could write an abstraction on the RHS of an ascription. *)
       | Lam _ -> None)
-  | Pi (dom, cod) ->
-      (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
-      let* cdom = check ctx dom (Uninst (UU D.zero)) in
-      let edom = eval_in_ctx ctx cdom in
-      let* ccod = check (Snoc (ctx, edom)) cod (Uninst (UU D.zero)) in
-      return (Term.Pi (cdom, ccod))
 
 and check_lam :
     type a m n f.
@@ -141,6 +135,12 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
   match tm with
   | Var v -> return (Term.Var v, Bwv.nth v ctx)
   | UU -> return (Term.UU, Uninst (UU D.zero))
+  | Pi (dom, cod) ->
+      (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
+      let* cdom = check ctx dom (Uninst (UU D.zero)) in
+      let edom = eval_in_ctx ctx cdom in
+      let* ccod = check (Snoc (ctx, edom)) cod (Uninst (UU D.zero)) in
+      return (Term.Pi (cdom, ccod), Uninst (UU D.zero))
   | App _ ->
       (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
       let fn, args = spine tm in

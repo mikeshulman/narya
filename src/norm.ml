@@ -41,7 +41,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let n = dim_faces n_faces in
       let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
-      let (Has_faces mn_faces) = count_faces mn in
+      let (Faces mn_faces) = count_faces mn in
       (* We collect the supplied arguments in a hashtable for random access. *)
       let ntbl = Hashtbl.create 10 in
       let () = Bwv.iter2 (Hashtbl.add ntbl) (sfaces n_faces) args in
@@ -61,7 +61,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       apply fn mn mntbl
   | Pi (dom, cod) ->
       (* A user-space pi-type always has dimension zero, so this is simpler than the general case. *)
-      let (Has_faces dom_faces) = count_faces (dim_env env) in
+      let (Faces dom_faces) = count_faces (dim_env env) in
       let doms =
         Bwv.map (fun (SFace_of fa) -> eval (Act (env, op_of_sface fa)) dom) (sfaces dom_faces) in
       let cod' = eval_binder env faces_zero (D.plus_zero (dim_env env)) (Suc Zero) cod in
@@ -135,7 +135,7 @@ and apply_neu :
             Bwv.map2_plus pt.plus_faces
               (fun (SFace_of fab) afn ->
                 let k = dom_sface fab in
-                let (Has_faces k_faces) = count_faces k in
+                let (Faces k_faces) = count_faces k in
                 let afntbl = Hashtbl.create 10 in
                 let () =
                   Bwv.iter
@@ -161,7 +161,7 @@ and eval_binder :
  fun env bound_faces plus_dim plus_faces body ->
   (* let n = dim_faces bound_faces in *)
   let m = dim_env env in
-  let (Has_faces env_faces) = count_faces m in
+  let (Faces env_faces) = count_faces m in
   let mf = sfaces env_faces in
   let nf = sfaces bound_faces in
   let args =

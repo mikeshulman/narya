@@ -117,7 +117,7 @@ and check_lam :
             Bwv.map2_plus t.plus_faces
               (fun (SFace_of fa) afn ->
                 let k = dom_sface fa in
-                let (Has_faces k_faces) = count_faces k in
+                let (Faces k_faces) = count_faces k in
                 let afntbl = Hashtbl.create 10 in
                 let () =
                   Bwv.iter
@@ -231,7 +231,7 @@ and synth_app :
             Bwv.map2
               (fun (SFace_of fa) afn ->
                 let k = dom_sface fa in
-                let (Has_faces k_faces) = count_faces k in
+                let (Faces k_faces) = count_faces k in
                 let afntbl = Hashtbl.create 10 in
                 let () =
                   Bwv.iter

@@ -100,7 +100,7 @@ type (_, _, _) sface_of_plus =
 val sface_of_plus : ('n, 'k, 'nk) D.plus -> ('ml, 'nk) sface -> ('ml, 'n, 'k) sface_of_plus
 
 type ('n, 'f) count_faces
-type _ has_faces = Has_faces : ('n, 'f) count_faces -> 'n has_faces
+type _ has_faces = Faces : ('n, 'f) count_faces -> 'n has_faces
 
 val count_faces : 'n D.t -> 'n has_faces
 val faces_zero : (D.zero, N.one) count_faces

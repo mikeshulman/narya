@@ -57,7 +57,7 @@ and equal_at_uninst :
             Bwv.map2_plus t.plus_faces
               (fun (SFace_of fa) afn ->
                 let k = dom_sface fa in
-                let (Has_faces k_faces) = count_faces k in
+                let (Faces k_faces) = count_faces k in
                 let afntbl = Hashtbl.create 10 in
                 let () =
                   Bwv.iter

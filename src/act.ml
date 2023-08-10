@@ -61,7 +61,7 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
       let (Of fa) = deg_plus_to s (dim_binder cod) "pi-type" in
       let domtbl = Hashtbl.create 10 in
       let () = Bwv.iter2 (Hashtbl.add domtbl) (sfaces ni_faces) doms in
-      let (Has_faces mi_faces) = count_faces (dom_deg fa) in
+      let (Faces mi_faces) = count_faces (dom_deg fa) in
       let doms' =
         Bwv.map
           (fun (SFace_of fb) ->
@@ -92,7 +92,7 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   (* Now we have to assemble the arguments.  First we compute some faces. *)
   let plus_dim = D.plus_assocl jm plus_dim j_mn in
   let m_faces = sfaces env_faces in
-  let (Has_faces env_faces) = count_faces (D.plus_out j jm) in
+  let (Faces env_faces) = count_faces (D.plus_out j jm) in
   let n_faces = sfaces bound_faces in
   let jm_faces = sfaces env_faces in
   (* We collate the previous argument matrix in a hashtable for random access *)
@@ -206,7 +206,7 @@ and act_neu : type a b. neu -> (a, b) deg -> neu =
       (* And push the smaller degeneracy action into the application, acting on the function *)
       let fn = act_neu fn fa in
       let p = dom_deg fa in
-      let (Has_faces app_faces) = count_faces p in
+      let (Faces app_faces) = count_faces p in
       (* And on the arguments, by factorization *)
       let args =
         Bwv.map

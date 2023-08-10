@@ -375,12 +375,12 @@ let rec sface_of_plus :
 (* The strict faces of any dimension can be enumerated.  For efficiency, this could be memoized. *)
 
 type ('n, 'f) count_faces = (Endpoints.len D.suc, 'n, 'f) D.pow
-type _ has_faces = Has_faces : ('n, 'f) count_faces -> 'n has_faces
+type _ has_faces = Faces : ('n, 'f) count_faces -> 'n has_faces
 
 let count_faces : type n. n D.t -> n has_faces =
  fun n ->
   let (Has_pow f) = D.pow (D.suc Endpoints.len) n in
-  Has_faces f
+  Faces f
 
 let faces_zero : (D.zero, N.one) count_faces = Zero
 let dim_faces : type n f. (n, f) count_faces -> n D.t = fun c -> D.pow_right c
@@ -411,7 +411,7 @@ let dbl_sfaces : type n f. (n, f) count_faces -> (n dbl_sfaces_of, f) Bwv.t =
  fun nf ->
   Bwv.map
     (fun (SFace_of f) ->
-      let (Has_faces mf) = count_faces (dom_sface f) in
+      let (Faces mf) = count_faces (dom_sface f) in
       DblOf (mf, sfaces mf, f))
     (sfaces nf)
 
@@ -460,7 +460,7 @@ let tube_zero : (D.zero, D.zero, N.zero) count_tube =
 (*
 let tube_zero' : type m. m D.t -> (m, D.zero, N.zero) count_tube =
  fun m ->
-  let (Has_faces mf) = count_faces m in
+  let (Faces mf) = count_faces m in
   Tube
     {
       plus_dim = Zero;
@@ -475,9 +475,9 @@ type (_, _) has_tube = Has_tube : ('m, 'n, 'f) count_tube -> ('m, 'n) has_tube
 let has_tube : type m n mn. m D.t -> n D.t -> (m, n) has_tube =
  fun m n ->
   let (Plus plus_dim) = D.plus n in
-  let (Has_faces total_faces) = count_faces (D.plus_out m plus_dim) in
-  let (Has_faces missing_faces) = count_faces m in
-  let (Has_faces n_faces) = count_faces (D.plus_right plus_dim) in
+  let (Faces total_faces) = count_faces (D.plus_out m plus_dim) in
+  let (Faces missing_faces) = count_faces m in
+  let (Faces n_faces) = count_faces (D.plus_right plus_dim) in
   let emen = N.pow_plus (N.suc Endpoints.len) missing_faces n_faces plus_dim total_faces in
   let (Pos _) = N.pow_pos (Pos Endpoints.len) n_faces in
   let (Suc (_, plus_faces)) = emen in

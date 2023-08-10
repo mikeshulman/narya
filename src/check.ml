@@ -41,7 +41,9 @@ let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check option =
   | Zero, _ -> Some tm
   | Suc _, Lam body -> lambdas (N.suc_plus'' ab) body
   (* Not enough lambdas.  TODO: We could eta-expand in this case, as long as we've picked up at least one lambda. *)
-  | _ -> None
+  | _ ->
+      Printf.printf "Not enough lambdas";
+      None
 
 (* Slurp up an entire application spine *)
 let spine : type a. a synth -> a synth * a check list =
@@ -65,7 +67,9 @@ let rec check : type a. a ctx -> a check -> value -> a term option =
       | Inst { tm = ty; dim = _; tube; args } -> check_lam ctx tm ty tube args
       | Uninst ty -> check_lam ctx tm ty tube_zero Emp
       (* A lambda-abstraction is never a type, so we can't check against it.  But this is a user error, not a bug, since the user could write an abstraction on the RHS of an ascription. *)
-      | Lam _ -> None)
+      | Lam _ ->
+          Printf.printf "Lambda is not a type";
+          None)
 
 and check_lam :
     type a m n f.
@@ -74,7 +78,9 @@ and check_lam :
   match ty with
   | Pi (dom_faces, doms, cod) -> (
       match (compare (tube_uninst tube) D.zero, compare (tube_inst tube) (dim_faces dom_faces)) with
-      | Neq, _ | _, Neq -> None
+      | Neq, _ | _, Neq ->
+          Printf.printf "Dimension mismatch in checking lambda";
+          None
       | Eq, Eq ->
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
           let (Plus af) = N.plus (faces_out dom_faces) in
@@ -128,7 +134,9 @@ and check_lam :
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
   (* We can't check a lambda-abstraction against anything except a pi-type. *)
-  | _ -> None
+  | _ ->
+      Printf.printf "Can't check lambda against non-pi-type";
+      None
 
 and synth : type a. a ctx -> a synth -> (a term * value) option =
  fun ctx tm ->
@@ -159,7 +167,9 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
       try
         let symty = act_ty ex ety sym in
         return (Sym sx, symty)
-      with Invalid_uninst_action -> None)
+      with Invalid_uninst_action ->
+        Printf.printf "Can't symmetrize something of too low dimension";
+        None)
   | Asc (tm, ty) ->
       let* cty = check ctx ty (Uninst (UU D.zero)) in
       let ety = eval_in_ctx ctx cty in
@@ -197,7 +207,9 @@ and synth_app :
       (* Ensure that the pi-type is fully instantiated and at the right dimension. *)
       let n = dim_faces dom_faces in
       match (compare (tube_inst tube) n, compare (tube_uninst tube) D.zero) with
-      | Neq, _ | _, Neq -> None
+      | Neq, _ | _, Neq ->
+          Printf.printf "Dimension mismatch when synthesizing applied function";
+          None
       | Eq, Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app *)
           let* args, rest = Bwv.of_list (faces_out dom_faces) args in
@@ -252,7 +264,9 @@ and synth_app :
   | UU n -> (
       (* Ensure that the universe is fully instantiated and at the right dimension. *)
       match (compare (tube_inst tube) n, compare (tube_uninst tube) D.zero) with
-      | Neq, _ | _, Neq -> None
+      | Neq, _ | _, Neq ->
+          Printf.printf "Dimension mismatch when synthesizing instantiation";
+          None
       | Eq, Eq -> (
           let (Tube ({ total_faces; _ } as t)) = tube in
           let Eq = faces_uniq t.missing_faces faces_zero in
@@ -263,7 +277,9 @@ and synth_app :
             take_tube total_faces args in
           (* If there were any arguments left over, there's nothing that can be done with them.  (TODO: Should the iteration in take_tube be folded into that of synth_apps, so that each time through synth_app we only instantiate once?) *)
           match rest with
-          | _ :: _ -> None
+          | _ :: _ ->
+              Printf.printf "Too many arguments applied to instantiation";
+              None
           | [] ->
               let (Pos _) = faces_pos missing_faces in
               let (Suc ppf) = plus_faces in
@@ -318,4 +334,6 @@ and synth_app :
                   inst (Uninst (UU m)) mtube margs,
                   [] )))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
-  | _ -> None
+  | _ ->
+      Printf.printf "Attempt to apply non-function, non-type";
+      None

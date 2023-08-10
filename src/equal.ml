@@ -87,9 +87,13 @@ and equal_val : int -> value -> value -> unit option =
           let Eq = faces_uniq t1.missing_faces t2.missing_faces in
           let Eq = N.minus_uniq t1.plus_faces t2.plus_faces in
           bwv_iterM2 (equal_val n) a1 a2
-      | _ -> fail)
+      | _ ->
+          Printf.printf "Unequal dimensions of instantiation";
+          fail)
   | Lam _, _ | _, Lam _ -> raise (Failure "Unexpected lambda in synthesizing equality-check")
-  | _, _ -> None
+  | _, _ ->
+      Printf.printf "Unequal terms in synthesizing equality-check";
+      fail
 
 and equal_uninst : int -> uninst -> uninst -> unit option =
  fun n x y ->
@@ -97,10 +101,14 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
   | UU m, UU n -> (
       match compare m n with
       | Eq -> return ()
-      | _ -> fail)
+      | _ ->
+          Printf.printf "Unequal dimensions of universese";
+          fail)
   (* TODO: Are we supposed to compare the types of neutrals? *)
   | Neu (u, _), Neu (v, _) -> equal_neu n u v
-  | _ -> fail
+  | _ ->
+      Printf.printf "Unequal uninstantiated terms";
+      fail
 
 and equal_neu : int -> neu -> neu -> unit option =
  fun n x y ->
@@ -116,5 +124,9 @@ and equal_neu : int -> neu -> neu -> unit option =
       | Eq ->
           let Eq = faces_uniq af1 af2 in
           bwv_iterM2 (equal_nf n) a1 a2
-      | _ -> fail)
-  | _ -> fail
+      | _ ->
+          Printf.printf "Unequal dimensions of application";
+          fail)
+  | _ ->
+      Printf.printf "Unequal neutral terms";
+      fail

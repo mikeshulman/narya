@@ -36,16 +36,24 @@ module type Monoid = sig
     ('a, 'b, 'ab) plus -> ('b, 'c, 'bc) plus -> ('ab, 'c, 'abc) plus -> ('a, 'bc, 'abc) plus
 end
 
+(* Monoids with positivity (i.e. nonzero-ness) predicate *)
+
 module type MonoidPos = sig
   include Monoid
 
+  (* A subtype of elements of the monoid called "positive" *)
   type _ pos
 
-  val zero_nonpos : zero pos -> 'c
-  val plus_pos : 'a t -> 'b pos -> ('a, 'b, 'ab) plus -> 'ab pos
-  val pos_plus : 'a pos -> ('a, 'b, 'ab) plus -> 'ab pos
   val pos : 'a pos -> 'a t
 
+  (* Zero is not positive.  We assert this by explosion. *)
+  val zero_nonpos : zero pos -> 'c
+
+  (* Adding a positive element to anything remains positive. *)
+  val plus_pos : 'a t -> 'b pos -> ('a, 'b, 'ab) plus -> 'ab pos
+  val pos_plus : 'a pos -> ('a, 'b, 'ab) plus -> 'ab pos
+
+  (* Everything is either zero or positive. *)
   type _ compare_zero = Zero : zero compare_zero | Pos : 'n pos -> 'n compare_zero
 
   val compare_zero : 'a t -> 'a compare_zero

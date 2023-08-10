@@ -1,4 +1,4 @@
-(* Type-level natural numbers.  Don't import, use qualified: natural numbers are types satisfying the predicate 'a N.t. *)
+(* Type-level natural numbers.  This module should not be opened, but used qualified.  Natural numbers are types satisfying the predicate 'a N.t. *)
 
 open Monoid
 
@@ -12,7 +12,7 @@ type three = two suc
 
 (* ********** Addition ********** *)
 
-(* Addition as a relation.  It's tempting to think that since we're indexing by types, we could actually just use coproduct types rather than defining addition on canonical finite types as a relation.  However, coproducts aren't strictly associative, so we would have to transport across isomorphism somehow.  Since OCaml is not univalent, it's easier to stick with canonical finite types and make addition a relation. *)
+(* Addition as a relation.  It's tempting to think that since we're indexing by types, we could actually just use coproduct types rather than defining addition on canonical finite types as a relation.  However, coproducts aren't strictly associative, so we would have to transport across isomorphisms somehow.  Since OCaml is not univalent, it's easier to stick with canonical finite types and make addition a relation. *)
 type (_, _, _) plus =
   | Zero : ('m, zero, 'm) plus
   | Suc : ('m, 'n, 'p) plus -> ('m, 'n suc, 'p suc) plus
@@ -130,7 +130,8 @@ let rec plus_comm : type m n mn. m t -> (m, n, mn) plus -> (n, m, mn) plus =
    type zero = |
    type 'n suc = Top | Pop of 'n
 
-   However, with that approach a De Bruijn index in scope 'n is just an element of 'n, which doesn't guarantee that 'n is actually a type-level natural number; it could be any inhabited type at all.  Thus, we need extra hypotheses of "n nat" (see below) in several places.  By contrast, if we define De Bruijn indices as a GADT, we are guaranteed that if we have an element of "n index" then n must be a natural number. *)
+   However, with that approach a De Bruijn index in scope 'n is just an element of 'n, which doesn't guarantee that 'n is actually a type-level natural number; it could be any inhabited type at all.  Thus, we need extra hypotheses of "n N.t" in several places.  By contrast, if we define De Bruijn indices as a GADT, we are guaranteed that if we have an element of "n index" then n must be a natural number. *)
+
 type _ index = Top : 'n suc index | Pop : 'n index -> 'n suc index
 
 (* Lift an index to a context extended on the left, thereby maintaining the same numerical De Bruijn index value. *)

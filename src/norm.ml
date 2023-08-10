@@ -32,7 +32,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       inst newtm newtube newargs
   | Lam (n_faces, plus_n_faces, body) ->
       let (Plus mn) = D.plus (dim_faces n_faces) in
-      Uninst (Lam (eval_binder env n_faces mn plus_n_faces body))
+      Lam (eval_binder env n_faces mn plus_n_faces body)
   | App (fn, n_faces, args) ->
       (* First we evaluate the function. *)
       let fn = eval env fn in
@@ -77,7 +77,7 @@ and apply : type n f. value -> n D.t -> (n sface_of, value) Hashtbl.t -> value =
  fun fn mn mntbl ->
   match fn with
   (* If the function is a lambda-abstraction, we beta-reduce, adding the above-computed arguments to the environment. *)
-  | Uninst (Lam body) -> (
+  | Lam body -> (
       (* First we check that it has the correct dimension. *)
       match compare (dim_binder body) mn with
       | Neq -> raise (Failure "Dimension mismatch applying a lambda")

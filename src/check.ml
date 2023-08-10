@@ -40,6 +40,7 @@ let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check option =
   match (ab, tm) with
   | Zero, _ -> Some tm
   | Suc _, Lam body -> lambdas (N.suc_plus'' ab) body
+  (* Not enough lambdas.  TODO: We could eta-expand in this case, as long as we've picked up at least one lambda. *)
   | _ -> None
 
 (* Slurp up an entire application spine *)
@@ -62,7 +63,9 @@ let rec check : type a. a ctx -> a check -> value -> a term option =
       (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam. *)
       match ty with
       | Inst { tm = ty; dim = _; tube; args } -> check_lam ctx tm ty tube args
-      | Uninst ty -> check_lam ctx tm ty tube_zero Emp)
+      | Uninst ty -> check_lam ctx tm ty tube_zero Emp
+      (* A lambda-abstraction is never a type, so we can't check against it.  But this is a user error, not a bug, since the user could write an abstraction on the RHS of an ascription. *)
+      | Lam _ -> None)
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let* cdom = check ctx dom (Uninst (UU D.zero)) in
@@ -130,6 +133,7 @@ and check_lam :
           let output = inst (apply_binder cod argtbl) tube out_args in
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
+  (* We can't check a lambda-abstraction against anything except a pi-type. *)
   | _ -> None
 
 and synth : type a. a ctx -> a synth -> (a term * value) option =
@@ -170,7 +174,9 @@ and synth_apps : type a. a ctx -> a term -> value -> a check list -> (a term * v
   let* afn, aty, aargs =
     match sty with
     | Inst { tm = fnty; dim = _; tube; args = tyargs } -> synth_app ctx sfn fnty tube tyargs args
-    | Uninst fnty -> synth_app ctx sfn fnty tube_zero Emp args in
+    | Uninst fnty -> synth_app ctx sfn fnty tube_zero Emp args
+    (* A lambda-abstraction here would really be a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize an abstraction as if it were a type.  Thus, we raise an exception rather than returning None. *)
+    | Lam _ -> raise (Failure "Synthesized type cannot be a lambda-abstraction") in
   (* If that used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
   match aargs with
   | [] -> return (afn, aty)
@@ -312,4 +318,5 @@ and synth_app :
                 ( Term.Inst (sfn, Tube { plus_dim; total_faces; missing_faces; plus_faces }, cargs),
                   inst (Uninst (UU m)) mtube margs,
                   [] )))
+  (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
   | _ -> None

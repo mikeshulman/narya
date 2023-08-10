@@ -18,7 +18,7 @@ let deg_plus_to : type m n nk. (m, n) deg -> nk D.t -> string -> nk deg_of =
 (* Existential GADT that encapsulates the output of acting on a binder, along with the extended degeneracy so that it can be used elsewhere with the same dimension. *)
 type _ plus_binder = Binder : ('mi, 'ni) deg * 'mi binder -> 'ni plus_binder
 
-(* Since a value is either instantiated or uninstantiated, this function just deals with instantiations and passes everything else off to act_uninst. *)
+(* Since a value is either instantiated or uninstantiated, this function just deals with instantiations and lambda-abstractions and passes everything else off to act_uninst. *)
 let rec act_value : type m n. value -> (m, n) deg -> value =
  fun v s ->
   match v with
@@ -46,6 +46,9 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
             act_value (Hashtbl.find argtbl (SFace_of (sface_plus_sface fe nj q fd))) fs)
           (Bwv.take t.plus_faces (sfaces t.total_faces)) in
       Inst { tm = act_uninst tm fa; dim; tube; args }
+  | Lam body ->
+      let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
+      Lam (act_binder body fa)
 
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
@@ -54,9 +57,6 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
   | UU nk ->
       let (Of fa) = deg_plus_to s nk "universe" in
       UU (dom_deg fa)
-  | Lam body ->
-      let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
-      Lam (act_binder body fa)
   | Pi (ni_faces, doms, cod) ->
       let (Of fa) = deg_plus_to s (dim_binder cod) "pi-type" in
       let domtbl = Hashtbl.create 10 in
@@ -183,6 +183,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
                     act_value tm fc)
                   new_faces in
               Inst { tm = act_uninst ty fa; dim; tube; args }))
+  | Lam _ -> raise (Failure "A lambda-abstraction cannot be a type to act on")
 
 and act_neu : type a b. neu -> (a, b) deg -> neu =
  fun ne s ->

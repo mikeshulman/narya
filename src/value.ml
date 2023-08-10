@@ -39,7 +39,6 @@ and _ binder =
 (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-types must be "instantiated", albeit trivially. *)
 and uninst =
   | UU : 'n D.t -> uninst
-  | Lam : 'k binder -> uninst
   (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated. *)
   | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * 'k binder -> uninst
   | Neu : neu * value -> uninst (* Neutral terms store their type *)
@@ -59,6 +58,8 @@ and value =
       args : (value, 'f) Bwv.t;
     }
       -> value
+  (* Lambda-abstractions are never types, so they can never be nontrivially instantiated, so we may as well make them values directly. *)
+  | Lam : 'k binder -> value
 
 (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
 and normal = { tm : value; ty : value }
@@ -100,7 +101,8 @@ let inst : type m n f. value -> (m, n, f) count_tube -> (value, f) Bwv.t -> valu
               let (Tube_plus_tube (nk, tube, _, args)) =
                 tube_plus_tube tube2.plus_dim (Tube tube1) (Tube tube2) args1 args2 in
               Inst { tm; dim = D.pos_plus dim2 nk; tube; args })
-      | Uninst tm -> Inst { tm; dim = dim2; tube = Tube tube2; args = args2 })
+      | Uninst tm -> Inst { tm; dim = dim2; tube = Tube tube2; args = args2 }
+      | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))
 
 (* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
 let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =

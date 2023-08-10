@@ -16,6 +16,7 @@ and equal_at : int -> value -> value -> value -> unit option =
   match ty with
   | Uninst tm -> equal_at_uninst n x y tm tube_zero Emp
   | Inst { tm; dim = _; tube; args } -> equal_at_uninst n x y tm tube args
+  | Lam _ -> raise (Failure "Lambda-abstraction is not a type for equality-checking")
 
 and equal_at_uninst :
     type m n f.
@@ -87,12 +88,12 @@ and equal_val : int -> value -> value -> unit option =
           let Eq = N.minus_uniq t1.plus_faces t2.plus_faces in
           bwv_iterM2 (equal_val n) a1 a2
       | _ -> fail)
+  | Lam _, _ | _, Lam _ -> raise (Failure "Unexpected lambda in synthesizing equality-check")
   | _, _ -> None
 
 and equal_uninst : int -> uninst -> uninst -> unit option =
  fun n x y ->
   match (x, y) with
-  | Lam _, _ | _, Lam _ -> raise (Failure "Unexpected lambda in synthesizing equality-check")
   | UU m, UU n -> (
       match compare m n with
       | Eq -> return ()

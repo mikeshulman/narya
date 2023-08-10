@@ -12,7 +12,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let (Tube t) = tube in
       let nk = t.plus_dim in
       (* Add the environment dimension to the uninstantiated dimensions *)
-      let (Has_plus mn) = D.plus (tube_uninst tube) in
+      let (Plus mn) = D.plus (tube_uninst tube) in
       let (Has_tube newtube) = has_tube (D.plus_out (dim_env env) mn) (D.plus_right nk) in
       let (Tube newt) = newtube in
       let mn_k = newt.plus_dim in
@@ -31,7 +31,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
           (sfaces newt.total_faces) in
       inst newtm newtube newargs
   | Lam (n_faces, plus_n_faces, body) ->
-      let (Has_plus mn) = D.plus (dim_faces n_faces) in
+      let (Plus mn) = D.plus (dim_faces n_faces) in
       Uninst (Lam (eval_binder env n_faces mn plus_n_faces body))
   | App (fn, n_faces, args) ->
       (* First we evaluate the function. *)
@@ -39,7 +39,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       (* The environment is m-dimensional and the original application is n-dimensional, so the *substituted* application is m+n dimensional.  Thus must therefore match the dimension of the function being applied. *)
       let m = dim_env env in
       let n = dim_faces n_faces in
-      let (Has_plus m_n) = D.plus n in
+      let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
       let (Has_faces mn_faces) = count_faces mn in
       (* We collect the supplied arguments in a hashtable for random access. *)
@@ -169,7 +169,7 @@ and eval_binder :
       (fun (SFace_of fa) ->
         Bwv.map
           (fun (SFace_of fb) ->
-            let (Has_plus plus_dom) = D.plus (dom_sface fa) in
+            let (Plus plus_dom) = D.plus (dom_sface fa) in
             Face_of
               (Face
                  ( sface_plus_sface fb plus_dim plus_dom fa,

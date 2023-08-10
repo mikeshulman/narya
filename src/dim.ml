@@ -231,7 +231,7 @@ type _ deg_of_plus = Of : ('n, 'k, 'nk) D.plus * ('m, 'nk) deg -> 'n deg_of_plus
 
 let comp_deg_of_plus : type m n. (m, n) deg -> m deg_of_plus -> n deg_of_plus =
  fun s2 (Of (mk, s1)) ->
-  let (Has_plus nk) = D.plus (Nat mk) in
+  let (Plus nk) = D.plus (Nat mk) in
   let s2k = deg_plus s2 nk mk in
   Of (nk, comp_deg s2k s1)
 
@@ -252,8 +252,8 @@ let comp_deg_extending : type m n l k. (m, n) deg -> (k, l) deg -> (k, n) deg_ex
   let m = dom_deg a in
   (* let n = cod_deg a in *)
   let (Pushout (mi, lj)) = pushout m l in
-  let (Has_plus kj) = D.plus (Nat lj) in
-  let (Has_plus ni) = D.plus (Nat mi) in
+  let (Plus kj) = D.plus (Nat lj) in
+  let (Plus ni) = D.plus (Nat mi) in
   DegExt (kj, ni, comp_deg (deg_plus a ni mi) (deg_plus b lj kj))
 
 type any_deg = Any : ('m, 'n) deg -> any_deg
@@ -265,21 +265,21 @@ let comp_deg_any : type m n. (m, n) deg -> any_deg -> n deg_of_plus =
   let m = dom_deg a in
   (* let n = cod_deg a in *)
   let (Pushout (mi, lj)) = pushout m l in
-  let (Has_plus kj) = D.plus (Nat lj) in
-  let (Has_plus ni) = D.plus (Nat mi) in
+  let (Plus kj) = D.plus (Nat lj) in
+  let (Plus ni) = D.plus (Nat mi) in
   Of (ni, comp_deg (deg_plus a ni mi) (deg_plus b lj kj))
 
 let comp_deg_of_plus_any : type n. n deg_of_plus -> any_deg -> n deg_of_plus =
  fun (Of (nk, a)) b ->
   let (Of (nk_l, s)) = comp_deg_any a b in
-  let (Has_plus kl) = D.plus (D.plus_right nk_l) in
+  let (Plus kl) = D.plus (D.plus_right nk_l) in
   let n_kl = D.plus_assocr nk kl nk_l in
   Of (n_kl, s)
 
 let any_deg_plus : type k. any_deg -> k D.t -> any_deg =
  fun (Any deg) k ->
-  let (Has_plus mk) = D.plus k in
-  let (Has_plus nk) = D.plus k in
+  let (Plus mk) = D.plus k in
+  let (Plus nk) = D.plus k in
   Any (deg_plus deg mk nk)
 
 let any_of_deg_of_plus : type n. n deg_of_plus -> any_deg = function
@@ -474,7 +474,7 @@ type (_, _) has_tube = Has_tube : ('m, 'n, 'f) count_tube -> ('m, 'n) has_tube
 
 let has_tube : type m n mn. m D.t -> n D.t -> (m, n) has_tube =
  fun m n ->
-  let (Has_plus plus_dim) = D.plus n in
+  let (Plus plus_dim) = D.plus n in
   let (Has_faces total_faces) = count_faces (D.plus_out m plus_dim) in
   let (Has_faces missing_faces) = count_faces m in
   let (Has_faces n_faces) = count_faces (D.plus_right plus_dim) in
@@ -499,10 +499,10 @@ let tube_plus_tube :
     (a, fmn) Bwv.t ->
     (m, n, k, fmnk, fmn, a) tube_plus_tube =
  fun mn (Tube fmnk) (Tube fmn) argsk argsn ->
-  let (Has_plus nk) = D.plus (D.plus_right fmnk.plus_dim) in
+  let (Plus nk) = D.plus (D.plus_right fmnk.plus_dim) in
   let Eq = N.plus_uniq mn fmn.plus_dim in
   let Eq = N.pow_uniq fmnk.missing_faces fmn.total_faces in
-  let (Has_plus ff) = N.plus (N.plus_left fmn.plus_faces (faces_out fmn.total_faces)) in
+  let (Plus ff) = N.plus (N.plus_left fmn.plus_faces (faces_out fmn.total_faces)) in
   Tube_plus_tube
     ( nk,
       Tube
@@ -535,7 +535,7 @@ let rec take_tube : type a n f. (n, f) count_faces -> a list -> (a, n, f) take_t
       | None -> Take (Zero, nf, N.zero_plus (faces_out nf), Emp, xs)
       | Some (args1, rest1) ->
           let (Take (kl, missing_faces, plus_faces, args2, rest2)) = take_tube pnf rest1 in
-          let (Has_plus pnf_times_e__plus_f) = N.plus (Bwv.length args2) in
+          let (Plus pnf_times_e__plus_f) = N.plus (Bwv.length args2) in
           let pnf_times_e__plus_f___plus_kf =
             N.plus_assocl pnf_times_e__plus_f plus_faces pnf_times_e__plus_pnf in
           Take
@@ -652,7 +652,7 @@ let op_plus_op :
     type m n mn k l kl.
     (k, m) op -> (m, n, mn) D.plus -> (k, l, kl) D.plus -> (l, n) op -> (kl, mn) op =
  fun (Op (d1, s1)) mn kl (Op (d2, s2)) ->
-  let (Has_plus middle) = D.plus (dom_sface d2) in
+  let (Plus middle) = D.plus (dom_sface d2) in
   Op (sface_plus_sface d1 mn middle d2, deg_plus_deg s1 middle kl s2)
 
 type _ op_of = Of : ('m, 'n) op -> 'n op_of

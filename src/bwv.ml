@@ -42,10 +42,10 @@ let rec index : type a n. a -> (a, n) t -> n N.index option =
 
 (* Sometimes we want to add the length of a backwards vector to another type-level nat.  This function does both of those in one traversal. *)
 let rec plus_length : type a m n. (a, n) t -> (m, n) N.has_plus = function
-  | Emp -> Has_plus Zero
+  | Emp -> Plus Zero
   | Snoc (xs, _) ->
-      let (Has_plus mn) = plus_length xs in
-      Has_plus (Suc mn)
+      let (Plus mn) = plus_length xs in
+      Plus (Suc mn)
 
 let rec map : type a b n. (a -> b) -> (a, n) t -> (b, n) t =
  fun f -> function

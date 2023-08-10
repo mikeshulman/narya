@@ -47,13 +47,13 @@ let two : two t = suc one
 let three : three t = suc two
 
 (* A natural number can be added on the right to anything.  We "return a type" by wrapping it in a GADT.  *)
-type (_, _) has_plus = Has_plus : ('m, 'n, 'mn) plus -> ('m, 'n) has_plus
+type (_, _) has_plus = Plus : ('m, 'n, 'mn) plus -> ('m, 'n) has_plus
 
 let rec plus : type m n. n t -> (m, n) has_plus = function
-  | Nat Zero -> Has_plus Zero
+  | Nat Zero -> Plus Zero
   | Nat (Suc n) ->
-      let (Has_plus mn) = plus (Nat n) in
-      Has_plus (Suc mn)
+      let (Plus mn) = plus (Nat n) in
+      Plus (Suc mn)
 
 (* Addition preserves natural numbers *)
 let rec plus_out : type m n mn. m t -> (m, n, mn) plus -> mn t =
@@ -282,7 +282,7 @@ let rec times : type a b. a t -> b t -> (a, b) has_times =
   | Nat Zero -> Has_times (Zero a)
   | Nat (Suc b) ->
       let (Has_times ab) = times a (Nat b) in
-      let (Has_plus aba) = plus a in
+      let (Plus aba) = plus a in
       Has_times (Suc (ab, aba))
 
 let times_zero : type a. a t -> (a, zero, zero) times = fun a -> Zero a

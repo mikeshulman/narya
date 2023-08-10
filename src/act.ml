@@ -11,7 +11,7 @@ let deg_plus_to : type m n nk. (m, n) deg -> nk D.t -> string -> nk deg_of =
   match factor nk (cod_deg s) with
   | None -> raise (Failure ("Invalid degeneracy action on " ^ err))
   | Some (Factor nk) ->
-      let (Has_plus mk) = D.plus (D.plus_right nk) in
+      let (Plus mk) = D.plus (D.plus_right nk) in
       let sk = deg_plus s nk mk in
       Of sk
 
@@ -42,7 +42,7 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
           (fun (SFace_of fed) ->
             let (SFace_of_plus (_, fb, fd)) = sface_of_plus t.plus_dim fed in
             let (Op (fe, fs)) = deg_sface fa fb in
-            let (Has_plus q) = D.plus (dom_sface fd) in
+            let (Plus q) = D.plus (dom_sface fd) in
             act_value (Hashtbl.find argtbl (SFace_of (sface_plus_sface fe nj q fd))) fs)
           (Bwv.take t.plus_faces (sfaces t.total_faces)) in
       Inst { tm = act_uninst tm fa; dim; tube; args }
@@ -86,7 +86,7 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   (* The permutation fb is composed with (a whiskering of) the previous stored permutation to become the new one. *)
   let perm = comp_perm (plus_perm j j_mn perm) fb in
   (* The strict degeneracy fc acts on the stored environment *)
-  let (Has_plus jm) = D.plus m in
+  let (Plus jm) = D.plus m in
   let fcm = deg_plus fc (D.zero_plus m) jm in
   let env = Act (env, op_of_deg fcm) in
   (* Now we have to assemble the arguments.  First we compute some faces. *)
@@ -112,7 +112,7 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
             let (SFace_of_plus (_, fr, fu)) = sface_of_plus jm frfu in
             (* ...combine the face fu of m and the face fv of n using the previous argument matrix... *)
             let (Face_of fs) = Hashtbl.find tbl (SFace_of fu, SFace_of fv) in
-            let (Has_plus ci) = D.plus (dom_face fs) in
+            let (Plus ci) = D.plus (dom_face fs) in
             (* ...add the resulting face to fr... *)
             let frfs = face_plus_face (face_of_sface fr) j_mn ci fs in
             (* ...and combine it with the inverse of fb from above. *)
@@ -196,7 +196,7 @@ and act_neu : type a b. neu -> (a, b) deg -> neu =
       let nk = plus_of_ins ins in
       let s' = perm_of_ins ins in
       let (DegExt (_, nk_d, s's)) = comp_deg_extending s' s in
-      let (Has_plus kd) = D.plus (D.plus_right nk_d) in
+      let (Plus kd) = D.plus (D.plus_right nk_d) in
       let n_kd = D.plus_assocr nk kd nk_d in
       (* Factor the result into a new insertion and a smaller degeneracy *)
       let (Insfact (fa, ins)) = insfact s's n_kd in

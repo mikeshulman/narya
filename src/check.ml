@@ -80,7 +80,7 @@ and check_lam :
       | Neq, _ | _, Neq -> None
       | Eq, Eq ->
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
-          let (Has_plus af) = N.plus (faces_out dom_faces) in
+          let (Plus af) = N.plus (faces_out dom_faces) in
           let* body = lambdas af tm in
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
           (* TODO: This is largely copy-and-pasted from equal_at_uninst.  Factor it out. *)

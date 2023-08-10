@@ -11,7 +11,7 @@ module type Monoid = sig
   type ('a, 'b, 'c) plus
 
   (* To compute a sum, we wrap up the output in a GADT. *)
-  type (_, _) has_plus = Has_plus : ('a, 'b, 'c) plus -> ('a, 'b) has_plus
+  type (_, _) has_plus = Plus : ('a, 'b, 'c) plus -> ('a, 'b) has_plus
 
   (* The conditions on which of these have to be assumed and which are deduced follows what happens for type-level natural numbers.  If we had other examples, we might have to be more flexible. *)
   val plus : 'b t -> ('a, 'b) has_plus

@@ -196,8 +196,3 @@ and apply_binder : type m n f a. n binder -> (n sface_of, value) Hashtbl.t -> va
              b.args))
        b.body)
     b.perm
-
-(* These probably shouldn't go back to "term" but to some displayable thing. *)
-let quote_nf : 'a N.t -> normal -> 'a term = fun _ _ -> Sorry.e ()
-and quote_val : 'a N.t -> value -> 'a term = fun _ _ -> Sorry.e ()
-and quote_neu : 'a N.t -> neu -> 'a term = fun _ _ -> Sorry.e ()

@@ -76,19 +76,19 @@ and check_lam :
     a ctx -> a check -> uninst -> (m, n, f) count_tube -> (value, f) Bwv.t -> a term option =
  fun ctx tm ty tube args ->
   match ty with
-  | Pi (dom_faces, doms, cod) -> (
-      match (compare (tube_uninst tube) D.zero, compare (tube_inst tube) (dim_faces dom_faces)) with
+  | Pi (dom_faces, doms, cods) -> (
+      let m = tube_inst tube in
+      match (compare (tube_uninst tube) D.zero, compare m (dim_faces dom_faces)) with
       | Neq, _ | _, Neq ->
           Printf.printf "Dimension mismatch in checking lambda";
           None
-      | Eq, Eq ->
+      | Eq, Eq -> (
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
           let (Plus af) = N.plus (faces_out dom_faces) in
           let* body = lambdas af tm in
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
           (* TODO: This is largely copy-and-pasted from equal_at_uninst.  Factor it out. *)
           let (Tube t) = tube in
-          let m = tube_inst tube in
           let Eq = D.plus_uniq t.plus_dim (D.zero_plus m) in
           let Eq = faces_uniq t.total_faces dom_faces in
           let Eq = faces_uniq t.missing_faces faces_zero in
@@ -130,9 +130,13 @@ and check_lam :
                     (sfaces k_faces) in
                 apply afn (dom_sface fa) afntbl)
               df args in
-          let output = inst (apply_binder cod argtbl) tube out_args in
-          let* cbody = check ctx body output in
-          return (Term.Lam (dom_faces, af, cbody)))
+          let idf = id_sface m in
+          match Tree.nth cods idf with
+          | Applied (Binderf, cod) ->
+              let output = inst (apply_binder cod idf argtbl) tube out_args in
+              let* cbody = check ctx body output in
+              return (Term.Lam (dom_faces, af, cbody))
+          | _ -> raise (Failure "ugh extensible")))
   (* We can't check a lambda-abstraction against anything except a pi-type. *)
   | _ ->
       Printf.printf "Can't check lambda against non-pi-type";
@@ -203,14 +207,14 @@ and synth_app :
  fun ctx sfn fnty tube tyargs args ->
   match fnty with
   (* The obvious thing we can "apply" is an element of a pi-type. *)
-  | Pi (dom_faces, doms, cod) -> (
+  | Pi (dom_faces, doms, cods) -> (
       (* Ensure that the pi-type is fully instantiated and at the right dimension. *)
       let n = dim_faces dom_faces in
       match (compare (tube_inst tube) n, compare (tube_uninst tube) D.zero) with
       | Neq, _ | _, Neq ->
           Printf.printf "Dimension mismatch when synthesizing applied function";
           None
-      | Eq, Eq ->
+      | Eq, Eq -> (
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app *)
           let* args, rest = Bwv.of_list (faces_out dom_faces) args in
           let argtbl = Hashtbl.create 10 in
@@ -258,8 +262,12 @@ and synth_app :
                     (sfaces k_faces) in
                 apply afn (dom_sface fa) afntbl)
               sdf tyargs in
-          let output = inst (apply_binder cod eargtbl) tube out_args in
-          return (Term.App (sfn, dom_faces, cargs), output, rest))
+          let idf = id_sface n in
+          match Tree.nth cods idf with
+          | Applied (Binderf, cod) ->
+              let output = inst (apply_binder cod idf eargtbl) tube out_args in
+              return (Term.App (sfn, dom_faces, cargs), output, rest)
+          | _ -> raise (Failure "ugh extensible")))
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (
       (* Ensure that the universe is fully instantiated and at the right dimension. *)

@@ -61,11 +61,24 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       apply fn mn mntbl
   | Pi (dom, cod) ->
       (* A user-space pi-type always has dimension zero, so this is simpler than the general case. *)
-      let (Faces dom_faces) = count_faces (dim_env env) in
+      let m = dim_env env in
+      let (Faces dom_faces) = count_faces m in
       let doms =
         Bwv.map (fun (SFace_of fa) -> eval (Act (env, op_of_sface fa)) dom) (sfaces dom_faces) in
-      let cod' = eval_binder env faces_zero (D.plus_zero (dim_env env)) (Suc Zero) cod in
-      Uninst (Pi (dom_faces, doms, cod'))
+      let cods' =
+        Tree.build m
+          {
+            leaf =
+              (fun fa ->
+                Applied
+                  ( Binderf,
+                    eval_binder
+                      (Act (env, op_of_sface fa))
+                      faces_zero
+                      (D.plus_zero (dom_sface fa))
+                      (Suc Zero) cod ));
+          } in
+      Uninst (Pi (dom_faces, doms, cods'))
   | Refl x -> act_value (eval env x) refl
   | Sym x -> act_value (eval env x) sym
   | Id (a, x, y) ->
@@ -81,7 +94,7 @@ and apply : type n f. value -> n D.t -> (n sface_of, value) Hashtbl.t -> value =
       (* First we check that it has the correct dimension. *)
       match compare (dim_binder body) mn with
       | Neq -> raise (Failure "Dimension mismatch applying a lambda")
-      | Eq -> apply_binder body mntbl)
+      | Eq -> apply_binder body (id_sface mn) mntbl)
   (* If the function is a neutral function, either zero-dimensional or higher-dimensional with instantiated type, we create a new neutral application. *)
   | Uninst (Neu (fn, Inst { tm; dim = _; tube; args })) -> apply_neu fn tm tube args mn mntbl
   | Uninst (Neu (fn, Uninst tm)) -> apply_neu fn tm tube_zero Emp mn mntbl
@@ -98,7 +111,7 @@ and apply_neu :
     value =
  fun fn tm pi_tube pi_args mn mntbl ->
   match tm with
-  | Pi (app_faces, doms, cod) -> (
+  | Pi (app_faces, doms, cods) -> (
       (* We check that the pi-type has the correct dimension, is fully instantiated, and has the correct dimension of instantiation. *)
       match
         ( compare (dim_faces app_faces) mn,
@@ -108,7 +121,7 @@ and apply_neu :
       | Neq, _, _ -> raise (Failure "Function-type dimension mismatch applying a neutral function")
       | _, Neq, _ -> raise (Failure "Application of non-fully-instantiated function")
       | _, _, Neq -> raise (Failure "Instantiation mismatch applying a neutral function")
-      | Eq, Eq, Eq ->
+      | Eq, Eq, Eq -> (
           let (Tube pt) = pi_tube in
           let Eq = D.plus_uniq pt.plus_dim (D.zero_plus mn) in
           let Eq = faces_uniq pt.total_faces app_faces in
@@ -145,9 +158,13 @@ and apply_neu :
                     (sfaces k_faces) in
                 apply afn (dom_sface fab) afntbl)
               mnf pi_args in
-          let output = inst (apply_binder cod mntbl) pi_tube out_args in
-          (* Finally we assemble a new neutral application with these arguments, with a trivial outer insertion, and with the calculated type. *)
-          Uninst (Neu (App { fn; app_faces; args; ins = zero_ins mn }, output)))
+          let idf = id_sface mn in
+          match Tree.nth cods idf with
+          | Applied (Binderf, cod) ->
+              let output = inst (apply_binder cod idf mntbl) pi_tube out_args in
+              (* Finally we assemble a new neutral application with these arguments, with a trivial outer insertion, and with the calculated type. *)
+              Uninst (Neu (App { fn; app_faces; args; ins = zero_ins mn }, output))
+          | _ -> raise (Failure "ugh extensible")))
   | _ -> raise (Failure "Invalid application of non-function")
 
 and eval_binder :
@@ -179,8 +196,9 @@ and eval_binder :
   let perm = id_perm (D.plus_out m plus_dim) in
   Bind { env; perm; plus_dim; bound_faces; plus_faces; body; env_faces; args }
 
-and apply_binder : type m n f a. n binder -> (n sface_of, value) Hashtbl.t -> value =
- fun (Bind b) argstbl ->
+and apply_binder : type m n f a. m binder -> (m, n) sface -> (n sface_of, value) Hashtbl.t -> value
+    =
+ fun (Bind b) s argstbl ->
   act_value
     (eval
        (env_append b.plus_faces b.env
@@ -190,7 +208,8 @@ and apply_binder : type m n f a. n binder -> (n sface_of, value) Hashtbl.t -> va
                let () =
                  Bwv.iter2
                    (fun fc (Face_of (Face (fa, fb))) ->
-                     Hashtbl.add tbl fc (act_value (Hashtbl.find argstbl (SFace_of fa)) fb))
+                     Hashtbl.add tbl fc
+                       (act_value (Hashtbl.find argstbl (SFace_of (comp_sface s fa))) fb))
                    (sfaces b.env_faces) ffs in
                tbl)
              b.args))

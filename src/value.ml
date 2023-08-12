@@ -1,6 +1,8 @@
 open Dim
 open Term
 
+type binderf = Dummy_binderf
+
 (* Internal values, the result of evaluation with closures for abstractions.  Use De Bruijn *levels*, so that weakening is implicit.  Fully internal unbiased syntax lives here: in addition to higher-dimensional applications and abstractions, we also have higher-dimensional pi-types, higher-dimensional universes, and floors of higher-dimensional types.  Separated into neutrals and normals, so that there are no beta-redexes.  Explicit substitutions (environments) are stored on binders, for NBE.  Operator actions are treated as a mix between substitutions and syntax. *)
 
 (* Neutrals are as usual, except that they have a nonreducible degeneracy applied outside. *)
@@ -40,7 +42,7 @@ and _ binder =
 and uninst =
   | UU : 'n D.t -> uninst
   (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated. *)
-  | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * 'k binder -> uninst
+  | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * (binderf, 'k) Tree.t -> uninst
   | Neu : neu * value -> uninst (* Neutral terms store their type *)
 
 and value =
@@ -69,6 +71,8 @@ and (_, _) env =
   | Emp : 'n D.t -> ('n, N.zero) env
   | Ext : ('n, 'b) env * ('n sface_of, value) Hashtbl.t -> ('n, 'b N.suc) env
   | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
+
+type (_, _, _) Appl.y += Binderf : (binderf, 'k, 'k binder) Appl.y
 
 let var : int -> value -> value =
  fun i ty -> Uninst (Neu (Var { level = i; deg = id_deg D.zero }, ty))

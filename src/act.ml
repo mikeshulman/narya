@@ -57,19 +57,30 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
   | UU nk ->
       let (Of fa) = deg_plus_to s nk "universe" in
       UU (dom_deg fa)
-  | Pi (ni_faces, doms, cod) ->
-      let (Of fa) = deg_plus_to s (dim_binder cod) "pi-type" in
+  | Pi (ni_faces, doms, cods) ->
+      let k = dim_faces ni_faces in
+      let (Of fa) = deg_plus_to s k "pi-type" in
       let domtbl = Hashtbl.create 10 in
       let () = Bwv.iter2 (Hashtbl.add domtbl) (sfaces ni_faces) doms in
-      let (Faces mi_faces) = count_faces (dom_deg fa) in
+      let mi = dom_deg fa in
+      let (Faces mi_faces) = count_faces mi in
       let doms' =
         Bwv.map
           (fun (SFace_of fb) ->
             let (Op (fc, fd)) = deg_sface fa fb in
             act_value (Hashtbl.find domtbl (SFace_of fc)) fd)
           (sfaces mi_faces) in
-      let cod' = act_binder cod fa in
-      Pi (mi_faces, doms', cod')
+      let cods' =
+        Tree.build mi
+          {
+            leaf =
+              (fun fb ->
+                let (Op (fc, fd)) = deg_sface fa fb in
+                match Tree.nth cods fc with
+                | Applied (Binderf, cod) -> Applied (Binderf, act_binder cod fd)
+                | _ -> raise (Failure "ugh extensible"));
+          } in
+      Pi (mi_faces, doms', cods')
 
 and act_binder : type m n. n binder -> (m, n) deg -> m binder =
  fun (Bind { env; perm; plus_dim; bound_faces; plus_faces; body; env_faces; args }) fa ->
@@ -124,7 +135,7 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
 and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }
 
-(* The type annotation of a neutral or normal isn't just act_value on the type, but is further instantiated to describe the boundary of a degeneracy in terms of the original term and its degeneracies.  This function computes that. *)
+(* When acting on a neutral or normal, we also need to specify the typed of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions.  This function computes this "type of acted terms". *)
 and act_ty : type a b. value -> value -> (a, b) deg -> value =
  fun tm ty s ->
   match ty with
@@ -160,9 +171,8 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
               new_faces in
           Inst { tm = act_uninst ty s; dim = pos_deg dim fa; tube; args })
   | Uninst ty -> (
-      (* This case is the same, but simpler. *)
+      (* This is just the case when dim = 0, so it is the same except simpler. *)
       let fa = s in
-      (* TODO: Hmm, actually this could be the identity instantiation of something *higher* dimensional. *)
       match compare (cod_deg fa) D.zero with
       (* We raise a custom exception here so that it can get caught by type synthesis, if we try to symmetrize something that's not at least 2-dimensional. *)
       | Neq -> raise Invalid_uninst_action

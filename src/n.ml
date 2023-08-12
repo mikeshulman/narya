@@ -244,6 +244,9 @@ let rec minus_uniq : type m1 m2 n mn. (m1, n, mn) plus -> (m2, n, mn) plus -> (m
   | Zero, Zero -> Eq
   | Suc n1, Suc n2 -> minus_uniq n1 n2
 
+let minus_uniq' : type m n1 n2 mn. m t -> (m, n1, mn) plus -> (m, n2, mn) plus -> (n1, n2) eq =
+ fun m n1 n2 -> minus_uniq (plus_comm m n1) (plus_comm m n2)
+
 (* ********** Converting to and from integers ********** *)
 
 let rec int_of_plus : type m n mn. (m, n, mn) plus -> int = function

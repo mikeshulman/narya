@@ -126,6 +126,36 @@ val sfaces_plus :
   ('b, 'fn) Bwv.t ->
   ('c, 'fmn) Bwv.t
 
+module Tree : sig
+  type ('f, 'n) t
+
+  val nth : ('f, 'n) t -> ('k, 'n) sface -> ('f, 'k) Appl.ied
+
+  type ('f, 'n) builder = { leaf : 'm. ('m, 'n) sface -> ('f, 'm) Appl.ied }
+
+  val build : 'n D.t -> ('f, 'n) builder -> ('f, 'n) t
+
+  type ('f1, 'f2, 'n) mapper = {
+    map : 'm. ('m, 'n) sface -> ('f1, 'm) Appl.ied -> ('f2, 'm) Appl.ied;
+  }
+
+  val map : 'n D.t -> ('f1, 'f2, 'n) mapper -> ('f1, 'n) t -> ('f2, 'n) t
+
+  type ('f, 'n) iterator = { it : 'm. ('m, 'n) sface -> ('f, 'm) Appl.ied -> unit }
+
+  val iter : 'n D.t -> ('f, 'n) iterator -> ('f, 'n) t -> unit
+
+  type ('f, 'n) iteratorOpt = { it : 'm. ('m, 'n) sface -> ('f, 'm) Appl.ied -> unit option }
+
+  val iterOpt : 'n D.t -> ('f, 'n) iteratorOpt -> ('f, 'n) t -> unit option
+
+  type ('f1, 'f2, 'n) iteratorOpt2 = {
+    it : 'm. ('m, 'n) sface -> ('f1, 'm) Appl.ied -> ('f2, 'm) Appl.ied -> unit option;
+  }
+
+  val iterOpt2 : 'n D.t -> ('f1, 'f2, 'n) iteratorOpt2 -> ('f1, 'n) t -> ('f2, 'n) t -> unit option
+end
+
 type (_, _, _) count_tube =
   | Tube : {
       plus_dim : ('m, 'n, 'mn) D.plus;

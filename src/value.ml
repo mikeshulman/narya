@@ -7,7 +7,7 @@ open Term
 module rec Value : sig
   (* A recursive module is required to specify its module type.  We make it as transparent as possible, so the module type is nearly a copy of the module itself.  For the comments, see the actual definition below. *)
   module F : sig
-    type 'k t
+    type 'k t = 'k Value.binder
   end
 
   module BindTree : module type of Tree (F)
@@ -57,9 +57,6 @@ module rec Value : sig
     | Emp : 'n D.t -> ('n, N.zero) env
     | Ext : ('n, 'b) env * ('n sface_of, value) Hashtbl.t -> ('n, 'b N.suc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
-
-  val bindf : 'k binder -> 'k F.t
-  val fbind : 'k F.t -> 'k binder
 end = struct
   (* Here is the recursive application of the functor Tree.  First we define a module to pass as its argument, with type defined to equal the yet-to-be-defined binder, referred to recursively. *)
   module F = struct
@@ -134,10 +131,6 @@ end = struct
     | Emp : 'n D.t -> ('n, N.zero) env
     | Ext : ('n, 'b) env * ('n sface_of, value) Hashtbl.t -> ('n, 'b N.suc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
-
-  (* Unfortunately, the fact that the type F.t *is actually* binder apparently can't be exposed in the signature of *this* module.  So instead we expose copies of the identity function making them isomorphic. *)
-  let bindf : type k. k binder -> k F.t = fun x -> x
-  let fbind : type k. k F.t -> k binder = fun x -> x
 end
 
 (* Now we include everything we defined above, so callers in other files don't have to qualify or re-open it.x *)

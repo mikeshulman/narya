@@ -76,7 +76,7 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
             leaf =
               (fun fb ->
                 let (Op (fc, fd)) = deg_sface fa fb in
-                bindf (act_binder (fbind (BindTree.nth cods fc)) fd));
+                act_binder (BindTree.nth cods fc) fd);
           } in
       Pi (mi_faces, doms', cods')
 

@@ -82,8 +82,7 @@ and equal_at_uninst :
                 apply afn (dom_sface fa) afntbl)
               df args in
           let idf = id_sface m in
-          let output =
-            inst (apply_binder (fbind (BindTree.nth cods idf)) idf argtbl) tube out_args in
+          let output = inst (apply_binder (BindTree.nth cods idf) idf argtbl) tube out_args in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at newlvl (apply x m argtbl) (apply y m argtbl) output)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
@@ -141,9 +140,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
             {
               it =
                 (fun s cod1 cod2 ->
-                  equal_val newlvl
-                    (apply_binder (fbind cod1) s argtbl)
-                    (apply_binder (fbind cod2) s argtbl));
+                  equal_val newlvl (apply_binder cod1 s argtbl) (apply_binder cod2 s argtbl));
             }
             cod1s cod2s
       | Neq ->

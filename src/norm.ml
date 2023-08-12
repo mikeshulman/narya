@@ -70,12 +70,11 @@ let rec eval : type m b. (m, b) env -> b term -> value =
           {
             leaf =
               (fun fa ->
-                bindf
-                  (eval_binder
-                     (Act (env, op_of_sface fa))
-                     faces_zero
-                     (D.plus_zero (dom_sface fa))
-                     (Suc Zero) cod));
+                eval_binder
+                  (Act (env, op_of_sface fa))
+                  faces_zero
+                  (D.plus_zero (dom_sface fa))
+                  (Suc Zero) cod);
           } in
       Uninst (Pi (dom_faces, doms, cods'))
   | Refl x -> act_value (eval env x) refl
@@ -158,8 +157,7 @@ and apply_neu :
                 apply afn (dom_sface fab) afntbl)
               mnf pi_args in
           let idf = id_sface mn in
-          let output =
-            inst (apply_binder (fbind (BindTree.nth cods idf)) idf mntbl) pi_tube out_args in
+          let output = inst (apply_binder (BindTree.nth cods idf) idf mntbl) pi_tube out_args in
           (* Finally we assemble a new neutral application with these arguments, with a trivial outer insertion, and with the calculated type. *)
           Uninst (Neu (App { fn; app_faces; args; ins = zero_ins mn }, output)))
   | _ -> raise (Failure "Invalid application of non-function")

@@ -71,14 +71,12 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
             act_value (Hashtbl.find domtbl (SFace_of fc)) fd)
           (sfaces mi_faces) in
       let cods' =
-        Tree.build mi
+        BindTree.build mi
           {
             leaf =
               (fun fb ->
                 let (Op (fc, fd)) = deg_sface fa fb in
-                match Tree.nth cods fc with
-                | Applied (Binderf, cod) -> Applied (Binderf, act_binder cod fd)
-                | _ -> raise (Failure "ugh extensible"));
+                bindf (act_binder (fbind (BindTree.nth cods fc)) fd));
           } in
       Pi (mi_faces, doms', cods')
 

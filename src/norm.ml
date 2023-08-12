@@ -66,17 +66,16 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let doms =
         Bwv.map (fun (SFace_of fa) -> eval (Act (env, op_of_sface fa)) dom) (sfaces dom_faces) in
       let cods' =
-        Tree.build m
+        BindTree.build m
           {
             leaf =
               (fun fa ->
-                Applied
-                  ( Binderf,
-                    eval_binder
-                      (Act (env, op_of_sface fa))
-                      faces_zero
-                      (D.plus_zero (dom_sface fa))
-                      (Suc Zero) cod ));
+                bindf
+                  (eval_binder
+                     (Act (env, op_of_sface fa))
+                     faces_zero
+                     (D.plus_zero (dom_sface fa))
+                     (Suc Zero) cod));
           } in
       Uninst (Pi (dom_faces, doms, cods'))
   | Refl x -> act_value (eval env x) refl
@@ -121,7 +120,7 @@ and apply_neu :
       | Neq, _, _ -> raise (Failure "Function-type dimension mismatch applying a neutral function")
       | _, Neq, _ -> raise (Failure "Application of non-fully-instantiated function")
       | _, _, Neq -> raise (Failure "Instantiation mismatch applying a neutral function")
-      | Eq, Eq, Eq -> (
+      | Eq, Eq, Eq ->
           let (Tube pt) = pi_tube in
           let Eq = D.plus_uniq pt.plus_dim (D.zero_plus mn) in
           let Eq = faces_uniq pt.total_faces app_faces in
@@ -159,12 +158,10 @@ and apply_neu :
                 apply afn (dom_sface fab) afntbl)
               mnf pi_args in
           let idf = id_sface mn in
-          match Tree.nth cods idf with
-          | Applied (Binderf, cod) ->
-              let output = inst (apply_binder cod idf mntbl) pi_tube out_args in
-              (* Finally we assemble a new neutral application with these arguments, with a trivial outer insertion, and with the calculated type. *)
-              Uninst (Neu (App { fn; app_faces; args; ins = zero_ins mn }, output))
-          | _ -> raise (Failure "ugh extensible")))
+          let output =
+            inst (apply_binder (fbind (BindTree.nth cods idf)) idf mntbl) pi_tube out_args in
+          (* Finally we assemble a new neutral application with these arguments, with a trivial outer insertion, and with the calculated type. *)
+          Uninst (Neu (App { fn; app_faces; args; ins = zero_ins mn }, output)))
   | _ -> raise (Failure "Invalid application of non-function")
 
 and eval_binder :

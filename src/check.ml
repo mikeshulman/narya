@@ -82,7 +82,7 @@ and check_lam :
       | Neq, _ | _, Neq ->
           Printf.printf "Dimension mismatch in checking lambda";
           None
-      | Eq, Eq -> (
+      | Eq, Eq ->
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
           let (Plus af) = N.plus (faces_out dom_faces) in
           let* body = lambdas af tm in
@@ -131,12 +131,10 @@ and check_lam :
                 apply afn (dom_sface fa) afntbl)
               df args in
           let idf = id_sface m in
-          match Tree.nth cods idf with
-          | Applied (Binderf, cod) ->
-              let output = inst (apply_binder cod idf argtbl) tube out_args in
-              let* cbody = check ctx body output in
-              return (Term.Lam (dom_faces, af, cbody))
-          | _ -> raise (Failure "ugh extensible")))
+          let output =
+            inst (apply_binder (fbind (BindTree.nth cods idf)) idf argtbl) tube out_args in
+          let* cbody = check ctx body output in
+          return (Term.Lam (dom_faces, af, cbody)))
   (* We can't check a lambda-abstraction against anything except a pi-type. *)
   | _ ->
       Printf.printf "Can't check lambda against non-pi-type";
@@ -214,7 +212,7 @@ and synth_app :
       | Neq, _ | _, Neq ->
           Printf.printf "Dimension mismatch when synthesizing applied function";
           None
-      | Eq, Eq -> (
+      | Eq, Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app *)
           let* args, rest = Bwv.of_list (faces_out dom_faces) args in
           let argtbl = Hashtbl.create 10 in
@@ -263,11 +261,9 @@ and synth_app :
                 apply afn (dom_sface fa) afntbl)
               sdf tyargs in
           let idf = id_sface n in
-          match Tree.nth cods idf with
-          | Applied (Binderf, cod) ->
-              let output = inst (apply_binder cod idf eargtbl) tube out_args in
-              return (Term.App (sfn, dom_faces, cargs), output, rest)
-          | _ -> raise (Failure "ugh extensible")))
+          let output =
+            inst (apply_binder (fbind (BindTree.nth cods idf)) idf eargtbl) tube out_args in
+          return (Term.App (sfn, dom_faces, cargs), output, rest))
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (
       (* Ensure that the universe is fully instantiated and at the right dimension. *)

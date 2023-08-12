@@ -126,35 +126,42 @@ val sfaces_plus :
   ('b, 'fn) Bwv.t ->
   ('c, 'fmn) Bwv.t
 
-module Tree : sig
-  type ('f, 'n) t
-
-  val nth : ('f, 'n) t -> ('k, 'n) sface -> ('f, 'k) Appl.ied
-
-  type ('f, 'n) builder = { leaf : 'm. ('m, 'n) sface -> ('f, 'm) Appl.ied }
-
-  val build : 'n D.t -> ('f, 'n) builder -> ('f, 'n) t
-
-  type ('f1, 'f2, 'n) mapper = {
-    map : 'm. ('m, 'n) sface -> ('f1, 'm) Appl.ied -> ('f2, 'm) Appl.ied;
-  }
-
-  val map : 'n D.t -> ('f1, 'f2, 'n) mapper -> ('f1, 'n) t -> ('f2, 'n) t
-
-  type ('f, 'n) iterator = { it : 'm. ('m, 'n) sface -> ('f, 'm) Appl.ied -> unit }
-
-  val iter : 'n D.t -> ('f, 'n) iterator -> ('f, 'n) t -> unit
-
-  type ('f, 'n) iteratorOpt = { it : 'm. ('m, 'n) sface -> ('f, 'm) Appl.ied -> unit option }
-
-  val iterOpt : 'n D.t -> ('f, 'n) iteratorOpt -> ('f, 'n) t -> unit option
-
-  type ('f1, 'f2, 'n) iteratorOpt2 = {
-    it : 'm. ('m, 'n) sface -> ('f1, 'm) Appl.ied -> ('f2, 'm) Appl.ied -> unit option;
-  }
-
-  val iterOpt2 : 'n D.t -> ('f1, 'f2, 'n) iteratorOpt2 -> ('f1, 'n) t -> ('f2, 'n) t -> unit option
+module type Fam = sig
+  type 'a t
 end
+
+module Tree (F : Fam) : sig
+  type 'n t
+
+  val nth : 'n t -> ('k, 'n) sface -> 'k F.t
+
+  type 'n builder = { leaf : 'm. ('m, 'n) sface -> 'm F.t }
+
+  val build : 'n D.t -> 'n builder -> 'n t
+
+  type 'n iterator = { it : 'm. ('m, 'n) sface -> 'm F.t -> unit }
+
+  val iter : 'n D.t -> 'n iterator -> 'n t -> unit
+
+  type 'n iteratorOpt = { it : 'm. ('m, 'n) sface -> 'm F.t -> unit option }
+
+  val iterOpt : 'n D.t -> 'n iteratorOpt -> 'n t -> unit option
+
+  type 'n iteratorOpt2 = { it : 'm. ('m, 'n) sface -> 'm F.t -> 'm F.t -> unit option }
+
+  val iterOpt2 : 'n D.t -> 'n iteratorOpt2 -> 'n t -> 'n t -> unit option
+end
+
+(*
+module TreeMap (F1 : Fam) (F2 : Fam) : sig
+  type 'n mapper = { it : 'm. ('m, 'n) sface -> 'm F1.t -> 'm F2.t }
+
+  module T1 : module type of Tree (F1)
+  module T2 : module type of Tree (F2)
+
+  val map : 'n D.t -> 'n mapper -> 'n T1.t -> 'n T2.t
+end
+*)
 
 type (_, _, _) count_tube =
   | Tube : {

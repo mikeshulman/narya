@@ -57,7 +57,7 @@ and equal_at_uninst :
       match (compare (tube_uninst tube) D.zero, compare (tube_inst tube) m) with
       | Neq, _ -> raise (Failure "Non-fully-instantiated type in equality-checking")
       | _, Neq -> raise (Failure "Instantiation mismatch in equality-checking")
-      | Eq, Eq -> (
+      | Eq, Eq ->
           let (Tube t) = tube in
           let Eq = D.plus_uniq t.plus_dim (D.zero_plus m) in
           let Eq = faces_uniq t.total_faces dom_faces in
@@ -82,12 +82,10 @@ and equal_at_uninst :
                 apply afn (dom_sface fa) afntbl)
               df args in
           let idf = id_sface m in
-          match Tree.nth cods idf with
-          | Applied (Binderf, cod) ->
-              let output = inst (apply_binder cod idf argtbl) tube out_args in
-              (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
-              equal_at newlvl (apply x m argtbl) (apply y m argtbl) output
-          | _ -> raise (Failure "ugh extensible")))
+          let output =
+            inst (apply_binder (fbind (BindTree.nth cods idf)) idf argtbl) tube out_args in
+          (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
+          equal_at newlvl (apply x m argtbl) (apply y m argtbl) output)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
   | _ -> equal_val n x y
 
@@ -139,7 +137,15 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
           let* () = bwv_iterM2 (equal_val lvl) dom1s dom2s in
           (* We create variables for all the domains, in order to typecheck all the codomains.  The codomain boundary types only use some of those variables, but it doesn't hurt to have the others around. *)
           let newlvl, argtbl = dom_vars lvl (sfaces dom1f) dom1s in
-          Tree.iterOpt2 k { it = (fun s x y -> equal_binders newlvl argtbl s x y) } cod1s cod2s
+          BindTree.iterOpt2 k
+            {
+              it =
+                (fun s cod1 cod2 ->
+                  equal_val newlvl
+                    (apply_binder (fbind cod1) s argtbl)
+                    (apply_binder (fbind cod2) s argtbl));
+            }
+            cod1s cod2s
       | Neq ->
           Printf.printf "Unequal dimensions of pi-type";
           fail)
@@ -171,18 +177,3 @@ and equal_neu : int -> neu -> neu -> unit option =
   | _ ->
       Printf.printf "Unequal neutral terms";
       fail
-
-(* Synthesizing equality check for binders, wrapped in Appl.ied. *)
-and equal_binders :
-    type n f f1 f2 m.
-    int ->
-    (n sface_of, value) Hashtbl.t ->
-    (m, n) sface ->
-    (f1, m) Appl.ied ->
-    (f2, m) Appl.ied ->
-    unit option =
- fun lvl argtbl s a1 a2 ->
-  match (a1, a2) with
-  | Applied (Binderf, cod1), Applied (Binderf, cod2) ->
-      equal_val lvl (apply_binder cod1 s argtbl) (apply_binder cod2 s argtbl)
-  | _ -> raise (Failure "ugh extensible")

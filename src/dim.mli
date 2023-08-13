@@ -127,41 +127,41 @@ val sfaces_plus :
   ('c, 'fmn) Bwv.t
 
 module type Fam = sig
-  type 'a t
+  type ('a, 'b) t
 end
 
 module Tree (F : Fam) : sig
-  type 'n t
+  type ('n, 'b) t
 
-  val nth : 'n t -> ('k, 'n) sface -> 'k F.t
+  val nth : ('n, 'b) t -> ('k, 'n) sface -> ('k, 'b) F.t
 
-  type 'n builder = { leaf : 'm. ('m, 'n) sface -> 'm F.t }
+  type ('n, 'b) builder = { leaf : 'm. ('m, 'n) sface -> ('m, 'b) F.t }
 
-  val build : 'n D.t -> 'n builder -> 'n t
+  val build : 'n D.t -> ('n, 'b) builder -> ('n, 'b) t
 
-  type 'n iterator = { it : 'm. ('m, 'n) sface -> 'm F.t -> unit }
+  type ('n, 'b) iterator = { it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> unit }
 
-  val iter : 'n D.t -> 'n iterator -> 'n t -> unit
+  val iter : ('n, 'b) iterator -> ('n, 'b) t -> unit
 
-  type 'n iteratorOpt = { it : 'm. ('m, 'n) sface -> 'm F.t -> unit option }
+  type ('n, 'b) iteratorOpt = { it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> unit option }
 
-  val iterOpt : 'n D.t -> 'n iteratorOpt -> 'n t -> unit option
+  val iterOpt : ('n, 'b) iteratorOpt -> ('n, 'b) t -> unit option
 
-  type 'n iteratorOpt2 = { it : 'm. ('m, 'n) sface -> 'm F.t -> 'm F.t -> unit option }
+  type ('n, 'b) iteratorOpt2 = {
+    it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> ('m, 'b) F.t -> unit option;
+  }
 
-  val iterOpt2 : 'n D.t -> 'n iteratorOpt2 -> 'n t -> 'n t -> unit option
+  val iterOpt2 : ('n, 'b) iteratorOpt2 -> ('n, 'b) t -> ('n, 'b) t -> unit option
 end
 
-(*
 module TreeMap (F1 : Fam) (F2 : Fam) : sig
-  type 'n mapper = { it : 'm. ('m, 'n) sface -> 'm F1.t -> 'm F2.t }
-
   module T1 : module type of Tree (F1)
   module T2 : module type of Tree (F2)
 
-  val map : 'n D.t -> 'n mapper -> 'n T1.t -> 'n T2.t
+  type ('n, 'b, 'c) mapper = { map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t }
+
+  val map : ('n, 'b, 'c) mapper -> ('n, 'b) T1.t -> ('n, 'c) T2.t
 end
-*)
 
 type (_, _, _) count_tube =
   | Tube : {
@@ -218,6 +218,13 @@ val face_plus_face :
   ('k, 'm) face -> ('m, 'n, 'mn) D.plus -> ('k, 'l, 'kl) D.plus -> ('l, 'n) face -> ('kl, 'mn) face
 
 type _ face_of = Face_of : ('m, 'n) face -> 'n face_of
+
+module FaceFam : sig
+  type ('n, 'm) t = 'm face_of
+end
+
+module FaceTree : module type of Tree (FaceFam)
+
 type (_, _) op = Op : ('n, 'k) sface * ('m, 'n) deg -> ('m, 'k) op
 
 val id_op : 'n D.t -> ('n, 'n) op

@@ -6,11 +6,17 @@ open Term
 (* The codomains of a pi-type are stored as a face tree of binders.  Since values are defined mutually with binders, we need to "apply the functor Tree" mutually with the definition of these types.  This is possible using a recursive module. *)
 module rec Value : sig
   (* A recursive module is required to specify its module type.  We make it as transparent as possible, so the module type is nearly a copy of the module itself.  For the comments, see the actual definition below. *)
-  module F : sig
-    type 'k t = 'k Value.binder
+  module BindFam : sig
+    type ('k, 'b) t = 'k Value.binder
   end
 
-  module BindTree : module type of Tree (F)
+  module BindTree : module type of Tree (BindFam)
+
+  module ValFam : sig
+    type ('k, 'b) t = Value.value
+  end
+
+  module ValTree : module type of Tree (ValFam)
 
   type neu =
     | Var : { level : int; deg : ('m, 'n) deg } -> neu
@@ -30,14 +36,13 @@ module rec Value : sig
         bound_faces : ('n, 'fn) count_faces;
         plus_faces : ('a, 'fn, 'afn) N.plus;
         body : 'afn term;
-        env_faces : ('m, 'fm) count_faces;
-        args : (('mn face_of, 'fm) Bwv.t, 'fn) Bwv.t;
+        args : (('m, 'mn) FaceTree.t, 'fn) Bwv.t;
       }
         -> 'mn binder
 
   and uninst =
     | UU : 'n D.t -> uninst
-    | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * 'k BindTree.t -> uninst
+    | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * ('k, unit) BindTree.t -> uninst
     | Neu : neu * value -> uninst
 
   and value =
@@ -55,15 +60,21 @@ module rec Value : sig
 
   and (_, _) env =
     | Emp : 'n D.t -> ('n, N.zero) env
-    | Ext : ('n, 'b) env * ('n sface_of, value) Hashtbl.t -> ('n, 'b N.suc) env
+    | Ext : ('n, 'b) env * ('n, unit) ValTree.t -> ('n, 'b N.suc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end = struct
   (* Here is the recursive application of the functor Tree.  First we define a module to pass as its argument, with type defined to equal the yet-to-be-defined binder, referred to recursively. *)
-  module F = struct
-    type 'k t = 'k Value.binder
+  module BindFam = struct
+    type ('k, 'b) t = 'k Value.binder
   end
 
-  module BindTree = Tree (F)
+  module BindTree = Tree (BindFam)
+
+  module ValFam = struct
+    type ('k, 'b) t = Value.value
+  end
+
+  module ValTree = Tree (ValFam)
 
   (* Neutrals are as usual, except that they have a nonreducible degeneracy applied outside. *)
   type neu =
@@ -93,8 +104,7 @@ end = struct
         bound_faces : ('n, 'fn) count_faces;
         plus_faces : ('a, 'fn, 'afn) N.plus;
         body : 'afn term;
-        env_faces : ('m, 'fm) count_faces;
-        args : (('mn face_of, 'fm) Bwv.t, 'fn) Bwv.t;
+        args : (('m, 'mn) FaceTree.t, 'fn) Bwv.t;
       }
         -> 'mn binder
 
@@ -102,7 +112,7 @@ end = struct
   and uninst =
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a face tree of binders. *)
-    | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * 'k BindTree.t -> uninst
+    | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * ('k, unit) BindTree.t -> uninst
     | Neu : neu * value -> uninst (* Neutral terms store their type *)
 
   and value =
@@ -129,12 +139,13 @@ end = struct
   (* This is a context morphism *from* a De Bruijn LEVEL context *to* a De Bruijn INDEX context.  Specifically, an ('n, 'a) env is a substitution from a level context to an index context of length 'a of dimension 'n. *)
   and (_, _) env =
     | Emp : 'n D.t -> ('n, N.zero) env
-    | Ext : ('n, 'b) env * ('n sface_of, value) Hashtbl.t -> ('n, 'b N.suc) env
+    | Ext : ('n, 'b) env * ('n, unit) ValTree.t -> ('n, 'b N.suc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end
 
 (* Now we include everything we defined above, so callers in other files don't have to qualify or re-open it.x *)
 include Value
+module FaceValTreeMap = TreeMap (FaceFam) (ValFam)
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : int -> value -> value =
@@ -182,14 +193,14 @@ let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index ->
     | Ext (_, entry), Top ->
         (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
         let (Op (f, s)) = op in
-        act_value (Hashtbl.find entry (SFace_of f)) (Any s)
+        act_value (ValTree.nth entry f) (Any s)
     | Ext (env, _), Pop v -> lookup env v op
     | Act (env, op'), _ -> lookup env v (comp_op op' op) in
   lookup env v (id_op (dim_env env))
 
 let rec env_append :
-    type n a b ab.
-    (a, b, ab) N.plus -> (n, a) env -> ((n sface_of, value) Hashtbl.t, b) Bwv.t -> (n, ab) env =
+    type n a b ab. (a, b, ab) N.plus -> (n, a) env -> ((n, unit) ValTree.t, b) Bwv.t -> (n, ab) env
+    =
  fun ab env xss ->
   match (ab, xss) with
   | Zero, Emp -> env

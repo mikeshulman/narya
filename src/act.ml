@@ -81,7 +81,7 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
       Pi (mi_faces, doms', cods')
 
 and act_binder : type m n. n binder -> (m, n) deg -> m binder =
- fun (Bind { env; perm; plus_dim; bound_faces; plus_faces; body; env_faces; args }) fa ->
+ fun (Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }) fa ->
   let m = dim_env env in
   let m_n = plus_dim in
   (* let n = D.plus_right m_n in *)
@@ -100,35 +100,34 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   let env = Act (env, op_of_deg fcm) in
   (* Now we have to assemble the arguments.  First we compute some faces. *)
   let plus_dim = D.plus_assocl jm plus_dim j_mn in
-  let m_faces = sfaces env_faces in
-  let (Faces env_faces) = count_faces (D.plus_out j jm) in
   let n_faces = sfaces bound_faces in
-  let jm_faces = sfaces env_faces in
   (* We collate the previous argument matrix in a hashtable for random access *)
   let tbl = Hashtbl.create 10 in
   let () =
     Bwv.iter2
-      (fun x v -> Bwv.iter2 (fun y arg -> Hashtbl.add tbl (y, x) arg) m_faces v)
+      (fun x v -> FaceTree.iter { it = (fun y arg -> Hashtbl.add tbl (SFace_of y, x) arg) } v)
       n_faces args in
   (* Now to make the new argument matrix... *)
   let args =
     Bwv.map
       (fun (SFace_of fv) ->
         (* let c = dom_sface fv in *)
-        Bwv.map
-          (fun (SFace_of frfu) ->
-            (* ...we split the face of j+m into a face fr of j and a face fu of m... *)
-            let (SFace_of_plus (_, fr, fu)) = sface_of_plus jm frfu in
-            (* ...combine the face fu of m and the face fv of n using the previous argument matrix... *)
-            let (Face_of fs) = Hashtbl.find tbl (SFace_of fu, SFace_of fv) in
-            let (Plus ci) = D.plus (dom_face fs) in
-            (* ...add the resulting face to fr... *)
-            let frfs = face_plus_face (face_of_sface fr) j_mn ci fs in
-            (* ...and combine it with the inverse of fb from above. *)
-            Face_of (comp_face (face_of_perm fbinv) frfs))
-          jm_faces)
+        FaceTree.build (D.plus_out j jm)
+          {
+            leaf =
+              (fun frfu ->
+                (* ...we split the face of j+m into a face fr of j and a face fu of m... *)
+                let (SFace_of_plus (_, fr, fu)) = sface_of_plus jm frfu in
+                (* ...combine the face fu of m and the face fv of n using the previous argument matrix... *)
+                let (Face_of fs) = Hashtbl.find tbl (SFace_of fu, SFace_of fv) in
+                let (Plus ci) = D.plus (dom_face fs) in
+                (* ...add the resulting face to fr... *)
+                let frfs = face_plus_face (face_of_sface fr) j_mn ci fs in
+                (* ...and combine it with the inverse of fb from above. *)
+                Face_of (comp_face (face_of_perm fbinv) frfs));
+          })
       n_faces in
-  Bind { env; perm; plus_dim; bound_faces; plus_faces; body; env_faces; args }
+  Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
 
 and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }

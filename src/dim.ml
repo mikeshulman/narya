@@ -490,22 +490,30 @@ let sface_of_bw : type m n. (m, n) bwsface -> (m, n) sface =
 (* A "face tree" of a dimension 'm records one object for each strict face of 'm, in a ternary tree so that they can be accessed randomly by strict face as well as sequentially.  In addition, we allow the *type* of each object to depend on the *domain* of the strict face, by parametrizing the notion with a functor. *)
 
 module type Fam = sig
-  type 'a t
+  type ('a, 'b) t
 end
 
 module Tree (F : Fam) = struct
-  (* An ('m, 'n) gt is a ternary tree of height 'm whose interior nodes have their third branch special, and whose leaves are labeled by an element of F(n-k) , where k is the number of non-special branches taken to lead to the leaf.  Thus there is exactly one element of type F(n), 2*m elements of type F(n-1), down to 2^m elements of type F(n-m).  *)
-  type (_, _) gt =
-    | Leaf : 'n F.t -> (D.zero, 'n) gt
-    | Branch : (('m, 'n) gt, Endpoints.len) Bwv.t * ('m, 'n D.suc) gt -> ('m D.suc, 'n D.suc) gt
+  (* An ('m, 'n, 'b) gt is a ternary tree of height 'm whose interior nodes have their third branch special, and whose leaves are labeled by an element of F(n-k,b) , where k is the number of non-special branches taken to lead to the leaf.  Thus there is exactly one element of type F(n,b), 2*m elements of type F(n-1,b), down to 2^m elements of type F(n-m,b).  *)
+  type (_, _, _) gt =
+    | Leaf : ('n, 'b) F.t -> (D.zero, 'n, 'b) gt
+    | Branch :
+        (('m, 'n, 'b) gt, Endpoints.len) Bwv.t * ('m, 'n D.suc, 'b) gt
+        -> ('m D.suc, 'n D.suc, 'b) gt
 
-  type 'n t = ('n, 'n) gt
+  type ('n, 'b) t = ('n, 'n, 'b) gt
+
+  let rec gdim : type m n b. (m, n, b) gt -> m D.t = function
+    | Leaf _ -> D.zero
+    | Branch (_, br) -> D.suc (gdim br)
+
+  let dim : type n b. (n, b) t -> n D.t = fun tr -> gdim tr
 
   (* A strict face is an index into a face tree.  *)
 
   let rec gnth :
-      type m n k mk nm.
-      (mk, nm) gt -> (k, m, mk) D.plus -> (n, m, nm) D.plus -> (k, mk) sface -> n F.t =
+      type m n k mk nm b.
+      (mk, nm, b) gt -> (k, m, mk) D.plus -> (n, m, nm) D.plus -> (k, mk) sface -> (n, b) F.t =
    fun tr mk nm d ->
     match (tr, d) with
     | Leaf x, Zero ->
@@ -521,18 +529,23 @@ module Tree (F : Fam) = struct
         let (Suc mk) = N.suc_plus mk in
         gnth br mk nm d
 
-  let nth : type n k. n t -> (k, n) sface -> k F.t =
+  let nth : type n k b. (n, b) t -> (k, n) sface -> (k, b) F.t =
    fun tr d ->
     let (Le mk) = plus_of_sface d in
     gnth tr mk mk d
 
   (* We can build a face tree from a function that takes each face of 'n to something of the appropriate type. *)
 
-  type 'n builder = { leaf : 'm. ('m, 'n) sface -> 'm F.t }
+  type ('n, 'b) builder = { leaf : 'm. ('m, 'n) sface -> ('m, 'b) F.t }
 
   let rec gbuild :
       type k m km n b l.
-      m D.t -> (k, m, km) D.plus -> (l, m, n) D.plus -> (k, l) bwsface -> n builder -> (m, km) gt =
+      m D.t ->
+      (k, m, km) D.plus ->
+      (l, m, n) D.plus ->
+      (k, l) bwsface ->
+      (n, b) builder ->
+      (m, km, b) gt =
    fun m km lm d g ->
     match m with
     | Nat Zero ->
@@ -544,133 +557,134 @@ module Tree (F : Fam) = struct
           ( Bwv.map (fun e -> gbuild (Nat m) km' (D.suc_plus'' lm) (End (e, d)) g) Endpoints.indices,
             gbuild (Nat m) (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g )
 
-  let build : type n. n D.t -> n builder -> n t =
+  let build : type n b. n D.t -> (n, b) builder -> (n, b) t =
    fun n g -> gbuild n (D.zero_plus n) (D.zero_plus n) Zero g
 
   (* Similarly, we can iterate over a face tree with a function that uses both a face and an input value. *)
 
-  type 'n iterator = { it : 'm. ('m, 'n) sface -> 'm F.t -> unit }
+  type ('n, 'b) iterator = { it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> unit }
 
   let rec giter :
       type k m km n b l.
-      m D.t ->
       (k, m, km) D.plus ->
       (l, m, n) D.plus ->
       (k, l) bwsface ->
-      n iterator ->
-      (m, km) gt ->
+      (n, b) iterator ->
+      (m, km, b) gt ->
       unit =
-   fun m km lm d g tr ->
-    match (m, tr) with
-    | Nat Zero, Leaf x ->
+   fun km lm d g tr ->
+    match tr with
+    | Leaf x ->
         let Zero, Zero = (km, lm) in
         g.it (sface_of_bw d) x
-    | Nat (Suc m), Branch (ends, mid) ->
+    | Branch (ends, mid) ->
         let (Suc km') = km in
-        Bwv.iter2
-          (fun e br -> giter (Nat m) km' (D.suc_plus'' lm) (End (e, d)) g br)
-          Endpoints.indices ends;
-        giter (Nat m) (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid
+        Bwv.iter2 (fun e br -> giter km' (D.suc_plus'' lm) (End (e, d)) g br) Endpoints.indices ends;
+        giter (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid
 
-  let iter : type n. n D.t -> n iterator -> n t -> unit =
-   fun n g tr -> giter n (D.zero_plus n) (D.zero_plus n) Zero g tr
+  let iter : type n b. (n, b) iterator -> (n, b) t -> unit =
+   fun g tr ->
+    let n = dim tr in
+    giter (D.zero_plus n) (D.zero_plus n) Zero g tr
 
   (* Monadic iteration over Maybe *)
 
-  type 'n iteratorOpt = { it : 'm. ('m, 'n) sface -> 'm F.t -> unit option }
+  type ('n, 'b) iteratorOpt = { it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> unit option }
 
   let rec giterOpt :
       type k m km n b l.
-      m D.t ->
       (k, m, km) D.plus ->
       (l, m, n) D.plus ->
       (k, l) bwsface ->
-      n iteratorOpt ->
-      (m, km) gt ->
+      (n, b) iteratorOpt ->
+      (m, km, b) gt ->
       unit option =
-   fun m km lm d g tr ->
+   fun km lm d g tr ->
     let open Monad.Ops (Monad.Maybe) in
-    match (m, tr) with
-    | Nat Zero, Leaf x ->
+    match tr with
+    | Leaf x ->
         let Zero, Zero = (km, lm) in
         g.it (sface_of_bw d) x
-    | Nat (Suc m), Branch (ends, mid) ->
+    | Branch (ends, mid) ->
         let (Suc km') = km in
         let* () =
           bwv_iterM2
-            (fun e br -> giterOpt (Nat m) km' (D.suc_plus'' lm) (End (e, d)) g br)
+            (fun e br -> giterOpt km' (D.suc_plus'' lm) (End (e, d)) g br)
             Endpoints.indices ends in
-        giterOpt (Nat m) (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid
+        giterOpt (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid
 
-  let iterOpt : type n. n D.t -> n iteratorOpt -> n t -> unit option =
-   fun n g tr -> giterOpt n (D.zero_plus n) (D.zero_plus n) Zero g tr
+  let iterOpt : type n b. (n, b) iteratorOpt -> (n, b) t -> unit option =
+   fun g tr ->
+    let n = dim tr in
+    giterOpt (D.zero_plus n) (D.zero_plus n) Zero g tr
 
   (* Two-variable monadic iteration over Maybe *)
 
-  type 'n iteratorOpt2 = { it : 'm. ('m, 'n) sface -> 'm F.t -> 'm F.t -> unit option }
+  type ('n, 'b) iteratorOpt2 = {
+    it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> ('m, 'b) F.t -> unit option;
+  }
 
   let rec giterOpt2 :
       type k m km n b l.
-      m D.t ->
       (k, m, km) D.plus ->
       (l, m, n) D.plus ->
       (k, l) bwsface ->
-      n iteratorOpt2 ->
-      (m, km) gt ->
-      (m, km) gt ->
+      (n, b) iteratorOpt2 ->
+      (m, km, b) gt ->
+      (m, km, b) gt ->
       unit option =
-   fun m km lm d g tr1 tr2 ->
+   fun km lm d g tr1 tr2 ->
     let open Monad.Ops (Monad.Maybe) in
-    match (m, tr1, tr2) with
-    | Nat Zero, Leaf x1, Leaf x2 ->
+    match (tr1, tr2) with
+    | Leaf x1, Leaf x2 ->
         let Zero, Zero = (km, lm) in
         g.it (sface_of_bw d) x1 x2
-    | Nat (Suc m), Branch (ends1, mid1), Branch (ends2, mid2) ->
+    | Branch (ends1, mid1), Branch (ends2, mid2) ->
         let (Suc km') = km in
         let* () =
           bwv_iterM3
-            (fun e br1 br2 -> giterOpt2 (Nat m) km' (D.suc_plus'' lm) (End (e, d)) g br1 br2)
+            (fun e br1 br2 -> giterOpt2 km' (D.suc_plus'' lm) (End (e, d)) g br1 br2)
             Endpoints.indices ends1 ends2 in
-        giterOpt2 (Nat m) (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid1 mid2
+        giterOpt2 (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid1 mid2
 
-  let iterOpt2 : type f2 n. n D.t -> n iteratorOpt2 -> n t -> n t -> unit option =
-   fun n g tr1 tr2 -> giterOpt2 n (D.zero_plus n) (D.zero_plus n) Zero g tr1 tr2
+  let iterOpt2 : type f2 n b. (n, b) iteratorOpt2 -> (n, b) t -> (n, b) t -> unit option =
+   fun g tr1 tr2 ->
+    let n = dim tr1 in
+    giterOpt2 (D.zero_plus n) (D.zero_plus n) Zero g tr1 tr2
 end
 
-(* It's unclear whether there is any way to define a map from one type of face tree to another.  This is the obvious thing to try, but I think it doesn't work because the modules T1 and T2 are generative and the signature of TreeMap can't export the fact that they are (isomorphic to) Tree(F1) and Tree(F2).  So it would let you map from T1-trees to T2-trees, but not do anything else with them. *)
-(*
 module TreeMap (F1 : Fam) (F2 : Fam) = struct
-  type 'n mapper = { it : 'm. ('m, 'n) sface -> 'm F1.t -> 'm F2.t }
-
   module T1 = Tree (F1)
   module T2 = Tree (F2)
 
+  type ('n, 'b, 'c) mapper = { map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t }
+
   let rec gmap :
-      type k m km n b l.
-      m D.t ->
+      type k m km n b c l.
       (k, m, km) D.plus ->
       (l, m, n) D.plus ->
       (k, l) bwsface ->
-      n mapper ->
-      (m, km) T1.gt ->
-      (m, km) T2.gt =
-   fun m km lm d g tr ->
-    match (m, tr) with
-    | Nat Zero, Leaf x ->
+      (n, b, c) mapper ->
+      (m, km, b) T1.gt ->
+      (m, km, c) T2.gt =
+   fun km lm d g tr ->
+    match tr with
+    | Leaf x ->
         let Zero, Zero = (km, lm) in
-        Leaf (g.it (sface_of_bw d) x)
-    | Nat (Suc m), Branch (ends, mid) ->
+        Leaf (g.map (sface_of_bw d) x)
+    | Branch (ends, mid) ->
         let (Suc km') = km in
         Branch
           ( Bwv.map2
-              (fun e br -> gmap (Nat m) km' (D.suc_plus'' lm) (End (e, d)) g br)
+              (fun e br -> gmap km' (D.suc_plus'' lm) (End (e, d)) g br)
               Endpoints.indices ends,
-            gmap (Nat m) (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid )
+            gmap (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid )
 
-  let map : type n. n D.t -> n mapper -> n T1.t -> n T2.t =
-   fun n g tr -> gmap n (D.zero_plus n) (D.zero_plus n) Zero g tr
+  let map : type n b c. (n, b, c) mapper -> (n, b) T1.t -> (n, c) T2.t =
+   fun g tr ->
+    let n = T1.dim tr in
+    gmap (D.zero_plus n) (D.zero_plus n) Zero g tr
 end
-*)
 
 (* ********** Tubes ********** *)
 
@@ -848,6 +862,12 @@ let face_plus_face :
   Face (sface_plus_sface fkm mn kl fln, perm_plus_perm pk kl pl)
 
 type _ face_of = Face_of : ('m, 'n) face -> 'n face_of
+
+module FaceFam = struct
+  type ('n, 'm) t = 'm face_of
+end
+
+module FaceTree = Tree (FaceFam)
 
 (* ********** Operators ********** *)
 

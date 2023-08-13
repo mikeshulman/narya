@@ -173,23 +173,23 @@ and eval_binder :
  fun env bound_faces plus_dim plus_faces body ->
   (* let n = dim_faces bound_faces in *)
   let m = dim_env env in
-  let (Faces env_faces) = count_faces m in
-  let mf = sfaces env_faces in
   let nf = sfaces bound_faces in
   let args =
     Bwv.map
       (fun (SFace_of fa) ->
-        Bwv.map
-          (fun (SFace_of fb) ->
-            let (Plus plus_dom) = D.plus (dom_sface fa) in
-            Face_of
-              (Face
-                 ( sface_plus_sface fb plus_dim plus_dom fa,
-                   id_perm (D.plus_out (dom_sface fb) plus_dom) )))
-          mf)
+        FaceTree.build m
+          {
+            leaf =
+              (fun fb ->
+                let (Plus plus_dom) = D.plus (dom_sface fa) in
+                Face_of
+                  (Face
+                     ( sface_plus_sface fb plus_dim plus_dom fa,
+                       id_perm (D.plus_out (dom_sface fb) plus_dom) )));
+          })
       nf in
   let perm = id_perm (D.plus_out m plus_dim) in
-  Bind { env; perm; plus_dim; bound_faces; plus_faces; body; env_faces; args }
+  Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
 
 and apply_binder : type m n f a. m binder -> (m, n) sface -> (n sface_of, value) Hashtbl.t -> value
     =
@@ -199,14 +199,13 @@ and apply_binder : type m n f a. m binder -> (m, n) sface -> (n sface_of, value)
        (env_append b.plus_faces b.env
           (Bwv.map
              (fun ffs ->
-               let tbl = Hashtbl.create 10 in
-               let () =
-                 Bwv.iter2
-                   (fun fc (Face_of (Face (fa, fb))) ->
-                     Hashtbl.add tbl fc
-                       (act_value (Hashtbl.find argstbl (SFace_of (comp_sface s fa))) fb))
-                   (sfaces b.env_faces) ffs in
-               tbl)
+               FaceValTreeMap.map
+                 {
+                   map =
+                     (fun _ (Face_of (Face (fa, fb))) ->
+                       act_value (Hashtbl.find argstbl (SFace_of (comp_sface s fa))) fb);
+                 }
+                 ffs)
              b.args))
        b.body)
     b.perm

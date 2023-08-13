@@ -19,9 +19,7 @@ let empty_ctx : N.zero ctx = Emp
 let rec env_of_ctx : type a. a ctx -> (D.zero, a) env = function
   | Emp -> Emp D.zero
   | Snoc (ctx, ty) ->
-      let tbl = Hashtbl.create 1 in
-      let () = Hashtbl.add tbl (SFace_of (id_sface D.zero)) (var (level_of ctx) ty) in
-      Ext (env_of_ctx ctx, tbl)
+      Ext (env_of_ctx ctx, ValTree.build D.zero { leaf = (fun _ -> var (level_of ctx) ty) })
 
 (* Evaluate a term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
 let eval_in_ctx : type a. a ctx -> a term -> value = fun ctx tm -> eval (env_of_ctx ctx) tm

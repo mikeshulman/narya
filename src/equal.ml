@@ -136,7 +136,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
           let* () = bwv_iterM2 (equal_val lvl) dom1s dom2s in
           (* We create variables for all the domains, in order to typecheck all the codomains.  The codomain boundary types only use some of those variables, but it doesn't hurt to have the others around. *)
           let newlvl, argtbl = dom_vars lvl (sfaces dom1f) dom1s in
-          BindTree.iterOpt2 k
+          BindTree.iterOpt2
             {
               it =
                 (fun s cod1 cod2 ->

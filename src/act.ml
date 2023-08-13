@@ -31,7 +31,7 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
       let nj = t.plus_dim in
       (* Collate the supplied arguments into a hashtable for random access *)
       let argtbl = Hashtbl.create 10 in
-      let () = Bwv.iter2 (Hashtbl.add argtbl) (Bwv.take t.plus_faces (sfaces t.total_faces)) args in
+      let () = Bwv.iter2_plus t.plus_faces (Hashtbl.add argtbl) (sfaces t.total_faces) args in
       (* Create a new tube for the new arguments *)
       let m = dom_deg fa in
       let (Has_tube tube) = has_tube m j in
@@ -71,12 +71,12 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
             act_value (Hashtbl.find domtbl (SFace_of fc)) fd)
           (sfaces mi_faces) in
       let cods' =
-        BindTree.build mi
+        BindCube.build mi
           {
             leaf =
               (fun fb ->
                 let (Op (fc, fd)) = deg_sface fa fb in
-                act_binder (BindTree.nth cods fc) fd);
+                act_binder (BindCube.find cods fc) fd);
           } in
       Pi (mi_faces, doms', cods')
 
@@ -105,14 +105,14 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   let tbl = Hashtbl.create 10 in
   let () =
     Bwv.iter2
-      (fun x v -> FaceTree.iter { it = (fun y arg -> Hashtbl.add tbl (SFace_of y, x) arg) } v)
+      (fun x v -> FaceCube.iter { it = (fun y arg -> Hashtbl.add tbl (SFace_of y, x) arg) } v)
       n_faces args in
   (* Now to make the new argument matrix... *)
   let args =
     Bwv.map
       (fun (SFace_of fv) ->
         (* let c = dom_sface fv in *)
-        FaceTree.build (D.plus_out j jm)
+        FaceCube.build (D.plus_out j jm)
           {
             leaf =
               (fun frfu ->

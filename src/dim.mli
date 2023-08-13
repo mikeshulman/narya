@@ -130,10 +130,10 @@ module type Fam = sig
   type ('a, 'b) t
 end
 
-module Tree (F : Fam) : sig
+module Cube (F : Fam) : sig
   type ('n, 'b) t
 
-  val nth : ('n, 'b) t -> ('k, 'n) sface -> ('k, 'b) F.t
+  val find : ('n, 'b) t -> ('k, 'n) sface -> ('k, 'b) F.t
 
   type ('n, 'b) builder = { leaf : 'm. ('m, 'n) sface -> ('m, 'b) F.t }
 
@@ -154,9 +154,9 @@ module Tree (F : Fam) : sig
   val iterOpt2 : ('n, 'b) iteratorOpt2 -> ('n, 'b) t -> ('n, 'b) t -> unit option
 end
 
-module TreeMap (F1 : Fam) (F2 : Fam) : sig
-  module T1 : module type of Tree (F1)
-  module T2 : module type of Tree (F2)
+module CubeMap (F1 : Fam) (F2 : Fam) : sig
+  module T1 : module type of Cube (F1)
+  module T2 : module type of Cube (F2)
 
   type ('n, 'b, 'c) mapper = { map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t }
 
@@ -223,7 +223,7 @@ module FaceFam : sig
   type ('n, 'm) t = 'm face_of
 end
 
-module FaceTree : module type of Tree (FaceFam)
+module FaceCube : module type of Cube (FaceFam)
 
 type (_, _) op = Op : ('n, 'k) sface * ('m, 'n) deg -> ('m, 'k) op
 

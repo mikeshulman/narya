@@ -66,7 +66,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let doms =
         Bwv.map (fun (SFace_of fa) -> eval (Act (env, op_of_sface fa)) dom) (sfaces dom_faces) in
       let cods' =
-        BindTree.build m
+        BindCube.build m
           {
             leaf =
               (fun fa ->
@@ -157,7 +157,7 @@ and apply_neu :
                 apply afn (dom_sface fab) afntbl)
               mnf pi_args in
           let idf = id_sface mn in
-          let output = inst (apply_binder (BindTree.nth cods idf) idf mntbl) pi_tube out_args in
+          let output = inst (apply_binder (BindCube.find cods idf) idf mntbl) pi_tube out_args in
           (* Finally we assemble a new neutral application with these arguments, with a trivial outer insertion, and with the calculated type. *)
           Uninst (Neu (App { fn; app_faces; args; ins = zero_ins mn }, output)))
   | _ -> raise (Failure "Invalid application of non-function")
@@ -177,7 +177,7 @@ and eval_binder :
   let args =
     Bwv.map
       (fun (SFace_of fa) ->
-        FaceTree.build m
+        FaceCube.build m
           {
             leaf =
               (fun fb ->
@@ -199,7 +199,7 @@ and apply_binder : type m n f a. m binder -> (m, n) sface -> (n sface_of, value)
        (env_append b.plus_faces b.env
           (Bwv.map
              (fun ffs ->
-               FaceValTreeMap.map
+               FaceValCubeMap.map
                  {
                    map =
                      (fun _ (Face_of (Face (fa, fb))) ->

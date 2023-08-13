@@ -82,7 +82,7 @@ and equal_at_uninst :
                 apply afn (dom_sface fa) afntbl)
               df args in
           let idf = id_sface m in
-          let output = inst (apply_binder (BindTree.nth cods idf) idf argtbl) tube out_args in
+          let output = inst (apply_binder (BindCube.find cods idf) idf argtbl) tube out_args in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at newlvl (apply x m argtbl) (apply y m argtbl) output)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
@@ -136,7 +136,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
           let* () = bwv_iterM2 (equal_val lvl) dom1s dom2s in
           (* We create variables for all the domains, in order to typecheck all the codomains.  The codomain boundary types only use some of those variables, but it doesn't hurt to have the others around. *)
           let newlvl, argtbl = dom_vars lvl (sfaces dom1f) dom1s in
-          BindTree.iterOpt2
+          BindCube.iterOpt2
             {
               it =
                 (fun s cod1 cod2 ->

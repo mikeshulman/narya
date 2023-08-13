@@ -485,24 +485,29 @@ let sface_of_bw : type m n. (m, n) bwsface -> (m, n) sface =
     (D.zero_plus (cod_bwsface bf))
     (id_sface D.zero) bf
 
-(* ********** Face Trees ********** *)
+(* ********** Cubes ********** *)
 
-(* A "face tree" of a dimension 'm records one object for each strict face of 'm, in a ternary tree so that they can be accessed randomly by strict face as well as sequentially.  In addition, we allow the *type* of each object to depend on the *domain* of the strict face, by parametrizing the notion with a functor. *)
+(* A cube of dimension 'm is a data structure that records one object for each strict face of 'm, in a ternary tree so that they can be accessed randomly by strict face as well as sequentially.  We allow the *type* of each object to depend on the *domain* of the strict face that indexes it, by parametrizing the notion with a functor.  We also allow an extra dependence on some additional type, so that an individual functor application can be parametric. *)
 
 module type Fam = sig
+  (* 'a is the domain of the strict face, 'b is an extra parameter. *)
   type ('a, 'b) t
 end
 
-module Tree (F : Fam) = struct
-  (* An ('m, 'n, 'b) gt is a ternary tree of height 'm whose interior nodes have their third branch special, and whose leaves are labeled by an element of F(n-k,b) , where k is the number of non-special branches taken to lead to the leaf.  Thus there is exactly one element of type F(n,b), 2*m elements of type F(n-1,b), down to 2^m elements of type F(n-m,b).  *)
+module Cube (F : Fam) = struct
+  (* First we define an auxiliary data structure.  An ('m, 'n, 'b) gt is a ternary tree of height 'm whose interior nodes have their last branch special, and whose leaves are labeled by an element of F(n-k,b) , where k is the number of non-special branches taken to lead to the leaf.  Thus there is exactly one element of type F(n,b), 2*m elements of type F(n-1,b), down to 2^m elements of type F(n-m,b).  *)
   type (_, _, _) gt =
     | Leaf : ('n, 'b) F.t -> (D.zero, 'n, 'b) gt
     | Branch :
         (('m, 'n, 'b) gt, Endpoints.len) Bwv.t * ('m, 'n D.suc, 'b) gt
         -> ('m D.suc, 'n D.suc, 'b) gt
 
+  (* Now a cube of dimension 'n with parameter 'b is obtained by coinciding the labeling dimension and the height. *)
   type ('n, 'b) t = ('n, 'n, 'b) gt
 
+  (* This two-step data definition means that all the functions that act on them must also be defined in terms of a gt version.  However, in the interface we expose only the t versions. *)
+
+  (* For instance, we can compute the dimension of a cube. *)
   let rec gdim : type m n b. (m, n, b) gt -> m D.t = function
     | Leaf _ -> D.zero
     | Branch (_, br) -> D.suc (gdim br)
@@ -511,7 +516,7 @@ module Tree (F : Fam) = struct
 
   (* A strict face is an index into a face tree.  *)
 
-  let rec gnth :
+  let rec gfind :
       type m n k mk nm b.
       (mk, nm, b) gt -> (k, m, mk) D.plus -> (n, m, nm) D.plus -> (k, mk) sface -> (n, b) F.t =
    fun tr mk nm d ->
@@ -524,17 +529,17 @@ module Tree (F : Fam) = struct
         let (Le mk') = plus_of_sface d in
         let Eq = D.minus_uniq' (dom_sface d) (Suc mk') mk in
         let (Suc nm') = nm in
-        gnth (Bwv.nth e br) mk' nm' d
+        gfind (Bwv.nth e br) mk' nm' d
     | Branch (_, br), Mid d ->
         let (Suc mk) = N.suc_plus mk in
-        gnth br mk nm d
+        gfind br mk nm d
 
-  let nth : type n k b. (n, b) t -> (k, n) sface -> (k, b) F.t =
+  let find : type n k b. (n, b) t -> (k, n) sface -> (k, b) F.t =
    fun tr d ->
     let (Le mk) = plus_of_sface d in
-    gnth tr mk mk d
+    gfind tr mk mk d
 
-  (* We can build a face tree from a function that takes each face of 'n to something of the appropriate type. *)
+  (* We can build a cube from a function that takes each face of 'n to something of the appropriate type.  Since that function must itself be polymorphic over the domain type of the faces, we have to wrap it up inside a record. *)
 
   type ('n, 'b) builder = { leaf : 'm. ('m, 'n) sface -> ('m, 'b) F.t }
 
@@ -560,7 +565,7 @@ module Tree (F : Fam) = struct
   let build : type n b. n D.t -> (n, b) builder -> (n, b) t =
    fun n g -> gbuild n (D.zero_plus n) (D.zero_plus n) Zero g
 
-  (* Similarly, we can iterate over a face tree with a function that uses both a face and an input value. *)
+  (* Similarly, we can iterate over a cube with a function that uses both a face and an input value. *)
 
   type ('n, 'b) iterator = { it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> unit }
 
@@ -653,9 +658,11 @@ module Tree (F : Fam) = struct
     giterOpt2 (D.zero_plus n) (D.zero_plus n) Zero g tr1 tr2
 end
 
-module TreeMap (F1 : Fam) (F2 : Fam) = struct
-  module T1 = Tree (F1)
-  module T2 = Tree (F2)
+(* We can also map one cube to another.  Since the two may have different object types, this requires a separate functor with two parameters. *)
+
+module CubeMap (F1 : Fam) (F2 : Fam) = struct
+  module T1 = Cube (F1)
+  module T2 = Cube (F2)
 
   type ('n, 'b, 'c) mapper = { map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t }
 
@@ -867,7 +874,7 @@ module FaceFam = struct
   type ('n, 'm) t = 'm face_of
 end
 
-module FaceTree = Tree (FaceFam)
+module FaceCube = Cube (FaceFam)
 
 (* ********** Operators ********** *)
 

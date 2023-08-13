@@ -19,7 +19,7 @@ let empty_ctx : N.zero ctx = Emp
 let rec env_of_ctx : type a. a ctx -> (D.zero, a) env = function
   | Emp -> Emp D.zero
   | Snoc (ctx, ty) ->
-      Ext (env_of_ctx ctx, ValTree.build D.zero { leaf = (fun _ -> var (level_of ctx) ty) })
+      Ext (env_of_ctx ctx, ValCube.build D.zero { leaf = (fun _ -> var (level_of ctx) ty) })
 
 (* Evaluate a term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
 let eval_in_ctx : type a. a ctx -> a term -> value = fun ctx tm -> eval (env_of_ctx ctx) tm
@@ -129,7 +129,7 @@ and check_lam :
                 apply afn (dom_sface fa) afntbl)
               df args in
           let idf = id_sface m in
-          let output = inst (apply_binder (BindTree.nth cods idf) idf argtbl) tube out_args in
+          let output = inst (apply_binder (BindCube.find cods idf) idf argtbl) tube out_args in
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
   (* We can't check a lambda-abstraction against anything except a pi-type. *)
@@ -258,7 +258,7 @@ and synth_app :
                 apply afn (dom_sface fa) afntbl)
               sdf tyargs in
           let idf = id_sface n in
-          let output = inst (apply_binder (BindTree.nth cods idf) idf eargtbl) tube out_args in
+          let output = inst (apply_binder (BindCube.find cods idf) idf eargtbl) tube out_args in
           return (Term.App (sfn, dom_faces, cargs), output, rest))
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (

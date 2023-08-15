@@ -215,6 +215,15 @@ module Ops (M : Plain) = struct
         | Snoc (xs, _), Snoc (ys, _) -> bwv_iterM3_plus mn f xs ys zs)
 end
 
+(* The identity monad *)
+
+module Identity = struct
+  type 'a t = 'a
+
+  let return (x : 'a) : 'a t = x
+  let bind (a : 'a t) (f : 'a -> 'b t) = f a
+end
+
 (* The state monad *)
 
 module type State_type = sig
@@ -236,6 +245,34 @@ module State (S : State_type) = struct
   let put (s : S.t) : unit t = fun _ -> ((), s)
   let save (f : 'a t) : 'a t = fun s -> (fst (f s), s)
 end
+
+(* The state monad transformer *)
+
+module StateT (M : Plain) (S : State_type) = struct
+  type 'a t = S.t -> ('a * S.t) M.t
+
+  let return (x : 'a) : 'a t = fun s -> M.return (x, s)
+  let bind (a : 'a t) (f : 'a -> 'b t) : 'b t = fun s -> M.bind (a s) (fun (b, s) -> f b s)
+  let run (f : 'a t) (s : S.t) : 'a M.t = M.bind (f s) (fun x -> M.return (fst x))
+  let get : S.t t = fun s -> M.return (s, s)
+  let put (s : S.t) : unit t = fun _ -> M.return ((), s)
+  let save (f : 'a t) : 'a t = fun s -> M.bind (f s) (fun (x, _) -> M.return (x, s))
+end
+
+(* The continuation-passing monad *)
+
+module type Result_type = sig
+  type t
+end
+
+module Cont (R : Result_type) = struct
+  type 'a t = ('a -> R.t) -> R.t
+
+  let return (x : 'a) : 'a t = fun cont -> cont x
+  let bind (a : 'a t) (f : 'a -> 'b t) : 'b t = fun cont -> a (fun x -> f x cont)
+end
+
+(* Monads with zero *)
 
 module type Zero = sig
   include Plain

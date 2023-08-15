@@ -1,3 +1,5 @@
+open Dim
+
 (* Raw (unchecked) terms, using intrinsically well-scoped De Bruijn indices, and separated into synthesizing terms and checking terms.  These match the user-facing syntax rather than the internal syntax.  In particular, applications, abstractions, and pi-types are all unary, there is only one universe, and the only operator actions are Id, refl, and sym. *)
 
 type _ synth =
@@ -11,3 +13,9 @@ type _ synth =
   | Asc : 'a check * 'a check -> 'a synth
 
 and _ check = Synth : 'a synth -> 'a check | Lam : 'a N.suc check -> 'a check
+
+module CheckFam = struct
+  type ('a, 'b) t = 'b check
+end
+
+module CheckCube = Cube (CheckFam)

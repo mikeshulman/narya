@@ -23,29 +23,26 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
  fun v s ->
   match v with
   | Uninst tm -> Uninst (act_uninst tm s)
-  | Inst { tm; dim; tube; args } ->
-      let (Of fa) = deg_plus_to s (tube_uninst tube) "instantiation" in
+  | Inst { tm; dim; args } ->
+      let (Of fa) = deg_plus_to s (ConstTube.uninst args) "instantiation" in
       (* The action on an instantiation instantiates the same dimension j, but the leftover dimensions are now the domain of the degeneracy. *)
-      let j = tube_inst tube in
-      let (Tube t) = tube in
-      let nj = t.plus_dim in
-      (* Collate the supplied arguments into a hashtable for random access *)
-      let argtbl = Hashtbl.create 10 in
-      let () = Bwv.iter2_plus t.plus_faces (Hashtbl.add argtbl) (sfaces t.total_faces) args in
-      (* Create a new tube for the new arguments *)
+      let j = ConstTube.inst args in
+      (* let n = ConstTube.uninst args in *)
+      let nj = ConstTube.plus args in
       let m = dom_deg fa in
-      let (Has_tube tube) = has_tube m j in
-      let (Tube t) = tube in
+      let (Plus mj) = D.plus j in
       (* The new arguments are obtained by factoring and acting on appropriate original arguments *)
       let args =
-        Bwv.map
-          (fun (SFace_of fed) ->
-            let (SFace_of_plus (_, fb, fd)) = sface_of_plus t.plus_dim fed in
-            let (Op (fe, fs)) = deg_sface fa fb in
-            let (Plus q) = D.plus (dom_sface fd) in
-            act_value (Hashtbl.find argtbl (SFace_of (sface_plus_sface fe nj q fd))) fs)
-          (Bwv.take t.plus_faces (sfaces t.total_faces)) in
-      Inst { tm = act_uninst tm fa; dim; tube; args }
+        ConstTube.build m mj
+          {
+            build =
+              (fun fed ->
+                let (PFace_of_plus (_, fb, fd)) = pface_of_plus fed in
+                let (Op (fe, fs)) = deg_sface fa fb in
+                let (Plus q) = D.plus (dom_tface fd) in
+                act_value (ConstTube.find args (sface_plus_pface fe nj q fd)) fs);
+          } in
+      Inst { tm = act_uninst tm fa; dim; args }
   | Lam body ->
       let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
       Lam (act_binder body fa)
@@ -57,28 +54,27 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
   | UU nk ->
       let (Of fa) = deg_plus_to s nk "universe" in
       UU (dom_deg fa)
-  | Pi (ni_faces, doms, cods) ->
-      let k = dim_faces ni_faces in
+  | Pi (doms, cods) ->
+      let k = ConstCube.dim doms in
       let (Of fa) = deg_plus_to s k "pi-type" in
-      let domtbl = Hashtbl.create 10 in
-      let () = Bwv.iter2 (Hashtbl.add domtbl) (sfaces ni_faces) doms in
       let mi = dom_deg fa in
-      let (Faces mi_faces) = count_faces mi in
       let doms' =
-        Bwv.map
-          (fun (SFace_of fb) ->
-            let (Op (fc, fd)) = deg_sface fa fb in
-            act_value (Hashtbl.find domtbl (SFace_of fc)) fd)
-          (sfaces mi_faces) in
+        ConstCube.build mi
+          {
+            build =
+              (fun fb ->
+                let (Op (fc, fd)) = deg_sface fa fb in
+                act_value (ConstCube.find doms fc) fd);
+          } in
       let cods' =
         BindCube.build mi
           {
-            leaf =
+            build =
               (fun fb ->
                 let (Op (fc, fd)) = deg_sface fa fb in
                 act_binder (BindCube.find cods fc) fd);
           } in
-      Pi (mi_faces, doms', cods')
+      Pi (doms', cods')
 
 and act_binder : type m n. n binder -> (m, n) deg -> m binder =
  fun (Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }) fa ->
@@ -105,7 +101,8 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   let tbl = Hashtbl.create 10 in
   let () =
     Bwv.iter2
-      (fun x v -> FaceCube.iter { it = (fun y arg -> Hashtbl.add tbl (SFace_of y, x) arg) } v)
+      (fun x v ->
+        FaceCube.miter { it = (fun y [ arg ] -> Hashtbl.add tbl (SFace_of y, x) arg) } [ v ])
       n_faces args in
   (* Now to make the new argument matrix... *)
   let args =
@@ -114,7 +111,7 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
         (* let c = dom_sface fv in *)
         FaceCube.build (D.plus_out j jm)
           {
-            leaf =
+            build =
               (fun frfu ->
                 (* ...we split the face of j+m into a face fr of j and a face fu of m... *)
                 let (SFace_of_plus (_, fr, fu)) = sface_of_plus jm frfu in
@@ -136,37 +133,26 @@ and act_normal : type a b. normal -> (a, b) deg -> normal =
 and act_ty : type a b. value -> value -> (a, b) deg -> value =
  fun tm ty s ->
   match ty with
-  | Inst { tm = ty; dim; tube; args } -> (
-      let (Of fa) = deg_plus_to s (tube_inst tube) "instantiated type" in
+  | Inst { tm = ty; dim; args } -> (
       (* A type must be fully instantiated *)
-      match compare (tube_uninst tube) D.zero with
+      match compare (ConstTube.uninst args) D.zero with
       | Neq -> raise (Failure "act_ty applied to non-fully-instantiated term")
       | Eq ->
+          let Eq = D.plus_uniq (ConstTube.plus args) (D.zero_plus (ConstTube.inst args)) in
+          let (Of fa) = deg_plus_to s (ConstTube.inst args) "instantiated type" in
           (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
-          let (Tube t) = tube in
-          let Eq = faces_uniq t.missing_faces faces_zero in
-          let Eq = D.plus_uniq t.plus_dim (D.zero_plus (tube_inst tube)) in
-          let (Suc Zero) = t.plus_faces in
-          let args' = Bwv.Snoc (args, tm) in
-          (* We collate the arguments into a hashtable for random access *)
-          let argstbl = Hashtbl.create 10 in
-          let () = Bwv.iter2 (Hashtbl.add argstbl) (sfaces t.total_faces) args' in
-          (* We construct a new tube for a full instantiation *)
-          let m = dom_deg fa in
-          let (Has_tube tube) = has_tube D.zero m in
-          let (Tube t) = tube in
-          let Eq = faces_uniq t.missing_faces faces_zero in
-          let Eq = D.plus_uniq t.plus_dim (D.zero_plus m) in
-          let (Suc Zero) = t.plus_faces in
-          let (Snoc (new_faces, _)) = sfaces t.total_faces in
-          (* And we build the argument list by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
+          let args' = ConstTube.plus_cube { lift = (fun x -> x) } args (ConstCube.singleton tm) in
+          (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
           let args =
-            Bwv.map
-              (fun (SFace_of fb) ->
-                let (Op (fd, fc)) = deg_sface fa fb in
-                act_value (Hashtbl.find argstbl (SFace_of fd)) fc)
-              new_faces in
-          Inst { tm = act_uninst ty s; dim = pos_deg dim fa; tube; args })
+            ConstTube.build D.zero
+              (D.zero_plus (dom_deg fa))
+              {
+                build =
+                  (fun fb ->
+                    let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
+                    act_value (ConstCube.find args' fd) fc);
+              } in
+          Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args })
   | Uninst ty -> (
       (* This is just the case when dim = 0, so it is the same except simpler. *)
       let fa = s in
@@ -177,20 +163,16 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
           match D.compare_zero (dom_deg fa) with
           | Zero -> Uninst (act_uninst ty fa)
           | Pos dim ->
-              let m = dom_deg fa in
-              let (Has_tube tube) = has_tube D.zero m in
-              let (Tube t) = tube in
-              let Eq = faces_uniq t.missing_faces faces_zero in
-              let Eq = D.plus_uniq t.plus_dim (D.zero_plus m) in
-              let (Suc Zero) = t.plus_faces in
-              let (Snoc (new_faces, _)) = sfaces t.total_faces in
               let args =
-                Bwv.map
-                  (fun (SFace_of fb) ->
-                    let (Op (_, fc)) = deg_sface fa fb in
-                    act_value tm fc)
-                  new_faces in
-              Inst { tm = act_uninst ty fa; dim; tube; args }))
+                ConstTube.build D.zero
+                  (D.zero_plus (dom_deg fa))
+                  {
+                    build =
+                      (fun fb ->
+                        let (Op (_, fc)) = deg_sface fa (sface_of_tface fb) in
+                        act_value tm fc);
+                  } in
+              Inst { tm = act_uninst ty fa; dim; args }))
   | Lam _ -> raise (Failure "A lambda-abstraction cannot be a type to act on")
 
 and act_neu : type a b. neu -> (a, b) deg -> neu =
@@ -200,7 +182,7 @@ and act_neu : type a b. neu -> (a, b) deg -> neu =
       (* To act on a variable, we just accumulate the delayed action. *)
       let (DegExt (_, _, deg)) = comp_deg_extending deg s in
       Var { level; deg }
-  | App { fn; app_faces; args; ins } ->
+  | App { fn; args; ins } ->
       (* To act on an application, we compose with the delayed insertion *)
       let nk = plus_of_ins ins in
       let s' = perm_of_ins ins in
@@ -209,21 +191,19 @@ and act_neu : type a b. neu -> (a, b) deg -> neu =
       let n_kd = D.plus_assocr nk kd nk_d in
       (* Factor the result into a new insertion and a smaller degeneracy *)
       let (Insfact (fa, ins)) = insfact s's n_kd in
-      (* Collate the supplied arguments into a hashtable for random access *)
-      let ntbl = Hashtbl.create 10 in
-      let () = Bwv.iter2 (Hashtbl.add ntbl) (sfaces app_faces) args in
       (* And push the smaller degeneracy action into the application, acting on the function *)
       let fn = act_neu fn fa in
       let p = dom_deg fa in
-      let (Faces app_faces) = count_faces p in
       (* And on the arguments, by factorization *)
       let args =
-        Bwv.map
-          (fun (SFace_of fb) ->
-            let (Op (fd, fc)) = deg_sface fa fb in
-            act_normal (Hashtbl.find ntbl (SFace_of fd)) fc)
-          (sfaces app_faces) in
-      App { fn; app_faces; args; ins }
+        ConstCube.build p
+          {
+            build =
+              (fun fb ->
+                let (Op (fd, fc)) = deg_sface fa fb in
+                act_normal (ConstCube.find args fd) fc);
+          } in
+      App { fn; args; ins }
 
 (* A version that takes the degeneracy wrapped. *)
 let act_any : value -> any_deg -> value = fun v (Any s) -> act_value v s

@@ -6,6 +6,8 @@ open Act
 open Norm
 open Equal
 open Monad.Ops (Monad.Maybe)
+module CTCCubeMap1_2 = CubeMap1_2 (ConstFam) (TermFam) (ConstFam)
+module CTCTubeMap1_2 = TubeMap1_2 (ConstFam) (TermFam) (ConstFam)
 
 (* A context is a list of variables with types which are values.  The variables themselves, when represented by De Bruijn LEVELS, can appear in the types of later variables.  In particular, the LENGTH of this context, which is its type parameter as a type-level nat, is the current De Bruijn LEVEL for new variables to be added.  We can look up the INDEX of a TERM VARIABLE into this Bwv to get its type, but not of course the LEVEL of a VALUE VARIABLE. *)
 type 'a ctx = (value, 'a) Bwv.t
@@ -19,7 +21,7 @@ let empty_ctx : N.zero ctx = Emp
 let rec env_of_ctx : type a. a ctx -> (D.zero, a) env = function
   | Emp -> Emp D.zero
   | Snoc (ctx, ty) ->
-      Ext (env_of_ctx ctx, ValCube.build D.zero { leaf = (fun _ -> var (level_of ctx) ty) })
+      Ext (env_of_ctx ctx, ConstCube.build D.zero { build = (fun _ -> var (level_of ctx) ty) })
 
 (* Evaluate a term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
 let eval_in_ctx : type a. a ctx -> a term -> value = fun ctx tm -> eval (env_of_ctx ctx) tm
@@ -62,74 +64,69 @@ let rec check : type a. a ctx -> a check -> value -> a term option =
   | Lam _ -> (
       (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam. *)
       match ty with
-      | Inst { tm = ty; dim = _; tube; args } -> check_lam ctx tm ty tube args
-      | Uninst ty -> check_lam ctx tm ty tube_zero Emp
+      | Inst { tm = ty; dim = _; args } -> check_lam ctx tm ty args
+      | Uninst ty -> check_lam ctx tm ty (ConstTube.empty D.zero)
       (* A lambda-abstraction is never a type, so we can't check against it.  But this is a user error, not a bug, since the user could write an abstraction on the RHS of an ascription. *)
       | Lam _ ->
           Printf.printf "Lambda is not a type";
           None)
 
 and check_lam :
-    type a m n f.
-    a ctx -> a check -> uninst -> (m, n, f) count_tube -> (value, f) Bwv.t -> a term option =
- fun ctx tm ty tube args ->
+    type a m n mn f. a ctx -> a check -> uninst -> (m, n, mn, value) ConstTube.t -> a term option =
+ fun ctx tm ty args ->
   match ty with
-  | Pi (dom_faces, doms, cods) -> (
-      let m = tube_inst tube in
-      match (compare (tube_uninst tube) D.zero, compare m (dim_faces dom_faces)) with
+  | Pi (doms, cods) -> (
+      let m = ConstCube.dim doms in
+      match (compare (ConstTube.uninst args) D.zero, compare (ConstTube.inst args) m) with
       | Neq, _ | _, Neq ->
           Printf.printf "Dimension mismatch in checking lambda";
           None
       | Eq, Eq ->
+          let Eq = D.plus_uniq (ConstTube.plus args) (D.zero_plus m) in
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
+          let (Faces dom_faces) = count_faces (ConstCube.dim doms) in
           let (Plus af) = N.plus (faces_out dom_faces) in
           let* body = lambdas af tm in
-          (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
-          (* TODO: This is largely copy-and-pasted from equal_at_uninst.  Factor it out. *)
-          let (Tube t) = tube in
-          let Eq = D.plus_uniq t.plus_dim (D.zero_plus m) in
-          let Eq = faces_uniq t.total_faces dom_faces in
-          let Eq = faces_uniq t.missing_faces faces_zero in
-          let Eq = N.plus_uniq t.plus_faces (Suc Zero) in
-          let df = sfaces dom_faces in
+          (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones.  We store them in a hashtable as we go, for easy access to the previous ones for this instantiation. *)
           let argtbl = Hashtbl.create 10 in
           let ctx =
-            Bwv.fold2_left_map_append af
+            ConstCube.fold_left_append
               {
-                f =
-                  (fun c (SFace_of fa) dom ->
-                    let level = level_of c in
-                    let k = dom_sface fa in
-                    let (Has_tube (Tube t)) = has_tube D.zero k in
-                    let Eq = D.plus_uniq t.plus_dim (D.zero_plus k) in
+                fold =
+                  (fun c fa dom ->
                     let ty =
-                      inst dom (Tube t)
-                        (Bwv.map_plus t.plus_faces
-                           (fun (SFace_of fc) -> Hashtbl.find argtbl (SFace_of (comp_sface fa fc)))
-                           (sfaces t.total_faces)) in
-                    let v = Uninst (Neu (Var { level; deg = id_deg D.zero }, ty)) in
+                      inst dom
+                        (ConstTube.build D.zero
+                           (D.zero_plus (dom_sface fa))
+                           {
+                             build =
+                               (fun fc ->
+                                 Hashtbl.find argtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
+                           }) in
+                    let v = Uninst (Neu (Var { level = level_of c; deg = id_deg D.zero }, ty)) in
                     let () = Hashtbl.add argtbl (SFace_of fa) v in
                     ty);
               }
-              ctx df doms in
+              ctx dom_faces af doms in
+          (* TODO: Can we combine this with the previous iteration? *)
+          let newargs =
+            ConstCube.build m { build = (fun fa -> Hashtbl.find argtbl (SFace_of fa)) } in
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
-          (* TODO: This code is copy-and-pasted from apply_neu and equal_at_uninst.  Factor it out. *)
           let out_args =
-            Bwv.map2_plus t.plus_faces
-              (fun (SFace_of fa) afn ->
-                let k = dom_sface fa in
-                let (Faces k_faces) = count_faces k in
-                let afntbl = Hashtbl.create 10 in
-                let () =
-                  Bwv.iter
-                    (fun (SFace_of fc) ->
-                      Hashtbl.add afntbl (SFace_of fc)
-                        (Hashtbl.find argtbl (SFace_of (comp_sface fa fc))))
-                    (sfaces k_faces) in
-                apply afn (dom_sface fa) afntbl)
-              df args in
+            ConstTube.mmap
+              {
+                map =
+                  (fun fa [ afn ] ->
+                    apply afn
+                      (ConstCube.build (dom_tface fa)
+                         {
+                           build =
+                             (fun fc -> ConstCube.find newargs (comp_sface (sface_of_tface fa) fc));
+                         }));
+              }
+              [ args ] in
           let idf = id_sface m in
-          let output = inst (apply_binder (BindCube.find cods idf) idf argtbl) tube out_args in
+          let output = inst (apply_binder (BindCube.find cods idf) idf newargs) out_args in
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
   (* We can't check a lambda-abstraction against anything except a pi-type. *)
@@ -181,8 +178,8 @@ and synth_apps : type a. a ctx -> a term -> value -> a check list -> (a term * v
   (* First we check one group of arguments. *)
   let* afn, aty, aargs =
     match sty with
-    | Inst { tm = fnty; dim = _; tube; args = tyargs } -> synth_app ctx sfn fnty tube tyargs args
-    | Uninst fnty -> synth_app ctx sfn fnty tube_zero Emp args
+    | Inst { tm = fnty; dim = _; args = tyargs } -> synth_app ctx sfn fnty tyargs args
+    | Uninst fnty -> synth_app ctx sfn fnty (ConstTube.empty D.zero) args
     (* A lambda-abstraction here would really be a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize an abstraction as if it were a type.  Thus, we raise an exception rather than returning None. *)
     | Lam _ -> raise (Failure "Synthesized type cannot be a lambda-abstraction") in
   (* If that used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
@@ -191,148 +188,152 @@ and synth_apps : type a. a ctx -> a term -> value -> a check list -> (a term * v
   | _ :: _ -> synth_apps ctx afn aty aargs
 
 and synth_app :
-    type a m n f.
+    type a m n mn f.
     a ctx ->
     a term ->
     uninst ->
-    (m, n, f) count_tube ->
-    (value, f) Bwv.t ->
+    (m, n, mn, value) ConstTube.t ->
     a check list ->
     (a term * value * a check list) option =
- fun ctx sfn fnty tube tyargs args ->
+ fun ctx sfn fnty tyargs args ->
+  let module M =
+    Monad.StateT
+      (Monad.Maybe)
+      (struct
+        type t = a check list
+      end)
+  in
   match fnty with
   (* The obvious thing we can "apply" is an element of a pi-type. *)
-  | Pi (dom_faces, doms, cods) -> (
+  | Pi (doms, cods) -> (
       (* Ensure that the pi-type is fully instantiated and at the right dimension. *)
-      let n = dim_faces dom_faces in
-      match (compare (tube_inst tube) n, compare (tube_uninst tube) D.zero) with
+      let n = ConstCube.dim doms in
+      match (compare (ConstTube.inst tyargs) n, compare (ConstTube.uninst tyargs) D.zero) with
       | Neq, _ | _, Neq ->
           Printf.printf "Dimension mismatch when synthesizing applied function";
           None
       | Eq, Eq ->
-          (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app *)
-          let* args, rest = Bwv.of_list (faces_out dom_faces) args in
-          let argtbl = Hashtbl.create 10 in
-          let df = sfaces dom_faces in
-          let () = Bwv.iter2 (Hashtbl.add argtbl) df args in
-          (* Check each argument in "args" against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, producing a Bwv of terms and storing the values in a hashtable. *)
-          (* TODO: copy-and-pasted *)
+          let Eq = D.plus_uniq (ConstTube.plus tyargs) (D.zero_plus n) in
+          (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
           let eargtbl = Hashtbl.create 10 in
-          let* cargs =
-            bwv_mapM2
-              (fun (SFace_of fa) dom ->
-                let tm = Hashtbl.find argtbl (SFace_of fa) in
-                let k = dom_sface fa in
-                let (Has_tube (Tube t)) = has_tube D.zero k in
-                let Eq = D.plus_uniq t.plus_dim (D.zero_plus k) in
-                let ty =
-                  inst dom (Tube t)
-                    (Bwv.map_plus t.plus_faces
-                       (fun (SFace_of fc) -> Hashtbl.find eargtbl (SFace_of (comp_sface fa fc)))
-                       (sfaces t.total_faces)) in
-                let* ctm = check ctx tm ty in
-                let etm = eval_in_ctx ctx ctm in
-                Hashtbl.add eargtbl (SFace_of fa) etm;
-                return ctm)
-              df doms in
+          let* (cargs, eargs), rest =
+            let open CTCCubeMap1_2 (M) in
+            mapM1_2
+              {
+                map =
+                  (fun fa dom ->
+                    let open Monad.Ops (M) in
+                    let* ts = M.get in
+                    let* tm =
+                      match ts with
+                      | [] -> M.stateless None
+                      | t :: ts ->
+                          let* () = M.put ts in
+                          return t in
+                    let ty =
+                      inst dom
+                        (ConstTube.build D.zero
+                           (D.zero_plus (dom_sface fa))
+                           {
+                             build =
+                               (fun fc ->
+                                 Hashtbl.find eargtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
+                           }) in
+                    let* ctm = M.stateless (check ctx tm ty) in
+                    let etm = eval_in_ctx ctx ctm in
+                    Hashtbl.add eargtbl (SFace_of fa) etm;
+                    return (ctm, etm));
+              }
+              doms args in
           (* Evaluate cod at these evaluated arguments, and instantiate it at the appropriate values of tyargs, as with similar code in other places. *)
-          (* TODO: copy-pasted from apply_neu etc. *)
-          let (Tube t) = tube in
-          let Eq = faces_uniq t.missing_faces faces_zero in
-          let Eq = D.plus_uniq t.plus_dim (D.zero_plus n) in
-          let Eq = faces_uniq t.total_faces dom_faces in
-          let (Suc Zero) = t.plus_faces in
-          let (Snoc (sdf, _)) = df in
           let out_args =
-            Bwv.map2
-              (fun (SFace_of fa) afn ->
-                let k = dom_sface fa in
-                let (Faces k_faces) = count_faces k in
-                let afntbl = Hashtbl.create 10 in
-                let () =
-                  Bwv.iter
-                    (fun (SFace_of fc) ->
-                      Hashtbl.add afntbl (SFace_of fc)
-                        (Hashtbl.find eargtbl (SFace_of (comp_sface fa fc))))
-                    (sfaces k_faces) in
-                apply afn (dom_sface fa) afntbl)
-              sdf tyargs in
+            ConstTube.mmap
+              {
+                map =
+                  (fun fa [ afn ] ->
+                    apply afn
+                      (ConstCube.build (dom_tface fa)
+                         {
+                           build =
+                             (fun fc -> ConstCube.find eargs (comp_sface (sface_of_tface fa) fc));
+                         }));
+              }
+              [ tyargs ] in
           let idf = id_sface n in
-          let output = inst (apply_binder (BindCube.find cods idf) idf eargtbl) tube out_args in
-          return (Term.App (sfn, dom_faces, cargs), output, rest))
+          let output = inst (apply_binder (BindCube.find cods idf) idf eargs) out_args in
+          return (Term.App (sfn, cargs), output, rest))
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (
       (* Ensure that the universe is fully instantiated and at the right dimension. *)
-      match (compare (tube_inst tube) n, compare (tube_uninst tube) D.zero) with
+      match (compare (ConstTube.inst tyargs) n, compare (ConstTube.uninst tyargs) D.zero) with
       | Neq, _ | _, Neq ->
           Printf.printf "Dimension mismatch when synthesizing instantiation";
           None
       | Eq, Eq -> (
-          let (Tube ({ total_faces; _ } as t)) = tube in
-          let Eq = faces_uniq t.missing_faces faces_zero in
-          let Eq = D.plus_uniq t.plus_dim (D.zero_plus n) in
-          let Eq = N.plus_uniq t.plus_faces (Suc Zero) in
-          (* Take as many arguments as possible that will instantiate a type of dimension n. *)
-          let (Take (plus_dim, missing_faces, plus_faces, args, rest)) =
-            take_tube total_faces args in
-          (* If there were any arguments left over, there's nothing that can be done with them.  (TODO: Should the iteration in take_tube be folded into that of synth_apps, so that each time through synth_app we only instantiate once?) *)
-          match rest with
-          | _ :: _ ->
-              Printf.printf "Too many arguments applied to instantiation";
+          let Eq = D.plus_uniq (ConstTube.plus tyargs) (D.zero_plus n) in
+          match D.compare_zero n with
+          | Zero ->
+              Printf.printf "Cannot instatiate a zero-dimensional type";
               None
-          | [] ->
-              let (Pos _) = faces_pos missing_faces in
-              let (Suc ppf) = plus_faces in
-              let (Snoc (tf, _)) = sfaces total_faces in
-              (* We check each argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments.  This requires random access to the previous evaluated arguments, so we store those in a hashtable, while also assembling them into a Bwv for later. *)
+          | Pos pn ->
+              (* We take enough arguments to instatiate a type of dimension n by one, and check each argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments.  This requires random access to the previous evaluated arguments, so we store those in a hashtable, while also assembling them into a tube for later. *)
+              let (Is_suc (m, msuc)) = suc_pos pn in
+              let open ConstTube.Monadic (M) in
               let eargtbl = Hashtbl.create 10 in
-              let* cargs =
-                bwv_mapM3_plus ppf
-                  (fun (SFace_of fa) tyarg arg ->
-                    let k = dom_sface fa in
-                    let (Has_tube (Tube kt as ktube)) = has_tube D.zero k in
-                    let Eq = faces_uniq kt.missing_faces faces_zero in
-                    let Eq = D.plus_uniq kt.plus_dim (D.zero_plus k) in
-                    let Eq = N.plus_uniq kt.plus_faces (Suc Zero) in
-                    let (Snoc (kfaces, _)) = sfaces kt.total_faces in
-                    let kargs =
-                      Bwv.map
-                        (fun (SFace_of fb) -> Hashtbl.find eargtbl (SFace_of (comp_sface fa fb)))
-                        kfaces in
-                    let tyk = inst tyarg ktube kargs in
-                    let* carg = check ctx arg tyk in
-                    let earg = eval_in_ctx ctx carg in
-                    let () = Hashtbl.add eargtbl (SFace_of fa) earg in
-                    return carg)
-                  tf tyargs args in
-              (* Now we assemble the synthesized type, which is an full instantiation of the universe at a telescope consisting of instantiations of the type arguments at the evaluated term arguments. *)
-              let m = dim_faces missing_faces in
-              let n = D.plus_right plus_dim in
-              let (Has_tube (Tube mt as mtube)) = has_tube D.zero m in
-              let Eq = faces_uniq mt.missing_faces faces_zero in
-              let Eq = D.plus_uniq mt.plus_dim (D.zero_plus m) in
-              let Eq = N.plus_uniq mt.plus_faces (Suc Zero) in
-              let (Snoc (mfaces, _)) = sfaces mt.total_faces in
-              let tyargtbl = Hashtbl.create 10 in
-              let () = Bwv.iter2 (Hashtbl.add tyargtbl) tf tyargs in
+              let tyargs1 = ConstTube.pboundary (D.zero_plus m) msuc tyargs in
+              let* (cargs, eargs), rest =
+                let open CTCTubeMap1_2 (M) in
+                mapM1_2
+                  {
+                    map =
+                      (fun fa tyarg ->
+                        let open Monad.Ops (M) in
+                        let* ts = M.get in
+                        let* tm =
+                          match ts with
+                          | [] -> M.stateless None
+                          | t :: ts ->
+                              let* () = M.put ts in
+                              return t in
+                        let fa = sface_of_tface fa in
+                        let k = dom_sface fa in
+                        let kargs =
+                          ConstTube.build D.zero (D.zero_plus k)
+                            {
+                              build =
+                                (fun fb ->
+                                  Hashtbl.find eargtbl
+                                    (SFace_of (comp_sface fa (sface_of_tface fb))));
+                            } in
+                        let ty = inst tyarg kargs in
+                        let* ctm = M.stateless (check ctx tm ty) in
+                        let etm = eval_in_ctx ctx ctm in
+                        let () = Hashtbl.add eargtbl (SFace_of fa) etm in
+                        return (ctm, etm));
+                  }
+                  tyargs1 args in
+              (* Now we assemble the synthesized type, which is a full instantiation of the universe at a telescope consisting of instantiations of the type arguments at the evaluated term arguments. *)
               let margs =
-                Bwv.map
-                  (fun (SFace_of fe) ->
-                    let j = dom_sface fe in
-                    let (Has_tube (Tube tyt as tytube)) = has_tube j n in
-                    let fen = sface_plus fe plus_dim tyt.plus_dim in
-                    let ty = Hashtbl.find tyargtbl (SFace_of fen) in
-                    let tyf = sfaces tyt.total_faces in
-                    let tyargs =
-                      Bwv.map_plus tyt.plus_faces
-                        (fun (SFace_of fa) -> Hashtbl.find eargtbl (SFace_of (comp_sface fen fa)))
-                        tyf in
-                    inst ty tytube tyargs)
-                  mfaces in
-              return
-                ( Term.Inst (sfn, Tube { plus_dim; total_faces; missing_faces; plus_faces }, cargs),
-                  inst (Uninst (UU m)) mtube margs,
-                  [] )))
+                ConstTube.build D.zero (D.zero_plus m)
+                  {
+                    build =
+                      (fun fe ->
+                        let j = dom_tface fe in
+                        let (Plus jsuc) = D.plus (D.plus_right msuc) in
+                        inst
+                          (ConstTube.find tyargs (tface_plus fe msuc msuc jsuc))
+                          (ConstTube.build j jsuc
+                             {
+                               build =
+                                 (fun fa ->
+                                   let (PFace_of_plus (pq, fc, fd)) = pface_of_plus fa in
+                                   ConstTube.find eargs
+                                     (sface_plus_tface
+                                        (comp_sface (sface_of_tface fe) fc)
+                                        (D.plus_zero m) msuc pq fd));
+                             }));
+                  } in
+              return (Term.Inst (sfn, cargs), inst (Uninst (UU m)) margs, rest)))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
   | _ ->
       Printf.printf "Attempt to apply non-function, non-type";

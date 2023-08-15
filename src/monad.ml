@@ -118,6 +118,7 @@ module StateT (M : Plain) (S : State_type) = struct
 
   let return (x : 'a) : 'a t = fun s -> M.return (x, s)
   let bind (a : 'a t) (f : 'a -> 'b t) : 'b t = fun s -> M.bind (a s) (fun (b, s) -> f b s)
+  let stateless (x : 'a M.t) : 'a t = fun s -> M.bind x (fun x -> M.return (x, s))
   let run (f : 'a t) (s : S.t) : 'a M.t = M.bind (f s) (fun x -> M.return (fst x))
   let get : S.t t = fun s -> M.return (s, s)
   let put (s : S.t) : unit t = fun _ -> M.return ((), s)

@@ -12,21 +12,9 @@ module rec Value : sig
 
   module BindCube : module type of Cube (BindFam)
 
-  module ValFam : sig
-    type ('k, 'b) t = Value.value
-  end
-
-  module ValCube : module type of Cube (ValFam)
-
   type neu =
     | Var : { level : int; deg : ('m, 'n) deg } -> neu
-    | App : {
-        fn : neu;
-        app_faces : ('n, 'f) count_faces;
-        args : (normal, 'f) Bwv.t;
-        ins : ('m, 'n, 'k) insertion;
-      }
-        -> neu
+    | App : { fn : neu; args : ('n, normal) ConstCube.t; ins : ('m, 'n, 'k) insertion } -> neu
 
   and _ binder =
     | Bind : {
@@ -42,25 +30,19 @@ module rec Value : sig
 
   and uninst =
     | UU : 'n D.t -> uninst
-    | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * ('k, unit) BindCube.t -> uninst
+    | Pi : ('k, value) ConstCube.t * ('k, unit) BindCube.t -> uninst
     | Neu : neu * value -> uninst
 
   and value =
     | Uninst : uninst -> value
-    | Inst : {
-        tm : uninst;
-        dim : 'n D.pos;
-        tube : ('m, 'n, 'f) count_tube;
-        args : (value, 'f) Bwv.t;
-      }
-        -> value
+    | Inst : { tm : uninst; dim : 'k D.pos; args : ('n, 'k, 'nk, value) ConstTube.t } -> value
     | Lam : 'k binder -> value
 
   and normal = { tm : value; ty : value }
 
   and (_, _) env =
     | Emp : 'n D.t -> ('n, N.zero) env
-    | Ext : ('n, 'b) env * ('n, unit) ValCube.t -> ('n, 'b N.suc) env
+    | Ext : ('n, 'b) env * ('n, value) ConstCube.t -> ('n, 'b N.suc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end = struct
   (* Here is the recursive application of the functor Cube.  First we define a module to pass as its argument, with type defined to equal the yet-to-be-defined binder, referred to recursively. *)
@@ -69,12 +51,6 @@ end = struct
   end
 
   module BindCube = Cube (BindFam)
-
-  module ValFam = struct
-    type ('k, 'b) t = Value.value
-  end
-
-  module ValCube = Cube (ValFam)
 
   (* Neutrals are as usual, except that they have a nonreducible degeneracy applied outside. *)
   type neu =
@@ -86,10 +62,8 @@ end = struct
     | App : {
         (* Function being applied *)
         fn : neu;
-        (* The dimension of the application, and count the resulting arguments *)
-        app_faces : ('n, 'f) count_faces;
         (* The arguments *)
-        args : (normal, 'f) Bwv.t;
+        args : ('n, normal) ConstCube.t;
         (* A neutral degeneracy applied outside that can't be pushed inside *)
         ins : ('m, 'n, 'k) insertion;
       }
@@ -104,6 +78,7 @@ end = struct
         bound_faces : ('n, 'fn) count_faces;
         plus_faces : ('a, 'fn, 'afn) N.plus;
         body : 'afn term;
+        (* TODO: Can this be just a ('mn,'mn) FaceCube.t, by adding the faces? *)
         args : (('m, 'mn) FaceCube.t, 'fn) Bwv.t;
       }
         -> 'mn binder
@@ -112,7 +87,7 @@ end = struct
   and uninst =
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a face tree of binders. *)
-    | Pi : ('k, 'f) count_faces * (value, 'f) Bwv.t * ('k, unit) BindCube.t -> uninst
+    | Pi : ('k, value) ConstCube.t * ('k, unit) BindCube.t -> uninst
     | Neu : neu * value -> uninst (* Neutral terms store their type *)
 
   and value =
@@ -123,11 +98,9 @@ end = struct
         (* The uninstantiated term being instantiated *)
         tm : uninst;
         (* Require at least one dimension to be instantiated *)
-        dim : 'n D.pos;
-        (* Count the number of arguments for a tube of some dimensions *)
-        tube : ('m, 'n, 'f) count_tube;
-        (* And list those arguments *)
-        args : (value, 'f) Bwv.t;
+        dim : 'k D.pos;
+        (* The arguments for a tube of some dimensions *)
+        args : ('n, 'k, 'nk, value) ConstTube.t;
       }
         -> value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated, so we may as well make them values directly. *)
@@ -139,13 +112,13 @@ end = struct
   (* This is a context morphism *from* a De Bruijn LEVEL context *to* a De Bruijn INDEX context.  Specifically, an ('n, 'a) env is a substitution from a level context to an index context of length 'a of dimension 'n. *)
   and (_, _) env =
     | Emp : 'n D.t -> ('n, N.zero) env
-    | Ext : ('n, 'b) env * ('n, unit) ValCube.t -> ('n, 'b N.suc) env
+    | Ext : ('n, 'b) env * ('n, value) ConstCube.t -> ('n, 'b N.suc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end
 
 (* Now we include everything we defined above, so callers in other files don't have to qualify or re-open it.x *)
 include Value
-module FaceValCubeMap = CubeMap (FaceFam) (ValFam)
+module FaceConstCubeMap = CubeMap (FaceFam) (ConstFam)
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : int -> value -> value =
@@ -162,24 +135,20 @@ let dim_binder : type m. m binder -> m D.t = function
   | Bind b -> D.plus_out (dim_env b.env) b.plus_dim
 
 (* Instantiate an arbitrary value, combining tubes. *)
-let inst : type m n f. value -> (m, n, f) count_tube -> (value, f) Bwv.t -> value =
- fun tm (Tube tube2) args2 ->
-  match D.compare_zero (tube_inst (Tube tube2)) with
+let inst : type m n mn f. value -> (m, n, mn, value) ConstTube.t -> value =
+ fun tm args2 ->
+  match D.compare_zero (ConstTube.inst args2) with
   | Zero -> tm
   | Pos dim2 -> (
       match tm with
-      | Inst { tm; dim = _; tube = Tube tube1; args = args1 } -> (
-          match
-            compare
-              (D.plus_out (tube_uninst (Tube tube2)) tube2.plus_dim)
-              (tube_uninst (Tube tube1))
-          with
+      | Inst { tm; dim = _; args = args1 } -> (
+          match compare (ConstTube.out args2) (ConstTube.uninst args1) with
           | Neq -> raise (Failure "Dimension mismatch in instantiation")
           | Eq ->
-              let (Tube_plus_tube (nk, tube, _, args)) =
-                tube_plus_tube tube2.plus_dim (Tube tube1) (Tube tube2) args1 args2 in
-              Inst { tm; dim = D.pos_plus dim2 nk; tube; args })
-      | Uninst tm -> Inst { tm; dim = dim2; tube = Tube tube2; args = args2 }
+              let (Plus nk) = D.plus (ConstTube.inst args1) in
+              let args = ConstTube.plus_tube { lift = (fun x -> x) } nk args1 args2 in
+              Inst { tm; dim = D.pos_plus dim2 nk; args })
+      | Uninst tm -> Inst { tm; dim = dim2; args = args2 }
       | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))
 
 (* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
@@ -193,14 +162,14 @@ let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index ->
     | Ext (_, entry), Top ->
         (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
         let (Op (f, s)) = op in
-        act_value (ValCube.find entry f) (Any s)
+        act_value (ConstCube.find entry f) (Any s)
     | Ext (env, _), Pop v -> lookup env v op
     | Act (env, op'), _ -> lookup env v (comp_op op' op) in
   lookup env v (id_op (dim_env env))
 
 let rec env_append :
-    type n a b ab. (a, b, ab) N.plus -> (n, a) env -> ((n, unit) ValCube.t, b) Bwv.t -> (n, ab) env
-    =
+    type n a b ab.
+    (a, b, ab) N.plus -> (n, a) env -> ((n, value) ConstCube.t, b) Bwv.t -> (n, ab) env =
  fun ab env xss ->
   match (ab, xss) with
   | Zero, Emp -> env

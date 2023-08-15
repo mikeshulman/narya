@@ -130,37 +130,307 @@ module type Fam = sig
   type ('a, 'b) t
 end
 
-module Cube (F : Fam) : sig
-  type ('n, 'b) t
-
-  val find : ('n, 'b) t -> ('k, 'n) sface -> ('k, 'b) F.t
-
-  type ('n, 'b) builder = { leaf : 'm. ('m, 'n) sface -> ('m, 'b) F.t }
-
-  val build : 'n D.t -> ('n, 'b) builder -> ('n, 'b) t
-
-  type ('n, 'b) iterator = { it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> unit }
-
-  val iter : ('n, 'b) iterator -> ('n, 'b) t -> unit
-
-  type ('n, 'b) iteratorOpt = { it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> unit option }
-
-  val iterOpt : ('n, 'b) iteratorOpt -> ('n, 'b) t -> unit option
-
-  type ('n, 'b) iteratorOpt2 = {
-    it : 'm. ('m, 'n) sface -> ('m, 'b) F.t -> ('m, 'b) F.t -> unit option;
-  }
-
-  val iterOpt2 : ('n, 'b) iteratorOpt2 -> ('n, 'b) t -> ('n, 'b) t -> unit option
+module ConstFam : sig
+  type ('a, 'b) t = 'b
 end
 
+module Cube (F : Fam) : sig
+  type ('m, 'n, 'b) gt
+  type ('n, 'b) t = ('n, 'n, 'b) gt
+
+  val dim : ('n, 'b) t -> 'n D.t
+  val singleton : (D.zero, 'b) F.t -> (D.zero, 'b) t
+  val find : ('n, 'b) t -> ('k, 'n) sface -> ('k, 'b) F.t
+
+  module Heter : sig
+    type (_, _) hft =
+      | [] : ('n, Hlist.nil) hft
+      | ( :: ) : ('n, 'x) F.t * ('n, 'xs) hft -> ('n, ('x, 'xs) Hlist.cons) hft
+
+    (* val hft_nil : ('n, Hlist.nil) hft *)
+    (* val hft_cons : ('n, 'x) F.t -> ('n, 'xs) hft -> ('n, ('x, 'xs) Hlist.cons) hft *)
+
+    type (_, _, _) hgt =
+      | [] : ('m, 'n, Hlist.nil) hgt
+      | ( :: ) : ('m, 'n, 'x) gt * ('m, 'n, 'xs) hgt -> ('m, 'n, ('x, 'xs) Hlist.cons) hgt
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    type ('n, 'bs, 'cs) pmapperM = {
+      map : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> ('m, 'cs) Heter.hft M.t;
+    }
+
+    val pmapM :
+      ('n, ('b, 'bs) Hlist.cons, 'cs) pmapperM ->
+      ('n, 'n, ('b, 'bs) Hlist.cons) Heter.hgt ->
+      'cs Hlist.tlist ->
+      ('n, 'n, 'cs) Heter.hgt M.t
+
+    type ('n, 'bs, 'c) mmapperM = {
+      map : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> ('m, 'c) F.t M.t;
+    }
+
+    val mmapM :
+      ('n, ('b, 'bs) Hlist.cons, 'c) mmapperM ->
+      ('n, 'n, ('b, 'bs) Hlist.cons) Heter.hgt ->
+      ('n, 'c) t M.t
+
+    type ('n, 'bs) miteratorM = { it : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> unit M.t }
+
+    val miterM :
+      ('n, ('b, 'bs) Hlist.cons) miteratorM -> ('n, 'n, ('b, 'bs) Hlist.cons) Heter.hgt -> unit M.t
+
+    type ('n, 'b) builderM = { build : 'm. ('m, 'n) sface -> ('m, 'b) F.t M.t }
+
+    val buildM : 'n D.t -> ('n, 'b) builderM -> ('n, 'b) t M.t
+  end
+
+  module IdM : module type of Monadic (Monad.Identity)
+
+  val pmap :
+    ('n, ('b, 'bs) Hlist.cons, 'cs) IdM.pmapperM ->
+    ('n, 'n, ('b, 'bs) Hlist.cons) Heter.hgt ->
+    'cs Hlist.tlist ->
+    ('n, 'n, 'cs) Heter.hgt
+
+  val mmap :
+    ('n, ('b, 'bs) Hlist.cons, 'c) IdM.mmapperM ->
+    ('n, 'n, ('b, 'bs) Hlist.cons) Heter.hgt ->
+    ('n, 'c) t
+
+  val miter :
+    ('n, ('b, 'bs) Hlist.cons) IdM.miteratorM -> ('n, 'n, ('b, 'bs) Hlist.cons) Heter.hgt -> unit
+
+  val build : 'n D.t -> ('n, 'b) IdM.builderM -> ('n, 'b) t
+
+  type ('n, 'c, 'b) fold_lefter = { fold : 'm. 'c -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c }
+
+  val fold_left : ('n, 'c, 'b) fold_lefter -> 'c -> ('n, 'b) t -> 'c
+
+  type ('n, 'c, 'b) fold_left_appender = {
+    fold : 'm 'len. ('c, 'len) Bwv.t -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c;
+  }
+
+  val fold_left_append :
+    ('n, 'c, 'b) fold_left_appender ->
+    ('c, 'len) Bwv.t ->
+    ('n, 'f) count_faces ->
+    ('len, 'f, 'lenf) N.plus ->
+    ('n, 'b) t ->
+    ('c, 'lenf) Bwv.t
+
+  type 'b lifter = { lift : 'a1 'a2. ('a1, 'b) F.t -> ('a2, 'b) F.t }
+end
+
+module ConstCube : module type of Cube (ConstFam)
+
 module CubeMap (F1 : Fam) (F2 : Fam) : sig
-  module T1 : module type of Cube (F1)
-  module T2 : module type of Cube (F2)
+  module C1 : module type of Cube (F1)
+  module C2 : module type of Cube (F2)
 
   type ('n, 'b, 'c) mapper = { map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t }
 
-  val map : ('n, 'b, 'c) mapper -> ('n, 'b) T1.t -> ('n, 'c) T2.t
+  val map : ('n, 'b, 'c) mapper -> ('n, 'b) C1.t -> ('n, 'c) C2.t
+end
+
+module CubeMap2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
+  module C1 : module type of Cube (F1)
+  module C2 : module type of Cube (F2)
+  module C3 : module type of Cube (F3)
+
+  type ('n, 'b, 'c, 'd) mapperM2 = {
+    map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t -> ('m, 'd) F3.t M.t;
+  }
+
+  val mapM2 : ('n, 'b, 'c, 'd) mapperM2 -> ('n, 'b) C1.t -> ('n, 'c) C2.t -> ('n, 'd) C3.t M.t
+end
+
+module CubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
+  module C1 : module type of Cube (F1)
+  module C2 : module type of Cube (F2)
+  module C3 : module type of Cube (F3)
+
+  type ('n, 'b, 'c, 'd) mapperM1_2 = {
+    map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> (('m, 'c) F2.t * ('m, 'd) F3.t) M.t;
+  }
+
+  val mapM1_2 : ('n, 'b, 'c, 'd) mapperM1_2 -> ('n, 'b) C1.t -> (('n, 'c) C2.t * ('n, 'd) C3.t) M.t
+end
+
+module CubeMap2_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (F4 : Fam) (M : Monad.Plain) : sig
+  module C1 : module type of Cube (F1)
+  module C2 : module type of Cube (F2)
+  module C3 : module type of Cube (F3)
+  module C4 : module type of Cube (F4)
+
+  type ('n, 'b, 'c, 'd, 'e) mapperM2_2 = {
+    map :
+      'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t -> (('m, 'd) F3.t * ('m, 'e) F4.t) M.t;
+  }
+
+  val mapM2_2 :
+    ('n, 'b, 'c, 'd, 'e) mapperM2_2 ->
+    ('n, 'b) C1.t ->
+    ('n, 'c) C2.t ->
+    (('n, 'd) C3.t * ('n, 'e) C4.t) M.t
+end
+
+type (_, _, _, _) tface
+
+val sface_of_tface : ('m, 'n, 'k, 'nk) tface -> ('m, 'nk) sface
+val cod_plus_of_tface : ('m, 'n, 'k, 'nk) tface -> ('n, 'k, 'nk) D.plus
+val dom_tface : ('m, 'n, 'k, 'nk) tface -> 'm D.t
+val codl_tface : ('m, 'n, 'k, 'nk) tface -> 'n D.t
+val codr_tface : ('m, 'n, 'k, 'nk) tface -> 'k D.t
+val cod_tface : ('m, 'n, 'k, 'nk) tface -> 'nk D.t
+
+val tface_plus :
+  ('m, 'n, 'k, 'nk) tface ->
+  ('k, 'l, 'kl) D.plus ->
+  ('nk, 'l, 'nkl) D.plus ->
+  ('m, 'l, 'ml) D.plus ->
+  ('ml, 'n, 'kl, 'nkl) tface
+
+val comp_tface : ('m, 'n, 'k, 'nk) tface -> ('l, 'm) sface -> ('l, 'n, 'k, 'nk) tface
+
+type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface
+
+val sface_plus_tface :
+  ('k, 'm) sface ->
+  ('m, 'n, 'mn) D.plus ->
+  ('m, 'nl, 'mnl) D.plus ->
+  ('k, 'p, 'kp) D.plus ->
+  ('p, 'n, 'l, 'nl) tface ->
+  ('kp, 'mn, 'l, 'mnl) tface
+
+val sface_plus_pface :
+  ('k, 'm) sface ->
+  ('m, 'n, 'mn) D.plus ->
+  ('k, 'p, 'kp) D.plus ->
+  ('p, 'n) pface ->
+  ('kp, 'm, 'n, 'mn) tface
+
+type (_, _, _, _) tface_of_plus =
+  | TFace_of_plus :
+      ('p, 'q, 'pq) D.plus * ('p, 'n) sface * ('q, 'k, 'l, 'kl) tface
+      -> ('pq, 'n, 'k, 'l) tface_of_plus
+
+val tface_of_plus :
+  ('n, 'k, 'nk) D.plus -> ('m, 'nk, 'l, 'nkl) tface -> ('m, 'n, 'k, 'l) tface_of_plus
+
+type (_, _, _) pface_of_plus =
+  | PFace_of_plus :
+      ('p, 'q, 'pq) D.plus * ('p, 'n) sface * ('q, 'k) pface
+      -> ('pq, 'n, 'k) pface_of_plus
+
+val pface_of_plus : ('m, 'n, 'k, 'nk) tface -> ('m, 'n, 'k) pface_of_plus
+
+module Tube (F : Fam) : sig
+  module C : module type of Cube (F)
+
+  type ('n, 'k, 'nk, 'm, 'b) gt
+  type ('n, 'k, 'nk, 'b) t = ('n, 'k, 'nk, 'nk, 'b) gt
+
+  val find : ('n, 'k, 'nk, 'b) t -> ('m, 'n, 'k, 'nk) tface -> ('m, 'b) F.t
+  val boundary : ('n, 'b) C.t -> (D.zero, 'n, 'n, 'b) t
+
+  val pboundary :
+    ('m, 'k, 'mk) D.plus -> ('k, 'l, 'kl) D.plus -> ('m, 'kl, 'mkl, 'b) t -> ('mk, 'l, 'mkl, 'b) t
+
+  val plus : ('m, 'k, 'mk, 'b) t -> ('m, 'k, 'mk) D.plus
+  val inst : ('m, 'k, 'mk, 'b) t -> 'k D.t
+  val uninst : ('m, 'k, 'mk, 'b) t -> 'm D.t
+  val out : ('m, 'k, 'mk, 'b) t -> 'mk D.t
+  val empty : 'n D.t -> ('n, D.zero, 'n, 'b) t
+  val plus_cube : 'b C.lifter -> ('mk, 'l, 'mkl, 'b) t -> ('mk, 'b) C.t -> ('mkl, 'b) C.t
+
+  val plus_tube :
+    'b C.lifter ->
+    ('k, 'l, 'kl) D.plus ->
+    ('mk, 'l, 'mkl, 'b) t ->
+    ('m, 'k, 'mk, 'b) t ->
+    ('m, 'kl, 'mkl, 'b) t
+
+  module Heter : sig
+    type (_, _, _, _, _) hgt =
+      | [] : ('m, 'k, 'mk, 'nk, Hlist.nil) hgt
+      | ( :: ) :
+          ('m, 'k, 'mk, 'nk, 'x) gt * ('m, 'k, 'mk, 'nk, 'xs) hgt
+          -> ('m, 'k, 'mk, 'nk, ('x, 'xs) Hlist.cons) hgt
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    type ('n, 'k, 'nk, 'bs, 'cs) pmapperM = {
+      map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> ('m, 'cs) C.Heter.hft M.t;
+    }
+
+    val pmapM :
+      ('n, 'k, 'nk, ('b, 'bs) Hlist.cons, 'cs) pmapperM ->
+      ('n, 'k, 'nk, 'nk, ('b, 'bs) Hlist.cons) Heter.hgt ->
+      'cs Hlist.tlist ->
+      ('n, 'k, 'nk, 'nk, 'cs) Heter.hgt M.t
+
+    type ('n, 'k, 'nk, 'bs, 'c) mmapperM = {
+      map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> ('m, 'c) F.t M.t;
+    }
+
+    val mmapM :
+      ('n, 'k, 'nk, ('b, 'bs) Hlist.cons, 'c) mmapperM ->
+      ('n, 'k, 'nk, 'nk, ('b, 'bs) Hlist.cons) Heter.hgt ->
+      ('n, 'k, 'nk, 'c) t M.t
+
+    type ('n, 'k, 'nk, 'bs) miteratorM = {
+      it : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> unit M.t;
+    }
+
+    val miterM :
+      ('n, 'k, 'nk, ('b, 'bs) Hlist.cons) miteratorM ->
+      ('n, 'k, 'nk, 'nk, ('b, 'bs) Hlist.cons) Heter.hgt ->
+      unit M.t
+
+    type ('n, 'k, 'nk, 'b) builderM = { build : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'b) F.t M.t }
+
+    val buildM :
+      'n D.t -> ('n, 'k, 'nk) D.plus -> ('n, 'k, 'nk, 'b) builderM -> ('n, 'k, 'nk, 'b) t M.t
+  end
+
+  module IdM : module type of Monadic (Monad.Identity)
+
+  val pmap :
+    ('n, 'k, 'nk, ('b, 'bs) Hlist.cons, 'cs) IdM.pmapperM ->
+    ('n, 'k, 'nk, 'nk, ('b, 'bs) Hlist.cons) Heter.hgt ->
+    'cs Hlist.tlist ->
+    ('n, 'k, 'nk, 'nk, 'cs) Heter.hgt
+
+  val mmap :
+    ('n, 'k, 'nk, ('b, 'bs) Hlist.cons, 'c) IdM.mmapperM ->
+    ('n, 'k, 'nk, 'nk, ('b, 'bs) Hlist.cons) Heter.hgt ->
+    ('n, 'k, 'nk, 'c) t
+
+  val miter :
+    ('n, 'k, 'nk, ('b, 'bs) Hlist.cons) IdM.miteratorM ->
+    ('n, 'k, 'nk, 'nk, ('b, 'bs) Hlist.cons) Heter.hgt ->
+    unit
+
+  val build :
+    'n D.t -> ('n, 'k, 'nk) D.plus -> ('n, 'k, 'nk, 'b) IdM.builderM -> ('n, 'k, 'nk, 'b) t
+end
+
+module ConstTube : module type of Tube (ConstFam)
+
+module TubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
+  module T1 : module type of Tube (F1)
+  module T2 : module type of Tube (F2)
+  module T3 : module type of Tube (F3)
+
+  type ('n, 'k, 'nk, 'b, 'c, 'd) mapperM1_2 = {
+    map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'b) F1.t -> (('m, 'c) F2.t * ('m, 'd) F3.t) M.t;
+  }
+
+  val mapM1_2 :
+    ('n, 'k, 'nk, 'b, 'c, 'd) mapperM1_2 ->
+    ('n, 'k, 'nk, 'b) T1.t ->
+    (('n, 'k, 'nk, 'c) T2.t * ('n, 'k, 'nk, 'd) T3.t) M.t
 end
 
 type (_, _, _) count_tube =
@@ -270,3 +540,7 @@ type two
 
 val two : two D.t
 val sym : (two, two) deg
+
+type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
+
+val suc_pos : 'n D.pos -> 'n is_suc

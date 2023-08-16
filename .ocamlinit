@@ -1,7 +1,5 @@
 #use_output "dune top"
 open Narya
 open Raw
-(*
 open Check
 let e = empty_ctx
-*)

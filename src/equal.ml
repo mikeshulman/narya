@@ -4,6 +4,8 @@ open Norm
 open Monoid
 open Monad.ZeroOps (Monad.Maybe)
 
+let msg _ = ()
+
 (* Eta-expanding equality checks.  In all functions, the integer is the current De Bruijn level, i.e. the length of the current context (we don't need any other information about the context). *)
 
 (* To do an eta-expanding equality check, we must create one new variable for each argument in the boundary.  With De Bruijn levels, these variables are just sequential numbers after n.  But to make these variables into values, we need to annotate them with their types, which in general are instantiations of the domains at previous variables.  Thus, we assemble them in a hashtable as we create them for random access to the previous ones. *)
@@ -104,11 +106,11 @@ and equal_val : int -> value -> value -> unit option =
           let open ConstTube.Monadic (Monad.Maybe) in
           miterM { it = (fun _ [ x; y ] -> equal_val n x y) } [ a1; a2 ]
       | _ ->
-          Printf.printf "Unequal dimensions of instantiation";
+          msg "Unequal dimensions of instantiation";
           fail)
   | Lam _, _ | _, Lam _ -> raise (Failure "Unexpected lambda in synthesizing equality-check")
   | _, _ ->
-      Printf.printf "Unequal terms in synthesizing equality-check";
+      msg "Unequal terms in synthesizing equality-check";
       fail
 
 (* Subroutine of equal_val.  Like it, equality of the types is part of the conclusion, not a hypothesis.  *)
@@ -120,7 +122,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       match compare m n with
       | Eq -> return ()
       | _ ->
-          Printf.printf "Unequal dimensions of universese";
+          msg "Unequal dimensions of universese";
           fail)
   (* We don't need to check that the types of neutral terms are equal, since equal_neu concludes equality of types rather than assumes it. *)
   | Neu (u, _), Neu (v, _) -> equal_neu lvl u v
@@ -142,10 +144,10 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
             }
             [ cod1s; cod2s ]
       | Neq ->
-          Printf.printf "Unequal dimensions of pi-type";
+          msg "Unequal dimensions of pi-type";
           fail)
   | _ ->
-      Printf.printf "Unequal uninstantiated terms";
+      msg "Unequal uninstantiated terms";
       fail
 
 (* Synthesizing equality check for neutrals.  Again equality of types is part of the conclusion, not a hypothesis. *)
@@ -166,8 +168,8 @@ and equal_neu : int -> neu -> neu -> unit option =
           let open ConstCube.Monadic (Monad.Maybe) in
           miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
       | _ ->
-          Printf.printf "Unequal dimensions of application";
+          msg "Unequal dimensions of application";
           fail)
   | _ ->
-      Printf.printf "Unequal neutral terms";
+      msg "Unequal neutral terms";
       fail

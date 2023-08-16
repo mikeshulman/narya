@@ -1922,119 +1922,6 @@ module TubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) = struct
     gmapM_r n_k k0 nk0 nk0 Zero g tr
 end
 
-(* ********** Tubes ********** *)
-
-(* A "tube" represents the arguments of a perhaps-partial instantiation of a higher-dimensional type.  Note that even if it is fully instantiated, it has one fewer arguments that count_faces: it's missing the top filler. *)
-type (_, _, _) count_tube =
-  | Tube : {
-      (* The type is (m+n)-dimensional. *)
-      plus_dim : ('m, 'n, 'mn) D.plus;
-      (* If we fully instantiated it, it would take this many faces (including the top) *)
-      total_faces : ('mn, 'mnf) count_faces;
-      (* But since the result is only m-dimensional, we leave off this many faces (also including the top) *)
-      missing_faces : ('m, 'mf) count_faces;
-      (* So we need the difference between those two. *)
-      plus_faces : ('f, 'mf, 'mnf) N.plus;
-    }
-      -> ('m, 'n, 'f) count_tube
-
-let tube_uninst : type m n f. (m, n, f) count_tube -> m D.t =
- fun (Tube tube) -> N.pow_right tube.missing_faces
-
-let tube_inst : type m n f. (m, n, f) count_tube -> n D.t =
- fun (Tube tube) -> D.plus_right tube.plus_dim
-
-let tube_zero : (D.zero, D.zero, N.zero) count_tube =
-  Tube { plus_dim = Zero; total_faces = Zero; missing_faces = Zero; plus_faces = Suc Zero }
-
-(*
-let tube_zero' : type m. m D.t -> (m, D.zero, N.zero) count_tube =
- fun m ->
-  let (Faces mf) = count_faces m in
-  Tube
-    {
-      plus_dim = Zero;
-      total_faces = mf;
-      missing_faces = mf;
-      plus_faces = D.zero_plus (faces_out mf);
-    }
-*)
-
-type (_, _) has_tube = Has_tube : ('m, 'n, 'f) count_tube -> ('m, 'n) has_tube
-
-let has_tube : type m n mn. m D.t -> n D.t -> (m, n) has_tube =
- fun m n ->
-  let (Plus plus_dim) = D.plus n in
-  let (Faces total_faces) = count_faces (D.plus_out m plus_dim) in
-  let (Faces missing_faces) = count_faces m in
-  let (Faces n_faces) = count_faces (D.plus_right plus_dim) in
-  let emen = N.pow_plus (N.suc Endpoints.len) missing_faces n_faces plus_dim total_faces in
-  let (Pos _) = N.pow_pos (Pos Endpoints.len) n_faces in
-  let (Suc (_, plus_faces)) = emen in
-  Has_tube (Tube { plus_dim; total_faces; missing_faces; plus_faces })
-
-(* Two tubes in succession combine to a larger one. *)
-
-type (_, _, _, _, _, _) tube_plus_tube =
-  | Tube_plus_tube :
-      ('n, 'k, 'nk) D.plus * ('m, 'nk, 'fm) count_tube * ('fmnk, 'fmn, 'fm) N.plus * ('a, 'fm) Bwv.t
-      -> ('m, 'n, 'k, 'fmnk, 'fmn, 'a) tube_plus_tube
-
-let tube_plus_tube :
-    type m n mn k fmnk fmn a.
-    (m, n, mn) D.plus ->
-    (mn, k, fmnk) count_tube ->
-    (m, n, fmn) count_tube ->
-    (a, fmnk) Bwv.t ->
-    (a, fmn) Bwv.t ->
-    (m, n, k, fmnk, fmn, a) tube_plus_tube =
- fun mn (Tube fmnk) (Tube fmn) argsk argsn ->
-  let (Plus nk) = D.plus (D.plus_right fmnk.plus_dim) in
-  let Eq = N.plus_uniq mn fmn.plus_dim in
-  let Eq = N.pow_uniq fmnk.missing_faces fmn.total_faces in
-  let (Plus ff) = N.plus (N.plus_left fmn.plus_faces (faces_out fmn.total_faces)) in
-  Tube_plus_tube
-    ( nk,
-      Tube
-        {
-          plus_dim = D.plus_assocr mn nk fmnk.plus_dim;
-          total_faces = fmnk.total_faces;
-          missing_faces = fmn.missing_faces;
-          plus_faces = D.plus_assocl ff fmn.plus_faces fmnk.plus_faces;
-        },
-      ff,
-      Bwv.append ff argsk argsn )
-
-type (_, _, _) take_tube =
-  | Take :
-      ('m, 'n, 'mn) D.plus
-      * ('m, 'mf) count_faces
-      * ('f, 'mf, 'mnf) N.plus
-      * ('a, 'f) Bwv.t
-      * 'a list
-      -> ('a, 'mn, 'mnf) take_tube
-
-let rec take_tube : type a n f. (n, f) count_faces -> a list -> (a, n, f) take_tube =
- fun nf xs ->
-  let n = dim_faces nf in
-  match n with
-  | Nat Zero -> Take (Zero, nf, N.zero_plus (faces_out nf), Emp, xs)
-  | Nat (Suc _) -> (
-      let (Suc (pnf, Suc (pnf_times_e, pnf_times_e__plus_pnf))) = nf in
-      match Bwv.of_list (N.times_out pnf_times_e) xs with
-      | None -> Take (Zero, nf, N.zero_plus (faces_out nf), Emp, xs)
-      | Some (args1, rest1) ->
-          let (Take (kl, missing_faces, plus_faces, args2, rest2)) = take_tube pnf rest1 in
-          let (Plus pnf_times_e__plus_f) = N.plus (Bwv.length args2) in
-          let pnf_times_e__plus_f___plus_kf =
-            N.plus_assocl pnf_times_e__plus_f plus_faces pnf_times_e__plus_pnf in
-          Take
-            ( Suc kl,
-              missing_faces,
-              pnf_times_e__plus_f___plus_kf,
-              Bwv.append pnf_times_e__plus_f args1 args2,
-              rest2 ))
-
 (* ********** Faces ********** *)
 
 (* A face is a permutation followed by a strict face, hence a map as for a strict face that need not be order-preserving. *)
@@ -2218,16 +2105,6 @@ type one = D.one
 let one = D.one
 let pos_one : one D.pos = Pos D.zero
 let faces_one : (one, N.three) count_faces = Suc (Zero, N.one_times N.three)
-
-let tube_one : (D.zero, one, N.two) count_tube =
-  Tube
-    {
-      plus_dim = Suc Zero;
-      total_faces = faces_one;
-      missing_faces = faces_zero;
-      plus_faces = Suc Zero;
-    }
-
 let refl : (one, D.zero) deg = Zero D.one
 
 type two = D.two

@@ -433,47 +433,6 @@ module TubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
     (('n, 'k, 'nk, 'c) T2.t * ('n, 'k, 'nk, 'd) T3.t) M.t
 end
 
-type (_, _, _) count_tube =
-  | Tube : {
-      plus_dim : ('m, 'n, 'mn) D.plus;
-      total_faces : ('mn, 'mnf) count_faces;
-      missing_faces : ('m, 'mf) count_faces;
-      plus_faces : ('f, 'mf, 'mnf) N.plus;
-    }
-      -> ('m, 'n, 'f) count_tube
-
-val tube_uninst : ('m, 'n, 'f) count_tube -> 'm D.t
-val tube_inst : ('m, 'n, 'f) count_tube -> 'n D.t
-val tube_zero : (D.zero, D.zero, N.zero) count_tube
-
-type (_, _) has_tube = Has_tube : ('m, 'n, 'f) count_tube -> ('m, 'n) has_tube
-
-val has_tube : 'm D.t -> 'n D.t -> ('m, 'n) has_tube
-
-type (_, _, _, _, _, _) tube_plus_tube =
-  | Tube_plus_tube :
-      ('n, 'k, 'nk) D.plus * ('m, 'nk, 'fm) count_tube * ('fmnk, 'fmn, 'fm) N.plus * ('a, 'fm) Bwv.t
-      -> ('m, 'n, 'k, 'fmnk, 'fmn, 'a) tube_plus_tube
-
-val tube_plus_tube :
-  ('m, 'n, 'mn) D.plus ->
-  ('mn, 'k, 'fmnk) count_tube ->
-  ('m, 'n, 'fmn) count_tube ->
-  ('a, 'fmnk) Bwv.t ->
-  ('a, 'fmn) Bwv.t ->
-  ('m, 'n, 'k, 'fmnk, 'fmn, 'a) tube_plus_tube
-
-type (_, _, _) take_tube =
-  | Take :
-      ('m, 'n, 'mn) D.plus
-      * ('m, 'mf) count_faces
-      * ('f, 'mf, 'mnf) N.plus
-      * ('a, 'f) Bwv.t
-      * 'a list
-      -> ('a, 'mn, 'mnf) take_tube
-
-val take_tube : ('n, 'f) count_faces -> 'a list -> ('a, 'n, 'f) take_tube
-
 type (_, _) face = Face : ('m, 'n) sface * 'm perm -> ('m, 'n) face
 
 val id_face : 'n D.t -> ('n, 'n) face
@@ -533,7 +492,6 @@ type one
 val one : one D.t
 val pos_one : one D.pos
 val faces_one : (one, N.three) count_faces
-val tube_one : (D.zero, one, N.two) count_tube
 val refl : (one, D.zero) deg
 
 type two

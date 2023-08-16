@@ -1,1 +1,9 @@
-(tests (libraries narya) (names church))
+(library
+  (name pmp)
+	(modules pmp)
+	(libraries narya))
+(tests
+  (libraries narya pmp)
+  (names church idrefl)
+  (modules church idrefl))
+(env (_ (flags (:standard -w -37 -w -30 -w -32))))

@@ -69,8 +69,19 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                   (Suc Zero) cod);
           } in
       Uninst (Pi (doms, cods))
-  | Refl x -> act_value (eval env x) refl
-  | Sym x -> act_value (eval env x) sym
+  | Refl x ->
+      (* It's tempting to write just "act_value (eval env x) refl" here, and similarly below for sym, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
+      let k = dim_env env in
+      let (Plus km) = D.plus (dom_deg refl) in
+      let (Plus kn) = D.plus (cod_deg refl) in
+      let krefl = plus_deg k kn km refl in
+      act_value (eval env x) krefl
+  | Sym x ->
+      let k = dim_env env in
+      let (Plus km) = D.plus (dom_deg sym) in
+      let (Plus kn) = D.plus (cod_deg sym) in
+      let ksym = plus_deg k kn km sym in
+      act_value (eval env x) ksym
 
 and apply : type n f. value -> (n, value) ConstCube.t -> value =
  fun fn mntbl ->

@@ -60,3 +60,17 @@ let refl_gof_x2, _ =
   synth (refl ("x" @-> (!!"g" $ (!!"f" $ !!"x")) <:> pi "x" !!"X" !!"Z") $ !!"x0" $ !!"x1" $ !!"x2")
 
 let () = equal reflg_reflf_x2 refl_gof_x2
+
+(* The two degenerate squares associated to an identification have unequal types. *)
+let r1x2, r1x2ty = synth (refl !!"x2")
+
+let r2x2, r2x2ty =
+  synth
+    (refl ("x" @-> refl !!"x" <:> pi "x" !!"X" (id !!"X" !!"x" !!"x")) $ !!"x0" $ !!"x1" $ !!"x2")
+
+let () = unequal r1x2ty r2x2ty
+
+(* But applying symmetry identifies both their types and values. *)
+let sr1x2, sr1x2ty = synth (sym (refl !!"x2"))
+let () = equal sr1x2ty r2x2ty
+let () = equal sr1x2 r2x2

@@ -82,7 +82,7 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   let m_n = plus_dim in
   (* let n = D.plus_right m_n in *)
   let mn = D.plus_out m m_n in
-  (* We factor the degeneracy as a strict degeneracy determined by fc, following a permutation fb (which happens to be an insertion). *)
+  (* We factor the degeneracy as a strict degeneracy determined by fc, following a permutation fb (a.k.a. an insertion into zero). *)
   let (Insfact (fc, ins)) = insfact fa (D.zero_plus mn) in
   let j_mn = plus_of_ins ins in
   let fb = perm_of_ins ins in

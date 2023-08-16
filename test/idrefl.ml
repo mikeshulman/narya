@@ -4,7 +4,11 @@ let uu, _ = synth UU
 let xx = assume "X" uu
 let x0 = assume "x0" xx
 let x1 = assume "x1" xx
+
+(* Identity types are equivalently instantiations of refl of a type *)
 let idx01, _ = synth (id !!"X" !!"x0" !!"x1")
+let idx01', _ = synth (refl !!"X" $ !!"x0" $ !!"x1")
+let () = equal idx01 idx01'
 let x2 = assume "x2" idx01
 let xtox, _ = synth (pi "x" !!"X" !!"X")
 

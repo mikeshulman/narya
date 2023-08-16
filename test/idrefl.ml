@@ -78,3 +78,20 @@ let () = unequal r1x2ty r2x2ty
 let sr1x2, sr1x2ty = synth (sym (refl !!"x2"))
 let () = equal sr1x2ty r2x2ty
 let () = equal sr1x2 r2x2
+
+(* But the two degenerate squares associated to a reflexivity *are* equal. *)
+let r1reflx0, r1reflx0ty = synth (refl (refl !!"x0"))
+
+let r2reflx0, r2reflx0ty =
+  synth
+    (refl ("x" @-> refl !!"x" <:> pi "x" !!"X" (id !!"X" !!"x" !!"x"))
+    $ !!"x0"
+    $ !!"x0"
+    $ refl !!"x0")
+
+let () = equal r1reflx0ty r2reflx0ty
+let () = equal r1reflx0 r2reflx0
+
+(* Doubly-degenerate squares are also fixed by symmetry *)
+let sr1reflx0, _ = synth (sym (refl (refl !!"x0")))
+let () = equal r1reflx0 sr1reflx0

@@ -38,19 +38,77 @@ let gof = check ("x" @-> (!!"g" $ (!!"f" $ !!"x"))) xtoz
 let () = uncheck ("x" @-> (!!"f" $ (!!"g" $ !!"x"))) xtoz
 
 (* Identity types of pi-types don't *compute* to the expected thing, but they are isomorphic *)
-let reflf, idff' = synth (refl !!"f")
+let f' = assume "f'" xtoy
+let idff, _ = synth (id (pi "x" !!"X" !!"Y") !!"f" !!"f'")
 
-let idff, _ =
+let idff', _ =
   synth
     (pi "x" !!"X"
        (pi "x'" !!"X"
-          (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f" $ !!"x'")))))
+          (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f'" $ !!"x'")))))
 
-let () = unequal idff' idff
-let h = assume "h" idff'
-let h' = check ("x" @-> "x'" @-> "x''" @-> (!!"h" $ !!"x" $ !!"x'" $ !!"x''")) idff
-let k = assume "k" idff
-let k' = check ("x" @-> "x'" @-> "x''" @-> (!!"k" $ !!"x" $ !!"x'" $ !!"x''")) idff'
+let () = unequal idff idff'
+
+let idff_to_idff'_ty, _ =
+  synth
+    (pi ""
+       (id (pi "x" !!"X" !!"Y") !!"f" !!"f'")
+       (pi "x" !!"X"
+          (pi "x'" !!"X"
+             (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f'" $ !!"x'"))))))
+
+let idff_to_idff' =
+  check ("h" @-> "x" @-> "x'" @-> "x''" @-> (!!"h" $ !!"x" $ !!"x'" $ !!"x''")) idff_to_idff'_ty
+
+let idff'_to_idff_ty, _ =
+  synth
+    (pi ""
+       (pi "x" !!"X"
+          (pi "x'" !!"X"
+             (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f'" $ !!"x'")))))
+       (id (pi "x" !!"X" !!"Y") !!"f" !!"f'"))
+
+let idff'_to_idff =
+  check ("k" @-> "x" @-> "x'" @-> "x''" @-> (!!"k" $ !!"x" $ !!"x'" $ !!"x''")) idff'_to_idff_ty
+
+let p = assume "p" idff
+let q = assume "q" idff'
+
+let idff_roundtrip, _ =
+  synth
+    ("k" @-> "x" @-> "x'" @-> "x''" @-> (!!"k" $ !!"x" $ !!"x'" $ !!"x''")
+    <:> pi ""
+          (pi "x" !!"X"
+             (pi "x'" !!"X"
+                (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f'" $ !!"x'")))))
+          (id (pi "x" !!"X" !!"Y") !!"f" !!"f'")
+    $ ("h" @-> "x" @-> "x'" @-> "x''" @-> (!!"h" $ !!"x" $ !!"x'" $ !!"x''")
+      <:> pi ""
+            (id (pi "x" !!"X" !!"Y") !!"f" !!"f'")
+            (pi "x" !!"X"
+               (pi "x'" !!"X"
+                  (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f'" $ !!"x'")))))
+      $ !!"p"))
+
+let () = equal_at idff_roundtrip p idff
+
+let idff'_roundtrip, _ =
+  synth
+    ("h" @-> "x" @-> "x'" @-> "x''" @-> (!!"h" $ !!"x" $ !!"x'" $ !!"x''")
+    <:> pi ""
+          (id (pi "x" !!"X" !!"Y") !!"f" !!"f'")
+          (pi "x" !!"X"
+             (pi "x'" !!"X"
+                (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f'" $ !!"x'")))))
+    $ ("k" @-> "x" @-> "x'" @-> "x''" @-> (!!"k" $ !!"x" $ !!"x'" $ !!"x''")
+      <:> pi ""
+            (pi "x" !!"X"
+               (pi "x'" !!"X"
+                  (pi "x''" (id !!"X" !!"x" !!"x'") (id !!"Y" (!!"f" $ !!"x") (!!"f'" $ !!"x'")))))
+            (id (pi "x" !!"X" !!"Y") !!"f" !!"f'")
+      $ !!"q"))
+
+let () = equal_at idff'_roundtrip q idff'
 
 (* Ap is functorial *)
 let reflg, _ = synth (refl !!"g")

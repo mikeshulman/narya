@@ -5,6 +5,7 @@ open Narya
 (* Abstract syntax terms with variable names *)
 type pmt =
   | Var : string -> pmt
+  | Const : string -> pmt
   | UU : pmt
   | Pi : string * pmt * pmt -> pmt
   | App : pmt * pmt -> pmt
@@ -23,6 +24,7 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
 and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
  fun ctx -> function
   | Var x -> Var (Option.get (Bwv.index x ctx))
+  | Const x -> Const x
   | UU -> UU
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
   | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)
@@ -34,6 +36,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
 
 (* Nicer syntax, with a prefix operator for using a variable by name, and infix operators for abstraction, application, and ascription. *)
 let ( !! ) x = Var x
+let ( !~ ) x = Const x
 let pi x dom cod = Pi (x, dom, cod)
 let ( $ ) fn arg = App (fn, arg) (* Left-associative *)
 let id a x y = Id (a, x, y)

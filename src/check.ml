@@ -103,7 +103,11 @@ and check_lam :
                                (fun fc ->
                                  Hashtbl.find argtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
                            }) in
-                    let v = Uninst (Neu (Var { level = level_of c; deg = id_deg D.zero }, ty)) in
+                    let v =
+                      Uninst
+                        (Neu
+                           { fn = Var { level = level_of c; deg = id_deg D.zero }; args = Emp; ty })
+                    in
                     let () = Hashtbl.add argtbl (SFace_of fa) v in
                     ty);
               }

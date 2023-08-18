@@ -3,6 +3,7 @@ open Value
 open Norm
 open Monoid
 open Monad.ZeroOps (Monad.Maybe)
+open Bwd
 
 let msg _ = ()
 
@@ -29,7 +30,8 @@ let dom_vars : type m. int -> (m, value) ConstCube.t -> int * (m, value) ConstCu
                        (fun fc ->
                          Hashtbl.find argtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
                    }) in
-            Hashtbl.add argtbl (SFace_of fa) (Uninst (Neu (Var { level; deg = id_deg D.zero }, ty))));
+            Hashtbl.add argtbl (SFace_of fa)
+              (Uninst (Neu { fn = Var { level; deg = id_deg D.zero }; args = Emp; ty })));
       }
       [ doms ] in
   ( !curlvl,
@@ -125,7 +127,11 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
           msg "Unequal dimensions of universese";
           fail)
   (* We don't need to check that the types of neutral terms are equal, since equal_neu concludes equality of types rather than assumes it. *)
-  | Neu (u, _), Neu (v, _) -> equal_neu lvl u v
+  | Neu { fn = fn1; args = args1; ty = _ }, Neu { fn = fn2; args = args2; ty = _ } ->
+      (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside). *)
+      let* () = equal_head lvl fn1 fn2 in
+      (* Then we recursively check that all their arguments are equal. *)
+      equal_args lvl args1 args2
   | Pi (dom1s, cod1s), Pi (dom2s, cod2s) -> (
       (* If two pi-types have the same dimension, equal domains, and equal codomains, they are equal and have the same type (an instantiation of the universe of that dimension at pi-types formed from the lower-dimensional domains and codomains). *)
       let k = ConstCube.dim dom1s in
@@ -150,26 +156,35 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       msg "Unequal uninstantiated terms";
       fail
 
-(* Synthesizing equality check for neutrals.  Again equality of types is part of the conclusion, not a hypothesis. *)
-and equal_neu : int -> neu -> neu -> unit option =
- fun n x y ->
+(* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)
+and equal_head : int -> head -> head -> unit option =
+ fun _ x y ->
   match (x, y) with
   | Var { level = l1; deg = d1 }, Var { level = l2; deg = d2 } ->
       (* Two equal variables with the same degeneracy applied are equal, including their types because that variable has only one type. *)
       let* () = guard (l1 = l2) in
       deg_equiv d1 d2
-  | App { fn = f1; args = a1; ins = i1 }, App { fn = f2; args = a2; ins = i2 } -> (
-      (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside), and that they are applied at the same dimension. *)
-      let* () = equal_neu n f1 f2 in
-      let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
-      match compare (ConstCube.dim a1) (ConstCube.dim a2) with
-      | Eq ->
-          (* If so, this ensures right away that the arguments have the same type, so we can hand back to the eta-expanding equality-check for them. *)
-          let open ConstCube.Monadic (Monad.Maybe) in
-          miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
-      | _ ->
-          msg "Unequal dimensions of application";
-          fail)
-  | _ ->
-      msg "Unequal neutral terms";
+
+(* Check that the arguments of two entire application spines of equal functions are equal.  This is basically a left fold, but we make sure to iterate from left to right, and fail rather than raising an exception if the lists have different lengths.  *)
+and equal_args : int -> app Bwd.t -> app Bwd.t -> unit option =
+ fun lvl args1 args2 ->
+  match (args1, args2) with
+  | Emp, Emp -> return ()
+  | Snoc (rest1, arg1), Snoc (rest2, arg2) ->
+      (* Iterating from left to right is important because it ensures that at the point of checking equality for any pair of arguments, we know that they have the same type, since they are valid arguments of equal functions with all previous arguments equal.  *)
+      let* () = equal_args lvl rest1 rest2 in
+      equal_arg lvl arg1 arg2
+  | Emp, Snoc _ | Snoc _, Emp ->
+      msg "Unequal lengths of application spines";
       fail
+
+(* Check that two application arguments are equal, including their outer insertions as well as their values.  As noted above, here we can go back to *assuming* that they have equal types, and thus passing off to the eta-expanding equality check. *)
+and equal_arg : int -> app -> app -> unit option =
+ fun n (App (a1, i1)) (App (a2, i2)) ->
+  let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
+  match compare (ConstCube.dim a1) (ConstCube.dim a2) with
+  | Eq ->
+      let open ConstCube.Monadic (Monad.Maybe) in
+      miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
+  (* If the dimensions don't match, it is a bug rather than a user error, since they are supposed to both be valid arguments of the same function, and any function has a unique dimension. *)
+  | Neq -> raise (Failure "Unequal dimensions of application in equality-check")

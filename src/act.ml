@@ -1,5 +1,6 @@
 open Dim
 open Value
+open Bwd
 
 (* Operator actions on values.  Unlike substitution, operator actions take a *value* as input (and produces another value). *)
 
@@ -50,7 +51,12 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
   match tm with
-  | Neu (ne, ty) -> Neu (act_neu ne s, act_ty (Uninst tm) ty s)
+  | Neu { fn; args; ty } ->
+      (* We act on the applications from the outside (last) to the inside, since the degeneracy has to be factored and may leave neutral insertions behind.  The resulting inner degeneracy then acts on the head. *)
+      let ty = act_ty (Uninst tm) ty s in
+      let Any s', args = act_apps args s in
+      let fn = act_head fn s' in
+      Neu { fn; args; ty }
   | UU nk ->
       let (Of fa) = deg_plus_to s nk "universe" in
       UU (dom_deg fa)
@@ -175,27 +181,33 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
               Inst { tm = act_uninst ty fa; dim; args }))
   | Lam _ -> raise (Failure "A lambda-abstraction cannot be a type to act on")
 
-and act_neu : type a b. neu -> (a, b) deg -> neu =
+(* Action on a head *)
+and act_head : type a b. head -> (a, b) deg -> head =
  fun ne s ->
   match ne with
+  (* To act on a variable, we just accumulate the delayed action. *)
   | Var { level; deg } ->
-      (* To act on a variable, we just accumulate the delayed action. *)
       let (DegExt (_, _, deg)) = comp_deg_extending deg s in
       Var { level; deg }
-  | App { fn; args; ins } ->
-      (* To act on an application, we compose with the delayed insertion *)
+
+(* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)
+and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
+ fun apps s ->
+  match apps with
+  | Emp -> (Any s, Emp)
+  | Snoc (rest, App (args, ins)) ->
+      (* To act on an application, we compose the acting degeneracy with the delayed insertion *)
       let nk = plus_of_ins ins in
       let s' = perm_of_ins ins in
       let (DegExt (_, nk_d, s's)) = comp_deg_extending s' s in
       let (Plus kd) = D.plus (D.plus_right nk_d) in
       let n_kd = D.plus_assocr nk kd nk_d in
-      (* Factor the result into a new insertion and a smaller degeneracy *)
-      let (Insfact (fa, ins)) = insfact s's n_kd in
+      (* Factor the result into a new insertion to leave outside and a smaller degeneracy to push in *)
+      let (Insfact (fa, new_ins)) = insfact s's n_kd in
       (* And push the smaller degeneracy action into the application, acting on the function *)
-      let fn = act_neu fn fa in
       let p = dom_deg fa in
       (* And on the arguments, by factorization *)
-      let args =
+      let new_args =
         ConstCube.build p
           {
             build =
@@ -203,7 +215,8 @@ and act_neu : type a b. neu -> (a, b) deg -> neu =
                 let (Op (fd, fc)) = deg_sface fa fb in
                 act_normal (ConstCube.find args fd) fc);
           } in
-      App { fn; args; ins }
+      let new_s, new_rest = act_apps rest fa in
+      (new_s, Snoc (new_rest, App (new_args, new_ins)))
 
 (* A version that takes the degeneracy wrapped. *)
 let act_any : value -> any_deg -> value = fun v (Any s) -> act_value v s

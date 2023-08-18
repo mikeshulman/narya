@@ -1,20 +1,22 @@
 open Dim
 open Term
+open Bwd
 
 (* Internal values, the result of evaluation with closures for abstractions.  Use De Bruijn *levels*, so that weakening is implicit.  Fully internal unbiased syntax lives here: in addition to higher-dimensional applications and abstractions, we also have higher-dimensional pi-types, higher-dimensional universes, and floors of higher-dimensional types.  Separated into neutrals and normals, so that there are no beta-redexes.  Explicit substitutions (environments) are stored on binders, for NBE.  Operator actions are treated as a mix between substitutions and syntax. *)
 
-(* The codomains of a pi-type are stored as a face tree of binders.  Since values are defined mutually with binders, we need to "apply the functor Cube" mutually with the definition of these types.  This is possible using a recursive module. *)
+(* The codomains of a pi-type are stored as a Cube of binders, and since binders are a type family this dependence has to be specified by applying a module functor (rather than just parametrizing a type).  Since values are defined mutually with binders, we need to "apply the functor Cube" mutually with the definition of these types.  This is possible using a recursive module. *)
 module rec Value : sig
-  (* A recursive module is required to specify its module type.  We make it as transparent as possible, so the module type is nearly a copy of the module itself.  For the comments, see the actual definition below. *)
+  (* A recursive module is required to specify its module type explicitly.  We make this as transparent as possible, so the module type is nearly a copy of the module itself.  For the comments, see the actual definition below. *)
   module BindFam : sig
     type ('k, 'b) t = 'k Value.binder
   end
 
   module BindCube : module type of Cube (BindFam)
 
-  type neu =
-    | Var : { level : int; deg : ('m, 'n) deg } -> neu
-    | App : { fn : neu; args : ('n, normal) ConstCube.t; ins : ('m, 'n, 'k) insertion } -> neu
+  type head =
+    | Var : { level : int; deg : ('m, 'n) deg } -> head
+
+  and app = App : ('n, normal) ConstCube.t * ('m, 'n, 'k) insertion -> app
 
   and _ binder =
     | Bind : {
@@ -31,7 +33,7 @@ module rec Value : sig
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : ('k, value) ConstCube.t * ('k, unit) BindCube.t -> uninst
-    | Neu : neu * value -> uninst
+    | Neu : { fn : head; args : app Bwd.t; ty : value } -> uninst
 
   and value =
     | Uninst : uninst -> value
@@ -52,22 +54,13 @@ end = struct
 
   module BindCube = Cube (BindFam)
 
-  (* Neutrals are as usual, except that they have a nonreducible degeneracy applied outside. *)
-  type neu =
-    | Var : {
-        level : int; (* De Bruijn level *)
-        deg : ('m, 'n) deg; (* Neutral degeneracy applied outside *)
-      }
-        -> neu
-    | App : {
-        (* Function being applied *)
-        fn : neu;
-        (* The arguments *)
-        args : ('n, normal) ConstCube.t;
-        (* A neutral degeneracy applied outside that can't be pushed inside *)
-        ins : ('m, 'n, 'k) insertion;
-      }
-        -> neu
+  (* The head of an elimination spine is either a variable or a constant. *)
+  type head =
+    (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
+    | Var : { level : int; deg : ('m, 'n) deg } -> head
+
+  (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
+  and app = App : ('n, normal) ConstCube.t * ('m, 'n, 'k) insertion -> app
 
   (* Lambdas and Pis both bind a variable, along with its dependencies.  These are recorded as defunctionalized closures.  Since they are produced by higher-dimensional substitutions and operator actions, the dimension of the binder can be different than the dimension of the environment that closes its body.  Accordingly, in addition to the environment and degeneracy to close its body, we store information about how to map the eventual arguments into the bound variables in the body.  *)
   and _ binder =
@@ -88,7 +81,8 @@ end = struct
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a face tree of binders. *)
     | Pi : ('k, value) ConstCube.t * ('k, unit) BindCube.t -> uninst
-    | Neu : neu * value -> uninst (* Neutral terms store their type *)
+    (* A neutral is an application spine -- a head with a list of applications -- as well as a stored type for it. *)
+    | Neu : { fn : head; args : app Bwd.t; ty : value } -> uninst
 
   and value =
     (* An uninstantiated term *)
@@ -103,7 +97,7 @@ end = struct
         args : ('n, 'k, 'nk, value) ConstTube.t;
       }
         -> value
-    (* Lambda-abstractions are never types, so they can never be nontrivially instantiated, so we may as well make them values directly. *)
+    (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k binder -> value
 
   (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
@@ -116,13 +110,13 @@ end = struct
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end
 
-(* Now we include everything we defined above, so callers in other files don't have to qualify or re-open it.x *)
+(* Now we "include" everything we defined in the above recursive module, so callers in other files don't have to qualify or re-open it. *)
 include Value
 module FaceConstCubeMap = CubeMap (FaceFam) (ConstFam)
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : int -> value -> value =
- fun i ty -> Uninst (Neu (Var { level = i; deg = id_deg D.zero }, ty))
+ fun i ty -> Uninst (Neu { fn = Var { level = i; deg = id_deg D.zero }; args = Emp; ty })
 
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function

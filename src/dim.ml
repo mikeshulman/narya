@@ -1805,6 +1805,11 @@ module Tube (F : Fam) = struct
   let build :
       type n k nk b. n D.t -> (n, k, nk) D.plus -> (n, k, nk, b) IdM.builderM -> (n, k, nk, b) t =
    fun n nk g -> IdM.buildM n nk g
+
+  (* Finally, a one-dimensional tube is just two elements. *)
+
+  let pair : type b. (D.zero, b) F.t -> (D.zero, b) F.t -> (D.zero, D.one, D.one, b) t =
+   fun x y -> Branch (Snoc (Snoc (Emp, Leaf x), Leaf y), Leaf D.zero)
 end
 
 module ConstTube = Tube (ConstFam)

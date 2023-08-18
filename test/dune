@@ -4,6 +4,6 @@
 	(libraries narya))
 (tests
   (libraries narya pmp)
-  (names church idrefl sym symsym)
-  (modules church idrefl sym symsym))
+  (names church idrefl sym symsym gel)
+  (modules church idrefl sym symsym gel))
 (env (_ (flags (:standard -w -37 -w -30 -w -32))))

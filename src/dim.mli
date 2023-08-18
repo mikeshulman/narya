@@ -9,6 +9,8 @@ end
 open Monoid
 module D : MonoidPos
 
+type one
+
 val compare : 'm D.t -> 'n D.t -> ('m, 'n) compare
 
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
@@ -414,6 +416,8 @@ module Tube (F : Fam) : sig
 
   val build :
     'n D.t -> ('n, 'k, 'nk) D.plus -> ('n, 'k, 'nk, 'b) IdM.builderM -> ('n, 'k, 'nk, 'b) t
+
+  val pair : (D.zero, 'b) F.t -> (D.zero, 'b) F.t -> (D.zero, one, one, 'b) t
 end
 
 module ConstTube : module type of Tube (ConstFam)
@@ -486,9 +490,6 @@ type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('a
 
 val comp_insfact : ('ac, 'b, 'c) insfact -> ('b, 'c, 'bc) D.plus -> ('ac, 'bc) deg
 val insfact : ('ac, 'bc) deg -> ('b, 'c, 'bc) D.plus -> ('ac, 'b, 'c) insfact
-
-type one
-
 val one : one D.t
 val pos_one : one D.pos
 val faces_one : (one, N.three) count_faces

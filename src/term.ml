@@ -16,6 +16,7 @@ module rec Term : sig
 
   type _ term =
     | Var : 'a N.index -> 'a term
+    | Const : Constant.t -> 'a term
     | UU : 'a term
     | Inst : 'a term * ('m, 'n, 'mn, 'a) TermTube.t -> 'a term
     | Pi : 'a term * 'a N.suc term -> 'a term
@@ -33,6 +34,7 @@ end = struct
 
   type _ term =
     | Var : 'a N.index -> 'a term
+    | Const : Constant.t -> 'a term
     | UU : 'a term
     | Inst : 'a term * ('m, 'n, 'mn, 'a) TermTube.t -> 'a term
     | Pi : 'a term * 'a N.suc term -> 'a term

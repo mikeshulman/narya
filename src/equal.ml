@@ -164,6 +164,16 @@ and equal_head : int -> head -> head -> unit option =
       (* Two equal variables with the same degeneracy applied are equal, including their types because that variable has only one type. *)
       let* () = guard (l1 = l2) in
       deg_equiv d1 d2
+  | Const { name = c1; dim = n1 }, Const { name = c2; dim = n2 } -> (
+      let* () = guard (c1 = c2) in
+      match compare n1 n2 with
+      | Eq -> return ()
+      | Neq ->
+          msg "Unequal constants";
+          fail)
+  | _, _ ->
+      msg "Unequal heads";
+      fail
 
 (* Check that the arguments of two entire application spines of equal functions are equal.  This is basically a left fold, but we make sure to iterate from left to right, and fail rather than raising an exception if the lists have different lengths.  *)
 and equal_args : int -> app Bwd.t -> app Bwd.t -> unit option =

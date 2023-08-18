@@ -189,6 +189,10 @@ and act_head : type a b. head -> (a, b) deg -> head =
   | Var { level; deg } ->
       let (DegExt (_, _, deg)) = comp_deg_extending deg s in
       Var { level; deg }
+  (* To act on a constant, we just change its dimension.  This is correct because all constants are originally zero-dimensional, so an n-dimensional one is already a substitution along (Emp n).  *)
+  | Const { name; dim } ->
+      let (Of s') = deg_plus_to s dim "constant" in
+      Const { name; dim = dom_deg s' }
 
 (* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)
 and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =

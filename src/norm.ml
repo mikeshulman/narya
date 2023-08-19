@@ -3,6 +3,7 @@ open Value
 open Act
 open Term
 open Global
+open Bwd
 
 let rec eval : type m b. (m, b) env -> b term -> value =
  fun env tm ->
@@ -98,13 +99,24 @@ and apply : type n. value -> (n, value) ConstCube.t -> value =
   | Uninst (Neu { fn; args; ty }) -> (
       match ty with
       | Inst { tm = Pi (doms, cods); dim = _; args = tyargs } ->
-          let newarg, outty = annote_arg doms cods tyargs arg in
-          Uninst (Neu { fn; args = Snoc (args, newarg); ty = outty })
+          apply_neu fn args doms cods tyargs arg
       | Uninst (Pi (doms, cods)) ->
-          let newarg, outty = annote_arg doms cods (ConstTube.empty (ConstCube.dim arg)) arg in
-          Uninst (Neu { fn; args = Snoc (args, newarg); ty = outty })
+          apply_neu fn args doms cods (ConstTube.empty (ConstCube.dim arg)) arg
       | _ -> raise (Failure "Invalid annotation by non-function type"))
   | _ -> raise (Failure "Invalid application of non-function")
+
+and apply_neu :
+    type m n k nk l.
+    head ->
+    app Bwd.t ->
+    (m, value) ConstCube.t ->
+    (m, unit) BindCube.t ->
+    (n, k, nk, value) ConstTube.t ->
+    (l, value) ConstCube.t ->
+    value =
+ fun fn args doms cods tyargs arg ->
+  let newarg, outty = annote_arg doms cods tyargs arg in
+  Uninst (Neu { fn; args = Snoc (args, newarg); ty = outty })
 
 and annote_arg :
     type a b ab k n.

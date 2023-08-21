@@ -23,7 +23,10 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
 
 and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
  fun ctx -> function
-  | Var x -> Var (Option.get (Bwv.index x ctx))
+  | Var x -> (
+      match Bwv.index x ctx with
+      | Some v -> Var v
+      | None -> raise (Failure ("Variable " ^ x ^ " not found")))
   | Const x -> Const x
   | UU -> UU
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)

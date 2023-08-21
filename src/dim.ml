@@ -285,6 +285,9 @@ let any_deg_plus : type k. any_deg -> k D.t -> any_deg =
 let any_of_deg_of_plus : type n. n deg_of_plus -> any_deg = function
   | Of (_, s) -> Any s
 
+let is_id_any_deg : any_deg -> unit option = function
+  | Any s -> is_id_deg s
+
 (* ********** Strict faces ********** *)
 
 (* A strict face is an order-preserving partial map that is surjective and with an endpoint index assigned to each element not mapping to the codomain. *)

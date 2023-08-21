@@ -71,6 +71,7 @@ type any_deg = Any : ('m, 'n) deg -> any_deg
 val comp_deg_of_plus_any : 'n deg_of_plus -> any_deg -> 'n deg_of_plus
 val any_deg_plus : any_deg -> 'k D.t -> any_deg
 val any_of_deg_of_plus : 'n deg_of_plus -> any_deg
+val is_id_any_deg : any_deg -> unit option
 
 type (_, _) sface
 

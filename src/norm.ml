@@ -3,6 +3,7 @@ open Value
 open Act
 open Term
 open Bwd
+open Monad.Ops (Monad.Maybe)
 
 let rec eval : type m b. (m, b) env -> b term -> value =
  fun env tm ->
@@ -99,6 +100,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let ksym = plus_deg k kn km sym in
       act_value (eval env x) ksym
 
+(* Apply a function value to an argument (with its boundaries). *)
 and apply : type n. value -> (n, value) ConstCube.t -> value =
  fun fn arg ->
   match fn with
@@ -108,29 +110,130 @@ and apply : type n. value -> (n, value) ConstCube.t -> value =
       match compare (dim_binder body) m with
       | Neq -> raise (Failure "Dimension mismatch applying a lambda")
       | Eq -> apply_binder body (id_sface m) arg)
-  (* If it is a neutral application, we add the new argument to its list, first decomposing the function-type to annotate the new argument by its type and compute the new type of the further application. *)
+  (* If it is a neutral application... *)
   | Uninst (Neu { fn; args; ty }) -> (
       match ty with
       | Inst { tm = Pi (doms, cods); dim = _; args = tyargs } ->
-          apply_neu fn args doms cods tyargs arg
+          (* We annotate the new argument by its type, extracted from the domain type of the function being applied, and compute the new output type. *)
+          let newarg, ty = annote_arg doms cods tyargs arg in
+          (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
+          apply_spine fn (Snoc (args, newarg)) ty
       | Uninst (Pi (doms, cods)) ->
-          apply_neu fn args doms cods (ConstTube.empty (ConstCube.dim arg)) arg
+          let newarg, ty = annote_arg doms cods (ConstTube.empty (ConstCube.dim arg)) arg in
+          apply_spine fn (Snoc (args, newarg)) ty
       | _ -> raise (Failure "Invalid annotation by non-function type"))
   | _ -> raise (Failure "Invalid application of non-function")
 
-and apply_neu :
-    type m n k nk l.
-    head ->
-    app Bwd.t ->
-    (m, value) ConstCube.t ->
-    (m, unit) BindCube.t ->
-    (n, k, nk, value) ConstTube.t ->
-    (l, value) ConstCube.t ->
-    value =
- fun fn args doms cods tyargs arg ->
-  let newarg, outty = annote_arg doms cods tyargs arg in
-  Uninst (Neu { fn; args = Snoc (args, newarg); ty = outty })
+(* Compute the application of a head to a spine of arguments, using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application to annotate the latter case. *)
+and apply_spine : head -> app Bwd.t -> value -> value =
+ fun fn args ty ->
+  (* Check whether the head is a constant with an associated case tree. *)
+  Option.value
+    (match fn with
+    | Const { name; dim } ->
+        let* tree = Hashtbl.find_opt Global.trees name in
+        apply_tree (Emp dim) tree (Any (id_deg dim)) (Bwd.prepend args [])
+    | _ -> None)
+    (* If it has no case tree, or is not a constant, we just add the argument to the neutral application spine and return. *)
+    ~default:(Uninst (Neu { fn; args; ty }))
 
+(* Evaluate a case tree, in an environment of variables for which we have already found values, with possible additional arguments.  The degeneracy is one to be applied to the value of the case tree *before* applying it to any additional arguments; thus if it is nonidentity we cannot pick up additional arguments.  Return None if the case tree doesn't apply for any reason (e.g. not enough arguments, or a dispatching argument doesn't match any branch, or there is a nonidentity degeneracy in the way of picking up extra arguments). *)
+and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
+ fun env tree ins args ->
+  match tree with
+  | Lam (plus, body) ->
+      (* Pick up more arguments *)
+      let* newenv, newins, newargs = take_lam_args env plus ins args in
+      apply_tree newenv body newins newargs
+  | Leaf body ->
+      (* We've found a term to evaluate *)
+      let res = act_any (eval env body) ins in
+      (* Now apply this to any remaining arguments. *)
+      Some
+        (List.fold_left
+           (fun f (Value.App (a, i)) -> act_value (apply f (val_of_norm a)) (perm_of_ins i))
+           res args)
+  | Branch (ix, branches) -> (
+      (* Get the argument being inspected *)
+      match lookup act_any env ix with
+      (* It must be an application of a constant *)
+      | Uninst (Neu { fn = Const { name; dim }; args = dargs; ty = _ }) -> (
+          (* A case tree can only include 0-dimensional applications, so the dimension here must match the dimension we're using it at. *)
+          match compare dim (dim_env env) with
+          | Eq -> apply_branches env branches name dargs ins args
+          | _ -> None)
+      | _ -> None)
+
+(* Attempt all the branches of a case tree associated to a particular argument, matching each of their constant labels against its constant. *)
+and apply_branches :
+    type n a.
+    (n, a) env ->
+    a Case.branch list ->
+    (* The constant we're matching against *)
+    Constant.t ->
+    (* Its given arguments *)
+    app Bwd.t ->
+    (* A degeneracy to be applied after the computation *)
+    any_deg ->
+    (* The remaining arguments after the case tree computation *)
+    app list ->
+    value option =
+ fun env branches dcst dargs ins args ->
+  match branches with
+  | [] -> None
+  | Branch (name, sub, plus, body) :: rest ->
+      if name = dcst then
+        (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
+        let* env = take_branch_args env sub dargs plus in
+        (* Then we proceed recursively with the body of that branch. *)
+        apply_tree env body ins args
+      else
+        (* If the constant doesn't match, proceed with later branches. *)
+        apply_branches env rest dcst dargs ins args
+
+and take_branch_args :
+    type n a b ab c.
+    (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env option =
+ fun env sub dargs plus ->
+  match (sub, dargs, plus) with
+  | Zero, Emp, Zero -> Some env
+  | Omit sub, Snoc (dargs, _), _ -> take_branch_args env sub dargs plus
+  | Take sub, Snoc (dargs, App (arg, ins)), Suc plus -> (
+      (* We can only take arguments that have no degeneracy applied, since case trees are specified at dimension zero. *)
+      let* () = is_id_deg (perm_of_ins ins) in
+      (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
+      let* env = take_branch_args env sub dargs plus in
+      (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
+      match compare (ConstCube.dim arg) (dim_env env) with
+      | Eq ->
+          (* Why is this type annotation necessary? *)
+          return (Ext (env, (val_of_norm arg : (n, value) ConstCube.t)))
+      | Neq -> None)
+  | _ -> None
+
+and take_lam_args :
+    type n a b ab.
+    (n, a) env ->
+    (a, b, ab) N.plus ->
+    any_deg ->
+    app list ->
+    ((n, ab) env * any_deg * app list) option =
+ fun env ab ins args ->
+  match (ab, args) with
+  | Zero, _ -> Some (env, ins, args)
+  | Suc ab, App (arg, newins) :: args -> (
+      (* If we're looking for another argument, we fail unless the current insertion is the identity.  In addition, the variables bound in a case tree are always zero-dimensional applications, so the apps here must all be the same dimension as the constant instance. *)
+      match (is_id_any_deg ins, compare (dim_env env) (ConstCube.dim arg)) with
+      | Some (), Eq ->
+          take_lam_args
+            (Ext (env, val_of_norm arg))
+            (N.suc_plus' ab)
+            (Any (perm_of_ins newins))
+            args
+      | _ -> None)
+  | _, _ -> None
+
+(* Given a family of value arguments (including boundaries) for a function of some given type (with domains and codomains), annotate the arguments to make them into normals (hence an "app"), and also compute the type of the applied function.  *)
 and annote_arg :
     type a b ab k n.
     (k, value) ConstCube.t ->
@@ -215,6 +318,7 @@ and eval_binder :
   let perm = id_perm (D.plus_out m plus_dim) in
   Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
 
+(* TODO: Describe this function, particularly the sface argument *)
 and apply_binder : type m n f a. m binder -> (m, n) sface -> (n, value) ConstCube.t -> value =
  fun (Bind b) s argstbl ->
   act_value

@@ -485,3 +485,10 @@ type _ compare_zero = Zero : zero compare_zero | Pos : 'n pos -> 'n compare_zero
 let compare_zero : type a. a t -> a compare_zero = function
   | Nat Zero -> Zero
   | Nat (Suc a) -> Pos (Pos (Nat a))
+
+(* Subsets *)
+
+type (_, _) subset =
+  | Zero : (zero, zero) subset
+  | Omit : ('a, 'b) subset -> ('a, 'b suc) subset
+  | Take : ('a, 'b) subset -> ('a suc, 'b suc) subset

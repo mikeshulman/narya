@@ -171,3 +171,6 @@ let rec env_append :
   match (ab, xss) with
   | Zero, Emp -> env
   | Suc ab, Snoc (xss, xs) -> Ext (env_append ab env xss, xs)
+
+let val_of_norm : type n. (n, normal) ConstCube.t -> (n, value) ConstCube.t =
+ fun arg -> ConstCube.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]

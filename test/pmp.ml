@@ -40,7 +40,9 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
 (* Nicer syntax, with a prefix operator for using a variable by name, and infix operators for abstraction, application, and ascription. *)
 let ( !! ) x = Var x
 let ( !~ ) x = Const x
-let pi x dom cod = Pi (x, dom, cod)
+
+(* let pi x dom cod = Pi (x, dom, cod) *)
+let ( @=> ) (x, dom) cod = Pi (x, dom, cod)
 let ( $ ) fn arg = App (fn, arg) (* Left-associative *)
 let id a x y = Id (a, x, y)
 let refl x = Refl x

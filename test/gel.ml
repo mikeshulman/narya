@@ -4,37 +4,34 @@ let () = Narya.Gel.install ()
 let gEL, gELty = synth !~"GEL"
 
 let gELty', _ =
-  synth (pi "X" UU (pi "Y" UU (pi "R" (pi "x" !!"X" (pi "y" !!"Y" UU)) (id UU !!"X" !!"Y"))))
+  synth
+    (("X", UU) @=> ("Y", UU) @=> ("R", ("x", !!"X") @=> ("y", !!"Y") @=> UU) @=> id UU !!"X" !!"Y")
 
 let () = equal gELty gELty'
 let gel, gelty = synth !~"gel"
 
 let gelty', _ =
   synth
-    (pi "X" UU
-       (pi "Y" UU
-          (pi "R"
-             (pi "x" !!"X" (pi "y" !!"Y" UU))
-             (pi "x" !!"X"
-                (pi "y" !!"Y"
-                   (pi "r"
-                      (!!"R" $ !!"x" $ !!"y")
-                      (!~"GEL" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y")))))))
+    (("X", UU)
+    @=> ("Y", UU)
+    @=> ("R", ("x", !!"X") @=> ("y", !!"Y") @=> UU)
+    @=> ("x", !!"X")
+    @=> ("y", !!"Y")
+    @=> ("r", !!"R" $ !!"x" $ !!"y")
+    @=> (!~"GEL" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y"))
 
 let () = equal gelty gelty'
 let ungel, ungelty = synth !~"ungel"
 
 let ungelty', _ =
   synth
-    (pi "X" UU
-       (pi "Y" UU
-          (pi "R"
-             (pi "x" !!"X" (pi "y" !!"Y" UU))
-             (pi "x" !!"X"
-                (pi "y" !!"Y"
-                   (pi "r"
-                      (!~"GEL" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y")
-                      (!!"R" $ !!"x" $ !!"y")))))))
+    (("X", UU)
+    @=> ("Y", UU)
+    @=> ("R", ("x", !!"X") @=> ("y", !!"Y") @=> UU)
+    @=> ("x", !!"X")
+    @=> ("y", !!"Y")
+    @=> ("r", !~"GEL" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y")
+    @=> (!!"R" $ !!"x" $ !!"y"))
 
 let () = equal ungelty ungelty'
 
@@ -43,7 +40,7 @@ let () = equal ungelty ungelty'
 let uu, _ = synth UU
 let aa = assume "A" uu
 let bb = assume "B" uu
-let corrab, _ = synth (pi "x" !!"A" (pi "y" !!"B" UU))
+let corrab, _ = synth (("x", !!"A") @=> ("y", !!"B") @=> UU)
 let rr = assume "R" corrab
 let a = assume "a" aa
 let b = assume "b" bb

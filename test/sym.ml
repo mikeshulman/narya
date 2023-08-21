@@ -55,7 +55,7 @@ let () = equal ssx22 x22
 
 (* The action of functions on squares preserves symmetry *)
 let yy = assume "Y" uu
-let xtoy, _ = synth (pi "x" !!"X" !!"Y")
+let xtoy, _ = synth (("x", !!"X") @=> !!"Y")
 let f = assume "f" xtoy
 
 let fx22, fx22ty =

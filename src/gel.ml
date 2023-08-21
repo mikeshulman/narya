@@ -71,3 +71,21 @@ let install () =
                                    ( Var (N.Pop (N.Pop (N.Pop N.Top))),
                                      TermCube.singleton (Var (N.Pop (N.Pop N.Top))) ),
                                  TermCube.singleton (Var (N.Pop N.Top)) ) ) ) ) ) ) ));
+  Hashtbl.add Global.trees "ungel"
+    (Lam
+       ( Suc (Suc (Suc (Suc (Suc (Suc Zero))))),
+         Branch
+           ( Top,
+             [
+               Branch ("gel", Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
+             ] ) ));
+  (* Maybe this would be better implemented as an eta-rule for GEL *)
+  Hashtbl.add Global.trees "gel"
+    (Lam
+       ( Suc (Suc (Suc (Suc (Suc (Suc Zero))))),
+         Branch
+           ( Top,
+             [
+               Branch
+                 ("ungel", Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
+             ] ) ))

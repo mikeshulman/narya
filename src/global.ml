@@ -1,5 +1,5 @@
-open Value
+open Term
 
 (* The global environment of constants *)
 
-let global : (Constant.t, value) Hashtbl.t = Hashtbl.create 10
+let types : (Constant.t, N.zero term) Hashtbl.t = Hashtbl.create 10

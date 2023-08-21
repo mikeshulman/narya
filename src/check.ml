@@ -1,6 +1,5 @@
 open Raw
 open Value
-open Global
 open Term
 open Dim
 open Act
@@ -143,7 +142,7 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
  fun ctx tm ->
   match tm with
   | Var v -> return (Term.Var v, Bwv.nth v ctx)
-  | Const name -> return (Const name, Hashtbl.find global name)
+  | Const name -> return (Const name, eval (Emp D.zero) (Hashtbl.find Global.types name))
   | UU -> return (Term.UU, Uninst (UU D.zero))
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)

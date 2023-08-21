@@ -2,7 +2,6 @@ open Dim
 open Value
 open Act
 open Term
-open Global
 open Bwd
 
 let rec eval : type m b. (m, b) env -> b term -> value =
@@ -10,7 +9,21 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   match tm with
   | Var v -> lookup act_any env v
   | Const name ->
-      Uninst (Neu { fn = Const { name; dim = D.zero }; args = Emp; ty = Hashtbl.find global name })
+      let dim = dim_env env in
+      Uninst
+        (Neu
+           {
+             fn = Const { name; dim };
+             args = Emp;
+             ty =
+               inst
+                 (eval (Emp dim) (Hashtbl.find Global.types name))
+                 (ConstTube.build D.zero (D.zero_plus dim)
+                    {
+                      build =
+                        (fun fa -> eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name));
+                    });
+           })
   | UU -> Uninst (UU (dim_env env))
   | Inst (tm, args) ->
       let nk = TermTube.plus args in

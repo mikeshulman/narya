@@ -27,7 +27,7 @@ module rec Value : sig
         bound_faces : ('n, 'fn) count_faces;
         plus_faces : ('a, 'fn, 'afn) N.plus;
         body : 'afn term;
-        args : (('m, 'mn) FaceCube.t, 'fn) Bwv.t;
+        args : (('m, 'mn face_of) CubeOf.t, 'fn) Bwv.t;
       }
         -> 'mn binder
 
@@ -74,8 +74,8 @@ end = struct
         bound_faces : ('n, 'fn) count_faces;
         plus_faces : ('a, 'fn, 'afn) N.plus;
         body : 'afn term;
-        (* TODO: Can this be just a ('mn,'mn) FaceCube.t, by adding the faces? *)
-        args : (('m, 'mn) FaceCube.t, 'fn) Bwv.t;
+        (* TODO: Can this be just a ('mn,'mn face_of) CubeOf.t, by adding the faces? *)
+        args : (('m, 'mn face_of) CubeOf.t, 'fn) Bwv.t;
       }
         -> 'mn binder
 
@@ -115,7 +115,6 @@ end
 
 (* Now we "include" everything we defined in the above recursive module, so callers in other files don't have to qualify or re-open it. *)
 include Value
-module FaceCubeOfMap = CubeMap (FaceFam) (FamOf)
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : int -> value -> value =

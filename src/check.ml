@@ -6,8 +6,6 @@ open Act
 open Norm
 open Equal
 open Monad.Ops (Monad.Maybe)
-module CTCCubeMap1_2 = CubeMap1_2 (FamOf) (TermFam) (FamOf)
-module CTCTubeMap1_2 = TubeMap1_2 (FamOf) (TermFam) (FamOf)
 
 (* A context is a list of variables with types which are values.  The variables themselves, when represented by De Bruijn LEVELS, can appear in the types of later variables.  In particular, the LENGTH of this context, which is its type parameter as a type-level nat, is the current De Bruijn LEVEL for new variables to be added.  We can look up the INDEX of a TERM VARIABLE into this Bwv to get its type, but not of course the LEVEL of a VALUE VARIABLE. *)
 type 'a ctx = (value, 'a) Bwv.t
@@ -220,12 +218,13 @@ and synth_app :
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus n) in
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
           let eargtbl = Hashtbl.create 10 in
-          let* (cargs, eargs), rest =
-            let open CTCCubeMap1_2 (M) in
-            mapM1_2
+          let* [ cargs; eargs ], rest =
+            let open CubeOf.Monadic (M) in
+            let open CubeOf.Infix in
+            pmapM
               {
                 map =
-                  (fun fa dom ->
+                  (fun fa [ dom ] ->
                     let open Monad.Ops (M) in
                     let* ts = M.get in
                     let* tm =
@@ -246,9 +245,9 @@ and synth_app :
                     let* ctm = M.stateless (check ctx tm ty) in
                     let etm = eval_in_ctx ctx ctm in
                     Hashtbl.add eargtbl (SFace_of fa) etm;
-                    return (ctm, etm));
+                    return (ctm @: [ etm ]));
               }
-              doms args in
+              [ doms ] (Cons (Cons Nil)) args in
           (* Evaluate cod at these evaluated arguments, and instantiate it at the appropriate values of tyargs, as with similar code in other places. *)
           let out_args =
             TubeOf.mmap
@@ -282,14 +281,14 @@ and synth_app :
               (* We take enough arguments to instatiate a type of dimension n by one, and check each argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments.  This requires random access to the previous evaluated arguments, so we store those in a hashtable, while also assembling them into a tube for later. *)
               let (Is_suc (m, msuc)) = suc_pos pn in
               let open TubeOf.Monadic (M) in
+              let open TubeOf.Infix in
               let eargtbl = Hashtbl.create 10 in
               let tyargs1 = TubeOf.pboundary (D.zero_plus m) msuc tyargs in
-              let* (cargs, eargs), rest =
-                let open CTCTubeMap1_2 (M) in
-                mapM1_2
+              let* [ cargs; eargs ], rest =
+                pmapM
                   {
                     map =
-                      (fun fa tyarg ->
+                      (fun fa [ tyarg ] ->
                         let open Monad.Ops (M) in
                         let* ts = M.get in
                         let* tm =
@@ -312,9 +311,9 @@ and synth_app :
                         let* ctm = M.stateless (check ctx tm ty) in
                         let etm = eval_in_ctx ctx ctm in
                         let () = Hashtbl.add eargtbl (SFace_of fa) etm in
-                        return (ctm, etm));
+                        return (ctm @: [ etm ]));
                   }
-                  tyargs1 args in
+                  [ tyargs1 ] (Cons (Cons Nil)) args in
               (* Now we assemble the synthesized type, which is a full instantiation of the universe at a telescope consisting of instantiations of the type arguments at the evaluated term arguments. *)
               let margs =
                 TubeOf.build D.zero (D.zero_plus m)

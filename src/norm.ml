@@ -27,10 +27,10 @@ let rec eval : type m b. (m, b) env -> b term -> value =
            })
   | UU -> Uninst (UU (dim_env env))
   | Inst (tm, args) ->
-      let nk = TermTube.plus args in
+      let nk = TubeOf.plus args in
       (* Add the environment dimension to the uninstantiated dimensions *)
       let m = dim_env env in
-      let (Plus mn) = D.plus (TermTube.uninst args) in
+      let (Plus mn) = D.plus (TubeOf.uninst args) in
       (* Evaluate the inner term *)
       let newtm = eval env tm in
       (* Evaluate the arguments, rearranging and acting by faces and degeneracies *)
@@ -42,7 +42,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               (fun fa ->
                 let (TFace_of_plus (_, fb, fcd)) = tface_of_plus mn fa in
                 let Eq = D.plus_uniq (cod_plus_of_tface fcd) nk in
-                eval (Act (env, op_of_sface fb)) (TermTube.find args fcd));
+                eval (Act (env, op_of_sface fb)) (TubeOf.find args fcd));
           } in
       inst newtm newargs
   | Lam (n_faces, plus_n_faces, body) ->
@@ -53,7 +53,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let efn = eval env fn in
       (* The environment is m-dimensional and the original application is n-dimensional, so the *substituted* application is m+n dimensional.  Thus must therefore match the dimension of the function being applied. *)
       let m = dim_env env in
-      let n = TermCube.dim args in
+      let n = CubeOf.dim args in
       let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
       (* Then we evaluate all the arguments, not just in the given environment (of dimension m), but in that environment acted on by all the strict faces of m.  Since the given arguments are indexed by strict faces of n, the result is a collection of values indexed by strict faces of m+n.  *)
@@ -66,7 +66,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                 (* ...we decompose it as a sum of a face "fa" of m and a face "fb" of n... *)
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
                 (* ...and evaluate the supplied argument indexed by the face fb of n, in an environment acted on by the face fa of m. *)
-                eval (Act (env, op_of_sface fa)) (TermCube.find args fb));
+                eval (Act (env, op_of_sface fa)) (CubeOf.find args fb));
           } in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
@@ -300,7 +300,7 @@ and eval_binder :
   let args =
     Bwv.map
       (fun (SFace_of fa) ->
-        FaceCube.build m
+        CubeOf.build m
           {
             build =
               (fun fb ->
@@ -322,13 +322,13 @@ and apply_binder : type m n f a. m binder -> (m, n) sface -> (n, value) CubeOf.t
        (env_append b.plus_faces b.env
           (Bwv.map
              (fun ffs ->
-               FaceCubeOfMap.map
+               CubeOf.mmap
                  {
                    map =
-                     (fun _ (Face_of (Face (fa, fb))) ->
+                     (fun _ [ Face_of (Face (fa, fb)) ] ->
                        act_value (CubeOf.find argstbl (comp_sface s fa)) fb);
                  }
-                 ffs)
+                 [ ffs ])
              b.args))
        b.body)
     b.perm

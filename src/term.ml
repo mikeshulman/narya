@@ -6,42 +6,13 @@ open Dim
 
    On the other hand, pi-types are still only unary: higher-dimensional pi-types are created only in internal values by substitution and operator action.  Similarly, there is still only one (zero-dimensional) universe, and the only operator actions are Id, refl, and sym. *)
 
-module rec Term : sig
-  module TermFam : sig
-    type ('a, 'b) t = 'b Term.term
-  end
-
-  module TermCube : module type of Cube (TermFam)
-  module TermTube : module type of Tube (TermFam)
-
-  type _ term =
-    | Var : 'a N.index -> 'a term
-    | Const : Constant.t -> 'a term
-    | UU : 'a term
-    | Inst : 'a term * ('m, 'n, 'mn, 'a) TermTube.t -> 'a term
-    | Pi : 'a term * 'a N.suc term -> 'a term
-    | App : 'a term * ('n, 'a) TermCube.t -> 'a term
-    | Lam : ('n, 'f) count_faces * ('a, 'f, 'af) N.plus * 'af term -> 'a term
-    | Refl : 'a term -> 'a term
-    | Sym : 'a term -> 'a term
-end = struct
-  module TermFam = struct
-    type ('a, 'b) t = 'b Term.term
-  end
-
-  module TermCube = Cube (TermFam)
-  module TermTube = Tube (TermFam)
-
-  type _ term =
-    | Var : 'a N.index -> 'a term
-    | Const : Constant.t -> 'a term
-    | UU : 'a term
-    | Inst : 'a term * ('m, 'n, 'mn, 'a) TermTube.t -> 'a term
-    | Pi : 'a term * 'a N.suc term -> 'a term
-    | App : 'a term * ('n, 'a) TermCube.t -> 'a term
-    | Lam : ('n, 'f) count_faces * ('a, 'f, 'af) N.plus * 'af term -> 'a term
-    | Refl : 'a term -> 'a term
-    | Sym : 'a term -> 'a term
-end
-
-include Term
+type _ term =
+  | Var : 'a N.index -> 'a term
+  | Const : Constant.t -> 'a term
+  | UU : 'a term
+  | Inst : 'a term * ('m, 'n, 'mn, 'a term) TubeOf.t -> 'a term
+  | Pi : 'a term * 'a N.suc term -> 'a term
+  | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
+  | Lam : ('n, 'f) count_faces * ('a, 'f, 'af) N.plus * 'af term -> 'a term
+  | Refl : 'a term -> 'a term
+  | Sym : 'a term -> 'a term

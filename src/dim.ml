@@ -497,10 +497,6 @@ module type Fam = sig
   type ('a, 'b) t
 end
 
-module FamOf = struct
-  type ('a, 'b) t = 'b
-end
-
 module Cube (F : Fam) = struct
   (* First we define an auxiliary data structure.  An ('m, 'n, 'b) gt is a ternary tree of height 'm whose interior nodes have their last branch special, and whose leaves are labeled by an element of F(n-k,b) , where k is the number of non-special branches taken to lead to the leaf.  Thus there is exactly one element of type F(n,b), 2*m elements of type F(n-1,b), down to 2^m elements of type F(n-m,b).  *)
   type (_, _, _) gt =
@@ -559,11 +555,6 @@ module Cube (F : Fam) = struct
     type (_, _) hft =
       | [] : ('n, nil) hft
       | ( :: ) : ('n, 'x) F.t * ('n, 'xs) hft -> ('n, ('x, 'xs) cons) hft
-
-    let hft_nil : type n. (n, nil) hft = []
-
-    let hft_cons : type n x xs. (n, x) F.t -> (n, xs) hft -> (n, (x, xs) cons) hft =
-     fun x xs -> x :: xs
 
     (* An hlist of gt's, with the first two parameters (dimensions) fixed but the third varying along the list.  *)
     type (_, _, _) hgt =
@@ -641,6 +632,16 @@ module Cube (F : Fam) = struct
       | Cons hs, ends :: endss, mid :: mids -> Branch (ends, mid) :: branch hs endss mids
   end
 
+  (* OCaml can't always tell from context what [x ; xs] should be; in particular it often fails to notice hfts.  So we also give a different syntax that is unambiguous.  *)
+  module Infix = struct
+    let hnil : type n. (n, Hlist.nil) Heter.hft = []
+
+    let ( @: ) : type n x xs. (n, x) F.t -> (n, xs) Heter.hft -> (n, (x, xs) Hlist.cons) Heter.hft =
+     fun x xs -> x :: xs
+  end
+
+  open Infix
+
   module Monadic (M : Monad.Plain) = struct
     open Monad.Ops (M)
     module BwvM = Bwv.Monadic (M)
@@ -709,7 +710,7 @@ module Cube (F : Fam) = struct
               (fun fa x ->
                 let* y = g.map fa x in
                 (* Apparently writing [y] is insufficiently polymorphic *)
-                return (Heter.hft_cons y Heter.hft_nil));
+                return (y @: []));
           }
           xs (Cons Nil) in
       return ys
@@ -726,7 +727,7 @@ module Cube (F : Fam) = struct
             map =
               (fun fa x ->
                 let* () = g.it fa x in
-                return Heter.hft_nil);
+                return hnil);
           }
           xs Nil in
       return ()
@@ -863,176 +864,12 @@ module Cube (F : Fam) = struct
         Branch (Bwv.map (fun t -> lift f n12' t) ends, lift f n12 mid)
 end
 
+(* In the vast majority of cases, the second type parameter 'b in a Fam can just *be* the type of the elements.  The only case when this doesn't work is when the type has to also depend on the dimension 'a. *)
+module FamOf = struct
+  type ('a, 'b) t = 'b
+end
+
 module CubeOf = Cube (FamOf)
-
-(* We can also map one cube to another with a *different* object type.  This requires a separate functor with two parameters. *)
-
-module CubeMap (F1 : Fam) (F2 : Fam) = struct
-  module C1 = Cube (F1)
-  module C2 = Cube (F2)
-
-  type ('n, 'b, 'c) mapper = { map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t }
-
-  let rec gmap :
-      type k m km n b c l.
-      (k, m, km) D.plus ->
-      (l, m, n) D.plus ->
-      (k, l) bwsface ->
-      (n, b, c) mapper ->
-      (m, km, b) C1.gt ->
-      (m, km, c) C2.gt =
-   fun km lm d g tr ->
-    match tr with
-    | Leaf x ->
-        let Zero, Zero = (km, lm) in
-        Leaf (g.map (sface_of_bw d) x)
-    | Branch (ends, mid) ->
-        let (Suc km') = km in
-        Branch
-          ( Bwv.map2
-              (fun e br -> gmap km' (D.suc_plus'' lm) (End (e, d)) g br)
-              Endpoints.indices ends,
-            gmap (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid )
-
-  let map : type n b c. (n, b, c) mapper -> (n, b) C1.t -> (n, c) C2.t =
-   fun g tr ->
-    let n = C1.dim tr in
-    gmap (D.zero_plus n) (D.zero_plus n) Zero g tr
-end
-
-(* And similarly for two inputs.  Here we do the monadic version directly. *)
-
-module CubeMap2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) = struct
-  module C1 = Cube (F1)
-  module C2 = Cube (F2)
-  module C3 = Cube (F3)
-  open Monad.Ops (M)
-  module BwvM = Bwv.Monadic (M)
-
-  type ('n, 'b, 'c, 'd) mapperM2 = {
-    map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t -> ('m, 'd) F3.t M.t;
-  }
-
-  let rec gmapM2 :
-      type k m km n b c d l.
-      (k, m, km) D.plus ->
-      (l, m, n) D.plus ->
-      (k, l) bwsface ->
-      (n, b, c, d) mapperM2 ->
-      (m, km, b) C1.gt ->
-      (m, km, c) C2.gt ->
-      (m, km, d) C3.gt M.t =
-   fun km lm d g tr1 tr2 ->
-    match (tr1, tr2) with
-    | Leaf x1, Leaf x2 ->
-        let Zero, Zero = (km, lm) in
-        let* x = g.map (sface_of_bw d) x1 x2 in
-        return (C3.Leaf x)
-    | Branch (ends1, mid1), Branch (ends2, mid2) ->
-        let (Suc km') = km in
-        let* ends =
-          BwvM.mmapM
-            (fun [ e; br1; br2 ] -> gmapM2 km' (D.suc_plus'' lm) (End (e, d)) g br1 br2)
-            [ Endpoints.indices; ends1; ends2 ] in
-        let* mid = gmapM2 (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid1 mid2 in
-        return (C3.Branch (ends, mid))
-
-  let mapM2 : type n b c d. (n, b, c, d) mapperM2 -> (n, b) C1.t -> (n, c) C2.t -> (n, d) C3.t M.t =
-   fun g tr1 tr2 ->
-    let n = C1.dim tr1 in
-    gmapM2 (D.zero_plus n) (D.zero_plus n) Zero g tr1 tr2
-end
-
-module CubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) = struct
-  module C1 = Cube (F1)
-  module C2 = Cube (F2)
-  module C3 = Cube (F3)
-  open Monad.Ops (M)
-  module BwvM = Bwv.Monadic (M)
-
-  type ('n, 'b, 'c, 'd) mapperM1_2 = {
-    map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> (('m, 'c) F2.t * ('m, 'd) F3.t) M.t;
-  }
-
-  let rec gmapM1_2 :
-      type k m km n b c d l.
-      (k, m, km) D.plus ->
-      (l, m, n) D.plus ->
-      (k, l) bwsface ->
-      (n, b, c, d) mapperM1_2 ->
-      (m, km, b) C1.gt ->
-      ((m, km, c) C2.gt * (m, km, d) C3.gt) M.t =
-   fun km lm d g tr ->
-    match tr with
-    | Leaf x ->
-        let Zero, Zero = (km, lm) in
-        let* x1, x2 = g.map (sface_of_bw d) x in
-        return (C2.Leaf x1, C3.Leaf x2)
-    | Branch (ends, mid) ->
-        let (Suc km') = km in
-        let* [ ends1; ends2 ] =
-          BwvM.pmapM
-            (fun [ e; br ] ->
-              let* x1, x2 = gmapM1_2 km' (D.suc_plus'' lm) (End (e, d)) g br in
-              return (Hlist.cons x1 [ x2 ]))
-            [ Endpoints.indices; ends ] (Cons (Cons Nil)) in
-        let* mid1, mid2 = gmapM1_2 (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid in
-        return (C2.Branch (ends1, mid1), C3.Branch (ends2, mid2))
-
-  let mapM1_2 :
-      type n b c d. (n, b, c, d) mapperM1_2 -> (n, b) C1.t -> ((n, c) C2.t * (n, d) C3.t) M.t =
-   fun g tr ->
-    let n = C1.dim tr in
-    gmapM1_2 (D.zero_plus n) (D.zero_plus n) Zero g tr
-end
-
-module CubeMap2_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (F4 : Fam) (M : Monad.Plain) = struct
-  module C1 = Cube (F1)
-  module C2 = Cube (F2)
-  module C3 = Cube (F3)
-  module C4 = Cube (F4)
-  open Monad.Ops (M)
-  module BwvM = Bwv.Monadic (M)
-
-  type ('n, 'b, 'c, 'd, 'e) mapperM2_2 = {
-    map :
-      'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t -> (('m, 'd) F3.t * ('m, 'e) F4.t) M.t;
-  }
-
-  let rec gmapM2_2 :
-      type k m km n b c d e l.
-      (k, m, km) D.plus ->
-      (l, m, n) D.plus ->
-      (k, l) bwsface ->
-      (n, b, c, d, e) mapperM2_2 ->
-      (m, km, b) C1.gt ->
-      (m, km, c) C2.gt ->
-      ((m, km, d) C3.gt * (m, km, e) C4.gt) M.t =
-   fun km lm d g tr1 tr2 ->
-    match (tr1, tr2) with
-    | Leaf x1, Leaf x2 ->
-        let Zero, Zero = (km, lm) in
-        let* x1, x2 = g.map (sface_of_bw d) x1 x2 in
-        return (C3.Leaf x1, C4.Leaf x2)
-    | Branch (ends1, mid1), Branch (ends2, mid2) ->
-        let (Suc km') = km in
-        let* [ ends1; ends2 ] =
-          BwvM.pmapM
-            (fun [ e; br1; br2 ] ->
-              let* x1, x2 = gmapM2_2 km' (D.suc_plus'' lm) (End (e, d)) g br1 br2 in
-              return (Hlist.cons x1 [ x2 ]))
-            [ Endpoints.indices; ends1; ends2 ]
-            (Cons (Cons Nil)) in
-        let* mid1, mid2 = gmapM2_2 (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g mid1 mid2 in
-        return (C3.Branch (ends1, mid1), C4.Branch (ends2, mid2))
-
-  let mapM2_2 :
-      type n b c d e.
-      (n, b, c, d, e) mapperM2_2 -> (n, b) C1.t -> (n, c) C2.t -> ((n, d) C3.t * (n, e) C4.t) M.t =
-   fun g tr1 tr2 ->
-    let n = C1.dim tr1 in
-    gmapM2_2 (D.zero_plus n) (D.zero_plus n) Zero g tr1 tr2
-end
 
 (* ********** Tube faces ********** *)
 
@@ -1270,6 +1107,7 @@ let tface_of_bw : type m n k nk. (m, n, k, nk) bwtface -> (m, n, k, nk) tface =
 
 module Tube (F : Fam) = struct
   module C = Cube (F)
+  open C.Infix
 
   (* An (n,k,n+k)-tube is like a (n+k)-cube but where the top k indices (the "instantiated" ones) are not all maximal.  Hence if k=0 it is empty, while if n=0 it contains everything except the top face.  A (m,k,m+k,n)-gtube is the height-(m+k) part of such a tube, with k dimensions left to be instantiated and m uninstantiated, m+k total dimensions left, and n the current face dimension. *)
   type (_, _, _, _, _) gt =
@@ -1510,6 +1348,8 @@ module Tube (F : Fam) = struct
       | Cons hs, ends :: endss, mid :: mids -> Branch (ends, mid) :: branch hs endss mids
   end
 
+  module Infix = C.Infix
+
   (* Now the generic monadic traversal.  This appears to require *three* helper functions, corresponding to three stages of where we are in the instantiated or uninstantiated dimensions. *)
 
   module Monadic (M : Monad.Plain) = struct
@@ -1657,7 +1497,7 @@ module Tube (F : Fam) = struct
             map =
               (fun fa x ->
                 let* y = g.map fa x in
-                return (C.Heter.hft_cons y C.Heter.hft_nil));
+                return (y @: []));
           }
           xs (Cons Nil) in
       return ys
@@ -1678,7 +1518,7 @@ module Tube (F : Fam) = struct
             map =
               (fun fa x ->
                 let* () = g.it fa x in
-                return C.Heter.hft_nil);
+                return hnil);
           }
           xs Nil in
       return ()
@@ -1817,119 +1657,6 @@ end
 
 module TubeOf = Tube (FamOf)
 
-(* Once again, unfortunately we have to copy-and-paste code for the versions parametrized over different modules. *)
-
-module TubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) = struct
-  module T1 = Tube (F1)
-  module T2 = Tube (F2)
-  module T3 = Tube (F3)
-  open Monad.Ops (M)
-  module BwvM = Bwv.Monadic (M)
-
-  type ('n, 'k, 'nk, 'b, 'c, 'd) mapperM1_2 = {
-    map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'b) F1.t -> (('m, 'c) F2.t * ('m, 'd) F3.t) M.t;
-  }
-
-  let rec gmapM_ll :
-      type k m mk l1 l2 l ml ml1 b c d.
-      (m, k, mk) D.plus ->
-      (m, l, ml) D.plus ->
-      (m, l1, ml1) D.plus ->
-      (k, l1, l2, l) bwtface ->
-      (ml1, l2, ml, b, c, d) mapperM1_2 ->
-      (m, mk, b) T1.C.gt ->
-      ((m, mk, c) T2.C.gt * (m, mk, d) T3.C.gt) M.t =
-   fun mk ml ml1 d g tr ->
-    match tr with
-    | Leaf x ->
-        let Eq = D.plus_uniq mk (D.zero_plus (dom_bwtface d)) in
-        let Eq = D.plus_uniq ml (D.zero_plus (cod_bwtface d)) in
-        let Eq = D.plus_uniq ml1 (D.zero_plus (codl_bwtface d)) in
-        let* x1, x2 = g.map (tface_of_bw d) x in
-        return (T2.C.Leaf x1, T3.C.Leaf x2)
-    | Branch (ends, mid) ->
-        let mk' = D.suc_plus mk in
-        let (Suc mk'') = mk' in
-        let ml' = D.suc_plus ml in
-        let ml1' = D.suc_plus ml1 in
-        let* [ ends1; ends2 ] =
-          BwvM.pmapM
-            (fun [ e; br ] ->
-              let* xs, ys = gmapM_ll mk'' ml' ml1' (LEnd (e, d)) g br in
-              return (Hlist.cons xs [ ys ]))
-            [ Endpoints.indices; ends ] (Cons (Cons Nil)) in
-        let* mid1, mid2 = gmapM_ll mk' ml' ml1' (LMid d) g mid in
-        return (T2.C.Branch (ends1, mid1), T3.C.Branch (ends2, mid2))
-
-  let rec gmapM_l :
-      type k m mk l ml b c d m1 m2 m2l.
-      (m, k, mk) D.plus ->
-      (m, l, ml) D.plus ->
-      (m1, m2, m) D.plus ->
-      (m2, l, m2l) D.plus ->
-      (k, D.zero, l, l) bwtface ->
-      (m1, m2l, ml, b, c, d) mapperM1_2 ->
-      (m, mk, b) T1.C.gt ->
-      ((m, mk, c) T2.C.gt * (m, mk, d) T3.C.gt) M.t =
-   fun mk ml m12 m2l d g tr ->
-    match (m12, tr) with
-    | Zero, _ ->
-        let Eq = D.plus_uniq m2l (D.zero_plus (D.plus_right ml)) in
-        gmapM_ll mk ml Zero d g tr
-    | Suc m12, Branch (ends, mid) ->
-        let mk' = D.suc_plus mk in
-        let (Suc mk'') = mk' in
-        let ml' = D.suc_plus ml in
-        let m2l' = D.suc_plus m2l in
-        let* [ ends1; ends2 ] =
-          BwvM.pmapM
-            (fun [ e; br ] ->
-              let* xs, ys = gmapM_l mk'' ml' m12 m2l' (bwtface_rend e d) g br in
-              return (Hlist.cons xs [ ys ]))
-            [ Endpoints.indices; ends ] (Cons (Cons Nil)) in
-        let* mid1, mid2 = gmapM_l mk' ml' m12 m2l' (RMid d) g mid in
-        return (T2.C.Branch (ends1, mid1), T3.C.Branch (ends2, mid2))
-
-  let rec gmapM_r :
-      type n k1 k2 l2 kl nk1 nkl nk b c d.
-      (n, k1, nk1) D.plus ->
-      (k1, l2, kl) D.plus ->
-      (nk1, k2, nk) D.plus ->
-      (nk1, l2, nkl) D.plus ->
-      (k2, l2) bwsface ->
-      (n, kl, nkl, b, c, d) mapperM1_2 ->
-      (n, k1, nk1, nk, b) T1.gt ->
-      ((n, k1, nk1, nk, c) T2.gt * (n, k1, nk1, nk, d) T3.gt) M.t =
-   fun nk1 kl nk12 nkl d g tr ->
-    match (nk1, tr) with
-    | Zero, Leaf n -> return (T2.Leaf n, T3.Leaf n)
-    | Suc nk1, Branch (ends, mid) ->
-        let nk12' = D.suc_plus nk12 in
-        let (Suc nk12'') = nk12' in
-        let* [ ends1; ends2 ] =
-          BwvM.pmapM
-            (fun [ e; br ] ->
-              let* xs, ys = gmapM_l nk12'' (D.suc_plus nkl) nk1 (D.suc_plus kl) (REnd (e, d)) g br in
-              return (Hlist.cons xs [ ys ]))
-            [ Endpoints.indices; ends ] (Cons (Cons Nil)) in
-        let* mid1, mid2 = gmapM_r nk1 (N.suc_plus kl) nk12' (D.suc_plus nkl) (Mid d) g mid in
-        return (T2.Branch (ends1, mid1), T3.Branch (ends2, mid2))
-
-  let mapM1_2 :
-      type n k nk b c d.
-      (n, k, nk, b, c, d) mapperM1_2 ->
-      (n, k, nk, b) T1.t ->
-      ((n, k, nk, c) T2.t * (n, k, nk, d) T3.t) M.t =
-   fun g tr ->
-    let n = T1.uninst tr in
-    let k = T1.inst tr in
-    let k0 = D.plus_zero k in
-    let n_k = T1.plus tr in
-    let nk = D.plus_out n n_k in
-    let nk0 = D.plus_zero nk in
-    gmapM_r n_k k0 nk0 nk0 Zero g tr
-end
-
 (* ********** Faces ********** *)
 
 (* A face is a permutation followed by a strict face, hence a map as for a strict face that need not be order-preserving. *)
@@ -1993,12 +1720,6 @@ let face_plus_face :
   Face (sface_plus_sface fkm mn kl fln, perm_plus_perm pk kl pl)
 
 type _ face_of = Face_of : ('m, 'n) face -> 'n face_of
-
-module FaceFam = struct
-  type ('n, 'm) t = 'm face_of
-end
-
-module FaceCube = Cube (FaceFam)
 
 (* ********** Operators ********** *)
 

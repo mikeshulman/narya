@@ -1,3 +1,4 @@
+open Dim
 open Term
 
 let install () =
@@ -19,8 +20,8 @@ let install () =
                    Leaf
                      (App
                         ( Const "S",
-                          TermCube.singleton
+                          CubeOf.singleton
                             (App
-                               ( App (Const "+", TermCube.singleton (Var (Pop (Pop Top)))),
-                                 TermCube.singleton (Var Top) )) )) );
+                               ( App (Const "+", CubeOf.singleton (Var (Pop (Pop Top)))),
+                                 CubeOf.singleton (Var Top) )) )) );
              ] ) ))

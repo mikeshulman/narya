@@ -108,14 +108,14 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   let () =
     Bwv.iter2
       (fun x v ->
-        FaceCube.miter { it = (fun y [ arg ] -> Hashtbl.add tbl (SFace_of y, x) arg) } [ v ])
+        CubeOf.miter { it = (fun y [ arg ] -> Hashtbl.add tbl (SFace_of y, x) arg) } [ v ])
       n_faces args in
   (* Now to make the new argument matrix... *)
   let args =
     Bwv.map
       (fun (SFace_of fv) ->
         (* let c = dom_sface fv in *)
-        FaceCube.build (D.plus_out j jm)
+        CubeOf.build (D.plus_out j jm)
           {
             build =
               (fun frfu ->

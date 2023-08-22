@@ -133,10 +133,6 @@ module type Fam = sig
   type ('a, 'b) t
 end
 
-module FamOf : sig
-  type ('a, 'b) t = 'b
-end
-
 module Cube (F : Fam) : sig
   type ('m, 'n, 'b) gt
   type ('n, 'b) t = ('n, 'n, 'b) gt
@@ -150,12 +146,17 @@ module Cube (F : Fam) : sig
       | [] : ('n, Hlist.nil) hft
       | ( :: ) : ('n, 'x) F.t * ('n, 'xs) hft -> ('n, ('x, 'xs) Hlist.cons) hft
 
-    (* val hft_nil : ('n, Hlist.nil) hft *)
-    (* val hft_cons : ('n, 'x) F.t -> ('n, 'xs) hft -> ('n, ('x, 'xs) Hlist.cons) hft *)
-
     type (_, _, _) hgt =
       | [] : ('m, 'n, Hlist.nil) hgt
       | ( :: ) : ('m, 'n, 'x) gt * ('m, 'n, 'xs) hgt -> ('m, 'n, ('x, 'xs) Hlist.cons) hgt
+
+    (* val hft_nil : ('n, Hlist.nil) hft *)
+    (* val hft_cons : ('n, 'x) F.t -> ('n, 'xs) hft -> ('n, ('x, 'xs) Hlist.cons) hft *)
+  end
+
+  module Infix : sig
+    val hnil : ('n, Hlist.nil) Heter.hft
+    val ( @: ) : ('n, 'x) F.t -> ('n, 'xs) Heter.hft -> ('n, ('x, 'xs) Hlist.cons) Heter.hft
   end
 
   module Monadic (M : Monad.Plain) : sig
@@ -225,58 +226,11 @@ module Cube (F : Fam) : sig
   type 'b lifter = { lift : 'a1 'a2. ('a1, 'b) F.t -> ('a2, 'b) F.t }
 end
 
+module FamOf : sig
+  type ('a, 'b) t = 'b
+end
+
 module CubeOf : module type of Cube (FamOf)
-
-module CubeMap (F1 : Fam) (F2 : Fam) : sig
-  module C1 : module type of Cube (F1)
-  module C2 : module type of Cube (F2)
-
-  type ('n, 'b, 'c) mapper = { map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t }
-
-  val map : ('n, 'b, 'c) mapper -> ('n, 'b) C1.t -> ('n, 'c) C2.t
-end
-
-module CubeMap2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
-  module C1 : module type of Cube (F1)
-  module C2 : module type of Cube (F2)
-  module C3 : module type of Cube (F3)
-
-  type ('n, 'b, 'c, 'd) mapperM2 = {
-    map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t -> ('m, 'd) F3.t M.t;
-  }
-
-  val mapM2 : ('n, 'b, 'c, 'd) mapperM2 -> ('n, 'b) C1.t -> ('n, 'c) C2.t -> ('n, 'd) C3.t M.t
-end
-
-module CubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
-  module C1 : module type of Cube (F1)
-  module C2 : module type of Cube (F2)
-  module C3 : module type of Cube (F3)
-
-  type ('n, 'b, 'c, 'd) mapperM1_2 = {
-    map : 'm. ('m, 'n) sface -> ('m, 'b) F1.t -> (('m, 'c) F2.t * ('m, 'd) F3.t) M.t;
-  }
-
-  val mapM1_2 : ('n, 'b, 'c, 'd) mapperM1_2 -> ('n, 'b) C1.t -> (('n, 'c) C2.t * ('n, 'd) C3.t) M.t
-end
-
-module CubeMap2_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (F4 : Fam) (M : Monad.Plain) : sig
-  module C1 : module type of Cube (F1)
-  module C2 : module type of Cube (F2)
-  module C3 : module type of Cube (F3)
-  module C4 : module type of Cube (F4)
-
-  type ('n, 'b, 'c, 'd, 'e) mapperM2_2 = {
-    map :
-      'm. ('m, 'n) sface -> ('m, 'b) F1.t -> ('m, 'c) F2.t -> (('m, 'd) F3.t * ('m, 'e) F4.t) M.t;
-  }
-
-  val mapM2_2 :
-    ('n, 'b, 'c, 'd, 'e) mapperM2_2 ->
-    ('n, 'b) C1.t ->
-    ('n, 'c) C2.t ->
-    (('n, 'd) C3.t * ('n, 'e) C4.t) M.t
-end
 
 type (_, _, _, _) tface
 
@@ -362,6 +316,8 @@ module Tube (F : Fam) : sig
           -> ('m, 'k, 'mk, 'nk, ('x, 'xs) Hlist.cons) hgt
   end
 
+  module Infix : module type of C.Infix
+
   module Monadic (M : Monad.Plain) : sig
     type ('n, 'k, 'nk, 'bs, 'cs) pmapperM = {
       map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> ('m, 'cs) C.Heter.hft M.t;
@@ -423,21 +379,6 @@ end
 
 module TubeOf : module type of Tube (FamOf)
 
-module TubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
-  module T1 : module type of Tube (F1)
-  module T2 : module type of Tube (F2)
-  module T3 : module type of Tube (F3)
-
-  type ('n, 'k, 'nk, 'b, 'c, 'd) mapperM1_2 = {
-    map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'b) F1.t -> (('m, 'c) F2.t * ('m, 'd) F3.t) M.t;
-  }
-
-  val mapM1_2 :
-    ('n, 'k, 'nk, 'b, 'c, 'd) mapperM1_2 ->
-    ('n, 'k, 'nk, 'b) T1.t ->
-    (('n, 'k, 'nk, 'c) T2.t * ('n, 'k, 'nk, 'd) T3.t) M.t
-end
-
 type (_, _) face = Face : ('m, 'n) sface * 'm perm -> ('m, 'n) face
 
 val id_face : 'n D.t -> ('n, 'n) face
@@ -452,13 +393,6 @@ val face_plus_face :
   ('k, 'm) face -> ('m, 'n, 'mn) D.plus -> ('k, 'l, 'kl) D.plus -> ('l, 'n) face -> ('kl, 'mn) face
 
 type _ face_of = Face_of : ('m, 'n) face -> 'n face_of
-
-module FaceFam : sig
-  type ('n, 'm) t = 'm face_of
-end
-
-module FaceCube : module type of Cube (FaceFam)
-
 type (_, _) op = Op : ('n, 'k) sface * ('m, 'n) deg -> ('m, 'k) op
 
 val id_op : 'n D.t -> ('n, 'n) op

@@ -4,7 +4,7 @@ open Raw
 let synth tm = fst (Option.get (Check.synth Check.empty_ctx tm))
 let check tm ty = Option.get (Check.check Check.empty_ctx tm ty)
 let ev tm = Check.eval_in_ctx Check.empty_ctx tm
-let app fn arg = Norm.apply fn (Dim.ConstCube.singleton arg)
+let app fn arg = Norm.apply fn (Dim.CubeOf.singleton arg)
 
 let equal_at tm1 tm2 ty =
   if Option.is_some (Equal.equal_at 0 tm1 tm2 ty) then () else raise (Failure "Unequal")

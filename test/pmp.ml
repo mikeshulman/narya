@@ -122,4 +122,4 @@ let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
 (* Infix notation for applying values *)
 
 let ( $$ ) (fn : Value.value) (arg : Value.value) : Value.value =
-  Norm.apply fn (Dim.ConstCube.singleton arg)
+  Norm.apply fn (Dim.CubeOf.singleton arg)

@@ -10,12 +10,12 @@ let msg _ = ()
 (* Eta-expanding equality checks.  In all functions, the integer is the current De Bruijn level, i.e. the length of the current context (we don't need any other information about the context). *)
 
 (* To do an eta-expanding equality check, we must create one new variable for each argument in the boundary.  With De Bruijn levels, these variables are just sequential numbers after n.  But to make these variables into values, we need to annotate them with their types, which in general are instantiations of the domains at previous variables.  Thus, we assemble them in a hashtable as we create them for random access to the previous ones. *)
-let dom_vars : type m. int -> (m, value) ConstCube.t -> int * (m, value) ConstCube.t =
+let dom_vars : type m. int -> (m, value) CubeOf.t -> int * (m, value) CubeOf.t =
  fun n doms ->
   let curlvl = ref n in
   let argtbl = Hashtbl.create 10 in
   let () =
-    ConstCube.miter
+    CubeOf.miter
       {
         it =
           (fun fa [ dom ] ->
@@ -23,7 +23,7 @@ let dom_vars : type m. int -> (m, value) ConstCube.t -> int * (m, value) ConstCu
             let () = curlvl := !curlvl + 1 in
             let ty =
               inst dom
-                (ConstTube.build D.zero
+                (TubeOf.build D.zero
                    (D.zero_plus (dom_sface fa))
                    {
                      build =
@@ -34,9 +34,7 @@ let dom_vars : type m. int -> (m, value) ConstCube.t -> int * (m, value) ConstCu
               (Uninst (Neu { fn = Var { level; deg = id_deg D.zero }; args = Emp; ty })));
       }
       [ doms ] in
-  ( !curlvl,
-    ConstCube.build (ConstCube.dim doms) { build = (fun fa -> Hashtbl.find argtbl (SFace_of fa)) }
-  )
+  (!curlvl, CubeOf.build (CubeOf.dim doms) { build = (fun fa -> Hashtbl.find argtbl (SFace_of fa)) })
 
 (* Compare two normal forms that are *assumed* to have the same type. *)
 let rec equal_nf : int -> normal -> normal -> unit option =
@@ -48,38 +46,38 @@ let rec equal_nf : int -> normal -> normal -> unit option =
 and equal_at : int -> value -> value -> value -> unit option =
  fun n x y ty ->
   match ty with
-  | Uninst tm -> equal_at_uninst n x y tm (ConstTube.empty D.zero)
+  | Uninst tm -> equal_at_uninst n x y tm (TubeOf.empty D.zero)
   | Inst { tm; dim = _; args } -> equal_at_uninst n x y tm args
   | Lam _ -> raise (Failure "Lambda-abstraction is not a type for equality-checking")
 
 (* Subroutine for equal_at with the instantiation of the type peeled off. *)
 and equal_at_uninst :
-    type m n mn f. int -> value -> value -> uninst -> (m, n, mn, value) ConstTube.t -> unit option =
+    type m n mn f. int -> value -> value -> uninst -> (m, n, mn, value) TubeOf.t -> unit option =
  fun n x y ty args ->
   match ty with
   (* The only interesting thing here happens when the type is one with an eta-rule, such as a pi-type. *)
   | Pi (doms, cods) -> (
       (* The pi-type must be fully instantiated at the correct dimension. *)
-      let m = ConstCube.dim doms in
-      match (compare (ConstTube.uninst args) D.zero, compare (ConstTube.inst args) m) with
+      let m = CubeOf.dim doms in
+      match (compare (TubeOf.uninst args) D.zero, compare (TubeOf.inst args) m) with
       | Neq, _ -> raise (Failure "Non-fully-instantiated type in equality-checking")
       | _, Neq -> raise (Failure "Instantiation mismatch in equality-checking")
       | Eq, Eq ->
-          let Eq = D.plus_uniq (ConstTube.plus args) (D.zero_plus m) in
+          let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus m) in
           (* Create variables for all the boundary domains. *)
           let newlvl, newargs = dom_vars n doms in
           (* TODO: This code is copy-and-pasted from apply_neu.  Factor it out. *)
           let out_args =
-            ConstTube.mmap
+            TubeOf.mmap
               {
                 map =
                   (fun fa [ afn ] ->
                     let k = dom_tface fa in
                     apply afn
-                      (ConstCube.build k
+                      (CubeOf.build k
                          {
                            build =
-                             (fun fc -> ConstCube.find newargs (comp_sface (sface_of_tface fa) fc));
+                             (fun fc -> CubeOf.find newargs (comp_sface (sface_of_tface fa) fc));
                          }));
               }
               [ args ] in
@@ -100,12 +98,11 @@ and equal_val : int -> value -> value -> unit option =
       let* () = equal_uninst n tm1 tm2 in
       (* If tm1 and tm2 are equal and have the same type, that type must be an instantiation of a universe of the same dimension, itself instantiated at the same arguments.  So for the instantiations to be equal (including their types), it suffices for the instantiation dimensions and arguments to be equal. *)
       match
-        ( compare (ConstTube.inst a1) (ConstTube.inst a2),
-          compare (ConstTube.uninst a1) (ConstTube.uninst a2) )
+        (compare (TubeOf.inst a1) (TubeOf.inst a2), compare (TubeOf.uninst a1) (TubeOf.uninst a2))
       with
       | Eq, Eq ->
-          let Eq = D.plus_uniq (ConstTube.plus a1) (ConstTube.plus a2) in
-          let open ConstTube.Monadic (Monad.Maybe) in
+          let Eq = D.plus_uniq (TubeOf.plus a1) (TubeOf.plus a2) in
+          let open TubeOf.Monadic (Monad.Maybe) in
           miterM { it = (fun _ [ x; y ] -> equal_val n x y) } [ a1; a2 ]
       | _ ->
           msg "Unequal dimensions of instantiation";
@@ -134,10 +131,10 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       equal_args lvl args1 args2
   | Pi (dom1s, cod1s), Pi (dom2s, cod2s) -> (
       (* If two pi-types have the same dimension, equal domains, and equal codomains, they are equal and have the same type (an instantiation of the universe of that dimension at pi-types formed from the lower-dimensional domains and codomains). *)
-      let k = ConstCube.dim dom1s in
-      match compare (ConstCube.dim dom2s) k with
+      let k = CubeOf.dim dom1s in
+      match compare (CubeOf.dim dom2s) k with
       | Eq ->
-          let open ConstCube.Monadic (Monad.Maybe) in
+          let open CubeOf.Monadic (Monad.Maybe) in
           let* () = miterM { it = (fun _ [ x; y ] -> equal_val lvl x y) } [ dom1s; dom2s ] in
           (* We create variables for all the domains, in order to typecheck all the codomains.  The codomain boundary types only use some of those variables, but it doesn't hurt to have the others around. *)
           let newlvl, newargs = dom_vars lvl dom1s in
@@ -192,9 +189,9 @@ and equal_args : int -> app Bwd.t -> app Bwd.t -> unit option =
 and equal_arg : int -> app -> app -> unit option =
  fun n (App (a1, i1)) (App (a2, i2)) ->
   let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
-  match compare (ConstCube.dim a1) (ConstCube.dim a2) with
+  match compare (CubeOf.dim a1) (CubeOf.dim a2) with
   | Eq ->
-      let open ConstCube.Monadic (Monad.Maybe) in
+      let open CubeOf.Monadic (Monad.Maybe) in
       miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
   (* If the dimensions don't match, it is a bug rather than a user error, since they are supposed to both be valid arguments of the same function, and any function has a unique dimension. *)
   | Neq -> raise (Failure "Unequal dimensions of application in equality-check")

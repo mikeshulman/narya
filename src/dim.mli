@@ -133,7 +133,7 @@ module type Fam = sig
   type ('a, 'b) t
 end
 
-module ConstFam : sig
+module FamOf : sig
   type ('a, 'b) t = 'b
 end
 
@@ -225,7 +225,7 @@ module Cube (F : Fam) : sig
   type 'b lifter = { lift : 'a1 'a2. ('a1, 'b) F.t -> ('a2, 'b) F.t }
 end
 
-module ConstCube : module type of Cube (ConstFam)
+module CubeOf : module type of Cube (FamOf)
 
 module CubeMap (F1 : Fam) (F2 : Fam) : sig
   module C1 : module type of Cube (F1)
@@ -421,7 +421,7 @@ module Tube (F : Fam) : sig
   val pair : (D.zero, 'b) F.t -> (D.zero, 'b) F.t -> (D.zero, one, one, 'b) t
 end
 
-module ConstTube : module type of Tube (ConstFam)
+module TubeOf : module type of Tube (FamOf)
 
 module TubeMap1_2 (F1 : Fam) (F2 : Fam) (F3 : Fam) (M : Monad.Plain) : sig
   module T1 : module type of Tube (F1)

@@ -19,7 +19,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
              ty =
                inst
                  (eval (Emp dim) (Hashtbl.find Global.types name))
-                 (ConstTube.build D.zero (D.zero_plus dim)
+                 (TubeOf.build D.zero (D.zero_plus dim)
                     {
                       build =
                         (fun fa -> eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name));
@@ -36,7 +36,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       (* Evaluate the arguments, rearranging and acting by faces and degeneracies *)
       let (Plus mn_k) = D.plus (D.plus_right nk) in
       let newargs =
-        ConstTube.build (D.plus_out m mn) mn_k
+        TubeOf.build (D.plus_out m mn) mn_k
           {
             build =
               (fun fa ->
@@ -58,7 +58,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let mn = D.plus_out m m_n in
       (* Then we evaluate all the arguments, not just in the given environment (of dimension m), but in that environment acted on by all the strict faces of m.  Since the given arguments are indexed by strict faces of n, the result is a collection of values indexed by strict faces of m+n.  *)
       let eargs =
-        ConstCube.build mn
+        CubeOf.build mn
           {
             build =
               (* Specifically, for each face of m+n... *)
@@ -73,7 +73,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   | Pi (dom, cod) ->
       (* A user-space pi-type always has dimension zero, so this is simpler than the general case. *)
       let m = dim_env env in
-      let doms = ConstCube.build m { build = (fun fa -> eval (Act (env, op_of_sface fa)) dom) } in
+      let doms = CubeOf.build m { build = (fun fa -> eval (Act (env, op_of_sface fa)) dom) } in
       let cods =
         BindCube.build m
           {
@@ -101,12 +101,12 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       act_value (eval env x) ksym
 
 (* Apply a function value to an argument (with its boundaries). *)
-and apply : type n. value -> (n, value) ConstCube.t -> value =
+and apply : type n. value -> (n, value) CubeOf.t -> value =
  fun fn arg ->
   match fn with
   (* If the function is a lambda-abstraction, we check that it has the correct dimension and then beta-reduce, adding the arguments to the environment. *)
   | Lam body -> (
-      let m = ConstCube.dim arg in
+      let m = CubeOf.dim arg in
       match compare (dim_binder body) m with
       | Neq -> raise (Failure "Dimension mismatch applying a lambda")
       | Eq -> apply_binder body (id_sface m) arg)
@@ -119,7 +119,7 @@ and apply : type n. value -> (n, value) ConstCube.t -> value =
           (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
           apply_spine fn (Snoc (args, newarg)) ty
       | Uninst (Pi (doms, cods)) ->
-          let newarg, ty = annote_arg doms cods (ConstTube.empty (ConstCube.dim arg)) arg in
+          let newarg, ty = annote_arg doms cods (TubeOf.empty (CubeOf.dim arg)) arg in
           apply_spine fn (Snoc (args, newarg)) ty
       | _ -> raise (Failure "Invalid annotation by non-function type"))
   | _ -> raise (Failure "Invalid application of non-function")
@@ -204,10 +204,10 @@ and take_branch_args :
       (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
       let* env = take_branch_args env sub dargs plus in
       (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
-      match compare (ConstCube.dim arg) (dim_env env) with
+      match compare (CubeOf.dim arg) (dim_env env) with
       | Eq ->
           (* Why is this type annotation necessary? *)
-          return (Ext (env, (val_of_norm arg : (n, value) ConstCube.t)))
+          return (Ext (env, (val_of_norm arg : (n, value) CubeOf.t)))
       | Neq -> None)
   | _ -> None
 
@@ -223,7 +223,7 @@ and take_lam_args :
   | Zero, _ -> Some (env, ins, args)
   | Suc ab, App (arg, newins) :: args -> (
       (* If we're looking for another argument, we fail unless the current insertion is the identity.  In addition, the variables bound in a case tree are always zero-dimensional applications, so the apps here must all be the same dimension as the constant instance. *)
-      match (is_id_any_deg ins, compare (dim_env env) (ConstCube.dim arg)) with
+      match (is_id_any_deg ins, compare (dim_env env) (CubeOf.dim arg)) with
       | Some (), Eq ->
           take_lam_args
             (Ext (env, val_of_norm arg))
@@ -236,53 +236,49 @@ and take_lam_args :
 (* Given a family of value arguments (including boundaries) for a function of some given type (with domains and codomains), annotate the arguments to make them into normals (hence an "app"), and also compute the type of the applied function.  *)
 and annote_arg :
     type a b ab k n.
-    (k, value) ConstCube.t ->
+    (k, value) CubeOf.t ->
     (k, unit) BindCube.t ->
-    (a, b, ab, value) ConstTube.t ->
-    (n, value) ConstCube.t ->
+    (a, b, ab, value) TubeOf.t ->
+    (n, value) CubeOf.t ->
     app * value =
  fun doms cods pi_args args ->
   (* We check that the pi-type has the correct dimension, is fully instantiated, and has the correct dimension of instantiation. *)
-  let mn = ConstCube.dim doms in
+  let mn = CubeOf.dim doms in
   match
-    ( compare (ConstTube.uninst pi_args) D.zero,
-      compare (ConstTube.inst pi_args) mn,
-      compare (ConstCube.dim args) mn )
+    ( compare (TubeOf.uninst pi_args) D.zero,
+      compare (TubeOf.inst pi_args) mn,
+      compare (CubeOf.dim args) mn )
   with
   | Neq, _, _ -> raise (Failure "Application of non-fully-instantiated function")
   | _, Neq, _ -> raise (Failure "Instantiation mismatch applying a neutral function")
   | _, _, Neq -> raise (Failure "Arguments mismatch applying a neutral function")
   | Eq, Eq, Eq ->
-      let Eq = D.plus_uniq (ConstTube.plus pi_args) (D.zero_plus mn) in
+      let Eq = D.plus_uniq (TubeOf.plus pi_args) (D.zero_plus mn) in
       (* In this case, the arguments must be normals rather than values.  Thus, while collecting them into a Bwv, we also compute their types from the domain types of the function-type, instantiated at previous arguments. *)
       let new_args =
-        ConstCube.mmap
+        CubeOf.mmap
           {
             map =
               (fun fab [ dom ] ->
-                let tm = ConstCube.find args fab in
+                let tm = CubeOf.find args fab in
                 let k = dom_sface fab in
                 let ty =
                   inst dom
-                    (ConstTube.build D.zero (D.zero_plus k)
-                       {
-                         build =
-                           (fun fc -> ConstCube.find args (comp_sface fab (sface_of_tface fc)));
-                       }) in
+                    (TubeOf.build D.zero (D.zero_plus k)
+                       { build = (fun fc -> CubeOf.find args (comp_sface fab (sface_of_tface fc))) })
+                in
                 { tm; ty });
           }
           [ doms ] in
       (* The output type substitutes the arguments into the codomain of the function-type, and instantiates at the values of the boundary functions applied to appropriate ones of these arguments.  This loop is very similar to the previous one, so perhaps they could be combined. *)
       let out_args =
-        ConstTube.mmap
+        TubeOf.mmap
           {
             map =
               (fun fab [ afn ] ->
                 apply afn
-                  (ConstCube.build (dom_tface fab)
-                     {
-                       build = (fun fc -> ConstCube.find args (comp_sface (sface_of_tface fab) fc));
-                     }));
+                  (CubeOf.build (dom_tface fab)
+                     { build = (fun fc -> CubeOf.find args (comp_sface (sface_of_tface fab) fc)) }));
           }
           [ pi_args ] in
       let idf = id_sface mn in
@@ -319,18 +315,18 @@ and eval_binder :
   Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
 
 (* TODO: Describe this function, particularly the sface argument *)
-and apply_binder : type m n f a. m binder -> (m, n) sface -> (n, value) ConstCube.t -> value =
+and apply_binder : type m n f a. m binder -> (m, n) sface -> (n, value) CubeOf.t -> value =
  fun (Bind b) s argstbl ->
   act_value
     (eval
        (env_append b.plus_faces b.env
           (Bwv.map
              (fun ffs ->
-               FaceConstCubeMap.map
+               FaceCubeOfMap.map
                  {
                    map =
                      (fun _ (Face_of (Face (fa, fb))) ->
-                       act_value (ConstCube.find argstbl (comp_sface s fa)) fb);
+                       act_value (CubeOf.find argstbl (comp_sface s fa)) fb);
                  }
                  ffs)
              b.args))

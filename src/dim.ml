@@ -497,7 +497,7 @@ module type Fam = sig
   type ('a, 'b) t
 end
 
-module ConstFam = struct
+module FamOf = struct
   type ('a, 'b) t = 'b
 end
 
@@ -863,7 +863,7 @@ module Cube (F : Fam) = struct
         Branch (Bwv.map (fun t -> lift f n12' t) ends, lift f n12 mid)
 end
 
-module ConstCube = Cube (ConstFam)
+module CubeOf = Cube (FamOf)
 
 (* We can also map one cube to another with a *different* object type.  This requires a separate functor with two parameters. *)
 
@@ -1815,7 +1815,7 @@ module Tube (F : Fam) = struct
    fun x y -> Branch (Snoc (Snoc (Emp, Leaf x), Leaf y), Leaf D.zero)
 end
 
-module ConstTube = Tube (ConstFam)
+module TubeOf = Tube (FamOf)
 
 (* Once again, unfortunately we have to copy-and-paste code for the versions parametrized over different modules. *)
 

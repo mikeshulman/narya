@@ -25,23 +25,23 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
   match v with
   | Uninst tm -> Uninst (act_uninst tm s)
   | Inst { tm; dim; args } ->
-      let (Of fa) = deg_plus_to s (ConstTube.uninst args) "instantiation" in
+      let (Of fa) = deg_plus_to s (TubeOf.uninst args) "instantiation" in
       (* The action on an instantiation instantiates the same dimension j, but the leftover dimensions are now the domain of the degeneracy. *)
-      let j = ConstTube.inst args in
-      (* let n = ConstTube.uninst args in *)
-      let nj = ConstTube.plus args in
+      let j = TubeOf.inst args in
+      (* let n = TubeOf.uninst args in *)
+      let nj = TubeOf.plus args in
       let m = dom_deg fa in
       let (Plus mj) = D.plus j in
       (* The new arguments are obtained by factoring and acting on appropriate original arguments *)
       let args =
-        ConstTube.build m mj
+        TubeOf.build m mj
           {
             build =
               (fun fed ->
                 let (PFace_of_plus (_, fb, fd)) = pface_of_plus fed in
                 let (Op (fe, fs)) = deg_sface fa fb in
                 let (Plus q) = D.plus (dom_tface fd) in
-                act_value (ConstTube.find args (sface_plus_pface fe nj q fd)) fs);
+                act_value (TubeOf.find args (sface_plus_pface fe nj q fd)) fs);
           } in
       Inst { tm = act_uninst tm fa; dim; args }
   | Lam body ->
@@ -61,16 +61,16 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
       let (Of fa) = deg_plus_to s nk "universe" in
       UU (dom_deg fa)
   | Pi (doms, cods) ->
-      let k = ConstCube.dim doms in
+      let k = CubeOf.dim doms in
       let (Of fa) = deg_plus_to s k "pi-type" in
       let mi = dom_deg fa in
       let doms' =
-        ConstCube.build mi
+        CubeOf.build mi
           {
             build =
               (fun fb ->
                 let (Op (fc, fd)) = deg_sface fa fb in
-                act_value (ConstCube.find doms fc) fd);
+                act_value (CubeOf.find doms fc) fd);
           } in
       let cods' =
         BindCube.build mi
@@ -141,22 +141,22 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
   match ty with
   | Inst { tm = ty; dim; args } -> (
       (* A type must be fully instantiated *)
-      match compare (ConstTube.uninst args) D.zero with
+      match compare (TubeOf.uninst args) D.zero with
       | Neq -> raise (Failure "act_ty applied to non-fully-instantiated term")
       | Eq ->
-          let Eq = D.plus_uniq (ConstTube.plus args) (D.zero_plus (ConstTube.inst args)) in
-          let (Of fa) = deg_plus_to s (ConstTube.inst args) "instantiated type" in
+          let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
+          let (Of fa) = deg_plus_to s (TubeOf.inst args) "instantiated type" in
           (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
-          let args' = ConstTube.plus_cube { lift = (fun x -> x) } args (ConstCube.singleton tm) in
+          let args' = TubeOf.plus_cube { lift = (fun x -> x) } args (CubeOf.singleton tm) in
           (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
           let args =
-            ConstTube.build D.zero
+            TubeOf.build D.zero
               (D.zero_plus (dom_deg fa))
               {
                 build =
                   (fun fb ->
                     let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
-                    act_value (ConstCube.find args' fd) fc);
+                    act_value (CubeOf.find args' fd) fc);
               } in
           Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args })
   | Uninst ty -> (
@@ -170,7 +170,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
           | Zero -> Uninst (act_uninst ty fa)
           | Pos dim ->
               let args =
-                ConstTube.build D.zero
+                TubeOf.build D.zero
                   (D.zero_plus (dom_deg fa))
                   {
                     build =
@@ -212,12 +212,12 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
       let p = dom_deg fa in
       (* And on the arguments, by factorization *)
       let new_args =
-        ConstCube.build p
+        CubeOf.build p
           {
             build =
               (fun fb ->
                 let (Op (fd, fc)) = deg_sface fa fb in
-                act_normal (ConstCube.find args fd) fc);
+                act_normal (CubeOf.find args fd) fc);
           } in
       let new_s, new_rest = act_apps rest fa in
       (new_s, Snoc (new_rest, App (new_args, new_ins)))

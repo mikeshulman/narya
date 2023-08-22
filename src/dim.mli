@@ -414,6 +414,7 @@ type (_, _, _) insertion
 
 val zero_ins : 'a D.t -> ('a, 'a, D.zero) insertion
 val dom_ins : ('a, 'b, 'c) insertion -> 'a D.t
+val cod_left_ins : ('a, 'b, 'c) insertion -> 'b D.t
 val plus_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'a) D.plus
 val deg_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val perm_of_ins : ('a, 'b, 'c) insertion -> 'a perm

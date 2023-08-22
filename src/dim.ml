@@ -1785,6 +1785,10 @@ let rec dom_ins : type a b c. (a, b, c) insertion -> a D.t = function
   | Zero a -> a
   | Suc (ins, _) -> N.suc (dom_ins ins)
 
+let rec cod_left_ins : type a b c. (a, b, c) insertion -> b D.t = function
+  | Zero a -> a
+  | Suc (ins, _) -> cod_left_ins ins
+
 (* The domain of an insertion is the sum of the two pieces of its codomain. *)
 let rec plus_of_ins : type a b c. (a, b, c) insertion -> (b, c, a) D.plus = function
   | Zero _ -> Zero

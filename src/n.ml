@@ -9,6 +9,9 @@ type 'n suc = private Dummy_suc
 type one = zero suc
 type two = one suc
 type three = two suc
+type four = three suc
+type five = four suc
+type six = five suc
 
 (* ********** Addition ********** *)
 

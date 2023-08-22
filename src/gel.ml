@@ -5,8 +5,11 @@ open Term
 
 (* Note that the function "install" has to be called explicitly to make Gel-types available. *)
 
+let ([ gEL; gel; ungel ] : (Constant.t, N.three) Vec.t) =
+  Vec.map Constant.intern [ "GEL"; "gel"; "ungel" ]
+
 let install () =
-  Hashtbl.add Global.types "GEL"
+  Hashtbl.add Global.types gEL
     (Pi
        ( UU,
          Pi
@@ -14,7 +17,7 @@ let install () =
              Pi
                ( Pi (Var (N.Pop N.Top), Pi (Var (N.Pop N.Top), UU)),
                  Inst (Refl UU, TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top))) ) ) ));
-  Hashtbl.add Global.types "gel"
+  Hashtbl.add Global.types gel
     (Pi
        ( UU,
          Pi
@@ -34,7 +37,7 @@ let install () =
                                ( App
                                    ( App
                                        ( App
-                                           ( Const "GEL",
+                                           ( Const gEL,
                                              CubeOf.singleton
                                                (Var (N.Pop (N.Pop (N.Pop (N.Pop (N.Pop N.Top))))))
                                            ),
@@ -43,7 +46,7 @@ let install () =
                                      CubeOf.singleton (Var (N.Pop (N.Pop (N.Pop N.Top)))) ),
                                  TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top)) ) ) )
                    ) ) ) ));
-  Hashtbl.add Global.types "ungel"
+  Hashtbl.add Global.types ungel
     (Pi
        ( UU,
          Pi
@@ -59,7 +62,7 @@ let install () =
                                ( App
                                    ( App
                                        ( App
-                                           ( Const "GEL",
+                                           ( Const gEL,
                                              CubeOf.singleton
                                                (Var (N.Pop (N.Pop (N.Pop (N.Pop N.Top))))) ),
                                          CubeOf.singleton (Var (N.Pop (N.Pop (N.Pop N.Top)))) ),
@@ -70,21 +73,20 @@ let install () =
                                    ( Var (N.Pop (N.Pop (N.Pop N.Top))),
                                      CubeOf.singleton (Var (N.Pop (N.Pop N.Top))) ),
                                  CubeOf.singleton (Var (N.Pop N.Top)) ) ) ) ) ) ) ));
-  Hashtbl.add Global.trees "ungel"
+  Hashtbl.add Global.trees ungel
     (Lam
        ( Suc (Suc (Suc (Suc (Suc (Suc Zero))))),
          Branch
            ( Top,
              [
-               Branch ("gel", Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
+               Branch (gel, Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
              ] ) ));
   (* Maybe this would be better implemented as an eta-rule for GEL *)
-  Hashtbl.add Global.trees "gel"
+  Hashtbl.add Global.trees gel
     (Lam
        ( Suc (Suc (Suc (Suc (Suc (Suc Zero))))),
          Branch
            ( Top,
              [
-               Branch
-                 ("ungel", Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
+               Branch (ungel, Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
              ] ) ))

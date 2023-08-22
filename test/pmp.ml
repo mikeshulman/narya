@@ -27,7 +27,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       match Bwv.index x ctx with
       | Some v -> Var v
       | None -> raise (Failure ("Variable " ^ x ^ " not found")))
-  | Const x -> Const x
+  | Const x -> Const (Constant.intern x)
   | UU -> UU
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
   | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)

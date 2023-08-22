@@ -495,3 +495,7 @@ type (_, _) subset =
   | Zero : (zero, zero) subset
   | Omit : ('a, 'b) subset -> ('a, 'b suc) subset
   | Take : ('a, 'b) subset -> ('a suc, 'b suc) subset
+
+let rec improper_subset : type n. n t -> (n, n) subset = function
+  | Nat Zero -> Zero
+  | Nat (Suc n) -> Take (improper_subset (Nat n))

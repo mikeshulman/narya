@@ -926,9 +926,6 @@ let rec tface_plus :
   | Zero, Zero, Zero -> d
   | Suc kl, Suc nkl, Suc ml -> Mid (tface_plus d kl nkl ml)
 
-let comp_tface : type l m n k nk. (m, n, k, nk) tface -> (l, m) sface -> (l, n, k, nk) tface =
- fun _ _ -> Sorry.e ()
-
 (* A "proper face" is a fully instantiated tube face. *)
 
 type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface

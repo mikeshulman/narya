@@ -248,8 +248,6 @@ val tface_plus :
   ('m, 'l, 'ml) D.plus ->
   ('ml, 'n, 'kl, 'nkl) tface
 
-val comp_tface : ('m, 'n, 'k, 'nk) tface -> ('l, 'm) sface -> ('l, 'n, 'k, 'nk) tface
-
 type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface
 
 val sface_plus_tface :

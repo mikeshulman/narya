@@ -91,56 +91,58 @@ let mmap : type x xs y. ((x, xs) cons hlist -> y) -> (x, xs) cons Heter.ht -> y 
   let open Monadic (Monad.Identity) in
   mmapM f xs
 
-(* Ordinary ones of fixed arity are then obtained by specializing to different kinds of hlists.  Note that with hlists, the type determines how many elements it has, so a match against a list of fixed length is exhaustive.  Note that the definitions of these are so simple that the user can easily write them directly, and the same is true for the monadic versions mapM, mapM2, etc. *)
+(* Ordinary ones of fixed arity are then obtained by specializing to different kinds of hlists.  Note that with hlists, the type determines how many elements it has, so a match against a list of fixed length is exhaustive.  Note that the definitions of these are so simple that the user can easily write them directly, and the same is true for the monadic versions mapM, mapM2, etc.  In practice, I actually prefer that, so the user has a standard syntax. *)
 
-let map : type x y. (x -> y) -> x list -> y list = fun f xs -> mmap (fun [ x ] -> f x) [ xs ]
+module Examples = struct
+  let map : type x y. (x -> y) -> x list -> y list = fun f xs -> mmap (fun [ x ] -> f x) [ xs ]
 
-let map2 : type x y z. (x -> y -> z) -> x list -> y list -> z list =
- fun f xs ys -> mmap (fun [ x; y ] -> f x y) [ xs; ys ]
+  let map2 : type x y z. (x -> y -> z) -> x list -> y list -> z list =
+   fun f xs ys -> mmap (fun [ x; y ] -> f x y) [ xs; ys ]
 
-let iter : type x. (x -> unit) -> x list -> unit = fun f xs -> miter (fun [ x ] -> f x) [ xs ]
+  let iter : type x. (x -> unit) -> x list -> unit = fun f xs -> miter (fun [ x ] -> f x) [ xs ]
 
-let iter2 : type x y. (x -> y -> unit) -> x list -> y list -> unit =
- fun f xs ys -> miter (fun [ x; y ] -> f x y) [ xs; ys ]
+  let iter2 : type x y. (x -> y -> unit) -> x list -> y list -> unit =
+   fun f xs ys -> miter (fun [ x; y ] -> f x y) [ xs; ys ]
 
-(* Not only does this save copy-and-pasting, especially for data structures whose traversal is complicated to code, it also allows the user to instantiate higher-arity versions as needed by calling mmap directly.  It also includes multiple-output versions that are less commonly mentioned, with a bit of mediation between hlists and tuples: *)
+  (* Not only does this save copy-and-pasting, especially for data structures whose traversal is complicated to code, it also allows the user to instantiate higher-arity versions as needed by calling mmap directly.  It also includes multiple-output versions that are less commonly mentioned, with a bit of mediation between hlists and tuples: *)
 
-let map1_2 : type x y z. (x -> y * z) -> x list -> y list * z list =
- fun f xs ->
-  let [ ys; zs ] =
-    pmap
-      (fun [ x ] ->
-        let y, z = f x in
-        [ y; z ])
-      [ xs ] (Cons (Cons Nil)) in
-  (ys, zs)
+  let map1_2 : type x y z. (x -> y * z) -> x list -> y list * z list =
+   fun f xs ->
+    let [ ys; zs ] =
+      pmap
+        (fun [ x ] ->
+          let y, z = f x in
+          [ y; z ])
+        [ xs ] (Cons (Cons Nil)) in
+    (ys, zs)
 
-(* The same is true for the monadic versions.  Moreover, the monadic iteration also incorporates left and right folds, by instantiating to a state monad or continuation monad respectively. *)
+  (* The same is true for the monadic versions.  Moreover, the monadic iteration also incorporates left and right folds, by instantiating to a state monad or continuation monad respectively.  Again, in practice this is unnecessary; the user can just instantiate to the appropriate monad directly. *)
 
-let mfold_left :
-    type x xs acc. (acc -> (x, xs) cons hlist -> acc) -> acc -> (x, xs) cons Heter.ht -> acc =
- fun f acc xss ->
-  let open Monadic (Monad.State (struct
-    type t = acc
-  end)) in
-  snd (miterM (fun xs s -> ((), f s xs)) xss acc)
+  let mfold_left :
+      type x xs acc. (acc -> (x, xs) cons hlist -> acc) -> acc -> (x, xs) cons Heter.ht -> acc =
+   fun f acc xss ->
+    let open Monadic (Monad.State (struct
+      type t = acc
+    end)) in
+    snd (miterM (fun xs s -> ((), f s xs)) xss acc)
 
-let fold_left : type x acc. (acc -> x -> acc) -> acc -> x list -> acc =
- fun f acc xs -> mfold_left (fun acc [ x ] -> f acc x) acc [ xs ]
+  let fold_left : type x acc. (acc -> x -> acc) -> acc -> x list -> acc =
+   fun f acc xs -> mfold_left (fun acc [ x ] -> f acc x) acc [ xs ]
 
-let fold_left2 : type x y acc. (acc -> x -> y -> acc) -> acc -> x list -> y list -> acc =
- fun f acc xs ys -> mfold_left (fun acc [ x; y ] -> f acc x y) acc [ xs; ys ]
+  let fold_left2 : type x y acc. (acc -> x -> y -> acc) -> acc -> x list -> y list -> acc =
+   fun f acc xs ys -> mfold_left (fun acc [ x; y ] -> f acc x y) acc [ xs; ys ]
 
-let mfold_right :
-    type x xs acc. ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
- fun f xss acc ->
-  let open Monadic (Monad.Cont (struct
-    type t = acc
-  end)) in
-  miterM (fun xs cont -> f xs (cont ())) xss (fun () -> acc)
+  let mfold_right :
+      type x xs acc. ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
+   fun f xss acc ->
+    let open Monadic (Monad.Cont (struct
+      type t = acc
+    end)) in
+    miterM (fun xs cont -> f xs (cont ())) xss (fun () -> acc)
 
-let fold_right : type x acc. (x -> acc -> acc) -> x list -> acc -> acc =
- fun f xs acc -> mfold_right (fun [ x ] acc -> f x acc) [ xs ] acc
+  let fold_right : type x acc. (x -> acc -> acc) -> x list -> acc -> acc =
+   fun f xs acc -> mfold_right (fun [ x ] acc -> f x acc) [ xs ] acc
 
-let fold_right2 : type x y acc. (x -> y -> acc -> acc) -> x list -> y list -> acc -> acc =
- fun f xs ys acc -> mfold_right (fun [ x; y ] acc -> f x y acc) [ xs; ys ] acc
+  let fold_right2 : type x y acc. (x -> y -> acc -> acc) -> x list -> y list -> acc -> acc =
+   fun f xs ys acc -> mfold_right (fun [ x; y ] acc -> f x y acc) [ xs; ys ] acc
+end

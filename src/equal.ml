@@ -3,6 +3,7 @@ open Value
 open Norm
 open Monoid
 open Monad.ZeroOps (Monad.Maybe)
+open Mlist.Monadic (Monad.Maybe)
 open Bwd
 
 let msg _ = ()
@@ -87,13 +88,13 @@ and equal_at : int -> value -> value -> value -> unit option =
               let env =
                 Ext (env, TubeOf.plus_cube { lift = (fun x -> x) } tyargs (CubeOf.singleton x))
               in
-              iterM
-                (fun (fld, fldty) ->
+              miterM
+                (fun [ (fld, fldty) ] ->
                   equal_at n (field x fld) (field y fld)
                     (inst (eval env fldty)
                        (TubeOf.build D.zero (D.zero_plus dim)
                           { build = (fun fa -> field (TubeOf.find tyargs fa) fld) })))
-                fields
+                [ fields ]
           | _ -> equal_val n x y))
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
   | _ -> equal_val n x y

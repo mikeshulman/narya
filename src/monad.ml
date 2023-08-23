@@ -17,67 +17,6 @@ module Ops (M : Plain) = struct
   let liftM (f : 'a -> 'b) (mx : 'a M.t) : 'b M.t =
     let* x = mx in
     return (f x)
-
-  let rec mapM (f : 'a -> 'b M.t) (xs : 'a list) : 'b list M.t =
-    match xs with
-    | [] -> return []
-    | x :: xs ->
-        let* fx = f x in
-        let* frest = mapM f xs in
-        return (fx :: frest)
-
-  let option_mapM (f : 'a -> 'b M.t) : 'a option -> 'b option M.t = function
-    | Some x ->
-        let* fx = f x in
-        return (Some fx)
-    | None -> return None
-
-  let rec list_fold_leftM (f : 'a -> 'b -> 'a M.t) (start : 'a M.t) (xs : 'b list) : 'a M.t =
-    match xs with
-    | [] -> start
-    | x :: xs ->
-        let* s = start in
-        list_fold_leftM f (f s x) xs
-
-  let rec list_fold_rightM (f : 'a -> 'b -> 'b M.t) (xs : 'a list) (start : 'b M.t) : 'b M.t =
-    match xs with
-    | [] -> start
-    | x :: xs ->
-        let* rest = list_fold_rightM f xs start in
-        f x rest
-
-  let rec mapM2 (f : 'a -> 'b -> 'c M.t) (xs : 'a list) (ys : 'b list) : 'c list M.t =
-    match (xs, ys) with
-    | [], [] -> return []
-    | x :: xs, y :: ys ->
-        let* fxy = f x y in
-        let* frest = mapM2 f xs ys in
-        return (fxy :: frest)
-    | _, _ -> raise (Invalid_argument "mapM2: lists are of different lengths")
-
-  let rec iterM (f : 'a -> unit M.t) (xs : 'a list) : unit M.t =
-    match xs with
-    | [] -> return ()
-    | x :: xs ->
-        let* _ = f x in
-        iterM f xs
-
-  let rec iterM2 (f : 'a -> 'b -> unit M.t) (xs : 'a list) (ys : 'b list) : unit M.t =
-    match (xs, ys) with
-    | [], [] -> return ()
-    | x :: xs, y :: ys ->
-        let* _ = f x y in
-        iterM2 f xs ys
-    | _, _ -> raise (Invalid_argument "iterM2: lists are of different lengths")
-
-  let rec iterM3 (f : 'a -> 'b -> 'c -> unit M.t) (xs : 'a list) (ys : 'b list) (zs : 'c list) :
-      unit M.t =
-    match (xs, ys, zs) with
-    | [], [], [] -> return ()
-    | x :: xs, y :: ys, z :: zs ->
-        let* _ = f x y z in
-        iterM3 f xs ys zs
-    | _, _, _ -> raise (Invalid_argument "iterM3: lists are of different lengths")
 end
 
 (* The identity monad *)

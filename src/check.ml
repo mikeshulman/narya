@@ -139,7 +139,7 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
       let* stm, sty = synth ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
       let etm = eval_in_ctx ctx stm in
-      let* newty = tyof_field etm sty fld in
+      let* newty = tyof_field_opt etm sty fld in
       return (Field (stm, fld), newty)
   | UU -> return (Term.UU, Uninst (UU D.zero))
   | Pi (dom, cod) ->

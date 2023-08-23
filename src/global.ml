@@ -14,9 +14,8 @@ let records : (Constant.t, record) Hashtbl.t = Hashtbl.create 10
 
 type field = Field : 'a N.t * 'a N.suc term -> field
 
-let find_record_field : Constant.t -> Field.t -> field option =
+let find_record_field : Constant.t -> Field.t -> field =
  fun name fld ->
-  let open Monad.Ops (Monad.Maybe) in
-  let* (Record (_, k, fields)) = Hashtbl.find_opt records name in
-  let* _, fldty = List.find_opt (fun (f, _) -> f = fld) fields in
-  return (Field (k, fldty))
+  let (Record (_, k, fields)) = Hashtbl.find records name in
+  let _, fldty = List.find (fun (f, _) -> f = fld) fields in
+  Field (k, fldty)

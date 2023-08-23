@@ -200,7 +200,7 @@ and apply_branches :
   | Branch (name, sub, plus, body) :: rest ->
       if name = dcst then
         (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
-        let* env = take_args env sub dargs plus in
+        let env = take_args env sub dargs plus in
         (* Then we proceed recursively with the body of that branch. *)
         apply_tree env body ins args
       else
@@ -297,35 +297,32 @@ and annote_arg :
 and field : value -> Field.t -> value =
  fun tm fld ->
   match tm with
-  | Uninst (Neu { fn; args; ty }) -> (
-      match tyof_field tm ty fld with
-      | Some newty ->
-          (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters. *)
-          apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
-      | None -> raise (Failure "Invalid field"))
+  | Uninst (Neu { fn; args; ty }) ->
+      let newty = tyof_field tm ty fld in
+      (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
+      apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
   | _ -> raise (Failure "Invalid field of non-record type")
 
-and tyof_field : value -> value -> Field.t -> value option =
+and tyof_field : value -> value -> Field.t -> value =
  fun tm ty fld ->
   let (Fullinst (ty, tyargs)) = full_inst ty "tyof_field" in
   match ty with
   | Neu { fn = Const { name; dim }; args; ty = _ } -> (
       (* A term we are taking a field of must have a fully instantiated type of the right dimension. *)
       match compare (TubeOf.inst tyargs) dim with
-      | Neq -> raise (Failure "Dimension mismatch in synth_field")
+      | Neq -> raise (Failure "Dimension mismatch in tyof_field")
       | Eq ->
           (* The head of the type must be a record type with a field having the correct name. *)
-          let* (Field (k, fldty)) = Global.find_record_field name fld in
+          let (Field (k, fldty)) = Global.find_record_field name fld in
           (* It must also be applied, at the correct dimension, to exactly the right number of parameters. *)
-          let* env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
-          (* If so, then the type of the field projection is the type associated to that field name in general, evaluated at the supplied parameters and at the term itself. *)
+          let env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
+          (* If so, then the type of the field projection is the type associated to that field name in general, evaluated at the supplied parameters and at the term itself, and instantiated at the fields of the original instantiation arguments. *)
           let env =
             Ext (env, TubeOf.plus_cube { lift = (fun x -> x) } tyargs (CubeOf.singleton tm)) in
-          return
-            (inst (eval env fldty)
-               (TubeOf.build D.zero (D.zero_plus dim)
-                  { build = (fun fa -> field (TubeOf.find tyargs fa) fld) })))
-  | _ -> None
+          inst (eval env fldty)
+            (TubeOf.build D.zero (D.zero_plus dim)
+               { build = (fun fa -> field (TubeOf.find tyargs fa) fld) }))
+  | _ -> raise (Failure "Non-record type doesn't have fields")
 
 and eval_binder :
     type m n mn b f bf.
@@ -374,3 +371,10 @@ and apply_binder : type m n f a. m binder -> (m, n) sface -> (n, value) CubeOf.t
              b.args))
        b.body)
     b.perm
+
+(* A version of tyof_field that returns errors rather than throwing exceptions. *)
+let tyof_field_opt : value -> value -> Field.t -> value option =
+ fun tm ty fld ->
+  match tyof_field tm ty fld with
+  | exception _ -> None
+  | res -> Some res

@@ -152,24 +152,25 @@ let inst : type m n mn f. value -> (m, n, mn, value) TubeOf.t -> value =
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  Optionally, raise an error if it isn't. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, value) TubeOf.t -> full_inst
 
-let full_inst_opt : type n. value -> full_inst option =
- fun ty ->
+let full_inst : type n. value -> string -> full_inst =
+ fun ty err ->
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
-  | Uninst ty -> Some (Fullinst (ty, TubeOf.empty D.zero))
+  | Uninst ty -> Fullinst (ty, TubeOf.empty D.zero)
   | Inst { tm = ty; dim = _; args } -> (
       match compare (TubeOf.uninst args) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
-          Some (Fullinst (ty, args))
-      | Neq -> None)
-  | _ -> None
+          Fullinst (ty, args)
+      | Neq -> raise (Failure ("Type not fully instantiated in " ^ err)))
+  | _ -> raise (Failure ("Fully instantiated type missing in " ^ err))
 
-let full_inst : type n. value -> string -> full_inst =
- fun ty err ->
-  match full_inst_opt ty with
-  | Some f -> f
-  | None -> raise (Failure ("Fully instantiated type missing in " ^ err))
+(* A version that returns errors rather than throwing exceptions. *)
+let full_inst_opt : type n. value -> full_inst option =
+ fun ty ->
+  match full_inst ty "" with
+  | exception _ -> None
+  | res -> Some res
 
 (* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
 let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =
@@ -200,22 +201,32 @@ let val_of_norm : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
 
 (* Require that the supplied app Bwd.t has exactly c elements, all of them applications of dimension n, take a specified b of them, and add them to an environment of dimension n. *)
 let rec take_args :
-    type n a b ab c.
-    (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env option =
+    type n a b ab c. (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env
+    =
  fun env sub dargs plus ->
-  let open Monad.Ops (Monad.Maybe) in
   match (sub, dargs, plus) with
-  | Zero, Emp, Zero -> Some env
+  | Zero, Emp, Zero -> env
   | Omit sub, Snoc (dargs, _), _ -> take_args env sub dargs plus
   | Take sub, Snoc (dargs, App (Arg arg, ins)), Suc plus -> (
       (* We can only take arguments that have no degeneracy applied, since case trees are specified at dimension zero. *)
-      let* () = is_id_deg (perm_of_ins ins) in
-      (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
-      let* env = take_args env sub dargs plus in
-      (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
-      match compare (CubeOf.dim arg) (dim_env env) with
-      | Eq ->
-          (* Why is this type annotation necessary? *)
-          return (Ext (env, (val_of_norm arg : (n, value) CubeOf.t)))
-      | Neq -> None)
-  | _ -> None
+      match is_id_deg (perm_of_ins ins) with
+      | None -> raise (Failure "Nonidentity degeneracy inside argument list")
+      | Some () -> (
+          (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
+          let env = take_args env sub dargs plus in
+          (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
+          match compare (CubeOf.dim arg) (dim_env env) with
+          | Eq ->
+              (* Why is this type annotation necessary? *)
+              Ext (env, (val_of_norm arg : (n, value) CubeOf.t))
+          | Neq -> raise (Failure "Different dimensions in argument list")))
+  | _ -> raise (Failure "Wrong number of arguments in argument list")
+
+(* A version of take_args that returns errors rather than throwing exceptions. *)
+let take_args_opt :
+    type n a b ab c.
+    (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env option =
+ fun env sub dargs plus ->
+  match take_args env sub dargs plus with
+  | exception _ -> None
+  | res -> Some res

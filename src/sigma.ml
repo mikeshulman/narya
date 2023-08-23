@@ -18,10 +18,14 @@ let install () =
                      App
                        ( App (Const sigma, CubeOf.singleton (Var (Pop (Pop (Pop Top))))),
                          CubeOf.singleton (Var (Pop (Pop Top))) ) ) ) ) ));
-  let fields = Hashtbl.create 2 in
-  Hashtbl.add fields fst (Var (Pop (Pop Top)));
-  Hashtbl.add fields snd (App (Var (Pop Top), CubeOf.singleton (Field (Var Top, fst))));
-  Hashtbl.add Global.records sigma (Record (N.two, fields));
+  Hashtbl.add Global.records sigma
+    (Record
+       ( Eta,
+         N.two,
+         [
+           (fst, Var (Pop (Pop Top)));
+           (snd, App (Var (Pop Top), CubeOf.singleton (Field (Var Top, fst))));
+         ] ));
   Hashtbl.add Global.trees pair
     (Lam
        (Suc (Suc (Suc (Suc Zero))), Cobranch [ (fst, Leaf (Var (Pop Top))); (snd, Leaf (Var Top)) ]))

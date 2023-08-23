@@ -315,7 +315,7 @@ and tyof_field : value -> value -> Field.t -> value option =
       | Neq -> raise (Failure "Dimension mismatch in synth_field")
       | Eq ->
           (* The head of the type must be a record type with a field having the correct name. *)
-          let* (Field (k, fldty)) = Global.find_record name fld in
+          let* (Field (k, fldty)) = Global.find_record_field name fld in
           (* It must also be applied, at the correct dimension, to exactly the right number of parameters. *)
           let* env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
           (* If so, then the type of the field projection is the type associated to that field name in general, evaluated at the supplied parameters and at the term itself. *)

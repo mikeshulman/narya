@@ -45,13 +45,13 @@ let rec equal_nf : int -> normal -> normal -> unit option =
 (* Eta-expanding compare two values at a type, which they are both assumed to belong to. *)
 and equal_at : int -> value -> value -> value -> unit option =
  fun n x y ty ->
-  let (Fullinst (ty, args)) = full_inst ty "equal_at" in
+  let (Fullinst (ty, tyargs)) = full_inst ty "equal_at" in
   match ty with
   (* The only interesting thing here happens when the type is one with an eta-rule, such as a pi-type. *)
   | Pi (doms, cods) -> (
       (* The pi-type must be fully instantiated at the correct dimension. *)
       let m = CubeOf.dim doms in
-      match compare (TubeOf.inst args) m with
+      match compare (TubeOf.inst tyargs) m with
       | Neq -> raise (Failure "Instantiation mismatch in equality-checking")
       | Eq ->
           (* Create variables for all the boundary domains. *)
@@ -70,11 +70,31 @@ and equal_at : int -> value -> value -> value -> unit option =
                              (fun fc -> CubeOf.find newargs (comp_sface (sface_of_tface fa) fc));
                          }));
               }
-              [ args ] in
+              [ tyargs ] in
           let idf = id_sface m in
           let output = inst (apply_binder (BindCube.find cods idf) idf newargs) out_args in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at newlvl (apply x newargs) (apply y newargs) output)
+  | Neu { fn = Const { name; dim }; args; ty = _ } -> (
+      (* This is kind of copied from tyof_field. *)
+      match compare (TubeOf.inst tyargs) dim with
+      | Neq -> raise (Failure "Dimension mismatch in eta-equality for record")
+      | Eq -> (
+          match Hashtbl.find_opt Global.records name with
+          | Some (Record (Eta, k, fields)) ->
+              let* env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
+              (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+              let env =
+                Ext (env, TubeOf.plus_cube { lift = (fun x -> x) } tyargs (CubeOf.singleton x))
+              in
+              iterM
+                (fun (fld, fldty) ->
+                  equal_at n (field x fld) (field y fld)
+                    (inst (eval env fldty)
+                       (TubeOf.build D.zero (D.zero_plus dim)
+                          { build = (fun fa -> field (TubeOf.find tyargs fa) fld) })))
+                fields
+          | _ -> equal_val n x y))
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
   | _ -> equal_val n x y
 

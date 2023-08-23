@@ -32,6 +32,11 @@ let b', bba' = synth (rs $. "snd")
 let () = equal bba' bba
 let () = equal b b'
 
+(* Projections satisfy eta-conversion *)
+let x' = check (!~"pair" $ !!"A" $ !!"B" $ (!!"x" $. "fst") $ (!!"x" $. "snd")) ss
+let () = equal_at x x' ss
+let () = unequal x x' (* Need typed equality for eta! *)
+
 (* Identifications can be paired to give an identification of pairs *)
 let a0 = assume "a0" aa
 let bba0, _ = synth (!!"B" $ !!"a0")

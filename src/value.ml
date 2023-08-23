@@ -17,7 +17,8 @@ module rec Value : sig
     | Var : { level : int; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; dim : 'n D.t } -> head
 
-  and app = App : ('n, normal) CubeOf.t * ('m, 'n, 'k) insertion -> app
+  and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
+  and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
 
   and _ binder =
     | Bind : {
@@ -63,7 +64,8 @@ end = struct
     | Const : { name : Constant.t; dim : 'n D.t } -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
-  and app = App : ('n, normal) CubeOf.t * ('m, 'n, 'k) insertion -> app
+  and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
+  and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
 
   (* Lambdas and Pis both bind a variable, along with its dependencies.  These are recorded as defunctionalized closures.  Since they are produced by higher-dimensional substitutions and operator actions, the dimension of the binder can be different than the dimension of the environment that closes its body.  Accordingly, in addition to the environment and degeneracy to close its body, we store information about how to map the eventual arguments into the bound variables in the body.  *)
   and _ binder =
@@ -147,6 +149,14 @@ let inst : type m n mn f. value -> (m, n, mn, value) TubeOf.t -> value =
       | Uninst tm -> Inst { tm; dim = dim2; args = args2 }
       | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))
 
+(* Extract the pieces of an instantiated value (possibly 0-dimensional) *)
+type anyinst = Anyinst : uninst * 'k D.t * ('n, 'k, 'nk, value) TubeOf.t -> anyinst
+
+let anyinst : type n. value -> anyinst option = function
+  | Uninst tm -> Some (Anyinst (tm, D.zero, TubeOf.empty D.zero))
+  | Inst { tm; dim; args } -> Some (Anyinst (tm, D.pos dim, args))
+  | _ -> None
+
 (* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
 let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =
  fun act_value env v ->
@@ -173,3 +183,25 @@ let rec env_append :
 
 let val_of_norm : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
  fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+(* Require that the supplied app Bwd.t has exactly c elements, all of them applications of dimension n, take a specified b of them, and add them to an environment of dimension n. *)
+let rec take_args :
+    type n a b ab c.
+    (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env option =
+ fun env sub dargs plus ->
+  let open Monad.Ops (Monad.Maybe) in
+  match (sub, dargs, plus) with
+  | Zero, Emp, Zero -> Some env
+  | Omit sub, Snoc (dargs, _), _ -> take_args env sub dargs plus
+  | Take sub, Snoc (dargs, App (Arg arg, ins)), Suc plus -> (
+      (* We can only take arguments that have no degeneracy applied, since case trees are specified at dimension zero. *)
+      let* () = is_id_deg (perm_of_ins ins) in
+      (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
+      let* env = take_args env sub dargs plus in
+      (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
+      match compare (CubeOf.dim arg) (dim_env env) with
+      | Eq ->
+          (* Why is this type annotation necessary? *)
+          return (Ext (env, (val_of_norm arg : (n, value) CubeOf.t)))
+      | Neq -> None)
+  | _ -> None

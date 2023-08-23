@@ -189,9 +189,13 @@ and equal_args : int -> app Bwd.t -> app Bwd.t -> unit option =
 and equal_arg : int -> app -> app -> unit option =
  fun n (App (a1, i1)) (App (a2, i2)) ->
   let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
-  match compare (CubeOf.dim a1) (CubeOf.dim a2) with
-  | Eq ->
-      let open CubeOf.Monadic (Monad.Maybe) in
-      miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
-  (* If the dimensions don't match, it is a bug rather than a user error, since they are supposed to both be valid arguments of the same function, and any function has a unique dimension. *)
-  | Neq -> raise (Failure "Unequal dimensions of application in equality-check")
+  match (a1, a2) with
+  | Arg a1, Arg a2 -> (
+      match compare (CubeOf.dim a1) (CubeOf.dim a2) with
+      | Eq ->
+          let open CubeOf.Monadic (Monad.Maybe) in
+          miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
+      (* If the dimensions don't match, it is a bug rather than a user error, since they are supposed to both be valid arguments of the same function, and any function has a unique dimension. *)
+      | Neq -> raise (Failure "Unequal dimensions of application in equality-check"))
+  | Field f1, Field f2 -> if f1 = f2 then return () else fail
+  | _, _ -> fail

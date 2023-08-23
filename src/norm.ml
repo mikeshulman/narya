@@ -10,12 +10,14 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   match tm with
   | Var v -> lookup act_any env v
   | Const name ->
+      (* A constant starts out at dimension zero, but must be lifted to the dimension of the environment. *)
       let dim = dim_env env in
       Uninst
         (Neu
            {
              fn = Const { name; dim };
              args = Emp;
+             (* Its type must also be instantiated at the lower-dimensional liftings of itself. *)
              ty =
                inst
                  (eval (Emp dim) (Hashtbl.find Global.types name))
@@ -70,6 +72,9 @@ let rec eval : type m b. (m, b) env -> b term -> value =
           } in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
+  | Field (tm, fld) ->
+      let etm = eval env tm in
+      field etm fld
   | Pi (dom, cod) ->
       (* A user-space pi-type always has dimension zero, so this is simpler than the general case. *)
       let m = dim_env env in
@@ -124,7 +129,7 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
       | _ -> raise (Failure "Invalid annotation by non-function type"))
   | _ -> raise (Failure "Invalid application of non-function")
 
-(* Compute the application of a head to a spine of arguments, using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application to annotate the latter case. *)
+(* Compute the application of a head to a spine of arguments (including field projections), using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application, so that we can annotate the latter case. *)
 and apply_spine : head -> app Bwd.t -> value -> value =
  fun fn args ty ->
   (* Check whether the head is a constant with an associated case tree. *)
@@ -142,7 +147,7 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
  fun env tree ins args ->
   match tree with
   | Lam (plus, body) ->
-      (* Pick up more arguments *)
+      (* Pick up more arguments.  Note that this fails if plus is nonzero and ins is nonidentity. *)
       let* newenv, newins, newargs = take_lam_args env plus ins args in
       apply_tree newenv body newins newargs
   | Leaf body ->
@@ -151,7 +156,12 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
       (* Now apply this to any remaining arguments. *)
       Some
         (List.fold_left
-           (fun f (Value.App (a, i)) -> act_value (apply f (val_of_norm a)) (perm_of_ins i))
+           (fun f (Value.App (a, i)) ->
+             act_value
+               (match a with
+               | Arg arg -> apply f (val_of_norm arg)
+               | Field fld -> field f fld)
+               (perm_of_ins i))
            res args)
   | Branch (ix, branches) -> (
       (* Get the argument being inspected *)
@@ -162,6 +172,14 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
           match compare dim (dim_env env) with
           | Eq -> apply_branches env branches name dargs ins args
           | _ -> None)
+      | _ -> None)
+  | Cobranch cobranches -> (
+      (* A cobranch can only succeed if there is a field projection to match against occurring next in the spine. *)
+      match args with
+      | App (Field fld, new_ins) :: args ->
+          (* This also requires the degeneracy to be the identity. *)
+          let* () = is_id_any_deg ins in
+          apply_cobranches env fld cobranches (Any (perm_of_ins new_ins)) args
       | _ -> None)
 
 (* Attempt all the branches of a case tree associated to a particular argument, matching each of their constant labels against its constant. *)
@@ -184,32 +202,24 @@ and apply_branches :
   | Branch (name, sub, plus, body) :: rest ->
       if name = dcst then
         (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
-        let* env = take_branch_args env sub dargs plus in
+        let* env = take_args env sub dargs plus in
         (* Then we proceed recursively with the body of that branch. *)
         apply_tree env body ins args
       else
         (* If the constant doesn't match, proceed with later branches. *)
         apply_branches env rest dcst dargs ins args
 
-and take_branch_args :
-    type n a b ab c.
-    (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env option =
- fun env sub dargs plus ->
-  match (sub, dargs, plus) with
-  | Zero, Emp, Zero -> Some env
-  | Omit sub, Snoc (dargs, _), _ -> take_branch_args env sub dargs plus
-  | Take sub, Snoc (dargs, App (arg, ins)), Suc plus -> (
-      (* We can only take arguments that have no degeneracy applied, since case trees are specified at dimension zero. *)
-      let* () = is_id_deg (perm_of_ins ins) in
-      (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
-      let* env = take_branch_args env sub dargs plus in
-      (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
-      match compare (CubeOf.dim arg) (dim_env env) with
-      | Eq ->
-          (* Why is this type annotation necessary? *)
-          return (Ext (env, (val_of_norm arg : (n, value) CubeOf.t)))
-      | Neq -> None)
-  | _ -> None
+(* Attempt all the (co)branches of a case tree associated to a copattern match, matching each of their field names against a field projection.  The degeneracy is to be applied after passing to the body, though before receiving additional arguments from args. *)
+and apply_cobranches :
+    type n a.
+    (n, a) env -> Field.t -> (Field.t * a Case.tree) list -> any_deg -> app list -> value option =
+ fun env fld cobranches ins args ->
+  match cobranches with
+  | [] -> None
+  | (fld', body) :: cobranches ->
+      (* If the field matches one of the cobranches, we recurse into that branch. *)
+      if fld = fld' then apply_tree env body ins args
+      else apply_cobranches env fld cobranches ins args
 
 and take_lam_args :
     type n a b ab.
@@ -221,7 +231,7 @@ and take_lam_args :
  fun env ab ins args ->
   match (ab, args) with
   | Zero, _ -> Some (env, ins, args)
-  | Suc ab, App (arg, newins) :: args -> (
+  | Suc ab, App (Arg arg, newins) :: args -> (
       (* If we're looking for another argument, we fail unless the current insertion is the identity.  In addition, the variables bound in a case tree are always zero-dimensional applications, so the apps here must all be the same dimension as the constant instance. *)
       match (is_id_any_deg ins, compare (dim_env env) (CubeOf.dim arg)) with
       | Some (), Eq ->
@@ -283,7 +293,43 @@ and annote_arg :
           [ pi_args ] in
       let idf = id_sface mn in
       let output = inst (apply_binder (BindCube.find cods idf) idf args) out_args in
-      (App (new_args, zero_ins mn), output)
+      (App (Arg new_args, zero_ins mn), output)
+
+(* Compute a field of a structure, at a particular dimension. *)
+and field : value -> Field.t -> value =
+ fun tm fld ->
+  match tm with
+  | Uninst (Neu { fn; args; ty }) -> (
+      match tyof_field tm ty fld with
+      | Some newty ->
+          (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters. *)
+          apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
+      | None -> raise (Failure "Invalid field"))
+  | _ -> raise (Failure "Invalid field of non-record type")
+
+and tyof_field : value -> value -> Field.t -> value option =
+ fun tm ty fld ->
+  let* (Anyinst (ty, _, tyargs)) = anyinst ty in
+  match ty with
+  | Neu { fn = Const { name; dim }; args; ty = _ } -> (
+      (* A term we are taking a field of must have a fully instantiated type of the right dimension. *)
+      match (compare (TubeOf.uninst tyargs) D.zero, compare (TubeOf.inst tyargs) dim) with
+      | Neq, _ -> raise (Failure "Non-fully instantiated type in synth_field")
+      | _, Neq -> raise (Failure "Dimension mismatch in synth_field")
+      | Eq, Eq ->
+          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus dim) in
+          (* The head of the type must be a record type with a field having the correct name. *)
+          let* (Field (k, fldty)) = Global.find_record name fld in
+          (* It must also be applied, at the correct dimension, to exactly the right number of parameters. *)
+          let* env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
+          (* If so, then the type of the field projection is the type associated to that field name in general, evaluated at the supplied parameters and at the term itself. *)
+          let env =
+            Ext (env, TubeOf.plus_cube { lift = (fun x -> x) } tyargs (CubeOf.singleton tm)) in
+          return
+            (inst (eval env fldty)
+               (TubeOf.build D.zero (D.zero_plus dim)
+                  { build = (fun fa -> field (TubeOf.find tyargs fa) fld) })))
+  | _ -> None
 
 and eval_binder :
     type m n mn b f bf.

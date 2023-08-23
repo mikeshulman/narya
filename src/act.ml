@@ -199,7 +199,7 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
  fun apps s ->
   match apps with
   | Emp -> (Any s, Emp)
-  | Snoc (rest, App (args, ins)) ->
+  | Snoc (rest, App (arg, ins)) ->
       (* To act on an application, we compose the acting degeneracy with the delayed insertion *)
       let nk = plus_of_ins ins in
       let s' = perm_of_ins ins in
@@ -208,19 +208,24 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
       let n_kd = D.plus_assocr nk kd nk_d in
       (* Factor the result into a new insertion to leave outside and a smaller degeneracy to push in *)
       let (Insfact (fa, new_ins)) = insfact s's n_kd in
-      (* And push the smaller degeneracy action into the application, acting on the function *)
+      (* And push the smaller degeneracy action into the application, acting on the function/struct *)
       let p = dom_deg fa in
-      (* And on the arguments, by factorization *)
-      let new_args =
-        CubeOf.build p
-          {
-            build =
-              (fun fb ->
-                let (Op (fd, fc)) = deg_sface fa fb in
-                act_normal (CubeOf.find args fd) fc);
-          } in
+      let new_arg =
+        match arg with
+        | Arg args ->
+            (* And, in the function case, on the arguments by factorization. *)
+            Arg
+              (CubeOf.build p
+                 {
+                   build =
+                     (fun fb ->
+                       let (Op (fd, fc)) = deg_sface fa fb in
+                       act_normal (CubeOf.find args fd) fc);
+                 })
+        | Field fld -> Field fld in
+      (* Finally, we recurse and assemble the result. *)
       let new_s, new_rest = act_apps rest fa in
-      (new_s, Snoc (new_rest, App (new_args, new_ins)))
+      (new_s, Snoc (new_rest, App (new_arg, new_ins)))
 
 (* A version that takes the degeneracy wrapped. *)
 let act_any : value -> any_deg -> value = fun v (Any s) -> act_value v s

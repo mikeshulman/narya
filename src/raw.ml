@@ -3,6 +3,7 @@
 type _ synth =
   | Var : 'a N.index -> 'a synth
   | Const : Constant.t -> 'a synth
+  | Field : 'a synth * Field.t -> 'a synth
   | UU : 'a synth
   | Pi : 'a check * 'a N.suc check -> 'a synth
   | App : 'a synth * 'a check -> 'a synth

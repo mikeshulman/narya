@@ -140,6 +140,12 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
   match tm with
   | Var v -> return (Term.Var v, Bwv.nth v ctx)
   | Const name -> return (Const name, eval (Emp D.zero) (Hashtbl.find Global.types name))
+  | Field (tm, fld) ->
+      let* stm, sty = synth ctx tm in
+      (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
+      let etm = eval_in_ctx ctx stm in
+      let* newty = tyof_field etm sty fld in
+      return (Field (stm, fld), newty)
   | UU -> return (Term.UU, Uninst (UU D.zero))
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)

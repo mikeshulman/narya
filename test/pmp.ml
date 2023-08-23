@@ -6,6 +6,7 @@ open Narya
 type pmt =
   | Var : string -> pmt
   | Const : string -> pmt
+  | Field : pmt * string -> pmt
   | UU : pmt
   | Pi : string * pmt * pmt -> pmt
   | App : pmt * pmt -> pmt
@@ -29,6 +30,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       | None -> raise (Failure ("Variable " ^ x ^ " not found")))
   | Const x -> Const (Constant.intern x)
   | UU -> UU
+  | Field (x, fld) -> Field (parse_syn ctx x, Field.intern fld)
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
   | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)
   | Id (a, x, y) -> Id (parse_syn ctx a, parse_chk ctx x, parse_chk ctx y)
@@ -49,6 +51,7 @@ let refl x = Refl x
 let sym x = Sym x
 let ( <:> ) tm ty = Asc (tm, ty)
 let ( @-> ) x body = Lam (x, body) (* Right-associative *)
+let ( $. ) x fld = Field (x, fld)
 
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : 'n Check.ctx * (string, 'n) Bwv.t -> ctx

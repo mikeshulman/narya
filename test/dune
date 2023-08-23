@@ -4,6 +4,6 @@
 	(libraries narya))
 (tests
   (libraries narya pmp)
-  (names church idrefl sym symsym gel natarith parametricity churchnat)
-  (modules church idrefl sym symsym gel natarith parametricity churchnat))
+  (names church idrefl sym symsym gel natarith parametricity churchnat sigma)
+  (modules church idrefl sym symsym gel natarith parametricity churchnat sigma))
 (env (_ (flags (:standard -w -37 -w -30 -w -32))))

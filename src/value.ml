@@ -149,13 +149,27 @@ let inst : type m n mn f. value -> (m, n, mn, value) TubeOf.t -> value =
       | Uninst tm -> Inst { tm; dim = dim2; args = args2 }
       | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))
 
-(* Extract the pieces of an instantiated value (possibly 0-dimensional) *)
-type anyinst = Anyinst : uninst * 'k D.t * ('n, 'k, 'nk, value) TubeOf.t -> anyinst
+(* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  Optionally, raise an error if it isn't. *)
+type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, value) TubeOf.t -> full_inst
 
-let anyinst : type n. value -> anyinst option = function
-  | Uninst tm -> Some (Anyinst (tm, D.zero, TubeOf.empty D.zero))
-  | Inst { tm; dim; args } -> Some (Anyinst (tm, D.pos dim, args))
+let full_inst_opt : type n. value -> full_inst option =
+ fun ty ->
+  match ty with
+  (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
+  | Uninst ty -> Some (Fullinst (ty, TubeOf.empty D.zero))
+  | Inst { tm = ty; dim = _; args } -> (
+      match compare (TubeOf.uninst args) D.zero with
+      | Eq ->
+          let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
+          Some (Fullinst (ty, args))
+      | Neq -> None)
   | _ -> None
+
+let full_inst : type n. value -> string -> full_inst =
+ fun ty err ->
+  match full_inst_opt ty with
+  | Some f -> f
+  | None -> raise (Failure ("Fully instantiated type missing in " ^ err))
 
 (* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
 let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =

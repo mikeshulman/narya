@@ -59,15 +59,10 @@ let rec check : type a. a ctx -> a check -> value -> a term option =
       let* sval, sty = synth ctx stm in
       let* () = equal_val (level_of ctx) sty ty in
       return sval
-  | Lam _ -> (
-      (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam. *)
-      match ty with
-      | Inst { tm = ty; dim = _; args } -> check_lam ctx tm ty args
-      | Uninst ty -> check_lam ctx tm ty (TubeOf.empty D.zero)
-      (* A lambda-abstraction is never a type, so we can't check against it.  But this is a user error, not a bug, since the user could write an abstraction on the RHS of an ascription. *)
-      | Lam _ ->
-          Printf.printf "Lambda is not a type";
-          None)
+  | Lam _ ->
+      (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam.  If the "type" is not a type or not fully instantiated here, that's a user error, not a bug. *)
+      let* (Fullinst (ty, args)) = full_inst_opt ty in
+      check_lam ctx tm ty args
 
 and check_lam :
     type a m n mn f. a ctx -> a check -> uninst -> (m, n, mn, value) TubeOf.t -> a term option =
@@ -183,14 +178,10 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
 and synth_apps : type a. a ctx -> a term -> value -> a check list -> (a term * value) option =
  fun ctx sfn sty args ->
-  (* First we check one group of arguments. *)
-  let* afn, aty, aargs =
-    match sty with
-    | Inst { tm = fnty; dim = _; args = tyargs } -> synth_app ctx sfn fnty tyargs args
-    | Uninst fnty -> synth_app ctx sfn fnty (TubeOf.empty D.zero) args
-    (* A lambda-abstraction here would really be a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize an abstraction as if it were a type.  Thus, we raise an exception rather than returning None. *)
-    | Lam _ -> raise (Failure "Synthesized type cannot be a lambda-abstraction") in
-  (* If that used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
+  (* Failure of full_inst here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
+  let (Fullinst (fnty, tyargs)) = full_inst sty "synth_apps" in
+  let* afn, aty, aargs = synth_app ctx sfn fnty tyargs args in
+  (* synth_app fails if there aren't enough arguments.  If it used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
   match aargs with
   | [] -> return (afn, aty)
   | _ :: _ -> synth_apps ctx afn aty aargs

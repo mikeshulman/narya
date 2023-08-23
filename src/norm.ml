@@ -117,16 +117,14 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
       | Eq -> apply_binder body (id_sface m) arg)
   (* If it is a neutral application... *)
   | Uninst (Neu { fn; args; ty }) -> (
+      let (Fullinst (ty, tyargs)) = full_inst ty "apply" in
       match ty with
-      | Inst { tm = Pi (doms, cods); dim = _; args = tyargs } ->
+      | Pi (doms, cods) ->
           (* We annotate the new argument by its type, extracted from the domain type of the function being applied, and compute the new output type. *)
           let newarg, ty = annote_arg doms cods tyargs arg in
           (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
           apply_spine fn (Snoc (args, newarg)) ty
-      | Uninst (Pi (doms, cods)) ->
-          let newarg, ty = annote_arg doms cods (TubeOf.empty (CubeOf.dim arg)) arg in
-          apply_spine fn (Snoc (args, newarg)) ty
-      | _ -> raise (Failure "Invalid annotation by non-function type"))
+      | _ -> raise (Failure "Invalid application by non-function"))
   | _ -> raise (Failure "Invalid application of non-function")
 
 (* Compute the application of a head to a spine of arguments (including field projections), using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application, so that we can annotate the latter case. *)
@@ -309,15 +307,13 @@ and field : value -> Field.t -> value =
 
 and tyof_field : value -> value -> Field.t -> value option =
  fun tm ty fld ->
-  let* (Anyinst (ty, _, tyargs)) = anyinst ty in
+  let (Fullinst (ty, tyargs)) = full_inst ty "tyof_field" in
   match ty with
   | Neu { fn = Const { name; dim }; args; ty = _ } -> (
       (* A term we are taking a field of must have a fully instantiated type of the right dimension. *)
-      match (compare (TubeOf.uninst tyargs) D.zero, compare (TubeOf.inst tyargs) dim) with
-      | Neq, _ -> raise (Failure "Non-fully instantiated type in synth_field")
-      | _, Neq -> raise (Failure "Dimension mismatch in synth_field")
-      | Eq, Eq ->
-          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus dim) in
+      match compare (TubeOf.inst tyargs) dim with
+      | Neq -> raise (Failure "Dimension mismatch in synth_field")
+      | Eq ->
           (* The head of the type must be a record type with a field having the correct name. *)
           let* (Field (k, fldty)) = Global.find_record name fld in
           (* It must also be applied, at the correct dimension, to exactly the right number of parameters. *)

@@ -45,25 +45,15 @@ let rec equal_nf : int -> normal -> normal -> unit option =
 (* Eta-expanding compare two values at a type, which they are both assumed to belong to. *)
 and equal_at : int -> value -> value -> value -> unit option =
  fun n x y ty ->
-  match ty with
-  | Uninst tm -> equal_at_uninst n x y tm (TubeOf.empty D.zero)
-  | Inst { tm; dim = _; args } -> equal_at_uninst n x y tm args
-  | Lam _ -> raise (Failure "Lambda-abstraction is not a type for equality-checking")
-
-(* Subroutine for equal_at with the instantiation of the type peeled off. *)
-and equal_at_uninst :
-    type m n mn f. int -> value -> value -> uninst -> (m, n, mn, value) TubeOf.t -> unit option =
- fun n x y ty args ->
+  let (Fullinst (ty, args)) = full_inst ty "equal_at" in
   match ty with
   (* The only interesting thing here happens when the type is one with an eta-rule, such as a pi-type. *)
   | Pi (doms, cods) -> (
       (* The pi-type must be fully instantiated at the correct dimension. *)
       let m = CubeOf.dim doms in
-      match (compare (TubeOf.uninst args) D.zero, compare (TubeOf.inst args) m) with
-      | Neq, _ -> raise (Failure "Non-fully-instantiated type in equality-checking")
-      | _, Neq -> raise (Failure "Instantiation mismatch in equality-checking")
-      | Eq, Eq ->
-          let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus m) in
+      match compare (TubeOf.inst args) m with
+      | Neq -> raise (Failure "Instantiation mismatch in equality-checking")
+      | Eq ->
           (* Create variables for all the boundary domains. *)
           let newlvl, newargs = dom_vars n doms in
           (* TODO: This code is copy-and-pasted from apply_neu.  Factor it out. *)

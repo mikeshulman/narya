@@ -117,13 +117,22 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
       | Eq -> apply_binder body arg)
   (* If it is a neutral application... *)
   | Uninst (Neu { fn; args; ty }) -> (
+      (* ... we check that it is fully instantiated... *)
       let (Fullinst (ty, tyargs)) = full_inst ty "apply" in
       match ty with
-      | Pi (doms, cods) ->
-          (* We annotate the new argument by its type, extracted from the domain type of the function being applied, and compute the new output type. *)
-          let newarg, ty = annote_arg doms cods tyargs arg in
-          (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
-          apply_spine fn (Snoc (args, newarg)) ty
+      | Pi (doms, cods) -> (
+          (* ... and that the pi-type and its instantiation have the correct dimension. *)
+          let k = CubeOf.dim doms in
+          match (compare (TubeOf.inst tyargs) k, compare (CubeOf.dim arg) k) with
+          | Neq, _ -> raise (Failure "Instantiation mismatch applying a neutral function")
+          | _, Neq -> raise (Failure "Arguments mismatch applying a neutral function")
+          | Eq, Eq ->
+              (* We annotate the new argument by its type, extracted from the domain type of the function being applied. *)
+              let newarg = norm_of_vals arg doms in
+              (* We compute the output type of the application. *)
+              let ty = tyof_app cods tyargs arg in
+              (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
+              apply_spine fn (Snoc (args, App (Arg newarg, zero_ins k))) ty)
       | _ -> raise (Failure "Invalid application by non-function"))
   | _ -> raise (Failure "Invalid application of non-function")
 
@@ -241,56 +250,24 @@ and take_lam_args :
       | _ -> None)
   | _, _ -> None
 
-(* Given a family of value arguments (including boundaries) for a function of some given type (with domains and codomains), annotate the arguments to make them into normals (hence an "app"), and also compute the type of the applied function.  *)
-and annote_arg :
-    type a b ab k n.
-    (k, value) CubeOf.t ->
-    (k, unit) BindCube.t ->
-    (a, b, ab, value) TubeOf.t ->
-    (n, value) CubeOf.t ->
-    app * value =
- fun doms cods pi_args args ->
-  (* We check that the pi-type has the correct dimension, is fully instantiated, and has the correct dimension of instantiation. *)
-  let mn = CubeOf.dim doms in
-  match
-    ( compare (TubeOf.uninst pi_args) D.zero,
-      compare (TubeOf.inst pi_args) mn,
-      compare (CubeOf.dim args) mn )
-  with
-  | Neq, _, _ -> raise (Failure "Application of non-fully-instantiated function")
-  | _, Neq, _ -> raise (Failure "Instantiation mismatch applying a neutral function")
-  | _, _, Neq -> raise (Failure "Arguments mismatch applying a neutral function")
-  | Eq, Eq, Eq ->
-      let Eq = D.plus_uniq (TubeOf.plus pi_args) (D.zero_plus mn) in
-      (* In this case, the arguments must be normals rather than values.  Thus, while collecting them into a Bwv, we also compute their types from the domain types of the function-type, instantiated at previous arguments. *)
-      let new_args =
-        CubeOf.mmap
-          {
-            map =
-              (fun fab [ dom ] ->
-                let tm = CubeOf.find args fab in
-                let k = dom_sface fab in
-                let ty =
-                  inst dom
-                    (TubeOf.build D.zero (D.zero_plus k)
-                       { build = (fun fc -> CubeOf.find args (comp_sface fab (sface_of_tface fc))) })
-                in
-                { tm; ty });
-          }
-          [ doms ] in
-      (* The output type substitutes the arguments into the codomain of the function-type, and instantiates at the values of the boundary functions applied to appropriate ones of these arguments.  This loop is very similar to the previous one, so perhaps they could be combined. *)
-      let out_args =
-        TubeOf.mmap
-          {
-            map =
-              (fun fab [ afn ] ->
-                apply afn
-                  (CubeOf.build (dom_tface fab)
-                     { build = (fun fc -> CubeOf.find args (comp_sface (sface_of_tface fab) fc)) }));
-          }
-          [ pi_args ] in
-      let output = inst (apply_binder (BindCube.find cods (id_sface mn)) args) out_args in
-      (App (Arg new_args, zero_ins mn), output)
+(* Compute the output type of a function application, given the codomains and instantiation arguments of the pi-type (the latter being the functions acting on the boundary) and the arguments it is applied to. *)
+and tyof_app :
+    type k. (k, unit) BindCube.t -> (D.zero, k, k, value) TubeOf.t -> (k, value) CubeOf.t -> value =
+ fun cods fns args ->
+  let out_arg_tbl = Hashtbl.create 10 in
+  let out_args =
+    TubeOf.mmap
+      {
+        map =
+          (fun fa [ afn ] ->
+            let fa = sface_of_tface fa in
+            let tmargs = CubeOf.subcube fa args in
+            let tm = apply afn tmargs in
+            Hashtbl.add out_arg_tbl (SFace_of fa) tm;
+            tm);
+      }
+      [ fns ] in
+  inst (apply_binder (BindCube.find cods (id_sface (CubeOf.dim args))) args) out_args
 
 (* Compute a field of a structure, at a particular dimension. *)
 and field : value -> Field.t -> value =

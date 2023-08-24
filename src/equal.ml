@@ -35,22 +35,8 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
           let (Faces df) = count_faces k in
           let (Plus af) = N.plus (faces_out df) in
           let newlvl, newargs = Ctx.dom_vars n df af doms in
-          (* TODO: This code is copy-and-pasted from apply_neu.  Factor it out. *)
-          let out_args =
-            TubeOf.mmap
-              {
-                map =
-                  (fun fa [ afn ] ->
-                    let k = dom_tface fa in
-                    apply afn
-                      (CubeOf.build k
-                         {
-                           build =
-                             (fun fc -> CubeOf.find newargs (comp_sface (sface_of_tface fa) fc));
-                         }));
-              }
-              [ tyargs ] in
-          let output = inst (apply_binder (BindCube.find cods (id_sface k)) newargs) out_args in
+          (* Calculate the output type of the application to those variables *)
+          let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at newlvl (apply x newargs) (apply y newargs) output)
   | Neu { fn = Const { name; dim }; args; ty = _ } -> (

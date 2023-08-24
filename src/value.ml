@@ -199,6 +199,29 @@ let rec env_append :
 let val_of_norm : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
  fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
+(* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
+and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, normal) CubeOf.t =
+ fun tms tys ->
+  (* Since we have to instantiate the types at the *normal* version of the terms, which is what we are computing, we also add the results to a hashtable as we create them so we can access them randomly later. *)
+  let new_tms =
+    CubeOf.mmap
+      {
+        map =
+          (fun fab [ tm; ty ] ->
+            let newtm =
+              {
+                tm;
+                ty =
+                  inst ty
+                    (TubeOf.build D.zero
+                       (D.zero_plus (dom_sface fab))
+                       { build = (fun fc -> CubeOf.find tms (comp_sface fab (sface_of_tface fc))) });
+              } in
+            newtm);
+      }
+      [ tms; tys ] in
+  new_tms
+
 (* Require that the supplied app Bwd.t has exactly c elements, all of them applications of dimension n, take a specified b of them, and add them to an environment of dimension n. *)
 let rec take_args :
     type n a b ab c. (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env

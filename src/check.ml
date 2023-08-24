@@ -58,20 +58,7 @@ and check_lam :
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
           let ctx, newargs = Ctx.dom_vars ctx dom_faces af doms in
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
-          let out_args =
-            TubeOf.mmap
-              {
-                map =
-                  (fun fa [ afn ] ->
-                    apply afn
-                      (CubeOf.build (dom_tface fa)
-                         {
-                           build =
-                             (fun fc -> CubeOf.find newargs (comp_sface (sface_of_tface fa) fc));
-                         }));
-              }
-              [ args ] in
-          let output = inst (apply_binder (BindCube.find cods (id_sface m)) newargs) out_args in
+          let output = tyof_app cods args newargs in
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
   (* We can't check a lambda-abstraction against anything except a pi-type. *)
@@ -193,22 +180,8 @@ and synth_app :
                     return (ctm @: [ tm ]));
               }
               [ doms ] (Cons (Cons Nil)) args in
-          (* Evaluate cod at these evaluated arguments, and instantiate it at the appropriate values of tyargs, as with similar code in other places. *)
-          let out_args =
-            TubeOf.mmap
-              {
-                map =
-                  (fun fa [ afn ] ->
-                    apply afn
-                      (CubeOf.build (dom_tface fa)
-                         {
-                           build = (fun fc -> CubeOf.find eargs (comp_sface (sface_of_tface fa) fc));
-                         }));
-              }
-              [ tyargs ] in
-          let output =
-            inst (apply_binder (BindCube.find cods (id_sface (CubeOf.dim doms))) eargs) out_args
-          in
+          (* Evaluate cod at these evaluated arguments and instantiate it at the appropriate values of tyargs. *)
+          let output = tyof_app cods tyargs eargs in
           return (Term.App (sfn, cargs), output, rest))
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (

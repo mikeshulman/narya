@@ -144,7 +144,7 @@ let inst : type m n mn f. value -> (m, n, mn, value) TubeOf.t -> value =
           | Neq -> raise (Failure "Dimension mismatch in instantiation")
           | Eq ->
               let (Plus nk) = D.plus (TubeOf.inst args1) in
-              let args = TubeOf.plus_tube { lift = (fun x -> x) } nk args1 args2 in
+              let args = TubeOf.plus_tube nk args1 args2 in
               Inst { tm; dim = D.pos_plus dim2 nk; args })
       | Uninst tm -> Inst { tm; dim = dim2; args = args2 }
       | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))

@@ -293,8 +293,7 @@ and tyof_field : value -> value -> Field.t -> value =
           (* It must also be applied, at the correct dimension, to exactly the right number of parameters. *)
           let env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
           (* If so, then the type of the field projection is the type associated to that field name in general, evaluated at the supplied parameters and at the term itself, and instantiated at the fields of the original instantiation arguments. *)
-          let env =
-            Ext (env, TubeOf.plus_cube { lift = (fun x -> x) } tyargs (CubeOf.singleton tm)) in
+          let env = Ext (env, TubeOf.plus_cube tyargs (CubeOf.singleton tm)) in
           inst (eval env fldty)
             (TubeOf.build D.zero (D.zero_plus dim)
                { build = (fun fa -> field (TubeOf.find tyargs fa) fld) }))

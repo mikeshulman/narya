@@ -147,7 +147,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           let (Of fa) = deg_plus_to s (TubeOf.inst args) "instantiated type" in
           (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
-          let args' = TubeOf.plus_cube { lift = (fun x -> x) } args (CubeOf.singleton tm) in
+          let args' = TubeOf.plus_cube args (CubeOf.singleton tm) in
           (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
           let args =
             TubeOf.build D.zero

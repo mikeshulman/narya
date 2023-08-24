@@ -854,19 +854,6 @@ module Cube (F : Fam) = struct
     let n = dim tr in
     gfold_left_append_map (D.zero_plus n) (D.zero_plus n) Zero g acc mf lenf tr
 
-  (* If the parameter 'a of F.t is irrelevant, then we can lift any gt to any other. *)
-
-  type 'b lifter = { lift : 'a1 'a2. ('a1, 'b) F.t -> ('a2, 'b) F.t }
-
-  let rec lift :
-      type m n1 n2 n12 b. b lifter -> (n1, n2, n12) D.plus -> (m, n1, b) gt -> (m, n12, b) gt =
-   fun f n12 tr ->
-    match tr with
-    | Leaf x -> Leaf (f.lift x)
-    | Branch (ends, mid) ->
-        let (Suc n12') = N.suc_plus n12 in
-        Branch (Bwv.map (fun t -> lift f n12' t) ends, lift f n12 mid)
-
   (* A "subcube" of a cube of dimension n, determined by a face of n with dimension k, is the cube of dimension k consisting of the elements indexed by faces that factor through the given one. *)
   let subcube : type m n b. (m, n) sface -> (n, b) t -> (m, b) t =
    fun fa tr -> build (dom_sface fa) { build = (fun fb -> find tr (comp_sface fa fb)) }
@@ -877,7 +864,17 @@ module FamOf = struct
   type ('a, 'b) t = 'b
 end
 
-module CubeOf = Cube (FamOf)
+module CubeOf = struct
+  include Cube (FamOf)
+
+  let rec lift : type m n1 n2 n12 b. (n1, n2, n12) D.plus -> (m, n1, b) gt -> (m, n12, b) gt =
+   fun n12 tr ->
+    match tr with
+    | Leaf x -> Leaf x
+    | Branch (ends, mid) ->
+        let (Suc n12') = N.suc_plus n12 in
+        Branch (Bwv.map (fun t -> lift n12' t) ends, lift n12 mid)
+end
 
 (* ********** Tube faces ********** *)
 
@@ -1206,7 +1203,7 @@ module Tube (F : Fam) = struct
 
   let boundary : type n b. (n, b) C.t -> (D.zero, n, n, b) t = fun tr -> gboundary tr
 
-  (* We can also pick out just part of a tube *)
+  (* We can also pick out a less-instantiated part of a tube *)
 
   let rec gpboundary :
       type m k mk l kl mkl n b.
@@ -1222,48 +1219,6 @@ module Tube (F : Fam) = struct
       type m k mk l kl mkl b.
       (m, k, mk) D.plus -> (k, l, kl) D.plus -> (m, kl, mkl, b) t -> (mk, l, mkl, b) t =
    fun mk kl tr -> gpboundary mk kl tr
-
-  (* We can lift a tube too *)
-
-  let rec glift :
-      type m k mk n1 n2 n12 b.
-      b C.lifter -> (n1, n2, n12) D.plus -> (m, k, mk, n1, b) gt -> (m, k, mk, n12, b) gt =
-   fun f n12 tr ->
-    match tr with
-    | Leaf m -> Leaf m
-    | Branch (ends, mid) ->
-        let (Suc n12') = N.suc_plus n12 in
-        Branch (Bwv.map (fun t -> C.lift f n12' t) ends, glift f n12 mid)
-
-  (* We can fill in the missing pieces of a tube with a cube, yielding a cube. *)
-
-  let rec gplus_gcube : type n m l ml b. (m, l, ml, n, b) gt -> (m, n, b) C.gt -> (ml, n, b) C.gt =
-   fun tl tm ->
-    match tl with
-    | Leaf _ -> tm
-    | Branch (ends, mid) -> Branch (ends, gplus_gcube mid tm)
-
-  let plus_cube : type m l ml b. b C.lifter -> (m, l, ml, b) t -> (m, b) C.t -> (ml, b) C.t =
-   fun f tl tm ->
-    let ml = gplus tl in
-    gplus_gcube tl (C.lift f ml tm)
-
-  (* Or we can fill in some of those missing pieces with a tube instead, yielding another tube. *)
-
-  let rec gplus_gtube :
-      type n m k mk l kl mkl b.
-      (k, l, kl) D.plus -> (mk, l, mkl, n, b) gt -> (m, k, mk, n, b) gt -> (m, kl, mkl, n, b) gt =
-   fun kl tl tk ->
-    match (kl, tl) with
-    | Zero, Leaf _ -> tk
-    | Suc kl, Branch (ends, mid) -> Branch (ends, gplus_gtube kl mid tk)
-
-  let plus_tube :
-      type m k mk l kl mkl b.
-      b C.lifter -> (k, l, kl) D.plus -> (mk, l, mkl, b) t -> (m, k, mk, b) t -> (m, kl, mkl, b) t =
-   fun f kl tl tk ->
-    let mk_l = gplus tl in
-    gplus_gtube kl tl (glift f mk_l tk)
 
   (* Heterogeneous lists and multimaps *)
 
@@ -1660,7 +1615,51 @@ module Tube (F : Fam) = struct
    fun x y -> Branch (Snoc (Snoc (Emp, Leaf x), Leaf y), Leaf D.zero)
 end
 
-module TubeOf = Tube (FamOf)
+module TubeOf = struct
+  include Tube (FamOf)
+
+  (* We can lift a tube too *)
+
+  let rec glift :
+      type m k mk n1 n2 n12 b. (n1, n2, n12) D.plus -> (m, k, mk, n1, b) gt -> (m, k, mk, n12, b) gt
+      =
+   fun n12 tr ->
+    match tr with
+    | Leaf m -> Leaf m
+    | Branch (ends, mid) ->
+        let (Suc n12') = N.suc_plus n12 in
+        Branch (Bwv.map (fun t -> CubeOf.lift n12' t) ends, glift n12 mid)
+
+  (* We can fill in the missing pieces of a tube with a cube, yielding a cube. *)
+
+  let rec gplus_gcube : type n m l ml b. (m, l, ml, n, b) gt -> (m, n, b) C.gt -> (ml, n, b) C.gt =
+   fun tl tm ->
+    match tl with
+    | Leaf _ -> tm
+    | Branch (ends, mid) -> Branch (ends, gplus_gcube mid tm)
+
+  let plus_cube : type m l ml b. (m, l, ml, b) t -> (m, b) C.t -> (ml, b) C.t =
+   fun tl tm ->
+    let ml = gplus tl in
+    gplus_gcube tl (CubeOf.lift ml tm)
+
+  (* Or we can fill in some of those missing pieces with a tube instead, yielding another tube. *)
+
+  let rec gplus_gtube :
+      type n m k mk l kl mkl b.
+      (k, l, kl) D.plus -> (mk, l, mkl, n, b) gt -> (m, k, mk, n, b) gt -> (m, kl, mkl, n, b) gt =
+   fun kl tl tk ->
+    match (kl, tl) with
+    | Zero, Leaf _ -> tk
+    | Suc kl, Branch (ends, mid) -> Branch (ends, gplus_gtube kl mid tk)
+
+  let plus_tube :
+      type m k mk l kl mkl b.
+      (k, l, kl) D.plus -> (mk, l, mkl, b) t -> (m, k, mk, b) t -> (m, kl, mkl, b) t =
+   fun kl tl tk ->
+    let mk_l = gplus tl in
+    gplus_gtube kl tl (glift mk_l tk)
+end
 
 (* ********** Faces ********** *)
 

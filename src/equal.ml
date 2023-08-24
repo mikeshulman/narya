@@ -48,9 +48,7 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
           | Some (Record (Eta, k, fields)) ->
               let env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
               (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-              let env =
-                Ext (env, TubeOf.plus_cube { lift = (fun x -> x) } tyargs (CubeOf.singleton x))
-              in
+              let env = Ext (env, TubeOf.plus_cube tyargs (CubeOf.singleton x)) in
               miterM
                 (fun [ (fld, fldty) ] ->
                   equal_at n (field x fld) (field y fld)

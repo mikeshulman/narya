@@ -223,8 +223,6 @@ module Cube (F : Fam) : sig
     ('n, 'b) t ->
     ('c, 'lenf) Bwv.t * ('n, 'd) t
 
-  type 'b lifter = { lift : 'a1 'a2. ('a1, 'b) F.t -> ('a2, 'b) F.t }
-
   val subcube : ('m, 'n) sface -> ('n, 'b) t -> ('m, 'b) t
 end
 
@@ -299,14 +297,6 @@ module Tube (F : Fam) : sig
   val uninst : ('m, 'k, 'mk, 'b) t -> 'm D.t
   val out : ('m, 'k, 'mk, 'b) t -> 'mk D.t
   val empty : 'n D.t -> ('n, D.zero, 'n, 'b) t
-  val plus_cube : 'b C.lifter -> ('mk, 'l, 'mkl, 'b) t -> ('mk, 'b) C.t -> ('mkl, 'b) C.t
-
-  val plus_tube :
-    'b C.lifter ->
-    ('k, 'l, 'kl) D.plus ->
-    ('mk, 'l, 'mkl, 'b) t ->
-    ('m, 'k, 'mk, 'b) t ->
-    ('m, 'kl, 'mkl, 'b) t
 
   module Heter : sig
     type (_, _, _, _, _) hgt =
@@ -377,7 +367,14 @@ module Tube (F : Fam) : sig
   val pair : (D.zero, 'b) F.t -> (D.zero, 'b) F.t -> (D.zero, one, one, 'b) t
 end
 
-module TubeOf : module type of Tube (FamOf)
+module TubeOf : sig
+  include module type of Tube (FamOf)
+
+  val plus_cube : ('mk, 'l, 'mkl, 'b) t -> ('mk, 'b) C.t -> ('mkl, 'b) C.t
+
+  val plus_tube :
+    ('k, 'l, 'kl) D.plus -> ('mk, 'l, 'mkl, 'b) t -> ('m, 'k, 'mk, 'b) t -> ('m, 'kl, 'mkl, 'b) t
+end
 
 type (_, _) face = Face : ('m, 'n) sface * 'm perm -> ('m, 'n) face
 

@@ -802,53 +802,57 @@ module Cube (F : Fam) = struct
 
   (* Sometimes we also want to fold onto a Bwv, however, and for that we need to track the face arithmetic. *)
 
-  type ('n, 'c, 'b) fold_left_appender = {
-    fold : 'm 'len. ('c, 'len) Bwv.t -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c;
+  type ('n, 'c, 'b, 'd) fold_left_append_mapper = {
+    fold : 'm 'len. ('c, 'len) Bwv.t -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c * ('m, 'd) F.t;
   }
 
-  let rec gfold_left_append :
-      type k m km n b l c len f lenf.
+  let rec gfold_left_append_map :
+      type k m km n b l c d len f lenf.
       (k, m, km) D.plus ->
       (l, m, n) D.plus ->
       (k, l) bwsface ->
-      (n, c, b) fold_left_appender ->
+      (n, c, b, d) fold_left_append_mapper ->
       (c, len) Bwv.t ->
       (m, f) count_faces ->
       (len, f, lenf) N.plus ->
       (m, km, b) gt ->
-      (c, lenf) Bwv.t =
+      (c, lenf) Bwv.t * (m, km, d) gt =
    fun km lm d g acc mf lenf tr ->
     match tr with
     | Leaf x ->
         let Zero, Zero = (km, lm) in
         let Eq = faces_uniq faces_zero mf in
         let (Suc Zero) = lenf in
-        Snoc (acc, g.fold acc (sface_of_bw d) x)
+        let gx1, gx2 = g.fold acc (sface_of_bw d) x in
+        (Snoc (acc, gx1), Leaf gx2)
     | Branch (ends, mid) ->
         let (Suc km') = km in
         let (Suc (mf', Suc (ft, pq))) = mf in
         let (Plus lenf') = N.plus (N.times_out ft) in
         let lenff = N.plus_assocl lenf' pq lenf in
-        let acc =
-          Bwv.fold_left2_bind_append ft lenf' acc Endpoints.indices ends
+        let acc, newends =
+          Bwv.fold_left2_bind_append_map ft lenf' acc Endpoints.indices ends
             {
               append =
                 (fun pq cx e br ->
-                  gfold_left_append km' (D.suc_plus'' lm) (End (e, d)) g cx mf' pq br);
+                  gfold_left_append_map km' (D.suc_plus'' lm) (End (e, d)) g cx mf' pq br);
             } in
-        gfold_left_append (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g acc mf' lenff mid
+        let acc2, newmid =
+          gfold_left_append_map (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g acc mf' lenff mid
+        in
+        (acc2, Branch (newends, newmid))
 
-  let fold_left_append :
-      type n b c len f lenf.
-      (n, c, b) fold_left_appender ->
+  let fold_left_append_map :
+      type n b c d len f lenf.
+      (n, c, b, d) fold_left_append_mapper ->
       (c, len) Bwv.t ->
       (n, f) count_faces ->
       (len, f, lenf) N.plus ->
       (n, b) t ->
-      (c, lenf) Bwv.t =
+      (c, lenf) Bwv.t * (n, d) t =
    fun g acc mf lenf tr ->
     let n = dim tr in
-    gfold_left_append (D.zero_plus n) (D.zero_plus n) Zero g acc mf lenf tr
+    gfold_left_append_map (D.zero_plus n) (D.zero_plus n) Zero g acc mf lenf tr
 
   (* If the parameter 'a of F.t is irrelevant, then we can lift any gt to any other. *)
 

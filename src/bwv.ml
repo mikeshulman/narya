@@ -322,6 +322,31 @@ let rec fold_left2_bind_append :
       let k_mn'__m = N.plus_assocl k_mn' mn'_m k_mn in
       g.append k_mn'__m (fold_left2_bind_append mn' k_mn' acc xs ys g) x y
 
+type ('a, 'b, 'c, 'd, 'm) fold_left2_bind_append_mapper = {
+  append : 'n 'nm. ('n, 'm, 'nm) N.plus -> ('a, 'n) t -> 'b -> 'c -> ('a, 'nm) t * 'd;
+}
+
+let rec fold_left2_bind_append_map :
+    type k m n mn k_mn a b c d.
+    (m, n, mn) N.times ->
+    (k, mn, k_mn) N.plus ->
+    (a, k) t ->
+    (b, n) t ->
+    (c, n) t ->
+    (a, b, c, d, m) fold_left2_bind_append_mapper ->
+    (a, k_mn) t * (d, n) t =
+ fun mn k_mn acc xs ys g ->
+  match (mn, xs, ys) with
+  | Zero _, Emp, Emp ->
+      let Eq = N.plus_uniq k_mn Zero in
+      (acc, Emp)
+  | Suc (mn', mn'_m), Snoc (xs, x), Snoc (ys, y) ->
+      let (Plus k_mn') = N.plus (N.times_out mn') in
+      let k_mn'__m = N.plus_assocl k_mn' mn'_m k_mn in
+      let res1, res2 = fold_left2_bind_append_map mn' k_mn' acc xs ys g in
+      let res1', z = g.append k_mn'__m res1 x y in
+      (res1', Snoc (res2, z))
+
 (* Conversely, a vector of length m*n can be split into a length-n vector of length-m vectors. *)
 let rec unbind : type a b m n mn. (m, n, mn) N.times -> (b, mn) t -> ((b, m) t, n) t =
  fun mn xss ->

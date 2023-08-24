@@ -211,17 +211,17 @@ module Cube (F : Fam) : sig
 
   val fold_left : ('n, 'c, 'b) fold_lefter -> 'c -> ('n, 'b) t -> 'c
 
-  type ('n, 'c, 'b) fold_left_appender = {
-    fold : 'm 'len. ('c, 'len) Bwv.t -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c;
+  type ('n, 'c, 'b, 'd) fold_left_append_mapper = {
+    fold : 'm 'len. ('c, 'len) Bwv.t -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c * ('m, 'd) F.t;
   }
 
-  val fold_left_append :
-    ('n, 'c, 'b) fold_left_appender ->
+  val fold_left_append_map :
+    ('n, 'c, 'b, 'd) fold_left_append_mapper ->
     ('c, 'len) Bwv.t ->
     ('n, 'f) count_faces ->
     ('len, 'f, 'lenf) N.plus ->
     ('n, 'b) t ->
-    ('c, 'lenf) Bwv.t
+    ('c, 'lenf) Bwv.t * ('n, 'd) t
 
   type 'b lifter = { lift : 'a1 'a2. ('a1, 'b) F.t -> ('a2, 'b) F.t }
 end

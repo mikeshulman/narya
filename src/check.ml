@@ -7,31 +7,6 @@ open Norm
 open Equal
 open Monad.Ops (Monad.Maybe)
 
-(* A context is a list of variables with types which are values.  The variables themselves, when represented by De Bruijn LEVELS, can appear in the types of later variables.  In particular, the LENGTH of this context, which is its type parameter as a type-level nat, is the current De Bruijn LEVEL for new variables to be added.  We can look up the INDEX of a TERM VARIABLE into this Bwv to get its type, but not of course the LEVEL of a VALUE VARIABLE. *)
-type 'a ctx = (value, 'a) Bwv.t
-
-let level_of : 'a ctx -> int = fun ctx -> N.to_int (Bwv.length ctx)
-
-(* The empty context *)
-let empty_ctx : N.zero ctx = Emp
-
-(* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with their boundaries. *)
-let rec env_of_ctx : type a. a ctx -> (D.zero, a) env = function
-  | Emp -> Emp D.zero
-  | Snoc (ctx, ty) ->
-      Ext (env_of_ctx ctx, CubeOf.build D.zero { build = (fun _ -> var (level_of ctx) ty) })
-
-(* Evaluate a term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
-let eval_in_ctx : type a. a ctx -> a term -> value = fun ctx tm -> eval (env_of_ctx ctx) tm
-
-(* Extend a context by a finite number of new variables, whose types are specified in a hashtable. *)
-let rec ctx_exts :
-    type a b ab c. a ctx -> (a, b, ab) N.plus -> (c, b) Bwv.t -> (c, value) Hashtbl.t -> ab ctx =
- fun ctx ab keys vals ->
-  match (ab, keys) with
-  | Zero, Emp -> ctx
-  | Suc ab, Snoc (keys, key) -> Snoc (ctx_exts ctx ab keys vals, Hashtbl.find vals key)
-
 (* Look through a specified number of lambdas to find an inner body. *)
 let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check option =
  fun ab tm ->
@@ -52,12 +27,12 @@ let spine : type a. a synth -> a synth * a check list =
     | _ -> (tm, args) in
   spine tm []
 
-let rec check : type a. a ctx -> a check -> value -> a term option =
+let rec check : type a. a Ctx.t -> a check -> value -> a term option =
  fun ctx tm ty ->
   match tm with
   | Synth stm ->
       let* sval, sty = synth ctx stm in
-      let* () = equal_val (level_of ctx) sty ty in
+      let* () = equal_val ctx sty ty in
       return sval
   | Lam _ ->
       (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam.  If the "type" is not a type or not fully instantiated here, that's a user error, not a bug. *)
@@ -65,7 +40,7 @@ let rec check : type a. a ctx -> a check -> value -> a term option =
       check_lam ctx tm ty args
 
 and check_lam :
-    type a m n mn f. a ctx -> a check -> uninst -> (m, n, mn, value) TubeOf.t -> a term option =
+    type a m n mn f. a Ctx.t -> a check -> uninst -> (m, n, mn, value) TubeOf.t -> a term option =
  fun ctx tm ty args ->
   match ty with
   | Pi (doms, cods) -> (
@@ -80,33 +55,8 @@ and check_lam :
           let (Faces dom_faces) = count_faces (CubeOf.dim doms) in
           let (Plus af) = N.plus (faces_out dom_faces) in
           let* body = lambdas af tm in
-          (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones.  We store them in a hashtable as we go, for easy access to the previous ones for this instantiation. *)
-          let argtbl = Hashtbl.create 10 in
-          let ctx =
-            CubeOf.fold_left_append
-              {
-                fold =
-                  (fun c fa dom ->
-                    let ty =
-                      inst dom
-                        (TubeOf.build D.zero
-                           (D.zero_plus (dom_sface fa))
-                           {
-                             build =
-                               (fun fc ->
-                                 Hashtbl.find argtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
-                           }) in
-                    let v =
-                      Uninst
-                        (Neu
-                           { fn = Var { level = level_of c; deg = id_deg D.zero }; args = Emp; ty })
-                    in
-                    let () = Hashtbl.add argtbl (SFace_of fa) v in
-                    ty);
-              }
-              ctx dom_faces af doms in
-          (* TODO: Can we combine this with the previous iteration? *)
-          let newargs = CubeOf.build m { build = (fun fa -> Hashtbl.find argtbl (SFace_of fa)) } in
+          (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
+          let ctx, newargs = Ctx.dom_vars ctx dom_faces af doms in
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
           let out_args =
             TubeOf.mmap
@@ -130,7 +80,7 @@ and check_lam :
       Printf.printf "Can't check lambda against non-pi-type";
       None
 
-and synth : type a. a ctx -> a synth -> (a term * value) option =
+and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
  fun ctx tm ->
   match tm with
   | Var v -> return (Term.Var v, Bwv.nth v ctx)
@@ -138,14 +88,14 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
   | Field (tm, fld) ->
       let* stm, sty = synth ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
-      let etm = eval_in_ctx ctx stm in
+      let etm = Ctx.eval ctx stm in
       let* newty = tyof_field_opt etm sty fld in
       return (Field (stm, fld), newty)
   | UU -> return (Term.UU, Uninst (UU D.zero))
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let* cdom = check ctx dom (Uninst (UU D.zero)) in
-      let edom = eval_in_ctx ctx cdom in
+      let edom = Ctx.eval ctx cdom in
       let* ccod = check (Snoc (ctx, edom)) cod (Uninst (UU D.zero)) in
       return (Term.Pi (cdom, ccod), Uninst (UU D.zero))
   | App _ ->
@@ -158,11 +108,11 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
       synth ctx (App (App (Refl a, x), y))
   | Refl x ->
       let* sx, ety = synth ctx x in
-      let ex = eval_in_ctx ctx sx in
+      let ex = Ctx.eval ctx sx in
       return (Refl sx, act_ty ex ety refl)
   | Sym x -> (
       let* sx, ety = synth ctx x in
-      let ex = eval_in_ctx ctx sx in
+      let ex = Ctx.eval ctx sx in
       try
         let symty = act_ty ex ety sym in
         return (Sym sx, symty)
@@ -171,12 +121,12 @@ and synth : type a. a ctx -> a synth -> (a term * value) option =
         None)
   | Asc (tm, ty) ->
       let* cty = check ctx ty (Uninst (UU D.zero)) in
-      let ety = eval_in_ctx ctx cty in
+      let ety = Ctx.eval ctx cty in
       let* ctm = check ctx tm ety in
       return (ctm, ety)
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
-and synth_apps : type a. a ctx -> a term -> value -> a check list -> (a term * value) option =
+and synth_apps : type a. a Ctx.t -> a term -> value -> a check list -> (a term * value) option =
  fun ctx sfn sty args ->
   (* Failure of full_inst here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
   let (Fullinst (fnty, tyargs)) = full_inst sty "synth_apps" in
@@ -187,11 +137,11 @@ and synth_apps : type a. a ctx -> a term -> value -> a check list -> (a term * v
   | _ :: _ -> synth_apps ctx afn aty aargs
 
 and synth_app :
-    type a m n mn f.
-    a ctx ->
+    type a n f.
+    a Ctx.t ->
     a term ->
     uninst ->
-    (m, n, mn, value) TubeOf.t ->
+    (D.zero, n, n, value) TubeOf.t ->
     a check list ->
     (a term * value * a check list) option =
  fun ctx sfn fnty tyargs args ->
@@ -202,17 +152,16 @@ and synth_app :
         type t = a check list
       end)
   in
+  (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied. *)
   match fnty with
   (* The obvious thing we can "apply" is an element of a pi-type. *)
   | Pi (doms, cods) -> (
-      (* Ensure that the pi-type is fully instantiated and at the right dimension. *)
-      let n = CubeOf.dim doms in
-      match (compare (TubeOf.inst tyargs) n, compare (TubeOf.uninst tyargs) D.zero) with
-      | Neq, _ | _, Neq ->
+      (* Ensure that the pi-type is (fully) instantiated at the right dimension. *)
+      match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
+      | Neq ->
           Printf.printf "Dimension mismatch when synthesizing applied function";
           None
-      | Eq, Eq ->
-          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus n) in
+      | Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
           let eargtbl = Hashtbl.create 10 in
           let* [ cargs; eargs ], rest =
@@ -240,9 +189,9 @@ and synth_app :
                                  Hashtbl.find eargtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
                            }) in
                     let* ctm = M.stateless (check ctx tm ty) in
-                    let etm = eval_in_ctx ctx ctm in
-                    Hashtbl.add eargtbl (SFace_of fa) etm;
-                    return (ctm @: [ etm ]));
+                    let tm = Ctx.eval ctx ctm in
+                    Hashtbl.add eargtbl (SFace_of fa) tm;
+                    return (ctm @: [ tm ]));
               }
               [ doms ] (Cons (Cons Nil)) args in
           (* Evaluate cod at these evaluated arguments, and instantiate it at the appropriate values of tyargs, as with similar code in other places. *)
@@ -258,21 +207,20 @@ and synth_app :
                          }));
               }
               [ tyargs ] in
-          let idf = id_sface n in
+          let idf = id_sface (CubeOf.dim doms) in
           let output = inst (apply_binder (BindCube.find cods idf) idf eargs) out_args in
           return (Term.App (sfn, cargs), output, rest))
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (
-      (* Ensure that the universe is fully instantiated and at the right dimension. *)
-      match (compare (TubeOf.inst tyargs) n, compare (TubeOf.uninst tyargs) D.zero) with
-      | Neq, _ | _, Neq ->
+      (* Ensure that the universe is (fully) instantiated at the right dimension. *)
+      match compare (TubeOf.inst tyargs) n with
+      | Neq ->
           Printf.printf "Dimension mismatch when synthesizing instantiation";
           None
-      | Eq, Eq -> (
-          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus n) in
+      | Eq -> (
           match D.compare_zero n with
           | Zero ->
-              Printf.printf "Cannot instatiate a zero-dimensional type";
+              Printf.printf "Cannot further instantiate a zero-dimensional type";
               None
           | Pos pn ->
               (* We take enough arguments to instatiate a type of dimension n by one, and check each argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments.  This requires random access to the previous evaluated arguments, so we store those in a hashtable, while also assembling them into a tube for later. *)
@@ -306,7 +254,7 @@ and synth_app :
                             } in
                         let ty = inst tyarg kargs in
                         let* ctm = M.stateless (check ctx tm ty) in
-                        let etm = eval_in_ctx ctx ctm in
+                        let etm = Ctx.eval ctx ctm in
                         let () = Hashtbl.add eargtbl (SFace_of fa) etm in
                         return (ctm @: [ etm ]));
                   }

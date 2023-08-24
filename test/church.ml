@@ -1,16 +1,16 @@
 open Narya
 open Raw
 
-let synth tm = fst (Option.get (Check.synth Check.empty_ctx tm))
-let check tm ty = Option.get (Check.check Check.empty_ctx tm ty)
-let ev tm = Check.eval_in_ctx Check.empty_ctx tm
+let synth tm = fst (Option.get (Check.synth Ctx.empty tm))
+let check tm ty = Option.get (Check.check Ctx.empty tm ty)
+let ev tm = Ctx.eval Ctx.empty tm
 let app fn arg = Norm.apply fn (Dim.CubeOf.singleton arg)
 
 let equal_at tm1 tm2 ty =
-  if Option.is_some (Equal.equal_at 0 tm1 tm2 ty) then () else raise (Failure "Unequal")
+  if Option.is_some (Equal.equal_at Emp tm1 tm2 ty) then () else raise (Failure "Unequal")
 
 let unequal_at tm1 tm2 ty =
-  if Option.is_none (Equal.equal_at 0 tm1 tm2 ty) then () else raise (Failure "Equal")
+  if Option.is_none (Equal.equal_at Emp tm1 tm2 ty) then () else raise (Failure "Equal")
 
 let raw_nat = Pi (Synth (Pi (Synth UU, Synth UU)), Synth (Pi (Synth UU, Synth UU)))
 let nat = ev (synth raw_nat)

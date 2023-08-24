@@ -54,9 +54,9 @@ let ( @-> ) x body = Lam (x, body) (* Right-associative *)
 let ( $. ) x fld = Field (x, fld)
 
 (* The current context of assumptions, including names. *)
-type ctx = Ctx : 'n Check.ctx * (string, 'n) Bwv.t -> ctx
+type ctx = Ctx : 'n Ctx.t * (string, 'n) Bwv.t -> ctx
 
-let ectx = Ctx (Check.empty_ctx, Emp)
+let ectx = Ctx (Ctx.empty, Emp)
 let context = ref ectx
 
 (* Functions to synth and check terms *)
@@ -66,7 +66,7 @@ let synth (tm : pmt) : Value.value * Value.value =
   let raw = parse_syn names tm in
   match Check.synth ctx raw with
   | Some (syn, ty) ->
-      let esyn = Check.eval_in_ctx ctx syn in
+      let esyn = Ctx.eval ctx syn in
       (esyn, ty)
   | None -> raise (Failure "Synthesis failure")
 
@@ -74,7 +74,7 @@ let check (tm : pmt) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_chk names tm in
   match Check.check ctx raw ty with
-  | Some chk -> Check.eval_in_ctx ctx chk
+  | Some chk -> Ctx.eval ctx chk
   | None -> raise (Failure "Checking failure")
 
 (* Assert that a term *doesn't* synthesize or check *)
@@ -104,23 +104,19 @@ let assume (x : string) (ty : Value.value) : Value.value =
 
 let equal_at (tm1 : Value.value) (tm2 : Value.value) (ty : Value.value) : unit =
   let (Ctx (ctx, _)) = !context in
-  if Option.is_some (Equal.equal_at (Check.level_of ctx) tm1 tm2 ty) then ()
-  else raise (Failure "Unequal terms")
+  if Option.is_some (Equal.equal_at ctx tm1 tm2 ty) then () else raise (Failure "Unequal terms")
 
 let unequal_at (tm1 : Value.value) (tm2 : Value.value) (ty : Value.value) : unit =
   let (Ctx (ctx, _)) = !context in
-  if Option.is_none (Equal.equal_at (Check.level_of ctx) tm1 tm2 ty) then ()
-  else raise (Failure "Equal terms")
+  if Option.is_none (Equal.equal_at ctx tm1 tm2 ty) then () else raise (Failure "Equal terms")
 
 let equal (tm1 : Value.value) (tm2 : Value.value) : unit =
   let (Ctx (ctx, _)) = !context in
-  if Option.is_some (Equal.equal_val (Check.level_of ctx) tm1 tm2) then ()
-  else raise (Failure "Unequal terms")
+  if Option.is_some (Equal.equal_val ctx tm1 tm2) then () else raise (Failure "Unequal terms")
 
 let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
   let (Ctx (ctx, _)) = !context in
-  if Option.is_none (Equal.equal_val (Check.level_of ctx) tm1 tm2) then ()
-  else raise (Failure "Equal terms")
+  if Option.is_none (Equal.equal_val ctx tm1 tm2) then () else raise (Failure "Equal terms")
 
 (* Infix notation for applying values *)
 

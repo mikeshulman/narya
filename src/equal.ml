@@ -50,8 +50,7 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
                          }));
               }
               [ tyargs ] in
-          let idf = id_sface k in
-          let output = inst (apply_binder (BindCube.find cods idf) idf newargs) out_args in
+          let output = inst (apply_binder (BindCube.find cods (id_sface k)) newargs) out_args in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at newlvl (apply x newargs) (apply y newargs) output)
   | Neu { fn = Const { name; dim }; args; ty = _ } -> (
@@ -134,7 +133,8 @@ and equal_uninst : type a. a Ctx.t -> uninst -> uninst -> unit option =
             {
               it =
                 (fun s [ cod1; cod2 ] ->
-                  equal_val newlvl (apply_binder cod1 s newargs) (apply_binder cod2 s newargs));
+                  let sargs = CubeOf.subcube s newargs in
+                  equal_val newlvl (apply_binder cod1 sargs) (apply_binder cod2 sargs));
             }
             [ cod1s; cod2s ]
       | Neq ->

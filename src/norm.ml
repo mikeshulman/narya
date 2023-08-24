@@ -114,7 +114,7 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
       let m = CubeOf.dim arg in
       match compare (dim_binder body) m with
       | Neq -> raise (Failure "Dimension mismatch applying a lambda")
-      | Eq -> apply_binder body (id_sface m) arg)
+      | Eq -> apply_binder body arg)
   (* If it is a neutral application... *)
   | Uninst (Neu { fn; args; ty }) -> (
       let (Fullinst (ty, tyargs)) = full_inst ty "apply" in
@@ -289,8 +289,7 @@ and annote_arg :
                      { build = (fun fc -> CubeOf.find args (comp_sface (sface_of_tface fab) fc)) }));
           }
           [ pi_args ] in
-      let idf = id_sface mn in
-      let output = inst (apply_binder (BindCube.find cods idf) idf args) out_args in
+      let output = inst (apply_binder (BindCube.find cods (id_sface mn)) args) out_args in
       (App (Arg new_args, zero_ins mn), output)
 
 (* Compute a field of a structure, at a particular dimension. *)
@@ -353,9 +352,8 @@ and eval_binder :
   let perm = id_perm (D.plus_out m plus_dim) in
   Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
 
-(* TODO: Describe this function, particularly the sface argument *)
-and apply_binder : type m n f a. m binder -> (m, n) sface -> (n, value) CubeOf.t -> value =
- fun (Bind b) s argstbl ->
+and apply_binder : type n. n binder -> (n, value) CubeOf.t -> value =
+ fun (Bind b) argstbl ->
   act_value
     (eval
        (env_append b.plus_faces b.env
@@ -364,8 +362,7 @@ and apply_binder : type m n f a. m binder -> (m, n) sface -> (n, value) CubeOf.t
                CubeOf.mmap
                  {
                    map =
-                     (fun _ [ Face_of (Face (fa, fb)) ] ->
-                       act_value (CubeOf.find argstbl (comp_sface s fa)) fb);
+                     (fun _ [ Face_of (Face (fa, fb)) ] -> act_value (CubeOf.find argstbl fa) fb);
                  }
                  [ ffs ])
              b.args))

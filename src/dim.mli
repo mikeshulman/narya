@@ -224,6 +224,8 @@ module Cube (F : Fam) : sig
     ('c, 'lenf) Bwv.t * ('n, 'd) t
 
   type 'b lifter = { lift : 'a1 'a2. ('a1, 'b) F.t -> ('a2, 'b) F.t }
+
+  val subcube : ('m, 'n) sface -> ('n, 'b) t -> ('m, 'b) t
 end
 
 module FamOf : sig

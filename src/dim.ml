@@ -866,6 +866,10 @@ module Cube (F : Fam) = struct
     | Branch (ends, mid) ->
         let (Suc n12') = N.suc_plus n12 in
         Branch (Bwv.map (fun t -> lift f n12' t) ends, lift f n12 mid)
+
+  (* A "subcube" of a cube of dimension n, determined by a face of n with dimension k, is the cube of dimension k consisting of the elements indexed by faces that factor through the given one. *)
+  let subcube : type m n b. (m, n) sface -> (n, b) t -> (m, b) t =
+   fun fa tr -> build (dom_sface fa) { build = (fun fb -> find tr (comp_sface fa fb)) }
 end
 
 (* In the vast majority of cases, the second type parameter 'b in a Fam can just *be* the type of the elements.  The only case when this doesn't work is when the type has to also depend on the dimension 'a. *)

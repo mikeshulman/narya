@@ -166,7 +166,7 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
            (fun f (Value.App (a, i)) ->
              act_value
                (match a with
-               | Arg arg -> apply f (val_of_norm arg)
+               | Arg arg -> apply f (val_of_norm_cube arg)
                | Field fld -> field f fld)
                (perm_of_ins i))
            res args)
@@ -243,7 +243,7 @@ and take_lam_args :
       match (is_id_any_deg ins, compare (dim_env env) (CubeOf.dim arg)) with
       | Some (), Eq ->
           take_lam_args
-            (Ext (env, val_of_norm arg))
+            (Ext (env, val_of_norm_cube arg))
             (N.suc_plus' ab)
             (Any (perm_of_ins newins))
             args

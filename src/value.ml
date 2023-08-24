@@ -196,8 +196,11 @@ let rec env_append :
   | Zero, Emp -> env
   | Suc ab, Snoc (xss, xs) -> Ext (env_append ab env xss, xs)
 
-let val_of_norm : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
+let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
  fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
+ fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
 (* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
 and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, normal) CubeOf.t =
@@ -241,7 +244,7 @@ let rec take_args :
           match compare (CubeOf.dim arg) (dim_env env) with
           | Eq ->
               (* Why is this type annotation necessary? *)
-              Ext (env, (val_of_norm arg : (n, value) CubeOf.t))
+              Ext (env, (val_of_norm_cube arg : (n, value) CubeOf.t))
           | Neq -> raise (Failure "Different dimensions in argument list")))
   | _ -> raise (Failure "Wrong number of arguments in argument list")
 

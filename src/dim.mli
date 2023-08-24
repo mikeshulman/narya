@@ -374,6 +374,9 @@ module TubeOf : sig
 
   val plus_tube :
     ('k, 'l, 'kl) D.plus -> ('mk, 'l, 'mkl, 'b) t -> ('m, 'k, 'mk, 'b) t -> ('m, 'kl, 'mkl, 'b) t
+
+  val middle :
+    ('m, 'k, 'mk) D.plus -> ('k, 'l, 'kl) D.plus -> ('m, 'kl, 'mkl, 'b) t -> ('m, 'k, 'mk, 'b) t
 end
 
 type (_, _) face = Face : ('m, 'n) sface * 'm perm -> ('m, 'n) face

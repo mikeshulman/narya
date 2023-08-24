@@ -867,6 +867,8 @@ end
 module CubeOf = struct
   include Cube (FamOf)
 
+  (* In this special case, we can change the indexing dimension fairly arbitrarily, although it takes a bit of work to convince OCaml.  (Of course, semantically these are identity functions.) *)
+
   let rec lift : type m n1 n2 n12 b. (n1, n2, n12) D.plus -> (m, n1, b) gt -> (m, n12, b) gt =
    fun n12 tr ->
     match tr with
@@ -874,6 +876,18 @@ module CubeOf = struct
     | Branch (ends, mid) ->
         let (Suc n12') = N.suc_plus n12 in
         Branch (Bwv.map (fun t -> lift n12' t) ends, lift n12 mid)
+
+  let rec lower :
+      type m k n1 n2 n12 b.
+      (m, k, n1) D.plus -> (n1, n2, n12) D.plus -> (m, n12, b) gt -> (m, n1, b) gt =
+   fun mk n12 tr ->
+    match (tr, n12) with
+    | Leaf x, _ -> Leaf x
+    | _, Zero -> tr
+    | Branch (ends, mid), Suc n12' ->
+        let mk' = N.suc_plus mk in
+        let (Suc mk'') = mk' in
+        Branch (Bwv.map (fun t -> lower mk'' (N.suc_plus n12') t) ends, lower mk' n12 mid)
 end
 
 (* ********** Tube faces ********** *)
@@ -1618,7 +1632,7 @@ end
 module TubeOf = struct
   include Tube (FamOf)
 
-  (* We can lift a tube too *)
+  (* We can lift and lower a tube too *)
 
   let rec glift :
       type m k mk n1 n2 n12 b. (n1, n2, n12) D.plus -> (m, k, mk, n1, b) gt -> (m, k, mk, n12, b) gt
@@ -1629,6 +1643,18 @@ module TubeOf = struct
     | Branch (ends, mid) ->
         let (Suc n12') = N.suc_plus n12 in
         Branch (Bwv.map (fun t -> CubeOf.lift n12' t) ends, glift n12 mid)
+
+  let rec glower :
+      type m k mk n1 n2 n12 l b.
+      (mk, l, n1) D.plus -> (n1, n2, n12) D.plus -> (m, k, mk, n12, b) gt -> (m, k, mk, n1, b) gt =
+   fun mk n12 tr ->
+    match (tr, n12) with
+    | Leaf m, _ -> Leaf m
+    | _, Zero -> tr
+    | Branch (ends, mid), Suc n12' ->
+        let mk' = N.suc_plus mk in
+        let (Suc mk'') = mk' in
+        Branch (Bwv.map (fun t -> CubeOf.lower mk'' (N.suc_plus n12') t) ends, glower mk' n12 mid)
 
   (* We can fill in the missing pieces of a tube with a cube, yielding a cube. *)
 
@@ -1659,6 +1685,25 @@ module TubeOf = struct
    fun kl tl tk ->
     let mk_l = gplus tl in
     gplus_gtube kl tl (glift mk_l tk)
+
+  (* We can also pick out a lower-dimensional part around the middle of a tube. *)
+
+  let rec gmiddle :
+      type m k mk l kl mkl n b.
+      (m, k, mk) D.plus -> (k, l, kl) D.plus -> (m, kl, mkl, n, b) gt -> (m, k, mk, n, b) gt =
+   fun mk kl tr ->
+    match (kl, tr) with
+    | Zero, _ ->
+        let Eq = D.plus_uniq mk (gplus tr) in
+        tr
+    | Suc kl, Branch (_, mid) -> gmiddle mk kl mid
+
+  let middle :
+      type m k mk l kl mkl b.
+      (m, k, mk) D.plus -> (k, l, kl) D.plus -> (m, kl, mkl, b) t -> (m, k, mk, b) t =
+   fun mk kl tr ->
+    let mk_l = D.plus_assocl mk kl (plus tr) in
+    glower Zero mk_l (gmiddle mk kl tr)
 end
 
 (* ********** Faces ********** *)

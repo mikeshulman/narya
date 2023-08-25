@@ -17,7 +17,11 @@ module rec Value : sig
     | Var : { level : int; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; dim : 'n D.t } -> head
 
-  and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
+  and 'n arg =
+    | Arg of ('n, normal) CubeOf.t
+    (* Fields don't store the dimension; the same field name is used at all dimensions. *)
+    | Field of Field.t
+
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
 
   and _ binder =
@@ -36,6 +40,7 @@ module rec Value : sig
     | UU : 'n D.t -> uninst
     | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     | Neu : head * app Bwd.t -> uninst
+  (* TODO: Should there be an Inert constructor here? *)
 
   and value =
     | Uninst : uninst * value Lazy.t -> value
@@ -47,6 +52,8 @@ module rec Value : sig
       }
         -> value
     | Lam : 'k binder -> value
+    (* Like fields, structs don't store the dimension. *)
+    | Struct : value Field.Map.t -> value
 
   and normal = { tm : value; ty : value }
 
@@ -112,6 +119,8 @@ end = struct
         -> value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k binder -> value
+    (* The same is true for anonymous structs. *)
+    | Struct : value Field.Map.t -> value
 
   (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
   and normal = { tm : value; ty : value }
@@ -212,7 +221,8 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
                   let tys = inst_args args2 tys in
                   Inst { tm; dim = dim2; args = args2; tys })
           | _ -> raise (Failure "Can't instantiate non-type"))
-      | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))
+      | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction")
+      | Struct _ -> raise (Failure "Can't instantiate struct"))
 
 and inst_args :
     type m n mn.

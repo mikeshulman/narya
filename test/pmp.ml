@@ -15,11 +15,17 @@ type pmt =
   | Sym : pmt -> pmt
   | Asc : pmt * pmt -> pmt
   | Lam : string * pmt -> pmt
+  | Struct : (string * pmt) list -> pmt
 
 (* Using a Bwv of variable names, to turn them into De Bruijn indices, we can parse such a term into a synth/checkable one. *)
 let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
  fun ctx -> function
   | Lam (x, body) -> Lam (parse_chk (Snoc (ctx, x)) body)
+  | Struct tms ->
+      Struct
+        (List.fold_left
+           (fun acc (fld, tm) -> Field.Map.add (Field.intern fld) (parse_chk ctx tm) acc)
+           Field.Map.empty tms)
   | tm -> Synth (parse_syn ctx tm)
 
 and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
@@ -52,6 +58,7 @@ let sym x = Sym x
 let ( <:> ) tm ty = Asc (tm, ty)
 let ( @-> ) x body = Lam (x, body) (* Right-associative *)
 let ( $. ) x fld = Field (x, fld)
+let struc tms = Struct tms
 
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : 'n Ctx.t * (string, 'n) Bwv.t -> ctx

@@ -89,6 +89,7 @@ and equal_val : type a. a Ctx.t -> value -> value -> unit option =
           msg "Unequal dimensions of instantiation";
           fail)
   | Lam _, _ | _, Lam _ -> raise (Failure "Unexpected lambda in synthesizing equality-check")
+  | Struct _, _ | _, Struct _ -> raise (Failure "Unexpected struct in synthesizing equality-check")
   | _, _ ->
       msg "Unequal terms in synthesizing equality-check";
       fail

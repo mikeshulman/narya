@@ -12,4 +12,7 @@ type _ synth =
   | Sym : 'a synth -> 'a synth
   | Asc : 'a check * 'a check -> 'a synth
 
-and _ check = Synth : 'a synth -> 'a check | Lam : 'a N.suc check -> 'a check
+and _ check =
+  | Synth : 'a synth -> 'a check
+  | Lam : 'a N.suc check -> 'a check
+  | Struct : 'a check Field.Map.t -> 'a check

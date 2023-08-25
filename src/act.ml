@@ -57,6 +57,7 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
   | Lam body ->
       let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
       Lam (act_binder body fa)
+  | Struct fields -> Struct (Field.Map.map (fun tm -> act_value tm s) fields)
 
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
@@ -196,6 +197,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
                   Inst { tm = act_uninst ty fa; dim; args; tys = TubeOf.empty D.zero }))
       | _ -> raise (Failure "Acting on non-type as if a type"))
   | Lam _ -> raise (Failure "A lambda-abstraction cannot be a type to act on")
+  | Struct _ -> raise (Failure "A struct cannot be a type to act on")
 
 (* Action on a head *)
 and act_head : type a b. head -> (a, b) deg -> head =

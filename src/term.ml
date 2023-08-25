@@ -15,5 +15,6 @@ type _ term =
   | Pi : 'a term * 'a N.suc term -> 'a term
   | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
   | Lam : ('n, 'f) count_faces * ('a, 'f, 'af) N.plus * 'af term -> 'a term
+  | Struct : 'a term Field.Map.t -> 'a term
   | Refl : 'a term -> 'a term
   | Sym : 'a term -> 'a term

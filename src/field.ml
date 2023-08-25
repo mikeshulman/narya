@@ -1,4 +1,11 @@
-type t = string
+module Field = struct
+  type t = string
+
+  let compare (x : t) (y : t) = compare x y
+end
+
+type t = Field.t
 
 let intern (str : string) : t = str
-let compare (x : t) (y : t) = compare x y
+
+module Map = Map.Make (Field)

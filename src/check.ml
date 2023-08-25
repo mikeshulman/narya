@@ -29,28 +29,21 @@ let spine : type a. a synth -> a synth * a check list =
 
 let rec check : type a. a Ctx.t -> a check -> value -> a term option =
  fun ctx tm ty ->
-  match tm with
-  | Synth stm ->
+  (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
+  let* (Fullinst (uty, tyargs)) = full_inst_opt ty in
+  match (tm, uty) with
+  | Synth stm, _ ->
       let* sval, sty = synth ctx stm in
       let* () = equal_val ctx sty ty in
       return sval
-  | Lam _ ->
-      (* We don't pick up the body here, only the presence of at least one lambda.  We'll pick up an appropriate number of lambdas in check_lam.  If the "type" is not a type or not fully instantiated here, that's a user error, not a bug. *)
-      let* (Fullinst (ty, args)) = full_inst_opt ty in
-      check_lam ctx tm ty args
-
-and check_lam :
-    type a m n mn f. a Ctx.t -> a check -> uninst -> (m, n, mn, normal) TubeOf.t -> a term option =
- fun ctx tm ty args ->
-  match ty with
-  | Pi (doms, cods) -> (
+  | Lam _, Pi (doms, cods) -> (
       let m = CubeOf.dim doms in
-      match (compare (TubeOf.uninst args) D.zero, compare (TubeOf.inst args) m) with
-      | Neq, _ | _, Neq ->
+      match compare (TubeOf.inst tyargs) m with
+      | Neq ->
           msg "Dimension mismatch in checking lambda";
           None
-      | Eq, Eq ->
-          let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus m) in
+      | Eq ->
+          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
           let (Faces dom_faces) = count_faces (CubeOf.dim doms) in
           let (Plus af) = N.plus (faces_out dom_faces) in
@@ -58,13 +51,54 @@ and check_lam :
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
           let ctx, newargs = Ctx.dom_vars ctx dom_faces af doms in
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
-          let output = tyof_app cods args newargs in
+          let output = tyof_app cods tyargs newargs in
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
-  (* We can't check a lambda-abstraction against anything except a pi-type. *)
-  | _ ->
-      msg "Can't check lambda against non-pi-type";
-      None
+  | Struct tms, Neu (Const { name; dim }, args) -> (
+      let* (Record (_, k, fields)) = Hashtbl.find_opt Global.records name in
+      (* Kind of copied from tyof_field *)
+      match compare (TubeOf.inst tyargs) dim with
+      | Neq -> None
+      | Eq ->
+          let* env = take_args_opt (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
+          (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
+          let module M =
+            Monad.StateT
+              (Monad.Maybe)
+              (struct
+                type t = a term Field.Map.t * value Field.Map.t
+              end)
+          in
+          let open Mlist.Monadic (M) in
+          (* We have to accumulate the evaluated terms for use as we go in typechecking, but we throw them away at the end.  (As usual, that seems wasteful.) *)
+          let* (), (ctms, _) =
+            miterM
+              (fun [ (fld, fldty) ] ->
+                let open Monad.Ops (M) in
+                let* ctms, etms = M.get in
+                let prev_tm = Value.Struct etms in
+                let envtm =
+                  Ext (env, TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton prev_tm))
+                in
+                let ty =
+                  inst (eval envtm fldty)
+                    (TubeOf.build D.zero (D.zero_plus dim)
+                       {
+                         build =
+                           (fun fa ->
+                             let x = TubeOf.find tyargs fa in
+                             let tm = field x.tm fld in
+                             let ty = tyof_field x.tm x.ty fld in
+                             { tm; ty });
+                       }) in
+                let* tm = M.stateless (Field.Map.find_opt fld tms) in
+                let* ctm = M.stateless (check ctx tm ty) in
+                let etm = Ctx.eval ctx ctm in
+                M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms))
+              [ fields ]
+              (Field.Map.empty, Field.Map.empty) in
+          return (Struct ctms))
+  | _ -> None
 
 and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
  fun ctx tm ->

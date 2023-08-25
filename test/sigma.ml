@@ -5,7 +5,8 @@ let uu, _ = synth UU
 let aa = assume "A" uu
 let atou, _ = synth (("", !!"A") @=> UU)
 let bb = assume "B" atou
-let ss, _ = synth (!~"Sig" $ !!"A" $ !!"B")
+let rss = !~"Sig" $ !!"A" $ !!"B"
+let ss, _ = synth rss
 
 (* Pairs have the correct type *)
 let a = assume "a" aa
@@ -14,6 +15,11 @@ let b = assume "b" bba
 let rs = !~"pair" $ !!"A" $ !!"B" $ !!"a" $ !!"b"
 let s, sty = synth rs
 let () = equal sty ss
+
+(* Structs also have the correct type *)
+let ( & ) x y = struc [ ("fst", x); ("snd", y) ]
+let rt = !!"a" & !!"b"
+let t = check rt ss
 
 (* Projections have the correct type *)
 let x = assume "x" ss
@@ -27,15 +33,26 @@ let () = equal x2ty x2ty'
 (* Projections of pairs compute *)
 let a', aa' = synth (rs $. "fst")
 let () = equal aa' aa
-let () = equal_at a a' aa
+let () = equal a a'
 let b', bba' = synth (rs $. "snd")
 let () = equal bba' bba
 let () = equal b b'
 
-(* Projections satisfy eta-conversion *)
+(* Projections of structs also compute *)
+let a'', aa'' = synth (rt <:> rss $. "fst")
+let () = equal aa'' aa
+let () = equal a'' a
+let b'', bba'' = synth (rt <:> rss $. "snd")
+let () = equal bba'' bba
+let () = equal b'' b
+
+(* Projections satisfy eta-conversion for both pairs and structs *)
 let x' = check (!~"pair" $ !!"A" $ !!"B" $ (!!"x" $. "fst") $ (!!"x" $. "snd")) ss
 let () = equal_at x x' ss
 let () = unequal x x' (* Need typed equality for eta! *)
+let x'' = check (!!"x" $. "fst" & !!"x" $. "snd") ss
+let () = equal_at x x'' ss
+let () = equal_at x' x'' ss
 
 (* Identifications can be paired to give an identification of pairs *)
 let a0 = assume "a0" aa
@@ -48,15 +65,16 @@ let ida0a1, _ = synth (id !!"A" !!"a0" !!"a1")
 let a2 = assume "a2" ida0a1
 let idb0b1, _ = synth (refl !!"B" $ !!"a0" $ !!"a1" $ !!"a2" $ !!"b0" $ !!"b1")
 let b2 = assume "b2" idb0b1
-let s0 = check (!~"pair" $ !!"A" $ !!"B" $ !!"a0" $ !!"b0") ss
-let s1 = check (!~"pair" $ !!"A" $ !!"B" $ !!"a1" $ !!"b1") ss
 
-let ids0s1, _ =
-  synth
-    (id
-       (!~"Sig" $ !!"A" $ !!"B")
-       (!~"pair" $ !!"A" $ !!"B" $ !!"a0" $ !!"b0")
-       (!~"pair" $ !!"A" $ !!"B" $ !!"a1" $ !!"b1"))
+(* As for function-types, identity types of sigma-types are invariant under eta-conversion *)
+let rs0 = !~"pair" $ !!"A" $ !!"B" $ !!"a0" $ !!"b0"
+let rs0' = !!"a0" & !!"b0"
+let s0 = check rs0 ss
+let rs1 = !~"pair" $ !!"A" $ !!"B" $ !!"a1" $ !!"b1"
+let s1 = check rs1 ss
+let ids0s1, _ = synth (id rss rs0 rs1)
+let ids0s1', _ = synth (id rss rs0' rs1)
+let () = equal ids0s1 ids0s1'
 
 let rs2 =
   refl !~"pair"
@@ -73,6 +91,9 @@ let rs2 =
   $ !!"b1"
   $ !!"b2"
 
+let rs2' = !!"a2" & !!"b2"
+let s2, s2ty = synth rs2
+let () = equal s2ty ids0s1
 let s2 = check rs2 ids0s1
 
 (* And projected back out again to the inputs *)
@@ -101,3 +122,12 @@ let refls', _ =
     $ refl !!"b")
 
 let () = equal refls refls'
+
+(* And with structs *)
+let reflt, idabab = synth (refl ((!!"a" & !!"b") <:> rss))
+let reflt' = check (refl !!"a" & refl !!"b") idabab
+let () = equal_at reflt reflt' idabab
+let () = equal_at reflt refls idabab
+let () = equal_at reflt refls' idabab
+let () = equal_at reflt' refls idabab
+let () = equal_at reflt' refls' idabab

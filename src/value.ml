@@ -140,6 +140,38 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
 let dim_binder : type m. m binder -> m D.t = function
   | Bind b -> D.plus_out (dim_env b.env) b.plus_dim
 
+(* Project out a cube or tube of values from a cube or tube of normals *)
+let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
+ fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
+ fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+(* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
+let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =
+ fun act_value env v ->
+  (* We traverse the environment, accumulating operator actions as we go, until we find the specified index. *)
+  let rec lookup : type m n b. (n, b) env -> b N.index -> (m, n) op -> value =
+   fun env v op ->
+    match (env, v) with
+    | Emp _, _ -> .
+    | Ext (_, entry), Top ->
+        (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
+        let (Op (f, s)) = op in
+        act_value (CubeOf.find entry f) (Any s)
+    | Ext (env, _), Pop v -> lookup env v op
+    | Act (env, op'), _ -> lookup env v (comp_op op' op) in
+  lookup env v (id_op (dim_env env))
+
+(* Add a Bwv of values to an environment all at once. *)
+let rec env_append :
+    type n a b ab. (a, b, ab) N.plus -> (n, a) env -> ((n, value) CubeOf.t, b) Bwv.t -> (n, ab) env
+    =
+ fun ab env xss ->
+  match (ab, xss) with
+  | Zero, Emp -> env
+  | Suc ab, Snoc (xss, xs) -> Ext (env_append ab env xss, xs)
+
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  Optionally, raise an error if it isn't. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
 
@@ -162,12 +194,6 @@ let full_inst_opt : type n. value -> full_inst option =
   match full_inst ty "" with
   | exception _ -> None
   | res -> Some res
-
-let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
- fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
-
-let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
- fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
 (* Instantiate an arbitrary value, combining tubes. *)
 let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
@@ -230,6 +256,7 @@ and inst_args :
     }
     [ tys ]
 
+(* Given a *type*, hence an element of a fully instantiated universe, extract the arguments of the instantiation of that universe.  These were stored in the extra arguments of Uninst and Inst. *)
 type inst_tys = Inst_tys : (D.zero, 'n, 'n, value) TubeOf.t -> inst_tys
 
 let inst_tys : value -> inst_tys = function
@@ -246,30 +273,6 @@ let inst_tys : value -> inst_tys = function
   | Inst { tm = _; dim = _; args = _; tys } -> Inst_tys tys
   | _ -> raise (Failure "Invalid type, has no instantiation arguments")
 
-(* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
-let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =
- fun act_value env v ->
-  (* We traverse the environment, accumulating operator actions as we go, until we find the specified index. *)
-  let rec lookup : type m n b. (n, b) env -> b N.index -> (m, n) op -> value =
-   fun env v op ->
-    match (env, v) with
-    | Emp _, _ -> .
-    | Ext (_, entry), Top ->
-        (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
-        let (Op (f, s)) = op in
-        act_value (CubeOf.find entry f) (Any s)
-    | Ext (env, _), Pop v -> lookup env v op
-    | Act (env, op'), _ -> lookup env v (comp_op op' op) in
-  lookup env v (id_op (dim_env env))
-
-let rec env_append :
-    type n a b ab. (a, b, ab) N.plus -> (n, a) env -> ((n, value) CubeOf.t, b) Bwv.t -> (n, ab) env
-    =
- fun ab env xss ->
-  match (ab, xss) with
-  | Zero, Emp -> env
-  | Suc ab, Snoc (xss, xs) -> Ext (env_append ab env xss, xs)
-
 (* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
 and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, normal) CubeOf.t =
  fun tms tys ->
@@ -280,19 +283,16 @@ and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, nor
       {
         map =
           (fun fab [ tm; ty ] ->
-            let newtm =
-              {
-                tm;
-                ty =
-                  inst ty
-                    (TubeOf.build D.zero
-                       (D.zero_plus (dom_sface fab))
-                       {
-                         build =
-                           (fun fc ->
-                             Hashtbl.find new_tm_tbl (SFace_of (comp_sface fab (sface_of_tface fc))));
-                       });
-              } in
+            let args =
+              TubeOf.build D.zero
+                (D.zero_plus (dom_sface fab))
+                {
+                  build =
+                    (fun fc ->
+                      Hashtbl.find new_tm_tbl (SFace_of (comp_sface fab (sface_of_tface fc))));
+                } in
+            let ty = inst ty args in
+            let newtm = { tm; ty } in
             Hashtbl.add new_tm_tbl (SFace_of fab) newtm;
             newtm);
       }

@@ -15,7 +15,7 @@ let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check option =
   | Suc _, Lam body -> lambdas (N.suc_plus'' ab) body
   (* Not enough lambdas.  TODO: We could eta-expand in this case, as long as we've picked up at least one lambda. *)
   | _ ->
-      Printf.printf "Not enough lambdas";
+      msg "Not enough lambdas";
       None
 
 (* Slurp up an entire application spine *)
@@ -47,7 +47,7 @@ and check_lam :
       let m = CubeOf.dim doms in
       match (compare (TubeOf.uninst args) D.zero, compare (TubeOf.inst args) m) with
       | Neq, _ | _, Neq ->
-          Printf.printf "Dimension mismatch in checking lambda";
+          msg "Dimension mismatch in checking lambda";
           None
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus m) in
@@ -63,7 +63,7 @@ and check_lam :
           return (Term.Lam (dom_faces, af, cbody)))
   (* We can't check a lambda-abstraction against anything except a pi-type. *)
   | _ ->
-      Printf.printf "Can't check lambda against non-pi-type";
+      msg "Can't check lambda against non-pi-type";
       None
 
 and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
@@ -103,7 +103,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
         let symty = act_ty ex ety sym in
         return (Sym sx, symty)
       with Invalid_uninst_action ->
-        Printf.printf "Can't symmetrize something of too low dimension";
+        msg "Can't symmetrize something of too low dimension";
         None)
   | Asc (tm, ty) ->
       let* cty = check ctx ty (universe D.zero) in
@@ -145,7 +145,7 @@ and synth_app :
       (* Ensure that the pi-type is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
       | Neq ->
-          Printf.printf "Dimension mismatch when synthesizing applied function";
+          msg "Dimension mismatch when synthesizing applied function";
           None
       | Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
@@ -188,12 +188,12 @@ and synth_app :
       (* Ensure that the universe is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) n with
       | Neq ->
-          Printf.printf "Dimension mismatch when synthesizing instantiation";
+          msg "Dimension mismatch when synthesizing instantiation";
           None
       | Eq -> (
           match D.compare_zero n with
           | Zero ->
-              Printf.printf "Cannot further instantiate a zero-dimensional type";
+              msg "Cannot further instantiate a zero-dimensional type";
               None
           | Pos pn ->
               (* We take enough arguments to instatiate a type of dimension n by one. *)
@@ -242,5 +242,5 @@ and synth_app :
               return (Term.Inst (sfn, cargs), tyof_inst tyargs eargs, rest)))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
   | _ ->
-      Printf.printf "Attempt to apply non-function, non-type";
+      msg "Attempt to apply non-function, non-type";
       None

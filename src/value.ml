@@ -147,22 +147,6 @@ let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
 let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
-(* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
-let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =
- fun act_value env v ->
-  (* We traverse the environment, accumulating operator actions as we go, until we find the specified index. *)
-  let rec lookup : type m n b. (n, b) env -> b N.index -> (m, n) op -> value =
-   fun env v op ->
-    match (env, v) with
-    | Emp _, _ -> .
-    | Ext (_, entry), Top ->
-        (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
-        let (Op (f, s)) = op in
-        act_value (CubeOf.find entry f) (Any s)
-    | Ext (env, _), Pop v -> lookup env v op
-    | Act (env, op'), _ -> lookup env v (comp_op op' op) in
-  lookup env v (id_op (dim_env env))
-
 (* Add a Bwv of values to an environment all at once. *)
 let rec env_append :
     type n a b ab. (a, b, ab) N.plus -> (n, a) env -> ((n, value) CubeOf.t, b) Bwv.t -> (n, ab) env

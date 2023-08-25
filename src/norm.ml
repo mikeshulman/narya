@@ -5,10 +5,27 @@ open Term
 open Bwd
 open Monad.Ops (Monad.Maybe)
 
+(* Look up a value in an environment by variable index.  The result has to have a degeneracy action applied (from the actions stored in the environment).  Thus this depends on being able to act on a value by a degeneracy, so we can't define it until after act.ml is loaded (unless we do open recursive trickery). *)
+let lookup : type n b. (n, b) env -> b N.index -> value =
+ fun env v ->
+  (* We traverse the environment, accumulating operator actions as we go, until we find the specified index. *)
+  let rec lookup : type m n b. (n, b) env -> b N.index -> (m, n) op -> value =
+   fun env v op ->
+    match (env, v) with
+    | Emp _, _ -> .
+    | Ext (_, entry), Top ->
+        (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
+        let (Op (f, s)) = op in
+        act_value (CubeOf.find entry f) s
+    | Ext (env, _), Pop v -> lookup env v op
+    | Act (env, op'), _ -> lookup env v (comp_op op' op) in
+  lookup env v (id_op (dim_env env))
+
+(* The master evaluation function. *)
 let rec eval : type m b. (m, b) env -> b term -> value =
  fun env tm ->
   match tm with
-  | Var v -> lookup act_any env v
+  | Var v -> lookup env v
   | Const name ->
       (* A constant starts out at dimension zero, but must be lifted to the dimension of the environment. *)
       let dim = dim_env env in
@@ -227,7 +244,7 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
            res args)
   | Branch (ix, branches) -> (
       (* Get the argument being inspected *)
-      match lookup act_any env ix with
+      match lookup env ix with
       (* It must be an application of a constant *)
       | Uninst (Neu (Const { name; dim }, dargs), _) -> (
           (* A case tree can only include 0-dimensional applications, so the dimension here must match the dimension we're using it at. *)

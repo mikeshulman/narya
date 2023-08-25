@@ -152,27 +152,30 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
       (* A type must be fully instantiated, so in particular tys is trivial. *)
       match compare (TubeOf.uninst args) D.zero with
       | Neq -> raise (Failure "act_ty applied to non-fully-instantiated term")
-      | Eq ->
+      | Eq -> (
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
-          let (Of fa) = deg_plus_to s (TubeOf.inst args) "instantiated type" in
-          (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
-          let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
-          (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
-          let args =
-            TubeOf.build D.zero
-              (D.zero_plus (dom_deg fa))
-              {
-                build =
-                  (fun fb ->
-                    let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
-                    act_normal (CubeOf.find args' fd) fc);
-              } in
-          Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args; tys = TubeOf.empty D.zero })
+          (* This is a user error, e.g. trying to symmetrize a 1-dimensional thing.  So we raise a custom exception here, that can get caught by type synthesis and turned into an error. *)
+          match deg_plus_to s (TubeOf.inst args) "instantiated type" with
+          | exception _ -> raise Invalid_uninst_action
+          | Of fa ->
+              (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
+              let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
+              (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
+              let args =
+                TubeOf.build D.zero
+                  (D.zero_plus (dom_deg fa))
+                  {
+                    build =
+                      (fun fb ->
+                        let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
+                        act_normal (CubeOf.find args' fd) fc);
+                  } in
+              Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args; tys = TubeOf.empty D.zero }))
   | Uninst (ty, (lazy uu)) -> (
       (* This is just the case when dim = 0, so it is the same except simpler. *)
       let fa = s in
       match (compare (cod_deg fa) D.zero, uu) with
-      (* We raise a custom exception here so that it can get caught by type synthesis, if we try to symmetrize something that's not at least 2-dimensional. *)
+      (* Again this is a user error, this time of trying to symmetrize a 0-dimensional thing. *)
       | Neq, _ -> raise Invalid_uninst_action
       | Eq, Uninst (UU z, _) -> (
           match compare z D.zero with

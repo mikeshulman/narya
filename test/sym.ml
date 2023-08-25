@@ -15,6 +15,10 @@ let xx21, _ = synth (id !!"X" !!"x01" !!"x11")
 let x20 = assume "x20" xx20
 let x21 = assume "x21" xx21
 
+(* We can't apply symmetry to 0- or 1-dimensional things *)
+let () = unsynth (sym !!"x00")
+let () = unsynth (sym !!"x02")
+
 let xx22, _ =
   synth
     (refl (refl !!"X")

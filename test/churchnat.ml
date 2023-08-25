@@ -3,6 +3,7 @@ open Pmp
 (* Uniqueness of iteration for Church encoded Nat from parametricity (from Thorsten) *)
 
 let () = Narya.Gel.install ()
+let rgel x = struc [ ("ungel", x) ]
 
 (* First we postulate an equality type, with congruence, transitivity, and reversal *)
 
@@ -131,57 +132,36 @@ let ritenat =
   @-> "zf"
   @-> "sf"
   @-> "n"
-  @-> (!~"ungel"
+  @-> (refl !!"n"
       $ !!"A"
       $ !!"B"
-      $ "a" @-> "b" @-> (!!"eq" $ !!"B" $ (!!"f" $ !!"a") $ !!"b")
-      $ (!!"n" $ !!"A" $ !!"zA" $ !!"sA")
-      $ (!!"n" $ !!"B" $ !!"zB" $ !!"sB")
-      $ (refl !!"n"
-        $ !!"A"
-        $ !!"B"
-        $ (!~"GEL" $ !!"A" $ !!"B" $ "a" @-> "b" @-> (!!"eq" $ !!"B" $ (!!"f" $ !!"a") $ !!"b"))
-        $ !!"zA"
-        $ !!"zB"
-        $ (!~"gel"
-          $ !!"A"
-          $ !!"B"
-          $ "a" @-> "b" @-> (!!"eq" $ !!"B" $ (!!"f" $ !!"a") $ !!"b")
-          $ !!"zA"
-          $ !!"zB"
-          $ !!"zf")
-        $ !!"sA"
-        $ !!"sB"
-        $ "a"
-          @-> "b"
-          @-> "r"
-          @-> (!~"gel"
-              $ !!"A"
+      $ (!~"Gel" $ !!"A" $ !!"B" $ "a" @-> "b" @-> (!!"eq" $ !!"B" $ (!!"f" $ !!"a") $ !!"b"))
+      $ !!"zA"
+      $ !!"zB"
+      $ rgel !!"zf"
+      $ !!"sA"
+      $ !!"sB"
+      $ "a"
+        @-> "b"
+        @-> "r"
+        @-> rgel
+              (!!"trans"
               $ !!"B"
-              $ "a" @-> "b" @-> (!!"eq" $ !!"B" $ (!!"f" $ !!"a") $ !!"b")
-              $ (!!"sA" $ !!"a")
+              $ (!!"f" $ (!!"sA" $ !!"a"))
+              $ (!!"sB" $ (!!"f" $ !!"a"))
               $ (!!"sB" $ !!"b")
-              $ (!!"trans"
-                $ !!"B"
-                $ (!!"f" $ (!!"sA" $ !!"a"))
-                $ (!!"sB" $ (!!"f" $ !!"a"))
-                $ (!!"sB" $ !!"b")
-                $ (!!"sf" $ !!"a")
-                $ (!!"cong"
-                  $ !!"B"
-                  $ !!"B"
-                  $ !!"sB"
-                  $ (!!"f" $ !!"a")
-                  $ !!"b"
-                  $ (!~"ungel"
-                    $ !!"A"
-                    $ !!"B"
-                    $ "a" @-> "b" @-> (!!"eq" $ !!"B" $ (!!"f" $ !!"a") $ !!"b")
-                    $ !!"a"
-                    $ !!"b"
-                    $ !!"r"))))))
+              $ (!!"sf" $ !!"a")
+              $ (!!"cong" $ !!"B" $ !!"B" $ !!"sB" $ (!!"f" $ !!"a") $ !!"b" $ (!!"r" $. "ungel")))
+      $. "ungel")
 
 let itenat = check ritenat itenat_ty
+
+(* TEMP *)
+(*
+let itenat = assume "itenat" itenat_ty
+let ritenat = !!"itenat"
+*)
+(* TEMP *)
 
 (*
   - now we apply this to

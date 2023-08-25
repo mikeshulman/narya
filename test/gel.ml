@@ -1,16 +1,15 @@
 open Pmp
 
 let () = Narya.Gel.install ()
-let gEL, gELty = synth !~"GEL"
+let ggel, ggelty = synth !~"Gel"
 
-let gELty', _ =
+let ggelty', _ =
   synth
     (("X", UU) @=> ("Y", UU) @=> ("R", ("x", !!"X") @=> ("y", !!"Y") @=> UU) @=> id UU !!"X" !!"Y")
 
-let () = equal gELty gELty'
-let gel, gelty = synth !~"gel"
+let () = equal ggelty ggelty'
 
-let gelty', _ =
+let gelty, _ =
   synth
     (("X", UU)
     @=> ("Y", UU)
@@ -18,24 +17,24 @@ let gelty', _ =
     @=> ("x", !!"X")
     @=> ("y", !!"Y")
     @=> ("r", !!"R" $ !!"x" $ !!"y")
-    @=> (!~"GEL" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y"))
+    @=> (!~"Gel" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y"))
 
-let () = equal gelty gelty'
-let ungel, ungelty = synth !~"ungel"
+let rgel x = struc [ ("ungel", x) ]
+let gel = check ("X" @-> "Y" @-> "R" @-> "x" @-> "y" @-> "r" @-> rgel !!"r")
 
-let ungelty', _ =
+let ungelty, _ =
   synth
     (("X", UU)
     @=> ("Y", UU)
     @=> ("R", ("x", !!"X") @=> ("y", !!"Y") @=> UU)
     @=> ("x", !!"X")
     @=> ("y", !!"Y")
-    @=> ("r", !~"GEL" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y")
+    @=> ("r", !~"Gel" $ !!"X" $ !!"Y" $ !!"R" $ !!"x" $ !!"y")
     @=> (!!"R" $ !!"x" $ !!"y"))
 
-let () = equal ungelty ungelty'
+let ungel = check ("X" @-> "Y" @-> "R" @-> "x" @-> "y" @-> "r" @-> (!!"r" $. "ungel")) ungelty
 
-(* Now we test ungel(gel) *)
+(* Now we set up some assumptions *)
 
 let uu, _ = synth UU
 let aa = assume "A" uu
@@ -47,33 +46,16 @@ let b = assume "b" bb
 let _, corrab' = synth !!"R"
 let () = equal corrab corrab'
 let rab, _ = synth (!!"R" $ !!"a" $ !!"b")
+
+(* We test ungel(gel)  *)
+
 let r = assume "r" rab
-
-let r', _ =
-  synth
-    (!~"ungel"
-    $ !!"A"
-    $ !!"B"
-    $ !!"R"
-    $ !!"a"
-    $ !!"b"
-    $ (!~"gel" $ !!"A" $ !!"B" $ !!"R" $ !!"a" $ !!"b" $ !!"r"))
-
+let r', _ = synth (rgel !!"r" <:> (!~"Gel" $ !!"A" $ !!"B" $ !!"R" $ !!"a" $ !!"b") $. "ungel")
 let () = equal r r'
 
 (* and gel(ungel) *)
 
-let gelab, _ = synth (!~"GEL" $ !!"A" $ !!"B" $ !!"R" $ !!"a" $ !!"b")
+let gelab, _ = synth (!~"Gel" $ !!"A" $ !!"B" $ !!"R" $ !!"a" $ !!"b")
 let s = assume "s" gelab
-
-let s', _ =
-  synth
-    (!~"gel"
-    $ !!"A"
-    $ !!"B"
-    $ !!"R"
-    $ !!"a"
-    $ !!"b"
-    $ (!~"ungel" $ !!"A" $ !!"B" $ !!"R" $ !!"a" $ !!"b" $ !!"s"))
-
-let () = equal s s'
+let s' = check (rgel (!!"s" $. "ungel")) gelab
+let () = equal_at s s' gelab

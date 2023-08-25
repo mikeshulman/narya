@@ -5,18 +5,10 @@ open Term
 
 (* Note that the function "install" has to be called explicitly to make Gel-types available. *)
 
-let ([ gEL; gel; ungel ] : (Constant.t, N.three) Vec.t) =
-  Vec.map Constant.intern [ "GEL"; "gel"; "ungel" ]
+let gel = Constant.intern "Gel"
+let ungel = Field.intern "ungel"
 
 let install () =
-  Hashtbl.add Global.types gEL
-    (Pi
-       ( UU,
-         Pi
-           ( UU,
-             Pi
-               ( Pi (Var (N.Pop N.Top), Pi (Var (N.Pop N.Top), UU)),
-                 Inst (Refl UU, TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top))) ) ) ));
   Hashtbl.add Global.types gel
     (Pi
        ( UU,
@@ -24,69 +16,20 @@ let install () =
            ( UU,
              Pi
                ( Pi (Var (N.Pop N.Top), Pi (Var (N.Pop N.Top), UU)),
-                 Pi
-                   ( Var (N.Pop (N.Pop N.Top)),
-                     Pi
-                       ( Var (N.Pop (N.Pop N.Top)),
-                         Pi
-                           ( App
-                               ( App
-                                   (Var (N.Pop (N.Pop N.Top)), CubeOf.singleton (Var (N.Pop N.Top))),
-                                 CubeOf.singleton (Var N.Top) ),
-                             Inst
-                               ( App
-                                   ( App
-                                       ( App
-                                           ( Const gEL,
-                                             CubeOf.singleton
-                                               (Var (N.Pop (N.Pop (N.Pop (N.Pop (N.Pop N.Top))))))
-                                           ),
-                                         CubeOf.singleton
-                                           (Var (N.Pop (N.Pop (N.Pop (N.Pop N.Top))))) ),
-                                     CubeOf.singleton (Var (N.Pop (N.Pop (N.Pop N.Top)))) ),
-                                 TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top)) ) ) )
-                   ) ) ) ));
-  Hashtbl.add Global.types ungel
-    (Pi
-       ( UU,
-         Pi
-           ( UU,
-             Pi
-               ( Pi (Var (N.Pop N.Top), Pi (Var (N.Pop N.Top), UU)),
-                 Pi
-                   ( Var (N.Pop (N.Pop N.Top)),
-                     Pi
-                       ( Var (N.Pop (N.Pop N.Top)),
-                         Pi
-                           ( Inst
-                               ( App
-                                   ( App
-                                       ( App
-                                           ( Const gEL,
-                                             CubeOf.singleton
-                                               (Var (N.Pop (N.Pop (N.Pop (N.Pop N.Top))))) ),
-                                         CubeOf.singleton (Var (N.Pop (N.Pop (N.Pop N.Top)))) ),
-                                     CubeOf.singleton (Var (N.Pop (N.Pop N.Top))) ),
-                                 TubeOf.pair (Var (N.Pop N.Top)) (Var N.Top) ),
-                             App
-                               ( App
-                                   ( Var (N.Pop (N.Pop (N.Pop N.Top))),
-                                     CubeOf.singleton (Var (N.Pop (N.Pop N.Top))) ),
-                                 CubeOf.singleton (Var (N.Pop N.Top)) ) ) ) ) ) ) ));
-  Hashtbl.add Global.trees ungel
-    (Lam
-       ( Suc (Suc (Suc (Suc (Suc (Suc Zero))))),
-         Branch
-           ( Top,
-             [
-               Branch (gel, Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
-             ] ) ));
-  (* Maybe this would be better implemented as an eta-rule for GEL *)
-  Hashtbl.add Global.trees gel
-    (Lam
-       ( Suc (Suc (Suc (Suc (Suc (Suc Zero))))),
-         Branch
-           ( Top,
-             [
-               Branch (ungel, Take (Omit (Omit (Omit (Omit (Omit Zero))))), Suc Zero, Leaf (Var Top));
-             ] ) ))
+                 Inst (Refl UU, TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top))) ) ) ));
+  Hashtbl.add Global.records gel
+    (Record
+       {
+         eta = true;
+         params = N.three;
+         dim = one;
+         dim_faces = faces_one;
+         params_plus = Suc (Suc (Suc Zero));
+         fields =
+           [
+             ( ungel,
+               App
+                 ( App (Var (Pop (Pop (Pop Top))), CubeOf.singleton (Var (Pop (Pop Top)))),
+                   CubeOf.singleton (Var (Pop Top)) ) );
+           ];
+       })

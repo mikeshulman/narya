@@ -1,6 +1,7 @@
 open Pmp
 
 let () = Narya.Gel.install ()
+let rgel x = struc [ ("ungel", x) ]
 
 (* First we postulate an equality type *)
 
@@ -21,23 +22,12 @@ let fisid_pf =
   check
     ("X"
     @-> "x"
-    @-> (!~"ungel"
+    @-> (refl !!"f"
         $ !!"X"
         $ !!"X"
-        $ "a" @-> "b" @-> (!!"eq" $ !!"X" $ !!"x" $ !!"b")
-        $ (!!"f" $ !!"X" $ !!"x")
-        $ (!!"f" $ !!"X" $ !!"x")
-        $ (refl !!"f"
-          $ !!"X"
-          $ !!"X"
-          $ (!~"GEL" $ !!"X" $ !!"X" $ "a" @-> "b" @-> (!!"eq" $ !!"X" $ !!"x" $ !!"b"))
-          $ !!"x"
-          $ !!"x"
-          $ (!~"gel"
-            $ !!"X"
-            $ !!"X"
-            $ "a" @-> "b" @-> (!!"eq" $ !!"X" $ !!"x" $ !!"b")
-            $ !!"x"
-            $ !!"x"
-            $ (!!"eqr" $ !!"X" $ !!"x")))))
+        $ (!~"Gel" $ !!"X" $ !!"X" $ "a" @-> "b" @-> (!!"eq" $ !!"X" $ !!"x" $ !!"b"))
+        $ !!"x"
+        $ !!"x"
+        $ rgel (!!"eqr" $ !!"X" $ !!"x")
+        $. "ungel"))
     fisid

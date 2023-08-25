@@ -116,6 +116,10 @@ let idff'_roundtrip, _ =
 
 let () = equal_at idff'_roundtrip q idff'
 
+(* Identity types are invariant under eta-expansion *)
+let idff_eta, _ = synth (id (("x", !!"X") @=> !!"Y") ("x" @-> (!!"f" $ !!"x")) !!"f'")
+let () = equal idff idff_eta
+
 (* Ap is functorial *)
 let reflg, _ = synth (refl !!"g")
 let reflf_x2, _ = synth (refl !!"f" $ !!"x0" $ !!"x1" $ !!"x2")

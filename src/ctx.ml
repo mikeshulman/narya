@@ -54,7 +54,7 @@ let dom_vars :
                          Hashtbl.find argtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
                    }) in
             let v = { tm = var (level ctx) ty; ty } in
-            Hashtbl.add argtbl (SFace_of fa) v.tm;
+            Hashtbl.add argtbl (SFace_of fa) v;
             (v.ty, v.tm));
       }
       ctx faces af doms in

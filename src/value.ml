@@ -35,11 +35,17 @@ module rec Value : sig
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    | Neu : { fn : head; args : app Bwd.t; ty : value } -> uninst
+    | Neu : head * app Bwd.t -> uninst
 
   and value =
-    | Uninst : uninst -> value
-    | Inst : { tm : uninst; dim : 'k D.pos; args : ('n, 'k, 'nk, value) TubeOf.t } -> value
+    | Uninst : uninst * value Lazy.t -> value
+    | Inst : {
+        tm : uninst;
+        dim : 'k D.pos;
+        args : ('n, 'k, 'nk, normal) TubeOf.t;
+        tys : (D.zero, 'n, 'n, value) TubeOf.t;
+      }
+        -> value
     | Lam : 'k binder -> value
 
   and normal = { tm : value; ty : value }
@@ -87,11 +93,11 @@ end = struct
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a face tree of binders. *)
     | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     (* A neutral is an application spine -- a head with a list of applications -- as well as a stored type for it. *)
-    | Neu : { fn : head; args : app Bwd.t; ty : value } -> uninst
+    | Neu : head * app Bwd.t -> uninst
 
   and value =
-    (* An uninstantiated term *)
-    | Uninst : uninst -> value
+    (* An uninstantiated term.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
+    | Uninst : uninst * value Lazy.t -> value
     (* A term with some nonzero instantiation *)
     | Inst : {
         (* The uninstantiated term being instantiated *)
@@ -99,7 +105,9 @@ end = struct
         (* Require at least one dimension to be instantiated *)
         dim : 'k D.pos;
         (* The arguments for a tube of some dimensions *)
-        args : ('n, 'k, 'nk, value) TubeOf.t;
+        args : ('n, 'k, 'nk, normal) TubeOf.t;
+        (* The types of the arguments remaining to be supplied.  In other words, the type *of* this instantiation is "Inst (UU k, tys)". *)
+        tys : (D.zero, 'n, 'n, value) TubeOf.t;
       }
         -> value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
@@ -120,7 +128,7 @@ include Value
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : int -> value -> value =
- fun i ty -> Uninst (Neu { fn = Var { level = i; deg = id_deg D.zero }; args = Emp; ty })
+ fun i ty -> Uninst (Neu (Var { level = i; deg = id_deg D.zero }, Emp), Lazy.from_val ty)
 
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function
@@ -132,32 +140,15 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
 let dim_binder : type m. m binder -> m D.t = function
   | Bind b -> D.plus_out (dim_env b.env) b.plus_dim
 
-(* Instantiate an arbitrary value, combining tubes. *)
-let inst : type m n mn f. value -> (m, n, mn, value) TubeOf.t -> value =
- fun tm args2 ->
-  match D.compare_zero (TubeOf.inst args2) with
-  | Zero -> tm
-  | Pos dim2 -> (
-      match tm with
-      | Inst { tm; dim = _; args = args1 } -> (
-          match compare (TubeOf.out args2) (TubeOf.uninst args1) with
-          | Neq -> raise (Failure "Dimension mismatch in instantiation")
-          | Eq ->
-              let (Plus nk) = D.plus (TubeOf.inst args1) in
-              let args = TubeOf.plus_tube nk args1 args2 in
-              Inst { tm; dim = D.pos_plus dim2 nk; args })
-      | Uninst tm -> Inst { tm; dim = dim2; args = args2 }
-      | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))
-
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  Optionally, raise an error if it isn't. *)
-type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, value) TubeOf.t -> full_inst
+type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
 
 let full_inst : type n. value -> string -> full_inst =
  fun ty err ->
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
-  | Uninst ty -> Fullinst (ty, TubeOf.empty D.zero)
-  | Inst { tm = ty; dim = _; args } -> (
+  | Uninst (ty, _) -> Fullinst (ty, TubeOf.empty D.zero)
+  | Inst { tm = ty; dim = _; args; tys = _ } -> (
       match compare (TubeOf.uninst args) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
@@ -171,6 +162,89 @@ let full_inst_opt : type n. value -> full_inst option =
   match full_inst ty "" with
   | exception _ -> None
   | res -> Some res
+
+let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
+ fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
+ fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+(* Instantiate an arbitrary value, combining tubes. *)
+let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
+ fun tm args2 ->
+  let n = TubeOf.inst args2 in
+  match D.compare_zero n with
+  | Zero -> tm
+  | Pos dim2 -> (
+      match tm with
+      | Inst { tm; dim = _; args = args1; tys = tys1 } -> (
+          match compare (TubeOf.out args2) (TubeOf.uninst args1) with
+          | Neq -> raise (Failure "Dimension mismatch instantiating a partially instantiated type")
+          | Eq ->
+              let (Plus nk) = D.plus (TubeOf.inst args1) in
+              let args = TubeOf.plus_tube nk args1 args2 in
+              let tys = TubeOf.middle (D.zero_plus (TubeOf.uninst args2)) (TubeOf.plus args2) tys1 in
+              let tys = inst_args args2 tys in
+              Inst { tm; dim = D.pos_plus dim2 nk; args; tys })
+      | Uninst (tm, (lazy ty)) -> (
+          (* In this case, the type must be a fully instantiated universe of the right dimension, and the remaining types come from its instantiation arguments. *)
+          let (Fullinst (ty, tyargs)) = full_inst ty "inst" in
+          match ty with
+          | UU k -> (
+              match (compare k (TubeOf.out args2), compare k (TubeOf.out tyargs)) with
+              | Neq, _ | _, Neq ->
+                  raise (Failure "Dimension mismatch instantiating an uninstantiated type")
+              | Eq, Eq ->
+                  let tys =
+                    val_of_norm_tube
+                      (TubeOf.middle (D.zero_plus (TubeOf.uninst args2)) (TubeOf.plus args2) tyargs)
+                  in
+                  let tys = inst_args args2 tys in
+                  Inst { tm; dim = dim2; args = args2; tys })
+          | _ -> raise (Failure "Can't instantiate non-type"))
+      | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction"))
+
+and inst_args :
+    type m n mn.
+    (m, n, mn, normal) TubeOf.t -> (D.zero, m, m, value) TubeOf.t -> (D.zero, m, m, value) TubeOf.t
+    =
+ fun args2 tys ->
+  let n = TubeOf.inst args2 in
+  TubeOf.mmap
+    {
+      map =
+        (fun fe [ ty ] ->
+          let j = dom_tface fe in
+          let (Plus jn) = D.plus n in
+          let args =
+            TubeOf.build j jn
+              {
+                build =
+                  (fun fa ->
+                    let (PFace_of_plus (pq, fc, fd)) = pface_of_plus fa in
+                    let fec = comp_sface (sface_of_tface fe) fc in
+                    let fecd = sface_plus_pface fec (TubeOf.plus args2) pq fd in
+                    TubeOf.find args2 fecd);
+              } in
+          inst ty args);
+    }
+    [ tys ]
+
+type inst_tys = Inst_tys : (D.zero, 'n, 'n, value) TubeOf.t -> inst_tys
+
+let inst_tys : value -> inst_tys = function
+  | Uninst (_, (lazy (Uninst (UU z, _)))) -> (
+      match compare z D.zero with
+      | Eq -> Inst_tys (TubeOf.empty D.zero)
+      | Neq -> raise (Failure "Higher universe must be instantiated to be a type"))
+  | Uninst (_, (lazy (Inst { tm = UU _; dim = _; args = tys; tys = _ }))) -> (
+      match compare (TubeOf.uninst tys) D.zero with
+      | Eq ->
+          let Eq = D.plus_uniq (D.zero_plus (TubeOf.inst tys)) (TubeOf.plus tys) in
+          Inst_tys (val_of_norm_tube tys)
+      | Neq -> raise (Failure "Universe must be fully instantiated to be a type"))
+  | Inst { tm = _; dim = _; args = _; tys } -> Inst_tys tys
+  | _ -> raise (Failure "Invalid type, has no instantiation arguments")
 
 (* Look up a value in an environment by variable index.  Since the result has to have a degeneracy action applied (from the actions stored in the environment), this depends on being able to act on a value by a degeneracy.  We make that action function a parameter so as not to have to move this after its definition.  *)
 let lookup : type n b. (value -> any_deg -> value) -> (n, b) env -> b N.index -> value =
@@ -196,16 +270,11 @@ let rec env_append :
   | Zero, Emp -> env
   | Suc ab, Snoc (xss, xs) -> Ext (env_append ab env xss, xs)
 
-let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
- fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
-
-let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
- fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
-
 (* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
 and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, normal) CubeOf.t =
  fun tms tys ->
   (* Since we have to instantiate the types at the *normal* version of the terms, which is what we are computing, we also add the results to a hashtable as we create them so we can access them randomly later. *)
+  let new_tm_tbl = Hashtbl.create 10 in
   let new_tms =
     CubeOf.mmap
       {
@@ -218,8 +287,13 @@ and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, nor
                   inst ty
                     (TubeOf.build D.zero
                        (D.zero_plus (dom_sface fab))
-                       { build = (fun fc -> CubeOf.find tms (comp_sface fab (sface_of_tface fc))) });
+                       {
+                         build =
+                           (fun fc ->
+                             Hashtbl.find new_tm_tbl (SFace_of (comp_sface fab (sface_of_tface fc))));
+                       });
               } in
+            Hashtbl.add new_tm_tbl (SFace_of fab) newtm;
             newtm);
       }
       [ tms; tys ] in
@@ -256,3 +330,76 @@ let take_args_opt :
   match take_args env sub dargs plus with
   | exception _ -> None
   | res -> Some res
+
+(* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
+let rec universe : type n. n D.t -> value =
+ fun n ->
+  match D.compare_zero n with
+  | Zero ->
+      (* Without lazy this would be an infinite loop *)
+      Uninst (UU D.zero, lazy (universe D.zero))
+  | Pos n' ->
+      Uninst
+        ( UU n,
+          lazy
+            (let args =
+               TubeOf.build D.zero (D.zero_plus n)
+                 {
+                   build =
+                     (fun fa ->
+                       let m = dom_tface fa in
+                       universe_nf m);
+                 } in
+             Inst { tm = UU n; dim = n'; args; tys = TubeOf.empty D.zero }) )
+
+and universe_nf : type n. n D.t -> normal =
+ fun n ->
+  let uun = universe n in
+  match uun with
+  | Uninst (_, (lazy uunty)) -> { tm = uun; ty = uunty }
+  | _ -> raise (Failure "Impossible result from universe")
+
+(* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
+let rec tyof_inst :
+    type m n mn. (D.zero, mn, mn, normal) TubeOf.t -> (m, n, mn, normal) TubeOf.t -> value =
+ fun tyargs eargs ->
+  let m = TubeOf.uninst eargs in
+  let n = TubeOf.inst eargs in
+  let mn = TubeOf.plus eargs in
+  let margs =
+    TubeOf.build D.zero (D.zero_plus m)
+      {
+        build =
+          (fun fe ->
+            let j = dom_tface fe in
+            let (Plus jn) = D.plus (D.plus_right mn) in
+            let jnargs =
+              TubeOf.build j jn
+                {
+                  build =
+                    (fun fa ->
+                      let (PFace_of_plus (pq, fc, fd)) = pface_of_plus fa in
+                      TubeOf.find eargs
+                        (sface_plus_tface
+                           (comp_sface (sface_of_tface fe) fc)
+                           (D.plus_zero m) mn pq fd));
+                } in
+            (* We need to able to look things up in tyargs that are indexed by a composite of tfaces.  TODO: Actually define composites of tfaces, with each other and/or with sfaces on one side or the other, so that this works.  For the moment, we punt and use a hashtbl indexed by sfaces. *)
+            let tyargtbl = Hashtbl.create 10 in
+            TubeOf.miter
+              { it = (fun fa [ ty ] -> Hashtbl.add tyargtbl (SFace_of (sface_of_tface fa)) ty) }
+              [ tyargs ];
+            let jntyargs =
+              TubeOf.build D.zero
+                (D.zero_plus (D.plus_out j jn))
+                {
+                  build =
+                    (fun fa ->
+                      let fb = sface_plus_sface (sface_of_tface fe) mn jn (id_sface n) in
+                      Hashtbl.find tyargtbl (SFace_of (comp_sface fb (sface_of_tface fa))));
+                } in
+            let tm = inst (TubeOf.find tyargs (tface_plus fe mn mn jn)).tm jnargs in
+            let ty = tyof_inst jntyargs jnargs in
+            { tm; ty });
+      } in
+  inst (universe m) margs

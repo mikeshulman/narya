@@ -39,7 +39,7 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at newlvl (apply x newargs) (apply y newargs) output)
-  | Neu { fn = Const { name; dim }; args; ty = _ } -> (
+  | Neu (Const { name; dim }, args) -> (
       (* This is kind of copied from tyof_field. *)
       match compare (TubeOf.inst tyargs) dim with
       | Neq -> raise (Failure "Dimension mismatch in eta-equality for record")
@@ -48,13 +48,20 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
           | Some (Record (Eta, k, fields)) ->
               let env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
               (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-              let env = Ext (env, TubeOf.plus_cube tyargs (CubeOf.singleton x)) in
+              let env = Ext (env, TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton x)) in
               miterM
                 (fun [ (fld, fldty) ] ->
                   equal_at n (field x fld) (field y fld)
                     (inst (eval env fldty)
-                       (TubeOf.build D.zero (D.zero_plus dim)
-                          { build = (fun fa -> field (TubeOf.find tyargs fa) fld) })))
+                       (TubeOf.mmap
+                          {
+                            map =
+                              (fun _ [ arg ] ->
+                                let tm = field arg.tm fld in
+                                let ty = tyof_field arg.tm arg.ty fld in
+                                { tm; ty });
+                          }
+                          [ tyargs ])))
                 [ fields ]
           | _ -> equal_val n x y))
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
@@ -64,9 +71,10 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
 and equal_val : type a. a Ctx.t -> value -> value -> unit option =
  fun n x y ->
   match (x, y) with
-  (* Since an Inst has a positive amount of instantiation, it can never equal an Uninst. *)
-  | Uninst u, Uninst v -> equal_uninst n u v
-  | Inst { tm = tm1; dim = _; args = a1 }, Inst { tm = tm2; dim = _; args = a2 } -> (
+  (* Since an Inst has a positive amount of instantiation, it can never equal an Uninst.  We don't need to check that the types agree, since equal_uninst concludes equality of types rather than assumes it. *)
+  | Uninst (u, _), Uninst (v, _) -> equal_uninst n u v
+  | Inst { tm = tm1; dim = _; args = a1; tys = _ }, Inst { tm = tm2; dim = _; args = a2; tys = _ }
+    -> (
       let* () = equal_uninst n tm1 tm2 in
       (* If tm1 and tm2 are equal and have the same type, that type must be an instantiation of a universe of the same dimension, itself instantiated at the same arguments.  So for the instantiations to be equal (including their types), it suffices for the instantiation dimensions and arguments to be equal. *)
       match
@@ -75,7 +83,8 @@ and equal_val : type a. a Ctx.t -> value -> value -> unit option =
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus a1) (TubeOf.plus a2) in
           let open TubeOf.Monadic (Monad.Maybe) in
-          miterM { it = (fun _ [ x; y ] -> equal_val n x y) } [ a1; a2 ]
+          (* Because instantiation arguments are stored as normals, we use type-sensitive equality to compare them. *)
+          miterM { it = (fun _ [ x; y ] -> equal_nf n x y) } [ a1; a2 ]
       | _ ->
           msg "Unequal dimensions of instantiation";
           fail)
@@ -95,8 +104,7 @@ and equal_uninst : type a. a Ctx.t -> uninst -> uninst -> unit option =
       | _ ->
           msg "Unequal dimensions of universese";
           fail)
-  (* We don't need to check that the types of neutral terms are equal, since equal_neu concludes equality of types rather than assumes it. *)
-  | Neu { fn = fn1; args = args1; ty = _ }, Neu { fn = fn2; args = args2; ty = _ } ->
+  | Neu (fn1, args1), Neu (fn2, args2) ->
       (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside). *)
       let* () = equal_head lvl fn1 fn2 in
       (* Then we recursively check that all their arguments are equal. *)

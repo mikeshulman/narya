@@ -23,8 +23,8 @@ type _ plus_binder = Binder : ('mi, 'ni) deg * 'mi binder -> 'ni plus_binder
 let rec act_value : type m n. value -> (m, n) deg -> value =
  fun v s ->
   match v with
-  | Uninst tm -> Uninst (act_uninst tm s)
-  | Inst { tm; dim; args } ->
+  | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, lazy (act_ty v ty s))
+  | Inst { tm; dim; args; tys } ->
       let (Of fa) = deg_plus_to s (TubeOf.uninst args) "instantiation" in
       (* The action on an instantiation instantiates the same dimension j, but the leftover dimensions are now the domain of the degeneracy. *)
       let j = TubeOf.inst args in
@@ -41,9 +41,19 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
                 let (PFace_of_plus (_, fb, fd)) = pface_of_plus fed in
                 let (Op (fe, fs)) = deg_sface fa fb in
                 let (Plus q) = D.plus (dom_tface fd) in
-                act_value (TubeOf.find args (sface_plus_pface fe nj q fd)) fs);
+                act_normal (TubeOf.find args (sface_plus_pface fe nj q fd)) fs);
           } in
-      Inst { tm = act_uninst tm fa; dim; args }
+      let tys' = TubeOf.plus_cube tys (CubeOf.singleton v) in
+      let tys =
+        TubeOf.build D.zero
+          (D.zero_plus (dom_deg fa))
+          {
+            build =
+              (fun fb ->
+                let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
+                act_value (CubeOf.find tys' fd) fc);
+          } in
+      Inst { tm = act_uninst tm fa; dim; args; tys }
   | Lam body ->
       let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
       Lam (act_binder body fa)
@@ -51,12 +61,11 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
   match tm with
-  | Neu { fn; args; ty } ->
+  | Neu (fn, args) ->
       (* We act on the applications from the outside (last) to the inside, since the degeneracy has to be factored and may leave neutral insertions behind.  The resulting inner degeneracy then acts on the head. *)
-      let ty = act_ty (Uninst tm) ty s in
       let Any s', args = act_apps args s in
       let fn = act_head fn s' in
-      Neu { fn; args; ty }
+      Neu (fn, args)
   | UU nk ->
       let (Of fa) = deg_plus_to s nk "universe" in
       UU (dom_deg fa)
@@ -137,17 +146,17 @@ and act_normal : type a b. normal -> (a, b) deg -> normal =
 
 (* When acting on a neutral or normal, we also need to specify the typed of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions.  This function computes this "type of acted terms". *)
 and act_ty : type a b. value -> value -> (a, b) deg -> value =
- fun tm ty s ->
-  match ty with
-  | Inst { tm = ty; dim; args } -> (
-      (* A type must be fully instantiated *)
+ fun tm tmty s ->
+  match tmty with
+  | Inst { tm = ty; dim; args; tys = _ } -> (
+      (* A type must be fully instantiated, so in particular tys is trivial. *)
       match compare (TubeOf.uninst args) D.zero with
       | Neq -> raise (Failure "act_ty applied to non-fully-instantiated term")
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           let (Of fa) = deg_plus_to s (TubeOf.inst args) "instantiated type" in
           (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
-          let args' = TubeOf.plus_cube args (CubeOf.singleton tm) in
+          let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
           (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
           let args =
             TubeOf.build D.zero
@@ -156,29 +165,33 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
                 build =
                   (fun fb ->
                     let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
-                    act_value (CubeOf.find args' fd) fc);
+                    act_normal (CubeOf.find args' fd) fc);
               } in
-          Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args })
-  | Uninst ty -> (
+          Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args; tys = TubeOf.empty D.zero })
+  | Uninst (ty, (lazy uu)) -> (
       (* This is just the case when dim = 0, so it is the same except simpler. *)
       let fa = s in
-      match compare (cod_deg fa) D.zero with
+      match (compare (cod_deg fa) D.zero, uu) with
       (* We raise a custom exception here so that it can get caught by type synthesis, if we try to symmetrize something that's not at least 2-dimensional. *)
-      | Neq -> raise Invalid_uninst_action
-      | Eq -> (
-          match D.compare_zero (dom_deg fa) with
-          | Zero -> Uninst (act_uninst ty fa)
-          | Pos dim ->
-              let args =
-                TubeOf.build D.zero
-                  (D.zero_plus (dom_deg fa))
-                  {
-                    build =
-                      (fun fb ->
-                        let (Op (_, fc)) = deg_sface fa (sface_of_tface fb) in
-                        act_value tm fc);
-                  } in
-              Inst { tm = act_uninst ty fa; dim; args }))
+      | Neq, _ -> raise Invalid_uninst_action
+      | Eq, Uninst (UU z, _) -> (
+          match compare z D.zero with
+          | Neq -> raise (Failure "Acting on non-fully-instantiated type as a type")
+          | Eq -> (
+              match D.compare_zero (dom_deg fa) with
+              | Zero -> Uninst (act_uninst ty fa, lazy uu)
+              | Pos dim ->
+                  let args =
+                    TubeOf.build D.zero
+                      (D.zero_plus (dom_deg fa))
+                      {
+                        build =
+                          (fun fb ->
+                            let (Op (_, fc)) = deg_sface fa (sface_of_tface fb) in
+                            act_normal { tm; ty = tmty } fc);
+                      } in
+                  Inst { tm = act_uninst ty fa; dim; args; tys = TubeOf.empty D.zero }))
+      | _ -> raise (Failure "Acting on non-type as if a type"))
   | Lam _ -> raise (Failure "A lambda-abstraction cannot be a type to act on")
 
 (* Action on a head *)

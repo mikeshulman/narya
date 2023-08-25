@@ -40,7 +40,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
       check_lam ctx tm ty args
 
 and check_lam :
-    type a m n mn f. a Ctx.t -> a check -> uninst -> (m, n, mn, value) TubeOf.t -> a term option =
+    type a m n mn f. a Ctx.t -> a check -> uninst -> (m, n, mn, normal) TubeOf.t -> a term option =
  fun ctx tm ty args ->
   match ty with
   | Pi (doms, cods) -> (
@@ -77,13 +77,13 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       let etm = Ctx.eval ctx stm in
       let* newty = tyof_field_opt etm sty fld in
       return (Field (stm, fld), newty)
-  | UU -> return (Term.UU, Uninst (UU D.zero))
+  | UU -> return (Term.UU, universe D.zero)
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
-      let* cdom = check ctx dom (Uninst (UU D.zero)) in
+      let* cdom = check ctx dom (universe D.zero) in
       let edom = Ctx.eval ctx cdom in
-      let* ccod = check (Snoc (ctx, edom)) cod (Uninst (UU D.zero)) in
-      return (Term.Pi (cdom, ccod), Uninst (UU D.zero))
+      let* ccod = check (Snoc (ctx, edom)) cod (universe D.zero) in
+      return (Term.Pi (cdom, ccod), universe D.zero)
   | App _ ->
       (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
       let fn, args = spine tm in
@@ -106,7 +106,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
         Printf.printf "Can't symmetrize something of too low dimension";
         None)
   | Asc (tm, ty) ->
-      let* cty = check ctx ty (Uninst (UU D.zero)) in
+      let* cty = check ctx ty (universe D.zero) in
       let ety = Ctx.eval ctx cty in
       let* ctm = check ctx tm ety in
       return (ctm, ety)
@@ -127,7 +127,7 @@ and synth_app :
     a Ctx.t ->
     a term ->
     uninst ->
-    (D.zero, n, n, value) TubeOf.t ->
+    (D.zero, n, n, normal) TubeOf.t ->
     a check list ->
     (a term * value * a check list) option =
  fun ctx sfn fnty tyargs args ->
@@ -176,7 +176,7 @@ and synth_app :
                            }) in
                     let* ctm = M.stateless (check ctx tm ty) in
                     let tm = Ctx.eval ctx ctm in
-                    Hashtbl.add eargtbl (SFace_of fa) tm;
+                    Hashtbl.add eargtbl (SFace_of fa) { tm; ty };
                     return (ctm @: [ tm ]));
               }
               [ doms ] (Cons (Cons Nil)) args in
@@ -196,17 +196,20 @@ and synth_app :
               Printf.printf "Cannot further instantiate a zero-dimensional type";
               None
           | Pos pn ->
-              (* We take enough arguments to instatiate a type of dimension n by one, and check each argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments.  This requires random access to the previous evaluated arguments, so we store those in a hashtable, while also assembling them into a tube for later. *)
+              (* We take enough arguments to instatiate a type of dimension n by one. *)
               let (Is_suc (m, msuc)) = suc_pos pn in
               let open TubeOf.Monadic (M) in
               let open TubeOf.Infix in
+              (* We will need random access to the previously evaluated arguments, so we store them in a hashtable as we go. *)
               let eargtbl = Hashtbl.create 10 in
               let tyargs1 = TubeOf.pboundary (D.zero_plus m) msuc tyargs in
+              (* What we really want, however, are two tubes of checked arguments *and* evaluated arguments. *)
               let* [ cargs; eargs ], rest =
                 pmapM
                   {
                     map =
                       (fun fa [ tyarg ] ->
+                        (* We iterate monadically with the list of available arguments in a state/maybe monad, taking one more argument every time we need it as long as there is one. *)
                         let open Monad.Ops (M) in
                         let* ts = M.get in
                         let* tm =
@@ -215,6 +218,7 @@ and synth_app :
                           | t :: ts ->
                               let* () = M.put ts in
                               return t in
+                        (* We check each such argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments. *)
                         let fa = sface_of_tface fa in
                         let k = dom_sface fa in
                         let kargs =
@@ -225,35 +229,17 @@ and synth_app :
                                   Hashtbl.find eargtbl
                                     (SFace_of (comp_sface fa (sface_of_tface fb))));
                             } in
-                        let ty = inst tyarg kargs in
+                        let ty = inst tyarg.tm kargs in
                         let* ctm = M.stateless (check ctx tm ty) in
-                        let etm = Ctx.eval ctx ctm in
-                        let () = Hashtbl.add eargtbl (SFace_of fa) etm in
-                        return (ctm @: [ etm ]));
+                        (* Then we evaluate it and assemble a normal version to store in the hashtbl, before returning the checked and evaluated versions. *)
+                        let tm = Ctx.eval ctx ctm in
+                        let ntm = { tm; ty } in
+                        let () = Hashtbl.add eargtbl (SFace_of fa) ntm in
+                        return (ctm @: [ ntm ]));
                   }
                   [ tyargs1 ] (Cons (Cons Nil)) args in
-              (* Now we assemble the synthesized type, which is a full instantiation of the universe at a telescope consisting of instantiations of the type arguments at the evaluated term arguments. *)
-              let margs =
-                TubeOf.build D.zero (D.zero_plus m)
-                  {
-                    build =
-                      (fun fe ->
-                        let j = dom_tface fe in
-                        let (Plus jsuc) = D.plus (D.plus_right msuc) in
-                        inst
-                          (TubeOf.find tyargs (tface_plus fe msuc msuc jsuc))
-                          (TubeOf.build j jsuc
-                             {
-                               build =
-                                 (fun fa ->
-                                   let (PFace_of_plus (pq, fc, fd)) = pface_of_plus fa in
-                                   TubeOf.find eargs
-                                     (sface_plus_tface
-                                        (comp_sface (sface_of_tface fe) fc)
-                                        (D.plus_zero m) msuc pq fd));
-                             }));
-                  } in
-              return (Term.Inst (sfn, cargs), inst (Uninst (UU m)) margs, rest)))
+              (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
+              return (Term.Inst (sfn, cargs), tyof_inst tyargs eargs, rest)))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
   | _ ->
       Printf.printf "Attempt to apply non-function, non-type";

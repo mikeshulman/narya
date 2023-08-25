@@ -22,8 +22,8 @@ let rec equal_nf : type a. a Ctx.t -> normal -> normal -> unit option =
 and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
  fun n x y ty ->
   (* The type must be fully instantiated. *)
-  let (Fullinst (ty, tyargs)) = full_inst ty "equal_at" in
-  match ty with
+  let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
+  match uty with
   (* The only interesting thing here happens when the type is one with an eta-rule, such as a pi-type. *)
   | Pi (doms, cods) -> (
       let k = CubeOf.dim doms in
@@ -39,31 +39,14 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at newlvl (apply x newargs) (apply y newargs) output)
-  | Neu (Const { name; dim }, args) -> (
-      (* This is kind of copied from tyof_field. *)
-      match compare (TubeOf.inst tyargs) dim with
-      | Neq -> raise (Failure "Dimension mismatch in eta-equality for record")
-      | Eq -> (
-          match Hashtbl.find_opt Global.records name with
-          | Some (Record (Eta, k, fields)) ->
-              let env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
-              (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-              let env = Ext (env, TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton x)) in
-              miterM
-                (fun [ (fld, fldty) ] ->
-                  equal_at n (field x fld) (field y fld)
-                    (inst (eval env fldty)
-                       (TubeOf.mmap
-                          {
-                            map =
-                              (fun _ [ arg ] ->
-                                let tm = field arg.tm fld in
-                                let ty = tyof_field arg.tm arg.ty fld in
-                                { tm; ty });
-                          }
-                          [ tyargs ])))
-                [ fields ]
-          | _ -> equal_val n x y))
+  | Neu (Const { name; _ }, _) -> (
+      match Hashtbl.find_opt Global.records name with
+      | Some (Record { eta = true; fields; _ }) ->
+          (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+          miterM
+            (fun [ (fld, _) ] -> equal_at n (field x fld) (field y fld) (tyof_field x ty fld))
+            [ fields ]
+      | _ -> equal_val n x y)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
   | _ -> equal_val n x y
 

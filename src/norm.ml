@@ -365,21 +365,38 @@ and field : value -> Field.t -> value =
       apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
   | _ -> raise (Failure "Invalid field of non-record type")
 
+(* Given a term and its record type, compute the type of a field projection. *)
 and tyof_field : value -> value -> Field.t -> value =
  fun tm ty fld ->
   let (Fullinst (ty, tyargs)) = full_inst ty "tyof_field" in
   match ty with
-  | Neu (Const { name; dim }, args) -> (
-      (* A term we are taking a field of must have a fully instantiated type of the right dimension. *)
-      match compare (TubeOf.inst tyargs) dim with
+  | Neu (Const { name; dim = m }, args) -> (
+      (* The head of the type must be a record type with a field having the correct name. *)
+      let (Field { params = k; dim = n; dim_faces = nf; params_plus = kf; ty = fldty }) =
+        Global.find_record_field name fld in
+      (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n. *)
+      let (Plus mn) = D.plus n in
+      let mn' = D.plus_out m mn in
+      match compare (TubeOf.inst tyargs) mn' with
       | Neq -> raise (Failure "Dimension mismatch in tyof_field")
       | Eq ->
-          (* The head of the type must be a record type with a field having the correct name. *)
-          let (Field (k, fldty)) = Global.find_record_field name fld in
-          (* It must also be applied, at the correct dimension, to exactly the right number of parameters. *)
-          let env = take_args (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
-          (* If so, then the type of the field projection is the type associated to that field name in general, evaluated at the supplied parameters and at the term itself, and instantiated at the fields of the original instantiation arguments. *)
-          let env = Ext (env, TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm)) in
+          (* The type must be applied, at dimension m, to exactly the right number of parameters (k). *)
+          let env = take_args (Emp m) (N.improper_subset k) args (N.zero_plus k) in
+          (* If so, then the type of the field projection comes from the type associated to that field name in general, evaluated at the supplied parameters along with the term itself and its boundaries. *)
+          let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
+          let entries =
+            Bwv.map
+              (fun (SFace_of fb) ->
+                CubeOf.build m
+                  {
+                    build =
+                      (fun fa ->
+                        let (Plus pq) = D.plus (dom_sface fb) in
+                        CubeOf.find tyargs' (sface_plus_sface fa mn pq fb));
+                  })
+              (sfaces nf) in
+          let env = env_append kf env entries in
+          (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
           inst (eval env fldty)
             (TubeOf.mmap
                {
@@ -389,7 +406,7 @@ and tyof_field : value -> value -> Field.t -> value =
                      let ty = tyof_field arg.tm arg.ty fld in
                      { tm; ty });
                }
-               [ tyargs ]))
+               [ TubeOf.middle (D.zero_plus m) mn tyargs ]))
   | _ -> raise (Failure "Non-record type doesn't have fields")
 
 and eval_binder :

@@ -20,12 +20,18 @@ let install () =
                          CubeOf.singleton (Var (Pop (Pop Top))) ) ) ) ) ));
   Hashtbl.add Global.records sigma
     (Record
-       ( Eta,
-         N.two,
-         [
-           (fst, Var (Pop (Pop Top)));
-           (snd, App (Var (Pop Top), CubeOf.singleton (Field (Var Top, fst))));
-         ] ));
+       {
+         eta = true;
+         params = N.two;
+         dim = D.zero;
+         dim_faces = faces_zero;
+         params_plus = Suc Zero;
+         fields =
+           [
+             (fst, Var (Pop (Pop Top)));
+             (snd, App (Var (Pop Top), CubeOf.singleton (Field (Var Top, fst))));
+           ];
+       });
   Hashtbl.add Global.trees pair
     (Lam
        (Suc (Suc (Suc (Suc Zero))), Cobranch [ (fst, Leaf (Var (Pop Top))); (snd, Leaf (Var Top)) ]))

@@ -54,50 +54,32 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           let output = tyof_app cods tyargs newargs in
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
-  | Struct tms, Neu (Const { name; dim }, args) -> (
-      let* (Record (_, k, fields)) = Hashtbl.find_opt Global.records name in
-      (* Kind of copied from tyof_field *)
-      match compare (TubeOf.inst tyargs) dim with
-      | Neq -> None
-      | Eq ->
-          let* env = take_args_opt (Emp dim) (N.improper_subset k) args (N.zero_plus k) in
-          (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
-          let module M =
-            Monad.StateT
-              (Monad.Maybe)
-              (struct
-                type t = a term Field.Map.t * value Field.Map.t
-              end)
-          in
-          let open Mlist.Monadic (M) in
-          (* We have to accumulate the evaluated terms for use as we go in typechecking, but we throw them away at the end.  (As usual, that seems wasteful.) *)
-          let* (), (ctms, _) =
-            miterM
-              (fun [ (fld, fldty) ] ->
-                let open Monad.Ops (M) in
-                let* ctms, etms = M.get in
-                let prev_tm = Value.Struct etms in
-                let envtm =
-                  Ext (env, TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton prev_tm))
-                in
-                let ty =
-                  inst (eval envtm fldty)
-                    (TubeOf.build D.zero (D.zero_plus dim)
-                       {
-                         build =
-                           (fun fa ->
-                             let x = TubeOf.find tyargs fa in
-                             let tm = field x.tm fld in
-                             let ty = tyof_field x.tm x.ty fld in
-                             { tm; ty });
-                       }) in
-                let* tm = M.stateless (Field.Map.find_opt fld tms) in
-                let* ctm = M.stateless (check ctx tm ty) in
-                let etm = Ctx.eval ctx ctm in
-                M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms))
-              [ fields ]
-              (Field.Map.empty, Field.Map.empty) in
-          return (Struct ctms))
+  | Struct tms, Neu (Const { name; _ }, _) ->
+      let* (Record { fields; _ }) = Hashtbl.find_opt Global.records name in
+      (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
+      let module M =
+        Monad.StateT
+          (Monad.Maybe)
+          (struct
+            type t = a term Field.Map.t * value Field.Map.t
+          end)
+      in
+      let open Mlist.Monadic (M) in
+      (* We have to accumulate the evaluated terms for use as we go in typechecking, but we throw them away at the end.  (As usual, that seems wasteful.) *)
+      let* (), (ctms, _) =
+        miterM
+          (fun [ (fld, _) ] ->
+            let open Monad.Ops (M) in
+            let* ctms, etms = M.get in
+            let prev_etm = Value.Struct etms in
+            let ety = tyof_field prev_etm ty fld in
+            let* tm = M.stateless (Field.Map.find_opt fld tms) in
+            let* ctm = M.stateless (check ctx tm ety) in
+            let etm = Ctx.eval ctx ctm in
+            M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms))
+          [ fields ]
+          (Field.Map.empty, Field.Map.empty) in
+      return (Struct ctms)
   | _ -> None
 
 and synth : type a. a Ctx.t -> a synth -> (a term * value) option =

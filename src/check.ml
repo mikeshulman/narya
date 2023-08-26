@@ -54,7 +54,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           let output = tyof_app cods tyargs newargs in
           let* cbody = check ctx body output in
           return (Term.Lam (dom_faces, af, cbody)))
-  | Struct tms, Neu (Const { name; _ }, _) ->
+  | Struct tms, Neu (Const { name; dim }, _) ->
       let* (Record { fields; _ }) = Hashtbl.find_opt Global.records name in
       (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
       let module M =
@@ -71,7 +71,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           (fun [ (fld, _) ] ->
             let open Monad.Ops (M) in
             let* ctms, etms = M.get in
-            let prev_etm = Value.Struct etms in
+            let prev_etm = Value.Struct (etms, zero_ins dim) in
             let ety = tyof_field prev_etm ty fld in
             let* tm = M.stateless (Field.Map.find_opt fld tms) in
             let* ctm = M.stateless (check ctx tm ety) in

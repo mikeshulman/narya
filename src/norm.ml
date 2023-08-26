@@ -126,7 +126,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   | Field (tm, fld) ->
       let etm = eval env tm in
       field etm fld
-  | Struct fields -> Struct (Field.Map.map (fun tm -> eval env tm) fields)
+  | Struct fields -> Struct (Field.Map.map (fun tm -> eval env tm) fields, zero_ins (dim_env env))
   | Pi (dom, cod) ->
       (* A user-space pi-type always has dimension zero, so this is simpler than the general case. *)
       let m = dim_env env in
@@ -358,7 +358,7 @@ and tyof_app :
 and field : value -> Field.t -> value =
  fun tm fld ->
   match tm with
-  | Struct fields -> Field.Map.find fld fields
+  | Struct (fields, _) -> Field.Map.find fld fields
   | Uninst (Neu (fn, args), (lazy ty)) ->
       let newty = tyof_field tm ty fld in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)

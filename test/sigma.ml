@@ -131,3 +131,32 @@ let () = equal_at reflt refls idabab
 let () = equal_at reflt refls' idabab
 let () = equal_at reflt' refls idabab
 let () = equal_at reflt' refls' idabab
+
+(* Sigmas can store identities and squares, and symmetry can act on them *)
+let xx = assume "X" uu
+let x00 = assume "x00" xx
+let x01 = assume "x01" xx
+let xx02, _ = synth (id !!"X" !!"x00" !!"x01")
+let x02 = assume "x02" xx02
+let x10 = assume "x10" xx
+let x11 = assume "x11" xx
+let xx12, _ = synth (id !!"X" !!"x10" !!"x11")
+let x12 = assume "x12" xx12
+let xx20, _ = synth (id !!"X" !!"x00" !!"x10")
+let xx21, _ = synth (id !!"X" !!"x01" !!"x11")
+let x20 = assume "x20" xx20
+let x21 = assume "x21" xx21
+
+let rxx22 =
+  refl (refl !!"X") $ !!"x00" $ !!"x01" $ !!"x02" $ !!"x10" $ !!"x11" $ !!"x12" $ !!"x20" $ !!"x21"
+
+let xx22, _ = synth rxx22
+let x22 = assume "x22" xx22
+let yy = assume "Y" uu
+let y = assume "y" yy
+let xx22y, _ = synth (!~"Sig" $ rxx22 $ "" @-> !!"Y")
+let s = assume "s" xx22y
+let () = unsynth (sym !!"s")
+
+(* Huh, where is the problem? *)
+let fsts, _ = synth (sym (!!"s" $. "fst"))

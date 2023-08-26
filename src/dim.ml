@@ -1826,7 +1826,7 @@ let comp_op_deg_of_plus : type m n. (m, n) op -> m deg_of_plus -> n op_of_plus =
 
 (* ********** Insertions ********** *)
 
-(* An insertion of 'c into 'b is a permutation that maintains the relative order of 'b. *)
+(* An element of ('a, 'b, 'c) insertion is an insertion of 'c into 'b: a permutation of a = b + c that maintains the relative order of 'b.  *)
 type (_, _, _) insertion =
   | Zero : 'a D.t -> ('a, 'a, D.zero) insertion
   | Suc : ('a, 'b, 'c) insertion * 'a D.suc D.index -> ('a D.suc, 'b, 'c D.suc) insertion

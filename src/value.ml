@@ -17,11 +17,7 @@ module rec Value : sig
     | Var : { level : int; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; dim : 'n D.t } -> head
 
-  and 'n arg =
-    | Arg of ('n, normal) CubeOf.t
-    (* Fields don't store the dimension; the same field name is used at all dimensions. *)
-    | Field of Field.t
-
+  and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
 
   and _ binder =
@@ -52,8 +48,7 @@ module rec Value : sig
       }
         -> value
     | Lam : 'k binder -> value
-    (* Like fields, structs don't store the dimension. *)
-    | Struct : value Field.Map.t -> value
+    | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
 
   and normal = { tm : value; ty : value }
 
@@ -77,7 +72,11 @@ end = struct
     | Const : { name : Constant.t; dim : 'n D.t } -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
-  and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
+  and 'n arg =
+    | Arg of ('n, normal) CubeOf.t
+    (* Fields don't store the dimension explicitly; the same field name is used at all dimensions.  But the dimension is implicitly stored in the insertion that appears on an "app". *)
+    | Field of Field.t
+
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
 
   (* Lambdas and Pis both bind a variable, along with its dependencies.  These are recorded as defunctionalized closures.  Since they are produced by higher-dimensional substitutions and operator actions, the dimension of the binder can be different than the dimension of the environment that closes its body.  Accordingly, in addition to the environment and degeneracy to close its body, we store information about how to map the eventual arguments into the bound variables in the body.  *)
@@ -119,8 +118,8 @@ end = struct
         -> value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k binder -> value
-    (* The same is true for anonymous structs. *)
-    | Struct : value Field.Map.t -> value
+    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application. *)
+    | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
 
   (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
   and normal = { tm : value; ty : value }

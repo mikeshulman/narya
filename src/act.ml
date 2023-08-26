@@ -57,7 +57,15 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
   | Lam body ->
       let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
       Lam (act_binder body fa)
-  | Struct fields -> Struct (Field.Map.map (fun tm -> act_value tm s) fields)
+  | Struct (fields, ins) ->
+      (* Copied from act_apps *)
+      let nk = plus_of_ins ins in
+      let s' = perm_of_ins ins in
+      let (DegExt (_, nk_d, s's)) = comp_deg_extending s' s in
+      let (Plus kd) = D.plus (D.plus_right nk_d) in
+      let n_kd = D.plus_assocr nk kd nk_d in
+      let (Insfact (fa, new_ins)) = insfact s's n_kd in
+      Struct (Field.Map.map (fun tm -> act_value tm fa) fields, new_ins)
 
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->

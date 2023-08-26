@@ -4,7 +4,7 @@ open Dim
 
    Incorporates information appropriate to the internal syntax that is constructed during typechecking, e.g. applications and abstractions are grouped by a dimension, since this can be inferred during typechecking, from the synthesized type of a function being applied and from the pi-type the lambda is being checked against, respectively.  Similarly, we have instantiations of higher-dimensional types obtained by applying them to a tube of boundary terms.
 
-   On the other hand, pi-types are still only unary: higher-dimensional pi-types are created only in internal values by substitution and operator action.  Similarly, there is still only one (zero-dimensional) universe, and the only operator actions are Id, refl, and sym. *)
+   On the other hand, pi-types are still only unary: higher-dimensional pi-types are created only in internal values by substitution and operator action.  Similarly, there is still only one (zero-dimensional) universe, and the only operator actions are refl and sym. *)
 
 type _ term =
   | Var : 'a N.index -> 'a term

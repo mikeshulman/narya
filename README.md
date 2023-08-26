@@ -48,11 +48,11 @@ Currently, constants can only be built into the OCaml code, not defined by the u
 
 A constant that is a type family can be declared (again, only in the OCaml code) as a record type by giving a list of fields with their types.  Then an element of an instance of that family can have its fields projected out, and can be constructed using the record syntax given above.  For example, currently there is an implementation of Sigma-types as a record, which can be accessed by calling `Narya.Sigma.install ()`.  Records can be declared to have, or not have, eta-conversion (Sigma-types do).  Note that `struc` does not synthesize, so in a synthesizing context you must ascribe it.
 
-Case trees can include fields (copatterns) as well as matches against other constants (patterns).  Thus it is also possible to define constructors of records by case trees, in addition to `struc`.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, Sigma-types also come with a `pair` constructor defined in this way.
+Case trees can include fields (copatterns) as well as matches against other constants (patterns).  Thus it is also possible to define constructors of records by case trees, in addition to `struc`.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, Sigma-types also come with a `pair` constructor defined in this way; one can write `!~"pair" $ !!"A" $ !!"B" $ !!"a" $ !!"b"` instead of `struc [("fst", !!"a"); ("snd", !!"b")]`.
 
-Record types can be coinductive, with the type of a field involving the record itself.  Coinductive types should not be declared to have eta-conversion since that is undecidable, but there is no check for that.
+Record types can be coinductive, with the type of a field involving the record itself.  Coinductive types should not be declared to have eta-conversion since that is undecidable, but there is no check for that.  Corecursive elements of a coinductive type cannot be constructed with `struc`, but they can be defined as constants with copattern case trees.  For example, currently there is an implementation of coinductive streams accessible with `Narya.Stream.install ()`, with a built-in corecursor `corec` defined with copatterns.
 
-There is also currently no parsing or typechecking for constants, case trees, and records: the programmer is required and trusted to write them by hand in abstract syntax with De Bruijn indices.  In particular, there is no coverage, termination, or productivity checking.  Branches of case trees also do not specialize any previous arguments, so using them for indexed inductive types is questionable.
+There is currently no parsing or typechecking for constants, case trees, and records: the programmer is required and trusted to write them by hand in abstract syntax with De Bruijn indices.  In particular, there is no coverage, termination, or productivity checking.  Branches of case trees also do not specialize any previous arguments, so using them for indexed inductive types is questionable.
 
 
 ## Parametric Observational Type Theory
@@ -67,6 +67,19 @@ However, in most cases we can pretend that these two types are literally the sam
 There is no primitive `ap`; instead it is accessed by applying `refl` to a function.  That is, if `f : ("x", A) @=> B`, then `refl f $ x0 $ x1 $ x2` relates `f $ x0` to `f $ x1` in `B`.  Likewise, identity types can be obtained by applying `refl` to a type: `id M X Y` is just a convenient abbreviation of `refl M $ X $ Y`.
 
 Heterogeneous identity/bridge types are similarly obtained from `refl` of a type family: if `B : ("", A) @=> UU`, then `refl B $ x0 $ x1 $ x2` is a identification/bridge in `UU` between `B $ x0` and `B $ x1`.  Given elements `y0 : B $ x0` and `y1 : B $ x1`, we can "instantiate" this identification at them to obtain a type of heterogeneous identifications.  This is also written as function application, `refl B $ x0 $ x1 $ x2 $ y0 $ y1`.
+
+The identity/bridge type of a record type is another record type, which inherits eta-conversion and uses the same field names as the original.  For instance, `id (!~"Sig" $ A $ B) X Y` is a record type with fields `fst` and `snd`, having types
+```
+s $. "fst"  :  id !!"A" (X $. "fst") (Y $. "fst")
+s $. "snd"  :  refl B $ (X $. "fst") $ (Y $. "fst") $ (s $. "fst") $ (X $. "snd") $ (Y $. "snd")
+```
+Since it also satisfies eta-conversion, this record is definitionally isomorphic (but not equal) to another Sigma-type
+```
+!~"Sig" $ (id !!"A" (X $. "fst") (Y $. "fst")) $ ("p" @-> refl B $ (X $. "fst") $ (Y $. "fst") $ !!"p" $ (X $. "snd") $ (Y $. "snd"))
+```
+As with function-types, since the fields of `id (!~"Sig" $ A $ B) X Y` are again named `fst` and `snd`, in most cases one can pretend it is actually equal to the latter Sigma-type, including constructing elements of it with `struc [("fst", P); ("snd", Q)]`.
+
+This applies also to corecursive record types, whose identity/bridge types are thus coinductive types of bisimulations.  However, `struc` does not suffice to construct any nontrivial bisimulation, and since bisimulation types are *indexed* coinductive types it does not seem possible to formulate a generic corecursor for them by postulating a single typed constant with a case tree.  Thus, in practice bisimulations are inaccessible until we give the user the ability to define (and typecheck) their own constants with case trees.
 
 Internal parametricity is implemented by the constant `Gel`, whose type is
 ```

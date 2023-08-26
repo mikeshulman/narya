@@ -48,6 +48,12 @@ Currently, constants can only be built into the OCaml code, not defined by the u
 
 A constant that is a type family can be declared (again, only in the OCaml code) as a record type by giving a list of fields with their types.  Then an element of an instance of that family can have its fields projected out, and can be constructed using the record syntax given above.  For example, currently there is an implementation of Sigma-types as a record, which can be accessed by calling `Narya.Sigma.install ()`.  Records can be declared to have, or not have, eta-conversion (Sigma-types do).  Note that `struc` does not synthesize, so in a synthesizing context you must ascribe it.
 
+Case trees can include fields (copatterns) as well as matches against other constants (patterns).  Thus it is also possible to define constructors of records by case trees, in addition to `struc`.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, Sigma-types also come with a `pair` constructor defined in this way.
+
+Record types can be coinductive, with the type of a field involving the record itself.  Coinductive types should not be declared to have eta-conversion since that is undecidable, but there is no check for that.
+
+There is also currently no parsing or typechecking for constants, case trees, and records: the programmer is required and trusted to write them by hand in abstract syntax with De Bruijn indices.  In particular, there is no coverage, termination, or productivity checking.  Branches of case trees also do not specialize any previous arguments, so using them for indexed inductive types is questionable.
+
 
 ## Parametric Observational Type Theory
 

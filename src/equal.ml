@@ -41,11 +41,26 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
           equal_at newlvl (apply x newargs) (apply y newargs) output)
   | Neu (Const { name; _ }, _) -> (
       match Hashtbl.find_opt Global.records name with
-      | Some (Record { eta = true; fields; _ }) ->
-          (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-          miterM
-            (fun [ (fld, _) ] -> equal_at n (field x fld) (field y fld) (tyof_field x ty fld))
-            [ fields ]
+      | Some (Record { eta; fields; _ }) -> (
+          if
+            (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+            eta
+          then
+            miterM
+              (fun [ (fld, _) ] -> equal_at n (field x fld) (field y fld) (tyof_field x ty fld))
+              [ fields ]
+          else
+            (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
+            match (x, y) with
+            | Struct (xfld, xins), Struct (yfld, yins) ->
+                let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
+                miterM
+                  (fun [ (fld, _) ] ->
+                    equal_at n (Field.Map.find fld xfld) (Field.Map.find fld yfld)
+                      (tyof_field x ty fld))
+                  [ fields ]
+            | Struct _, _ | _, Struct _ -> fail
+            | _ -> equal_val n x y)
       | _ -> equal_val n x y)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
   | _ -> equal_val n x y

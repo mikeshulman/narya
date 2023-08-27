@@ -79,7 +79,7 @@ Since it also satisfies eta-conversion, this record is definitionally isomorphic
 ```
 As with function-types, since the fields of `id (!~"Sig" $ A $ B) X Y` are again named `fst` and `snd`, in most cases one can pretend it is actually equal to the latter Sigma-type, including constructing elements of it with `struc [("fst", P); ("snd", Q)]`.
 
-This applies also to corecursive record types, whose identity/bridge types are thus coinductive types of bisimulations.  However, `struc` does not suffice to construct any nontrivial bisimulation, and since bisimulation types are *indexed* coinductive types it does not seem possible to formulate a generic corecursor for them by postulating a single typed constant with a case tree.  Thus, in practice bisimulations are inaccessible until we give the user the ability to define (and typecheck) their own constants with case trees.
+This applies also to corecursive record types, whose identity/bridge types are thus coinductive types of bisimulations.  We can use `struc` to construct bisimulations that become trivial after a finite number of steps, such as to prove propostional one-step eta-expansion, but for infinitary ones we would need a corecursion.  And since bisimulation types are *indexed* coinductive types it does not seem possible to formulate a generic corecursor for them by postulating a single typed constant with a case tree.  Thus, in practice, nontrivial bisimulations are inaccessible until we give the user the ability to define (and typecheck) their own constants with case trees.
 
 Internal parametricity is implemented by the constant `Gel`, whose type is
 ```

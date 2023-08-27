@@ -12,11 +12,26 @@ let s0t = check (!!"s" $. "tail") straa
 let s1 = check (!!"s" $. "tail" $. "head") aa
 let s2 = check (!!"s" $. "tail" $. "tail" $. "head") aa
 
-(* Streams don't satisfy eta-conversion *)
-let s' = check (struc [ ("head", !!"s" $. "head"); ("tail", !!"s" $. "tail") ]) straa
+(* With structs, we can define a one-step eta-expansion, and see that streams don't satisfy eta-conversion. *)
+
+let rs' = struc [ ("head", !!"s" $. "head"); ("tail", !!"s" $. "tail") ]
+let s' = check rs' straa
 let () = unequal_at s s' straa
 
-let rs' =
+(* Their identity/bridge types are bisimulations.  We can use this to prove propositional one-step eta-conversion. *)
+
+let s0' = check (rs' <:> (!~"Stream" $ !!"A") $. "head") aa
+let () = equal s0 s0'
+let s0t' = check (rs' <:> (!~"Stream" $ !!"A") $. "tail") straa
+let () = equal s0t s0t'
+let s_is_s'_ty, _ = synth (id (!~"Stream" $ !!"A") !!"s" rs')
+
+let s_is_s' =
+  check (struc [ ("head", refl (!!"s" $. "head")); ("tail", refl (!!"s" $. "tail")) ]) s_is_s'_ty
+
+(* Using corec, we can also define an infinitary eta-expansion. *)
+
+let rs'' =
   !~"corec"
   $ !!"A"
   $ (!~"Stream" $ !!"A")
@@ -24,18 +39,11 @@ let rs' =
   $ "x" @-> (!!"x" $. "tail")
   $ !!"s"
 
-let s', sty' = synth rs'
-let () = equal straa sty'
-let () = unequal s s'
+let s'', sty'' = synth rs''
+let () = equal straa sty''
+let () = unequal s s''
 
-(* Their identity/bridge types are bisimulations, but structs don't suffice to prove this, as the tails are not yet equal. *)
-
-let s0' = check (rs' $. "head") aa
-let () = equal s0 s0'
-let s0t' = check (rs' $. "tail") straa
-let () = unequal s0t s0t'
-
-(* refl corec doesn't suffice to prove this either, as it only equates two values of corec.  A bisimulation must be defined by a full coinduction, which requires a new operation defined by a higher-dimensional copattern case tree. *)
+(* However, we can't prove this either with structs (since it's more than one step) or with "refl corec" (since it can only equate two values of corec).  We need a more general bisimulation, which must be defined by a full coinduction, which in turn requires a new operation defined by a higher-dimensional copattern case tree. *)
 
 (* We construct a stream of natural numbers and check its first few elements *)
 

@@ -7,11 +7,11 @@ Narya is eventually intended to be a proof assistant implementing Multimodal, Pa
 
 There is no parser or pretty-printer yet.  However, there is a "poor man's parser" implemented as a DSL in OCaml with infix and prefix operators, which is used to formalize a number of examples in the `test/` directory.  It is loaded with `open Pmp`, which makes available the following syntax for terms:
 
-- `!!"x"` -- Use a variable (again, an OCaml string).
-- `!~"c"` -- Use a built-in constant, such as `Sig` or `Gel`.
-- `UU` -- Universe (currently we have type-in-type).
+- `!!"x"` -- Use a variable (an OCaml string).
+- `!~"c"` -- Use a built-in constant, such as `Sig` or `Gel` (also an OCaml string).
+- `UU` -- The unique universe (currently we have type-in-type).
 - `M $ N` -- Function application (left-associative).
-- `"x" @-> M` -- Lambda-abstraction (right-associative).  Note the variable must be an OCaml string.
+- `"x" @-> M` -- Lambda-abstraction (right-associative).  The variable must be an OCaml string.
 - `("x", M) @=> N` -- Pi-type (right-associative).
 - `M $. "fld"` -- Field access of a record (left-associative).
 - `struc [("fld1", M); ("fld2", N)]` -- Anonymous record (structure).
@@ -19,6 +19,8 @@ There is no parser or pretty-printer yet.  However, there is a "poor man's parse
 - `id M X Y` -- Homogeneous identity/bridge type.
 - `refl M` -- Reflexivity term.
 - `sym M` -- Symmetry of a two-dimensional square.
+
+The associativities and precedence are determined by the uniform rules of OCaml, based on the first character of each infix operator.  In particular, this means that `@->` and `@=>` bind tighter than `$`, so you have to write `"x" @-> (M $ !!"x")` but you can write `!!"f" $ "x" @-> M`.
 
 This grammar produces a "raw term" which can be either synthesized or checked against a type, using the following functions:
 
@@ -35,6 +37,11 @@ That is, we first write the type of a theorem, synthesize it (its type will be `
 ```
 let theorem = check (...) (fst (synth (...)))
 ```
+Since we don't have a built-in notion of "definition" yet, when a term will be used again later, it is convenient to give a name to its raw syntax also, e.g.
+```
+let rdefn = (...)
+let defn = check rdefn defn_ty
+```
 Some other helpful functions include:
 
 - `assume "x" T` -- Assume a variable `x` of type `T` (a value), and return that variable (as a value).
@@ -44,9 +51,9 @@ Some other helpful functions include:
 
 ## Constants, case trees, and records
 
-Currently, constants can only be built into the OCaml code, not defined by the user.  But when defined, they can be stipulated to compute according to any case tree.  For example, currently there is an implementation of the natural numbers with addition, which can be accessed by calling `Narya.Nat.install ()`.
+Currently, constants can only be built into the OCaml code, not defined by the user.  But when defined, they can be stipulated to compute according to any case tree.  For example, currently there is an implementation of the natural numbers, which can be accessed by calling `Narya.Nat.install ()`, with the general recursor/inductor, and also an addition constant defined by a direct case tree rather than in terms of the recursor.
 
-A constant that is a type family can be declared (again, only in the OCaml code) as a record type by giving a list of fields with their types.  Then an element of an instance of that family can have its fields projected out, and can be constructed using the record syntax given above.  For example, currently there is an implementation of Sigma-types as a record, which can be accessed by calling `Narya.Sigma.install ()`.  Records can be declared to have, or not have, eta-conversion (Sigma-types do).  Note that `struc` does not synthesize, so in a synthesizing context you must ascribe it.
+A constant that is a type family can be declared (again, only in the OCaml code) to be a *record type* by giving a list of its fields with their types.  Then an element of an instance of that family can have its fields projected out, and can be constructed using the record syntax `struc` given above.  For example, currently there is an implementation of Sigma-types as a record, which can be accessed by calling `Narya.Sigma.install ()`.  Records can be declared to have, or not have, eta-conversion (Sigma-types do).  Note that `struc` does not synthesize, so in a synthesizing context you must ascribe it.
 
 Case trees can include fields (copatterns) as well as matches against other constants (patterns).  Thus it is also possible to define constructors of records by case trees, in addition to `struc`.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, Sigma-types also come with a `pair` constructor defined in this way; one can write `!~"pair" $ !!"A" $ !!"B" $ !!"a" $ !!"b"` instead of `struc [("fst", !!"a"); ("snd", !!"b")]`.
 
@@ -68,14 +75,14 @@ There is no primitive `ap`; instead it is accessed by applying `refl` to a funct
 
 Heterogeneous identity/bridge types are similarly obtained from `refl` of a type family: if `B : ("", A) @=> UU`, then `refl B $ x0 $ x1 $ x2` is a identification/bridge in `UU` between `B $ x0` and `B $ x1`.  Given elements `y0 : B $ x0` and `y1 : B $ x1`, we can "instantiate" this identification at them to obtain a type of heterogeneous identifications.  This is also written as function application, `refl B $ x0 $ x1 $ x2 $ y0 $ y1`.
 
-The identity/bridge type of a record type is another record type, which inherits eta-conversion and uses the same field names as the original.  For instance, `id (!~"Sig" $ A $ B) X Y` is a record type with fields `fst` and `snd`, having types
+The identity/bridge type of a record type is another record type, which inherits eta-conversion and uses the same field names as the original.  For instance, `id (!~"Sig" $ A $ B) X Y` is a record type with fields `fst` and `snd`, where for `s : !~"Sig" $ A $ B` we have
 ```
-s $. "fst"  :  id !!"A" (X $. "fst") (Y $. "fst")
+s $. "fst"  :  id A (X $. "fst") (Y $. "fst")
 s $. "snd"  :  refl B $ (X $. "fst") $ (Y $. "fst") $ (s $. "fst") $ (X $. "snd") $ (Y $. "snd")
 ```
 Since it also satisfies eta-conversion, this record is definitionally isomorphic (but not equal) to another Sigma-type
 ```
-!~"Sig" $ (id !!"A" (X $. "fst") (Y $. "fst")) $ ("p" @-> refl B $ (X $. "fst") $ (Y $. "fst") $ !!"p" $ (X $. "snd") $ (Y $. "snd"))
+!~"Sig" $ (id A (X $. "fst") (Y $. "fst")) $ ("p" @-> refl B $ (X $. "fst") $ (Y $. "fst") $ !!"p" $ (X $. "snd") $ (Y $. "snd"))
 ```
 As with function-types, since the fields of `id (!~"Sig" $ A $ B) X Y` are again named `fst` and `snd`, in most cases one can pretend it is actually equal to the latter Sigma-type, including constructing elements of it with `struc [("fst", P); ("snd", Q)]`.
 
@@ -85,7 +92,7 @@ Internal parametricity is implemented by the constant `Gel`, whose type is
 ```
 ("A", UU) @=> ("B", UU) @=> ("R", ("x", !!"A") @=> ("y", !!"B") @=> UU) @=> id U !!"A" !!"B"
 ```
-As above, since `!~"Gel" $ A $ B $ R` is an identification in the universe, it can be further instantiated at elements `a : A` and `b : B` to obtain a type `!~"Gel" $ A $ B $ R $ a $ b`.  This type is isomorphic to the original `R $ a $ b`.  In fact, `Gel` is declared as a special kind of "one-dimensional record type" with eta-conversion, with a single field `ungel` of type `R $ a $ b`.  Thus the isomorphism is implemented by, on the one hand, accessing this field `M $. "ungel"`, and on the other by building a record `struc [("ungel", M)]`.  (The code actually allows for record types of arbitrary dimension, but in practice Gel is the only one expected to be needed.)
+As above, since `!~"Gel" $ A $ B $ R` is an identification in the universe, it can be further instantiated at elements `a : A` and `b : B` to obtain a type `!~"Gel" $ A $ B $ R $ a $ b`.  This type is isomorphic to the original `R $ a $ b`.  In fact, `Gel` is declared as a special kind of "one-dimensional record type" (in contrast to the usual zero-dimensional ones) with eta-conversion, with a single field `ungel` of type `R $ a $ b`.  Thus the isomorphism is implemented by, on the one hand, accessing this field `M $. "ungel"`, and on the other by building a record `struc [("ungel", M)]`.  (The code actually allows for record types of arbitrary dimension, but in practice Gel is the only one expected to be needed.)
 
 To access `Gel`, you need to first call `Narya.Gel.install ()`.
 

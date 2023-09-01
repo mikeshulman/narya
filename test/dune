@@ -1,9 +1,0 @@
-(library
-  (name pmp)
-	(modules pmp)
-	(libraries narya))
-(tests
-  (libraries narya pmp)
-  (names church idrefl sym symsym gel natarith parametricity churchnat sigma stream)
-  (modules church idrefl sym symsym gel natarith parametricity churchnat sigma stream))
-(env (_ (flags (:standard -w -37 -w -30 -w -32))))

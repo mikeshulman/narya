@@ -1,4 +1,0 @@
-(library
-  (name narya)
-  (libraries pcre bwd))
-(env (_ (flags (:standard -w -37 -w -30))))

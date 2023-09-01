@@ -1,0 +1,4 @@
+(tests
+  (names church idrefl sym symsym gel natarith parametricity churchnat sigma stream)
+	(libraries core types testutil))
+(env (_ (flags (:standard -w -37 -w -30 -w -32))))

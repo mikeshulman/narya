@@ -1,0 +1,4 @@
+(library
+  (name testutil)
+  (libraries util core types))
+(env (_ (flags (:standard -w -37 -w -30))))

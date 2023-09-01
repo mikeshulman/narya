@@ -1,0 +1,4 @@
+(library
+  (name core)
+  (libraries util dim bwd))
+(env (_ (flags (:standard -w -37 -w -30))))

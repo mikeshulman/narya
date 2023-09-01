@@ -1,0 +1,4 @@
+(library
+  (name dim)
+  (libraries util))
+(env (_ (flags (:standard -w -37 -w -30))))

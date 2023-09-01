@@ -93,7 +93,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       let etm = Ctx.eval ctx stm in
       let* newty = tyof_field_opt etm sty fld in
       return (Field (stm, fld), newty)
-  | UU -> return (Term.UU, universe D.zero)
+  | Symbol (UU, Zero, Emp) -> return (Term.UU, universe D.zero)
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let* cdom = check ctx dom (universe D.zero) in
@@ -105,22 +105,30 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       let fn, args = spine tm in
       let* sfn, sty = synth ctx fn in
       synth_apps ctx sfn sty args
-  | Id (a, x, y) ->
+  | Symbol (Id, Zero, Snoc (Snoc (Snoc (Emp, a), x), y)) ->
       (* This is just an abbreviation. *)
-      synth ctx (App (App (Refl a, x), y))
-  | Refl x ->
-      let* sx, ety = synth ctx x in
-      let ex = Ctx.eval ctx sx in
-      return (Refl sx, act_ty ex ety refl)
-  | Sym x -> (
-      let* sx, ety = synth ctx x in
-      let ex = Ctx.eval ctx sx in
-      try
-        let symty = act_ty ex ety sym in
-        return (Sym sx, symty)
-      with Invalid_uninst_action ->
-        msg "Can't symmetrize something of too low dimension";
-        None)
+      synth ctx (App (App (Symbol (Refl, Zero, Snoc (Emp, a)), x), y))
+  | Symbol (Refl, Zero, Snoc (Emp, x)) -> (
+      match x with
+      | Synth x ->
+          let* sx, ety = synth ctx x in
+          let ex = Ctx.eval ctx sx in
+          return (Refl sx, act_ty ex ety refl)
+      | _ -> None)
+  | Symbol (Sym, Zero, Snoc (Emp, x)) -> (
+      match x with
+      | Synth x -> (
+          let* sx, ety = synth ctx x in
+          let ex = Ctx.eval ctx sx in
+          try
+            let symty = act_ty ex ety sym in
+            return (Sym sx, symty)
+          with Invalid_uninst_action ->
+            msg "Can't symmetrize something of too low dimension";
+            None)
+      | _ -> None)
+  (* If a symbol isn't applied to enough arguments yet, it doesn't typecheck. *)
+  | Symbol (_, Suc _, _) -> None
   | Asc (tm, ty) ->
       let* cty = check ctx ty (universe D.zero) in
       let ety = Ctx.eval ctx cty in

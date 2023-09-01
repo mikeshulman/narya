@@ -4,7 +4,7 @@ open Core
 open Term
 
 let ([ nn; zero; suc; plus; ind ] : (Constant.t, N.five) Vec.t) =
-  Vec.map Constant.intern [ "N"; "0"; "S"; "+"; "ind" ]
+  Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "ind" ]
 
 let install () =
   Hashtbl.add Global.types nn UU;

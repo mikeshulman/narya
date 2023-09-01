@@ -105,9 +105,8 @@ end
 (* Nondeterministic choice monads *)
 
 module type Plus = sig
-  include Plain
+  include Zero
 
-  val mzero : 'a t
   val mplus : 'a t -> 'a t -> 'a t
 end
 
@@ -121,6 +120,15 @@ module PlusOps (M : Plus) = struct
   let rec choose_from = function
     | [] -> fail
     | x :: xs -> return x <|> choose_from xs
+end
+
+(* StateT inherits plus *)
+
+module StateTPlus (M : Plus) (S : State_type) = struct
+  include StateT (M) (S)
+
+  let mzero : 'a t = fun _ -> M.mzero
+  let mplus : 'a t -> 'a t -> 'a t = fun x y s -> M.mplus (x s) (y s)
 end
 
 (* List and Seq monads *)

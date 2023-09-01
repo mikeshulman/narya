@@ -1,4 +1,5 @@
 open Hlist
+open Bwd
 
 (* Snoc vectors, indexed by type-level natural numbers.  This module should not be opened, but used qualified. *)
 
@@ -355,3 +356,12 @@ let rec unbind : type a b m n mn. (m, n, mn) N.times -> (b, mn) t -> ((b, m) t, 
   | Suc (mn, mnm) ->
       let xss, xs = unappend mnm xss in
       Snoc (unbind mn xss, xs)
+
+(* Converting from a Bwd *)
+type 'a wrapped = Wrap : ('a, 'n) t -> 'a wrapped
+
+let rec of_bwd : type a. a Bwd.t -> a wrapped = function
+  | Emp -> Wrap Emp
+  | Snoc (xs, x) ->
+      let (Wrap xs') = of_bwd xs in
+      Wrap (Snoc (xs', x))

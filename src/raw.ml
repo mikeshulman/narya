@@ -21,3 +21,9 @@ and _ check =
   | Synth : 'a synth -> 'a check
   | Lam : 'a N.suc check -> 'a check
   | Struct : 'a check Field.Map.t -> 'a check
+
+let rec raw_lam : type a b ab. (a, b, ab) N.plus -> ab check -> a check =
+ fun ab tm ->
+  match ab with
+  | Zero -> tm
+  | Suc ab -> raw_lam ab (Lam tm)

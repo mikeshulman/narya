@@ -66,8 +66,17 @@ let unparse (tm : string) : unit =
   let (Ctx (_, names)) = !context in
   let raw = Parse.term names tm in
   match raw with
-  | _ :: _ -> raise (Failure "Unexpected parse success")
+  | [ _ ] -> raise (Failure "Unexpected parse success")
+  | _ :: _ :: _ -> raise (Failure "Unexpected parse ambiguity")
   | [] -> ()
+
+let ambparse (tm : string) : unit =
+  let (Ctx (_, names)) = !context in
+  let raw = Parse.term names tm in
+  match raw with
+  | [ _ ] -> raise (Failure "Unexpected parse success")
+  | [] -> raise (Failure "Unexpected parse failure")
+  | _ :: _ :: _ -> ()
 
 (* Add to the context of assumptions *)
 

@@ -34,6 +34,8 @@ As in Agda, mixfix notations can involve arbitrary Unicode characters, but must 
 
   This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing, while keeping the lexer as a simple regexp that doesn't need to change as new operators are defined.
 
+Identifiers (variables and constant names) can be any string consisting of non-whitespace characters other than the above two groups that doesn't start with an underscore or period.  (Field names, which must be identifiers, are prefixed a period when accessed.  Identifiers prefixed with one or more underscores are reserved for internal use.)
+
 Once you have written a raw term using this syntax as an OCaml string, you can parse it and pass it off to the typechecker with these functions defined in `Testutil.Mcp`:
 
 - `synth M` -- Synthesize a type from a term `M` and return the corresponding "value" of `M` as well as the synthesized type (also a value).
@@ -83,7 +85,7 @@ Here the associativities and precedence are determined by the uniform rules of O
 
 ## Constants, case trees, and records
 
-Currently, constants can only be built into the OCaml code, not defined by the user.  But when defined, they can be stipulated to compute according to any case tree.  For example, currently there is an implementation of the natural numbers, which can be accessed by calling `Narya.Nat.install ()`, with the general recursor/inductor, and also addition and multiplication constants defined by direct case trees rather than in terms of the recursor.  The latter have right-associative infix notations `+` and `*`, the latter binding more tightly.
+Currently, constants can only be built into the OCaml code, not defined by the user.  But when defined, they can be stipulated to compute according to any case tree.  For example, currently there is an implementation of the natural numbers, which can be accessed by calling `Narya.Nat.install ()`, with the general recursor/inductor, and also addition and multiplication constants defined by direct case trees rather than in terms of the recursor.  The latter have right-associative infix notations `+` and `*`, with `*` binding more tightly, and also numeral notations.
 
 A constant that is a type family can be declared (again, only in the OCaml code) to be a *record type* by giving a list of its fields with their types.  Then an element of an instance of that family can have its fields projected out, and can be constructed using the record syntax given above as well as with an infix comma (right-associative).  For example, currently there is an implementation of Sigma-types as a record, which can be accessed by calling `Narya.Sigma.install ()`.  The notation for a Sigma-type is `(x : A) × B`, or `A × B` in the non-dependent case (both right-associative and binding tighter than →), with fields `fst` and `snd`.  Records can be declared to have, or not have, eta-conversion (Sigma-types do).  Note that anonymous structures (including the comma) do not synthesize, so in a synthesizing context you must ascribe them.
 

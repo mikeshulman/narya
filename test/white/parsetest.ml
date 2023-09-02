@@ -169,3 +169,15 @@ let () = unparse "S O * S O → S O"
 (* To parse it, we need parentheses. *)
 let () = unsynth "(S O * S O) → S O"
 let () = unsynth "S O * (S O → S O)"
+
+(* Numeral notations *)
+let nsix, _ = synth "6"
+let () = equal six nsix
+let thirty, _ = synth "30"
+let thirty', _ = synth "3*10"
+let () = equal thirty thirty'
+
+(* Identifiers can start with digits, but an identifier consisting entirely of digits leads to ambiguous parses in the presence of numeral notations. *)
+let atoa, _ = synth "A → A"
+let _ = check "0a ↦ 0a" atoa
+let () = ambparse "0 ↦ 0"

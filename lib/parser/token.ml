@@ -45,18 +45,15 @@ The first set of (single-character) tokens have only built-in meaning.
 The second set of tokens are available for use in user-defined notations, and some of them have built-in meanings as well.
 
 The third set of tokens divides into:
-1. Those which start with a digit, which are only allowed as numeric literals (although not all of these are valid numeric literals, of course).
-2. Those which start with "_", which have built-in meaning (or are invalid).
-3. Those which start with ".", which have the built-in meaning of field projections.
-4. Reserved keywords
+1. Those which start with "_", which have built-in meaning (or are invalid).
+2. Those which start with ".", which have the built-in meaning of field projections.
+3. Reserved keywords
 4. All others, which are available for use in user-defined notations, and can also be identifiers (names of variables and constants).
 
-Thus, an identifier is a sequence of non-singleton, non-operator characters that doesn't start with a digit, underscore, or period, and which is not a reserved keyword.
+Thus, an identifier is a sequence of non-singleton, non-operator characters that doesn't start with an underscore or period, and which is not a reserved keyword.
 *)
 
-let ident =
-  compile (Printf.sprintf "^[^0-9_.%s%s][^%s%s]*$" singletons operators singletons operators)
-
+let ident = compile (Printf.sprintf "^[^_.%s%s][^%s%s]*$" singletons operators singletons operators)
 let reserved = [ "Type"; "Id"; "refl"; "sym" ]
 let is_ident str = Pcre.pmatch ~rex:ident str && not (List.mem str reserved)
 

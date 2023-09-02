@@ -8,7 +8,12 @@ open Term
 let ([ sigma; pair ] : (Constant.t, N.two) Vec.t) = Vec.map Constant.intern [ "Sig"; "pair" ]
 let ([ fst; snd ] : (Field.t, N.two) Vec.t) = Vec.map Field.intern [ "fst"; "snd" ]
 
-module Notation = struct
+module Nodes = struct
+  let prod = Node.make "prod"
+  let comma = Node.make "comma"
+end
+
+module Notations = struct
   class sigma =
     object
       inherit [Fixity.right] Notation.t
@@ -83,9 +88,6 @@ module Notation = struct
     end
 end
 
-let prod_node = Node.make "prod"
-let comma_node = Node.make "comma"
-
 let install () =
   Hashtbl.add Global.types sigma (Pi (UU, Pi (Pi (Var Top, UU), UU)));
   Hashtbl.add Global.types pair
@@ -119,7 +121,7 @@ let install () =
        (Suc (Suc (Suc (Suc Zero))), Cobranch [ (fst, Leaf (Var (Pop Top))); (snd, Leaf (Var Top)) ]));
   Parse.rightassoc_notations :=
     !Parse.rightassoc_notations
-    |> Node.Map.add prod_node (new Notation.sigma)
-    |> Node.Map.add prod_node (new Notation.prod)
-    |> Node.Map.add comma_node (new Notation.comma);
-  Option.get (Node.add_prec Node.arrow prod_node)
+    |> Node.Map.add Nodes.prod (new Notations.sigma)
+    |> Node.Map.add Nodes.prod (new Notations.prod)
+    |> Node.Map.add Nodes.comma (new Notations.comma);
+  Option.get (Node.add_prec Node.arrow Nodes.prod)

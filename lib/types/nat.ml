@@ -8,8 +8,11 @@ open Term
 let ([ nn; zero; suc; plus; times; ind ] : (Constant.t, N.six) Vec.t) =
   Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "times"; "ind" ]
 
-let plus_node = Node.make "nat_plus"
-let times_node = Node.make "nat_times"
+module Nodes = struct
+  let plus = Node.make "nat_plus"
+  let times = Node.make "nat_times"
+end
+
 let num = Token.compile "^(0|[1-9][0-9]*)$"
 
 let rec numeral_of_int = function
@@ -128,7 +131,7 @@ let install () =
              ] ) ));
   Parse.rightassoc_notations :=
     !Parse.rightassoc_notations
-    |> Node.Map.add plus_node (new Notation.simple `Infix plus [ "+" ])
-    |> Node.Map.add times_node (new Notation.simple `Infix times [ "*" ]);
-  Option.get (Node.add_prec plus_node times_node);
+    |> Node.Map.add Nodes.plus (new Notation.simple `Infix plus [ "+" ])
+    |> Node.Map.add Nodes.times (new Notation.simple `Infix times [ "*" ]);
+  Option.get (Node.add_prec Nodes.plus Nodes.times);
   Parse.nonassoc_notations := !Parse.nonassoc_notations |> Node.Map.add Node.max (new numeral)

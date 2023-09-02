@@ -10,7 +10,10 @@ let one, nat1 = synth raw1
 let () = equal nat nat1
 let raw2 = !~"S" $ raw1
 let two, _ = synth raw2
-let three, _ = synth (!~"S" $ raw2)
+let raw3 = !~"S" $ raw2
+let three, _ = synth raw3
+let raw4 = !~"S" $ raw3
+let four, _ = synth raw4
 let one_plus_one, _ = synth (!~"plus" $ raw1 $ raw1)
 let () = equal one_plus_one two
 let () = unequal one_plus_one one
@@ -80,3 +83,13 @@ let plus_is_plus =
           @-> (refl !~"S" $ (!~"plus" $ !!"x" $ !!"u") $ (rplus $ !!"x" $ !!"u") $ !!"equ")
         $ !!"y"))
     plus_is_plus_ty
+
+(* We also have multiplication *)
+let one_times_zero, _ = synth (!~"times" $ raw1 $ raw0)
+let () = equal one_times_zero zero
+let zero_times_one, _ = synth (!~"times" $ raw0 $ raw1)
+let () = equal zero_times_one zero
+let one_times_one, _ = synth (!~"times" $ raw1 $ raw1)
+let () = equal one_times_one one
+let two_times_two, _ = synth (!~"times" $ raw2 $ raw2)
+let () = equal two_times_two four

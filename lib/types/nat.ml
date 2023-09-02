@@ -3,14 +3,15 @@ open Dim
 open Core
 open Term
 
-let ([ nn; zero; suc; plus; ind ] : (Constant.t, N.five) Vec.t) =
-  Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "ind" ]
+let ([ nn; zero; suc; plus; times; ind ] : (Constant.t, N.six) Vec.t) =
+  Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "times"; "ind" ]
 
 let install () =
   Hashtbl.add Global.types nn UU;
   Hashtbl.add Global.types zero (Const nn);
   Hashtbl.add Global.types suc (Pi (Const nn, Const nn));
   Hashtbl.add Global.types plus (Pi (Const nn, Pi (Const nn, Const nn)));
+  Hashtbl.add Global.types times (Pi (Const nn, Pi (Const nn, Const nn)));
   Hashtbl.add Global.trees plus
     (Lam
        ( Suc (Suc Zero),
@@ -29,6 +30,27 @@ let install () =
                             (App
                                ( App (Const plus, CubeOf.singleton (Var (Pop (Pop Top)))),
                                  CubeOf.singleton (Var Top) )) )) );
+             ] ) ));
+  Hashtbl.add Global.trees times
+    (Lam
+       ( Suc (Suc Zero),
+         Branch
+           ( Top,
+             [
+               Branch (zero, Zero, Zero, Leaf (Const zero));
+               Branch
+                 ( suc,
+                   Take Zero,
+                   Suc Zero,
+                   Leaf
+                     (App
+                        ( App
+                            ( Const plus,
+                              CubeOf.singleton
+                                (App
+                                   ( App (Const times, CubeOf.singleton (Var (Pop (Pop Top)))),
+                                     CubeOf.singleton (Var Top) )) ),
+                          CubeOf.singleton (Var (Pop (Pop Top))) )) );
              ] ) ));
   Hashtbl.add Global.types ind
     (Pi

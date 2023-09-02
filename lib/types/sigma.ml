@@ -83,8 +83,8 @@ module Notation = struct
     end
 end
 
-let prod_scope = Scope.make "prod"
-let comma_scope = Scope.make "comma"
+let prod_node = Node.make "prod"
+let comma_node = Node.make "comma"
 
 let install () =
   Hashtbl.add Global.types sigma (Pi (UU, Pi (Pi (Var Top, UU), UU)));
@@ -119,9 +119,9 @@ let install () =
        (Suc (Suc (Suc (Suc Zero))), Cobranch [ (fst, Leaf (Var (Pop Top))); (snd, Leaf (Var Top)) ]));
   Parse.rightassoc_notations :=
     !Parse.rightassoc_notations
-    |> Scope.Map.add prod_scope (new Notation.sigma)
-    |> Scope.Map.add prod_scope (new Notation.prod)
-    |> Scope.Map.add comma_scope (new Notation.comma);
-  Scope.open_scope prod_scope;
-  Scope.open_scope comma_scope;
-  Option.get (Scope.add_prec Scope.arrow prod_scope)
+    |> Node.Map.add prod_node (new Notation.sigma)
+    |> Node.Map.add prod_node (new Notation.prod)
+    |> Node.Map.add comma_node (new Notation.comma);
+  Node.open_node prod_node;
+  Node.open_node comma_node;
+  Option.get (Node.add_prec Node.arrow prod_node)

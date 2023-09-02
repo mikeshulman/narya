@@ -1,4 +1,4 @@
 (library
   (name testutil)
-  (libraries util core types))
+  (libraries util core types parser))
 (env (_ (flags (:standard -w -37 -w -30))))

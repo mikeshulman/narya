@@ -1,4 +1,4 @@
 (tests
-  (names church idrefl sym symsym gel natarith parametricity churchnat sigma stream)
-	(libraries core types testutil))
+  (names church idrefl sym symsym gel natarith parametricity churchnat sigma stream parsetest)
+	(libraries core types parser testutil))
 (env (_ (flags (:standard -w -37 -w -30 -w -32))))

@@ -1,10 +1,14 @@
 open Util
 open Dim
 open Core
+open Parser
 open Term
 
 let ([ nn; zero; suc; plus; times; ind ] : (Constant.t, N.six) Vec.t) =
   Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "times"; "ind" ]
+
+let plus_scope = Scope.make "nat_plus"
+let times_scope = Scope.make "nat_times"
 
 let install () =
   Hashtbl.add Global.types nn UU;
@@ -94,4 +98,11 @@ let install () =
                                          CubeOf.singleton (Var (Pop (Pop (Pop Top)))) ),
                                      CubeOf.singleton (Var (Pop (Pop Top))) ),
                                  CubeOf.singleton (Var Top) )) )) );
-             ] ) ))
+             ] ) ));
+  Parse.rightassoc_notations :=
+    !Parse.rightassoc_notations
+    |> Scope.Map.add plus_scope (new Notation.simple `Infix plus [ "+" ])
+    |> Scope.Map.add times_scope (new Notation.simple `Infix times [ "*" ]);
+  Option.get (Scope.add_prec plus_scope times_scope);
+  Scope.open_scope plus_scope;
+  Scope.open_scope times_scope

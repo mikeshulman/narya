@@ -1,0 +1,4 @@
+(library
+  (name parser)
+  (libraries util bwd core pcre))
+(env (_ (flags (:standard -w -37 -w -30))))

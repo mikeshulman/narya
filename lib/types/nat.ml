@@ -131,6 +131,4 @@ let install () =
     |> Node.Map.add plus_node (new Notation.simple `Infix plus [ "+" ])
     |> Node.Map.add times_node (new Notation.simple `Infix times [ "*" ]);
   Option.get (Node.add_prec plus_node times_node);
-  Node.open_node plus_node;
-  Node.open_node times_node;
   Parse.nonassoc_notations := !Parse.nonassoc_notations |> Node.Map.add Node.max (new numeral)

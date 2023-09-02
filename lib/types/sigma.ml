@@ -122,6 +122,4 @@ let install () =
     |> Node.Map.add prod_node (new Notation.sigma)
     |> Node.Map.add prod_node (new Notation.prod)
     |> Node.Map.add comma_node (new Notation.comma);
-  Node.open_node prod_node;
-  Node.open_node comma_node;
   Option.get (Node.add_prec Node.arrow prod_node)

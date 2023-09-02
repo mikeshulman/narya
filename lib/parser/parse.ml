@@ -74,7 +74,7 @@ let rec expr : unit -> Notation.any Tree.t Parsing.t =
   (* An expression is either an identifier, *)
   ident
   (* or a notation belonging to an open node. *)
-  <|> let* node = choose_from (Node.get_opens ()) in
+  <|> let* node = choose_from (Node.get_all ()) in
       group node
 
 (* DN nonterminal "p↑".  This is similar to "expr", but instead of looking at all open nodes, we look at those with higher precedence than the current one. *)

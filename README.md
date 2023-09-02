@@ -22,7 +22,7 @@ Narya cannot read and parse an entire file yet, and doesn't understand any kind 
 
 The precedences are as you would expect: application binds tighter than anything (except parentheses), while abstraction, ascription, and pi-types, are looser than anything.  Of note is that type ascription is non-associative, so `M : N : P` is a parse error, and has no precedence relation with abstraction, so `x ↦ M : A` is a parse error.  In the latter case you can write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.
 
-There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments do not nest (since this way the lexer can be a single regex split).
+There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments do not nest (since this way the lexer can be a single regex split), but they have a variant that allow multiple backquotes, where the number of backquotes must match between the opening and closing delimiters.  Thus, for instance, a section of code containing block comments {\` ... \`} can be commented out by a block comment {\`\` ... \`\`}, and so on.
 
 As in Agda, mixfix notations can involve arbitrary Unicode characters, but must be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, there are also the following exceptions:
 

@@ -147,6 +147,12 @@ let _ =
  and showing that {` block comments
 don't nest `} →  B x"
 
+let _ =
+  synth
+    "(x : A) {`` but block comments
+ with different {` numbers of `} backquotes
+can be nested ``} →  B x"
+
 (* Precedence and associativity *)
 let () = Types.Nat.install ()
 let onetwothree, _ = synth "S O + S (S O) + S (S (S O))"

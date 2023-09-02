@@ -14,7 +14,7 @@ let operators = "[\\]~!@#$%\\^&*/?=+\\\\|,<>:;\\-'"
 
 (* In addition:
    - line comments start at ` and extend to a newline (but don't include the newline)
-   - block comments start at {` and extend to the first `} (non-nesting)
+   - block comments start at {` and extend to the first `} (non-nesting, but extensible to {`` ... ``} etc. that must match)
    - string literals start at " and extend to the next " not escaped with a backslash
    - comments cannot start inside a string literal
    - when a new line starts (outside a comment), we record the number of 0x20 spaces, for layout
@@ -22,20 +22,20 @@ let operators = "[\\]~!@#$%\\^&*/?=+\\\\|,<>:;\\-'"
 
 let delims =
   Pcre.regexp ~flags:[ `UTF8; `MULTILINE ]
-    (Printf.sprintf "\n( *)|`.*$|{`(?s:.)*?`}|\"((?:[^\"]|\\\")*)\"|\\s+|([%s]|[%s]+)" singletons
-       operators)
+    (Printf.sprintf "\n( *)|`.*$|{(`+)(?s:.)*?\\2}|\"((?:[^\"]|\\\")*)\"|\\s+|([%s]|[%s]+)"
+       singletons operators)
 
 let ize (str : string) : t list =
   (* With grouping parentheses, Pcre.full_split seems to return, for every delimiter, a Delim containing the full value of that delimiter *followed* by either a Group or a NoGroup for *each* group in the regex.  So we can ignore the Delims and act accordingly on the Groups. *)
   let rec ize = function
     | [] -> []
     | Pcre.Text str :: rest -> Tok str :: ize rest
-    | Delim _ :: Group (1, spaces) :: NoGroup :: NoGroup :: rest ->
+    | Delim _ :: Group (1, spaces) :: NoGroup :: NoGroup :: NoGroup :: rest ->
         Indent (String.length spaces) :: ize rest
-    | Delim _ :: NoGroup :: Group (2, _) :: NoGroup :: _ ->
+    | Delim _ :: NoGroup :: NoGroup :: Group (3, _) :: NoGroup :: _ ->
         raise (Failure "String literals not yet implemented")
     (* For some reason, when the third group matches, the first two return a Group with an empty string rather than a NoGroup.  Fortunately, when the first two groups match they don't seem to do that with the third group, so we can unambiguously find which group actually matched. *)
-    | Delim _ :: _ :: _ :: Group (3, op) :: rest -> Tok op :: ize rest
+    | Delim _ :: _ :: _ :: _ :: Group (4, op) :: rest -> Tok op :: ize rest
     | _ :: rest -> ize rest in
   ize (Pcre.full_split ~rex:delims str)
 

@@ -86,7 +86,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
 and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
  fun ctx tm ->
   match tm with
-  | Var v -> return (Term.Var v, Bwv.nth v ctx)
+  | Var v -> return (Term.Var v, (Bwv.nth v ctx).ty)
   | Const name -> return (Const name, eval (Emp D.zero) (Hashtbl.find Global.types name))
   | Field (tm, fld) ->
       let* stm, sty = synth ctx tm in
@@ -99,7 +99,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let* cdom = check ctx dom (universe D.zero) in
       let edom = Ctx.eval ctx cdom in
-      let* ccod = check (Snoc (ctx, edom)) cod (universe D.zero) in
+      let* ccod = check (Ctx.ext ctx edom) cod (universe D.zero) in
       return (Term.Pi (cdom, ccod), universe D.zero)
   | App _ ->
       (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)

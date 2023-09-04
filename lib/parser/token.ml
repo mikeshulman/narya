@@ -8,7 +8,7 @@ let compile str = Pcre.regexp ~flags:[ `UTF8 ] str
 let singletons = "(){}→↦≔"
 
 (* Or a sequence of one or more of these characters: *)
-let operators = "[\\]~!@#$%\\^&*/?=+\\\\|,<>:;\\-'"
+let operators = "[\\]~!@#$%\\^&*/?=+\\\\|,<>:;\\-"
 
 (* Or a sequence of non-whitespace characters other than these.  Note that this includes letters, digits, underscores, periods, and most non-ASCII unicode characters. *)
 

@@ -16,6 +16,7 @@ Narya cannot read and parse an entire file yet, and doesn't understand any kind 
 - `M .fld` -- Field access of a record (left-associative).
 - `{ fld1 ≔ M; fld2 ≔ N }` -- Anonymous record (structure).  The unicode ≔ can be replaced by ASCII `:=`.
 - `M : N` -- Type ascription.  Necessary if you want to apply an abstraction to an argument (i.e. manually write a beta-redex) or similarly apply a field to a structure, since the typechecker is bidirectional.
+- `let x ≔ M in N` -- Local binding.  Computationally equivalent to `(x ↦ N) M`, but also binds `x` to `M` while typechecking `N`, which is stronger in the presence of dependent types.  As before, ≔ can be replaced by `:=`, and `let x ≔ (M : A) in N` (commonly needed since `M` must synthesize) can be abbreviated `let x : A ≔ M in N`.
 - `Id M X Y` -- Homogeneous identity/bridge type.
 - `refl M` -- Reflexivity term.
 - `sym M` -- Symmetry of a two-dimensional square.

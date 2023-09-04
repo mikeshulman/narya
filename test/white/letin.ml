@@ -5,13 +5,15 @@ let aa = assume "A" uu
 let a = assume "a" aa
 let ida, _ = synth "let id ≔ ((x ↦ x) : A → A) in id a"
 let () = equal ida a
+let ida', _ = synth "let id : A → A ≔ x ↦ x in id a"
+let () = equal ida' a
 let a' = assume "a'" aa
-let constaa, _ = synth "let id ≔ ((x ↦ a') : A → A) in id a"
+let constaa, _ = synth "let id : A → A ≔ x ↦ a' in id a"
 let () = unequal constaa a
 
 (* ap on let *)
 let c = assume "a''" (check "Id A a a'" uu)
-let c', _ = synth "refl ((y ↦ let id ≔ ((x ↦ x) : A → A) in id y) : A → A) a a' a''"
+let c', _ = synth "refl ((y ↦ let id : A → A ≔ x ↦ x in id y) : A → A) a a' a''"
 let () = equal c c'
 
 (* let affects typechecking *)

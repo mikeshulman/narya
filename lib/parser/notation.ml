@@ -406,7 +406,8 @@ class letin =
   object
     inherit [Fixity.right] t
     method fixity = `Prefix
-    val state : [ `Start | `Body | `End ] = `Start
+    val state : [ `Start | `Type | `Value | `End ] = `Start
+    val typed = false
     val name : string option = None
     method finished = state = `End
 
@@ -415,17 +416,31 @@ class letin =
       | `Start ->
           let* () = consume "let" in
           let* name = consume_var in
+          (let* () = consume "≔" <|> consume ":=" in
+           return {<state = `Value; name>})
+          <|>
+          let* () = consume ":" in
+          return {<state = `Type; name; typed = true>}
+      | `Type ->
           let* () = consume "≔" <|> consume ":=" in
-          return {<state = `Body; name>}
-      | `Body ->
+          return {<state = `Value>}
+      | `Value ->
           let* () = consume "in" in
           return {<state = `End>}
       | `End -> raise (Failure "Empty notation")
 
     method compile args =
       let open ChoiceOps in
-      let [ arg; body ] = Vec.of_bwd N.two args "let-in" in
-      let* carg = arg.compile Emp Zero in
+      let* carg, body =
+        if typed then
+          let [ ty; arg; body ] = Vec.of_bwd N.three args "typed let-in" in
+          let* cty = ty.compile Emp Zero in
+          let* carg = arg.compile Emp Zero in
+          return (Synth (Asc (carg, cty)), body)
+        else
+          let [ arg; body ] = Vec.of_bwd N.two args "let-in" in
+          let* carg = arg.compile Emp Zero in
+          return (carg, body) in
       let* cbody = body.compile (Snoc (Emp, name)) (Suc Zero) in
       match (carg, cbody) with
       | Synth sarg, Synth sbody -> return (Synth (Let (sarg, sbody)))

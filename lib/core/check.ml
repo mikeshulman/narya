@@ -135,6 +135,12 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       let ety = Ctx.eval ctx cty in
       let* ctm = check ctx tm ety in
       return (ctm, ety)
+  | Let (v, body) ->
+      let* sv, ty = synth ctx v in
+      let tm = Ctx.eval ctx sv in
+      let* sbody, bodyty = synth (Bwv.Snoc (ctx, { tm; ty })) body in
+      (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value. *)
+      return (Let (sv, sbody), bodyty)
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
 and synth_apps : type a. a Ctx.t -> a term -> value -> a check list -> (a term * value) option =

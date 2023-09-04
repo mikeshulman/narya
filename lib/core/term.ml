@@ -19,3 +19,4 @@ type _ term =
   | Struct : 'a term Field.Map.t -> 'a term
   | Refl : 'a term -> 'a term
   | Sym : 'a term -> 'a term
+  | Let : 'a term * 'a N.suc term -> 'a term

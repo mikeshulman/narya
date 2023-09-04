@@ -56,7 +56,7 @@ let consume_ident : string Parsing.t =
   let* () = guard (Token.is_ident first) in
   return first
 
-(* Consume either an identifier or an underscore. *)
+(* Consume either an identifier or an underscore.  Return Some of the name, or None if an underscore. *)
 let consume_var : string option Parsing.t =
   (let* name = consume_ident in
    return (Some name))

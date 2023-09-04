@@ -165,6 +165,10 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                 ntm);
           } in
       Uninst (Pi (doms, cods), lazy (inst (universe m) tys))
+  | Let (v, body) ->
+      let args =
+        CubeOf.build (dim_env env) { build = (fun fa -> eval (Act (env, op_of_sface fa)) v) } in
+      eval (Ext (env, args)) body
   | Refl x ->
       (* It's tempting to write just "act_value (eval env x) refl" here, and similarly below for sym, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
       let k = dim_env env in

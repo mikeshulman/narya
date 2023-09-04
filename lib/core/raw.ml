@@ -18,6 +18,7 @@ type _ synth =
   (* In raw syntax, we allow a symbol to be applied to fewer than the correct number of arguments.  This is so that they can be parsed as function applications, with arguments added on one by one as they are parsed.  *)
   | Symbol : 'mn symbol * ('m, 'n, 'mn) N.plus * ('a check, 'm) Bwv.t -> 'a synth
   | Asc : 'a check * 'a check -> 'a synth
+  | Let : 'a synth * 'a N.suc synth -> 'a synth
 
 and _ check =
   | Synth : 'a synth -> 'a check

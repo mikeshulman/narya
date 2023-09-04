@@ -401,3 +401,33 @@ class struc =
             [ fields; args ] Field.Map.empty in
         return (Struct flds)
   end
+
+class letin =
+  object
+    inherit [Fixity.right] t
+    method fixity = `Prefix
+    val state : [ `Start | `Body | `End ] = `Start
+    val name : string option = None
+    method finished = state = `End
+
+    method consume =
+      match state with
+      | `Start ->
+          let* () = consume "let" in
+          let* name = consume_var in
+          let* () = consume "≔" <|> consume ":=" in
+          return {<state = `Body; name>}
+      | `Body ->
+          let* () = consume "in" in
+          return {<state = `End>}
+      | `End -> raise (Failure "Empty notation")
+
+    method compile args =
+      let open ChoiceOps in
+      let [ arg; body ] = Vec.of_bwd N.two args "let-in" in
+      let* carg = arg.compile Emp Zero in
+      let* cbody = body.compile (Snoc (Emp, name)) (Suc Zero) in
+      match (carg, cbody) with
+      | Synth sarg, Synth sbody -> return (Synth (Let (sarg, sbody)))
+      | _ -> fail
+  end

@@ -40,6 +40,7 @@ let rightassoc_notations : Notation.right Node.Map.t ref =
   ref
     (Node.Map.make
     |> Node.Map.add Node.min (new Notation.lambda)
+    |> Node.Map.add Node.min (new Notation.letin)
     |> Node.Map.add Node.arrow (new Notation.arrow)
     |> Node.Map.add Node.arrow (new Notation.pi :> Fixity.right Notation.t))
 

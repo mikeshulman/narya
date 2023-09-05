@@ -168,7 +168,7 @@ let rec env_append :
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  Optionally, raise an error if it isn't. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
 
-let full_inst : type n. value -> string -> full_inst =
+let full_inst : value -> string -> full_inst =
  fun ty err ->
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
@@ -182,7 +182,7 @@ let full_inst : type n. value -> string -> full_inst =
   | _ -> raise (Failure ("Fully instantiated type missing in " ^ err))
 
 (* A version that returns errors rather than throwing exceptions. *)
-let full_inst_opt : type n. value -> full_inst option =
+let full_inst_opt : value -> full_inst option =
  fun ty ->
   match full_inst ty "" with
   | exception _ -> None

@@ -154,7 +154,7 @@ and synth_apps : type a. a Ctx.t -> a term -> value -> a check list -> (a term *
   | _ :: _ -> synth_apps ctx afn aty aargs
 
 and synth_app :
-    type a n f.
+    type a n.
     a Ctx.t ->
     a term ->
     uninst ->

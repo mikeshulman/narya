@@ -605,7 +605,7 @@ module Cube (F : Fam) = struct
     type (_, _, _) ends =
       | Ends : ('m, 'n, 'bs, 'hs) hgts * ('hs, Endpoints.len) Bwv.Heter.ht -> ('m, 'n, 'bs) ends
 
-    let rec ends : type m n bs hs. (m D.suc, n D.suc, bs) hgt -> (m, n, bs) ends =
+    let rec ends : type m n bs. (m D.suc, n D.suc, bs) hgt -> (m, n, bs) ends =
      fun xss ->
       match xss with
       | [] -> Ends (Nil, [])
@@ -1072,7 +1072,7 @@ let rec tface_of_bw_r :
   | Mid bf -> tface_of_bw_r (D.suc_plus'' m12) (D.suc_plus'' k12) (D.suc_plus'' nk12) (Mid f) bf
 
 let rec tface_of_bw_lt :
-    type m1 m2 m n k1 k2 k n nk nk1.
+    type m1 m2 m n k1 k2 k nk nk1.
     (m1, m2, m) D.plus ->
     (k1, k2, k) D.plus ->
     (nk1, k2, nk) D.plus ->
@@ -1291,8 +1291,7 @@ module Tube (F : Fam) = struct
           ('mk, 'n, 'bs, 'hs) C.Heter.hgts * ('hs, Endpoints.len) Bwv.Heter.ht
           -> ('mk, 'n, 'bs) ends
 
-    let rec ends : type m k mk n bs hs. (m, k D.suc, mk D.suc, n D.suc, bs) hgt -> (mk, n, bs) ends
-        =
+    let rec ends : type m k mk n bs. (m, k D.suc, mk D.suc, n D.suc, bs) hgt -> (mk, n, bs) ends =
      fun xss ->
       match xss with
       | [] -> Ends (Nil, [])
@@ -1855,20 +1854,20 @@ let rec deg_of_ins : type a b c bc. (a, b, c) insertion -> (b, c, bc) D.plus -> 
   | Zero a, Zero -> id_deg a
   | Suc (i, e), Suc bc -> Suc (deg_of_ins i bc, e)
 
-let rec perm_of_ins : type a b c bc. (a, b, c) insertion -> a perm =
+let rec perm_of_ins : type a b c. (a, b, c) insertion -> a perm =
   (* fun i -> deg_of_ins i (plus_of_ins i) *)
   function
   | Zero a -> id_perm a
   | Suc (i, e) -> Suc (perm_of_ins i, e)
 
-let deg_of_plus_of_ins : type a b c bc. (a, b, c) insertion -> b deg_of_plus =
+let deg_of_plus_of_ins : type a b c. (a, b, c) insertion -> b deg_of_plus =
  fun ins -> Of (plus_of_ins ins, perm_of_ins ins)
 
 (* Any degeneracy with a decomposition of its codomain factors as an insertion followed by a whiskered degeneracy. *)
 
 type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('ac, 'b, 'c) insfact
 
-let comp_insfact : type a b c ac bc. (ac, b, c) insfact -> (b, c, bc) D.plus -> (ac, bc) deg =
+let comp_insfact : type b c ac bc. (ac, b, c) insfact -> (b, c, bc) D.plus -> (ac, bc) deg =
  fun (Insfact (s, i)) bc ->
   let ip = plus_of_ins i in
   comp_deg (deg_plus s bc ip) (deg_of_ins i ip)

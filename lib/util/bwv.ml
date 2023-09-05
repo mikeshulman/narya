@@ -249,7 +249,7 @@ let rec fold_left2 : type n a b c. (a -> b -> c -> a) -> a -> (b, n) t -> (c, n)
 type ('a, 'b) fold_left_mapper = { fold : 'n. ('a, 'n) t -> 'b -> 'a }
 
 let rec fold_left_map_append :
-    type m n mn a b c.
+    type m n mn a b.
     (m, n, mn) N.plus -> (a, b) fold_left_mapper -> (a, m) t -> (b, n) t -> (a, mn) t =
  fun mn f start xs ->
   match (mn, xs) with
@@ -349,7 +349,7 @@ let rec fold_left2_bind_append_map :
       (res1', Snoc (res2, z))
 
 (* Conversely, a vector of length m*n can be split into a length-n vector of length-m vectors. *)
-let rec unbind : type a b m n mn. (m, n, mn) N.times -> (b, mn) t -> ((b, m) t, n) t =
+let rec unbind : type b m n mn. (m, n, mn) N.times -> (b, mn) t -> ((b, m) t, n) t =
  fun mn xss ->
   match mn with
   | Zero _ -> Emp

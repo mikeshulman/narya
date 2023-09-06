@@ -3,6 +3,21 @@
 Narya is eventually intended to be a proof assistant implementing Multimodal, Parametric, Higher Observational Type Theory.  However, a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with binary Id/Bridge types, with Gel types for internal parametricity as an option.  The alternative option of transport and univalence is not yet implemented, nor are any other modalities included.
 
 
+## Compilation
+
+Narya requires OCaml version 5.1.0~alpha1.
+
+```
+opam switch create 5.1.0~alpha1
+opam install bwd pcre
+cd narya
+dune build
+dune runtest
+```
+
+There is no executable yet, but you can load the libraries in `utop` and use the `Mcp` commands mentioned below.
+
+
 ## Parsing
 
 Narya cannot read and parse an entire file yet, and doesn't understand any kind of commands or directives.  Thus, one still has to interact with it as an OCaml library.  However, there is a parser for terms which can be used to write them in a convenient way.  The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be hardcoded in OCaml.  Of note is that operations can be non-associative, and that precedences are a directed graph rather than a linear ordering: two notations have no precedence relation unless it is explicitly declared.  The built-in syntax is:

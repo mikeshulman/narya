@@ -94,13 +94,13 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       let etm = Ctx.eval ctx stm in
       let* newty = tyof_field_opt etm sty fld in
       return (Field (stm, fld), newty)
-  | Symbol (UU, Zero, Emp) -> return (Term.UU, universe D.zero)
+  | Symbol (UU, Zero, Emp) -> return (Term.UU D.zero, universe D.zero)
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let* cdom = check ctx dom (universe D.zero) in
       let edom = Ctx.eval ctx cdom in
       let* ccod = check (Ctx.ext ctx edom) cod (universe D.zero) in
-      return (Term.Pi (cdom, ccod), universe D.zero)
+      return (pi cdom ccod, universe D.zero)
   | App _ ->
       (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
       let fn, args = spine tm in

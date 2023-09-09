@@ -49,7 +49,10 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                             raise
                               (Failure "Evaluation of lower-dimensional constant is not neutral"));
                   })) )
-  | UU -> universe (dim_env env)
+  | UU n ->
+      let m = dim_env env in
+      let (Plus mn) = D.plus n in
+      universe (D.plus_out m mn)
   | Inst (tm, args) -> (
       let nk = TubeOf.plus args in
       (* Add the environment dimension to the uninstantiated dimensions *)
@@ -128,20 +131,27 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let etm = eval env tm in
       field etm fld
   | Struct fields -> Struct (Field.Map.map (fun tm -> eval env tm) fields, zero_ins (dim_env env))
-  | Pi (dom, cod) ->
-      (* A user-space pi-type always has dimension zero, so this is simpler than the general case. *)
+  | Pi (doms, cods) ->
+      let n = CubeOf.dim doms in
       let m = dim_env env in
-      let doms = CubeOf.build m { build = (fun fa -> eval (Act (env, op_of_sface fa)) dom) } in
-      let cods =
-        BindCube.build m
+      let (Plus m_n) = D.plus n in
+      let mn = D.plus_out m m_n in
+      let doms =
+        CubeOf.build mn
           {
             build =
-              (fun fa ->
-                eval_binder
-                  (Act (env, op_of_sface fa))
-                  faces_zero
-                  (D.plus_zero (dom_sface fa))
-                  (Suc Zero) cod);
+              (fun fab ->
+                let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
+                eval (Act (env, op_of_sface fa)) (CubeOf.find doms fb));
+          } in
+      let cods =
+        BindCube.build mn
+          {
+            build =
+              (fun fab ->
+                let (SFace_of_plus (k_l, fa, fb)) = sface_of_plus m_n fab in
+                let (Cod (lf, nlf, cod)) = CodCube.find cods fb in
+                eval_binder (Act (env, op_of_sface fa)) lf k_l nlf cod);
           } in
       let tytbl = Hashtbl.create 10 in
       let tys =

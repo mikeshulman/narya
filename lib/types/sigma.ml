@@ -89,19 +89,13 @@ module Notations = struct
 end
 
 let install () =
-  Hashtbl.add Global.types sigma (Pi (UU, Pi (Pi (Var Top, UU), UU)));
+  Hashtbl.add Global.types sigma (pi (UU D.zero) (pi (pi (Var Top) (UU D.zero)) (UU D.zero)));
   Hashtbl.add Global.types pair
-    (Pi
-       ( UU,
-         Pi
-           ( Pi (Var Top, UU),
-             Pi
-               ( Var (Pop Top),
-                 Pi
-                   ( App (Var (Pop Top), CubeOf.singleton (Var Top)),
-                     App
-                       ( App (Const sigma, CubeOf.singleton (Var (Pop (Pop (Pop Top))))),
-                         CubeOf.singleton (Var (Pop (Pop Top))) ) ) ) ) ));
+    (pi (UU D.zero)
+       (pi (pi (Var Top) (UU D.zero))
+          (pi (Var (Pop Top))
+             (pi (app (Var (Pop Top)) (Var Top))
+                (app (app (Const sigma) (Var (Pop (Pop (Pop Top))))) (Var (Pop (Pop Top))))))));
   Hashtbl.add Global.records sigma
     (Record
        {
@@ -110,11 +104,7 @@ let install () =
          dim = D.zero;
          dim_faces = faces_zero;
          params_plus = Suc Zero;
-         fields =
-           [
-             (fst, Var (Pop (Pop Top)));
-             (snd, App (Var (Pop Top), CubeOf.singleton (Field (Var Top, fst))));
-           ];
+         fields = [ (fst, Var (Pop (Pop Top))); (snd, app (Var (Pop Top)) (Field (Var Top, fst))) ];
        });
   Hashtbl.add Global.trees pair
     (Lam

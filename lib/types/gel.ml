@@ -12,13 +12,11 @@ let ungel = Field.intern "ungel"
 
 let install () =
   Hashtbl.add Global.types gel
-    (Pi
-       ( UU,
-         Pi
-           ( UU,
-             Pi
-               ( Pi (Var (N.Pop N.Top), Pi (Var (N.Pop N.Top), UU)),
-                 Inst (Refl UU, TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top))) ) ) ));
+    (pi (UU D.zero)
+       (pi (UU D.zero)
+          (pi
+             (pi (Var (N.Pop N.Top)) (pi (Var (N.Pop N.Top)) (UU D.zero)))
+             (Inst (Refl (UU D.zero), TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top)))))));
   Hashtbl.add Global.records gel
     (Record
        {
@@ -28,10 +26,5 @@ let install () =
          dim_faces = faces_one;
          params_plus = Suc (Suc (Suc Zero));
          fields =
-           [
-             ( ungel,
-               App
-                 ( App (Var (Pop (Pop (Pop Top))), CubeOf.singleton (Var (Pop (Pop Top)))),
-                   CubeOf.singleton (Var (Pop Top)) ) );
-           ];
+           [ (ungel, app (app (Var (Pop (Pop (Pop Top)))) (Var (Pop (Pop Top)))) (Var (Pop Top))) ];
        })

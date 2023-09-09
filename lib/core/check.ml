@@ -114,7 +114,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       | Synth x ->
           let* sx, ety = synth ctx x in
           let ex = Ctx.eval ctx sx in
-          return (Refl sx, act_ty ex ety refl)
+          return (Act (sx, refl), act_ty ex ety refl)
       | _ -> None)
   | Symbol (Sym, Zero, Snoc (Emp, x)) -> (
       match x with
@@ -123,7 +123,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
           let ex = Ctx.eval ctx sx in
           try
             let symty = act_ty ex ety sym in
-            return (Sym sx, symty)
+            return (Act (sx, sym), symty)
           with Invalid_uninst_action ->
             msg "Can't symmetrize something of too low dimension";
             None)

@@ -179,19 +179,13 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let args =
         CubeOf.build (dim_env env) { build = (fun fa -> eval (Act (env, op_of_sface fa)) v) } in
       eval (Ext (env, args)) body
-  | Refl x ->
-      (* It's tempting to write just "act_value (eval env x) refl" here, and similarly below for sym, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
+  (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
+  | Act (x, s) ->
       let k = dim_env env in
-      let (Plus km) = D.plus (dom_deg refl) in
-      let (Plus kn) = D.plus (cod_deg refl) in
-      let krefl = plus_deg k kn km refl in
-      act_value (eval env x) krefl
-  | Sym x ->
-      let k = dim_env env in
-      let (Plus km) = D.plus (dom_deg sym) in
-      let (Plus kn) = D.plus (cod_deg sym) in
-      let ksym = plus_deg k kn km sym in
-      act_value (eval env x) ksym
+      let (Plus km) = D.plus (dom_deg s) in
+      let (Plus kn) = D.plus (cod_deg s) in
+      let ks = plus_deg k kn km s in
+      act_value (eval env x) ks
 
 (* Apply a function value to an argument (with its boundaries). *)
 and apply : type n. value -> (n, value) CubeOf.t -> value =

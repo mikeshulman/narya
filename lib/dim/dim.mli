@@ -81,6 +81,7 @@ type (_, _) sface
 val id_sface : 'n D.t -> ('n, 'n) sface
 val dom_sface : ('m, 'n) sface -> 'm D.t
 val cod_sface : ('m, 'n) sface -> 'n D.t
+val is_id_sface : ('m, 'n) sface -> unit option
 val comp_sface : ('n, 'k) sface -> ('m, 'n) sface -> ('m, 'k) sface
 val sface_zero : ('n, D.zero) sface -> ('n, D.zero) Monoid.eq
 
@@ -425,6 +426,10 @@ type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('a
 
 val comp_insfact : ('ac, 'b, 'c) insfact -> ('b, 'c, 'bc) D.plus -> ('ac, 'bc) deg
 val insfact : ('ac, 'bc) deg -> ('b, 'c, 'bc) D.plus -> ('ac, 'b, 'c) insfact
+
+type _ insfact_comp = Insfact_comp : ('m, 'n) deg * ('ml, 'm, 'l) insertion -> 'n insfact_comp
+
+val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> 'n insfact_comp
 val one : one D.t
 val pos_one : one D.pos
 val faces_one : (one, N.three) count_faces

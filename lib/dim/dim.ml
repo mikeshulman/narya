@@ -324,6 +324,11 @@ let rec cod_sface : type m n. (m, n) sface -> n D.t = function
       let (Nat s) = cod_sface f in
       Nat (Suc s)
 
+let rec is_id_sface : type m n. (m, n) sface -> unit option = function
+  | Zero -> Some ()
+  | End _ -> None
+  | Mid f -> is_id_sface f
+
 let rec comp_sface : type m n k. (n, k) sface -> (m, n) sface -> (m, k) sface =
  fun a b ->
   match (a, b) with
@@ -1868,6 +1873,19 @@ let rec insfact : type ac b c bc. (ac, bc) deg -> (b, c, bc) D.plus -> (ac, b, c
       let (Suc (s, e)) = s in
       let (Insfact (s, i)) = insfact s bc in
       Insfact (s, Suc (i, e))
+
+(* In particular, any insertion can be composed with a degeneracy to produce a smaller degeneracy and an insertion. *)
+type _ insfact_comp = Insfact_comp : ('m, 'n) deg * ('ml, 'm, 'l) insertion -> 'n insfact_comp
+
+let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> n insfact_comp =
+ fun ins s ->
+  let nk = plus_of_ins ins in
+  let s' = perm_of_ins ins in
+  let (DegExt (_, nk_d, s's)) = comp_deg_extending s' s in
+  let (Plus kd) = D.plus (D.plus_right nk_d) in
+  let n_kd = D.plus_assocr nk kd nk_d in
+  let (Insfact (fa, new_ins)) = insfact s's n_kd in
+  Insfact_comp (fa, new_ins)
 
 (* ********** Special generators ********** *)
 

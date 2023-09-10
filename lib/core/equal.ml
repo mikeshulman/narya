@@ -4,8 +4,9 @@ open Value
 open Norm
 open Monoid
 open Monad.ZeroOps (Monad.Maybe)
-open Mlist.Monadic (Monad.Maybe)
 open Bwd
+module ListM = Mlist.Monadic (Monad.Maybe)
+module BwdM = Mbwd.Monadic (Monad.Maybe)
 
 let msg _ = ()
 
@@ -19,7 +20,7 @@ let rec equal_nf : int -> normal -> normal -> unit option =
 
 (* Eta-expanding compare two values at a type, which they are both assumed to belong to. *)
 and equal_at : int -> value -> value -> value -> unit option =
- fun n x y ty ->
+ fun ctx x y ty ->
   (* The type must be fully instantiated. *)
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
   match uty with
@@ -28,39 +29,90 @@ and equal_at : int -> value -> value -> value -> unit option =
       let k = CubeOf.dim doms in
       (* The pi-type must be instantiated at the correct dimension. *)
       match compare (TubeOf.inst tyargs) k with
-      | Neq -> raise (Failure "Instantiation mismatch in equality-checking")
+      | Neq -> raise (Failure "Instantiation mismatch in equality at pi")
       | Eq ->
           (* Create variables for all the boundary domains. *)
-          let _, newargs, _, new_n = dom_vars n doms in
+          let _, newargs, _, new_n = dom_vars ctx doms in
           (* Calculate the output type of the application to those variables *)
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at new_n (apply x newargs) (apply y newargs) output)
-  | Neu (Const { name; _ }, _) -> (
-      match Hashtbl.find_opt Global.records name with
-      | Some (Record { eta; fields; _ }) -> (
-          if
-            (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-            eta
-          then
-            miterM
-              (fun [ (fld, _) ] -> equal_at n (field x fld) (field y fld) (tyof_field x ty fld))
-              [ fields ]
-          else
-            (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
-            match (x, y) with
-            | Struct (xfld, xins), Struct (yfld, yins) ->
-                let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
-                miterM
+  | Canonical (name, canonical_args, ins) -> (
+      let k = cod_left_ins ins in
+      (* The insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it. *)
+      match Hashtbl.find Global.constants name with
+      | Record { eta; fields; dim; _ } -> (
+          let (Plus kdim) = D.plus dim in
+          match compare (TubeOf.inst tyargs) (D.plus_out k kdim) with
+          | Neq -> raise (Failure "Instantiation mismatch in equality at canonical")
+          | Eq -> (
+              if eta then
+                (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+                ListM.miterM
                   (fun [ (fld, _) ] ->
-                    equal_at n (Field.Map.find fld xfld) (Field.Map.find fld yfld)
-                      (tyof_field x ty fld))
+                    equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
                   [ fields ]
-            | Struct _, _ | _, Struct _ -> fail
-            | _ -> equal_val n x y)
-      | _ -> equal_val n x y)
+              else
+                (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
+                match (x, y) with
+                | Struct (xfld, xins), Struct (yfld, yins) ->
+                    let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
+                    ListM.miterM
+                      (fun [ (fld, _) ] ->
+                        equal_at ctx (Field.Map.find fld xfld) (Field.Map.find fld yfld)
+                          (tyof_field x ty fld))
+                      [ fields ]
+                | Struct _, _ | _, Struct _ -> fail
+                | _ -> equal_val ctx x y))
+      (* At a datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  *)
+      | Data { constrs; params; indices } -> (
+          match compare (TubeOf.inst tyargs) k with
+          | Neq -> raise (Failure "Instantiation mismatch in equality at canonical")
+          | Eq -> (
+              match (x, y) with
+              | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
+                  let* () = guard (xconstr = yconstr) in
+                  match (compare xn yn, compare xn (TubeOf.inst tyargs)) with
+                  | Neq, _ | _, Neq ->
+                      raise (Failure "Unequal dimensions of constrs in equality-check")
+                  | Eq, Eq ->
+                      let (Constr { args = argtys; indices = _ }) =
+                        Constr.Map.find xconstr constrs in
+                      (* We take the parameters from the arguments of the instance of the datatype, ignoring the indices, and put them into an environment. *)
+                      let env, _ =
+                        take_canonical_args (Emp k) canonical_args (N.zero_plus params) indices
+                      in
+                      (* The instantiation must be at other instances of the same constructor; we take its arguments as in 'check'. *)
+                      let tyarg_args =
+                        TubeOf.mmap
+                          {
+                            map =
+                              (fun _ [ tm ] ->
+                                match tm.tm with
+                                | Constr (tmname, l, tmargs) ->
+                                    if tmname = xconstr then
+                                      Bwd.map (fun a -> CubeOf.find a (id_sface l)) tmargs
+                                    else
+                                      raise
+                                        (Failure "Inst arg wrong constr in equality at datatype")
+                                | _ -> raise (Failure "Inst arg not constr in equality at datatype"));
+                          }
+                          [ tyargs ] in
+                      (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
+                      equal_at_tel ctx env
+                        (Bwd.fold_right
+                           (fun a args -> CubeOf.find a (id_sface xn) :: args)
+                           xargs [])
+                        (Bwd.fold_right
+                           (fun a args -> CubeOf.find a (id_sface xn) :: args)
+                           yargs [])
+                        argtys
+                        (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ]))
+              | Constr _, _ | _, Constr _ -> fail
+              | _ -> equal_val ctx x y))
+      | _ -> equal_val ctx x y)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
-  | _ -> equal_val n x y
+  | _ -> equal_val ctx x y
 
 (* "Synthesizing" equality check of two values, now *not* assumed a priori to have the same type.  If this function concludes that they are equal, then the equality of their types is part of that conclusion. *)
 and equal_val : int -> value -> value -> unit option =
@@ -126,6 +178,18 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       | Neq ->
           msg "Unequal dimensions of pi-type";
           fail)
+  | Canonical (name1, args1, i1), Canonical (name2, args2, i2) -> (
+      let* () = guard (name1 = name2) in
+      match compare (cod_left_ins i1) (cod_left_ins i2) with
+      | Neq -> raise (Failure "Unequal dimensions of application in canonical equality-check")
+      | Eq ->
+          let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
+          let open Mbwd.Monadic (Monad.Maybe) in
+          miterM
+            (fun [ a1; a2 ] ->
+              let open CubeOf.Monadic (Monad.Maybe) in
+              miterM { it = (fun _ [ x; y ] -> equal_nf lvl x y) } [ a1; a2 ])
+            [ args1; args2 ])
   | _ ->
       msg "Unequal uninstantiated terms";
       fail
@@ -174,5 +238,53 @@ and equal_arg : int -> app -> app -> unit option =
           miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
       (* If the dimensions don't match, it is a bug rather than a user error, since they are supposed to both be valid arguments of the same function, and any function has a unique dimension. *)
       | Neq -> raise (Failure "Unequal dimensions of application in equality-check"))
-  | Field f1, Field f2 -> if f1 = f2 then return () else fail
+  | Field f1, Field f2 -> guard (f1 = f2)
   | _, _ -> fail
+
+and equal_at_tel :
+    type n a b ab.
+    int ->
+    (n, a) env ->
+    value list ->
+    value list ->
+    (a, b, ab) Telescope.t ->
+    (D.zero, n, n, value list) TubeOf.t ->
+    unit option =
+ fun ctx env xs ys tys tyargs ->
+  match (xs, ys, tys) with
+  | [], [], Emp -> Some ()
+  | x :: xs, y :: ys, Ext (ty, tys) ->
+      let ety = eval env ty in
+      (* Copied from check_tel; TODO: Factor it out *)
+      let tyargtbl = Hashtbl.create 10 in
+      let [ tyarg; tyargs ] =
+        TubeOf.pmap
+          {
+            map =
+              (fun fa [ tyargs ] ->
+                match tyargs with
+                | [] -> raise (Failure "Missing arguments in check_tel")
+                | argtm :: argrest ->
+                    let fa = sface_of_tface fa in
+                    let argty =
+                      inst
+                        (eval (Act (env, op_of_sface fa)) ty)
+                        (TubeOf.build D.zero
+                           (D.zero_plus (dom_sface fa))
+                           {
+                             build =
+                               (fun fb ->
+                                 Hashtbl.find tyargtbl
+                                   (SFace_of (comp_sface fa (sface_of_tface fb))));
+                           }) in
+                    let argnorm = { tm = argtm; ty = argty } in
+                    Hashtbl.add tyargtbl (SFace_of fa) argnorm;
+                    [ argnorm; argrest ]);
+          }
+          [ tyargs ] (Cons (Cons Nil)) in
+      let ity = inst ety tyarg in
+      let* () = equal_at ctx x y ity in
+      equal_at_tel ctx
+        (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)))
+        xs ys tys tyargs
+  | _ -> raise (Failure "Length mismatch in equal_at_tel")

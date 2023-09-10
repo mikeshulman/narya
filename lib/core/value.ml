@@ -37,7 +37,7 @@ module rec Value : sig
     | UU : 'n D.t -> uninst
     | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     | Neu : head * app Bwd.t -> uninst
-  (* TODO: Should there be an Inert constructor here? *)
+    | Canonical : Constant.t * ('n, normal) CubeOf.t Bwd.t * ('m, 'n, 'k) insertion -> uninst
 
   and value =
     | Uninst : uninst * value Lazy.t -> value
@@ -50,6 +50,7 @@ module rec Value : sig
         -> value
     | Lam : 'k binder -> value
     | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
+    | Constr : Constr.t * 'n D.t * ('n, value) CubeOf.t Bwd.t -> value
 
   and normal = { tm : value; ty : value }
 
@@ -94,13 +95,15 @@ end = struct
       }
         -> 'mn binder
 
-  (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-types must be "instantiated", albeit trivially. *)
+  (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a face tree of binders. *)
     | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     (* A neutral is an application spine -- a head with a list of applications -- as well as a stored type for it. *)
     | Neu : head * app Bwd.t -> uninst
+    (* A canonical type has a name, a dimension, and a list of arguments all of that dimension, plus a possible outside insertion like an application.  It can be applied to fewer than the "correct" number of arguments that would be necessary to produce a type. *)
+    | Canonical : Constant.t * ('n, normal) CubeOf.t Bwd.t * ('m, 'n, 'k) insertion -> uninst
 
   and value =
     (* An uninstantiated term.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
@@ -121,6 +124,8 @@ end = struct
     | Lam : 'k binder -> value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application. *)
     | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
+    (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)
+    | Constr : Constr.t * 'n D.t * ('n, value) CubeOf.t Bwd.t -> value
 
   (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
   and normal = { tm : value; ty : value }
@@ -222,7 +227,8 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
                   Inst { tm; dim = dim2; args = args2; tys })
           | _ -> raise (Failure "Can't instantiate non-type"))
       | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction")
-      | Struct _ -> raise (Failure "Can't instantiate struct"))
+      | Struct _ -> raise (Failure "Can't instantiate struct")
+      | Constr _ -> raise (Failure "Can't instantiate constructor"))
 
 and inst_args :
     type m n mn.
@@ -293,37 +299,42 @@ and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, nor
       [ tms; tys ] in
   new_tms
 
-(* Require that the supplied app Bwd.t has exactly c elements, all of them applications of dimension n, take a specified b of them, and add them to an environment of dimension n. *)
+(* Require that the supplied Bwd has exactly b elements n and add them to an environment of dimension n. *)
 let rec take_args :
-    type n a b ab c. (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env
-    =
- fun env sub dargs plus ->
-  match (sub, dargs, plus) with
-  | Zero, Emp, Zero -> env
-  | Omit sub, Snoc (dargs, _), _ -> take_args env sub dargs plus
-  | Take sub, Snoc (dargs, App (Arg arg, ins)), Suc plus -> (
-      (* We can only take arguments that have no degeneracy applied, since case trees are specified at dimension zero. *)
-      match is_id_deg (perm_of_ins ins) with
-      | None -> raise (Failure "Nonidentity degeneracy inside argument list")
-      | Some () -> (
-          (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
-          let env = take_args env sub dargs plus in
-          (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
-          match compare (CubeOf.dim arg) (dim_env env) with
-          | Eq ->
-              (* Why is this type annotation necessary? *)
-              Ext (env, (val_of_norm_cube arg : (n, value) CubeOf.t))
-          | Neq -> raise (Failure "Different dimensions in argument list")))
+    type n a b ab. (n, a) env -> (n, value) CubeOf.t Bwd.t -> (a, b, ab) N.plus -> (n, ab) env =
+ fun env dargs plus ->
+  match (dargs, plus) with
+  | Emp, Zero -> env
+  | Snoc (dargs, arg), Suc plus ->
+      (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
+      let env = take_args env dargs plus in
+      (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
+      Ext (env, arg)
   | _ -> raise (Failure "Wrong number of arguments in argument list")
 
-(* A version of take_args that returns errors rather than throwing exceptions. *)
-let take_args_opt :
-    type n a b ab c.
-    (n, a) env -> (b, c) N.subset -> app Bwd.t -> (a, b, ab) N.plus -> (n, ab) env option =
- fun env sub dargs plus ->
-  match take_args env sub dargs plus with
-  | exception _ -> None
-  | res -> Some res
+(* A version that takes only actual arguments without insertions, adds a specified number of them to the environment, and returns the others in a Bwv of specified length.  *)
+let rec take_canonical_args :
+    type n a b ab c abc.
+    (n, a) env ->
+    (n, normal) CubeOf.t Bwd.t ->
+    (a, b, ab) N.plus ->
+    (ab, c, abc) N.plus ->
+    (n, ab) env * ((n, normal) CubeOf.t, c) Bwv.t =
+ fun env args ab abc ->
+  match abc with
+  | Suc abc -> (
+      match args with
+      | Snoc (args, arg) ->
+          let env, rest = take_canonical_args env args ab abc in
+          (env, Snoc (rest, arg))
+      | Emp -> raise (Failure "Not enough arguments in canonical argument list"))
+  | Zero -> (
+      match (args, ab) with
+      | Snoc (args, arg), Suc ab ->
+          let env, Emp = take_canonical_args env args ab Zero in
+          (Ext (env, val_of_norm_cube arg), Emp)
+      | Emp, Zero -> (env, Emp)
+      | _ -> raise (Failure "Wrong number of arguments in canonical argument list"))
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
 let rec universe : type n. n D.t -> value =
@@ -403,7 +414,7 @@ let dom_vars :
     type m a f af.
     int ->
     (m, value) CubeOf.t ->
-    (m, int) CubeOf.t * (m, value) CubeOf.t * (m, normal) CubeOf.t * int =
+    (m, int option) CubeOf.t * (m, value) CubeOf.t * (m, int option * normal) CubeOf.t * int =
  fun level doms ->
   (* To make these variables into values, we need to annotate them with their types, which in general are instantiations of the domains at previous variables.  Thus, we assemble them in a hashtable as we create them for random access to the previous ones. *)
   let argtbl = Hashtbl.create 10 in
@@ -426,7 +437,7 @@ let dom_vars :
             level := lvl + 1;
             let v = { tm = var lvl ty; ty } in
             Hashtbl.add argtbl (SFace_of fa) v;
-            [ lvl; v.tm; v ]);
+            [ Some lvl; v.tm; (Some lvl, v) ]);
       }
       [ doms ] (Cons (Cons (Cons Nil))) in
   (vars, args, nfs, !level)

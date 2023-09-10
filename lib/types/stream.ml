@@ -8,7 +8,7 @@ let ([ head; tail ] : (Field.t, N.two) Vec.t) = Vec.map Field.intern [ "head"; "
 
 let install () =
   Hashtbl.add Global.types stream (pi (UU D.zero) (UU D.zero));
-  Hashtbl.add Global.records stream
+  Hashtbl.add Global.constants stream
     (Record
        {
          eta = false;
@@ -28,24 +28,25 @@ let install () =
                 ((* t : *) pi ((* k : K *) Var (Pop Top)) ((*K*) Var (Pop (Pop Top))))
                 (pi ((* k : K *) Var (Pop (Pop Top)))
                    (app (Const stream) ((*A*) Var (Pop (Pop (Pop (Pop Top)))))))))));
-  Hashtbl.add Global.trees corec
-    (Lam
-       ( Suc (Suc (Suc (Suc (Suc Zero)))),
-         Cobranch
-           [
-             (head, Leaf (app (Var (Pop (Pop Top))) (Var Top)));
-             ( tail,
-               Leaf
-                 (app
+  Hashtbl.add Global.constants corec
+    (Defined
+       (Lam
+          ( Suc (Suc (Suc (Suc (Suc Zero)))),
+            Cobranches
+              [
+                (head, Leaf (app (Var (Pop (Pop Top))) (Var Top)));
+                ( tail,
+                  Leaf
                     (app
                        (app
                           (app
-                             (app (Const corec) (Var (Pop (Pop (Pop (Pop Top))))))
-                             (Var (Pop (Pop (Pop Top)))))
-                          (Var (Pop (Pop Top))))
-                       (Var (Pop Top)))
-                    (app (Var (Pop Top)) (Var Top))) );
-           ] ))
+                             (app
+                                (app (Const corec) (Var (Pop (Pop (Pop (Pop Top))))))
+                                (Var (Pop (Pop (Pop Top)))))
+                             (Var (Pop (Pop Top))))
+                          (Var (Pop Top)))
+                       (app (Var (Pop Top)) (Var Top))) );
+              ] )))
 
 (*
   Hashtbl.add Global.types bisim

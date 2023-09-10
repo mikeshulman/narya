@@ -48,20 +48,21 @@ let () = unequal s s''
 (* We construct a stream of natural numbers and check its first few elements *)
 
 let () = Types.Nat.install ()
+let nat, _ = synth !~"N"
 let rnats = !~"corec" $ !~"N" $ !~"N" $ "x" @-> !!"x" $ "x" @-> (!~"S" $ !!"x") $ !~"O"
 let nats, _ = synth rnats
 let zero, _ = synth !~"O"
 let zero', _ = synth (rnats $. "head")
-let () = equal zero zero'
+let () = equal_at zero zero' nat
 let one, _ = synth (!~"S" $ !~"O")
 let one', _ = synth (rnats $. "tail" $. "head")
-let () = equal one one'
+let () = equal_at one one' nat
 let two, _ = synth (!~"S" $ (!~"S" $ !~"O"))
 let two', _ = synth (rnats $. "tail" $. "tail" $. "head")
-let () = equal two two'
+let () = equal_at two two' nat
 let three, _ = synth (!~"S" $ (!~"S" $ (!~"S" $ !~"O")))
 let three', _ = synth (rnats $. "tail" $. "tail" $. "tail" $. "head")
-let () = equal three three'
+let () = equal_at three three' nat
 let () = Types.Sigma.install ()
 
 (* Now we construct the stream of fibonacci numbers and check the first few of its elements *)
@@ -69,26 +70,26 @@ let () = Types.Sigma.install ()
 let rfib =
   !~"corec"
   $ !~"N"
-  $ (!~"Sig" $ !~"N" $ "" @-> !~"N")
+  $ (!~"Σ" $ !~"N" $ "" @-> !~"N")
   $ "x" @-> (!!"x" $. "fst")
   $ "x"
     @-> struc [ ("fst", !!"x" $. "snd"); ("snd", !~"plus" $ (!!"x" $. "fst") $ (!!"x" $. "snd")) ]
   $ struc [ ("fst", !~"S" $ !~"O"); ("snd", !~"S" $ !~"O") ]
 
 let f1, _ = synth (rfib $. "head")
-let () = equal f1 one
+let () = equal_at f1 one nat
 let f2, _ = synth (rfib $. "tail" $. "head")
-let () = equal f2 one
+let () = equal_at f2 one nat
 let f3, _ = synth (rfib $. "tail" $. "tail" $. "head")
-let () = equal f3 two
+let () = equal_at f3 two nat
 let f4, _ = synth (rfib $. "tail" $. "tail" $. "tail" $. "head")
-let () = equal f4 three
+let () = equal_at f4 three nat
 let five, _ = synth (!~"S" $ (!~"S" $ (!~"S" $ (!~"S" $ (!~"S" $ !~"O")))))
 let f5, _ = synth (rfib $. "tail" $. "tail" $. "tail" $. "tail" $. "head")
-let () = equal f5 five
+let () = equal_at f5 five nat
 
 let eight, _ =
   synth (!~"S" $ (!~"S" $ (!~"S" $ (!~"S" $ (!~"S" $ (!~"S" $ (!~"S" $ (!~"S" $ !~"O"))))))))
 
 let f6, _ = synth (rfib $. "tail" $. "tail" $. "tail" $. "tail" $. "tail" $. "head")
-let () = equal f6 eight
+let () = equal_at f6 eight nat

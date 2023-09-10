@@ -18,7 +18,7 @@ let install () =
              (pi (Var (N.Pop N.Top)) (pi (Var (N.Pop N.Top)) (UU D.zero)))
              (Inst
                 (Act (UU D.zero, refl), TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top)))))));
-  Hashtbl.add Global.records gel
+  Hashtbl.add Global.constants gel
     (Record
        {
          eta = true;

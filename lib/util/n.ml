@@ -48,6 +48,9 @@ let suc : type n. n t -> n suc t = function
 let one : one t = suc zero
 let two : two t = suc one
 let three : three t = suc two
+let four : four t = suc three
+let five : five t = suc four
+let six : six t = suc five
 
 (* A natural number can be added on the right to anything.  We "return a type" by wrapping it in a GADT.  *)
 type (_, _) has_plus = Plus : ('m, 'n, 'mn) plus -> ('m, 'n) has_plus

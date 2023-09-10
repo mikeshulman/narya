@@ -5,7 +5,7 @@ open Parser
 open Parsing
 open Term
 
-let ([ sigma; pair ] : (Constant.t, N.two) Vec.t) = Vec.map Constant.intern [ "Sig"; "pair" ]
+let ([ sigma; pair ] : (Constant.t, N.two) Vec.t) = Vec.map Constant.intern [ "Σ"; "pair" ]
 let ([ fst; snd ] : (Field.t, N.two) Vec.t) = Vec.map Field.intern [ "fst"; "snd" ]
 
 module Nodes = struct
@@ -96,7 +96,7 @@ let install () =
           (pi (Var (Pop Top))
              (pi (app (Var (Pop Top)) (Var Top))
                 (app (app (Const sigma) (Var (Pop (Pop (Pop Top))))) (Var (Pop (Pop Top))))))));
-  Hashtbl.add Global.records sigma
+  Hashtbl.add Global.constants sigma
     (Record
        {
          eta = true;
@@ -106,9 +106,15 @@ let install () =
          params_plus = Suc Zero;
          fields = [ (fst, Var (Pop (Pop Top))); (snd, app (Var (Pop Top)) (Field (Var Top, fst))) ];
        });
-  Hashtbl.add Global.trees pair
-    (Lam
-       (Suc (Suc (Suc (Suc Zero))), Cobranch [ (fst, Leaf (Var (Pop Top))); (snd, Leaf (Var Top)) ]));
+  Hashtbl.add Global.constants pair
+    (Defined
+       (Lam
+          ( N.zero_plus N.four,
+            Leaf
+              (Struct
+                 (Field.Map.empty
+                 |> Field.Map.add fst (Var (Pop Top))
+                 |> Field.Map.add snd (Var Top))) )));
   Parse.rightassoc_notations :=
     !Parse.rightassoc_notations
     |> Node.Map.add Nodes.prod (new Notations.sigma)

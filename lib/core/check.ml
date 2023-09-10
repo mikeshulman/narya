@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Raw
 open Value
@@ -6,7 +7,8 @@ open Dim
 open Act
 open Norm
 open Equal
-open Monad.Ops (Monad.Maybe)
+open Monad.ZeroOps (Monad.Maybe)
+open Readback
 
 (* Look through a specified number of lambdas to find an inner body. *)
 let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check option =
@@ -56,38 +58,109 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           let output = tyof_app cods tyargs newargs in
           let* cbody = check ctx body output in
           return (Term.Lam (Bind (dom_faces, af, cbody))))
-  | Struct tms, Neu (Const { name; dim }, _) ->
-      let* (Record { fields; _ }) = Hashtbl.find_opt Global.records name in
-      (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
-      let module M =
-        Monad.StateT
-          (Monad.Maybe)
-          (struct
-            type t = a term Field.Map.t * value Field.Map.t
-          end)
-      in
-      let open Mlist.Monadic (M) in
-      (* We have to accumulate the evaluated terms for use as we go in typechecking, but we throw them away at the end.  (As usual, that seems wasteful.) *)
-      let* (), (ctms, _) =
-        miterM
-          (fun [ (fld, _) ] ->
-            let open Monad.Ops (M) in
-            let* ctms, etms = M.get in
-            let prev_etm = Value.Struct (etms, zero_ins dim) in
-            let ety = tyof_field prev_etm ty fld in
-            let* tm = M.stateless (Field.Map.find_opt fld tms) in
-            let* ctm = M.stateless (check ctx tm ety) in
-            let etm = Ctx.eval ctx ctm in
-            M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms))
-          [ fields ]
-          (Field.Map.empty, Field.Map.empty) in
-      return (Struct ctms)
+  | Struct tms, Canonical (name, _, ins) -> (
+      (* We don't need to name the arguments of Canonical here because tyof_field, called below, uses them. *)
+      match Hashtbl.find Global.constants name with
+      | Record { fields; _ } ->
+          let* () = is_id_perm (perm_of_ins ins) in
+          let dim = cod_left_ins ins in
+          let module (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
+          M =
+            Monad.StateT
+              (Monad.Maybe)
+              (struct
+                type t = a term Field.Map.t * value Field.Map.t
+              end)
+          in
+          let open Mlist.Monadic (M) in
+          (* We have to accumulate the evaluated terms for use as we go in typechecking, but we throw them away at the end.  (As usual, that seems wasteful.) *)
+          let* (), (ctms, _) =
+            miterM
+              (fun [ (fld, _) ] ->
+                let open Monad.Ops (M) in
+                let* ctms, etms = M.get in
+                let prev_etm = Value.Struct (etms, zero_ins dim) in
+                let ety = tyof_field prev_etm ty fld in
+                let* tm = M.stateless (Field.Map.find_opt fld tms) in
+                let* ctm = M.stateless (check ctx tm ety) in
+                let etm = Ctx.eval ctx ctm in
+                M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms))
+              [ fields ]
+              (Field.Map.empty, Field.Map.empty) in
+          return (Struct ctms)
+      | _ -> None)
+  | Constr (constr, args), Canonical (name, ty_params_indices, ins) -> (
+      (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
+      let dim = TubeOf.inst tyargs in
+      let* () = is_id_perm (perm_of_ins ins) in
+      match compare (cod_left_ins ins) dim with
+      | Neq -> raise (Failure "Dimension mismatch checking constr")
+      | Eq -> (
+          (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_params_indices contains the *values* of the parameters and indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
+          match Hashtbl.find Global.constants name with
+          (* We do need the constructors of the datatype, as well as its *number* of parameters and indices. *)
+          | Data { constrs; params; indices } ->
+              (* The datatype must contain a constructor with our current name. *)
+              let* (Constr { args = constr_arg_tys; indices = constr_indices }) =
+                Constr.Map.find_opt constr constrs in
+              (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
+              let env, ty_indices =
+                take_canonical_args (Emp dim) ty_params_indices (N.zero_plus params) indices in
+              (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
+              let open TubeOf.Monadic (Monad.Maybe) in
+              let* tyarg_args =
+                mmapM
+                  {
+                    map =
+                      (fun fa [ tm ] ->
+                        match tm.tm with
+                        | Constr (tmname, n, tmargs) ->
+                            let* () = guard (tmname = constr) in
+                            (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
+                            let _ = compare n (dom_tface fa) in
+                            return
+                              (Bwd.fold_right
+                                 (fun a args -> CubeOf.find a (id_sface n) :: args)
+                                 tmargs [])
+                        | _ -> None);
+                  }
+                  [ tyargs ] in
+              (* Now we evaluate each argument *type* of the constructor at the parameters and the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
+              let* env, newargs = check_tel ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
+              (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
+              let constr_indices =
+                Bwv.map
+                  (fun ix ->
+                    CubeOf.build dim { build = (fun fa -> eval (Act (env, op_of_sface fa)) ix) })
+                  constr_indices in
+              (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, throwing an exception in case I was wrong about that.  *)
+              let open Bwv.Monadic (Monad.Maybe) in
+              let* () =
+                miterM
+                  (fun [ t1s; t2s ] ->
+                    let open CubeOf.Monadic (Monad.Maybe) in
+                    miterM
+                      {
+                        it =
+                          (fun fa [ t1; t2 ] ->
+                            match equal_at (Ctx.level ctx) t1 t2.tm t2.ty with
+                            | Some () -> Some ()
+                            | None -> (
+                                match is_id_sface fa with
+                                | Some () -> None
+                                | None ->
+                                    raise (Failure "Mismatching lower-dimensional constructors")));
+                      }
+                      [ t1s; t2s ])
+                  [ constr_indices; ty_indices ] in
+              return (Constr (constr, dim, Bwd.of_list newargs))
+          | _ -> None))
   | _ -> None
 
 and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
  fun ctx tm ->
   match tm with
-  | Var v -> return (Term.Var v, (Bwv.nth v ctx).ty)
+  | Var v -> return (Term.Var v, (snd (Bwv.nth v ctx)).ty)
   | Const name -> return (Const name, eval (Emp D.zero) (Hashtbl.find Global.types name))
   | Field (tm, fld) ->
       let* stm, sty = synth ctx tm in
@@ -139,7 +212,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
   | Let (v, body) ->
       let* sv, ty = synth ctx v in
       let tm = Ctx.eval ctx sv in
-      let* sbody, bodyty = synth (Bwv.Snoc (ctx, { tm; ty })) body in
+      let* sbody, bodyty = synth (Bwv.Snoc (ctx, (None, { tm; ty }))) body in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value. *)
       return (Let (sv, sbody), bodyty)
 
@@ -276,3 +349,56 @@ and synth_app :
   | _ ->
       msg "Attempt to apply non-function, non-type";
       None
+
+and check_tel :
+    type n a b c bc.
+    a Ctx.t ->
+    (n, b) env ->
+    a check list ->
+    (b, c, bc) Telescope.t ->
+    (D.zero, n, n, value list) TubeOf.t ->
+    ((n, bc) env * (n, a term) CubeOf.t list) option =
+ fun ctx env tms tys tyargs ->
+  match (tms, tys) with
+  | [], Emp ->
+      (* tyargs should consist of empty lists here, since it started out being the constructor arguments of the instantiation arguments. *)
+      return (env, [])
+  | tm :: tms, Ext (ty, tys) ->
+      let ety = eval env ty in
+      let tyargtbl = Hashtbl.create 10 in
+      let [ tyarg; tyargs ] =
+        TubeOf.pmap
+          {
+            map =
+              (fun fa [ tyargs ] ->
+                match tyargs with
+                | [] -> raise (Failure "Missing arguments in check_tel")
+                | argtm :: argrest ->
+                    let fa = sface_of_tface fa in
+                    let argty =
+                      inst
+                        (eval (Act (env, op_of_sface fa)) ty)
+                        (TubeOf.build D.zero
+                           (D.zero_plus (dom_sface fa))
+                           {
+                             build =
+                               (fun fb ->
+                                 Hashtbl.find tyargtbl
+                                   (SFace_of (comp_sface fa (sface_of_tface fb))));
+                           }) in
+                    let argnorm = { tm = argtm; ty = argty } in
+                    Hashtbl.add tyargtbl (SFace_of fa) argnorm;
+                    [ argnorm; argrest ]);
+          }
+          [ tyargs ] (Cons (Cons Nil)) in
+      let ity = inst ety tyarg in
+      let* ctm = check ctx tm ity in
+      let coctx = Coctx.of_ctx ctx in
+      let ctms = TubeOf.mmap { map = (fun _ [ t ] -> readback_nf coctx t) } [ tyarg ] in
+      let etm = Ctx.eval ctx ctm in
+      let* newenv, newargs =
+        check_tel ctx
+          (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm)))
+          tms tys tyargs in
+      return (newenv, TubeOf.plus_cube ctms (CubeOf.singleton ctm) :: newargs)
+  | _ -> None

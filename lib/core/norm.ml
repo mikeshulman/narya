@@ -27,28 +27,32 @@ let rec eval : type m b. (m, b) env -> b term -> value =
  fun env tm ->
   match tm with
   | Var v -> lookup env v
-  | Const name ->
+  | Const name -> (
       (* A constant starts out at dimension zero, but must be lifted to the dimension of the environment. *)
       let dim = dim_env env in
       let cty = Hashtbl.find Global.types name in
-      Uninst
-        ( Neu (Const { name; dim }, Emp),
-          (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
-          lazy
-            (inst (eval (Emp dim) cty)
-               (TubeOf.build D.zero (D.zero_plus dim)
-                  {
-                    build =
-                      (fun fa ->
-                        (* To compute those lower-dimensional versions, we recursively evaluate the same constant in lower-dimensional contexts. *)
-                        let tm = eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
-                        (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a normal term it had to be annotated with its type. *)
-                        match tm with
-                        | Uninst (Neu _, (lazy ty)) -> { tm; ty }
-                        | _ ->
-                            raise
-                              (Failure "Evaluation of lower-dimensional constant is not neutral"));
-                  })) )
+      (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
+      let ty =
+        lazy
+          (inst (eval (Emp dim) cty)
+             (TubeOf.build D.zero (D.zero_plus dim)
+                {
+                  build =
+                    (fun fa ->
+                      (* To compute those lower-dimensional versions, we recursively evaluate the same constant in lower-dimensional contexts. *)
+                      let tm = eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
+                      (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a normal term it had to be annotated with its type. *)
+                      match tm with
+                      | Uninst (Neu _, (lazy ty)) | Uninst (Canonical _, (lazy ty)) -> { tm; ty }
+                      | _ ->
+                          raise
+                            (Failure
+                               "Evaluation of lower-dimensional constant is not neutral/canonical"));
+                })) in
+      match Hashtbl.find_opt Global.constants name with
+      | Some (Record _) | Some (Data _) -> Uninst (Canonical (name, Emp, zero_ins (dim_env env)), ty)
+      | Some Axiom | Some (Defined _) -> apply_spine (Const { name; dim }) Emp ty
+      | None -> raise (Failure ("Undefined constant: " ^ Constant.to_string name)))
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -131,6 +135,22 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let etm = eval env tm in
       field etm fld
   | Struct fields -> Struct (Field.Map.map (fun tm -> eval env tm) fields, zero_ins (dim_env env))
+  | Constr (constr, n, args) ->
+      let m = dim_env env in
+      let (Plus m_n) = D.plus n in
+      let mn = D.plus_out m m_n in
+      let eargs =
+        Bwd.map
+          (fun tms ->
+            CubeOf.build mn
+              {
+                build =
+                  (fun fab ->
+                    let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
+                    eval (Act (env, op_of_sface fa)) (CubeOf.find tms fb));
+              })
+          args in
+      Constr (constr, mn, eargs)
   | Pi (doms, cods) ->
       let n = CubeOf.dim doms in
       let m = dim_env env in
@@ -198,7 +218,7 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
       | Neq -> raise (Failure "Dimension mismatch applying a lambda")
       | Eq -> apply_binder body arg)
   (* If it is a neutral application... *)
-  | Uninst (Neu (fn, args), (lazy ty)) -> (
+  | Uninst (tm, (lazy ty)) -> (
       (* ... we check that it is fully instantiated... *)
       let (Fullinst (ty, tyargs)) = full_inst ty "apply" in
       match ty with
@@ -208,28 +228,36 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
           match (compare (TubeOf.inst tyargs) k, compare (CubeOf.dim arg) k) with
           | Neq, _ -> raise (Failure "Instantiation mismatch applying a neutral function")
           | _, Neq -> raise (Failure "Arguments mismatch applying a neutral function")
-          | Eq, Eq ->
+          | Eq, Eq -> (
               (* We annotate the new argument by its type, extracted from the domain type of the function being applied. *)
               let newarg = norm_of_vals arg doms in
               (* We compute the output type of the application. *)
-              let ty = tyof_app cods tyargs arg in
+              let ty = lazy (tyof_app cods tyargs arg) in
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
-              apply_spine fn (Snoc (args, App (Arg newarg, zero_ins k))) ty)
+              match tm with
+              | Neu (fn, args) -> apply_spine fn (Snoc (args, App (Arg newarg, zero_ins k))) ty
+              | Canonical (name, prev_args, ins) -> (
+                  match (is_id_perm (perm_of_ins ins), compare (cod_left_ins ins) k) with
+                  | Some (), Eq -> Uninst (Canonical (name, Snoc (prev_args, newarg), ins), ty)
+                  | _ -> raise (Failure "Dimension/insertion mismatch applying canonical"))
+              | _ -> raise (Failure "Invalid application of non-function uninst")))
       | _ -> raise (Failure "Invalid application by non-function"))
   | _ -> raise (Failure "Invalid application of non-function")
 
 (* Compute the application of a head to a spine of arguments (including field projections), using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application, so that we can annotate the latter case. *)
-and apply_spine : head -> app Bwd.t -> value -> value =
+and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
  fun fn args ty ->
   (* Check whether the head is a constant with an associated case tree. *)
   Option.value
     (match fn with
-    | Const { name; dim } ->
-        let* tree = Hashtbl.find_opt Global.trees name in
-        apply_tree (Emp dim) tree (Any (id_deg dim)) (Bwd.prepend args [])
+    | Const { name; dim } -> (
+        match Hashtbl.find_opt Global.constants name with
+        | Some (Defined tree) -> apply_tree (Emp dim) tree (Any (id_deg dim)) (Bwd.prepend args [])
+        | Some _ -> None
+        | None -> raise (Failure ("Undefined constant in apply_spine" ^ Constant.to_string name)))
     | _ -> None)
     (* If it has no case tree, or is not a constant, we just add the argument to the neutral application spine and return. *)
-    ~default:(Uninst (Neu (fn, args), lazy ty))
+    ~default:(Uninst (Neu (fn, args), ty))
 
 (* Evaluate a case tree, in an environment of variables for which we have already found values, with possible additional arguments.  The degeneracy is one to be applied to the value of the case tree *before* applying it to any additional arguments; thus if it is nonidentity we cannot pick up additional arguments.  Return None if the case tree doesn't apply for any reason (e.g. not enough arguments, or a dispatching argument doesn't match any branch, or there is a nonidentity degeneracy in the way of picking up extra arguments). *)
 and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
@@ -252,17 +280,17 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
                | Field fld -> field f fld)
                (perm_of_ins i))
            res args)
-  | Branch (ix, branches) -> (
+  | Branches (ix, branches) -> (
       (* Get the argument being inspected *)
       match lookup env ix with
-      (* It must be an application of a constant *)
-      | Uninst (Neu (Const { name; dim }, dargs), _) -> (
+      (* It must be an application of a constructor *)
+      | Constr (name, dim, dargs) -> (
           (* A case tree can only include 0-dimensional applications, so the dimension here must match the dimension we're using it at. *)
           match compare dim (dim_env env) with
           | Eq -> apply_branches env branches name dargs ins args
           | _ -> None)
       | _ -> None)
-  | Cobranch cobranches -> (
+  | Cobranches cobranches -> (
       (* A cobranch can only succeed if there is a field projection to match against occurring next in the spine. *)
       match args with
       | App (Field fld, new_ins) :: args ->
@@ -277,9 +305,9 @@ and apply_branches :
     (n, a) env ->
     a Case.branch list ->
     (* The constant we're matching against *)
-    Constant.t ->
+    Constr.t ->
     (* Its given arguments *)
-    app Bwd.t ->
+    (n, value) CubeOf.t Bwd.t ->
     (* A degeneracy to be applied after the computation *)
     any_deg ->
     (* The remaining arguments after the case tree computation *)
@@ -288,10 +316,10 @@ and apply_branches :
  fun env branches dcst dargs ins args ->
   match branches with
   | [] -> None
-  | Branch (name, sub, plus, body) :: rest ->
+  | Branch (name, plus, body) :: rest ->
       if name = dcst then
         (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
-        let env = take_args env sub dargs plus in
+        let env = take_args env dargs plus in
         (* Then we proceed recursively with the body of that branch. *)
         apply_tree env body ins args
       else
@@ -369,7 +397,7 @@ and field : value -> Field.t -> value =
   match tm with
   | Struct (fields, _) -> Field.Map.find fld fields
   | Uninst (Neu (fn, args), (lazy ty)) ->
-      let newty = tyof_field tm ty fld in
+      let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
       apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
   | _ -> raise (Failure "Invalid field of non-record type")
@@ -379,18 +407,19 @@ and tyof_field : value -> value -> Field.t -> value =
  fun tm ty fld ->
   let (Fullinst (ty, tyargs)) = full_inst ty "tyof_field" in
   match ty with
-  | Neu (Const { name; dim = m }, args) -> (
+  | Canonical (name, args, ins) -> (
       (* The head of the type must be a record type with a field having the correct name. *)
       let (Field { params = k; dim = n; dim_faces = nf; params_plus = kf; ty = fldty }) =
         Global.find_record_field name fld in
       (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n. *)
       let (Plus mn) = D.plus n in
+      let m = cod_left_ins ins in
       let mn' = D.plus_out m mn in
       match compare (TubeOf.inst tyargs) mn' with
       | Neq -> raise (Failure "Dimension mismatch in tyof_field")
       | Eq ->
           (* The type must be applied, at dimension m, to exactly the right number of parameters (k). *)
-          let env = take_args (Emp m) (N.improper_subset k) args (N.zero_plus k) in
+          let env, Emp = take_canonical_args (Emp m) args (N.zero_plus k) Zero in
           (* If so, then the type of the field projection comes from the type associated to that field name in general, evaluated at the supplied parameters along with the term itself and its boundaries. *)
           let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
           let entries =

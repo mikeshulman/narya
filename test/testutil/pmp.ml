@@ -17,6 +17,7 @@ type pmt =
   | Asc : pmt * pmt -> pmt
   | Lam : string * pmt -> pmt
   | Struct : (string * pmt) list -> pmt
+  | Constr : string -> pmt
 
 (* Using a Bwv of variable names, to turn them into De Bruijn indices, we can parse such a term into a synth/checkable one. *)
 let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
@@ -27,6 +28,11 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
         (List.fold_left
            (fun acc (fld, tm) -> Field.Map.add (Field.intern fld) (parse_chk ctx tm) acc)
            Field.Map.empty tms)
+  | Constr c -> Constr (Constr.intern c, Emp)
+  | App (fn, arg) as tm -> (
+      match parse_chk ctx fn with
+      | Constr (c, args) -> Constr (c, Snoc (args, parse_chk ctx arg))
+      | _ -> Synth (parse_syn ctx tm))
   | tm -> Synth (parse_syn ctx tm)
 
 and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
@@ -50,6 +56,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
 (* Nicer syntax, with a prefix operator for using a variable by name, and infix operators for abstraction, application, and ascription. *)
 let ( !! ) x = Var x
 let ( !~ ) x = Const x
+let ( !. ) x = Constr x
 
 (* let pi x dom cod = Pi (x, dom, cod) *)
 let ( @=> ) (x, dom) cod = Pi (x, dom, cod)

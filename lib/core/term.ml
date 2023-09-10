@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Dim
 
@@ -28,6 +29,7 @@ module rec Term : sig
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : ('n, 'a) binder -> 'a term
     | Struct : 'a term Field.Map.t -> 'a term
+    | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : 'a term * 'a N.suc term -> 'a term
 end = struct
@@ -42,7 +44,7 @@ end = struct
 
   type _ term =
     | Var : 'a N.index -> 'a term
-    | Const : Constant.t -> 'a term
+    | Const : Constant.t -> 'a term (* TODO: Should separate out canonicals? *)
     | Field : 'a term * Field.t -> 'a term
     | UU : 'n D.t -> 'a term
     | Inst : 'a term * ('m, 'n, 'mn, 'a term) TubeOf.t -> 'a term
@@ -50,11 +52,20 @@ end = struct
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : ('n, 'a) binder -> 'a term
     | Struct : 'a term Field.Map.t -> 'a term
+    | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : 'a term * 'a N.suc term -> 'a term
 end
 
 include Term
 
+let rec term_lam : type a b ab. (a, b, ab) N.plus -> ab term -> a term =
+ fun ab tm ->
+  match ab with
+  | Zero -> tm
+  | Suc ab -> term_lam ab (Lam (Bind (faces_zero, Suc Zero, tm)))
+
 let pi dom cod = Pi (CubeOf.singleton dom, CodCube.singleton (Bind (faces_zero, Suc Zero, cod)))
 let app fn arg = App (fn, CubeOf.singleton arg)
+let apps fn args = List.fold_left app fn args
+let constr name args = Constr (name, D.zero, Bwd.map CubeOf.singleton args)

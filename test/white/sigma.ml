@@ -5,7 +5,7 @@ let uu, _ = synth UU
 let aa = assume "A" uu
 let atou, _ = synth (("", !!"A") @=> UU)
 let bb = assume "B" atou
-let rss = !~"Sig" $ !!"A" $ !!"B"
+let rss = !~"Σ" $ !!"A" $ !!"B"
 let ss, _ = synth rss
 
 (* Pairs have the correct type *)
@@ -49,7 +49,13 @@ let () = equal b'' b
 (* Projections satisfy eta-conversion for both pairs and structs *)
 let x' = check (!~"pair" $ !!"A" $ !!"B" $ (!!"x" $. "fst") $ (!!"x" $. "snd")) ss
 let () = equal_at x x' ss
-let () = unequal x x' (* Need typed equality for eta! *)
+
+(* Need typed equality for eta! *)
+let () =
+  match equal x x' with
+  | _ -> raise (Failure "Unexpectedly equal terms")
+  | exception _ -> ()
+
 let x'' = check (!!"x" $. "fst" & !!"x" $. "snd") ss
 let () = equal_at x x'' ss
 let () = equal_at x' x'' ss
@@ -103,9 +109,9 @@ let b2', idb0b1' = synth (rs2 $. "snd")
 let () = equal idb0b1 idb0b1'
 
 (* Refl commutes with pairing *)
-let refls, _ = synth (refl (!~"pair" $ !!"A" $ !!"B" $ !!"a" $ !!"b"))
+let refls, idabab = synth (refl (!~"pair" $ !!"A" $ !!"B" $ !!"a" $ !!"b"))
 
-let refls', _ =
+let refls', idabab' =
   synth
     (refl !~"pair"
     $ !!"A"
@@ -121,7 +127,8 @@ let refls', _ =
     $ !!"b"
     $ refl !!"b")
 
-let () = equal refls refls'
+let () = equal idabab idabab'
+let () = equal_at refls refls' idabab
 
 (* And with structs *)
 let reflt, idabab = synth (refl ((!!"a" & !!"b") <:> rss))
@@ -154,7 +161,7 @@ let xx22, _ = synth rxx22
 let x22 = assume "x22" xx22
 let yy = assume "Y" uu
 let y = assume "y" yy
-let xx22y, _ = synth (!~"Sig" $ rxx22 $ "" @-> !!"Y")
+let xx22y, _ = synth (!~"Σ" $ rxx22 $ "" @-> !!"Y")
 let s = assume "s" xx22y
 let () = unsynth (sym !!"s")
 

@@ -1,3 +1,5 @@
+open Bwd
+open Bwd.Infix
 open Util
 open Dim
 open Core
@@ -5,8 +7,10 @@ open Parser
 open Parsing
 open Term
 
-let ([ nn; zero; suc; plus; times; ind ] : (Constant.t, N.six) Vec.t) =
-  Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "times"; "ind" ]
+let ([ nn; zero; suc; plus; times; ind ] : (Constant.t, N.six) Util.Vec.t) =
+  Util.Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "times"; "N_ind" ]
+
+let ([ zero'; suc' ] : (Constr.t, N.two) Util.Vec.t) = Util.Vec.map Constr.intern [ "O"; "S" ]
 
 module Nodes = struct
   let plus = Node.make "nat_plus"
@@ -36,56 +40,69 @@ class numeral =
 
     method compile args =
       let open ChoiceOps in
-      let [] = Vec.of_bwd N.zero args "numeral" in
+      let [] = Util.Vec.of_bwd N.zero args "numeral" in
       return (numeral_of_int n)
   end
 
 let install () =
   Hashtbl.add Global.types nn (UU D.zero);
+  Hashtbl.add Global.constants nn
+    (Data
+       {
+         params = N.zero;
+         indices = Zero;
+         constrs =
+           Constr.Map.empty
+           |> Constr.Map.add zero' (Global.Constr { args = Emp; indices = Emp })
+           |> Constr.Map.add suc' (Global.Constr { args = Ext (Const nn, Emp); indices = Emp });
+       });
   Hashtbl.add Global.types zero (Const nn);
+  Hashtbl.add Global.constants zero (Defined (Leaf (Constr (zero', D.zero, Emp))));
   Hashtbl.add Global.types suc (pi (Const nn) (Const nn));
+  Hashtbl.add Global.constants suc
+    (Defined (Lam (Suc Zero, Leaf (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var Top))))));
   Hashtbl.add Global.types plus (pi (Const nn) (pi (Const nn) (Const nn)));
   Hashtbl.add Global.types times (pi (Const nn) (pi (Const nn) (Const nn)));
-  Hashtbl.add Global.trees plus
-    (Lam
-       ( Suc (Suc Zero),
-         Branch
-           ( Top,
-             [
-               Branch (zero, Zero, Zero, Leaf (Var (Pop Top)));
-               Branch
-                 ( suc,
-                   Take Zero,
-                   Suc Zero,
-                   Leaf
-                     (App
-                        ( Const suc,
-                          CubeOf.singleton
-                            (App
-                               ( App (Const plus, CubeOf.singleton (Var (Pop (Pop Top)))),
-                                 CubeOf.singleton (Var Top) )) )) );
-             ] ) ));
-  Hashtbl.add Global.trees times
-    (Lam
-       ( Suc (Suc Zero),
-         Branch
-           ( Top,
-             [
-               Branch (zero, Zero, Zero, Leaf (Const zero));
-               Branch
-                 ( suc,
-                   Take Zero,
-                   Suc Zero,
-                   Leaf
-                     (App
-                        ( App
-                            ( Const plus,
-                              CubeOf.singleton
-                                (App
-                                   ( App (Const times, CubeOf.singleton (Var (Pop (Pop Top)))),
-                                     CubeOf.singleton (Var Top) )) ),
-                          CubeOf.singleton (Var (Pop (Pop Top))) )) );
-             ] ) ));
+  Hashtbl.add Global.constants plus
+    (Defined
+       (Lam
+          ( Suc (Suc Zero),
+            Branches
+              ( Top,
+                [
+                  Branch (zero', Zero, Leaf (Var (Pop Top)));
+                  Branch
+                    ( suc',
+                      Suc Zero,
+                      Leaf
+                        (App
+                           ( Const suc,
+                             CubeOf.singleton
+                               (App
+                                  ( App (Const plus, CubeOf.singleton (Var (Pop (Pop Top)))),
+                                    CubeOf.singleton (Var Top) )) )) );
+                ] ) )));
+  Hashtbl.add Global.constants times
+    (Defined
+       (Lam
+          ( Suc (Suc Zero),
+            Branches
+              ( Top,
+                [
+                  Branch (zero', Zero, Leaf (Const zero));
+                  Branch
+                    ( suc',
+                      Suc Zero,
+                      Leaf
+                        (App
+                           ( App
+                               ( Const plus,
+                                 CubeOf.singleton
+                                   (App
+                                      ( App (Const times, CubeOf.singleton (Var (Pop (Pop Top)))),
+                                        CubeOf.singleton (Var Top) )) ),
+                             CubeOf.singleton (Var (Pop (Pop Top))) )) );
+                ] ) )));
   Hashtbl.add Global.types ind
     (pi
        ((* P : *) pi (Const nn) (UU D.zero))
@@ -99,28 +116,28 @@ let install () =
                     app (Var (Pop (Pop Top))) (Var Top))
                    (app (Var (Pop (Pop (Pop Top)))) (app (Const suc) (Var (Pop Top))))))
              (pi ((* n : *) Const nn) (app (Var (Pop (Pop (Pop Top)))) (Var Top))))));
-  Hashtbl.add Global.trees ind
-    (Lam
-       ( Suc (Suc (Suc (Suc Zero))),
-         Branch
-           ( Top,
-             [
-               Branch (zero, Zero, Zero, Leaf (Var (Pop (Pop Top))));
-               Branch
-                 ( suc,
-                   Take Zero,
-                   Suc Zero,
-                   Leaf
-                     (app
-                        (app (Var (Pop (Pop Top))) (Var Top))
+  Hashtbl.add Global.constants ind
+    (Defined
+       (Lam
+          ( Suc (Suc (Suc (Suc Zero))),
+            Branches
+              ( Top,
+                [
+                  Branch (zero', Zero, Leaf (Var (Pop (Pop Top))));
+                  Branch
+                    ( suc',
+                      Suc Zero,
+                      Leaf
                         (app
+                           (app (Var (Pop (Pop Top))) (Var Top))
                            (app
                               (app
-                                 (app (Const ind) (Var (Pop (Pop (Pop (Pop Top))))))
-                                 (Var (Pop (Pop (Pop Top)))))
-                              (Var (Pop (Pop Top))))
-                           (Var Top))) );
-             ] ) ));
+                                 (app
+                                    (app (Const ind) (Var (Pop (Pop (Pop (Pop Top))))))
+                                    (Var (Pop (Pop (Pop Top)))))
+                                 (Var (Pop (Pop Top))))
+                              (Var Top))) );
+                ] ) )));
   Parse.rightassoc_notations :=
     !Parse.rightassoc_notations
     |> Node.Map.add Nodes.plus (new Notation.simple `Infix plus [ "+" ])

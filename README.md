@@ -2,6 +2,8 @@
 
 Narya is eventually intended to be a proof assistant implementing Multimodal, Parametric, Higher Observational Type Theory.  However, a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with binary Id/Bridge types, with Gel types for internal parametricity as an option.  The alternative option of transport and univalence is not yet implemented, nor are any other modalities included.
 
+Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  But on the other side of the coin, feedback on any and everything is welcome.
+
 
 ## Compilation
 
@@ -30,27 +32,28 @@ Narya cannot read and parse an entire file yet, and doesn't understand any kind 
 - `M → N` -- Non-dependent function-type (right-associative).
 - `M .fld` -- Field access of a record (left-associative).
 - `{ fld1 ≔ M; fld2 ≔ N }` -- Anonymous record (structure).  The unicode ≔ can be replaced by ASCII `:=`.
+- `constr. M N` -- Constructor of a datatype, applied to arguments (but not parameters).  Checks, doesn't synthesize.
 - `M : N` -- Type ascription.  Necessary if you want to apply an abstraction to an argument (i.e. manually write a beta-redex) or similarly apply a field to a structure, since the typechecker is bidirectional.
 - `let x ≔ M in N` -- Local binding.  Computationally equivalent to `(x ↦ N) M`, but also binds `x` to `M` while typechecking `N`, which is stronger in the presence of dependent types.  As before, ≔ can be replaced by `:=`, and `let x ≔ (M : A) in N` (commonly needed since `M` must synthesize) can be abbreviated `let x : A ≔ M in N`.
 - `Id M X Y` -- Homogeneous identity/bridge type.
 - `refl M` -- Reflexivity term.
 - `sym M` -- Symmetry of a two-dimensional square.
 
-The precedences are as you would expect: application binds tighter than anything (except parentheses), while abstraction, ascription, and pi-types, are looser than anything.  Of note is that type ascription is non-associative, so `M : N : P` is a parse error, and has no precedence relation with abstraction, so `x ↦ M : A` is a parse error.  In the latter case you can write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.
+The precedences are as you would expect: application binds tighter than anything (except parentheses), while abstraction, ascription, and pi-types, are looser than anything.  Of note is that type ascription is non-associative, so `M : N : P` is a parse error.  Also, type ascription has no precedence relation with abstraction, so `x ↦ M : A` is a parse error.  In the latter case you can write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.
 
 There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments do not nest (since this way the lexer can be a single regex split), but they have a variant that allow multiple backquotes, where the number of backquotes must match between the opening and closing delimiters.  Thus, for instance, a section of code containing block comments {\` ... \`} can be commented out by a block comment {\`\` ... \`\`}, and so on.
 
 As in Agda, mixfix notations can involve arbitrary Unicode characters, but must be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, there are also the following exceptions:
 
-- The characters `( ) { }` → ↦ ≔ with built-in meaning are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for paretheses and braces in Agda, but the others are different: in Narya you can write `A→B`.
-- A nonempty string consisting of the characters `[ ] ~ ! @ # $ % ^ & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for parentheses (grouping), curly braces (structures and, later, implicit arguments), backquote (comments), period (field access), underscore (later, inferred arguments), double quote (later, string literals) and single quote (allowed for primes on variable names).  In particular:
+- The characters `( ) { } → ↦ ≔` with built-in meaning are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for paretheses and braces in Agda, but the others are different: in Narya you can write `A→B`.
+- A nonempty string consisting of the characters `[ ] ~ ! @ # $ % ^ & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for parentheses (grouping), curly braces (structures and, later, implicit arguments), backquote (comments), period (fields, constructors, and namespaces), underscore (later, inferred arguments), double quote (later, string literals) and single quote (allowed for primes on variable names).  In particular:
   - Ordinary algebraic operations like `+` and `*` can be defined so that `x+y` and `x*y` are valid.
   - This includes the colon, so you can write `(x:A) → B`, and similarly for the semicolon separating the fields of a structure.  But the user can also use these characters in other operators, such as `::` for list cons.  (Or you can use the Unicode ∷ if you want to require spacing.)
   - The ASCII substitutes `->` and `|->` and `:=` for the Unicode →, ↦, and ≔ also fall into this category, so you can write `A->B`.
 
   This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing, while keeping the lexer as a simple regexp that doesn't need to change as new operators are defined.
 
-Identifiers (variables and constant names) can be any string consisting of non-whitespace characters other than the above two groups that doesn't start with an underscore or period.  (Field names, which must be identifiers, are prefixed a period when accessed.  Identifiers prefixed with one or more underscores are reserved for internal use.)
+Identifiers (variables and constant names) can be any string consisting of non-whitespace characters other than the above two groups that doesn't start with an underscore or period.  Field names, which must be identifiers, are prefixed a period when accessed, and likewise constructor names are postfixed a period when applied.  Identifiers prefixed with one or more underscores are reserved for internal use.  Internal periods in identifiers are reserved to denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names.
 
 Once you have written a raw term using this syntax as an OCaml string, you can parse it and pass it off to the typechecker with these functions defined in `Testutil.Mcp`:
 
@@ -78,6 +81,8 @@ Some other helpful functions include:
 - `equal R S` -- Assert that two values are definitionally equal.  They must be synthesizing, since this does no type-directed checking.
 - `equal_at R S T` -- Assert that two values `R` and `S` are definitionally equal at the value type `T` (which they are assumed to belong to).
 
+Unfortunately, the current parser is rather slow on large terms.
+
 
 ### Poor man's parser
 
@@ -85,11 +90,12 @@ In `Testutil.Pmp` there is also a "poor man's parser" implemented as a DSL in OC
 
 - `!!"x"` -- Use a variable (an OCaml string).
 - `!~"c"` -- Use a built-in constant, such as `Sig` or `Gel` (also an OCaml string).
+- `!."c"` -- Use a built-in datatype constructor (an OCaml string).
 - `UU` -- The universe
 - `M $ N` -- Function application (left-associative).
 - `"x" @-> M` -- Lambda-abstraction (right-associative).  The variable must be an OCaml string.
 - `("x", M) @=> N` -- Pi-type (right-associative).
-- `M $. "fld"` -- Field access of a record (left-associative).
+- `M $. "fld"` -- Field access of a record (left-associative).  The field is an OCaml string.
 - `struc [("fld1", M); ("fld2", N)]` -- Anonymous record (structure).
 - `M <:> N` -- Type ascription.
 - `id M X Y` -- Identity/bridge type.
@@ -99,17 +105,39 @@ In `Testutil.Pmp` there is also a "poor man's parser" implemented as a DSL in OC
 Here the associativities and precedence are determined by the uniform rules of OCaml, based on the first character of each infix operator.  In particular, this means that `@->` and `@=>` bind tighter than `$`, so you have to write `"x" @-> (M $ !!"x")` but you can write `!!"f" $ "x" @-> M`.  (This is the opposite of the "real" parser described above.)
 
 
-## Constants, case trees, and records
+## Constants, records, datatypes, and case trees
 
-Currently, constants can only be built into the OCaml code, not defined by the user.  But when defined, they can be stipulated to compute according to any case tree.  For example, currently there is an implementation of the natural numbers, which can be accessed by calling `Types.Nat.install ()`, with the general recursor/inductor, and also addition and multiplication constants defined by direct case trees rather than in terms of the recursor.  The latter have right-associative infix notations `+` and `*`, with `*` binding more tightly, and also numeral notations.
+Currently, constants can only be built into the OCaml code, not defined by the user.
 
-A constant that is a type family can be declared (again, only in the OCaml code) to be a *record type* by giving a list of its fields with their types.  Then an element of an instance of that family can have its fields projected out, and can be constructed using the record syntax given above.  For example, currently there is an implementation of Sigma-types as a record, which can be accessed by calling `Types.Sigma.install ()`.  The notation for a Sigma-type is `(x:A) × B`, or `A × B` in the non-dependent case (both right-associative and binding tighter than →), with fields `fst` and `snd`, and an infix comma (right-associative) as notation for an anonymous record.  Records can be declared to have, or not have, eta-conversion (Sigma-types do).  Note that anonymous structures (including the comma) do not synthesize, so in a synthesizing context you must ascribe them.
+### Records and coinductive types
 
-Case trees can include fields (copatterns) as well as matches against other constants (patterns).  Thus it is also possible to define constructors of records by case trees, in addition to as structures.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, Sigma-types also come with a `pair` constructor defined in this way; one can write `pair A B a b` instead of `{ fst ≔ a; snd ≔ b }` or `(a,b)`.
+A constant that is a type family can be declared (again, currently only in the OCaml code) to be a *record type*, by giving a list of its fields with their types.  The fields themselves are *not* constants; they belong to a separate name domain.  (They can be thought of as analogous to "methods" in an object-oriented programming language.)  Then an element of an instance of that family can have its fields projected out with the postfix syntax `M .fld`, and can be constructed using the record syntax described above.
 
-Record types can be coinductive, with the type of a field involving the record itself.  Coinductive types should not be declared to have eta-conversion since that is undecidable, but there is no check for that.  Corecursive elements of a coinductive type cannot be constructed as structures, but they can be defined as constants with copattern case trees.  For example, currently there is an implementation of coinductive streams accessible with `Types.Stream.install ()`, with fields `head` and `tail`, and a built-in corecursor `corec` defined with copatterns.
+For example, currently there is an implementation of Sigma-types as a record, which can be accessed by calling `Types.Sigma.install ()`.  The notation for a Sigma-type is `(x:A) × B`, or `A × B` in the non-dependent case (both right-associative and binding tighter than →), with fields `fst` and `snd`, and an infix comma (right-associative) as notation for an anonymous record.
 
-There is currently no parsing or typechecking for constants, case trees, and records: the programmer is required and trusted to write them by hand in abstract syntax with De Bruijn indices.  In particular, there is no coverage, termination, or productivity checking.  Branches of case trees also do not specialize any previous arguments, so using them for indexed inductive types is questionable.
+Records can be declared to have, or not have, eta-conversion (Sigma-types do).  Record types can be coinductive, with the type of a field involving the record itself.  Coinductive types should not be declared to have eta-conversion since that is undecidable, but there is no check for that.  Corecursive elements of a coinductive type cannot be constructed as structures, but they can be defined as constants with copattern case trees.  For example, currently there is an implementation of coinductive streams accessible with `Types.Stream.install ()`, with fields `head` and `tail`, and a built-in corecursor `corec` defined with copatterns.
+
+Note that field projections synthesize (hence do not require the parameters of the record type as arguments).  But anonymous structures (including the comma) do not synthesize, so in a synthesizing context you must ascribe them.
+
+### Datatypes and inductive types
+
+A constant that is a type family can also be declared to be a *datatype*, by separating its arguments into parameters and indices, and giving a list of its constructors.  Each constructor has a number of arguments, with types depending on the parameters (but not the indices), and a list of values for the indices depending on values of the arguments.  As with fields, constructors are not constants and belong to a separate name domain.  (This is in line with functional programming languages such as Haskell and OCaml, where constructors have a separate syntax, e.g. begin with a capital letter.)
+
+Once a datatype is defined, the constructors can be used to build elements of it, by applying them like functions (but with a final period on their name, dually to a field projection) to their arguments (but not the parameters or indices of the datatype).  This syntactic form *checks*, rather than synthesizing, against an instance of the datatype.  You can define another constant to equal an application of a constructor, however, and it will synthesize.
+
+Datatypes can be inductive, with the arguments of constructors involving the datatype itself.
+
+For example, currently there is an implementation of the natural numbers, which can be accessed by calling `Types.Nat.install ()`, with the general recursor/inductor, and also addition and multiplication constants defined by direct case trees rather than in terms of the recursor.  The latter have right-associative infix notations `+` and `*`, with `*` binding more tightly, and also numeral notations.  There are also implementations of sum types (with two type parameters), lists (with type parameter), and vectors (with type parameter and length index).
+
+### Defined constants
+
+Constants that are not records or datatypes can be axioms (undefined), or they can be stipulated to compute according to any *case tree*.  A case tree alternates abstractions with pattern matches against constructors and copattern comatches against fields.  A degenerate version of a case tree simply defines the constant to equal some given term.
+
+As noted, case trees can include fields (copatterns) as well as matches against other constants (patterns).  Thus it is also possible to define constructors of records by case trees, in addition to as structures.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, Sigma-types also come with a `pair` constructor defined in this way; one can write `pair A B a b` instead of `{ fst ≔ a; snd ≔ b }` or `(a,b)`.
+
+A constant defined by a case tree does not compute unless the tree can be followed all the way down to a leaf.  In particular, a "match" or "comatch" is never exposed as part of a term.  Moreover, this means that when defining a constant to equal a given term, by putting the abstractions into the case tree rather than the term you can specify that it must be applied to some number of arguments in order to compute.  Usually one would want to do this with all the arguments, so that the bare constant doesn't compute to an abstraction but only computes to the body of that abstraction once it's fully applied.
+
+There is currently no parsing or typechecking for definitions of constants, case trees, records, and datatypes: the programmer is required and trusted to write them by hand in abstract syntax with De Bruijn indices.  In particular, there is no coverage, positivity, termination, or productivity checking.
 
 
 ## Parametric Observational Type Theory
@@ -137,6 +165,8 @@ Since it also satisfies eta-conversion, this record is definitionally isomorphic
 Similarly to the case with function-types, since the fields of `Id ((x:A) × B) X Y` are again named `fst` and `snd`, in most cases one can pretend it is actually equal to the latter Sigma-type, including constructing elements of it with `{ fst ≔ P; snd ≔ Q }`.
 
 This applies also to corecursive record types, whose identity/bridge types are thus coinductive types of bisimulations.  We can use structures to construct bisimulations that become trivial after a finite number of steps, such as to prove propostional one-step eta-expansion, but for infinitary ones we would need a corecursion.  And since bisimulation types are *indexed* coinductive types it does not seem possible to formulate a generic corecursor for them by postulating a single typed constant with a case tree.  Thus, in practice, nontrivial bisimulations are inaccessible until we give the user the ability to define (and typecheck) their own constants with case trees.
+
+The identity/bridge type of a datatype is currently itself another datatype, with constructors applied at higher elements to construct their elements (with the boundary treated like indices), and case trees allowed to discriminate on them.  It's unclear whether the latter is correct, so it might change.
 
 Internal parametricity is implemented by the constant `Gel`, defined with `Types.Gel.install ()`, whose type is
 ```

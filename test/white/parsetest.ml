@@ -155,13 +155,14 @@ can be nested ``} →  B x"
 
 (* Precedence and associativity *)
 let () = Types.Nat.install ()
+let nat, _ = synth "N"
 let onetwothree, _ = synth "S O + S (S O) + S (S (S O))"
 let six, _ = synth "S (S (S (S (S (S O)))))"
-let () = equal onetwothree six
+let () = equal_at onetwothree six nat
 let twotwo_two, _ = synth "S (S O) * S (S O) + S (S O)"
-let () = equal twotwo_two six
+let () = equal_at twotwo_two six nat
 let twotwo_two, _ = synth "S (S O) * (S (S O) + S (S O))"
-let () = unequal twotwo_two six
+let () = unequal_at twotwo_two six nat
 
 (* But we can't mix operations that don't have a declared precedence relation.  (Never mind that this won't typecheck; it won't even parse.) *)
 let () = unparse "S O * S O → S O"
@@ -172,10 +173,10 @@ let () = unsynth "S O * (S O → S O)"
 
 (* Numeral notations *)
 let nsix, _ = synth "6"
-let () = equal six nsix
+let () = equal_at six nsix nat
 let thirty, _ = synth "30"
 let thirty', _ = synth "3*10"
-let () = equal thirty thirty'
+let () = equal_at thirty thirty' nat
 
 (* Identifiers can start with digits, but an identifier consisting entirely of digits leads to ambiguous parses in the presence of numeral notations. *)
 let atoa, _ = synth "A → A"

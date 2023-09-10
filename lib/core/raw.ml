@@ -1,3 +1,4 @@
+open Bwd
 open Util
 
 (* Raw (unchecked) terms, using intrinsically well-scoped De Bruijn indices, and separated into synthesizing terms and checking terms.  These match the user-facing syntax rather than the internal syntax.  In particular, applications, abstractions, and pi-types are all unary, there is only one universe, and the only operator actions are Id, refl, and sym. *)
@@ -24,6 +25,7 @@ and _ check =
   | Synth : 'a synth -> 'a check
   | Lam : 'a N.suc check -> 'a check
   | Struct : 'a check Field.Map.t -> 'a check
+  | Constr : Constr.t * 'a check Bwd.t -> 'a check
 
 let rec raw_lam : type a b ab. (a, b, ab) N.plus -> ab check -> a check =
  fun ab tm ->

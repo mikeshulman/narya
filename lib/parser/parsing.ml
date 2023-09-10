@@ -76,6 +76,18 @@ let consume_fieldname : string Parsing.t =
   let* () = guard (Token.is_fieldname first) in
   return first
 
+(* And similarly for constructors *)
+let consume_constr : string Parsing.t =
+  let* first = next () in
+  match Token.is_constr first with
+  | Some name -> return name
+  | None -> fail
+
+let consume_constrname : string Parsing.t =
+  let* first = next () in
+  let* () = guard (Token.is_constrname first) in
+  return first
+
 (* Supply a token stream and run a parsing computation in the monad. *)
 let execute (f : 'a Parsing.t) (toks : Token.t list) : 'a Choice.t =
   let open ChoiceOps in

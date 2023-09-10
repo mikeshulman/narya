@@ -6,6 +6,7 @@ open Util
 
    A CO-CONTEXT, defined in this file, is a mapping from De Bruijn LEVELS to De Bruijn INDICES.  However, we still represent it as a Bwv of levels, with looking up a level done by iterating backwards through it, so that when we extend it on the right with new levels, the indices associated to all the existing levels increment.  We also store separately the next new level to generate, which in this case may be greater than the length of the Bwv.  Failing to find a level when doing a backwards lookup happens during a failed occurs-check, for instance. *)
 
-type 'a t = { vars : (int, 'a) Bwv.t; level : int }
+type 'a t = { vars : (int option, 'a) Bwv.t; level : int }
 
 let empty : N.zero t = { vars = Emp; level = 0 }
+let of_ctx : type a. a Ctx.t -> a t = fun ctx -> { vars = Bwv.map fst ctx; level = Ctx.level ctx }

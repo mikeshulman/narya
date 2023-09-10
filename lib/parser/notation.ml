@@ -228,6 +228,7 @@ class application =
       let* fc = fn.compile Emp Zero in
       let* ac = arg.compile Emp Zero in
       match fc with
+      | Constr (name, args) -> return (Constr (name, Snoc (args, ac)))
       | Synth (Symbol (syn, (Suc _ as n), xs)) ->
           return (Synth (Symbol (syn, N.suc_plus'' n, Snoc (xs, ac))))
       | Synth sfn -> return (Synth (App (sfn, ac)))
@@ -400,6 +401,24 @@ class struc =
               return ())
             [ fields; args ] Field.Map.empty in
         return (Struct flds)
+  end
+
+class constr =
+  object
+    inherit [Fixity.non] t
+    method fixity = `Outfix
+    val name = ""
+    val finis = false
+    method finished = finis
+
+    method consume =
+      let* c = consume_constr in
+      return {<finis = true; name = c>}
+
+    method compile args =
+      let open ChoiceOps in
+      let [] = Vec.of_bwd N.zero args "constr" in
+      return (Constr (Constr.intern name, Emp))
   end
 
 class letin =

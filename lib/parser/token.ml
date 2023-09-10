@@ -81,6 +81,15 @@ let field = compile (Printf.sprintf "^\\.(%s)$" vble_str)
 let is_field str =
   try Some (Pcre.get_substring (Pcre.exec ~rex:field str) 1) with Not_found -> None
 
+(* And dually for constructors. *)
+
+let constrname = vble
+let is_constrname str = Pcre.pmatch ~rex:constrname str && not (List.mem str reserved)
+let constr = compile (Printf.sprintf "^(%s)\\.$" vble_str)
+
+let is_constr str =
+  try Some (Pcre.get_substring (Pcre.exec ~rex:constr str) 1) with Not_found -> None
+
 (* A valid notation part is a sequence of operator characters or an identifier. *)
 
 let notnpart =

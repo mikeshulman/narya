@@ -59,14 +59,23 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
       let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
       Lam (act_binder body fa)
   | Struct (fields, ins) ->
-      (* Copied from act_apps *)
-      let nk = plus_of_ins ins in
-      let s' = perm_of_ins ins in
-      let (DegExt (_, nk_d, s's)) = comp_deg_extending s' s in
-      let (Plus kd) = D.plus (D.plus_right nk_d) in
-      let n_kd = D.plus_assocr nk kd nk_d in
-      let (Insfact (fa, new_ins)) = insfact s's n_kd in
+      let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
       Struct (Field.Map.map (fun tm -> act_value tm fa) fields, new_ins)
+  | Constr (name, dim, args) ->
+      let (Of fa) = deg_plus_to s dim "constr" in
+      Constr
+        ( name,
+          dom_deg fa,
+          Bwd.map
+            (fun tm ->
+              CubeOf.build (dom_deg fa)
+                {
+                  build =
+                    (fun fb ->
+                      let (Op (fc, fd)) = deg_sface fa fb in
+                      act_value (CubeOf.find tm fc) fd);
+                })
+            args )
 
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
@@ -100,6 +109,22 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
                 act_binder (BindCube.find cods fc) fd);
           } in
       Pi (doms', cods')
+  | Canonical (name, args, ins) ->
+      (* Similar to act_apps, but without needing to thread through changes in the insertion, since the intermediate applications lie in 0-dimensional types and hence any degeneracy action can be pushed inside except possibly after the complete application (if the end result is a higher-dimensional type). *)
+      let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
+      let p = dom_deg fa in
+      let new_args =
+        Bwd.map
+          (fun arg ->
+            CubeOf.build p
+              {
+                build =
+                  (fun fb ->
+                    let (Op (fd, fc)) = deg_sface fa fb in
+                    act_normal (CubeOf.find arg fd) fc);
+              })
+          args in
+      Canonical (name, new_args, new_ins)
 
 and act_binder : type m n. n binder -> (m, n) deg -> m binder =
  fun (Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }) fa ->
@@ -207,6 +232,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
       | _ -> raise (Failure "Acting on non-type as if a type"))
   | Lam _ -> raise (Failure "A lambda-abstraction cannot be a type to act on")
   | Struct _ -> raise (Failure "A struct cannot be a type to act on")
+  | Constr _ -> raise (Failure "A constructor cannot be a type to act on")
 
 (* Action on a head *)
 and act_head : type a b. head -> (a, b) deg -> head =
@@ -227,15 +253,8 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
   match apps with
   | Emp -> (Any s, Emp)
   | Snoc (rest, App (arg, ins)) ->
-      (* To act on an application, we compose the acting degeneracy with the delayed insertion *)
-      let nk = plus_of_ins ins in
-      let s' = perm_of_ins ins in
-      let (DegExt (_, nk_d, s's)) = comp_deg_extending s' s in
-      let (Plus kd) = D.plus (D.plus_right nk_d) in
-      let n_kd = D.plus_assocr nk kd nk_d in
-      (* Factor the result into a new insertion to leave outside and a smaller degeneracy to push in *)
-      let (Insfact (fa, new_ins)) = insfact s's n_kd in
-      (* And push the smaller degeneracy action into the application, acting on the function/struct *)
+      (* To act on an application, we compose the acting degeneracy with the delayed insertion, factor the result into a new insertion to leave outside and a smaller degeneracy to push in, and push the smaller degeneracy action into the application, acting on the function/struct. *)
+      let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
       let p = dom_deg fa in
       let new_arg =
         match arg with

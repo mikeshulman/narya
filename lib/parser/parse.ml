@@ -22,6 +22,7 @@ let nonassoc_notations : Notation.non Node.Map.t ref =
     |> Node.Map.add Node.max (new Notation.symbol "sym" N.one Sym)
     |> Node.Map.add Node.max (new Notation.symbol "Id" N.three Id)
     |> Node.Map.add Node.max (new Notation.struc)
+    |> Node.Map.add Node.max (new Notation.constr)
     (* |> Node.Map.add Node.max (new Notation.default) *)
     (* |> Node.Map.add Node.max (new Notation.uvar) *)
     |> Node.Map.add Node.min (new Notation.ascription))

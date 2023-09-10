@@ -26,7 +26,7 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
           (* Create variables for all the boundary domains. *)
           let (Faces df) = count_faces k in
           let (Plus af) = N.plus (faces_out df) in
-          let vars, args, level = Coctx.dom_vars n doms in
+          let vars, args, _, level = dom_vars n.level doms in
           let ctx =
             {
               Coctx.vars =
@@ -89,7 +89,7 @@ and readback_uninst : type a. a Coctx.t -> uninst -> a term =
   | UU m -> UU m
   | Pi (doms, cods) ->
       let k = CubeOf.dim doms in
-      let vars, args, level = Coctx.dom_vars ctx doms in
+      let vars, args, _, level = dom_vars ctx.level doms in
       Pi
         ( CubeOf.mmap { map = (fun _ [ dom ] -> readback_val ctx dom) } [ doms ],
           CodCube.build k

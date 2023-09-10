@@ -35,7 +35,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
   match (tm, uty) with
   | Synth stm, _ ->
       let* sval, sty = synth ctx stm in
-      let* () = equal_val ctx sty ty in
+      let* () = equal_val (Ctx.level ctx) sty ty in
       return sval
   | Lam _, Pi (doms, cods) -> (
       let m = CubeOf.dim doms in
@@ -50,7 +50,10 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           let (Plus af) = N.plus (faces_out dom_faces) in
           let* body = lambdas af tm in
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
-          let ctx, newargs = Ctx.dom_vars ctx dom_faces af doms in
+          let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
+          let ctx, _ =
+            CubeOf.fold_left_append_map { fold = (fun _ _ t -> (t, ())) } ctx dom_faces af newnfs
+          in
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
           let output = tyof_app cods tyargs newargs in
           let* cbody = check ctx body output in

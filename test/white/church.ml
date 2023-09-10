@@ -7,10 +7,10 @@ let ev tm = Ctx.eval Ctx.empty tm
 let app fn arg = Norm.apply fn (Dim.CubeOf.singleton arg)
 
 let equal_at tm1 tm2 ty =
-  if Option.is_some (Equal.equal_at Emp tm1 tm2 ty) then () else raise (Failure "Unequal")
+  if Option.is_some (Equal.equal_at 0 tm1 tm2 ty) then () else raise (Failure "Unequal")
 
 let unequal_at tm1 tm2 ty =
-  if Option.is_none (Equal.equal_at Emp tm1 tm2 ty) then () else raise (Failure "Equal")
+  if Option.is_none (Equal.equal_at 0 tm1 tm2 ty) then () else raise (Failure "Equal")
 
 let uu = Synth (Symbol (UU, Zero, Emp))
 let raw_nat = Pi (Synth (Pi (uu, uu)), Synth (Pi (uu, uu)))

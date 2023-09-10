@@ -397,3 +397,36 @@ let rec tyof_inst :
             { tm; ty });
       } in
   inst (universe m) margs
+
+(* To typecheck a lambda, do an eta-expanding equality check, check pi-types for equality, or read back a pi-type or a term at a pi-type, we must create one new variable for each argument in the boundary.  With De Bruijn levels, these variables are just sequential numbers after some starting point, but we also need them sometimes as values and other times as normals.  We also return the new De Bruijn level. *)
+let dom_vars :
+    type m a f af.
+    int ->
+    (m, value) CubeOf.t ->
+    (m, int) CubeOf.t * (m, value) CubeOf.t * (m, normal) CubeOf.t * int =
+ fun level doms ->
+  (* To make these variables into values, we need to annotate them with their types, which in general are instantiations of the domains at previous variables.  Thus, we assemble them in a hashtable as we create them for random access to the previous ones. *)
+  let argtbl = Hashtbl.create 10 in
+  let level = ref level in
+  let [ vars; args; nfs ] =
+    CubeOf.pmap
+      {
+        map =
+          (fun fa [ dom ] ->
+            let ty =
+              inst dom
+                (TubeOf.build D.zero
+                   (D.zero_plus (dom_sface fa))
+                   {
+                     build =
+                       (fun fc ->
+                         Hashtbl.find argtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
+                   }) in
+            let lvl = !level in
+            level := lvl + 1;
+            let v = { tm = var lvl ty; ty } in
+            Hashtbl.add argtbl (SFace_of fa) v;
+            [ lvl; v.tm; v ]);
+      }
+      [ doms ] (Cons (Cons (Cons Nil))) in
+  (vars, args, nfs, !level)

@@ -7,20 +7,18 @@ open Monad.ZeroOps (Monad.Maybe)
 open Mlist.Monadic (Monad.Maybe)
 open Bwd
 
-(* Strictly speaking, equality-checking functions only need to be given the *number* of the current De Bruijn level, not the whole context of level variables with their types.  However, having them take contexts instead allows equality-checking and type-checking to use the same "dom_vars" function to create new level variables. *)
-
 let msg _ = ()
 
 (* Eta-expanding equality checks.  In all functions, the integer is the current De Bruijn level, i.e. the length of the current context (we don't need any other information about the context). *)
 
 (* Compare two normal forms that are *assumed* to have the same type. *)
-let rec equal_nf : type a. a Ctx.t -> normal -> normal -> unit option =
+let rec equal_nf : int -> normal -> normal -> unit option =
  fun n x y ->
   (* Thus, we can do an eta-expanding check at either one of their stored types, since they are assumed equal.  *)
   equal_at n x.tm y.tm x.ty
 
 (* Eta-expanding compare two values at a type, which they are both assumed to belong to. *)
-and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
+and equal_at : int -> value -> value -> value -> unit option =
  fun n x y ty ->
   (* The type must be fully instantiated. *)
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
@@ -33,13 +31,11 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
       | Neq -> raise (Failure "Instantiation mismatch in equality-checking")
       | Eq ->
           (* Create variables for all the boundary domains. *)
-          let (Faces df) = count_faces k in
-          let (Plus af) = N.plus (faces_out df) in
-          let newlvl, newargs = Ctx.dom_vars n df af doms in
+          let _, newargs, _, new_n = dom_vars n doms in
           (* Calculate the output type of the application to those variables *)
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
-          equal_at newlvl (apply x newargs) (apply y newargs) output)
+          equal_at new_n (apply x newargs) (apply y newargs) output)
   | Neu (Const { name; _ }, _) -> (
       match Hashtbl.find_opt Global.records name with
       | Some (Record { eta; fields; _ }) -> (
@@ -67,7 +63,7 @@ and equal_at : type a. a Ctx.t -> value -> value -> value -> unit option =
   | _ -> equal_val n x y
 
 (* "Synthesizing" equality check of two values, now *not* assumed a priori to have the same type.  If this function concludes that they are equal, then the equality of their types is part of that conclusion. *)
-and equal_val : type a. a Ctx.t -> value -> value -> unit option =
+and equal_val : int -> value -> value -> unit option =
  fun n x y ->
   match (x, y) with
   (* Since an Inst has a positive amount of instantiation, it can never equal an Uninst.  We don't need to check that the types agree, since equal_uninst concludes equality of types rather than assumes it. *)
@@ -94,7 +90,7 @@ and equal_val : type a. a Ctx.t -> value -> value -> unit option =
       fail
 
 (* Subroutine of equal_val.  Like it, equality of the types is part of the conclusion, not a hypothesis.  *)
-and equal_uninst : type a. a Ctx.t -> uninst -> uninst -> unit option =
+and equal_uninst : int -> uninst -> uninst -> unit option =
  fun lvl x y ->
   match (x, y) with
   | UU m, UU n -> (
@@ -117,9 +113,7 @@ and equal_uninst : type a. a Ctx.t -> uninst -> uninst -> unit option =
           let open CubeOf.Monadic (Monad.Maybe) in
           let* () = miterM { it = (fun _ [ x; y ] -> equal_val lvl x y) } [ dom1s; dom2s ] in
           (* We create variables for all the domains, in order to typecheck all the codomains.  The codomain boundary types only use some of those variables, but it doesn't hurt to have the others around. *)
-          let (Faces df) = count_faces k in
-          let (Plus af) = N.plus (faces_out df) in
-          let newlvl, newargs = Ctx.dom_vars lvl df af dom1s in
+          let _, newargs, _, newlvl = dom_vars lvl dom1s in
           let open BindCube.Monadic (Monad.Maybe) in
           miterM
             {
@@ -137,7 +131,7 @@ and equal_uninst : type a. a Ctx.t -> uninst -> uninst -> unit option =
       fail
 
 (* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)
-and equal_head : type a. a Ctx.t -> head -> head -> unit option =
+and equal_head : int -> head -> head -> unit option =
  fun _ x y ->
   match (x, y) with
   | Var { level = l1; deg = d1 }, Var { level = l2; deg = d2 } ->
@@ -156,7 +150,7 @@ and equal_head : type a. a Ctx.t -> head -> head -> unit option =
       fail
 
 (* Check that the arguments of two entire application spines of equal functions are equal.  This is basically a left fold, but we make sure to iterate from left to right, and fail rather than raising an exception if the lists have different lengths.  *)
-and equal_args : type a. a Ctx.t -> app Bwd.t -> app Bwd.t -> unit option =
+and equal_args : int -> app Bwd.t -> app Bwd.t -> unit option =
  fun lvl args1 args2 ->
   match (args1, args2) with
   | Emp, Emp -> return ()
@@ -169,7 +163,7 @@ and equal_args : type a. a Ctx.t -> app Bwd.t -> app Bwd.t -> unit option =
       fail
 
 (* Check that two application arguments are equal, including their outer insertions as well as their values.  As noted above, here we can go back to *assuming* that they have equal types, and thus passing off to the eta-expanding equality check. *)
-and equal_arg : type a. a Ctx.t -> app -> app -> unit option =
+and equal_arg : int -> app -> app -> unit option =
  fun n (App (a1, i1)) (App (a2, i2)) ->
   let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
   match (a1, a2) with

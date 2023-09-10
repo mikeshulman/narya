@@ -20,6 +20,7 @@ let operators = "[\\]~!@#$%\\^&*/?=+\\\\|,<>:;\\-"
    - when a new line starts (outside a comment), we record the number of 0x20 spaces, for layout
 *)
 
+(* TODO: This doesn't enforce that code lines can't start with non-space whitespace. *)
 let delims =
   Pcre.regexp ~flags:[ `UTF8; `MULTILINE ]
     (Printf.sprintf "\n( *)|`.*$|{(`+)(?s:.)*?\\2}|\"((?:[^\"]|\\\")*)\"|\\s+|([%s]|[%s]+)"
@@ -45,23 +46,37 @@ The first set of (single-character) tokens have only built-in meaning.
 The second set of tokens are available for use in user-defined notations, and some of them have built-in meanings as well.
 
 The third set of tokens divides into:
-1. Those which start with "_", which have built-in meaning (or are invalid).
+1. Those which start or end with "_", which have built-in meaning (or are invalid).
 2. Those which start with ".", which have the built-in meaning of field projections.
-3. Reserved keywords
-4. All others, which are available for use in user-defined notations, and can also be identifiers (names of variables and constants).
+3. Those which end with ".", which have the built-in meaning of constructors.
+4. Reserved keywords
+5. All others, which are available for use in user-defined notations, and can also be identifiers (names of variables and constants).
 
-Thus, an identifier is a sequence of non-singleton, non-operator characters that doesn't start with an underscore or period, and which is not a reserved keyword.
+Thus, an identifier is a sequence of non-singleton, non-operator characters that doesn't start or end with an underscore or period, and which is not a reserved keyword.
 *)
 
-let ident = compile (Printf.sprintf "^[^_.%s%s][^%s%s]*$" singletons operators singletons operators)
+let ident =
+  compile
+    (Printf.sprintf "^[^_.%s%s]|[^_.%s%s][^%s%s]*[^_.%s%s]$" singletons operators singletons
+       operators singletons operators singletons operators)
+
 let reserved = [ "Type"; "Id"; "refl"; "sym" ]
 let is_ident str = Pcre.pmatch ~rex:ident str && not (List.mem str reserved)
 
-(* Similarly, a field name is an arbitrary such string, and a field access is a dot followed by a field name. *)
+(* Internal periods in an identifier denote namespace qualifiers (unimplemented so far), hence are disallowed in local variable names. *)
 
-let fieldname = compile (Printf.sprintf "^([^%s%s]+)$" singletons operators)
+let vble_str =
+  Printf.sprintf "[^_.%s%s]|[^_.%s%s][^.%s%s]*[^_.%s%s]" singletons operators singletons operators
+    singletons operators singletons operators
+
+let vble = compile ("^" ^ vble_str ^ "$")
+let is_vble str = Pcre.pmatch ~rex:vble str && not (List.mem str reserved)
+
+(* Similarly, a field name is an allowed variable name, and a field access is a dot followed by a field name. *)
+
+let fieldname = vble
 let is_fieldname str = Pcre.pmatch ~rex:fieldname str && not (List.mem str reserved)
-let field = compile (Printf.sprintf "^\\.([^%s%s]+)$" singletons operators)
+let field = compile (Printf.sprintf "^\\.(%s)$" vble_str)
 
 let is_field str =
   try Some (Pcre.get_substring (Pcre.exec ~rex:field str) 1) with Not_found -> None

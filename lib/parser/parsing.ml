@@ -56,11 +56,12 @@ let consume_ident : string Parsing.t =
   let* () = guard (Token.is_ident first) in
   return first
 
-(* Consume either an identifier or an underscore.  Return Some of the name, or None if an underscore. *)
+(* Consume either an allowed local variable name or an underscore.  Return Some of the name, or None if an underscore. *)
 let consume_var : string option Parsing.t =
-  (let* name = consume_ident in
+  let* name = next () in
+  (let* () = guard (Token.is_vble name) in
    return (Some name))
-  <|> let* _ = consume "_" in
+  <|> let* () = guard (name = "_") in
       return None
 
 (* Consume an arbitrary field projection, returning it without the dot. *)

@@ -183,6 +183,9 @@ let rec deg_equiv : type m n k l. (m, n) deg -> (k, l) deg -> unit option =
   | Zero _, _ -> is_id_deg s2
   | _, Zero _ -> is_id_deg s1
 
+(* Every dimension is a degeneracy of zero. *)
+let deg_zero : type a. a D.t -> (a, D.zero) deg = fun a -> Zero a
+
 (* ********** Permutations ********** *)
 
 (* A permutation is just an endo-degeneracy.  *)

@@ -43,6 +43,7 @@ val plus_deg :
 val is_id_deg : ('m, 'n) deg -> unit option
 val pos_deg : 'n D.pos -> ('m, 'n) deg -> 'm D.pos
 val deg_equiv : ('m, 'n) deg -> ('k, 'l) deg -> unit option
+val deg_zero : 'a D.t -> ('a, D.zero) deg
 
 type 'n perm = ('n, 'n) deg
 

@@ -102,7 +102,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
           inst newtm newargs)
-  | Lam (n_faces, plus_n_faces, body) ->
+  | Lam (Bind (n_faces, plus_n_faces, body)) ->
       let (Plus mn) = D.plus (dim_faces n_faces) in
       Lam (eval_binder env n_faces mn plus_n_faces body)
   | App (fn, args) ->
@@ -150,7 +150,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
             build =
               (fun fab ->
                 let (SFace_of_plus (k_l, fa, fb)) = sface_of_plus m_n fab in
-                let (Cod (lf, nlf, cod)) = CodCube.find cods fb in
+                let (Bind (lf, nlf, cod)) = CodCube.find cods fb in
                 eval_binder (Act (env, op_of_sface fa)) lf k_l nlf cod);
           } in
       let tytbl = Hashtbl.create 10 in
@@ -425,7 +425,7 @@ and eval_binder :
     (m, n, mn) D.plus ->
     (b, f, bf) N.plus ->
     bf term ->
-    mn binder =
+    mn Value.binder =
  fun env bound_faces plus_dim plus_faces body ->
   (* let n = dim_faces bound_faces in *)
   let m = dim_env env in
@@ -445,10 +445,10 @@ and eval_binder :
           })
       nf in
   let perm = id_perm (D.plus_out m plus_dim) in
-  Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
+  Value.Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
 
-and apply_binder : type n. n binder -> (n, value) CubeOf.t -> value =
- fun (Bind b) argstbl ->
+and apply_binder : type n. n Value.binder -> (n, value) CubeOf.t -> value =
+ fun (Value.Bind b) argstbl ->
   act_value
     (eval
        (env_append b.plus_faces b.env

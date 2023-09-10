@@ -54,7 +54,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
           let output = tyof_app cods tyargs newargs in
           let* cbody = check ctx body output in
-          return (Term.Lam (dom_faces, af, cbody)))
+          return (Term.Lam (Bind (dom_faces, af, cbody))))
   | Struct tms, Neu (Const { name; dim }, _) ->
       let* (Record { fields; _ }) = Hashtbl.find_opt Global.records name in
       (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)

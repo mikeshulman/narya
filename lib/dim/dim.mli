@@ -213,19 +213,6 @@ module Cube (F : Fam) : sig
   type ('n, 'c, 'b) fold_lefter = { fold : 'm. 'c -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c }
 
   val fold_left : ('n, 'c, 'b) fold_lefter -> 'c -> ('n, 'b) t -> 'c
-
-  type ('n, 'c, 'b, 'd) fold_left_append_mapper = {
-    fold : 'm 'len. ('c, 'len) Bwv.t -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c * ('m, 'd) F.t;
-  }
-
-  val fold_left_append_map :
-    ('n, 'c, 'b, 'd) fold_left_append_mapper ->
-    ('c, 'len) Bwv.t ->
-    ('n, 'f) count_faces ->
-    ('len, 'f, 'lenf) N.plus ->
-    ('n, 'b) t ->
-    ('c, 'lenf) Bwv.t * ('n, 'd) t
-
   val subcube : ('m, 'n) sface -> ('n, 'b) t -> ('m, 'b) t
 end
 
@@ -233,7 +220,16 @@ module FamOf : sig
   type ('a, 'b) t = 'b
 end
 
-module CubeOf : module type of Cube (FamOf)
+module CubeOf : sig
+  include module type of Cube (FamOf)
+
+  val flatten_append :
+    ('b, 'len) Bwv.t ->
+    ('n, 'b) t ->
+    ('n, 'f) count_faces ->
+    ('len, 'f, 'lenf) N.plus ->
+    ('b, 'lenf) Bwv.t
+end
 
 type (_, _, _, _) tface
 

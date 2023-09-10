@@ -805,60 +805,6 @@ module Cube (F : Fam) = struct
     end)) in
     snd (miterM { it = (fun fa [ x ] c -> ((), g.fold c fa x)) } [ tr ] acc)
 
-  (* Sometimes we also want to fold onto a Bwv, however, and for that we need to track the face arithmetic. *)
-
-  type ('n, 'c, 'b, 'd) fold_left_append_mapper = {
-    fold : 'm 'len. ('c, 'len) Bwv.t -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c * ('m, 'd) F.t;
-  }
-
-  let rec gfold_left_append_map :
-      type k m km n b l c d len f lenf.
-      (k, m, km) D.plus ->
-      (l, m, n) D.plus ->
-      (k, l) bwsface ->
-      (n, c, b, d) fold_left_append_mapper ->
-      (c, len) Bwv.t ->
-      (m, f) count_faces ->
-      (len, f, lenf) N.plus ->
-      (m, km, b) gt ->
-      (c, lenf) Bwv.t * (m, km, d) gt =
-   fun km lm d g acc mf lenf tr ->
-    match tr with
-    | Leaf x ->
-        let Zero, Zero = (km, lm) in
-        let Eq = faces_uniq faces_zero mf in
-        let (Suc Zero) = lenf in
-        let gx1, gx2 = g.fold acc (sface_of_bw d) x in
-        (Snoc (acc, gx1), Leaf gx2)
-    | Branch (ends, mid) ->
-        let (Suc km') = km in
-        let (Suc (mf', Suc (ft, pq))) = mf in
-        let (Plus lenf') = N.plus (N.times_out ft) in
-        let lenff = N.plus_assocl lenf' pq lenf in
-        let acc, newends =
-          Bwv.fold_left2_bind_append_map ft lenf' acc Endpoints.indices ends
-            {
-              append =
-                (fun pq cx e br ->
-                  gfold_left_append_map km' (D.suc_plus'' lm) (End (e, d)) g cx mf' pq br);
-            } in
-        let acc2, newmid =
-          gfold_left_append_map (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) g acc mf' lenff mid
-        in
-        (acc2, Branch (newends, newmid))
-
-  let fold_left_append_map :
-      type n b c d len f lenf.
-      (n, c, b, d) fold_left_append_mapper ->
-      (c, len) Bwv.t ->
-      (n, f) count_faces ->
-      (len, f, lenf) N.plus ->
-      (n, b) t ->
-      (c, lenf) Bwv.t * (n, d) t =
-   fun g acc mf lenf tr ->
-    let n = dim tr in
-    gfold_left_append_map (D.zero_plus n) (D.zero_plus n) Zero g acc mf lenf tr
-
   (* A "subcube" of a cube of dimension n, determined by a face of n with dimension k, is the cube of dimension k consisting of the elements indexed by faces that factor through the given one. *)
   let subcube : type m n b. (m, n) sface -> (n, b) t -> (m, b) t =
    fun fa tr -> build (dom_sface fa) { build = (fun fb -> find tr (comp_sface fa fb)) }
@@ -893,6 +839,45 @@ module CubeOf = struct
         let mk' = N.suc_plus mk in
         let (Suc mk'') = mk' in
         Branch (Bwv.map (fun t -> lower mk'' (N.suc_plus n12') t) ends, lower mk' n12 mid)
+
+  (* We can also extract the elements of a cube and append them to a Bwv. *)
+
+  let rec gflatten_append :
+      type k m km n b l len f lenf.
+      (k, m, km) D.plus ->
+      (l, m, n) D.plus ->
+      (k, l) bwsface ->
+      (b, len) Bwv.t ->
+      (m, km, b) gt ->
+      (m, f) count_faces ->
+      (len, f, lenf) N.plus ->
+      (b, lenf) Bwv.t =
+   fun km lm d acc tr mf lenf ->
+    match tr with
+    | Leaf x ->
+        let Zero, Zero = (km, lm) in
+        let Eq = faces_uniq faces_zero mf in
+        let (Suc Zero) = lenf in
+        Snoc (acc, x)
+    | Branch (ends, mid) ->
+        let (Suc km') = km in
+        let (Suc (mf', Suc (ft, pq))) = mf in
+        let (Plus lenf') = N.plus (N.times_out ft) in
+        let lenff = N.plus_assocl lenf' pq lenf in
+        let acc =
+          Bwv.fold_left2_bind_append ft lenf' acc Endpoints.indices ends
+            {
+              append =
+                (fun pq cx e br -> gflatten_append km' (D.suc_plus'' lm) (End (e, d)) cx br mf' pq);
+            } in
+        gflatten_append (D.suc_plus'' km) (D.suc_plus'' lm) (Mid d) acc mid mf' lenff
+
+  let flatten_append :
+      type n b len f lenf.
+      (b, len) Bwv.t -> (n, b) t -> (n, f) count_faces -> (len, f, lenf) N.plus -> (b, lenf) Bwv.t =
+   fun acc tr mf lenf ->
+    let n = dim tr in
+    gflatten_append (D.zero_plus n) (D.zero_plus n) Zero acc tr mf lenf
 end
 
 (* ********** Tube faces ********** *)

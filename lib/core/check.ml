@@ -51,9 +51,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           let* body = lambdas af tm in
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
           let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
-          let ctx, _ =
-            CubeOf.fold_left_append_map { fold = (fun _ _ t -> (t, ())) } ctx dom_faces af newnfs
-          in
+          let ctx = CubeOf.flatten_append ctx newnfs dom_faces af in
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
           let output = tyof_app cods tyargs newargs in
           let* cbody = check ctx body output in

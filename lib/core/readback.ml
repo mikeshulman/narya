@@ -27,13 +27,7 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
           let (Faces df) = count_faces k in
           let (Plus af) = N.plus (faces_out df) in
           let vars, args, _, level = dom_vars n.level doms in
-          let ctx =
-            {
-              Coctx.vars =
-                fst
-                  (CubeOf.fold_left_append_map { fold = (fun _ _ l -> (l, ())) } n.vars df af vars);
-              level;
-            } in
+          let ctx = { Coctx.vars = CubeOf.flatten_append n.vars vars df af; level } in
           (* Calculate the output type of the application to those variables *)
           let output = tyof_app cods tyargs args in
           Lam (Bind (df, af, readback_at ctx (apply tm args) output)))
@@ -99,15 +93,7 @@ and readback_uninst : type a. a Coctx.t -> uninst -> a term =
                   let (Faces sf) = count_faces (dom_sface fa) in
                   let (Plus asf) = N.plus (faces_out sf) in
                   let svars = CubeOf.subcube fa vars in
-                  let sctx =
-                    {
-                      Coctx.vars =
-                        fst
-                          (CubeOf.fold_left_append_map
-                             { fold = (fun _ _ l -> (l, ())) }
-                             ctx.vars sf asf svars);
-                      level;
-                    } in
+                  let sctx = { Coctx.vars = CubeOf.flatten_append ctx.vars svars sf asf; level } in
                   let sargs = CubeOf.subcube fa args in
                   Bind (sf, asf, readback_val sctx (apply_binder (BindCube.find cods fa) sargs)));
             } )

@@ -7,6 +7,32 @@ open ParseOps
 open Bwd
 open Raw
 
+(* ******************************
+   Getting arguments from a Bwd
+ ****************************** *)
+
+(* Vec.of_bwd is a general function for extracting a statically-specified number of elements from a Bwd and raising an error if it has the wrong number.  However, since we only need it for very small numbers, it's a bit faster to do it directly for those numbers. *)
+
+let take_zero (xs : 'a Bwd.t) (err : string) : unit =
+  match xs with
+  | Emp -> ()
+  | _ -> raise (Failure ("Wrong number of arguments in " ^ err))
+
+let take_one (xs : 'a Bwd.t) (err : string) : 'a =
+  match xs with
+  | Snoc (Emp, x) -> x
+  | _ -> raise (Failure ("Wrong number of arguments in " ^ err))
+
+let take_two (xs : 'a Bwd.t) (err : string) : 'a * 'a =
+  match xs with
+  | Snoc (Snoc (Emp, x), y) -> (x, y)
+  | _ -> raise (Failure ("Wrong number of arguments in " ^ err))
+
+let take_three (xs : 'a Bwd.t) (err : string) : 'a * 'a * 'a =
+  match xs with
+  | Snoc (Snoc (Snoc (Emp, x), y), z) -> (x, y, z)
+  | _ -> raise (Failure ("Wrong number of arguments in " ^ err))
+
 (* ********************
    Notations
    *********************)
@@ -108,7 +134,7 @@ class parens opn cls =
           return {<parts = rest>}
 
     method compile args =
-      let [ arg ] = Vec.of_bwd N.one args "parens" in
+      let arg = take_one args "parens" in
       arg.compile Emp Zero
   end
 
@@ -157,7 +183,7 @@ class field =
 
     method compile args =
       let open ChoiceOps in
-      let [ arg ] = Vec.of_bwd N.one args "field" in
+      let arg = take_one args "field" in
       let* ac = arg.compile Emp Zero in
       match ac with
       | Synth acs -> return (Synth (Field (acs, Field.intern name)))
@@ -177,7 +203,7 @@ class arrow =
 
     method compile args =
       let open ChoiceOps in
-      let [ dom; cod ] = Vec.of_bwd N.two args "arrow" in
+      let dom, cod = take_two args "arrow" in
       let* dc = dom.compile Emp Zero in
       match dc with
       (* Ascriptions are not allowed in the domain of an arrow.  No one should ever need to do this, and forbidding it prevents an ambiguity in parsing "(A : Type) → B" when there is already a variable in the context named A. *)
@@ -207,7 +233,7 @@ class lambda =
 
     method compile args =
       let open ChoiceOps in
-      let [ body ] = Vec.of_bwd N.one args "lambda" in
+      let body = take_one args "lambda" in
       let (Wrap names) = Bwv.of_bwd names in
       let (Plus p) = Bwv.plus_length names in
       let* bc = body.compile names p in
@@ -224,7 +250,7 @@ class application =
 
     method compile args =
       let open ChoiceOps in
-      let [ fn; arg ] = Vec.of_bwd N.two args "application" in
+      let fn, arg = take_two args "application" in
       let* fc = fn.compile Emp Zero in
       let* ac = arg.compile Emp Zero in
       match fc with
@@ -248,7 +274,7 @@ class ascription =
 
     method compile args =
       let open ChoiceOps in
-      let [ tm; asc ] = Vec.of_bwd N.two args "ascription" in
+      let tm, asc = take_two args "ascription" in
       let* tc = tm.compile Emp Zero in
       let* ac = asc.compile Emp Zero in
       return (Synth (Asc (tc, ac)))
@@ -351,7 +377,7 @@ class symbol name n syn =
 
     method compile args =
       let open ChoiceOps in
-      let [] = Vec.of_bwd N.zero args "symbol" in
+      let () = take_zero args "symbol" in
       return (Synth (Symbol (syn, N.zero_plus n, Emp)))
   end
 
@@ -418,7 +444,7 @@ class constr =
 
     method compile args =
       let open ChoiceOps in
-      let [] = Vec.of_bwd N.zero args "constr" in
+      let () = take_zero args "constr" in
       return (Constr (Constr.intern name, Emp))
   end
 
@@ -453,12 +479,12 @@ class letin =
       let open ChoiceOps in
       let* carg, body =
         if typed then
-          let [ ty; arg; body ] = Vec.of_bwd N.three args "typed let-in" in
+          let ty, arg, body = take_three args "typed let-in" in
           let* cty = ty.compile Emp Zero in
           let* carg = arg.compile Emp Zero in
           return (Synth (Asc (carg, cty)), body)
         else
-          let [ arg; body ] = Vec.of_bwd N.two args "let-in" in
+          let arg, body = take_two args "let-in" in
           let* carg = arg.compile Emp Zero in
           return (carg, body) in
       let* cbody = body.compile (Snoc (Emp, name)) (Suc Zero) in

@@ -255,7 +255,7 @@ class ascription =
   end
 
 class pi =
-  object (self)
+  object
     inherit [Fixity.right] t
     val state : [ `Start | `Explicit | `Implicit | `Default | `End ] = `Start
 
@@ -265,30 +265,31 @@ class pi =
     method fixity = `Prefix
     method finished = state = `End
 
-    method consume_vars label rep =
-      (let* x = consume_var in
-       {<names = Snoc (names, (label, rep, x))>}#consume_vars label `Repeat)
-      <|> let* () = consume ":" in
-          let* () = guard (rep = `Repeat) in
-          return self
-
-    method consume_start =
-      (let* () = consume "(" in
-       {<state = `Explicit>}#consume_vars `Explicit `New)
-      <|> let* () = consume "{" in
-          {<state = `Implicit>}#consume_vars `Implicit `New
-
     method consume =
+      let rec consume_vars ns label rep =
+        (let* x = consume_var in
+         consume_vars (Snoc (ns, (label, rep, x))) label `Repeat)
+        <|> let* () = consume ":" in
+            let* () = guard (rep = `Repeat) in
+            return ns in
+
+      let consume_start () =
+        (let* () = consume "(" in
+         let* names = consume_vars names `Explicit `New in
+         return {<state = `Explicit; names>})
+        <|> let* () = consume "{" in
+            let* names = consume_vars names `Implicit `New in
+            return {<state = `Implicit; names>} in
       match state with
-      | `Start -> self#consume_start
+      | `Start -> consume_start ()
       | `Explicit ->
           let* () = consume ")" in
-          self#consume_start
+          consume_start ()
           <|> let* () = consume "→" <|> consume "->" in
               return {<state = `End>}
       | `Implicit -> (
           (let* () = consume "}" in
-           self#consume_start
+           consume_start ()
            <|> let* () = consume "→" <|> consume "->" in
                return {<state = `End>})
           <|> let* () = consume "≔" <|> consume ":=" in
@@ -299,7 +300,7 @@ class pi =
               | _ -> raise (Failure "missing variables in pi"))
       | `Default ->
           let* () = consume "}" in
-          self#consume_start
+          consume_start ()
           <|> let* () = consume "→" <|> consume "->" in
               return {<state = `End>}
       | `End -> raise (Failure "Empty notation")

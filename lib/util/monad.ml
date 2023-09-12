@@ -1,4 +1,5 @@
 (* This module is not meant to be opened; its sub-modules should be used qualified. *)
+module GList = List
 
 (* Plain monads *)
 
@@ -185,4 +186,32 @@ module Stream = struct
       | Cons (x, xs) -> Lazy.force (mplus (f x) (bind xs f)))
 
   let force = Lazy.force
+end
+
+(* The free monad with choice.  This is just for fun; it's way too slow to do anything with. *)
+module FreeChoice = struct
+  type 'a t = From : 'a t list -> 'a t | Return : 'a -> 'a t | Mult : 'a t t -> 'a t
+
+  let return : type a. a -> a t = fun x -> Return x
+  let mzero : type a. a t = From []
+  let mplus : type a. a t -> a t -> a t = fun xs ys -> From [ xs; ys ]
+
+  let rec map : type a b. (a -> b) -> a t -> b t =
+   fun f -> function
+    | From xs -> From (GList.map (map f) xs)
+    | Return x -> Return (f x)
+    | Mult xs -> Mult (map (map f) xs)
+
+  let bind : type a b. a t -> (a -> b t) -> b t = fun xs f -> Mult (map f xs)
+
+  let rec find_map : type a b. (a -> b option) -> a t -> b option =
+   fun f -> function
+    | From xs -> GList.find_map (find_map f) xs
+    | Return x -> f x
+    | Mult xs -> find_map (find_map f) xs
+
+  let rec first : type a. a t -> a option = function
+    | From xs -> GList.find_map first xs
+    | Return x -> Some x
+    | Mult xs -> find_map first xs
 end

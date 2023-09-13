@@ -1,4 +1,5 @@
 (tests
   (names church idrefl sym symsym gel natarith parametricity churchnat sigma stream parsetest letin readback list vec)
-	(libraries core types parser testutil))
+	(libraries core types parser testutil)
+	(instrumentation (backend landmarks --auto)))
 (env (_ (flags (:standard -w -37 -w -30 -w -32))))

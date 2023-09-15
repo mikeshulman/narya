@@ -7,10 +7,10 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0~alpha1.
+Narya requires OCaml version 5.1.0.
 
 ```
-opam switch create 5.1.0~alpha1
+opam switch create 5.1.0
 opam install bwd pcre
 cd narya
 dune build

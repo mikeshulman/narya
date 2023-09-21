@@ -1,0 +1,1 @@
+This library contains utility functions for testing.  They are loaded by the test files, and can also be loaded at the toplevel for manual testing and debugging.

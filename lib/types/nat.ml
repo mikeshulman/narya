@@ -4,45 +4,14 @@ open Util
 open Dim
 open Core
 open Parser
-open Parsing
+open Notations
+open Compile
 open Term
 
 let ([ nn; zero; suc; plus; times; ind ] : (Constant.t, N.six) Util.Vec.t) =
   Util.Vec.map Constant.intern [ "N"; "O"; "S"; "plus"; "times"; "N_ind" ]
 
-let ([ zero'; suc' ] : (Constr.t, N.two) Util.Vec.t) = Util.Vec.map Constr.intern [ "O"; "S" ]
-
-module Nodes = struct
-  let plus = Node.make "nat_plus"
-  let times = Node.make "nat_times"
-end
-
-let num = Token.compile "^(0|[1-9][0-9]*)$"
-
-let rec numeral_of_int = function
-  | 0 -> Raw.Synth (Const zero)
-  | n when n > 0 -> Synth (App (Const suc, numeral_of_int (n - 1)))
-  | _ -> raise (Failure "Negative numeral")
-
-class numeral =
-  object
-    inherit [Fixity.non] Notation.t
-    method fixity = `Outfix
-    val finis = false
-    method finished = finis
-    val n = 0
-
-    method consume =
-      let open ParseOps in
-      let* str = consume_ident in
-      let* () = guard (Pcre.pmatch ~rex:num str) in
-      return {<finis = true; n = int_of_string str>}
-
-    method compile args =
-      let open ChoiceOps in
-      let [] = Util.Vec.of_bwd N.zero args "numeral" in
-      return (numeral_of_int n)
-  end
+let ([ zero'; suc' ] : (Constr.t, N.two) Util.Vec.t) = Util.Vec.map Constr.intern [ "0"; "1" ]
 
 let install () =
   Hashtbl.add Global.types nn (UU D.zero);
@@ -137,10 +106,42 @@ let install () =
                                     (Var (Pop (Pop (Pop Top)))))
                                  (Var (Pop (Pop Top))))
                               (Var Top))) );
-                ] ) )));
-  Parse.rightassoc_notations :=
-    !Parse.rightassoc_notations
-    |> Node.Map.add Nodes.plus (new Notation.simple `Infix plus [ "+" ])
-    |> Node.Map.add Nodes.times (new Notation.simple `Infix times [ "*" ]);
-  Option.get (Node.add_prec Nodes.plus Nodes.times);
-  Parse.nonassoc_notations := !Parse.nonassoc_notations |> Node.Map.add Node.max (new numeral)
+                ] ) )))
+
+open Monad.Ops (Monad.Maybe)
+
+let plusn =
+  make ~name:"+" ~tightness:0. ~left:Open ~right:Open ~assoc:Left ~tree:(fun n ->
+      eop (Op "+") (Done n))
+
+let () =
+  add_compiler plusn
+    {
+      compile =
+        (fun ctx obs ->
+          let x, obs = get_term obs in
+          let y, obs = get_term obs in
+          let () = get_done obs in
+          let* x = compile ctx x in
+          let* y = compile ctx y in
+          return (Raw.Synth (App (App (Const plus, x), y))));
+    }
+
+let timesn =
+  make ~name:"*" ~tightness:1. ~left:Open ~right:Open ~assoc:Left ~tree:(fun n ->
+      eop (Op "*") (Done n))
+
+let () =
+  add_compiler timesn
+    {
+      compile =
+        (fun ctx obs ->
+          let x, obs = get_term obs in
+          let y, obs = get_term obs in
+          let () = get_done obs in
+          let* x = compile ctx x in
+          let* y = compile ctx y in
+          return (Raw.Synth (App (App (Const times, x), y))));
+    }
+
+let () = Builtins.builtins := !Builtins.builtins |> State.add plusn |> State.add timesn

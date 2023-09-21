@@ -11,7 +11,7 @@ Narya requires OCaml version 5.1.0.
 
 ```
 opam switch create 5.1.0
-opam install bwd pcre
+opam install bwd fmlib_parse
 cd narya
 dune build
 dune runtest
@@ -22,13 +22,15 @@ There is no executable yet, but you can load the libraries in `utop` and use the
 
 ## Parsing
 
-Narya cannot read and parse an entire file yet, and doesn't understand any kind of commands or directives.  Thus, one still has to interact with it as an OCaml library.  However, there is a parser for terms which can be used to write them in a convenient way.  The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be hardcoded in OCaml.  Of note is that operations can be non-associative, and that precedences are a directed graph rather than a linear ordering: two notations have no precedence relation unless it is explicitly declared.  The built-in syntax is:
+Narya cannot read and parse an entire file yet, and doesn't understand any kind of commands or directives.  Thus, one still has to interact with it as an OCaml library.  However, there is a parser for terms which can be used to write them in a convenient way.
+
+The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be defined in OCaml.  We prefer to say "tightness" instead of "precedence", to indicate that higher numbers bind more tightly.  Tightnesses are floating-point numbers; ∞ and −∞ are used internally for certain built-in notations, and NaN is used for "closed" notations (those that start and end with a symbol rather than a term) which don't need a tightness.  The built-in notations are:
 
 - `Type` -- The unique universe (currently we have type-in-type).
 - `M N` -- Function application (left-associative).
-- `x ↦ M` -- Lambda-abstraction (right-associative).  The unicode ↦ can be replaced by ASCII `|->`.
-- `(x : M) → N` -- Pi-type (right-associative).  The unicode → can be replaced by ASCII `->`.
-- `(x : M) (y : N) (z : P) → Q` -- Multivariable Pi-type.
+- `x ↦ M` -- Lambda-abstraction.  The unicode ↦ can be replaced by ASCII `|->`.
+- `(x : M) → N` -- Pi-type.  The unicode → can be replaced by ASCII `->`.
+- `(x : M) (y z : N) (w : P) → Q` -- Multivariable Pi-type.
 - `M → N` -- Non-dependent function-type (right-associative).
 - `M .fld` -- Field access of a record (left-associative).
 - `{ fld1 ≔ M; fld2 ≔ N }` -- Anonymous record (structure).  The unicode ≔ can be replaced by ASCII `:=`.
@@ -39,11 +41,13 @@ Narya cannot read and parse an entire file yet, and doesn't understand any kind 
 - `refl M` -- Reflexivity term.
 - `sym M` -- Symmetry of a two-dimensional square.
 
-The precedences are as you would expect: application binds tighter than anything (except parentheses), while abstraction, ascription, and pi-types, are looser than anything.  Of note is that type ascription is non-associative, so `M : N : P` is a parse error.  Also, type ascription has no precedence relation with abstraction, so `x ↦ M : A` is a parse error.  In the latter case you can write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.
+Here parentheses have tightness +∞, and function application and field access can be thought of as left-associative operations with no symbols and tightness +∞ although they are implemented specially internally.  On the other hand, abstraction, ascription, and let-bindings have tightness −∞, so they bind more loosely than anything except each other.  Pi-types and function-types have tightness 0.
 
-There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments do not nest (since this way the lexer can be a single regex split), but they have a variant that allow multiple backquotes, where the number of backquotes must match between the opening and closing delimiters.  Thus, for instance, a section of code containing block comments {\` ... \`} can be commented out by a block comment {\`\` ... \`\`}, and so on.
+Of note is that type ascription is non-associative, so `M : N : P` is a parse error.  Abstraction, let-binding, and pi-types are also non-associative: because they start with a name or symbol rather than a term, they don't need to be right-associative in order to get the expected behavior of `x ↦ y ↦ M` and `(x : M) → (y : N) → P`.  This non-associativity means that they cannot be mixed with type ascription: `x ↦ M : A` is a parse error.  This is intentional, as I regard that as inherently ambiguous; you should write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.
 
-As in Agda, mixfix notations can involve arbitrary Unicode characters, but must be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, there are also the following exceptions:
+There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments can be nested.  However, if (part of) a block comment appears on a line before any code, then no code may appear on that line at all.  In other words, the only whitespace that can appear on a line before code is 0x20 SPACE (tab characters are not allowed anywhere).
+
+As in Agda, mixfix notations can involve arbitrary Unicode characters, but must usually be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, in Narya this has the following exceptions:
 
 - The characters `( ) { } → ↦ ≔` with built-in meaning are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for paretheses and braces in Agda, but the others are different: in Narya you can write `A→B`.
 - A nonempty string consisting of the characters `[ ] ~ ! @ # $ % ^ & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for parentheses (grouping), curly braces (structures and, later, implicit arguments), backquote (comments), period (fields, constructors, and namespaces), underscore (later, inferred arguments), double quote (later, string literals) and single quote (allowed for primes on variable names).  In particular:
@@ -53,7 +57,7 @@ As in Agda, mixfix notations can involve arbitrary Unicode characters, but must 
 
   This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing, while keeping the lexer as a simple regexp that doesn't need to change as new operators are defined.
 
-Identifiers (variables and constant names) can be any string consisting of non-whitespace characters other than the above two groups that doesn't start with an underscore or period.  Field names, which must be identifiers, are prefixed a period when accessed, and likewise constructor names are postfixed a period when applied.  Identifiers prefixed with one or more underscores are reserved for internal use.  Internal periods in identifiers are reserved to denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names.
+Numerals are strings consisting of digits and periods, not starting or ending with a period.  Identifiers (variables and constant names) can be any string consisting of non-whitespace characters other than the above two groups that does *not* consist entirely of digits and periods, and does not start or end with a period.  Field names, which must be identifiers, are prefixed a period when accessed, and likewise constructor names are postfixed a period when applied.  Identifiers prefixed with one or more underscores are reserved for internal use.  Internal periods in identifiers are reserved to denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names.
 
 Once you have written a raw term using this syntax as an OCaml string, you can parse it and pass it off to the typechecker with these functions defined in `Testutil.Mcp`:
 
@@ -80,29 +84,6 @@ Some other helpful functions include:
 - `assume "x" T` -- Assume a variable `x` of type `T` (a value), and return that variable (as a value).
 - `equal R S` -- Assert that two values are definitionally equal.  They must be synthesizing, since this does no type-directed checking.
 - `equal_at R S T` -- Assert that two values `R` and `S` are definitionally equal at the value type `T` (which they are assumed to belong to).
-
-Unfortunately, the current parser is rather slow on large terms.
-
-
-### Poor man's parser
-
-In `Testutil.Pmp` there is also a "poor man's parser" implemented as a DSL in OCaml with infix and prefix operators.  This is used to formalize a number of examples in the `test/` directory that were written before the above "real" parser.
-
-- `!!"x"` -- Use a variable (an OCaml string).
-- `!~"c"` -- Use a built-in constant, such as `Sig` or `Gel` (also an OCaml string).
-- `!."c"` -- Use a built-in datatype constructor (an OCaml string).
-- `UU` -- The universe
-- `M $ N` -- Function application (left-associative).
-- `"x" @-> M` -- Lambda-abstraction (right-associative).  The variable must be an OCaml string.
-- `("x", M) @=> N` -- Pi-type (right-associative).
-- `M $. "fld"` -- Field access of a record (left-associative).  The field is an OCaml string.
-- `struc [("fld1", M); ("fld2", N)]` -- Anonymous record (structure).
-- `M <:> N` -- Type ascription.
-- `id M X Y` -- Identity/bridge type.
-- `refl M` -- Reflexivity.
-- `sym M` -- Symmetry.
-
-Here the associativities and precedence are determined by the uniform rules of OCaml, based on the first character of each infix operator.  In particular, this means that `@->` and `@=>` bind tighter than `$`, so you have to write `"x" @-> (M $ !!"x")` but you can write `!!"f" $ "x" @-> M`.  (This is the opposite of the "real" parser described above.)
 
 
 ## Constants, records, datatypes, and case trees

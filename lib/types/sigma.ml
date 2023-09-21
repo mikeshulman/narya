@@ -2,91 +2,13 @@ open Util
 open Dim
 open Core
 open Parser
-open Parsing
+open Notations
+open Compile
+open Raw
 open Term
 
 let ([ sigma; pair ] : (Constant.t, N.two) Vec.t) = Vec.map Constant.intern [ "Σ"; "pair" ]
 let ([ fst; snd ] : (Field.t, N.two) Vec.t) = Vec.map Field.intern [ "fst"; "snd" ]
-
-module Nodes = struct
-  let prod = Node.make "prod"
-  let comma = Node.make "comma"
-end
-
-module Notations = struct
-  class sigma =
-    object
-      inherit [Fixity.right] Notation.t
-      val name : string option = None
-      method fixity = `Prefix
-      val state : [ `Start | `Middle | `End ] = `Start
-      method finished = state = `End
-
-      method consume =
-        let open ParseOps in
-        match state with
-        | `Start ->
-            let* () = consume "(" in
-            let* x = consume_var in
-            let* () = consume ":" in
-            return {<state = `Middle; name = x>}
-        | `Middle ->
-            let* () = consume ")" in
-            let* () = consume "×" in
-            return {<state = `End>}
-        | `End -> raise (Failure "Empty notation")
-
-      method compile args =
-        let open ChoiceOps in
-        let [ left; right ] = Vec.of_bwd N.two args "sigma" in
-        let* lc = left.compile Emp Zero in
-        let* rc = right.compile (Snoc (Emp, name)) (Suc Zero) in
-        return (Raw.Synth (App (App (Const sigma, lc), Lam rc)))
-    end
-
-  class prod =
-    object
-      inherit [Fixity.right] Notation.t
-      method fixity = `Infix
-      val finis = false
-      method finished = finis
-
-      method consume =
-        let open ParseOps in
-        let* () = consume "×" in
-        return {<finis = true>}
-
-      method compile args =
-        let open ChoiceOps in
-        let [ left; right ] = Vec.of_bwd N.two args "sigma" in
-        let* lc = left.compile Emp Zero in
-        match lc with
-        | Synth (Asc _) -> fail (* See arrow notation *)
-        | _ ->
-            let* rc = right.compile (Snoc (Emp, None)) (Suc Zero) in
-            return (Raw.Synth (App (App (Const sigma, lc), Lam rc)))
-    end
-
-  class comma =
-    object
-      inherit [Fixity.right] Notation.t
-      method fixity = `Infix
-      val finis = false
-      method finished = finis
-
-      method consume =
-        let open ParseOps in
-        let* () = consume "," in
-        return {<finis = true>}
-
-      method compile args =
-        let open ChoiceOps in
-        let [ x; y ] = Vec.of_bwd N.two args "comma" in
-        let* x = x.compile Emp Zero in
-        let* y = y.compile Emp Zero in
-        return (Raw.Struct (Field.Map.empty |> Field.Map.add fst x |> Field.Map.add snd y))
-    end
-end
 
 let install () =
   Hashtbl.add Global.types sigma (pi (UU D.zero) (pi (pi (Var Top) (UU D.zero)) (UU D.zero)));
@@ -114,10 +36,92 @@ let install () =
               (Struct
                  (Field.Map.empty
                  |> Field.Map.add fst (Var (Pop Top))
-                 |> Field.Map.add snd (Var Top))) )));
-  Parse.rightassoc_notations :=
-    !Parse.rightassoc_notations
-    |> Node.Map.add Nodes.prod (new Notations.sigma)
-    |> Node.Map.add Nodes.prod (new Notations.prod)
-    |> Node.Map.add Nodes.comma (new Notations.comma);
-  Option.get (Node.add_prec Node.arrow Nodes.prod)
+                 |> Field.Map.add snd (Var Top))) )))
+
+let struc =
+  make ~name:"struc" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
+      let rec struc_fields () =
+        Inner
+          {
+            ops = TokMap.singleton RBrace (Done n);
+            name =
+              Some
+                (op Coloneq (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done n) ]));
+            term = None;
+            fail = [];
+          } in
+      eop LBrace (struc_fields ()))
+
+open Monad.Ops (Monad.Maybe)
+
+let rec compile_struc :
+    type n. n check Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check option =
+ fun flds ctx obs ->
+  match get_next obs with
+  | `Done, obs ->
+      let () = get_done obs in
+      return (Raw.Struct flds)
+  | `Name x, obs ->
+      let tm, obs = get_term obs in
+      let* tm = compile ctx tm in
+      let* x = x in
+      compile_struc (flds |> Field.Map.add (Field.intern x) tm) ctx obs
+  | `Term _, _ -> None
+
+let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
+
+let sigman =
+  make ~name:"sig" ~tightness:10. ~left:Closed ~right:Open ~assoc:Right ~tree:(fun n ->
+      eop LParen (name (op Colon (term RParen (ops [ (Name "×", Done n); (Op "><", Done n) ])))))
+
+let () =
+  add_compiler sigman
+    {
+      compile =
+        (fun ctx obs ->
+          let x, obs = get_name obs in
+          let tm, obs = get_term obs in
+          let ty, obs = get_term obs in
+          let () = get_done obs in
+          let* tm = compile ctx tm in
+          let* ty = compile (Snoc (ctx, x)) ty in
+          return (Synth (App (App (Const sigma, tm), Lam ty))));
+    }
+
+let prodn =
+  make ~name:"><" ~tightness:10. ~left:Open ~right:Open ~assoc:Right ~tree:(fun n ->
+      eops [ (Name "×", Done n); (Op "><", Done n) ])
+
+let () =
+  add_compiler prodn
+    {
+      compile =
+        (fun ctx obs ->
+          let tm, obs = get_term obs in
+          let ty, obs = get_term obs in
+          let () = get_done obs in
+          let* tm = compile ctx tm in
+          let* ty = compile (Snoc (ctx, None)) ty in
+          return (Synth (App (App (Const sigma, tm), Lam ty))));
+    }
+
+let comma =
+  make ~name:"," ~tightness:10. ~left:Open ~right:Open ~assoc:Right ~tree:(fun n ->
+      eop (Op ",") (Done n))
+
+let () =
+  add_compiler comma
+    {
+      compile =
+        (fun ctx obs ->
+          let x, obs = get_term obs in
+          let y, obs = get_term obs in
+          let () = get_done obs in
+          let* x = compile ctx x in
+          let* y = compile ctx y in
+          return (Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ])));
+    }
+
+let () =
+  Builtins.builtins :=
+    !Builtins.builtins |> State.add sigman |> State.add prodn |> State.add comma |> State.add struc

@@ -10,9 +10,18 @@ let context = ref ectx
 
 (* Functions to synth and check terms *)
 
+let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check list =
+ fun names tm ->
+  match Parse.parse !Builtins.builtins tm with
+  | Right _ -> []
+  | Left res -> (
+      match Compile.compile names res with
+      | None -> []
+      | Some t -> [ t ])
+
 let synth (tm : string) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
-  let raw = Parse.term names tm in
+  let raw = parse_term names tm in
   match raw with
   | [] -> raise (Failure "Parse failure")
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
@@ -26,7 +35,7 @@ let synth (tm : string) : Value.value * Value.value =
 
 let check (tm : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
-  let raw = Parse.term names tm in
+  let raw = parse_term names tm in
   match raw with
   | [] -> raise (Failure "Parse failure")
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
@@ -39,7 +48,7 @@ let check (tm : string) (ty : Value.value) : Value.value =
 
 let unsynth (tm : string) : unit =
   let (Ctx (ctx, names)) = !context in
-  let raw = Parse.term names tm in
+  let raw = parse_term names tm in
   match raw with
   | [] -> raise (Failure "Parse failure")
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
@@ -51,7 +60,7 @@ let unsynth (tm : string) : unit =
 
 let uncheck (tm : string) (ty : Value.value) : unit =
   let (Ctx (ctx, names)) = !context in
-  let raw = Parse.term names tm in
+  let raw = parse_term names tm in
   match raw with
   | [] -> raise (Failure "Parse failure")
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
@@ -64,7 +73,7 @@ let uncheck (tm : string) (ty : Value.value) : unit =
 
 let unparse (tm : string) : unit =
   let (Ctx (_, names)) = !context in
-  let raw = Parse.term names tm in
+  let raw = parse_term names tm in
   match raw with
   | [ _ ] -> raise (Failure "Unexpected parse success")
   | _ :: _ :: _ -> raise (Failure "Unexpected parse ambiguity")
@@ -72,7 +81,7 @@ let unparse (tm : string) : unit =
 
 let ambparse (tm : string) : unit =
   let (Ctx (_, names)) = !context in
-  let raw = Parse.term names tm in
+  let raw = parse_term names tm in
   match raw with
   | [ _ ] -> raise (Failure "Unexpected parse success")
   | [] -> raise (Failure "Unexpected parse failure")

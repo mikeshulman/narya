@@ -1,4 +1,5 @@
 open Testutil.Mcp
+open Parser
 
 let uu, _ = synth "Type"
 let aa = assume "A" uu
@@ -67,9 +68,9 @@ let cnat n =
 let fifty = check (cnat 50) churchnat
 
 (* Doing 100 takes a noticeable fraction of a second, but only in the typechecking; the parsing is still near instantaneous. *)
-let cien = Parser.Parse.term Util.Bwv.Emp (cnat 100)
+let cien = Parse.parse !Builtins.builtins (cnat 100)
 
-(* Parsing church numerals starts to take a noticable fraction of a second around 250. *)
+(* Parsing church numerals starts to take a noticable fraction of a second around 2000. *)
 
 let () = Types.Sigma.install ()
 let sigab, _ = synth "(x:A) × B x"
@@ -109,7 +110,7 @@ let () = uncheck "a , d , e" aaddee''
 let t, _ = synth "(x:A) → (y:D) × E"
 let x = assume "x" t
 let _ = check "x a .fst" dd
-let () = unparse "(x:A) × (y:D) → E"
+let _ = synth "(x:A) × (y:D) → E"
 let t, _ = synth "(x:A) → D × E"
 let x = assume "x" t
 let _ = check "x a .fst" dd
@@ -119,7 +120,7 @@ let _ = check "x (a,d)" ee
 let t, _ = synth "A → (y:D) × E"
 let x = assume "x" t
 let _ = check "x a .fst" dd
-let _ = unparse "A × (y:B) → C"
+let _ = synth "A × (y:D) → E"
 let t, _ = synth "A → D × E"
 let x = assume "x" t
 let _ = check "x a .fst" dd
@@ -138,20 +139,29 @@ let _ = synth "(x : A) {` a block comment `} →  B x"
 
 let _ = synth "(x : A) {` a block comment
  spanning multiple
-lines`} →  B x"
+lines `}
+  →  B x"
+
+let _ =
+  unparse "(x : A) {` a block comment
+ spanning multiple
+lines and ending on a code line `} →  B x"
+
+let _ =
+  unparse
+    "(x : A) {` a block comment
+ containing ` a line comment
+ and showing that {` block comments
+nest `}
+→  B x"
 
 let _ =
   synth
     "(x : A) {` a block comment
  containing ` a line comment
- and showing that {` block comments
-don't nest `} →  B x"
-
-let _ =
-  synth
-    "(x : A) {`` but block comments
- with different {` numbers of `} backquotes
-can be nested ``} →  B x"
+ and showing that {` block `} comments
+nest `}
+→  B x"
 
 (* Precedence and associativity *)
 let () = Types.Nat.install ()
@@ -164,21 +174,14 @@ let () = equal_at twotwo_two six nat
 let twotwo_two, _ = synth "S (S O) * (S (S O) + S (S O))"
 let () = unequal_at twotwo_two six nat
 
-(* But we can't mix operations that don't have a declared precedence relation.  (Never mind that this won't typecheck; it won't even parse.) *)
-let () = unparse "S O * S O → S O"
-
-(* To parse it, we need parentheses. *)
-let () = unsynth "(S O * S O) → S O"
-let () = unsynth "S O * (S O → S O)"
-
 (* Numeral notations *)
-let nsix, _ = synth "6"
+let nsix = check "6" nat
 let () = equal_at six nsix nat
-let thirty, _ = synth "30"
+let thirty = check "30" nat
 let thirty', _ = synth "3*10"
 let () = equal_at thirty thirty' nat
 
-(* Identifiers can start with digits, but an identifier consisting entirely of digits leads to ambiguous parses in the presence of numeral notations. *)
+(* Identifiers can start with digits, but cannot consist entirely of digits. *)
 let atoa, _ = synth "A → A"
 let _ = check "0a ↦ 0a" atoa
-let () = ambparse "0 ↦ 0"
+let () = unparse "0 ↦ 0"

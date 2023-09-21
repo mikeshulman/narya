@@ -2,33 +2,33 @@ open Testutil.Pmp
 
 let () = Types.Nat.install ()
 let nat, _ = synth !~"N"
-let raw0 = !."O"
+let raw0 = !."0"
 let zero = check raw0 nat
-let raw1 = !."S" $ raw0
+let raw1 = !."1" $ raw0
 let one = check raw1 nat
-let raw2 = !."S" $ raw1
+let raw2 = !."1" $ raw1
 let two = check raw2 nat
-let raw3 = !."S" $ raw2
+let raw3 = !."1" $ raw2
 let three = check raw3 nat
-let raw4 = !."S" $ raw3
+let raw4 = !."1" $ raw3
 let four = check raw4 nat
 
 (* Identity types *)
-let id00, _ = synth (id !~"N" !."O" !."O")
-let eq00 = check !."O" id00
-let id01, _ = synth (id !~"N" !."O" (!."S" $ !."O"))
-let () = uncheck !."O" id01
+let id00, _ = synth (id !~"N" !."0" !."0")
+let eq00 = check !."0" id00
+let id01, _ = synth (id !~"N" !."0" (!."1" $ !."0"))
+let () = uncheck !."0" id01
 let id11, _ = synth (id !~"N" raw1 raw1)
-let eq11 = check (!."S" $ !."O") id11
+let eq11 = check (!."1" $ !."0") id11
 
 let congsuc_ty, _ =
   synth
     (("x", !~"N")
     @=> ("y", !~"N")
     @=> ("", id !~"N" !!"x" !!"y")
-    @=> id !~"N" (!."S" $ !!"x") (!."S" $ !!"y"))
+    @=> id !~"N" (!."1" $ !!"x") (!."1" $ !!"y"))
 
-let congsuc = check ("x" @-> "y" @-> "p" @-> (!."S" $ !!"p")) congsuc_ty
+let congsuc = check ("x" @-> "y" @-> "p" @-> (!."1" $ !!"p")) congsuc_ty
 
 let cong2suc_ty, _ =
   synth
@@ -51,14 +51,14 @@ let cong2suc_ty, _ =
           $ !!"x20"
           $ !!"x21" )
     @=> (refl (refl !~"N")
-        $ (!."S" $ !!"x00")
-        $ (!."S" $ !!"x01")
-        $ (!."S" $ !!"x02")
-        $ (!."S" $ !!"x10")
-        $ (!."S" $ !!"x11")
-        $ (!."S" $ !!"x12")
-        $ (!."S" $ !!"x20")
-        $ (!."S" $ !!"x21")))
+        $ (!."1" $ !!"x00")
+        $ (!."1" $ !!"x01")
+        $ (!."1" $ !!"x02")
+        $ (!."1" $ !!"x10")
+        $ (!."1" $ !!"x11")
+        $ (!."1" $ !!"x12")
+        $ (!."1" $ !!"x20")
+        $ (!."1" $ !!"x21")))
 
 let cong2suc =
   check
@@ -71,7 +71,7 @@ let cong2suc =
     @-> "x20"
     @-> "x21"
     @-> "x22"
-    @-> (!."S" $ !!"x22"))
+    @-> (!."1" $ !!"x22"))
     cong2suc_ty
 
 (* Addition *)
@@ -96,7 +96,7 @@ let refl_zero_plus_zero, _ =
   synth (refl !~"plus" $ raw0 $ raw0 $ refl (raw0 <:> !~"N") $ raw0 $ raw0 $ refl (raw0 <:> !~"N"))
 
 let refl_zero, _ = synth (refl (raw0 <:> !~"N"))
-let id_zero_zero, _ = synth (id !~"N" !."O" !."O")
+let id_zero_zero, _ = synth (id !~"N" !."0" !."0")
 let () = equal_at refl_zero_plus_zero refl_zero id_zero_zero
 
 let refl_one_plus_one, _ =
@@ -104,7 +104,7 @@ let refl_one_plus_one, _ =
 
 let refl_one, _ = synth (refl (raw1 <:> !~"N"))
 let refl_two, _ = synth (refl (raw2 <:> !~"N"))
-let id_two_two, _ = synth (id !~"N" (!."S" $ (!."S" $ !."O")) (!."S" $ (!."S" $ !."O")))
+let id_two_two, _ = synth (id !~"N" (!."1" $ (!."1" $ !."0")) (!."1" $ (!."1" $ !."0")))
 let () = equal_at refl_one_plus_one refl_two id_two_two
 
 (* We can also define addition with the general recursor/inductor  *)

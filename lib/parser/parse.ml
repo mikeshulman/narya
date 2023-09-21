@@ -1,209 +1,206 @@
-(* DN = Danielsson-Norell, "Parsing mixfix operators" *)
-
-open Util
-open Core
-open Effect.Deep
 open Bwd
-open Parsing
-open ParseOps
-open Raw
+open Notations
+open Compile
+open Fmlib_parse
 
-(* ********************
-   Notations
-   *********************)
+exception Tokens of Token.t list
 
-(* These maps store the notations in each node. *)
-let nonassoc_notations : Notation.non Node.Map.t ref =
-  ref
-    (Node.Map.make
-    |> Node.Map.add Node.max (new Notation.parens "(" ")")
-    |> Node.Map.add Node.max (new Notation.symbol "Type" N.zero UU)
-    |> Node.Map.add Node.max (new Notation.symbol "refl" N.one Refl)
-    |> Node.Map.add Node.max (new Notation.symbol "sym" N.one Sym)
-    |> Node.Map.add Node.max (new Notation.symbol "Id" N.three Id)
-    |> Node.Map.add Node.max (new Notation.struc)
-    |> Node.Map.add Node.max (new Notation.constr)
-    (* |> Node.Map.add Node.max (new Notation.default) *)
-    (* |> Node.Map.add Node.max (new Notation.uvar) *)
-    |> Node.Map.add Node.min (new Notation.ascription))
+let msg (_ : string) = () (* Printf.printf "%s" s *)
 
-let get_nonassocs node = Node.Map.get node !nonassoc_notations
+module Result = struct
+  type t = result
+end
 
-let leftassoc_notations : Notation.left Node.Map.t ref =
-  ref
-    (Node.Map.make
-    |> Node.Map.add Node.premax (new Notation.application)
-    |> Node.Map.add Node.premax (new Notation.field))
+module Parse_term = struct
+  module Basic = Token_parser.Make (State) (Token) (Result) (Unit)
+  open Basic
 
-let get_leftassocs node = Node.Map.get node !leftassoc_notations
+  let rec tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
+    msg (Printf.sprintf "tree\n");
+    match t with
+    | Inner { ops; name; term; fail } -> (
+        backtrack
+          (let* optree =
+             step "operator" (fun state _ tok ->
+                 Option.map
+                   (fun br ->
+                     msg (Printf.sprintf "Found op\n");
+                     (br, state))
+                   (TokMap.find_opt tok ops)) in
+           tree optree obs)
+          "operator"
+        </> backtrack
+              (let* nametree, x =
+                 step "name" (fun state _ tok ->
+                     match (name, tok) with
+                     | Some br, Name x -> Some ((br, Some x), state)
+                     | Some br, Underscore -> Some ((br, None), state)
+                     | _ -> None) in
+               tree nametree (Snoc (obs, Name x)))
+              "name"
+        </>
+        match term with
+        | Some e ->
+            msg (Printf.sprintf "Looking for term\n");
+            let* subterm = lclosed Interval.entire e in
+            tree (of_entry e) (Snoc (obs, Term subterm))
+        | None -> unexpected ("failure " ^ String.concat ", " fail))
+    | Done n -> return (obs, n)
+    | Flag (f, t) -> tree t (Snoc (obs, Flag f))
+    | Lazy (lazy t) -> tree t obs
 
-let rightassoc_notations : Notation.right Node.Map.t ref =
-  ref
-    (Node.Map.make
-    |> Node.Map.add Node.min (new Notation.lambda)
-    |> Node.Map.add Node.min (new Notation.letin)
-    |> Node.Map.add Node.arrow (new Notation.arrow)
-    |> Node.Map.add Node.arrow (new Notation.pi))
+  and entry (e : entry) : (observation Bwd.t * Notation.t) t = tree (of_entry e) Emp
 
-let get_rightassocs node = Node.Map.get node !rightassoc_notations
+  (* "lclosed" is passed an upper precedence interval and an additional set of ending ops.  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
+  and lclosed (tight : Interval.t) (stop : tree TokMap.t) : result t =
+    msg (Printf.sprintf "lclosed\n");
+    let* state = get in
+    let* res =
+      (msg (Printf.sprintf "Looking for op\n");
+       let* obs, n = entry state.left_closeds in
+       let d = get_data n in
+       msg (Printf.sprintf "Finished op %s\n" d.name);
+       (* If the parse ended right-open, we call "lclosed" again, with the upper precedence interval starting at the precedence of the just-parsed notation, closed if that notation is right-associative and open otherwise, to pick up the open argument. *)
+       match d.right with
+       | Closed -> return (Notn (n, Bwd.to_list obs))
+       | Open ->
+           let i =
+             match d.assoc with
+             | Right -> Interval.Closed d.tightness
+             | Left | Non -> Open d.tightness in
+           (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* precedence than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of precedence in between X and Z, only if we see something of lower precedence than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
+           let* last_arg = lclosed i stop in
+           return (Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))))
+      (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, or a constructor.  Field projections are not allowed since this would be the head of a spine. *)
+      </> backtrack (abstraction stop Emp) "abstraction"
+      </> name
+      </> numeral
+      </> constr in
+    (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
+    let* r = lopen tight stop res in
+    msg (Printf.sprintf "end of lclosed\n");
+    return r
 
-(* There's a theoretical problem of ambiguity when combining type ascription with Nuprl-style Pi-types.  Is "(x : A) → B" a function with domain A, or a function with domain x ascribed to A?  However, it seems unlikely that both possibilities would ever simultaneously typecheck, so if we use typechecking to decide on which of ambiguous parses to reject we should be okay. *)
+  (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards. *)
+  and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) : result t =
+    let* x =
+      step "name" (fun state _ tok ->
+          match tok with
+          | Name x -> Some (`Name x, state)
+          | Underscore -> Some (`Underscore, state)
+          | Mapsto -> Some (`Mapsto, state)
+          | _ -> None) in
+    match x with
+    | `Name x -> abstraction stop (Snoc (names, Some x))
+    | `Underscore -> abstraction stop (Snoc (names, None))
+    | `Mapsto -> (
+        match names with
+        | Emp -> unexpected "\"↦\""
+        | Snoc _ ->
+            (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the precedence interval is open, so that operators of actual precedence −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
+            let* res = lclosed (Open Float.neg_infinity) stop in
+            return (Abs (Bwd.to_list names, res)))
 
-(* ********************
-   Memoization
-   ******************** *)
+  and name : result t =
+    step "name" (fun state _ tok ->
+        match tok with
+        | Name x ->
+            msg (Printf.sprintf "Found name %s\n" x);
+            Some (Name x, state)
+        | _ -> None)
 
-(* We maintain a memo table for memoizing the results of the "group" = "\hat{p}" nonterminal, as suggested by DN.  This does seem to improve performance vastly, making church numerals like 8 practical to parse. *)
-type memotbl = (Node.t * parse_in, Notation.any Tree.t parse_out) Hashtbl.t
+  and constr : result t =
+    step "constr" (fun state _ tok ->
+        match tok with
+        | Constr x -> Some (Constr x, state)
+        | _ -> None)
 
-(* We might try to supply that memo table as a reader monad incorporated into Parsing.t.  Unfortunately, the circle of type dependencies makes that difficult or impossible, as memotbl depends on tree, which depends on notation, which depends on Parsing.t.  Moreover, in that case we would have to be extra careful to make sure the memo table persists through backtracking.  Thus, we instead expose the memo table with Effects. *)
-type _ Effect.t +=
-  | Lookup : Node.t * parse_in -> Notation.any Tree.t parse_out option Effect.t
-  | Save : Node.t * parse_in * Notation.any Tree.t parse_out -> unit Effect.t
+  and proj : result t =
+    step "proj" (fun state _ tok ->
+        match tok with
+        | Proj x -> Some (Proj x, state)
+        | _ -> None)
 
-(* ********************
-   Parsing
-   ******************** *)
+  and numeral : result t =
+    step "numeral" (fun state _ tok ->
+        match tok with
+        | Numeral n -> (
+            match Float.of_string_opt n with
+            | Some n -> Some (Numeral n, state)
+            | None -> None)
+        | _ -> None)
 
-(* Parse an identifier.  *)
-let ident : Notation.any Tree.t Parsing.t =
-  let* str = consume_ident in
-  return (Tree.leaf str)
+  (* "lopen" is passed an upper precedence and a set of ending ops, plus a parsed result for the left open argument.  It starts by looking ahead one token: if it sees Eof, or the initial op of a left-open tree with looser precedence than the lower endpoint of the current interval (with strictness determined by the tree in question), or one of the specified ending ops, then it returns its result argument without parsing any more. *)
+  and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : result) : result t =
+    msg (Printf.sprintf "lopen\n");
+    (let* () =
+       followed_by
+         (step "ending tok" (fun state _ tok ->
+              if
+                tok = Eof
+                || TokSet.mem tok (FMap.find (Interval.endpoint tight) state.loosers)
+                || TokMap.mem tok stop
+              then Some ((), state)
+              else None))
+         "ending token" in
+     return first_arg)
+    </>
+    (* Otherwise, it parses either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with precedence in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
+    let* state = get in
+    let* res =
+      (let* obs, n = entry (TIMap.find tight state.tighters) in
+       msg (Printf.sprintf "Found a left-open\n");
+       let d = get_data n in
+       match d.right with
+       | Closed -> (
+           match d.left with
+           | Open -> return (Notn (n, Term first_arg :: Bwd.to_list obs))
+           | Closed -> return (App (first_arg, Notn (n, Bwd.to_list obs))))
+       | Open -> (
+           let i =
+             match d.assoc with
+             | Right -> Interval.Closed d.tightness
+             | Left | Non -> Open d.tightness in
+           msg (Printf.sprintf "Getting the rest\n");
+           let* last_arg = lclosed i stop in
+           msg (Printf.sprintf "Got the rest\n");
+           match d.left with
+           | Open -> return (Notn (n, Term first_arg :: Bwd.to_list (Snoc (obs, Term last_arg))))
+           | Closed -> return (App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))))))
+      (* If this fails, we can parse a single variable name or a field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
+      </> let* arg = name </> numeral </> proj </> constr in
+          return (App (first_arg, arg)) in
+    msg (Printf.sprintf "Going on\n");
+    (* Same comment here about carrying over "tight" as in lclosed. *)
+    lopen tight stop res
 
-(* DN nonterminal "expr".  It has to take a unit argument so that OCaml recognizes it as a "function" that can be defined by recursion. *)
-let rec expr : unit -> Notation.any Tree.t Parsing.t =
- fun () ->
-  (* An expression is either an identifier, *)
-  ident
-  (* or a notation belonging to an open node. *)
-  <|> let* node = choose_from (Node.get_all ()) in
-      group node
+  let term () =
+    let* r = lclosed Interval.entire TokMap.empty in
+    let* () = step "eof" (fun state _ tok -> if tok = Eof then Some ((), state) else None) in
+    return r
 
-(* DN nonterminal "p↑".  This is similar to "expr", but instead of looking at all open nodes, we look at those with higher precedence than the current one. *)
-and higher (node : Node.t) : Notation.any Tree.t Parsing.t =
-  ident
-  <|> let* hnode = choose_from (Node.get_highers node) in
-      group hnode
+  module Parser = struct
+    include Basic.Parser
 
-(* DN nonterminal "p̂".  This function is just a wrapper around compute_group that handles the memoization. *)
-and group (node : Node.t) : Notation.any Tree.t Parsing.t =
- fun toks ->
-  match Effect.perform (Lookup (node, toks)) with
-  | Some res -> res
-  | None ->
-      let res = compute_group node toks in
-      Effect.perform (Save (node, toks, res));
-      res
+    let start (state : State.t) : t = make state (term ())
+  end
+end
 
-(* Here we do the work of "p̂".  We choose an associativity, and a notation with that associativity in the given node, and attempt to parse it. *)
-and compute_group (node : Node.t) : Notation.any Tree.t Parsing.t =
-  group_non node
-  <|> group_right node
-  <|>
-  (* p↑, the first argument *)
-  let* first = higher node in
-  (* (p⃖)⁺, the rest *)
-  group_left node first
+module Lex_and_parse =
+  Parse_with_lexer.Make (State) (Token) (Result) (Unit) (Lexer.Parser) (Parse_term.Parser)
 
-(* DN nonterminal "p̂" for nonassociative operators.  This is straightforward: we choose a notation and parse all its pieces at higher node.  The coercions to Fixity.non, and others like them below, are workarounds for https://github.com/ocaml/ocaml/issues/10664.  This bug has been fixed in https://github.com/ocaml/ocaml/pull/11600 which will appear in Ocaml 5.1. *)
-and group_non (node : Node.t) : Notation.any Tree.t Parsing.t =
-  let* notn = choose_from (get_nonassocs node) in
-  (* If the notation is postfix or infix, we start by parsing its first argument, which must be in higher node since it is nonassociative. *)
-  let* args =
-    match (notn#fixity :> Fixity.non) with
-    | `Postfix | `Infix ->
-        let* first = higher node in
-        return (Snoc (Emp, first))
-    | _ -> return Emp in
-  (* Then we pass off to the "op" nonterminal to parse the notation parts and inner arguments. *)
-  let* notn, args = op notn args in
-  (* If the notation is prefix or infix, we end by parsing its last argument. *)
-  let* args =
-    match (notn#fixity :> Fixity.non) with
-    | `Prefix | `Infix ->
-        let* last = higher node in
-        return (Snoc (args, last))
-    | _ -> return args in
-  (* Finally we assemble all the arguments in order. *)
-  return (Tree.node (Notation.Any notn) args)
+open Lex_and_parse
 
-(* DN "p̂" for right-associative operators, which is the combination "(p⃗)⁺ p̂". *)
-and group_right (node : Node.t) : Notation.any Tree.t Parsing.t =
-  (* We choose a right-associative operator in the node, and parse all of it except its last argument. *)
-  let* notn = choose_from (get_rightassocs node) in
-  let* notn, args =
-    match (notn#fixity :> Fixity.right) with
-    (* Fabulously, our hackery with polymorphic variants makes this match exhaustive, while still allowing us to call the polymorphic function "op" on "notn". *)
-    | `Prefix ->
-        (* In the prefix case, we start right away parsing name parts. *)
-        op notn Emp
-    | `Infix ->
-        (* In the infix case, we have to parse an expression in higher node before we get to the name parts in "op". *)
-        let* pre = higher node in
-        op notn (Snoc (Emp, pre)) in
-  (* Then we either recurse, parsing another right-associative operator and so on, or stop by parsing a single expression in higher node. *)
-  let* rest = group_right node <|> higher node in
-  (* Returning through the recursive calls, we assemble the trees, essentially performing a right fold (as DN remarks is necessary). *)
-  return (Tree.node (Notation.Any notn) (Snoc (args, rest)))
+let start (state : State.t) : Lex_and_parse.t =
+  make Lexer.Parser.start (Parse_term.Parser.start state)
 
-(* DN "(p⃖)⁺" for left-associative operators.  Here, on the first call, "p↑" has already been parsed. *)
-and group_left (node : Node.t) (first : Notation.any Tree.t) : Notation.any Tree.t Parsing.t =
-  let* notn = choose_from (get_leftassocs node) in
-  let* notn, args = op notn (Snoc (Emp, first)) in
-  let* args =
-    match (notn#fixity :> Fixity.left) with
-    | `Postfix -> return args
-    | `Infix ->
-        (* In the infix case, we have to parse one last expression in higher node *)
-        let* post = higher node in
-        return (Snoc (args, post)) in
-  (* Now we have all the information needed to assemble the parse tree for this piece. *)
-  let res = Tree.node (Notation.Any notn) args in
-  (* We then either stop, or continue parsing left-associative operators with this result taking the place of their initial "p↑". *)
-  return res <|> group_left node res
+let parse (state : State.t) (str : string) : (Result.t, expect list) Either.t =
+  let p = run_on_string str (start state) in
+  if has_succeeded p then Left (final p)
+  else if has_failed_syntax p then Right (failed_expectations p)
+  else raise (Failure "what.")
 
-(* DN nonterminal "op".  Returns a fully-parsed notation object along with its list of *inner* arguments. *)
-and op :
-      'fixity.
-      ([< `Infix | `Outfix | `Prefix | `Postfix ] as 'fixity) Notation.t ->
-      Notation.any Tree.t Bwd.t ->
-      ('fixity Notation.t * Notation.any Tree.t Bwd.t) Parsing.t =
- fun notn args ->
-  (* First we consume a name part. *)
-  let* notn = notn#consume in
-  (* If we're done, we return (no more *inner* arguments) *)
-  if notn#finished then return (notn, args)
-  else
-    (* Otherwise, we parse an inner argument, record it, and recurse. *)
-    let* this = expr () in
-    op notn (Snoc (args, this))
+(* run_on_string str start *)
+(* has_succeeded, final, has_failed_syntax, failed_expectations *)
 
-(* ********************
-   Entry points
-   ******************** *)
-
-(* Parse a string into a raw term, in a context of variables with or without names.  Must parse the *whole* string, with nothing left over. *)
-let term : type n. (string option, n) Bwv.t -> string -> n check list =
- fun ctx str ->
-  (* This is the entry point, so we create a new memo table. *)
-  let memo = Hashtbl.create 100 in
-  try_with
-    (fun toks ->
-      let open ChoiceOps in
-      let* tr = execute (expr ()) toks in
-      Notation.compile ctx tr)
-    (Token.ize str)
-    {
-      effc =
-        (fun (type a) (eff : a Effect.t) ->
-          match eff with
-          | Lookup (node, toks) ->
-              Some
-                (fun (k : (a, _) continuation) -> continue k (Hashtbl.find_opt memo (node, toks)))
-          | Save (node, toks, res) ->
-              Some
-                (fun (k : (a, _) continuation) ->
-                  Hashtbl.add memo (node, toks) res;
-                  continue k ())
-          | _ -> None);
-    }
+(* To start parsing, we call "lclosed" with EOF as the unique ending op. *)

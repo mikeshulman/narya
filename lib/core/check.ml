@@ -161,7 +161,9 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
  fun ctx tm ->
   match tm with
   | Var v -> return (Term.Var v, (snd (Bwv.nth v ctx)).ty)
-  | Const name -> return (Const name, eval (Emp D.zero) (Hashtbl.find Global.types name))
+  | Const name ->
+      let* ty = Hashtbl.find_opt Global.types name in
+      return (Const name, eval (Emp D.zero) ty)
   | Field (tm, fld) ->
       let* stm, sty = synth ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)

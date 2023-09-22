@@ -185,3 +185,8 @@ let () = equal_at thirty thirty' nat
 let atoa, _ = synth "A → A"
 let _ = check "0a ↦ 0a" atoa
 let () = unparse "0 ↦ 0"
+
+(* Local variables, constructors, and fields can't contain periods *)
+let () = unparse "x.x ↦ x.x"
+let () = unparse "x .y.z"
+let () = unparse "x.y. z"

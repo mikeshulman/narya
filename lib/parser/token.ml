@@ -31,6 +31,9 @@ type t =
 
 let compare : t -> t -> int = compare
 
+(* Only "names" not containing internal periods are valid for local variable names, fields, or constructors, since internal periods are used for namespace qualification. *)
+let variableable s = not (String.exists (fun c -> c = '.') s)
+
 let to_string = function
   | Proj s -> "." ^ s
   | Constr s -> s ^ "."

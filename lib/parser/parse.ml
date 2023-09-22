@@ -92,7 +92,7 @@ module Parse_term = struct
     let* x =
       step "name" (fun state _ tok ->
           match tok with
-          | Name x -> Some (`Name x, state)
+          | Name x -> if Token.variableable x then Some (`Name x, state) else None
           | Underscore -> Some (`Underscore, state)
           | Mapsto -> Some (`Mapsto, state)
           | _ -> None) in
@@ -118,13 +118,13 @@ module Parse_term = struct
   and constr : result t =
     step "constr" (fun state _ tok ->
         match tok with
-        | Constr x -> Some (Constr x, state)
+        | Constr x -> if Token.variableable x then Some (Constr x, state) else None
         | _ -> None)
 
   and proj : result t =
     step "proj" (fun state _ tok ->
         match tok with
-        | Proj x -> Some (Proj x, state)
+        | Proj x -> if Token.variableable x then Some (Proj x, state) else None
         | _ -> None)
 
   and numeral : result t =

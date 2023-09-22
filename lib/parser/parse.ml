@@ -199,8 +199,3 @@ let parse (state : State.t) (str : string) : (Result.t, expect list) Either.t =
   if has_succeeded p then Left (final p)
   else if has_failed_syntax p then Right (failed_expectations p)
   else raise (Failure "what.")
-
-(* run_on_string str start *)
-(* has_succeeded, final, has_failed_syntax, failed_expectations *)
-
-(* To start parsing, we call "lclosed" with EOF as the unique ending op. *)

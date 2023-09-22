@@ -6,7 +6,7 @@ open Raw
 open Monad.Ops (Monad.Maybe)
 
 let parens =
-  make ~name:"()" ~tightness:Float.infinity ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
+  make ~name:"()" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
       eop LParen (term RParen (Done n)))
 
 let () =

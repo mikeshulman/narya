@@ -21,20 +21,26 @@ module Parse_term = struct
     | Inner { ops; name; term; fail } -> (
         backtrack
           (let* optree =
+             msg (Printf.sprintf "Looking for op in tree\n");
              step "operator" (fun state _ tok ->
                  Option.map
                    (fun br ->
-                     msg (Printf.sprintf "Found op\n");
+                     msg (Printf.sprintf "Found op %s in tree\n" (Token.to_string tok));
                      (br, state))
                    (TokMap.find_opt tok ops)) in
            tree optree obs)
           "operator"
         </> backtrack
               (let* nametree, x =
+                 msg (Printf.sprintf "Looking for name in tree\n");
                  step "name" (fun state _ tok ->
                      match (name, tok) with
-                     | Some br, Name x -> Some ((br, Some x), state)
-                     | Some br, Underscore -> Some ((br, None), state)
+                     | Some br, Name x ->
+                         msg (Printf.sprintf "Found name %s in tree\n" x);
+                         Some ((br, Some x), state)
+                     | Some br, Underscore ->
+                         msg (Printf.sprintf "Found name _ in tree\n");
+                         Some ((br, None), state)
                      | _ -> None) in
                tree nametree (Snoc (obs, Name x)))
               "name"
@@ -56,7 +62,7 @@ module Parse_term = struct
     msg (Printf.sprintf "lclosed\n");
     let* state = get in
     let* res =
-      (msg (Printf.sprintf "Looking for op\n");
+      (msg (Printf.sprintf "Looking in left_closeds\n");
        let* obs, n = entry state.left_closeds in
        let d = get_data n in
        msg (Printf.sprintf "Finished op %s\n" d.name);
@@ -105,7 +111,7 @@ module Parse_term = struct
     step "name" (fun state _ tok ->
         match tok with
         | Name x ->
-            msg (Printf.sprintf "Found name %s\n" x);
+            msg (Printf.sprintf "Found name %s in name\n" x);
             Some (Name x, state)
         | _ -> None)
 
@@ -148,9 +154,10 @@ module Parse_term = struct
     (* Otherwise, it parses either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with precedence in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
     let* state = get in
     let* res =
-      (let* obs, n = entry (TIMap.find tight state.tighters) in
-       msg (Printf.sprintf "Found a left-open\n");
+      (msg (Printf.sprintf "looking at tighters\n");
+       let* obs, n = entry (TIMap.find tight state.tighters) in
        let d = get_data n in
+       msg (Printf.sprintf "Found left-open %s\n" d.name);
        match d.right with
        | Closed -> (
            match d.left with
@@ -161,9 +168,9 @@ module Parse_term = struct
              match d.assoc with
              | Right -> Interval.Closed d.tightness
              | Left | Non -> Open d.tightness in
-           msg (Printf.sprintf "Getting the rest\n");
+           msg (Printf.sprintf "Getting the rest of right-open %s\n" d.name);
            let* last_arg = lclosed i stop in
-           msg (Printf.sprintf "Got the rest\n");
+           msg (Printf.sprintf "Got the rest of right-open %s\n" d.name);
            match d.left with
            | Open -> return (Notn (n, Term first_arg :: Bwd.to_list (Snoc (obs, Term last_arg))))
            | Closed -> return (App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))))))

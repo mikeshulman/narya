@@ -2,12 +2,12 @@
 
 Narya is eventually intended to be a proof assistant implementing Multimodal, Parametric, Higher Observational Type Theory.  However, a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with binary Id/Bridge types, with Gel types for internal parametricity as an option.  The alternative option of transport and univalence is not yet implemented, nor are any other modalities included.
 
-Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  But on the other side of the coin, feedback on any and everything is welcome.
+Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  But on the other side of the coin, feedback on anything and everything is welcome.
 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0.
+Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd) and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).
 
 ```
 opam switch create 5.1.0
@@ -24,8 +24,9 @@ There is no executable yet, but you can load the libraries in `utop` and use the
 
 Narya cannot read and parse an entire file yet, and doesn't understand any kind of commands or directives.  Thus, one still has to interact with it as an OCaml library.  However, there is a parser for terms which can be used to write them in a convenient way.
 
-The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be defined in OCaml.  We prefer to say "tightness" instead of "precedence", to indicate that higher numbers bind more tightly.  Tightnesses are floating-point numbers; ∞ and −∞ are used internally for certain built-in notations, and NaN is used for "closed" notations (those that start and end with a symbol rather than a term) which don't need a tightness.  The built-in notations are:
+The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be defined (like everything else) using the OCaml interface.  We prefer to say "tightness" instead of "precedence", to indicate that higher numbers bind more tightly.  Tightnesses are floating-point values; ∞ and −∞ are reserved for internal use, while NaN is used for "closed" notations (those that start and end with a symbol rather than a term) which can occur anywhere and thus don't need a tightness.  More generally, notations can be either left-closed or left-open, and either right-closed or right-open, and tightness and associativity are only relevant on the open side(s).  The built-in notations are:
 
+- `( M )` -- Parentheses for grouping (a closed notation).
 - `Type` -- The unique universe (currently we have type-in-type).
 - `M N` -- Function application (left-associative).
 - `x ↦ M` -- Lambda-abstraction.  The unicode ↦ can be replaced by ASCII `|->`.
@@ -41,9 +42,9 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `refl M` -- Reflexivity term.
 - `sym M` -- Symmetry of a two-dimensional square.
 
-Here parentheses have tightness +∞, and function application and field access can be thought of as left-associative operations with no symbols and tightness +∞ although they are implemented specially internally.  On the other hand, abstraction, ascription, and let-bindings have tightness −∞, so they bind more loosely than anything except each other.  Pi-types and function-types have tightness 0.
+Function application and field access can be thought of as left-associative operations with zero symbols and tightness +∞, although they are implemented specially internally so that tightness +∞ is not technically actually used currently.  On the other hand, abstraction, ascription, and let-bindings have tightness −∞, so they bind more loosely than anything except each other.  Pi-types and function-types have tightness 0.
 
-Of note is that type ascription is non-associative, so `M : N : P` is a parse error.  Abstraction, let-binding, and pi-types are also non-associative: because they start with a name or symbol rather than a term, they don't need to be right-associative in order to get the expected behavior of `x ↦ y ↦ M` and `(x : M) → (y : N) → P`.  This non-associativity means that they cannot be mixed with type ascription: `x ↦ M : A` is a parse error.  This is intentional, as I regard that as inherently ambiguous; you should write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.
+Of note is that type ascription is non-associative, so `M : N : P` is a parse error.  Abstraction, let-binding, and pi-types are also non-associative: because they are left-closed, they don't need to be right-associative in order to get the expected behavior of `x ↦ y ↦ M` and `(x : M) → (y : N) → P`.  This non-associativity means that they cannot be mixed with type ascription: `x ↦ M : A` is a parse error.  This is intentional, as I regard that as inherently ambiguous; you should write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.
 
 There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments can be nested.  However, if (part of) a block comment appears on a line before any code, then no code may appear on that line at all.  In other words, the only whitespace that can appear on a line before code is 0x20 SPACE (tab characters are not allowed anywhere).
 
@@ -55,7 +56,7 @@ As in Agda, mixfix notations can involve arbitrary Unicode characters, but must 
   - This includes the colon, so you can write `(x:A) → B`, and similarly for the semicolon separating the fields of a structure.  But the user can also use these characters in other operators, such as `::` for list cons.  (Or you can use the Unicode ∷ if you want to require spacing.)
   - The ASCII substitutes `->` and `|->` and `:=` for the Unicode →, ↦, and ≔ also fall into this category, so you can write `A->B`.
 
-  This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing, while keeping the lexer as a simple regexp that doesn't need to change as new operators are defined.
+  This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing but also arbitrary unicode operators, while keeping the lexer rules simple and unchanging as new operators are defined.  If it turns out to be too unintuitive, it may be changed.
 
 Numerals are strings consisting of digits and periods, not starting or ending with a period.  Identifiers (variables and constant names) can be any string consisting of non-whitespace characters other than the above two groups that does *not* consist entirely of digits and periods, and does not start or end with a period.  Field names, which must be identifiers, are prefixed a period when accessed, and likewise constructor names are postfixed a period when applied.  Identifiers prefixed with one or more underscores are reserved for internal use.  Internal periods in identifiers are reserved to denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names.
 

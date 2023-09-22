@@ -99,16 +99,19 @@ let rec to_branch : tree -> (flag list * branch) option = function
 (* If either trees have flags, we just combine them all.  Flags for different notations are disjoint, so they can just ignore each other's. *)
 let rec merge_tree : tree -> tree -> tree =
  fun xs ys ->
-  let open Monad.Ops (Monad.Maybe) in
-  Option.value
-    (let* xf, xb = to_branch xs in
-     let* yf, yb = to_branch ys in
-     return
-       (List.fold_right
-          (fun f z -> Flag (f, z))
-          xf
-          (List.fold_right (fun f z -> Flag (f, z)) yf (Inner (merge_branch xb yb)))))
-    ~default:(Inner (fail "Incompatible notations: one is a prefix of the another."))
+  (* Yes, I really do mean physical equality here.  The purpose of this test is to prevent merging a tree with itself, which leads to an infinite loop.  And since each notation tree is created just once, it only exists in one place in memory, so a physical equality test will usually work.  (A structural equality test *won't* work, since trees can contain functional (lazy) values which can't be compared for structural equality.) *)
+  if xs == ys then xs
+  else
+    let open Monad.Ops (Monad.Maybe) in
+    Option.value
+      (let* xf, xb = to_branch xs in
+       let* yf, yb = to_branch ys in
+       return
+         (List.fold_right
+            (fun f z -> Flag (f, z))
+            xf
+            (List.fold_right (fun f z -> Flag (f, z)) yf (Inner (merge_branch xb yb)))))
+      ~default:(Inner (fail "Incompatible notations: one is a prefix of the another."))
 
 and merge_tmap : tree TokMap.t -> tree TokMap.t -> tree TokMap.t =
  fun x y -> TokMap.union (fun _ xb yb -> Some (merge_tree xb yb)) x y
@@ -239,13 +242,14 @@ module State = struct
           NSet.fold
             (fun m tr ->
               let d = get_data m in
-              if data.tightness < d.tightness then merge d.tree tr else tr)
+              if d.left = Closed || data.tightness < d.tightness then merge d.tree tr else tr)
             notations empty_entry in
         let closed_tighters =
           NSet.fold
             (fun m tr ->
               let d = get_data m in
-              if data.tightness = d.tightness then merge d.tree tr else tr)
+              (* Leaving off "d.left = Open" here would re-merge in all the left-closed notations, and merging a tree with itself can lead to infinite loops.  (The physical equality test above should catch most of them, but when it comes to avoiding infinite loops I'm a belt-and-suspenders person.) *)
+              if d.left = Open && data.tightness = d.tightness then merge d.tree tr else tr)
             notations open_tighters in
         tighters
         |> TIMap.add (Open data.tightness) open_tighters

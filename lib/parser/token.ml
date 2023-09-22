@@ -30,3 +30,33 @@ type t =
   | Eof
 
 let compare : t -> t -> int = compare
+
+let to_string = function
+  | Proj s -> "." ^ s
+  | Constr s -> s ^ "."
+  | Coercion s -> "." ^ s ^ "."
+  | LParen -> "("
+  | RParen -> ")"
+  | LBrace -> "{"
+  | RBrace -> "}"
+  | Arrow -> "->"
+  | Mapsto -> "|->"
+  | Colon -> ":"
+  | Coloneq -> ":="
+  | Dot -> "."
+  | String s -> "\"" ^ s ^ "\""
+  | Numeral s -> s
+  | Underscore -> "_"
+  | Internal s -> s
+  | Match -> "match"
+  | Comatch -> "comatch"
+  | With -> "with"
+  | End -> "end"
+  | Record -> "record"
+  | Data -> "data"
+  | Section -> "section"
+  | Let -> "let"
+  | In -> "in"
+  | Op s -> s
+  | Name s -> s
+  | Eof -> "EOF"

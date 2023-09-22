@@ -186,29 +186,20 @@ let other : Token.t t =
       other_char in
   canonicalize (Buffer.contents buf)
 
-let eof : Token.t t = expect_end "eof" Eof
-
 (* Finally, a token cannot appear on a blank-only line, and is either a quoted string, a single-character operator, an operator of special ASCII symbols, or something else.  We remove whitespace first (which updates the state!). *)
-let token : (Position.range * Token.t) t =
-  let* _ = whitespace in
-  located eof
-  </>
-  let* s = get in
-  match s with
-  | Blankline -> unexpected "token on line starting with a block comment"
-  | Code | Indent ->
-      let* tok = located (quoted_string </> onechar_op </> ascii_op </> other) in
-      let* () = set Code in
-      return tok
+let token : Located_token.t t =
+  lexer whitespace Eof
+    (let* s = get in
+     match s with
+     | Blankline -> unexpected "token on line starting with a block comment"
+     | Code | Indent ->
+         let* tok = quoted_string </> onechar_op </> ascii_op </> other in
+         let* () = set Code in
+         return tok)
 
-(* This code is copied from the example; I don't understand it. *)
 module Parser = struct
   include Basic.Parser
 
-  let make (pos : Position.t) (state : Indent_state.t) : t = make_parser pos state token
-  let start : t = make Position.start Indent
-
-  let restart (lex : t) : t =
-    assert (has_succeeded lex);
-    fold_lookahead (make (position lex) (state lex)) put put_end lex
+  let init : t = make_partial Indent token
+  let restart (lex : t) : t = restart_partial token lex
 end

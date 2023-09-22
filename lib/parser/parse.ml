@@ -144,53 +144,49 @@ module Parse_term = struct
        followed_by
          (step "ending tok" (fun state _ tok ->
               if
-                tok = Eof
-                || TokSet.mem tok (FMap.find (Interval.endpoint tight) state.loosers)
+                TokSet.mem tok (FMap.find (Interval.endpoint tight) state.loosers)
                 || TokMap.mem tok stop
               then Some ((), state)
               else None))
          "ending token" in
      return first_arg)
-    </>
-    (* Otherwise, it parses either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with precedence in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
-    let* state = get in
-    let* res =
-      (msg (Printf.sprintf "looking at tighters\n");
-       let* obs, n = entry (TIMap.find tight state.tighters) in
-       let d = get_data n in
-       msg (Printf.sprintf "Found left-open %s\n" d.name);
-       match d.right with
-       | Closed -> (
-           match d.left with
-           | Open -> return (Notn (n, Term first_arg :: Bwd.to_list obs))
-           | Closed -> return (App (first_arg, Notn (n, Bwd.to_list obs))))
-       | Open -> (
-           let i =
-             match d.assoc with
-             | Right -> Interval.Closed d.tightness
-             | Left | Non -> Open d.tightness in
-           msg (Printf.sprintf "Getting the rest of right-open %s\n" d.name);
-           let* last_arg = lclosed i stop in
-           msg (Printf.sprintf "Got the rest of right-open %s\n" d.name);
-           match d.left with
-           | Open -> return (Notn (n, Term first_arg :: Bwd.to_list (Snoc (obs, Term last_arg))))
-           | Closed -> return (App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))))))
-      (* If this fails, we can parse a single variable name or a field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
-      </> let* arg = name </> numeral </> proj </> constr in
-          return (App (first_arg, arg)) in
-    msg (Printf.sprintf "Going on\n");
-    (* Same comment here about carrying over "tight" as in lclosed. *)
-    lopen tight stop res
+    </> (* Otherwise, it parses either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with precedence in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
+    (let* state = get in
+     let* res =
+       (msg (Printf.sprintf "looking at tighters\n");
+        let* obs, n = entry (TIMap.find tight state.tighters) in
+        let d = get_data n in
+        msg (Printf.sprintf "Found left-open %s\n" d.name);
+        match d.right with
+        | Closed -> (
+            match d.left with
+            | Open -> return (Notn (n, Term first_arg :: Bwd.to_list obs))
+            | Closed -> return (App (first_arg, Notn (n, Bwd.to_list obs))))
+        | Open -> (
+            let i =
+              match d.assoc with
+              | Right -> Interval.Closed d.tightness
+              | Left | Non -> Open d.tightness in
+            msg (Printf.sprintf "Getting the rest of right-open %s\n" d.name);
+            let* last_arg = lclosed i stop in
+            msg (Printf.sprintf "Got the rest of right-open %s\n" d.name);
+            match d.left with
+            | Open -> return (Notn (n, Term first_arg :: Bwd.to_list (Snoc (obs, Term last_arg))))
+            | Closed -> return (App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))))))
+       (* If this fails, we can parse a single variable name or a field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
+       </> let* arg = name </> numeral </> proj </> constr in
+           return (App (first_arg, arg)) in
+     msg (Printf.sprintf "Going on\n");
+     (* Same comment here about carrying over "tight" as in lclosed. *)
+     lopen tight stop res)
+    </> succeed first_arg
 
-  let term () =
-    let* r = lclosed Interval.entire TokMap.empty in
-    let* () = step "eof" (fun state _ tok -> if tok = Eof then Some ((), state) else None) in
-    return r
+  let term () = lclosed Interval.entire TokMap.empty
 
   module Parser = struct
     include Basic.Parser
 
-    let start (state : State.t) : t = make state (term ())
+    let parse (state : State.t) : t = make state (term ())
   end
 end
 
@@ -200,7 +196,7 @@ module Lex_and_parse =
 open Lex_and_parse
 
 let start (state : State.t) : Lex_and_parse.t =
-  make Lexer.Parser.start (Parse_term.Parser.start state)
+  make Lexer.Parser.init (Parse_term.Parser.parse state)
 
 let parse (state : State.t) (str : string) : (Result.t, expect list) Either.t =
   let p = run_on_string str (start state) in

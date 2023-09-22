@@ -1,12 +1,10 @@
 open Testutil
 open Lex
 
-let () = assert (lex "a b c" = [ Name "a"; Name "b"; Name "c"; Eof ])
-let () = assert (lex "A->C" = [ Name "A"; Arrow; Name "C"; Eof ])
-let () = assert (lex "A→C" = [ Name "A"; Arrow; Name "C"; Eof ])
-
-let () =
-  assert (lex "(A\u{21A6}C0) .d" = [ LParen; Name "A"; Mapsto; Name "C0"; RParen; Proj "d"; Eof ])
+let () = assert (lex "a b c" = [ Name "a"; Name "b"; Name "c" ])
+let () = assert (lex "A->C" = [ Name "A"; Arrow; Name "C" ])
+let () = assert (lex "A→C" = [ Name "A"; Arrow; Name "C" ])
+let () = assert (lex "(A\u{21A6}C0) .d" = [ LParen; Name "A"; Mapsto; Name "C0"; RParen; Proj "d" ])
 
 let () =
   assert (
@@ -31,51 +29,47 @@ let () =
         LParen;
         RParen;
         Op "#";
-        Eof;
       ])
 
 let () =
   assert (
     lex "this is ` a line comment\n  starting another \"line\""
-    = [ Name "this"; Name "is"; Name "starting"; Name "another"; String "line"; Eof ])
+    = [ Name "this"; Name "is"; Name "starting"; Name "another"; String "line" ])
 
 let () =
   assert (
     lex
       "this is {` a block \n comment spanning \n multiple lines `} ` with a line comment\n and_more-code"
-    = [ Name "this"; Name "is"; Name "and_more"; Op "-"; Name "code"; Eof ])
+    = [ Name "this"; Name "is"; Name "and_more"; Op "-"; Name "code" ])
 
 let () = assert (nolex "No \t tabs allowed" = [ ("tab character", None) ])
 
 let () =
   assert (
     lex "block comments {` can contain ` line comments \n and {` nest `} arbitrarily `} \n see?"
-    = [ Name "block"; Name "comments"; Name "see"; Op "?"; Eof ])
+    = [ Name "block"; Name "comments"; Name "see"; Op "?" ])
 
 let () =
   assert (
     lex "block ` comments {` don't start in \n line comments"
-    = [ Name "block"; Name "line"; Name "comments"; Eof ])
+    = [ Name "block"; Name "line"; Name "comments" ])
 
 let () =
   assert (
     lex "block \"comments {` don't start in\" strings"
-    = [ Name "block"; String "comments {` don't start in"; Name "strings"; Eof ])
+    = [ Name "block"; String "comments {` don't start in"; Name "strings" ])
 
 let () =
   assert (
     nolex "{` no block comments `} starting lines"
-    = [ ("eof", None); ("token on line starting with a block comment", None) ])
+    = [ ("token on line starting with a block comment", None); ("end of input", None) ])
 
-let () = assert (lex "  initial space" = [ Name "initial"; Name "space"; Eof ])
+let () = assert (lex "  initial space" = [ Name "initial"; Name "space" ])
 
 let () =
   assert (
     nolex "No {` block comments \n starting lines `} with code"
-    = [ ("eof", None); ("token on line starting with a block comment", None) ])
+    = [ ("token on line starting with a block comment", None); ("end of input", None) ])
 
-let () =
-  assert (lex "Block comments {` can end the file `}" = [ Name "Block"; Name "comments"; Eof ])
-
-(* For some reason the lexer doesn't fail directly on an unterminated block comment.  But the real parser does fail since it's expecting an Eof. *)
-(* let () = assert (nolex "Unterminated {` block comment" = []) *)
+let () = assert (lex "Block comments {` can end the file `}" = [ Name "Block"; Name "comments" ])
+let () = assert (nolex "Unterminated {` block comment" = [ ("any character", None) ])

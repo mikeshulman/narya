@@ -1,5 +1,5 @@
 profile = default
-version = 0.26.0
+version = 0.26.1
 margin=100
 break-before-in=auto
 break-infix=fit-or-vertical

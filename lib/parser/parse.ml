@@ -5,7 +5,8 @@ open Fmlib_parse
 
 exception Tokens of Token.t list
 
-let msg (_ : string) = () (* Printf.printf "%s" s *)
+let msg (_ : string) = ()
+(* let msg s = Printf.printf "%s" s *)
 
 module Result = struct
   type t = result
@@ -37,7 +38,7 @@ module Parse_term = struct
                      match (name, tok) with
                      | Some br, Name x ->
                          msg (Printf.sprintf "Found name %s in tree\n" x);
-                         Some ((br, Some x), state)
+                         if Token.variableable x then Some ((br, Some x), state) else None
                      | Some br, Underscore ->
                          msg (Printf.sprintf "Found name _ in tree\n");
                          Some ((br, None), state)

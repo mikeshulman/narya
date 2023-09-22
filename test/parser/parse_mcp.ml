@@ -190,3 +190,6 @@ let () = unparse "0 ↦ 0"
 let () = unparse "x.x ↦ x.x"
 let () = unparse "x .y.z"
 let () = unparse "x.y. z"
+
+(* This one actually parses!  In fact it hits the ambiguity issue: it gets rejected as a pi-type since "x.x" is not a valid *local* variable name, but it is still valid under the other interpretation of a non-dependent function-type whose domain is "x.x" ascribed to "A".  However, that doesn't typecheck except in very weird situations. *)
+let () = unsynth "(x.x : A) → B x.x"

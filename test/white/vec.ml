@@ -87,7 +87,7 @@ let () = equal_at a01_234 a01234 (check "Vec A 5" uu)
 (* We can prove that concatenation is associative, "over" associativity of addition. *)
 let rconcatassoc_ty =
   Printf.sprintf
-    "(A:Type) (m n k : N) (xs : Vec A m) (ys : Vec A n) (zs : Vec A k) → refl (Vec A) (%s (%s m n) k) (%s m (%s n k)) (%s m n k) (%s A (%s m n) k (%s A m n xs ys) zs) (%s A m (%s n k) xs (%s A n k ys zs))"
+    "(A:Type) (m n k : N) (xs : Vec A m) (ys : Vec A n) (zs : Vec A k) → Id (Vec A) (%s (%s m n) k) (%s m (%s n k)) (%s m n k) (%s A (%s m n) k (%s A m n xs ys) zs) (%s A m (%s n k) xs (%s A n k ys zs))"
     lp lp lp lp lpa cc lp cc cc lp cc
 
 let concatassoc_ty = check rconcatassoc_ty uu
@@ -95,13 +95,13 @@ let concatassoc_ty = check rconcatassoc_ty uu
 (* And similarly right unital. *)
 let rconcatru_ty =
   Printf.sprintf
-    "(A:Type) (m:N) (xs : Vec A m) → refl (Vec A) (%s m 0) m (%s m) (%s A m 0 xs nil.) xs" lp lpr cc
+    "(A:Type) (m:N) (xs : Vec A m) → Id (Vec A) (%s m 0) m (%s m) (%s A m 0 xs nil.) xs" lp lpr cc
 
 let concatru_ty = check rconcatru_ty uu
 
 let rconcatru =
   Printf.sprintf
-    "A m xs ↦ Vec_ind A (m xs ↦ refl (Vec A) (%s m 0) m (%s m) (%s A m 0 xs nil.) xs) nil. (m x xs IH ↦ cons. (%s m) (refl x) IH) m xs"
+    "A m xs ↦ Vec_ind A (m xs ↦ Id (Vec A) (%s m 0) m (%s m) (%s A m 0 xs nil.) xs) nil. (m x xs IH ↦ cons. (%s m) (refl x) IH) m xs"
     lp lpr cc lpr
 
 let concatru = check rconcatru concatru_ty

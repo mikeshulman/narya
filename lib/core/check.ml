@@ -182,9 +182,6 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       let fn, args = spine tm in
       let* sfn, sty = synth ctx fn in
       synth_apps ctx sfn sty args
-  | Symbol (Id, Zero, Snoc (Snoc (Snoc (Emp, a), x), y)) ->
-      (* This is just an abbreviation. *)
-      synth ctx (App (App (Symbol (Refl, Zero, Snoc (Emp, a)), x), y))
   | Symbol (Refl, Zero, Snoc (Emp, x)) -> (
       match x with
       | Synth x ->

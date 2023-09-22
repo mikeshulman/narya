@@ -190,7 +190,7 @@ let () =
 
 let refl =
   make ~name:"refl" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
-      eop (Name "refl") (Done n))
+      eops [ (Name "refl", Done n); (Name "Id", Done n) ])
 
 let () =
   add_compiler refl
@@ -214,19 +214,6 @@ let () =
           return (Synth (Symbol (Sym, Suc Zero, Emp))));
     }
 
-let id =
-  make ~name:"Id" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
-      eop (Name "Id") (Done n))
-
-let () =
-  add_compiler id
-    {
-      compile =
-        (fun _ obs ->
-          let () = get_done obs in
-          return (Synth (Symbol (Id, Suc (Suc (Suc Zero)), Emp))));
-    }
-
 let builtins =
   ref
     (State.empty
@@ -237,5 +224,4 @@ let builtins =
     |> State.add arrow
     |> State.add universe
     |> State.add refl
-    |> State.add sym
-    |> State.add id)
+    |> State.add sym)

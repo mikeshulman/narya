@@ -47,7 +47,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
   | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)
   | Id (a, x, y) ->
-      Symbol (Id, Zero, Snoc (Snoc (Snoc (Emp, parse_chk ctx a), parse_chk ctx x), parse_chk ctx y))
+      App (App (Symbol (Refl, Zero, Snoc (Emp, parse_chk ctx a)), parse_chk ctx x), parse_chk ctx y)
   | Refl x -> Symbol (Refl, Zero, Snoc (Emp, parse_chk ctx x))
   | Sym x -> Symbol (Sym, Zero, Snoc (Emp, parse_chk ctx x))
   | Asc (tm, ty) -> Asc (parse_chk ctx tm, parse_chk ctx ty)

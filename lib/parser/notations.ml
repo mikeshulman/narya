@@ -2,7 +2,7 @@ open Util
 module TokMap = Map.Make (Token)
 module TokSet = Set.Make (Token)
 
-(* A mixfix notation is an abstract object with a global existence, represented internally by integers to make them easily comparable and look-up-able. *)
+(* A mixfix notation is an abstract object with a global existence.  They are represented internally by integers, to make them easily comparable and look-up-able. *)
 module Notation : sig
   type t
 
@@ -152,6 +152,11 @@ module Interval = struct
     | Closed x -> x
     | Open x -> x
 
+  let right_assoc (tight : float) (assoc : associativity) : t =
+    match assoc with
+    | Right -> Closed tight
+    | Left | Non -> Open tight
+
   let contains : t -> float -> bool =
    fun i x ->
     match i with
@@ -200,8 +205,8 @@ module State = struct
     left_closeds : entry;
     (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval. *)
     tighters : entry TIMap.t;
-    (* For each tightness, the initial operator tokens of all left-open notations for which that tightness lies in their left upper tightness interval (i.e. is strictly tighter, or non-strictly tighter if that notation is left-associative.) *)
-    loosers : TokSet.t FMap.t;
+    (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval. *)
+    left_opens : Interval.t TokMap.t;
   }
 
   let notations : t -> NSet.t = fun s -> s.notations
@@ -219,7 +224,7 @@ module State = struct
             (Open Float.neg_infinity, empty_entry);
             (Closed Float.neg_infinity, empty_entry);
           ];
-      loosers = FMap.of_list [ (Float.infinity, TokSet.empty); (Float.neg_infinity, TokSet.empty) ];
+      left_opens = TokMap.empty;
     }
 
   let add (n : Notation.t) (s : t) : t =
@@ -255,30 +260,12 @@ module State = struct
         |> TIMap.add (Open data.tightness) open_tighters
         |> TIMap.add (Closed data.tightness) closed_tighters
       else tighters in
-    (* Similarly, if it is left-open, we add its initial operator tokens to all the looser sets for tightnesses in its left interval. *)
-    let loosers =
+    let left_opens =
       if data.left = Open then
-        let li = Interval.left data in
-        FMap.mapi
-          (fun x ops ->
-            if Interval.contains li x then TokMap.fold (fun t _ s -> TokSet.add t s) data.tree ops
-            else ops)
-          s.loosers
-      else s.loosers in
-    (* Then, if its tightness is new for this state, we create it a new looser set. *)
-    let loosers =
-      if not (FSet.mem data.tightness s.tightnesses) then
-        FMap.add data.tightness
-          (NSet.fold
-             (fun m st ->
-               let d = get_data m in
-               if Interval.contains (Interval.left d) data.tightness && d.left = Open then
-                 TokMap.fold (fun t _ s -> TokSet.add t s) d.tree st
-               else st)
-             notations TokSet.empty)
-          loosers
-      else loosers in
-    { notations; tightnesses; left_closeds; tighters; loosers }
+        let ivl = Interval.left data in
+        TokMap.fold (fun tok _ map -> TokMap.add tok ivl map) data.tree s.left_opens
+      else s.left_opens in
+    { notations; tightnesses; left_closeds; left_opens; tighters }
 end
 
 (* Note that we are not yet containing any information about the "meaning" of a notation, i.e. about how to "compile" a parsed notation into a term. *)

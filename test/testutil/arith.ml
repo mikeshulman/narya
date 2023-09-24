@@ -21,7 +21,7 @@ let div =
       eop (Op "/") (Done n))
 
 let exp =
-  make ~name:"^" ~tightness:10. ~left:Open ~right:Open ~assoc:Right ~tree:(fun n ->
+  make ~name:"^" ~tightness:20. ~left:Open ~right:Open ~assoc:Right ~tree:(fun n ->
       eop (Op "^") (Done n))
 
 let parens =

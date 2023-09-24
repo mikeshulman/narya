@@ -41,6 +41,36 @@ let () =
     = Left
         (Notn ("+", [ Term (Notn ("-", [ Term (Name "x"); Term (Name "y") ])); Term (Name "z") ])))
 
+let () =
+  assert (
+    parse arith "x + y ^ z * w"
+    = Left
+        (Notn
+           ( "+",
+             [
+               Term (Name "x");
+               Term
+                 (Notn
+                    ( "*",
+                      [ Term (Notn ("^", [ Term (Name "y"); Term (Name "z") ])); Term (Name "w") ]
+                    ));
+             ] )))
+
+let () =
+  assert (
+    parse arith "x * y ^ z + w"
+    = Left
+        (Notn
+           ( "+",
+             [
+               Term
+                 (Notn
+                    ( "*",
+                      [ Term (Name "x"); Term (Notn ("^", [ Term (Name "y"); Term (Name "z") ])) ]
+                    ));
+               Term (Name "w");
+             ] )))
+
 let () = assert (parse arith "(x)" = Left (Notn ("()", [ Term (Name "x") ])))
 
 let () =

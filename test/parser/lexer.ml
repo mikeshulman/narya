@@ -4,7 +4,9 @@ open Lex
 let () = assert (lex "a b c" = [ Name "a"; Name "b"; Name "c" ])
 let () = assert (lex "A->C" = [ Name "A"; Arrow; Name "C" ])
 let () = assert (lex "A→C" = [ Name "A"; Arrow; Name "C" ])
-let () = assert (lex "(A\u{21A6}C0) .d" = [ LParen; Name "A"; Mapsto; Name "C0"; RParen; Proj "d" ])
+
+let () =
+  assert (lex "(A\u{21A6}C0) .d" = [ LParen; Name "A"; Mapsto; Name "C0"; RParen; Field "d" ])
 
 let () =
   assert (

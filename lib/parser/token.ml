@@ -1,5 +1,5 @@
 type t =
-  | Proj of string (* Starting with . *)
+  | Field of string (* Starting with . *)
   | Constr of string (* Ending with . *)
   | Coercion of string (* Starting and ending with . *)
   | LParen (* ( *)
@@ -35,7 +35,7 @@ let compare : t -> t -> int = compare
 let variableable s = not (String.exists (fun c -> c = '.') s)
 
 let to_string = function
-  | Proj s -> "." ^ s
+  | Field s -> "." ^ s
   | Constr s -> s ^ "."
   | Coercion s -> "." ^ s ^ "."
   | LParen -> "("

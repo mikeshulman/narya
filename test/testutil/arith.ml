@@ -54,7 +54,7 @@ let rec eval : result -> int = function
   | App (x, y) ->
       let x = eval x and y = eval y in
       x * y
-  | Name _ | Constr _ | Proj _ | Abs _ -> raise Syntax_error
+  | Name _ | Constr _ | Field _ | Abs _ -> raise Syntax_error
   | Notn (op, [ Term x; Term y ]) ->
       let x = eval x and y = eval y in
       if op = plus then x + y

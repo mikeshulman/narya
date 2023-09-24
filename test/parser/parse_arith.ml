@@ -140,7 +140,7 @@ let () =
              ] )))
 
 let () = assert (parse arith "a. b c" = Left (App (App (Constr "a", Name "b"), Name "c")))
-let () = assert (parse arith "a .b c" = Left (App (App (Name "a", Proj "b"), Name "c")))
+let () = assert (parse arith "a .b c" = Left (App (App (Name "a", Field "b"), Name "c")))
 let () = assert (Either.is_right (parse arith "x + y {` unterminated block comment"))
 
 (* Parsing the church numeral 500, or even 1000, takes a near-negligible amount of time.  I think it helps that we have minimized backtracking. *)

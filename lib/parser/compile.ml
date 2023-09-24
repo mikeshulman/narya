@@ -8,16 +8,17 @@ open Notations
 
 type observation = Flag of flag | Name of string option | Term of result
 
+(* A "result" is traditionally known as a "parse tree" (not to be confused with our "notation trees"). *)
 and result =
   | Notn of Notation.t * observation list
   | App of result * result
   | Name of string
   | Constr of string
-  | Proj of string
+  | Field of string
   | Numeral of float
   | Abs of string option list * result
 
-(* These "result" trees don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
+(* These "result trees" don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
 
 type compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check option }
 
@@ -62,6 +63,7 @@ let rec get_done obs =
 
 open Monad.Ops (Monad.Maybe)
 
+(* At present we only know how to compile natural number numerals. *)
 let compile_numeral n =
   let rec compile_nat n =
     if n = 0 then Raw.Constr (Constr.intern "0", Emp)
@@ -77,6 +79,7 @@ let rec compile : type n. (string option, n) Bwv.t -> result -> n check option =
   | Notn (n, args) ->
       let c = Hashtbl.find compilers n in
       c.compile ctx args
+  (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and symbols, and also field projections.  *)
   | App (fn, arg) -> (
       let* fn = compile ctx fn in
       match fn with
@@ -87,7 +90,7 @@ let rec compile : type n. (string option, n) Bwv.t -> result -> n check option =
               return (Synth (Symbol (s, N.suc_plus'' mn, Snoc (args, arg))))
           | _ -> (
               match arg with
-              | Proj fld -> return (Synth (Field (fn, Field.intern fld)))
+              | Field fld -> return (Synth (Field (fn, Field.intern fld)))
               | _ ->
                   let* arg = compile ctx arg in
                   return (Synth (Raw.App (fn, arg)))))
@@ -100,7 +103,7 @@ let rec compile : type n. (string option, n) Bwv.t -> result -> n check option =
       | Some n -> return (Synth (Var n))
       | None -> return (Synth (Const (Constant.intern x))))
   | Constr name -> return (Raw.Constr (Constr.intern name, Emp))
-  | Proj _ -> None (* Field projections have to occur as an "argument" to App. *)
+  | Field _ -> None (* Field projections have to occur as an "argument" to App. *)
   | Numeral n -> compile_numeral n
   | Abs ([], body) -> compile ctx body
   | Abs (x :: names, body) ->

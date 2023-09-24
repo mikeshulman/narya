@@ -163,7 +163,7 @@ let canonicalize : string -> Token.t t = function
       | '.', _ ->
           let name = String.sub s 1 (len - 1) in
           if String.exists (fun x -> x = '.') name then unexpected "internal dot in field name"
-          else return (Proj name)
+          else return (Field name)
       | _, '.' ->
           let name = String.sub s 0 (len - 1) in
           if String.exists (fun x -> x = '.') name then

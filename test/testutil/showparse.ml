@@ -11,7 +11,7 @@ and res =
   | App of res * res
   | Name of string
   | Constr of string
-  | Proj of string
+  | Field of string
   | Numeral of float
   | Abs of string option list * res
 
@@ -29,7 +29,7 @@ and get_res (r : result) : res =
   | App (x, y) -> App (get_res x, get_res y)
   | Name x -> Name x
   | Constr x -> Constr x
-  | Proj x -> Proj x
+  | Field x -> Field x
   | Numeral n -> Numeral n
   | Abs (vars, body) -> Abs (vars, get_res body)
 

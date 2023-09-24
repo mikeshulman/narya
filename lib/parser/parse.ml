@@ -4,8 +4,6 @@ open Notations
 open Compile
 open Fmlib_parse
 
-exception Tokens of Token.t list
-
 let msg (_ : string) = ()
 (* let msg s = Printf.printf "%s" s *)
 
@@ -31,10 +29,10 @@ module Parse_term = struct
         | Constr x -> if Token.variableable x then Some (Constr x, state) else None
         | _ -> None)
 
-  let proj : result t =
-    step "proj" (fun state _ tok ->
+  let field : result t =
+    step "field" (fun state _ tok ->
         match tok with
-        | Proj x -> if Token.variableable x then Some (Proj x, state) else None
+        | Field x -> if Token.variableable x then Some (Field x, state) else None
         | _ -> None)
 
   let numeral : result t =
@@ -95,7 +93,7 @@ module Parse_term = struct
 
   and entry (e : entry) : (observation Bwd.t * Notation.t) t = tree_op e Emp
 
-  (* "lclosed" is passed an upper tightness interval and an additional set of ending ops.  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
+  (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
   and lclosed (tight : Interval.t) (stop : tree TokMap.t) : result t =
     msg (Printf.sprintf "lclosed\n");
     let* state = get in
@@ -112,7 +110,7 @@ module Parse_term = struct
            (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
            let* last_arg = lclosed i stop in
            return (Notn (n, Bwd.to_list (Snoc (obs, Term last_arg))), Some d.tightness))
-      (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, or a constructor.  Field projections are not allowed since this would be the head of a spine. *)
+      (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  Field projections are not allowed since this would be the head of a spine. *)
       </> backtrack (abstraction stop Emp) "abstraction"
       </> let* res = name </> numeral </> constr in
           return (res, None) in
@@ -143,10 +141,11 @@ module Parse_term = struct
             let* res = lclosed (Open Float.neg_infinity) stop in
             return (Abs (Bwd.to_list names, res), Some Float.neg_infinity))
 
-  (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument.  It starts by looking ahead one token: if it sees the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), or one of the specified ending ops, then it returns its result argument without parsing any more. *)
+  (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : result)
       (first_tight : float option) : result t =
     msg (Printf.sprintf "lopen\n");
+    (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more. *)
     followed_by
       (step "stopping token (1)" (fun state _ tok ->
            if TokMap.mem tok stop then Some (first_arg, state) else None))
@@ -158,18 +157,19 @@ module Parse_term = struct
                if Interval.contains ivl (Interval.endpoint tight) then return (first_arg, state)
                else None))
           "looser left-open (2)"
-    </> (* Otherwise, it parses either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
+    </> (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
     (let* state = get in
      let* res, res_tight =
        (msg (Printf.sprintf "looking at tighters\n");
         let* obs, n = entry (TIMap.find tight state.tighters) in
         let d = get_data n in
-        (* We enforce that the notation we just parsed, if right-open, is allowed to appear inside the left argument of this one. *)
+        (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one. *)
         let* () =
           match first_tight with
           | None -> return ()
-          | Some t -> if Interval.contains (Interval.left d) t then return () else unexpected d.name
-        in
+          | Some t ->
+              if d.left = Closed || Interval.contains (Interval.left d) t then return ()
+              else unexpected d.name in
         msg (Printf.sprintf "Found left-open %s\n" d.name);
         match d.right with
         | Closed -> (
@@ -194,7 +194,7 @@ module Parse_term = struct
                   ( App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))),
                     Some d.tightness )))
        (* If this fails, we can parse a single variable name or a field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
-       </> let* arg = name </> numeral </> proj </> constr in
+       </> let* arg = name </> numeral </> field </> constr in
            return (App (first_arg, arg), None) in
      msg (Printf.sprintf "Going on\n");
      (* Same comment here about carrying over "tight" as in lclosed. *)

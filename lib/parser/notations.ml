@@ -211,8 +211,8 @@ module State = struct
     left_closeds : entry;
     (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval. *)
     tighters : entry TIMap.t;
-    (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval. *)
-    left_opens : Interval.t TokMap.t;
+    (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  Since more than one left-open notation could in theory start with the same token, we actually store a list of such intervals.  In practice, the loosest one will be used preferentially. *)
+    left_opens : Interval.t list TokMap.t;
   }
 
   let notations : t -> NSet.t = fun s -> s.notations
@@ -269,7 +269,7 @@ module State = struct
     let left_opens =
       if data.left = Open then
         let ivl = Interval.left data in
-        TokMap.fold (fun tok _ map -> TokMap.add tok ivl map) data.tree s.left_opens
+        TokMap.fold (fun tok _ map -> TokMap.add_to_list tok ivl map) data.tree s.left_opens
       else s.left_opens in
     { notations; tightnesses; left_closeds; left_opens; tighters }
 end

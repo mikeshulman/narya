@@ -145,16 +145,18 @@ module Parse_term = struct
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : result)
       (first_tight : float option) : result t =
     msg (Printf.sprintf "lopen\n");
-    (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more. *)
+    (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term. *)
     followed_by
       (step "stopping token (1)" (fun state _ tok ->
            if TokMap.mem tok stop then Some (first_arg, state) else None))
       "stopping token (2)"
+    (* Next we test for initial ops of looser left-opens.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
     </> followed_by
           (step "looser left-open (1)" (fun state _ tok ->
                let open Monad.Ops (Monad.Maybe) in
-               let* ivl = TokMap.find_opt tok state.left_opens in
-               if Interval.contains ivl (Interval.endpoint tight) then return (first_arg, state)
+               let* ivls = TokMap.find_opt tok state.left_opens in
+               if List.exists (fun ivl -> Interval.contains ivl (Interval.endpoint tight)) ivls then
+                 return (first_arg, state)
                else None))
           "looser left-open (2)"
     </> (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)

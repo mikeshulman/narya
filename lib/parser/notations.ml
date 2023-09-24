@@ -205,8 +205,6 @@ module State = struct
   type t = {
     (* All the available notations. *)
     notations : NSet.t;
-    (* All the tightnesses that have been assigned to any notation available in this state. *)
-    tightnesses : FSet.t;
     (* We store a pre-merged tree of all left-closed notations. *)
     left_closeds : entry;
     (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval. *)
@@ -220,7 +218,6 @@ module State = struct
   let empty : t =
     {
       notations = NSet.empty;
-      tightnesses = FSet.of_list [ Float.infinity; Float.neg_infinity ];
       left_closeds = empty_entry;
       tighters =
         TIMap.of_list
@@ -236,7 +233,6 @@ module State = struct
   let add (n : Notation.t) (s : t) : t =
     let data = get_data n in
     let notations = NSet.add n s.notations in
-    let tightnesses = FSet.add data.tightness s.tightnesses in
     let left_closeds =
       if data.left = Closed then merge s.left_closeds data.tree else s.left_closeds in
     (* First we merge the new notation to all the tighter-trees in which it should lie. *)
@@ -248,7 +244,8 @@ module State = struct
         s.tighters in
     (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)
     let tighters =
-      if not (FSet.mem data.tightness s.tightnesses) then
+      (* We use Open here, but we could equally have used Closed, since we always add them in pairs. *)
+      if not (TIMap.mem (Open data.tightness) tighters) then
         let open_tighters =
           NSet.fold
             (fun m tr ->
@@ -271,7 +268,7 @@ module State = struct
         let ivl = Interval.left data in
         TokMap.fold (fun tok _ map -> TokMap.add_to_list tok ivl map) data.tree s.left_opens
       else s.left_opens in
-    { notations; tightnesses; left_closeds; left_opens; tighters }
+    { notations; left_closeds; left_opens; tighters }
 end
 
 (* Note that we are not storing here any information about the "meaning" of a notation, i.e. about how to "compile" a parsed notation into a term.  That is done by the Compile module. *)

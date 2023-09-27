@@ -296,7 +296,8 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
       | App (Field fld, new_ins) :: args ->
           (* This also requires the degeneracy to be the identity. *)
           let* () = is_id_any_deg ins in
-          apply_cobranches env fld cobranches (Any (perm_of_ins new_ins)) args
+          let* body = Field.Map.find_opt fld cobranches in
+          apply_tree env body (Any (perm_of_ins new_ins)) args
       | _ -> None)
 
 (* Attempt all the branches of a case tree associated to a particular argument, matching each of their constant labels against its constant. *)
@@ -325,18 +326,6 @@ and apply_branches :
       else
         (* If the constant doesn't match, proceed with later branches. *)
         apply_branches env rest dcst dargs ins args
-
-(* Attempt all the (co)branches of a case tree associated to a copattern match, matching each of their field names against a field projection.  The degeneracy is to be applied after passing to the body, though before receiving additional arguments from args. *)
-and apply_cobranches :
-    type n a.
-    (n, a) env -> Field.t -> (Field.t * a Case.tree) list -> any_deg -> app list -> value option =
- fun env fld cobranches ins args ->
-  match cobranches with
-  | [] -> None
-  | (fld', body) :: cobranches ->
-      (* If the field matches one of the cobranches, we recurse into that branch. *)
-      if fld = fld' then apply_tree env body ins args
-      else apply_cobranches env fld cobranches ins args
 
 and take_lam_arg :
     type n a. (n, a) env -> any_deg -> app list -> ((n, a N.suc) env * any_deg * app list) option =

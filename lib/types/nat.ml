@@ -38,40 +38,43 @@ let install () =
           (Lam
              (Branches
                 ( Top,
-                  [
-                    Branch (zero', Zero, Leaf (Var (Pop Top)));
-                    Branch
+                  Constr.Map.of_list
+                    [
+                      (zero', Case.Branch (Zero, Leaf (Var (Pop Top))));
                       ( suc',
-                        Suc Zero,
-                        Leaf
-                          (App
-                             ( Const suc,
-                               CubeOf.singleton
-                                 (App
-                                    ( App (Const plus, CubeOf.singleton (Var (Pop (Pop Top)))),
-                                      CubeOf.singleton (Var Top) )) )) );
-                  ] )))));
+                        Branch
+                          ( Suc Zero,
+                            Leaf
+                              (App
+                                 ( Const suc,
+                                   CubeOf.singleton
+                                     (App
+                                        ( App (Const plus, CubeOf.singleton (Var (Pop (Pop Top)))),
+                                          CubeOf.singleton (Var Top) )) )) ) );
+                    ] )))));
   Hashtbl.add Global.constants times
     (Defined
        (Lam
           (Lam
              (Branches
                 ( Top,
-                  [
-                    Branch (zero', Zero, Leaf (Const zero));
-                    Branch
+                  Constr.Map.of_list
+                    [
+                      (zero', Case.Branch (Zero, Leaf (Const zero)));
                       ( suc',
-                        Suc Zero,
-                        Leaf
-                          (App
-                             ( App
-                                 ( Const plus,
-                                   CubeOf.singleton
-                                     (App
-                                        ( App (Const times, CubeOf.singleton (Var (Pop (Pop Top)))),
-                                          CubeOf.singleton (Var Top) )) ),
-                               CubeOf.singleton (Var (Pop (Pop Top))) )) );
-                  ] )))));
+                        Branch
+                          ( Suc Zero,
+                            Leaf
+                              (App
+                                 ( App
+                                     ( Const plus,
+                                       CubeOf.singleton
+                                         (App
+                                            ( App
+                                                (Const times, CubeOf.singleton (Var (Pop (Pop Top)))),
+                                              CubeOf.singleton (Var Top) )) ),
+                                   CubeOf.singleton (Var (Pop (Pop Top))) )) ) );
+                    ] )))));
   Hashtbl.add Global.types ind
     (pi
        ((* P : *) pi (Const nn) (UU D.zero))
@@ -93,22 +96,23 @@ let install () =
                 (Lam
                    (Branches
                       ( Top,
-                        [
-                          Branch (zero', Zero, Leaf (Var (Pop (Pop Top))));
-                          Branch
+                        Constr.Map.of_list
+                          [
+                            (zero', Case.Branch (Zero, Leaf (Var (Pop (Pop Top)))));
                             ( suc',
-                              Suc Zero,
-                              Leaf
-                                (app
-                                   (app (Var (Pop (Pop Top))) (Var Top))
-                                   (app
-                                      (app
-                                         (app
-                                            (app (Const ind) (Var (Pop (Pop (Pop (Pop Top))))))
-                                            (Var (Pop (Pop (Pop Top)))))
-                                         (Var (Pop (Pop Top))))
-                                      (Var Top))) );
-                        ] )))))))
+                              Branch
+                                ( Suc Zero,
+                                  Leaf
+                                    (app
+                                       (app (Var (Pop (Pop Top))) (Var Top))
+                                       (app
+                                          (app
+                                             (app
+                                                (app (Const ind) (Var (Pop (Pop (Pop (Pop Top))))))
+                                                (Var (Pop (Pop (Pop Top)))))
+                                             (Var (Pop (Pop Top))))
+                                          (Var Top))) ) );
+                          ] )))))))
 
 open Monad.Ops (Monad.Maybe)
 

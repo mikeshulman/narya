@@ -51,23 +51,24 @@ let install () =
                    (Lam
                       (Branches
                          ( Top,
-                           [
-                             Branch (nil, Zero, Leaf (Var (Pop (Pop Top))));
-                             Branch
+                           Constr.Map.of_list
+                             [
+                               (nil, Case.Branch (Zero, Leaf (Var (Pop (Pop Top)))));
                                ( cons,
-                                 Suc (Suc Zero),
-                                 Leaf
-                                   (apps (Var (Pop (Pop (Pop Top))))
-                                      [
-                                        Var (Pop Top);
-                                        Var Top;
-                                        apps (Const ind)
+                                 Branch
+                                   ( Suc (Suc Zero),
+                                     Leaf
+                                       (apps (Var (Pop (Pop (Pop Top))))
                                           [
-                                            Var (Pop (Pop (Pop (Pop (Pop (Pop Top))))));
-                                            Var (Pop (Pop (Pop (Pop (Pop Top)))));
-                                            Var (Pop (Pop (Pop (Pop Top))));
-                                            Var (Pop (Pop (Pop Top)));
+                                            Var (Pop Top);
                                             Var Top;
-                                          ];
-                                      ]) );
-                           ] ))))))))
+                                            apps (Const ind)
+                                              [
+                                                Var (Pop (Pop (Pop (Pop (Pop (Pop Top))))));
+                                                Var (Pop (Pop (Pop (Pop (Pop Top)))));
+                                                Var (Pop (Pop (Pop (Pop Top))));
+                                                Var (Pop (Pop (Pop Top)));
+                                                Var Top;
+                                              ];
+                                          ]) ) );
+                             ] ))))))))

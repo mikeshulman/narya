@@ -287,7 +287,12 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
       | Constr (name, dim, dargs) -> (
           (* A case tree can only include 0-dimensional applications, so the dimension here must match the dimension we're using it at. *)
           match compare dim (dim_env env) with
-          | Eq -> apply_branches env branches name dargs ins args
+          | Eq ->
+              let* (Branch (plus, body)) = Constr.Map.find_opt name branches in
+              (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
+              let env = take_args env dargs plus in
+              (* Then we proceed recursively with the body of that branch. *)
+              apply_tree env body ins args
           | _ -> None)
       | _ -> None)
   | Cobranches cobranches -> (
@@ -299,33 +304,6 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
           let* body = Field.Map.find_opt fld cobranches in
           apply_tree env body (Any (perm_of_ins new_ins)) args
       | _ -> None)
-
-(* Attempt all the branches of a case tree associated to a particular argument, matching each of their constant labels against its constant. *)
-and apply_branches :
-    type n a.
-    (n, a) env ->
-    a Case.branch list ->
-    (* The constant we're matching against *)
-    Constr.t ->
-    (* Its given arguments *)
-    (n, value) CubeOf.t Bwd.t ->
-    (* A degeneracy to be applied after the computation *)
-    any_deg ->
-    (* The remaining arguments after the case tree computation *)
-    app list ->
-    value option =
- fun env branches dcst dargs ins args ->
-  match branches with
-  | [] -> None
-  | Branch (name, plus, body) :: rest ->
-      if name = dcst then
-        (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
-        let env = take_args env dargs plus in
-        (* Then we proceed recursively with the body of that branch. *)
-        apply_tree env body ins args
-      else
-        (* If the constant doesn't match, proceed with later branches. *)
-        apply_branches env rest dcst dargs ins args
 
 and take_lam_arg :
     type n a. (n, a) env -> any_deg -> app list -> ((n, a N.suc) env * any_deg * app list) option =

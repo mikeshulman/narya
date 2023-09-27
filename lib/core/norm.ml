@@ -263,9 +263,9 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
 and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
  fun env tree ins args ->
   match tree with
-  | Lam (plus, body) ->
-      (* Pick up more arguments.  Note that this fails if plus is nonzero and ins is nonidentity. *)
-      let* newenv, newins, newargs = take_lam_args env plus ins args in
+  | Lam body ->
+      (* Pick up another argument.  Note that this fails if ins is nonidentity. *)
+      let* newenv, newins, newargs = take_lam_arg env ins args in
       apply_tree newenv body newins newargs
   | Leaf body ->
       (* We've found a term to evaluate *)
@@ -338,27 +338,16 @@ and apply_cobranches :
       if fld = fld' then apply_tree env body ins args
       else apply_cobranches env fld cobranches ins args
 
-and take_lam_args :
-    type n a b ab.
-    (n, a) env ->
-    (a, b, ab) N.plus ->
-    any_deg ->
-    app list ->
-    ((n, ab) env * any_deg * app list) option =
- fun env ab ins args ->
-  match (ab, args) with
-  | Zero, _ -> Some (env, ins, args)
-  | Suc ab, App (Arg arg, newins) :: args -> (
-      (* If we're looking for another argument, we fail unless the current insertion is the identity.  In addition, the variables bound in a case tree are always zero-dimensional applications, so the apps here must all be the same dimension as the constant instance. *)
+and take_lam_arg :
+    type n a. (n, a) env -> any_deg -> app list -> ((n, a N.suc) env * any_deg * app list) option =
+ fun env ins args ->
+  match args with
+  | App (Arg arg, newins) :: args -> (
+      (* We fail unless the current insertion is the identity.  In addition, the variables bound in a case tree are always zero-dimensional applications, so the apps here must all be the same dimension as the constant instance. *)
       match (is_id_any_deg ins, compare (dim_env env) (CubeOf.dim arg)) with
-      | Some (), Eq ->
-          take_lam_args
-            (Ext (env, val_of_norm_cube arg))
-            (N.suc_plus' ab)
-            (Any (perm_of_ins newins))
-            args
+      | Some (), Eq -> Some (Ext (env, val_of_norm_cube arg), Any (perm_of_ins newins), args)
       | _ -> None)
-  | _, _ -> None
+  | _ -> None
 
 (* Compute the output type of a function application, given the codomains and instantiation arguments of the pi-type (the latter being the functions acting on the boundary) and the arguments it is applied to. *)
 and tyof_app :

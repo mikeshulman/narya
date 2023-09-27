@@ -31,22 +31,25 @@ let install () =
   Hashtbl.add Global.constants corec
     (Defined
        (Lam
-          ( Suc (Suc (Suc (Suc (Suc Zero)))),
-            Cobranches
-              [
-                (head, Leaf (app (Var (Pop (Pop Top))) (Var Top)));
-                ( tail,
-                  Leaf
-                    (app
-                       (app
-                          (app
-                             (app
-                                (app (Const corec) (Var (Pop (Pop (Pop (Pop Top))))))
-                                (Var (Pop (Pop (Pop Top)))))
-                             (Var (Pop (Pop Top))))
-                          (Var (Pop Top)))
-                       (app (Var (Pop Top)) (Var Top))) );
-              ] )))
+          (Lam
+             (Lam
+                (Lam
+                   (Lam
+                      (Cobranches
+                         [
+                           (head, Leaf (app (Var (Pop (Pop Top))) (Var Top)));
+                           ( tail,
+                             Leaf
+                               (app
+                                  (app
+                                     (app
+                                        (app
+                                           (app (Const corec) (Var (Pop (Pop (Pop (Pop Top))))))
+                                           (Var (Pop (Pop (Pop Top)))))
+                                        (Var (Pop (Pop Top))))
+                                     (Var (Pop Top)))
+                                  (app (Var (Pop Top)) (Var Top))) );
+                         ])))))))
 
 (*
   Hashtbl.add Global.types bisim

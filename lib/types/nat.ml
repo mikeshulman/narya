@@ -29,49 +29,49 @@ let install () =
   Hashtbl.add Global.constants zero (Defined (Leaf (Constr (zero', D.zero, Emp))));
   Hashtbl.add Global.types suc (pi (Const nn) (Const nn));
   Hashtbl.add Global.constants suc
-    (Defined (Lam (Suc Zero, Leaf (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var Top))))));
+    (Defined (Lam (Leaf (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var Top))))));
   Hashtbl.add Global.types plus (pi (Const nn) (pi (Const nn) (Const nn)));
   Hashtbl.add Global.types times (pi (Const nn) (pi (Const nn) (Const nn)));
   Hashtbl.add Global.constants plus
     (Defined
        (Lam
-          ( Suc (Suc Zero),
-            Branches
-              ( Top,
-                [
-                  Branch (zero', Zero, Leaf (Var (Pop Top)));
-                  Branch
-                    ( suc',
-                      Suc Zero,
-                      Leaf
-                        (App
-                           ( Const suc,
-                             CubeOf.singleton
-                               (App
-                                  ( App (Const plus, CubeOf.singleton (Var (Pop (Pop Top)))),
-                                    CubeOf.singleton (Var Top) )) )) );
-                ] ) )));
+          (Lam
+             (Branches
+                ( Top,
+                  [
+                    Branch (zero', Zero, Leaf (Var (Pop Top)));
+                    Branch
+                      ( suc',
+                        Suc Zero,
+                        Leaf
+                          (App
+                             ( Const suc,
+                               CubeOf.singleton
+                                 (App
+                                    ( App (Const plus, CubeOf.singleton (Var (Pop (Pop Top)))),
+                                      CubeOf.singleton (Var Top) )) )) );
+                  ] )))));
   Hashtbl.add Global.constants times
     (Defined
        (Lam
-          ( Suc (Suc Zero),
-            Branches
-              ( Top,
-                [
-                  Branch (zero', Zero, Leaf (Const zero));
-                  Branch
-                    ( suc',
-                      Suc Zero,
-                      Leaf
-                        (App
-                           ( App
-                               ( Const plus,
-                                 CubeOf.singleton
-                                   (App
-                                      ( App (Const times, CubeOf.singleton (Var (Pop (Pop Top)))),
-                                        CubeOf.singleton (Var Top) )) ),
-                             CubeOf.singleton (Var (Pop (Pop Top))) )) );
-                ] ) )));
+          (Lam
+             (Branches
+                ( Top,
+                  [
+                    Branch (zero', Zero, Leaf (Const zero));
+                    Branch
+                      ( suc',
+                        Suc Zero,
+                        Leaf
+                          (App
+                             ( App
+                                 ( Const plus,
+                                   CubeOf.singleton
+                                     (App
+                                        ( App (Const times, CubeOf.singleton (Var (Pop (Pop Top)))),
+                                          CubeOf.singleton (Var Top) )) ),
+                               CubeOf.singleton (Var (Pop (Pop Top))) )) );
+                  ] )))));
   Hashtbl.add Global.types ind
     (pi
        ((* P : *) pi (Const nn) (UU D.zero))
@@ -88,25 +88,27 @@ let install () =
   Hashtbl.add Global.constants ind
     (Defined
        (Lam
-          ( Suc (Suc (Suc (Suc Zero))),
-            Branches
-              ( Top,
-                [
-                  Branch (zero', Zero, Leaf (Var (Pop (Pop Top))));
-                  Branch
-                    ( suc',
-                      Suc Zero,
-                      Leaf
-                        (app
-                           (app (Var (Pop (Pop Top))) (Var Top))
-                           (app
-                              (app
-                                 (app
-                                    (app (Const ind) (Var (Pop (Pop (Pop (Pop Top))))))
-                                    (Var (Pop (Pop (Pop Top)))))
-                                 (Var (Pop (Pop Top))))
-                              (Var Top))) );
-                ] ) )))
+          (Lam
+             (Lam
+                (Lam
+                   (Branches
+                      ( Top,
+                        [
+                          Branch (zero', Zero, Leaf (Var (Pop (Pop Top))));
+                          Branch
+                            ( suc',
+                              Suc Zero,
+                              Leaf
+                                (app
+                                   (app (Var (Pop (Pop Top))) (Var Top))
+                                   (app
+                                      (app
+                                         (app
+                                            (app (Const ind) (Var (Pop (Pop (Pop (Pop Top))))))
+                                            (Var (Pop (Pop (Pop Top)))))
+                                         (Var (Pop (Pop Top))))
+                                      (Var Top))) );
+                        ] )))))))
 
 open Monad.Ops (Monad.Maybe)
 

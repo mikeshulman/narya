@@ -85,28 +85,33 @@ let install () =
   Hashtbl.add Global.constants ind
     (Defined
        (Lam
-          ( Suc (Suc (Suc (Suc (Suc (Suc Zero))))),
-            Branches
-              ( Top,
-                [
-                  Branch (nil, Zero, Leaf (Var (Pop (Pop (Pop Top)))));
-                  Branch
-                    ( cons,
-                      Suc (Suc (Suc Zero)),
-                      Leaf
-                        (apps (Var (Pop (Pop (Pop (Pop (Pop Top))))))
-                           [
-                             Var (Pop (Pop Top));
-                             Var (Pop Top);
-                             Var Top;
-                             apps (Const ind)
-                               [
-                                 Var (Pop (Pop (Pop (Pop (Pop (Pop (Pop (Pop Top))))))));
-                                 Var (Pop (Pop (Pop (Pop (Pop (Pop (Pop Top)))))));
-                                 Var (Pop (Pop (Pop (Pop (Pop (Pop Top))))));
-                                 Var (Pop (Pop (Pop (Pop (Pop Top)))));
-                                 Var (Pop (Pop Top));
-                                 Var Top;
-                               ];
-                           ]) );
-                ] ) )))
+          (Lam
+             (Lam
+                (Lam
+                   (Lam
+                      (Lam
+                         (Branches
+                            ( Top,
+                              [
+                                Branch (nil, Zero, Leaf (Var (Pop (Pop (Pop Top)))));
+                                Branch
+                                  ( cons,
+                                    Suc (Suc (Suc Zero)),
+                                    Leaf
+                                      (apps (Var (Pop (Pop (Pop (Pop (Pop Top))))))
+                                         [
+                                           Var (Pop (Pop Top));
+                                           Var (Pop Top);
+                                           Var Top;
+                                           apps (Const ind)
+                                             [
+                                               Var
+                                                 (Pop (Pop (Pop (Pop (Pop (Pop (Pop (Pop Top))))))));
+                                               Var (Pop (Pop (Pop (Pop (Pop (Pop (Pop Top)))))));
+                                               Var (Pop (Pop (Pop (Pop (Pop (Pop Top))))));
+                                               Var (Pop (Pop (Pop (Pop (Pop Top)))));
+                                               Var (Pop (Pop Top));
+                                               Var Top;
+                                             ];
+                                         ]) );
+                              ] )))))))))

@@ -31,12 +31,14 @@ let install () =
   Hashtbl.add Global.constants pair
     (Defined
        (Lam
-          ( N.zero_plus N.four,
-            Leaf
-              (Struct
-                 (Field.Map.empty
-                 |> Field.Map.add fst (Var (Pop Top))
-                 |> Field.Map.add snd (Var Top))) )))
+          (Lam
+             (Lam
+                (Lam
+                   (Leaf
+                      (Struct
+                         (Field.Map.empty
+                         |> Field.Map.add fst (Var (Pop Top))
+                         |> Field.Map.add snd (Var Top)))))))))
 
 let struc =
   make ~name:"struc" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->

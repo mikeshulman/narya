@@ -263,7 +263,7 @@ and equal_at_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> raise (Failure "Missing arguments in check_tel")
+                | [] -> raise (Failure "Missing arguments in equal_at_tel")
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =

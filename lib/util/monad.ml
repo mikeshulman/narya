@@ -78,6 +78,19 @@ module Cont (R : Result_type) = struct
   let bind (a : 'a t) (f : 'a -> 'b t) : 'b t = fun cont -> a (fun x -> f x cont)
 end
 
+(* The error monad *)
+
+module type Error_type = sig
+  type t
+end
+
+module Error (E : Error_type) = struct
+  type 'a t = ('a, E.t) result
+
+  let return = Result.ok
+  let bind = Result.bind
+end
+
 (* Monads with zero *)
 
 module type Zero = sig

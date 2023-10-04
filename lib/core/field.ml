@@ -9,3 +9,5 @@ type t = Field.t
 let intern (str : string) : t = str
 
 module Map = Map.Make (Field)
+
+let to_string (x : t) : string = x

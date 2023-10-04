@@ -19,6 +19,9 @@ let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check list 
       | None -> []
       | Some t -> [ t ])
 
+exception Synthesis_failure of Check.CheckErr.t
+exception Checking_failure of Check.CheckErr.t
+
 let synth (tm : string) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_term names tm in
@@ -27,10 +30,10 @@ let synth (tm : string) : Value.value * Value.value =
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
   | [ Synth raw ] -> (
       match Check.synth ctx raw with
-      | Some (syn, ty) ->
+      | Ok (syn, ty) ->
           let esyn = Ctx.eval ctx syn in
           (esyn, ty)
-      | None -> raise (Failure "Synthesis failure"))
+      | Error e -> raise (Synthesis_failure e))
   | _ -> raise (Failure "Non-synthesizing")
 
 let check (tm : string) (ty : Value.value) : Value.value =
@@ -41,8 +44,8 @@ let check (tm : string) (ty : Value.value) : Value.value =
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
   | [ raw ] -> (
       match Check.check ctx raw ty with
-      | Some chk -> Ctx.eval ctx chk
-      | None -> raise (Failure "Checking failure"))
+      | Ok chk -> Ctx.eval ctx chk
+      | Error e -> raise (Checking_failure e))
 
 (* Assert that a term *doesn't* synthesize or check *)
 
@@ -54,8 +57,8 @@ let unsynth (tm : string) : unit =
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
   | [ Synth raw ] -> (
       match Check.synth ctx raw with
-      | None -> ()
-      | Some _ -> raise (Failure "Synthesis success"))
+      | Error _ -> ()
+      | Ok _ -> raise (Failure "Synthesis success"))
   | _ -> raise (Failure "Non-synthesizing")
 
 let uncheck (tm : string) (ty : Value.value) : unit =
@@ -66,8 +69,8 @@ let uncheck (tm : string) (ty : Value.value) : unit =
   | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
   | [ raw ] -> (
       match Check.check ctx raw ty with
-      | None -> ()
-      | Some _ -> raise (Failure "Checking success"))
+      | Error _ -> ()
+      | Ok _ -> raise (Failure "Checking success"))
 
 (* Assert that a term doesn't parse *)
 

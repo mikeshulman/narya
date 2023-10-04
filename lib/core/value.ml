@@ -177,7 +177,13 @@ let full_inst : value -> string -> full_inst =
  fun ty err ->
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
-  | Uninst (ty, _) -> Fullinst (ty, TubeOf.empty D.zero)
+  | Uninst (ty, (lazy univ)) -> (
+      match univ with
+      | Uninst (UU n, _) -> (
+          match compare n D.zero with
+          | Eq -> Fullinst (ty, TubeOf.empty D.zero)
+          | Neq -> raise (Failure ("Type not fully instantiated in " ^ err)))
+      | _ -> raise (Failure ("Type not fully instantiated in " ^ err)))
   | Inst { tm = ty; dim = _; args; tys = _ } -> (
       match compare (TubeOf.uninst args) D.zero with
       | Eq ->

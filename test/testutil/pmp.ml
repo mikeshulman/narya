@@ -77,21 +77,24 @@ let context = ref ectx
 
 (* Functions to synth and check terms *)
 
+exception Synthesis_failure of Check.CheckErr.t
+exception Checking_failure of Check.CheckErr.t
+
 let synth (tm : pmt) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_syn names tm in
   match Check.synth ctx raw with
-  | Some (syn, ty) ->
+  | Ok (syn, ty) ->
       let esyn = Ctx.eval ctx syn in
       (esyn, ty)
-  | None -> raise (Failure "Synthesis failure")
+  | Error e -> raise (Synthesis_failure e)
 
 let check (tm : pmt) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_chk names tm in
   match Check.check ctx raw ty with
-  | Some chk -> Ctx.eval ctx chk
-  | None -> raise (Failure "Checking failure")
+  | Ok chk -> Ctx.eval ctx chk
+  | Error e -> raise (Checking_failure e)
 
 (* Assert that a term *doesn't* synthesize or check *)
 
@@ -99,15 +102,15 @@ let unsynth (tm : pmt) : unit =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_syn names tm in
   match Check.synth ctx raw with
-  | None -> ()
-  | Some _ -> raise (Failure "Synthesis success")
+  | Error _ -> ()
+  | Ok _ -> raise (Failure "Synthesis success")
 
 let uncheck (tm : pmt) (ty : Value.value) : unit =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_chk names tm in
   match Check.check ctx raw ty with
-  | None -> ()
-  | Some _ -> raise (Failure "Checking success")
+  | Error _ -> ()
+  | Ok _ -> raise (Failure "Checking success")
 
 (* Add to the context of assumptions *)
 

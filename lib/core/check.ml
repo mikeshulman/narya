@@ -7,19 +7,83 @@ open Dim
 open Act
 open Norm
 open Equal
-open Monad.ZeroOps (Monad.Maybe)
 open Readback
 
+(* Typechecking errors.  Once we have pretty-printing of terms, it will become useful for these to include data about the terms that generated the error.  Eventually we'll probably also want to include information about the location in the source. *)
+
+module CheckErr = struct
+  type t =
+    | Not_enough_lambdas
+    | Type_not_fully_instantiated
+    | Unequal_synthesized_type
+    | Record_has_degeneracy
+    | Missing_field_in_struct
+    | Checking_struct_against_nonrecord
+    | Datatype_has_degeneracy
+    | No_such_constructor
+    | Missing_instantiation_constructor
+    | Unequal_indices
+    | Checking_constructor_against_nondatatype
+    | Checking_mismatch
+    | No_such_constant of Constant.t
+    | No_such_field of Field.t
+    | Nonsynthesizing_argument_of_refl
+    | Nonsynthesizing_argument_of_sym
+    | Low_dimensional_argument_of_sym
+    | Missing_arguments_of_symbol
+    | Not_enough_arguments_to_function
+    | Instantiating_zero_dimensional_type
+    | Not_enough_arguments_to_instantiation
+    | Applying_nonfunction_nontype
+    | Wrong_number_of_arguments_to_constructor
+
+  let to_string = function
+    | Not_enough_lambdas -> "Not enough variables for a higher-dimensional abstraction"
+    | Type_not_fully_instantiated ->
+        "Can't check against a non-fully-instantiated higher-dimensional type"
+    | Unequal_synthesized_type ->
+        "Term synthesized a different type than it's being checked against"
+    | Record_has_degeneracy ->
+        "Can't check a struct against a record with a nonidentity degeneracy applied"
+    | Missing_field_in_struct -> "Missing record field in struct"
+    | Checking_struct_against_nonrecord -> "Attempting to check struct against non-record type"
+    | Datatype_has_degeneracy ->
+        "Can't check a constructor against a type with a nonidentity degeneracy applied"
+    | No_such_constructor -> "No such constructor in datatype"
+    | Missing_instantiation_constructor ->
+        "Instantiation arguments of datatype must be matching constructors"
+    | Unequal_indices -> "Indices of constructor application don't match those of datatype instance"
+    | Checking_constructor_against_nondatatype ->
+        "Attempting to check constructor against non-datatype"
+    | Checking_mismatch -> "Checking term doesn't check against that type"
+    | No_such_constant c -> "Unbound variable: " ^ Constant.to_string c
+    | No_such_field f -> "Record has no field named " ^ Field.to_string f
+    | Nonsynthesizing_argument_of_refl -> "Argument of refl must synthesize"
+    | Nonsynthesizing_argument_of_sym -> "Argument of sym much synthesize"
+    | Low_dimensional_argument_of_sym -> "Argument of sym must be at least two-dimensional"
+    | Missing_arguments_of_symbol -> "Missing arguments of symbol"
+    | Not_enough_arguments_to_function ->
+        "Not enough arguments for a higher-dimensional function application"
+    | Instantiating_zero_dimensional_type -> "Can't apply/instantiate a zero-dimensional type"
+    | Not_enough_arguments_to_instantiation ->
+        "Not enough arguments to instantiate a higher-dimensional type"
+    | Applying_nonfunction_nontype -> "Attempt to apply/instantiate a non-function, non-type"
+    | Wrong_number_of_arguments_to_constructor -> "Wrong number of arguments to constructor"
+end
+
+module Err = Monad.Error (CheckErr)
+open Monad.Ops (Err)
+
+let ( <|> ) (x : 'a option) (e : CheckErr.t) : 'a Err.t = Option.to_result ~none:e x
+
 (* Look through a specified number of lambdas to find an inner body. *)
-let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check option =
+let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check Err.t =
  fun ab tm ->
   match (ab, tm) with
-  | Zero, _ -> Some tm
+  | Zero, _ -> return tm
   | Suc _, Lam body -> lambdas (N.suc_plus'' ab) body
   (* Not enough lambdas.  TODO: We could eta-expand in this case, as long as we've picked up at least one lambda. *)
-  | _ ->
-      msg "Not enough lambdas";
-      None
+  | _ -> Error Not_enough_lambdas
 
 (* Slurp up an entire application spine *)
 let spine : type a. a synth -> a synth * a check list =
@@ -30,21 +94,19 @@ let spine : type a. a synth -> a synth * a check list =
     | _ -> (tm, args) in
   spine tm []
 
-let rec check : type a. a Ctx.t -> a check -> value -> a term option =
+let rec check : type a. a Ctx.t -> a check -> value -> a term Err.t =
  fun ctx tm ty ->
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
-  let* (Fullinst (uty, tyargs)) = full_inst_opt ty in
+  let* (Fullinst (uty, tyargs)) = full_inst_opt ty <|> Type_not_fully_instantiated in
   match (tm, uty) with
   | Synth stm, _ ->
       let* sval, sty = synth ctx stm in
-      let* () = equal_val (Ctx.level ctx) sty ty in
+      let* () = equal_val (Ctx.level ctx) sty ty <|> Unequal_synthesized_type in
       return sval
   | Lam _, Pi (doms, cods) -> (
       let m = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) m with
-      | Neq ->
-          msg "Dimension mismatch in checking lambda";
-          None
+      | Neq -> raise (Failure "Dimension mismatch checking lambda")
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
@@ -62,12 +124,12 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
       (* We don't need to name the arguments of Canonical here because tyof_field, called below, uses them. *)
       match Hashtbl.find Global.constants name with
       | Record { fields; _ } ->
-          let* () = is_id_perm (perm_of_ins ins) in
+          let* () = is_id_perm (perm_of_ins ins) <|> Record_has_degeneracy in
           let dim = cod_left_ins ins in
           let module (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
           M =
             Monad.StateT
-              (Monad.Maybe)
+              (Err)
               (struct
                 type t = a term Field.Map.t * value Field.Map.t
               end)
@@ -81,18 +143,18 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
                 let* ctms, etms = M.get in
                 let prev_etm = Value.Struct (etms, zero_ins dim) in
                 let ety = tyof_field prev_etm ty fld in
-                let* tm = M.stateless (Field.Map.find_opt fld tms) in
+                let* tm = M.stateless (Field.Map.find_opt fld tms <|> Missing_field_in_struct) in
                 let* ctm = M.stateless (check ctx tm ety) in
                 let etm = Ctx.eval ctx ctm in
                 M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms))
               [ fields ]
               (Field.Map.empty, Field.Map.empty) in
           return (Struct ctms)
-      | _ -> None)
+      | _ -> Error Checking_struct_against_nonrecord)
   | Constr (constr, args), Canonical (name, ty_params_indices, ins) -> (
       (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
       let dim = TubeOf.inst tyargs in
-      let* () = is_id_perm (perm_of_ins ins) in
+      let* () = is_id_perm (perm_of_ins ins) <|> Datatype_has_degeneracy in
       match compare (cod_left_ins ins) dim with
       | Neq -> raise (Failure "Dimension mismatch checking constr")
       | Eq -> (
@@ -102,12 +164,12 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
           | Data { constrs; params; indices } ->
               (* The datatype must contain a constructor with our current name. *)
               let* (Constr { args = constr_arg_tys; indices = constr_indices }) =
-                Constr.Map.find_opt constr constrs in
+                Constr.Map.find_opt constr constrs <|> No_such_constructor in
               (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
               let env, ty_indices =
                 take_canonical_args (Emp dim) ty_params_indices (N.zero_plus params) indices in
               (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
-              let open TubeOf.Monadic (Monad.Maybe) in
+              let open TubeOf.Monadic (Err) in
               let* tyarg_args =
                 mmapM
                   {
@@ -115,14 +177,16 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
                       (fun fa [ tm ] ->
                         match tm.tm with
                         | Constr (tmname, n, tmargs) ->
-                            let* () = guard (tmname = constr) in
+                            let* () =
+                              if tmname = constr then return ()
+                              else Error Missing_instantiation_constructor in
                             (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
                             let _ = compare n (dom_tface fa) in
                             return
                               (Bwd.fold_right
                                  (fun a args -> CubeOf.find a (id_sface n) :: args)
                                  tmargs [])
-                        | _ -> None);
+                        | _ -> Error Missing_instantiation_constructor);
                   }
                   [ tyargs ] in
               (* Now we evaluate each argument *type* of the constructor at the parameters and the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
@@ -134,41 +198,41 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term option =
                     CubeOf.build dim { build = (fun fa -> eval (Act (env, op_of_sface fa)) ix) })
                   constr_indices in
               (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, throwing an exception in case I was wrong about that.  *)
-              let open Bwv.Monadic (Monad.Maybe) in
+              let open Bwv.Monadic (Err) in
               let* () =
                 miterM
                   (fun [ t1s; t2s ] ->
-                    let open CubeOf.Monadic (Monad.Maybe) in
+                    let open CubeOf.Monadic (Err) in
                     miterM
                       {
                         it =
                           (fun fa [ t1; t2 ] ->
                             match equal_at (Ctx.level ctx) t1 t2.tm t2.ty with
-                            | Some () -> Some ()
+                            | Some () -> return ()
                             | None -> (
                                 match is_id_sface fa with
-                                | Some () -> None
+                                | Some () -> Error Unequal_indices
                                 | None ->
                                     raise (Failure "Mismatching lower-dimensional constructors")));
                       }
                       [ t1s; t2s ])
                   [ constr_indices; ty_indices ] in
               return (Constr (constr, dim, Bwd.of_list newargs))
-          | _ -> None))
-  | _ -> None
+          | _ -> Error Checking_constructor_against_nondatatype))
+  | _ -> Error Checking_mismatch
 
-and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
+and synth : type a. a Ctx.t -> a synth -> (a term * value) Err.t =
  fun ctx tm ->
   match tm with
   | Var v -> return (Term.Var v, (snd (Bwv.nth v ctx)).ty)
   | Const name ->
-      let* ty = Hashtbl.find_opt Global.types name in
+      let* ty = Hashtbl.find_opt Global.types name <|> No_such_constant name in
       return (Const name, eval (Emp D.zero) ty)
   | Field (tm, fld) ->
       let* stm, sty = synth ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
       let etm = Ctx.eval ctx stm in
-      let* newty = tyof_field_opt etm sty fld in
+      let* newty = tyof_field_opt etm sty fld <|> No_such_field fld in
       return (Field (stm, fld), newty)
   | Symbol (UU, Zero, Emp) -> return (Term.UU D.zero, universe D.zero)
   | Pi (dom, cod) ->
@@ -188,7 +252,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
           let* sx, ety = synth ctx x in
           let ex = Ctx.eval ctx sx in
           return (Act (sx, refl), act_ty ex ety refl)
-      | _ -> None)
+      | _ -> Error Nonsynthesizing_argument_of_refl)
   | Symbol (Sym, Zero, Snoc (Emp, x)) -> (
       match x with
       | Synth x -> (
@@ -197,12 +261,10 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
           try
             let symty = act_ty ex ety sym in
             return (Act (sx, sym), symty)
-          with Invalid_uninst_action ->
-            msg "Can't symmetrize something of too low dimension";
-            None)
-      | _ -> None)
+          with Invalid_uninst_action -> Error Low_dimensional_argument_of_sym)
+      | _ -> Error Nonsynthesizing_argument_of_sym)
   (* If a symbol isn't applied to enough arguments yet, it doesn't typecheck. *)
-  | Symbol (_, Suc _, _) -> None
+  | Symbol (_, Suc _, _) -> Error Missing_arguments_of_symbol
   | Asc (tm, ty) ->
       let* cty = check ctx ty (universe D.zero) in
       let ety = Ctx.eval ctx cty in
@@ -216,7 +278,7 @@ and synth : type a. a Ctx.t -> a synth -> (a term * value) option =
       return (Let (sv, sbody), bodyty)
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
-and synth_apps : type a. a Ctx.t -> a term -> value -> a check list -> (a term * value) option =
+and synth_apps : type a. a Ctx.t -> a term -> value -> a check list -> (a term * value) Err.t =
  fun ctx sfn sty args ->
   (* Failure of full_inst here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
   let (Fullinst (fnty, tyargs)) = full_inst sty "synth_apps" in
@@ -233,11 +295,11 @@ and synth_app :
     uninst ->
     (D.zero, n, n, normal) TubeOf.t ->
     a check list ->
-    (a term * value * a check list) option =
+    (a term * value * a check list) Err.t =
  fun ctx sfn fnty tyargs args ->
   let module M =
     Monad.StateT
-      (Monad.Maybe)
+      (Err)
       (struct
         type t = a check list
       end)
@@ -248,9 +310,7 @@ and synth_app :
   | Pi (doms, cods) -> (
       (* Ensure that the pi-type is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
-      | Neq ->
-          msg "Dimension mismatch when synthesizing applied function";
-          None
+      | Neq -> raise (Failure "Dimension mismatch applying function")
       | Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
           let eargtbl = Hashtbl.create 10 in
@@ -265,7 +325,7 @@ and synth_app :
                     let* ts = M.get in
                     let* tm =
                       match ts with
-                      | [] -> M.stateless None
+                      | [] -> M.stateless (Error Not_enough_arguments_to_function)
                       | t :: ts ->
                           let* () = M.put ts in
                           return t in
@@ -291,14 +351,10 @@ and synth_app :
   | UU n -> (
       (* Ensure that the universe is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) n with
-      | Neq ->
-          msg "Dimension mismatch when synthesizing instantiation";
-          None
+      | Neq -> raise (Failure "Dimension mismatch instantiating type")
       | Eq -> (
           match D.compare_zero n with
-          | Zero ->
-              msg "Cannot further instantiate a zero-dimensional type";
-              None
+          | Zero -> Error Instantiating_zero_dimensional_type
           | Pos pn ->
               (* We take enough arguments to instatiate a type of dimension n by one. *)
               let (Is_suc (m, msuc)) = suc_pos pn in
@@ -318,7 +374,7 @@ and synth_app :
                         let* ts = M.get in
                         let* tm =
                           match ts with
-                          | [] -> M.stateless None
+                          | [] -> M.stateless (Error Not_enough_arguments_to_function)
                           | t :: ts ->
                               let* () = M.put ts in
                               return t in
@@ -345,10 +401,9 @@ and synth_app :
               (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
               return (Term.Inst (sfn, cargs), tyof_inst tyargs eargs, rest)))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
-  | _ ->
-      msg "Attempt to apply non-function, non-type";
-      None
+  | _ -> Error Applying_nonfunction_nontype
 
+(* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube. *)
 and check_tel :
     type n a b c bc.
     a Ctx.t ->
@@ -356,7 +411,7 @@ and check_tel :
     a check list ->
     (b, c, bc) Telescope.t ->
     (D.zero, n, n, value list) TubeOf.t ->
-    ((n, bc) env * (n, a term) CubeOf.t list) option =
+    ((n, bc) env * (n, a term) CubeOf.t list) Err.t =
  fun ctx env tms tys tyargs ->
   match (tms, tys) with
   | [], Emp ->
@@ -400,4 +455,4 @@ and check_tel :
           (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm)))
           tms tys tyargs in
       return (newenv, TubeOf.plus_cube ctms (CubeOf.singleton ctm) :: newargs)
-  | _ -> None
+  | _ -> Error Wrong_number_of_arguments_to_constructor

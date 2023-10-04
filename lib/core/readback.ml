@@ -176,6 +176,7 @@ and readback_at_tel :
   | [], Emp -> []
   | x :: xs, Ext (ty, tys) ->
       let ety = eval env ty in
+      (* Copied from check_tel; TODO: Factor it out *)
       let tyargtbl = Hashtbl.create 10 in
       let [ tyarg; tms; tyargs ] =
         TubeOf.pmap
@@ -183,7 +184,7 @@ and readback_at_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> raise (Failure "Missing arguments in check_tel")
+                | [] -> raise (Failure "Missing arguments in readback_at_tel")
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =

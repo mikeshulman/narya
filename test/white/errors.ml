@@ -82,3 +82,5 @@ let () =
   match check "a" idida with
   | exception Checking_failure Type_not_fully_instantiated -> ()
   | _ -> raise (Failure "Unexpected success")
+
+let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida))

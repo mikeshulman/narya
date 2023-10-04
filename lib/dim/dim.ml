@@ -176,12 +176,17 @@ let rec deg_equiv : type m n k l. (m, n) deg -> (k, l) deg -> unit option =
  fun s1 s2 ->
   let open Monad.Ops (Monad.Maybe) in
   match (s1, s2) with
-  | Zero _, Zero _ -> Some ()
+  | Zero n1, Zero n2 -> (
+      match compare n1 n2 with
+      | Eq -> Some ()
+      | Neq -> None)
   | Suc (p1, i1), Suc (p2, i2) ->
       let* () = N.index_equiv i1 i2 in
       deg_equiv p1 p2
-  | Zero _, _ -> is_id_deg s2
-  | _, Zero _ -> is_id_deg s1
+  | Zero _, Suc (p2, Top) -> deg_equiv s1 p2
+  | Zero _, Suc (_, Pop _) -> None
+  | Suc (p1, Top), Zero _ -> deg_equiv p1 s2
+  | Suc (_, Pop _), Zero _ -> None
 
 (* Every dimension is a degeneracy of zero. *)
 let deg_zero : type a. a D.t -> (a, D.zero) deg = fun a -> Zero a

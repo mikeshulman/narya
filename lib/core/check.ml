@@ -19,8 +19,7 @@ module CheckErr = struct
     | Record_has_degeneracy
     | Missing_field_in_struct
     | Checking_struct_against_nonrecord
-    | Datatype_has_degeneracy
-    | No_such_constructor
+    | No_such_constructor of Constr.t
     | Missing_instantiation_constructor
     | Unequal_indices
     | Checking_constructor_against_nondatatype
@@ -47,9 +46,7 @@ module CheckErr = struct
         "Can't check a struct against a record with a nonidentity degeneracy applied"
     | Missing_field_in_struct -> "Missing record field in struct"
     | Checking_struct_against_nonrecord -> "Attempting to check struct against non-record type"
-    | Datatype_has_degeneracy ->
-        "Can't check a constructor against a type with a nonidentity degeneracy applied"
-    | No_such_constructor -> "No such constructor in datatype"
+    | No_such_constructor c -> "Datatype has no constructor named " ^ Constr.to_string c
     | Missing_instantiation_constructor ->
         "Instantiation arguments of datatype must be matching constructors"
     | Unequal_indices -> "Indices of constructor application don't match those of datatype instance"
@@ -154,70 +151,75 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term Err.t =
   | Constr (constr, args), Canonical (name, ty_params_indices, ins) -> (
       (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
       let dim = TubeOf.inst tyargs in
-      let* () = is_id_perm (perm_of_ins ins) <|> Datatype_has_degeneracy in
       match compare (cod_left_ins ins) dim with
       | Neq -> raise (Failure "Dimension mismatch checking constr")
       | Eq -> (
           (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_params_indices contains the *values* of the parameters and indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
           match Hashtbl.find Global.constants name with
           (* We do need the constructors of the datatype, as well as its *number* of parameters and indices. *)
-          | Data { constrs; params; indices } ->
-              (* The datatype must contain a constructor with our current name. *)
-              let* (Constr { args = constr_arg_tys; indices = constr_indices }) =
-                Constr.Map.find_opt constr constrs <|> No_such_constructor in
-              (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
-              let env, ty_indices =
-                take_canonical_args (Emp dim) ty_params_indices (N.zero_plus params) indices in
-              (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
-              let open TubeOf.Monadic (Err) in
-              let* tyarg_args =
-                mmapM
-                  {
-                    map =
-                      (fun fa [ tm ] ->
-                        match tm.tm with
-                        | Constr (tmname, n, tmargs) ->
-                            let* () =
-                              if tmname = constr then return ()
-                              else Error Missing_instantiation_constructor in
-                            (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
-                            let _ = compare n (dom_tface fa) in
-                            return
-                              (Bwd.fold_right
-                                 (fun a args -> CubeOf.find a (id_sface n) :: args)
-                                 tmargs [])
-                        | _ -> Error Missing_instantiation_constructor);
-                  }
-                  [ tyargs ] in
-              (* Now we evaluate each argument *type* of the constructor at the parameters and the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
-              let* env, newargs = check_tel ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
-              (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
-              let constr_indices =
-                Bwv.map
-                  (fun ix ->
-                    CubeOf.build dim { build = (fun fa -> eval (Act (env, op_of_sface fa)) ix) })
-                  constr_indices in
-              (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, throwing an exception in case I was wrong about that.  *)
-              let open Bwv.Monadic (Err) in
-              let* () =
-                miterM
-                  (fun [ t1s; t2s ] ->
-                    let open CubeOf.Monadic (Err) in
-                    miterM
+          | Data { constrs; params; indices } -> (
+              match is_id_perm (perm_of_ins ins) with
+              | None -> raise (Failure "Datatypes with degeneracy shouldn't exist")
+              | Some () ->
+                  (* The datatype must contain a constructor with our current name. *)
+                  let* (Constr { args = constr_arg_tys; indices = constr_indices }) =
+                    Constr.Map.find_opt constr constrs <|> No_such_constructor constr in
+                  (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
+                  let env, ty_indices =
+                    take_canonical_args (Emp dim) ty_params_indices (N.zero_plus params) indices
+                  in
+                  (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
+                  let open TubeOf.Monadic (Err) in
+                  let* tyarg_args =
+                    mmapM
                       {
-                        it =
-                          (fun fa [ t1; t2 ] ->
-                            match equal_at (Ctx.level ctx) t1 t2.tm t2.ty with
-                            | Some () -> return ()
-                            | None -> (
-                                match is_id_sface fa with
-                                | Some () -> Error Unequal_indices
-                                | None ->
-                                    raise (Failure "Mismatching lower-dimensional constructors")));
+                        map =
+                          (fun fa [ tm ] ->
+                            match tm.tm with
+                            | Constr (tmname, n, tmargs) ->
+                                let* () =
+                                  if tmname = constr then return ()
+                                  else Error Missing_instantiation_constructor in
+                                (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
+                                let _ = compare n (dom_tface fa) in
+                                return
+                                  (Bwd.fold_right
+                                     (fun a args -> CubeOf.find a (id_sface n) :: args)
+                                     tmargs [])
+                            | _ -> Error Missing_instantiation_constructor);
                       }
-                      [ t1s; t2s ])
-                  [ constr_indices; ty_indices ] in
-              return (Constr (constr, dim, Bwd.of_list newargs))
+                      [ tyargs ] in
+                  (* Now we evaluate each argument *type* of the constructor at the parameters and the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
+                  let* env, newargs =
+                    check_tel ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
+                  (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
+                  let constr_indices =
+                    Bwv.map
+                      (fun ix ->
+                        CubeOf.build dim { build = (fun fa -> eval (Act (env, op_of_sface fa)) ix) })
+                      constr_indices in
+                  (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, throwing an exception in case I was wrong about that.  *)
+                  let open Bwv.Monadic (Err) in
+                  let* () =
+                    miterM
+                      (fun [ t1s; t2s ] ->
+                        let open CubeOf.Monadic (Err) in
+                        miterM
+                          {
+                            it =
+                              (fun fa [ t1; t2 ] ->
+                                match equal_at (Ctx.level ctx) t1 t2.tm t2.ty with
+                                | Some () -> return ()
+                                | None -> (
+                                    match is_id_sface fa with
+                                    | Some () -> Error Unequal_indices
+                                    | None ->
+                                        raise (Failure "Mismatching lower-dimensional constructors")
+                                    ));
+                          }
+                          [ t1s; t2s ])
+                      [ constr_indices; ty_indices ] in
+                  return (Constr (constr, dim, Bwd.of_list newargs)))
           | _ -> Error Checking_constructor_against_nondatatype))
   | _ -> Error Checking_mismatch
 
@@ -374,7 +376,7 @@ and synth_app :
                         let* ts = M.get in
                         let* tm =
                           match ts with
-                          | [] -> M.stateless (Error Not_enough_arguments_to_function)
+                          | [] -> M.stateless (Error Not_enough_arguments_to_instantiation)
                           | t :: ts ->
                               let* () = M.put ts in
                               return t in

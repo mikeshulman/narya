@@ -6,17 +6,17 @@ open Notations
 
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow families of state and result types (and it would be tricky to do that correctly anyway), so instead we record the result of parsing as a syntax tree with names, and have a separate step of "compilation" that makes it into a raw term. *)
 
-type observation = Flag of flag | Name of string option | Term of result
+type observation = Flag of flag | Name of string option | Term of res
 
 (* A "result" is traditionally known as a "parse tree" (not to be confused with our "notation trees"). *)
-and result =
+and res =
   | Notn of Notation.t * observation list
-  | App of result * result
+  | App of res * res
   | Name of string
   | Constr of string
   | Field of string
   | Numeral of float
-  | Abs of string option list * result
+  | Abs of string option list * res
 
 (* These "result trees" don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
 
@@ -73,7 +73,7 @@ let compile_numeral n =
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notatations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
-let rec compile : type n. (string option, n) Bwv.t -> result -> n check option =
+let rec compile : type n. (string option, n) Bwv.t -> res -> n check option =
  fun ctx res ->
   match res with
   | Notn (n, args) ->

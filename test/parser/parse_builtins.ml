@@ -6,25 +6,25 @@ open Builtins
 let () =
   assert (
     parse !builtins "(x : y) -> z"
-    = Left (Notn ("pi", [ Flag Explicit_pi; Name (Some "x"); Term (Name "y"); Term (Name "z") ])))
+    = Ok (Notn ("pi", [ Flag Explicit_pi; Name (Some "x"); Term (Name "y"); Term (Name "z") ])))
 
 let () =
   assert (
     parse !builtins "(x w : y) -> z"
-    = Left
+    = Ok
         (Notn
            ( "pi",
              [
                Flag Explicit_pi; Name (Some "x"); Name (Some "w"); Term (Name "y"); Term (Name "z");
              ] )))
 
-let () = assert (parse !builtins "x y |-> z" = Left (Abs ([ Some "x"; Some "y" ], Name "z")))
-let () = assert (Either.is_right (parse !builtins "x y |-> z : w"))
+let () = assert (parse !builtins "x y |-> z" = Ok (Abs ([ Some "x"; Some "y" ], Name "z")))
+let () = assert (Result.is_error (parse !builtins "x y |-> z : w"))
 
 let () =
   assert (
     parse !builtins "x y |-> (z : w)"
-    = Left
+    = Ok
         (Abs
            ( [ Some "x"; Some "y" ],
              Notn
@@ -38,7 +38,7 @@ let () =
 let () =
   assert (
     parse !builtins "(x y |-> z) : w"
-    = Left
+    = Ok
         (Notn
            ( ":",
              [
@@ -50,12 +50,12 @@ let () =
 let () =
   assert (
     parse !builtins "let x := y in z"
-    = Left (Notn ("let", [ Name (Some "x"); Flag Unasc_let; Term (Name "y"); Term (Name "z") ])))
+    = Ok (Notn ("let", [ Name (Some "x"); Flag Unasc_let; Term (Name "y"); Term (Name "z") ])))
 
 let () =
   assert (
     parse !builtins "let x := y in let a ≔ b in c"
-    = Left
+    = Ok
         (Notn
            ( "let",
              [
@@ -66,12 +66,12 @@ let () =
                  (Notn ("let", [ Name (Some "a"); Flag Unasc_let; Term (Name "b"); Term (Name "c") ]));
              ] )))
 
-let () = assert (Either.is_right (parse !builtins "let x := a in b : c"))
+let () = assert (Result.is_error (parse !builtins "let x := a in b : c"))
 
 let () =
   assert (
     parse !builtins "let x : a := y in z"
-    = Left
+    = Ok
         (Notn
            ( "let",
              [ Name (Some "x"); Flag Asc_let; Term (Name "a"); Term (Name "y"); Term (Name "z") ] )))
@@ -79,7 +79,7 @@ let () =
 let () =
   assert (
     parse !builtins "(x:A){y:B}(z w:C){u : D := M} -> N"
-    = Left
+    = Ok
         (Notn
            ( "pi",
              [
@@ -106,7 +106,7 @@ let () = Types.Sigma.install ()
 let () =
   assert (
     parse !builtins "{}"
-    = Left
+    = Ok
         (Notn
            ( "struc",
              [ (* Flag is ignored, since the eventual notation is not a pi *) Flag Implicit_pi ] )))
@@ -114,13 +114,12 @@ let () =
 let () =
   assert (
     parse !builtins "{x := y}"
-    = Left
-        (Notn ("struc", [ (* flag ignored *) Flag Implicit_pi; Name (Some "x"); Term (Name "y") ])))
+    = Ok (Notn ("struc", [ (* flag ignored *) Flag Implicit_pi; Name (Some "x"); Term (Name "y") ])))
 
 let () =
   assert (
     parse !builtins "{x := y ; z := w}"
-    = Left
+    = Ok
         (Notn
            ( "struc",
              [
@@ -135,7 +134,7 @@ let () =
 let () =
   assert (
     parse !builtins "{x := y ; z := w;}"
-    = Left
+    = Ok
         (Notn
            ( "struc",
              [
@@ -150,7 +149,7 @@ let () =
 let () =
   assert (
     parse !builtins "{x := y ; z := w; a ≔ b}"
-    = Left
+    = Ok
         (Notn
            ( "struc",
              [
@@ -164,18 +163,18 @@ let () =
                Term (Name "b");
              ] )))
 
-let () = assert (parse !builtins "A><B" = Left (Notn ("><", [ Term (Name "A"); Term (Name "B") ])))
+let () = assert (parse !builtins "A><B" = Ok (Notn ("><", [ Term (Name "A"); Term (Name "B") ])))
 
 let () =
   assert (
     parse !builtins "A >< B >< C"
-    = Left
+    = Ok
         (Notn ("><", [ Term (Name "A"); Term (Notn ("><", [ Term (Name "B"); Term (Name "C") ])) ])))
 
 let () =
   assert (
     parse !builtins "(x:A) >< B x"
-    = Left
+    = Ok
         (Notn
            ( "sig",
              [
@@ -189,7 +188,7 @@ let () =
 let () =
   assert (
     parse !builtins "(x:A) >< (y:B x) >< C x y"
-    = Left
+    = Ok
         (Notn
            ( "sig",
              [

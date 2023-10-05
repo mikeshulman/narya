@@ -21,7 +21,7 @@ let rec get_obs (obs : observation) : obs =
   | Name x -> Name x
   | Term r -> Term (get_res r)
 
-and get_res (r : result) : res =
+and get_res (r : Compile.res) : res =
   match r with
   | Notn (n, args) ->
       let d = get_data n in
@@ -35,5 +35,5 @@ and get_res (r : result) : res =
 
 let parse state str =
   match Parse.parse state str with
-  | Left res -> Either.Left (get_res res)
-  | Right err -> Right err
+  | Ok res -> Ok (get_res res)
+  | Error err -> Error err

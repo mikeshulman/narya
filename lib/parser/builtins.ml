@@ -130,8 +130,8 @@ and compile_pi_names :
           compile_pi_doms mn ctx dom cod)
 
 and compile_pi_doms :
-    type m n mn.
-    (m, n, mn) N.plus -> (string option, mn) Bwv.t -> result -> mn check -> m check option =
+    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> res -> mn check -> m check option
+    =
  fun mn ctx dom cod ->
   match (mn, ctx) with
   | Zero, _ -> return cod

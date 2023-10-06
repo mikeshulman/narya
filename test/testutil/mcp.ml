@@ -10,85 +10,75 @@ let context = ref ectx
 
 (* Functions to synth and check terms *)
 
-let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check list =
+let parse_term : type n. (string option, n) Bwv.t -> string -> (n Raw.check, string) result =
  fun names tm ->
   match Parse.parse !Builtins.builtins tm with
-  | Error _ -> []
+  | Error str -> Error str
   | Ok res -> (
       match Compile.compile names res with
-      | None -> []
-      | Some t -> [ t ])
+      | None -> Error "Compilation error"
+      | Some t -> Ok t)
 
 exception Synthesis_failure of Check.CheckErr.t
 exception Checking_failure of Check.CheckErr.t
 
 let synth (tm : string) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_term names tm in
-  match raw with
-  | [] -> raise (Failure "Parse failure")
-  | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
-  | [ Synth raw ] -> (
+  match parse_term names tm with
+  | Ok (Synth raw) -> (
       match Check.synth ctx raw with
       | Ok (syn, ty) ->
           let esyn = Ctx.eval ctx syn in
           (esyn, ty)
       | Error e -> raise (Synthesis_failure e))
-  | _ -> raise (Failure "Non-synthesizing")
+  | Ok _ -> raise (Failure "Non-synthesizing")
+  | Error str ->
+      print_endline str;
+      raise (Failure "Parse error")
 
 let check (tm : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_term names tm in
-  match raw with
-  | [] -> raise (Failure "Parse failure")
-  | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
-  | [ raw ] -> (
+  match parse_term names tm with
+  | Ok raw -> (
       match Check.check ctx raw ty with
       | Ok chk -> Ctx.eval ctx chk
       | Error e -> raise (Checking_failure e))
+  | Error str ->
+      print_endline str;
+      raise (Failure "Parse error")
 
 (* Assert that a term *doesn't* synthesize or check *)
 
 let unsynth (tm : string) : unit =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_term names tm in
-  match raw with
-  | [] -> raise (Failure "Parse failure")
-  | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
-  | [ Synth raw ] -> (
+  match parse_term names tm with
+  | Ok (Synth raw) -> (
       match Check.synth ctx raw with
       | Error _ -> ()
       | Ok _ -> raise (Failure "Synthesis success"))
-  | _ -> raise (Failure "Non-synthesizing")
+  | Ok _ -> raise (Failure "Non-synthesizing")
+  | Error str ->
+      print_endline str;
+      raise (Failure "Parse error")
 
 let uncheck (tm : string) (ty : Value.value) : unit =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_term names tm in
-  match raw with
-  | [] -> raise (Failure "Parse failure")
-  | _ :: _ :: _ -> raise (Failure "Ambiguous parse")
-  | [ raw ] -> (
+  match parse_term names tm with
+  | Ok raw -> (
       match Check.check ctx raw ty with
       | Error _ -> ()
       | Ok _ -> raise (Failure "Checking success"))
+  | Error str ->
+      print_endline str;
+      raise (Failure "Parse error")
 
 (* Assert that a term doesn't parse *)
 
 let unparse (tm : string) : unit =
   let (Ctx (_, names)) = !context in
-  let raw = parse_term names tm in
-  match raw with
-  | [ _ ] -> raise (Failure "Unexpected parse success")
-  | _ :: _ :: _ -> raise (Failure "Unexpected parse ambiguity")
-  | [] -> ()
-
-let ambparse (tm : string) : unit =
-  let (Ctx (_, names)) = !context in
-  let raw = parse_term names tm in
-  match raw with
-  | [ _ ] -> raise (Failure "Unexpected parse success")
-  | [] -> raise (Failure "Unexpected parse failure")
-  | _ :: _ :: _ -> ()
+  match parse_term names tm with
+  | Ok _ -> raise (Failure "Unexpected parse success")
+  | Error _ -> ()
 
 (* Add to the context of assumptions *)
 

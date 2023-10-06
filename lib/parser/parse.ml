@@ -24,7 +24,7 @@ module Parse_term = struct
         | _ -> None)
 
   let constr : res t =
-    step "constr" (fun state _ tok ->
+    step "constructor" (fun state _ tok ->
         match tok with
         | Constr x -> if Token.variableable x then Some (Constr x, state) else None
         | _ -> None)
@@ -48,7 +48,9 @@ module Parse_term = struct
       (observation Bwd.t * Notation.t) t =
     let* optree =
       msg (Printf.sprintf "Looking for op in tree\n");
-      step "operator" (fun state _ tok ->
+      step
+        (String.concat " or " (List.map (fun (k, _) -> Token.to_string k) (TokMap.bindings ops)))
+        (fun state _ tok ->
           let open Monad.Ops (Monad.Maybe) in
           let* br = TokMap.find_opt tok ops in
           msg (Printf.sprintf "Found op %s in tree\n" (Token.to_string tok));
@@ -195,7 +197,7 @@ module Parse_term = struct
                 return
                   ( App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))),
                     Some d.tightness )))
-       (* If this fails, we can parse a single variable name or a field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
+       (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
        </> let* arg = name </> numeral </> field </> constr in
            return (App (first_arg, arg), None) in
      msg (Printf.sprintf "Going on\n");
@@ -221,8 +223,15 @@ open Lex_and_parse
 let start (state : State.t) : Lex_and_parse.t =
   make Lexer.Parser.init (Parse_term.Parser.parse state)
 
-let parse (state : State.t) (str : string) : (Res.t, expect list) result =
+module Reporter = Error_reporter.Make (Lex_and_parse)
+
+let parse (state : State.t) (str : string) : (Res.t, string) result =
   let p = run_on_string str (start state) in
   if has_succeeded p then Ok (final p)
-  else if has_failed_syntax p then Error (failed_expectations p)
-  else raise (Failure "what.")
+  else if has_failed_syntax p then
+    Error
+      (let r = Reporter.make_syntax p in
+       let doc = Reporter.run_on_string str r in
+       let open Fmlib_pretty.Print in
+       string_of (layout 80 doc))
+  else raise (Failure "Parser failed in an unexpected way")

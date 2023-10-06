@@ -30,7 +30,7 @@ and equal_at : int -> value -> value -> value -> unit option =
       let k = CubeOf.dim doms in
       (* The pi-type must be instantiated at the correct dimension. *)
       match compare (TubeOf.inst tyargs) k with
-      | Neq -> fatal Dimension_mismatch "Dimension mismatch in equality at pi"
+      | Neq -> die (Dimension_mismatch ("equality at pi", TubeOf.inst tyargs, k))
       | Eq ->
           (* Create variables for all the boundary domains. *)
           let _, newargs, _, new_n = dom_vars ctx doms in
@@ -45,7 +45,9 @@ and equal_at : int -> value -> value -> value -> unit option =
       | Record { eta; fields; dim; _ } -> (
           let (Plus kdim) = D.plus dim in
           match compare (TubeOf.inst tyargs) (D.plus_out k kdim) with
-          | Neq -> fatal Dimension_mismatch "Dimension mismatch in equality at canonical"
+          | Neq ->
+              die
+                (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, D.plus_out k kdim))
           | Eq -> (
               if eta then
                 (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
@@ -68,14 +70,15 @@ and equal_at : int -> value -> value -> value -> unit option =
       (* At a datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  *)
       | Data { constrs; params; indices } -> (
           match compare (TubeOf.inst tyargs) k with
-          | Neq -> fatal Dimension_mismatch "Dimension mismatch in equality at canonical"
+          | Neq -> die (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, k))
           | Eq -> (
               match (x, y) with
               | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
                   let* () = guard (xconstr = yconstr) in
                   match (compare xn yn, compare xn (TubeOf.inst tyargs)) with
-                  | Neq, _ | _, Neq ->
-                      fatal Dimension_mismatch "Unequal dimensions of constrs in equality-check"
+                  | Neq, _ -> die (Dimension_mismatch ("equality of constrs", xn, yn))
+                  | _, Neq ->
+                      die (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
                   | Eq, Eq ->
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
@@ -182,7 +185,9 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       let* () = guard (name1 = name2) in
       match compare (cod_left_ins i1) (cod_left_ins i2) with
       | Neq ->
-          fatal Dimension_mismatch "Unequal dimensions of application in canonical equality-check"
+          die
+            (Dimension_mismatch
+               ("application in canonical equality-check", cod_left_ins i1, cod_left_ins i2))
       | Eq ->
           let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
           let open Mbwd.Monadic (Monad.Maybe) in
@@ -238,7 +243,8 @@ and equal_arg : int -> app -> app -> unit option =
           let open CubeOf.Monadic (Monad.Maybe) in
           miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
       (* If the dimensions don't match, it is a bug rather than a user error, since they are supposed to both be valid arguments of the same function, and any function has a unique dimension. *)
-      | Neq -> fatal Dimension_mismatch "Unequal dimensions of application in equality-check")
+      | Neq ->
+          die (Dimension_mismatch ("application in equality-check", CubeOf.dim a1, CubeOf.dim a2)))
   | Field f1, Field f2 -> guard (f1 = f2)
   | _, _ -> fail
 

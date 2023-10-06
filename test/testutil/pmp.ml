@@ -69,7 +69,7 @@ let ( @-> ) x body = Lam (x, body) (* Right-associative *)
 let ( $. ) x fld = Field (x, fld)
 let struc tms = Struct tms
 
-module Term = Asai.Tty.Make (Util.Logger.Code)
+module Term = Asai.Tty.Make (Core.Logger.Code)
 
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : 'n Ctx.t * (string, 'n) Bwv.t -> ctx

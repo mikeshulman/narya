@@ -17,7 +17,7 @@ let parse_term : type n. (string option, n) Bwv.t -> string -> (n Raw.check, str
       | None -> Error "Compilation error"
       | Some t -> Ok t)
 
-module Term = Asai.Tty.Make (Util.Logger.Code)
+module Term = Asai.Tty.Make (Core.Logger.Code)
 
 let synth (tm : string) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in

@@ -11,6 +11,8 @@ end
 open Monoid
 module D : MonoidPos
 
+val to_int : 'a D.t -> int
+
 type one
 
 val compare : 'm D.t -> 'n D.t -> ('m, 'n) compare

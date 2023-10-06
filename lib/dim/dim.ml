@@ -18,6 +18,8 @@ end
 
 module D = N
 
+let to_int (n : 'a D.t) : int = N.to_int n
+
 (* We consider the addition in D to represent composition in the delooping of the dimension category, in diagrammatic order. *)
 
 let compare : type m n. m D.t -> n D.t -> (m, n) Monoid.compare =

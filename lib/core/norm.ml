@@ -71,7 +71,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       (* tys is a complete m+n+k tube *)
       let (Inst_tys tys) = inst_tys newtm in
       match compare (TubeOf.inst tys) mn_k' with
-      | Neq -> fatal Dimension_mismatch "Dimension mismatch in evaluation instantiation"
+      | Neq -> die (Dimension_mismatch ("evaluation instantiation", TubeOf.inst tys, mn_k'))
       | Eq ->
           (* used_tys is an m+n+k tube with m+n uninstantiated and k instantiated.  These are the types that we must instantiate to give the types of the added instantiation arguments. *)
           let used_tys = TubeOf.pboundary (D.zero_plus mn') mn_k tys in
@@ -215,7 +215,7 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
   | Lam body -> (
       let m = CubeOf.dim arg in
       match compare (dim_binder body) m with
-      | Neq -> fatal Dimension_mismatch "Dimension mismatch applying a lambda"
+      | Neq -> die (Dimension_mismatch ("applying a lambda", dim_binder body, m))
       | Eq -> apply_binder body arg)
   (* If it is a neutral application... *)
   | Uninst (tm, (lazy ty)) -> (
@@ -226,9 +226,11 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
           (* ... and that the pi-type and its instantiation have the correct dimension. *)
           let k = CubeOf.dim doms in
           match (compare (TubeOf.inst tyargs) k, compare (CubeOf.dim arg) k) with
-          | Neq, _ -> fatal Dimension_mismatch "Dimension mismatch applying a neutral function"
+          | Neq, _ ->
+              die (Dimension_mismatch ("applying a neutral function", TubeOf.inst tyargs, k))
           | _, Neq ->
-              fatal Dimension_mismatch "Arguments dimension mismatch applying a neutral function"
+              die
+                (Dimension_mismatch ("applying a neutral function (arguments)", CubeOf.dim arg, k))
           | Eq, Eq -> (
               (* We annotate the new argument by its type, extracted from the domain type of the function being applied. *)
               let newarg = norm_of_vals arg doms in
@@ -240,7 +242,8 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
               | Canonical (name, prev_args, ins) -> (
                   match (is_id_perm (perm_of_ins ins), compare (cod_left_ins ins) k) with
                   | Some (), Eq -> Uninst (Canonical (name, Snoc (prev_args, newarg), ins), ty)
-                  | _ -> fatal Dimension_mismatch "Dimension/insertion mismatch applying canonical")
+                  | _, Neq -> die (Dimension_mismatch ("applying canonical", cod_left_ins ins, k))
+                  | None, _ -> fatal Anomaly "Insertion mismatch applying canonical")
               | _ -> fatal Anomaly "Invalid application of non-function uninst"))
       | _ -> fatal Anomaly "Invalid application by non-function")
   | _ -> fatal Anomaly "Invalid application of non-function"
@@ -373,7 +376,7 @@ and tyof_field : value -> value -> Field.t -> value =
       let m = cod_left_ins ins in
       let mn' = D.plus_out m mn in
       match compare (TubeOf.inst tyargs) mn' with
-      | Neq -> fatal Dimension_mismatch "Dimension mismatch in tyof_field"
+      | Neq -> die (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
       | Eq ->
           (* The type must be applied, at dimension m, to exactly the right number of parameters (k). *)
           let env, Emp = take_canonical_args (Emp m) args (N.zero_plus k) Zero in

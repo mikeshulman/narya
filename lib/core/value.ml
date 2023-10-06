@@ -211,8 +211,11 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
       | Inst { tm; dim = _; args = args1; tys = tys1 } -> (
           match compare (TubeOf.out args2) (TubeOf.uninst args1) with
           | Neq ->
-              fatal Dimension_mismatch
-                "Dimension mismatch instantiating a partially instantiated type"
+              die
+                (Dimension_mismatch
+                   ( "instantiating a partially instantiated type",
+                     TubeOf.out args2,
+                     TubeOf.uninst args1 ))
           | Eq ->
               let (Plus nk) = D.plus (TubeOf.inst args1) in
               let args = TubeOf.plus_tube nk args1 args2 in
@@ -225,8 +228,13 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
           match ty with
           | UU k -> (
               match (compare k (TubeOf.out args2), compare k (TubeOf.out tyargs)) with
-              | Neq, _ | _, Neq ->
-                  fatal Dimension_mismatch "Dimension mismatch instantiating an uninstantiated type"
+              | Neq, _ ->
+                  die
+                    (Dimension_mismatch ("instantiating an uninstantiated type", k, TubeOf.out args2))
+              | _, Neq ->
+                  die
+                    (Dimension_mismatch
+                       ("instantiating an uninstantiated type", k, TubeOf.out tyargs))
               | Eq, Eq ->
                   let tys =
                     val_of_norm_tube

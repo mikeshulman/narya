@@ -19,7 +19,7 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
   | Pi (doms, cods) -> (
       let k = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) k with
-      | Neq -> fatal Dimension_mismatch "Dimension mismatch in readback"
+      | Neq -> die (Dimension_mismatch ("reading back pi", TubeOf.inst tyargs, k))
       | Eq ->
           let (Faces df) = count_faces k in
           let (Plus af) = N.plus (faces_out df) in
@@ -62,12 +62,12 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
             | _ -> readback_val n tm)
       | Data { constrs; params; indices } -> (
           match compare (TubeOf.inst tyargs) k with
-          | Neq -> fatal Dimension_mismatch "Dimension mismatch in readback at canonical"
+          | Neq -> die (Dimension_mismatch ("reading back canonical", TubeOf.inst tyargs, k))
           | Eq -> (
               match tm with
               | Constr (xconstr, xn, xargs) -> (
                   match compare xn (TubeOf.inst tyargs) with
-                  | Neq -> fatal Dimension_mismatch "Unequal dimensions of constrs in readback"
+                  | Neq -> die (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
                   | Eq ->
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in

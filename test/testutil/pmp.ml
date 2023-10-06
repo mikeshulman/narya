@@ -69,6 +69,8 @@ let ( @-> ) x body = Lam (x, body) (* Right-associative *)
 let ( $. ) x fld = Field (x, fld)
 let struc tms = Struct tms
 
+module Term = Asai.Tty.Make (Util.Logger.Code)
+
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : 'n Ctx.t * (string, 'n) Bwv.t -> ctx
 
@@ -77,40 +79,42 @@ let context = ref ectx
 
 (* Functions to synth and check terms *)
 
-exception Synthesis_failure of Check.CheckErr.t
-exception Checking_failure of Check.CheckErr.t
-
 let synth (tm : pmt) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_syn names tm in
-  match Check.synth ctx raw with
-  | Ok (syn, ty) ->
-      let esyn = Ctx.eval ctx syn in
-      (esyn, ty)
-  | Error e -> raise (Synthesis_failure e)
+  Logger.run ~emit:Term.display ~fatal:(fun d ->
+      Term.display d;
+      raise (Failure "Failed to synthesize"))
+  @@ fun () ->
+  let syn, ty = Check.synth ctx raw in
+  let esyn = Ctx.eval ctx syn in
+  (esyn, ty)
 
 let check (tm : pmt) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_chk names tm in
-  match Check.check ctx raw ty with
-  | Ok chk -> Ctx.eval ctx chk
-  | Error e -> raise (Checking_failure e)
+  Logger.run ~emit:Term.display ~fatal:(fun d ->
+      Term.display d;
+      raise (Failure "Failed to check"))
+  @@ fun () ->
+  let chk = Check.check ctx raw ty in
+  Ctx.eval ctx chk
 
 (* Assert that a term *doesn't* synthesize or check *)
 
 let unsynth (tm : pmt) : unit =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_syn names tm in
-  match Check.synth ctx raw with
-  | Error _ -> ()
-  | Ok _ -> raise (Failure "Synthesis success")
+  Logger.run ~emit:Term.display ~fatal:(fun _ -> ()) @@ fun () ->
+  let _ = Check.synth ctx raw in
+  raise (Failure "Synthesis success")
 
 let uncheck (tm : pmt) (ty : Value.value) : unit =
   let (Ctx (ctx, names)) = !context in
   let raw = parse_chk names tm in
-  match Check.check ctx raw ty with
-  | Error _ -> ()
-  | Ok _ -> raise (Failure "Checking success")
+  Logger.run ~emit:Term.display ~fatal:(fun _ -> ()) @@ fun () ->
+  let _ = Check.check ctx raw ty in
+  raise (Failure "Checking success")
 
 (* Add to the context of assumptions *)
 

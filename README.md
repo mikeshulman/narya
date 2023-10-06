@@ -7,11 +7,11 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd) and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).
+Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Asai](https://redprl.org/asai/asai/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).
 
 ```
 opam switch create 5.1.0
-opam install bwd fmlib_parse
+opam install bwd asai fmlib_parse
 cd narya
 dune build
 dune runtest

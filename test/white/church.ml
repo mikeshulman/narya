@@ -1,19 +1,8 @@
 open Core
 open Raw
 
-exception Synthesis_failure of Check.CheckErr.t
-exception Checking_failure of Check.CheckErr.t
-
-let synth tm =
-  match Check.synth Ctx.empty tm with
-  | Ok (stm, _) -> stm
-  | Error e -> raise (Synthesis_failure e)
-
-let check tm ty =
-  match Check.check Ctx.empty tm ty with
-  | Ok ctm -> ctm
-  | Error e -> raise (Checking_failure e)
-
+let synth tm = fst (Check.synth Ctx.empty tm)
+let check tm ty = Check.check Ctx.empty tm ty
 let ev tm = Ctx.eval Ctx.empty tm
 let app fn arg = Norm.apply fn (Dim.CubeOf.singleton arg)
 

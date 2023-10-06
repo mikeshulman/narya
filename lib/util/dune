@@ -1,5 +1,5 @@
 (library
   (name util)
-  (libraries bwd)
+  (libraries bwd asai)
 	(instrumentation (backend landmarks --auto)))
 (env (_ (flags (:standard -w -37 -w -30))))

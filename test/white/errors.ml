@@ -1,93 +1,30 @@
 open Testutil
 open Mcp
-open Core.Check.CheckErr
 
 let uu, _ = synth "Type"
 let aa = assume "A" uu
 let atoa = check "A→A" uu
 let f = assume "f" atoa
 let a = assume "a" aa
-
-let () =
-  match check "a" uu with
-  | exception Checking_failure Unequal_synthesized_type -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match synth "refl f a" with
-  | exception Synthesis_failure Not_enough_arguments_to_function -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match synth "refl f a a" with
-  | exception Synthesis_failure Not_enough_arguments_to_function -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let () = uncheck "a" uu ~code:Unequal_synthesized_type
+let () = unsynth "refl f a" ~code:Not_enough_arguments_to_function
+let () = unsynth "refl f a a" ~code:Not_enough_arguments_to_function
 let _ = synth "refl f a a (refl a)"
-
-let _ =
-  match synth "refl f a a (refl a) a" with
-  | exception Synthesis_failure Applying_nonfunction_nontype -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match synth "Id A a" with
-  | exception Synthesis_failure Not_enough_arguments_to_instantiation -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let _ = unsynth "refl f a a (refl a) a" ~code:Applying_nonfunction_nontype
+let () = unsynth "Id A a" ~code:Not_enough_arguments_to_instantiation
 let idff = check "Id (A→A) f f" uu
-
-let () =
-  match check "x ↦ x" idff with
-  | exception Checking_failure Not_enough_lambdas -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match check "x y ↦ x" idff with
-  | exception Checking_failure Not_enough_lambdas -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let () = uncheck "x ↦ x" idff ~code:Not_enough_lambdas
+let () = uncheck "x y ↦ x" idff ~code:Not_enough_lambdas
 let _ = check "x0 x1 x2 ↦ refl f x0 x1 x2" idff
-
-let () =
-  match check "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff with
-  | exception Checking_failure Checking_mismatch -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match synth "refl (x ↦ x)" with
-  | exception Synthesis_failure Nonsynthesizing_argument_of_refl -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match synth "refl" with
-  | exception Synthesis_failure Missing_arguments_of_symbol -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match synth "sym f" with
-  | exception Synthesis_failure Low_dimensional_argument_of_sym -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match synth "g" with
-  | exception Synthesis_failure (No_such_constant _) -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let () = uncheck "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~code:Checking_mismatch
+let () = unsynth "refl (x ↦ x)" ~code:Nonsynthesizing_argument_of_degeneracy
+let () = unsynth "refl" ~code:Missing_argument_of_degeneracy
+let () = unsynth "sym f" ~code:Low_dimensional_argument_of_degeneracy
+let () = unsynth "g" ~code:Unbound_variable
 let ida, _ = synth "Id A"
-
-let () =
-  match check "a" ida with
-  | exception Checking_failure Type_not_fully_instantiated -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let () = uncheck "a" ida ~code:Type_not_fully_instantiated
 let idida, _ = synth "Id (Id A) a a (refl a) a a (refl a)"
-
-let () =
-  match check "a" idida with
-  | exception Checking_failure Type_not_fully_instantiated -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let () = uncheck "a" idida ~code:Type_not_fully_instantiated
 let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida))
 
 (* Records and datatypes *)
@@ -96,50 +33,16 @@ let () = Types.Nat.install ()
 let atou = check "A→Type" uu
 let bb = assume "B" atou
 let sigab = check "(x:A)× B x" uu
-
-let () =
-  match check "{ fst ≔ a }" sigab with
-  | exception Checking_failure Missing_field_in_struct -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match check "{ fst ≔ a }" aa with
-  | exception Checking_failure Checking_mismatch -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let () = uncheck "{ fst ≔ a }" sigab ~code:Missing_field_in_struct
+let () = uncheck "{ fst ≔ a }" aa ~code:Checking_mismatch
 let nat = check "N" uu
-
-let () =
-  match check "{ fst ≔ a }" nat with
-  | exception Checking_failure Checking_struct_against_nonrecord -> ()
-  | _ -> raise (Failure "Unexpected success")
-
+let () = uncheck "{ fst ≔ a }" nat ~code:Checking_struct_against_nonrecord
 let s = assume "s" sigab
-
-let () =
-  match synth "s .third" with
-  | exception Synthesis_failure (No_such_field _) -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match check "0." sigab with
-  | exception Checking_failure Checking_constructor_against_nondatatype -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match check "2." nat with
-  | exception Checking_failure (No_such_constructor _) -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match check "0. a" nat with
-  | exception Checking_failure Wrong_number_of_arguments_to_constructor -> ()
-  | _ -> raise (Failure "Unexpected success")
-
-let () =
-  match check "1." nat with
-  | exception Checking_failure Wrong_number_of_arguments_to_constructor -> ()
-  | _ -> raise (Failure "Unexpected success")
+let () = unsynth "s .third" ~code:No_such_field
+let () = uncheck "0." sigab ~code:Checking_constructor_against_nondatatype
+let () = uncheck "2." nat ~code:No_such_constructor
+let () = uncheck "0. a" nat ~code:Wrong_number_of_arguments_to_constructor
+let () = uncheck "1." nat ~code:Wrong_number_of_arguments_to_constructor
 
 (* To test degeneracies on records we have to set up a bunch of stuff, since the simplest case this happens is with Id Gel and squares in the universe. *)
 let () = Types.Gel.install ()
@@ -178,7 +81,4 @@ let r2' = check "{ ungel ≔ r2 }" r2ty
 let symr2ty, _ =
   synth "sym (refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2) a0 b0 { ungel ≔ r0} a1 b1 { ungel ≔ r1 } a2 b2"
 
-let () =
-  match check "{ ungel ≔ r2 }" symr2ty with
-  | exception Checking_failure Record_has_degeneracy -> ()
-  | _ -> raise (Failure "Unexpected success")
+let () = uncheck "{ ungel ≔ r2 }" symr2ty ~code:Checking_struct_at_degenerated_record

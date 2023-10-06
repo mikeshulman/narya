@@ -1,6 +1,7 @@
 (* This module should not be opened, but used qualified. *)
 
 open Util
+open Logger
 open Term
 open Dim
 
@@ -65,4 +66,4 @@ let find_record_field : Constant.t -> Field.t -> field =
   | Record { eta = _; params; dim; dim_faces; params_plus; fields } ->
       let _, ty = List.find (fun (f, _) -> f = fld) fields in
       Field { params; dim; dim_faces; params_plus; ty }
-  | _ -> raise (Failure "Non-record has no fields")
+  | _ -> fatal Anomaly "Non-record has no fields"

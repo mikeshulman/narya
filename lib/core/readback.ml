@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Logger
 open Dim
 open Value
 open Term
@@ -18,7 +19,7 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
   | Pi (doms, cods) -> (
       let k = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) k with
-      | Neq -> raise (Failure "Instantiation mismatch in equality-checking")
+      | Neq -> fatal Dimension_mismatch "Dimension mismatch in readback"
       | Eq ->
           let (Faces df) = count_faces k in
           let (Plus af) = N.plus (faces_out df) in
@@ -61,12 +62,12 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
             | _ -> readback_val n tm)
       | Data { constrs; params; indices } -> (
           match compare (TubeOf.inst tyargs) k with
-          | Neq -> raise (Failure "Instantiation mismatch in readback at canonical")
+          | Neq -> fatal Dimension_mismatch "Dimension mismatch in readback at canonical"
           | Eq -> (
               match tm with
               | Constr (xconstr, xn, xargs) -> (
                   match compare xn (TubeOf.inst tyargs) with
-                  | Neq -> raise (Failure "Unequal dimensions of constrs in readback")
+                  | Neq -> fatal Dimension_mismatch "Unequal dimensions of constrs in readback"
                   | Eq ->
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
@@ -83,9 +84,8 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
                                     if tmname = xconstr then
                                       Bwd.map (fun a -> CubeOf.find a (id_sface l)) tmargs
                                     else
-                                      raise
-                                        (Failure "Inst arg wrong constr in readback at datatype")
-                                | _ -> raise (Failure "Inst arg not constr in readback at datatype"));
+                                      fatal Anomaly "Inst arg wrong constr in readback at datatype"
+                                | _ -> fatal Anomaly "Inst arg not constr in readback at datatype");
                           }
                           [ tyargs ] in
                       Constr
@@ -112,9 +112,9 @@ and readback_val : type a. a Coctx.t -> value -> a term =
       let tm = readback_uninst n tm in
       let args = TubeOf.mmap { map = (fun _ [ x ] -> readback_nf n x) } [ args ] in
       Inst (tm, args)
-  | Lam _ -> raise (Failure "Unexpected lambda in synthesizing readback")
-  | Struct _ -> raise (Failure "Unexpected struct in synthesizing readback")
-  | Constr _ -> raise (Failure "Unexpected constr in synthesizing readback")
+  | Lam _ -> fatal Anomaly "Unexpected lambda in synthesizing readback"
+  | Struct _ -> fatal Anomaly "Unexpected struct in synthesizing readback"
+  | Constr _ -> fatal Anomaly "Unexpected constr in synthesizing readback"
 
 and readback_uninst : type a. a Coctx.t -> uninst -> a term =
  fun ctx x ->
@@ -184,7 +184,7 @@ and readback_at_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> raise (Failure "Missing arguments in readback_at_tel")
+                | [] -> fatal Anomaly "Missing arguments in readback_at_tel"
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =
@@ -209,4 +209,4 @@ and readback_at_tel :
       :: readback_at_tel ctx
            (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)))
            xs tys tyargs
-  | _ -> raise (Failure "Length mismatch in equal_at_tel")
+  | _ -> fatal Anomaly "Length mismatch in equal_at_tel"

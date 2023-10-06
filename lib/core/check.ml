@@ -51,7 +51,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
   | Lam _, Pi (doms, cods) -> (
       let m = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) m with
-      | Neq -> raise (Failure "Dimension mismatch checking lambda")
+      | Neq -> fatal Dimension_mismatch "Dimension mismatch checking lambda"
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
@@ -104,14 +104,14 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
       (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
       let dim = TubeOf.inst tyargs in
       match compare (cod_left_ins ins) dim with
-      | Neq -> raise (Failure "Dimension mismatch checking constr")
+      | Neq -> fatal Dimension_mismatch "Dimension mismatch checking constr"
       | Eq -> (
           (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_params_indices contains the *values* of the parameters and indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
           match Hashtbl.find Global.constants name with
           (* We do need the constructors of the datatype, as well as its *number* of parameters and indices. *)
           | Data { constrs; params; indices } -> (
               match is_id_perm (perm_of_ins ins) with
-              | None -> raise (Failure "Datatypes with degeneracy shouldn't exist")
+              | None -> fatal Anomaly "Datatypes with degeneracy shouldn't exist"
               | Some () ->
                   (* The datatype must contain a constructor with our current name. *)
                   let (Constr { args = constr_arg_tys; indices = constr_indices }) =
@@ -169,8 +169,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
                                         fatal Unequal_indices
                                           "Indices of constructor application don't match those of datatype instance"
                                     | None ->
-                                        raise (Failure "Mismatching lower-dimensional constructors")
-                                    ));
+                                        fatal Anomaly "Mismatching lower-dimensional constructors"));
                           }
                           [ t1s; t2s ])
                       [ constr_indices; ty_indices ] in
@@ -271,7 +270,7 @@ and synth_app :
   | Pi (doms, cods) -> (
       (* Ensure that the pi-type is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
-      | Neq -> raise (Failure "Dimension mismatch applying function")
+      | Neq -> fatal Dimension_mismatch "Dimension mismatch applying function"
       | Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
           let eargtbl = Hashtbl.create 10 in
@@ -314,7 +313,7 @@ and synth_app :
   | UU n -> (
       (* Ensure that the universe is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) n with
-      | Neq -> raise (Failure "Dimension mismatch instantiating type")
+      | Neq -> fatal Dimension_mismatch "Dimension mismatch instantiating type"
       | Eq -> (
           match D.compare_zero n with
           | Zero ->
@@ -393,7 +392,7 @@ and check_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> raise (Failure "Missing arguments in check_tel")
+                | [] -> fatal Anomaly "Missing arguments in check_tel"
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =

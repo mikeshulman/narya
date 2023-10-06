@@ -1,4 +1,5 @@
 open Util
+open Logger
 open Dim
 open Term
 open Bwd
@@ -182,15 +183,15 @@ let full_inst : value -> string -> full_inst =
       | Uninst (UU n, _) -> (
           match compare n D.zero with
           | Eq -> Fullinst (ty, TubeOf.empty D.zero)
-          | Neq -> raise (Failure ("Type not fully instantiated in " ^ err)))
-      | _ -> raise (Failure ("Type not fully instantiated in " ^ err)))
+          | Neq -> fatalf Anomaly "Type not fully instantiated in %s" err)
+      | _ -> fatalf Anomaly "Type not fully instantiated in %s" err)
   | Inst { tm = ty; dim = _; args; tys = _ } -> (
       match compare (TubeOf.uninst args) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           Fullinst (ty, args)
-      | Neq -> raise (Failure ("Type not fully instantiated in " ^ err)))
-  | _ -> raise (Failure ("Fully instantiated type missing in " ^ err))
+      | Neq -> fatalf Anomaly "Type not fully instantiated in %s" err)
+  | _ -> fatalf Anomaly "Fully instantiated type missing in %s" err
 
 (* A version that returns errors rather than throwing exceptions. *)
 let full_inst_opt : value -> full_inst option =
@@ -209,7 +210,9 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
       match tm with
       | Inst { tm; dim = _; args = args1; tys = tys1 } -> (
           match compare (TubeOf.out args2) (TubeOf.uninst args1) with
-          | Neq -> raise (Failure "Dimension mismatch instantiating a partially instantiated type")
+          | Neq ->
+              fatal Dimension_mismatch
+                "Dimension mismatch instantiating a partially instantiated type"
           | Eq ->
               let (Plus nk) = D.plus (TubeOf.inst args1) in
               let args = TubeOf.plus_tube nk args1 args2 in
@@ -223,7 +226,7 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
           | UU k -> (
               match (compare k (TubeOf.out args2), compare k (TubeOf.out tyargs)) with
               | Neq, _ | _, Neq ->
-                  raise (Failure "Dimension mismatch instantiating an uninstantiated type")
+                  fatal Dimension_mismatch "Dimension mismatch instantiating an uninstantiated type"
               | Eq, Eq ->
                   let tys =
                     val_of_norm_tube
@@ -231,10 +234,10 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
                   in
                   let tys = inst_args args2 tys in
                   Inst { tm; dim = dim2; args = args2; tys })
-          | _ -> raise (Failure "Can't instantiate non-type"))
-      | Lam _ -> raise (Failure "Can't instantiate lambda-abstraction")
-      | Struct _ -> raise (Failure "Can't instantiate struct")
-      | Constr _ -> raise (Failure "Can't instantiate constructor"))
+          | _ -> fatal Anomaly "Can't instantiate non-type")
+      | Lam _ -> fatal Anomaly "Can't instantiate lambda-abstraction"
+      | Struct _ -> fatal Anomaly "Can't instantiate struct"
+      | Constr _ -> fatal Anomaly "Can't instantiate constructor")
 
 and inst_args :
     type m n mn.
@@ -269,15 +272,15 @@ let inst_tys : value -> inst_tys = function
   | Uninst (_, (lazy (Uninst (UU z, _)))) -> (
       match compare z D.zero with
       | Eq -> Inst_tys (TubeOf.empty D.zero)
-      | Neq -> raise (Failure "Higher universe must be instantiated to be a type"))
+      | Neq -> fatal Anomaly "Higher universe must be instantiated to be a type")
   | Uninst (_, (lazy (Inst { tm = UU _; dim = _; args = tys; tys = _ }))) -> (
       match compare (TubeOf.uninst tys) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (D.zero_plus (TubeOf.inst tys)) (TubeOf.plus tys) in
           Inst_tys (val_of_norm_tube tys)
-      | Neq -> raise (Failure "Universe must be fully instantiated to be a type"))
+      | Neq -> fatal Anomaly "Universe must be fully instantiated to be a type")
   | Inst { tm = _; dim = _; args = _; tys } -> Inst_tys tys
-  | _ -> raise (Failure "Invalid type, has no instantiation arguments")
+  | _ -> fatal Anomaly "Invalid type, has no instantiation arguments"
 
 (* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
 and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, normal) CubeOf.t =
@@ -316,7 +319,7 @@ let rec take_args :
       let env = take_args env dargs plus in
       (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
       Ext (env, arg)
-  | _ -> raise (Failure "Wrong number of arguments in argument list")
+  | _ -> fatal Anomaly "Wrong number of arguments in argument list"
 
 (* A version that takes only actual arguments without insertions, adds a specified number of them to the environment, and returns the others in a Bwv of specified length.  *)
 let rec take_canonical_args :
@@ -333,14 +336,14 @@ let rec take_canonical_args :
       | Snoc (args, arg) ->
           let env, rest = take_canonical_args env args ab abc in
           (env, Snoc (rest, arg))
-      | Emp -> raise (Failure "Not enough arguments in canonical argument list"))
+      | Emp -> fatal Anomaly "Not enough arguments in canonical argument list")
   | Zero -> (
       match (args, ab) with
       | Snoc (args, arg), Suc ab ->
           let env, Emp = take_canonical_args env args ab Zero in
           (Ext (env, val_of_norm_cube arg), Emp)
       | Emp, Zero -> (env, Emp)
-      | _ -> raise (Failure "Wrong number of arguments in canonical argument list"))
+      | _ -> fatal Anomaly "Wrong number of arguments in canonical argument list")
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
 let rec universe : type n. n D.t -> value =
@@ -368,7 +371,7 @@ and universe_nf : type n. n D.t -> normal =
   let uun = universe n in
   match uun with
   | Uninst (_, (lazy uunty)) -> { tm = uun; ty = uunty }
-  | _ -> raise (Failure "Impossible result from universe")
+  | _ -> fatal Anomaly "Impossible result from universe"
 
 (* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
 let rec tyof_inst :

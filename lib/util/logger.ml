@@ -23,6 +23,8 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy
     | Missing_argument_of_degeneracy
     | Applying_nonfunction_nontype
+    | Dimension_mismatch
+    | Anomaly
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -49,6 +51,8 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> Error
     | Applying_nonfunction_nontype -> Error
     | Wrong_number_of_arguments_to_constructor -> Error
+    | Dimension_mismatch -> Bug
+    | Anomaly -> Bug
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let to_string : t -> string = function
@@ -75,6 +79,8 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> "E1920"
     | Applying_nonfunction_nontype -> "E0794"
     | Wrong_number_of_arguments_to_constructor -> "E3871"
+    | Dimension_mismatch -> "E0367"
+    | Anomaly -> "E9499"
 end
 
 include Asai.Logger.Make (Code)

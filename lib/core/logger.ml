@@ -24,6 +24,16 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy of string * int
     | Missing_argument_of_degeneracy
     | Applying_nonfunction_nontype
+    | Higher_dimensional_match_not_implemented
+    | Matching_datatype_has_degeneracy
+    | Index_variables_duplicated
+    | Non_variable_index_in_match
+    | Degenerated_variable_index_in_match
+    | Wrong_number_of_arguments_to_pattern of Constr.t
+    | No_such_constructor_in_match of Constant.t * Constr.t
+    | Index_variable_in_index_value
+    | Matching_on_nondatatype
+    | Matching_on_let_bound_variable
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Anomaly
 
@@ -51,6 +61,16 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> Error
     | Applying_nonfunction_nontype -> Error
     | Wrong_number_of_arguments_to_constructor -> Error
+    | Higher_dimensional_match_not_implemented -> Error
+    | Matching_datatype_has_degeneracy -> Error
+    | Index_variables_duplicated -> Error
+    | Non_variable_index_in_match -> Error
+    | Degenerated_variable_index_in_match -> Error
+    | Wrong_number_of_arguments_to_pattern _ -> Error
+    | No_such_constructor_in_match _ -> Error
+    | Index_variable_in_index_value -> Error
+    | Matching_on_nondatatype -> Error
+    | Matching_on_let_bound_variable -> Error
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Anomaly -> Bug
 
@@ -78,6 +98,16 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> "E1920"
     | Applying_nonfunction_nontype -> "E0794"
     | Wrong_number_of_arguments_to_constructor -> "E3871"
+    | Higher_dimensional_match_not_implemented -> "E2858"
+    | Matching_datatype_has_degeneracy -> "E3802"
+    | Index_variables_duplicated -> "E8825"
+    | Non_variable_index_in_match -> "E7910"
+    | Degenerated_variable_index_in_match -> "E2687"
+    | Wrong_number_of_arguments_to_pattern _ -> "E8972"
+    | No_such_constructor_in_match _ -> "E8969"
+    | Index_variable_in_index_value -> "E6437"
+    | Matching_on_nondatatype -> "E1270"
+    | Matching_on_let_bound_variable -> "E7098"
     | Dimension_mismatch _ -> "E0367"
     | Anomaly -> "E9499"
 end
@@ -140,6 +170,26 @@ let die ?severity (e : Code.t) =
   | Missing_argument_of_degeneracy -> fatal ?severity e "Missing arguments of degeneracy"
   | Applying_nonfunction_nontype ->
       fatal ?severity e "Attempt to apply/instantiate a non-function, non-type"
+  | Higher_dimensional_match_not_implemented ->
+      fatal ?severity e "Matching on higher-dimensional types is not yet implemented"
+  | Matching_datatype_has_degeneracy ->
+      fatal ?severity e "Can't match on element of a datatype with degeneracy applied"
+  | Index_variables_duplicated ->
+      fatal ?severity e "Indices of a match variable must be distinct variables"
+  | Non_variable_index_in_match ->
+      fatal ?severity e "Indices of a match variable must be free variables"
+  | Degenerated_variable_index_in_match ->
+      fatal ?severity e "Indices of a match variable must be free variables without degeneracies"
+  | Wrong_number_of_arguments_to_pattern c ->
+      fatalf ?severity e "Wrong number of arguments to constructor %s in match pattern"
+        (Constr.to_string c)
+  | No_such_constructor_in_match (d, c) ->
+      fatalf ?severity e "Datatype %s being matched against has no constructor %s"
+        (Constant.to_string d) (Constr.to_string c)
+  | Index_variable_in_index_value ->
+      fatal ?severity e "Free index variable occurs in inferred index value"
+  | Matching_on_nondatatype -> fatal ?severity e "Can't match on variable belonging to non-datatype"
+  | Matching_on_let_bound_variable -> fatal ?severity e "Can't match on a let-bound variable"
   | Dimension_mismatch (op, a, b) ->
       fatalf ?severity e "Dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
   | Anomaly -> fatal ?severity e "Anomaly"

@@ -36,7 +36,7 @@ let spine : type a. a synth -> a synth * a check list =
 let rec check : type a. a Ctx.t -> a check -> value -> a term =
  fun ctx tm ty ->
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
-  let (Fullinst (uty, tyargs)) = full_inst_opt ty <|> Type_not_fully_instantiated in
+  let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
   match (tm, uty) with
   | Synth stm, _ ->
       let sval, sty = synth ctx stm in
@@ -63,7 +63,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
       (* We don't need to name the arguments of Canonical here because tyof_field, called below, uses them. *)
       match Hashtbl.find Global.constants name with
       | Record { fields; _ } ->
-          let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record in
+          let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
           let dim = cod_left_ins ins in
           (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
           let module M = Monad.State (struct
@@ -169,7 +169,7 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
       let stm, sty = synth ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
       let etm = Ctx.eval ctx stm in
-      let newty = tyof_field_opt etm sty fld <|> No_such_field (None, fld) in
+      let newty = tyof_field ~severity:Asai.Diagnostic.Error etm sty fld in
       (Field (stm, fld), newty)
   | Symbol (UU, Zero, Emp) -> (Term.UU D.zero, universe D.zero)
   | Pi (dom, cod) ->

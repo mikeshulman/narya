@@ -171,11 +171,10 @@ let rec env_append :
   | Zero, Emp -> env
   | Suc ab, Snoc (xss, xs) -> Ext (env_append ab env xss, xs)
 
-(* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  Optionally, raise an error if it isn't. *)
+(* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  In most situations, the failure of this is a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
 
-let full_inst : value -> string -> full_inst =
- fun ty err ->
+let full_inst ?severity (ty : value) (err : string) : full_inst =
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
   | Uninst (ty, (lazy univ)) -> (
@@ -183,22 +182,16 @@ let full_inst : value -> string -> full_inst =
       | Uninst (UU n, _) -> (
           match compare n D.zero with
           | Eq -> Fullinst (ty, TubeOf.empty D.zero)
-          | Neq -> fatalf Anomaly "Type not fully instantiated in %s" err)
-      | _ -> fatalf Anomaly "Type not fully instantiated in %s" err)
+          | Neq ->
+              fatalf ?severity Type_not_fully_instantiated "Type not fully instantiated in %s" err)
+      | _ -> fatalf ?severity Type_not_fully_instantiated "Type not fully instantiated in %s" err)
   | Inst { tm = ty; dim = _; args; tys = _ } -> (
       match compare (TubeOf.uninst args) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           Fullinst (ty, args)
-      | Neq -> fatalf Anomaly "Type not fully instantiated in %s" err)
-  | _ -> fatalf Anomaly "Fully instantiated type missing in %s" err
-
-(* A version that returns errors rather than throwing exceptions. *)
-let full_inst_opt : value -> full_inst option =
- fun ty ->
-  match full_inst ty "" with
-  | exception _ -> None
-  | res -> Some res
+      | Neq -> fatalf ?severity Type_not_fully_instantiated "Type not fully instantiated in %s" err)
+  | _ -> fatalf ?severity Type_not_fully_instantiated "Fully instantiated type missing in %s" err
 
 (* Instantiate an arbitrary value, combining tubes. *)
 let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =

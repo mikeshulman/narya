@@ -17,14 +17,14 @@ let parse_term : type n. (string option, n) Bwv.t -> string -> (n Raw.check, str
       | None -> Error "Compilation error"
       | Some t -> Ok t)
 
-module Term = Asai.Tty.Make (Core.Logger.Code)
+module Terminal = Asai.Tty.Make (Core.Logger.Code)
 
 let synth (tm : string) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
   match parse_term names tm with
   | Ok (Synth raw) ->
-      Logger.run ~emit:Term.display ~fatal:(fun d ->
-          Term.display d;
+      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+          Terminal.display d;
           raise (Failure "Failed to synthesize"))
       @@ fun () ->
       let syn, ty = Check.synth ctx raw in
@@ -39,8 +39,8 @@ let check (tm : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
   match parse_term names tm with
   | Ok raw ->
-      Logger.run ~emit:Term.display ~fatal:(fun d ->
-          Term.display d;
+      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+          Terminal.display d;
           raise (Failure "Failed to check"))
       @@ fun () ->
       let chk = Check.check ctx raw ty in
@@ -55,13 +55,13 @@ let unsynth ?code (tm : string) : unit =
   let (Ctx (ctx, names)) = !context in
   match parse_term names tm with
   | Ok (Synth raw) ->
-      Logger.run ~emit:Term.display ~fatal:(fun d ->
+      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
           match code with
           | None -> ()
           | Some c ->
               if d.code = c then ()
               else (
-                Term.display d;
+                Terminal.display d;
                 raise (Failure "Unexpected error code")))
       @@ fun () ->
       let _ = Check.synth ctx raw in
@@ -75,13 +75,13 @@ let uncheck ?code (tm : string) (ty : Value.value) : unit =
   let (Ctx (ctx, names)) = !context in
   match parse_term names tm with
   | Ok raw ->
-      Logger.run ~emit:Term.display ~fatal:(fun d ->
+      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
           match code with
           | None -> ()
           | Some c ->
               if d.code = c then ()
               else (
-                Term.display d;
+                Terminal.display d;
                 raise (Failure "Unexpected error code")))
       @@ fun () ->
       let _ = Check.check ctx raw ty in

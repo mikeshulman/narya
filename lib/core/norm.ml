@@ -362,16 +362,15 @@ and field : value -> Field.t -> value =
       apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
   | _ -> fatalf Anomaly "Invalid field %s of non-record type" (Field.to_string fld)
 
-(* Given a term and its record type, compute the type of a field projection. *)
-and tyof_field : value -> value -> Field.t -> value =
- fun tm ty fld ->
-  let (Fullinst (ty, tyargs)) = full_inst ty "tyof_field" in
+(* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
+and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
+  let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
   | Canonical (name, args, ins) -> (
       (* The head of the type must be a record type with a field having the correct name. *)
       let (Field { params = k; dim = n; dim_faces = nf; params_plus = kf; ty = fldty }) =
-        Global.find_record_field name fld in
-      (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n. *)
+        Global.find_record_field ?severity name fld in
+      (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n.  *)
       let (Plus mn) = D.plus n in
       let m = cod_left_ins ins in
       let mn' = D.plus_out m mn in
@@ -405,7 +404,7 @@ and tyof_field : value -> value -> Field.t -> value =
                      { tm; ty });
                }
                [ TubeOf.middle (D.zero_plus m) mn tyargs ]))
-  | _ -> fatal Anomaly "Non-record type doesn't have fields"
+  | _ -> die (No_such_field (None, fld))
 
 and eval_binder :
     type m n mn b f bf.
@@ -452,10 +451,3 @@ and apply_binder : type n. n Value.binder -> (n, value) CubeOf.t -> value =
              b.args))
        b.body)
     b.perm
-
-(* A version of tyof_field that returns errors rather than throwing exceptions. *)
-let tyof_field_opt : value -> value -> Field.t -> value option =
- fun tm ty fld ->
-  match tyof_field tm ty fld with
-  | exception _ -> None
-  | res -> Some res

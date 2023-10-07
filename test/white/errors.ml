@@ -38,7 +38,9 @@ let () = uncheck "{ fst ≔ a }" aa ~code:Checking_mismatch
 let nat = check "N" uu
 let () = uncheck "{ fst ≔ a }" nat ~code:(Checking_struct_against_nonrecord Types.Nat.nn)
 let s = assume "s" sigab
-let () = unsynth "s .third" ~code:(No_such_field (None, Core.Field.intern "third"))
+
+let () =
+  unsynth "s .third" ~code:(No_such_field (Some Types.Sigma.sigma, Core.Field.intern "third"))
 
 let () =
   uncheck "0." sigab
@@ -85,4 +87,5 @@ let r2' = check "{ ungel ≔ r2 }" r2ty
 let symr2ty, _ =
   synth "sym (refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2) a0 b0 { ungel ≔ r0} a1 b1 { ungel ≔ r1 } a2 b2"
 
-let () = uncheck "{ ungel ≔ r2 }" symr2ty ~code:Checking_struct_at_degenerated_record
+let () =
+  uncheck "{ ungel ≔ r2 }" symr2ty ~code:(Checking_struct_at_degenerated_record Types.Gel.gel)

@@ -6,7 +6,9 @@ open Term
 open Value
 open Norm
 
-(* A context is a list of variables, each of which has a value that is a normal form.  Often the "value" of a variable will just be ITSELF, represented by a De Bruijn LEVEL, together of course with its type.  This can then appear in the types of later variables.  In particular, the LENGTH of this context, which is its type parameter as a type-level nat, is the current De Bruijn LEVEL for new variables to be added.  We can look up the INDEX of a TERM VARIABLE into this Bwv to get its type, but not of course the LEVEL of a VALUE VARIABLE. *)
+(* A context is a list of variables, each of which has a value that is a normal form.  Often the "value" of a variable will just be ITSELF, represented by a De Bruijn LEVEL, together of course with its type.  This can then appear in the types of later variables.  In particular, the LENGTH of this context, which is its type parameter as a type-level nat, is the current De Bruijn LEVEL for new variables to be added.  We can look up the INDEX of a TERM VARIABLE into this Bwv to get its type, but not of course the LEVEL of a VALUE VARIABLE.
+
+   The "int option" stores the level of the variable separately from its value.  If a term variable is bound to a value other than itself, then the "int option" will be None (and the value will be that value). *)
 type 'a t = (int option * normal, 'a) Bwv.t
 
 let level : 'a t -> int = fun ctx -> N.to_int (Bwv.length ctx)
@@ -39,3 +41,35 @@ let rec exts :
       let n = level newctx in
       let ty = Hashtbl.find vals key in
       Snoc (newctx, (Some n, { tm = var n ty; ty }))
+
+(* Extend a context by a finite number of new variables, whose types are specified in a telescope (and hence may depend on the earlier ones).  Also return the new variables in a Bwd and the new environment extended by them. *)
+let ext_tel :
+    type a b c ac bc.
+    a t ->
+    (D.zero, b) env ->
+    (b, c, bc) Telescope.t ->
+    (a, c, ac) N.plus ->
+    ac t * (D.zero, bc) env * (value, c) Bwv.t =
+ fun ctx env tel ac ->
+  let rec ext_tel :
+      type a b c ac bc d dc.
+      a t ->
+      (D.zero, b) env ->
+      (b, c, bc) Telescope.t ->
+      (a, c, ac) N.plus ->
+      (d, c, dc) N.plus ->
+      (value, d) Bwv.t ->
+      ac t * (D.zero, bc) env * (value, dc) Bwv.t =
+   fun ctx env tel ac dc vars ->
+    match (tel, ac, dc) with
+    | Emp, Zero, Zero -> (ctx, env, vars)
+    | Ext (rty, rest), Suc _, Suc _ ->
+        let n = level ctx in
+        let ty = Norm.eval env rty in
+        let tm = var n ty in
+        ext_tel
+          (Snoc (ctx, (Some n, { tm; ty })))
+          (Ext (env, CubeOf.singleton tm))
+          rest (N.suc_plus'' ac) (N.suc_plus'' dc)
+          (Snoc (vars, tm)) in
+  ext_tel ctx env tel ac (N.zero_plus (N.plus_right ac)) Emp

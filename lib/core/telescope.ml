@@ -10,3 +10,7 @@ type ('a, 'b, 'ab) t =
 let rec length : type a b ab. (a, b, ab) t -> b N.t = function
   | Emp -> Nat Zero
   | Ext (_, tel) -> N.suc (length tel)
+
+let rec plus : type a b ab. (a, b, ab) t -> (a, b, ab) N.plus = function
+  | Emp -> Zero
+  | Ext (_, tel) -> N.suc_plus (plus tel)

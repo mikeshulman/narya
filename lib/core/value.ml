@@ -322,6 +322,12 @@ let rec take_args :
       Ext (env, arg)
   | _ -> fatal Anomaly "Wrong number of arguments in argument list"
 
+let rec env_of_bwv : type n a. n D.t -> ((n, normal) CubeOf.t, a) Bwv.t -> (n, a) env =
+ fun n xs ->
+  match xs with
+  | Emp -> Emp n
+  | Snoc (xs, x) -> Ext (env_of_bwv n xs, val_of_norm_cube x)
+
 (* A version that takes only actual arguments without insertions, adds a specified number of them to the environment, and returns the others in a Bwv of specified length.  *)
 let rec take_canonical_args :
     type n a b ab c abc.

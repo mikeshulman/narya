@@ -51,6 +51,7 @@ type tree =
 (* When there is a choice in parsing, we arrange it so that there is as little backtracking required as possible: we test all the possible next literal tokens, the possibility of a field or constructor, variable, other term, or being done with this node.  With this arrangement, the only necessary backtracking is that a var could also be a term, so if both of those options are present, we have to backtrack after trying to parse a var and failing. *)
 and branch = {
   ops : tree TokMap.t;
+  constr : tree option;
   name : tree option;
   term : tree TokMap.t option;
   fail : string list;
@@ -58,22 +59,34 @@ and branch = {
 
 (* Helper functions for constructing notation trees *)
 
-let op tok x = Inner { ops = TokMap.singleton tok x; name = None; term = None; fail = [] }
-let ops toks = Inner { ops = TokMap.of_list toks; name = None; term = None; fail = [] }
+let op tok x =
+  Inner { ops = TokMap.singleton tok x; constr = None; name = None; term = None; fail = [] }
+
+let ops toks =
+  Inner { ops = TokMap.of_list toks; constr = None; name = None; term = None; fail = [] }
 
 let term tok x =
-  Inner { ops = TokMap.empty; name = None; term = Some (TokMap.singleton tok x); fail = [] }
+  Inner
+    {
+      ops = TokMap.empty;
+      constr = None;
+      name = None;
+      term = Some (TokMap.singleton tok x);
+      fail = [];
+    }
 
 let terms toks =
-  Inner { ops = TokMap.empty; name = None; term = Some (TokMap.of_list toks); fail = [] }
+  Inner
+    { ops = TokMap.empty; constr = None; name = None; term = Some (TokMap.of_list toks); fail = [] }
 
-let name x = Inner { ops = TokMap.empty; name = Some x; term = None; fail = [] }
-let fail err = { ops = TokMap.empty; name = None; term = None; fail = [ err ] }
+let constr x = Inner { ops = TokMap.empty; constr = Some x; name = None; term = None; fail = [] }
+let name x = Inner { ops = TokMap.empty; constr = None; name = Some x; term = None; fail = [] }
+let fail err = { ops = TokMap.empty; constr = None; name = None; term = None; fail = [ err ] }
 
 (* The entry point of a notation tree must begin with an operator symbol. *)
 type entry = tree TokMap.t
 
-let of_entry e = Inner { ops = e; name = None; term = None; fail = [] }
+let of_entry e = Inner { ops = e; constr = None; name = None; term = None; fail = [] }
 let eop tok x = TokMap.singleton tok x
 let eops toks = TokMap.of_list toks
 let empty_entry = TokMap.empty
@@ -122,9 +135,10 @@ and merge_branch : branch -> branch -> branch =
  fun x y ->
   let ops = merge_tmap x.ops y.ops in
   let name = merge_opt merge_tree x.name y.name in
+  let constr = merge_opt merge_tree x.constr y.constr in
   let term = merge_opt merge_tmap x.term y.term in
   let fail = x.fail @ y.fail in
-  { ops; name; term; fail }
+  { ops; constr; name; term; fail }
 
 let merge : entry -> entry -> entry =
  fun x y -> TokMap.union (fun _ xb yb -> Some (merge_tree xb yb)) x y

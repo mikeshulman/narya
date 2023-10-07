@@ -22,6 +22,9 @@ and _ check =
   | Lam : 'a N.suc check -> 'a check
   | Struct : 'a check Field.Map.t -> 'a check
   | Constr : Constr.t * 'a check Bwd.t -> 'a check
+  | Match : 'a N.index * 'a branch list -> 'a check
+
+and _ branch = Branch : Constr.t * ('a, 'b, 'ab) N.plus * 'ab check -> 'a branch
 
 let rec raw_lam : type a b ab. (a, b, ab) N.plus -> ab check -> a check =
  fun ab tm ->

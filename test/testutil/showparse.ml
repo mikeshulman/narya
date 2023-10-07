@@ -4,7 +4,7 @@ open Compile
 
 (* Translate a parse observation into something that shows the names of notations rather than their internal abstract representations, for easier inspection and testing. *)
 
-type obs = Flag of flag | Name of string option | Term of res
+type obs = Flag of flag | Name of string option | Term of res | Constr of string
 
 and res =
   | Notn of string * obs list
@@ -20,6 +20,7 @@ let rec get_obs (obs : observation) : obs =
   | Flag f -> Flag f
   | Name x -> Name x
   | Term r -> Term (get_res r)
+  | Constr c -> Constr c
 
 and get_res (r : Compile.res) : res =
   match r with

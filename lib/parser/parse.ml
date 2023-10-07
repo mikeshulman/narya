@@ -72,6 +72,18 @@ module Parse_term = struct
           | _ -> None) in
     tree nametree (Snoc (obs, Name x))
 
+  and tree_constr (constr : tree option) (obs : observation Bwd.t) :
+      (observation Bwd.t * Notation.t) t =
+    let* constrtree, x =
+      msg (Printf.sprintf "Looking for constr in tree\n");
+      step "constr" (fun state _ tok ->
+          match (constr, tok) with
+          | Some br, Constr x ->
+              msg (Printf.sprintf "Found constr %s in tree\n" x);
+              Some ((br, x), state)
+          | _ -> None) in
+    tree constrtree (Snoc (obs, Constr x))
+
   and tree_term (term : tree TokMap.t option) (fail : string list) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
     match term with
@@ -85,8 +97,9 @@ module Parse_term = struct
   and tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
     msg (Printf.sprintf "tree\n");
     match t with
-    | Inner { ops; name; term; fail } ->
+    | Inner { ops; constr; name; term; fail } ->
         backtrack (tree_op ops obs) "operator"
+        </> backtrack (tree_constr constr obs) "constr"
         </> backtrack (tree_name name obs) "name"
         </> tree_term term fail obs
     | Done n -> return (obs, n)

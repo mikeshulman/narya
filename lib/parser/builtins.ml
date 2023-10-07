@@ -75,6 +75,7 @@ let pi =
         Inner
           {
             ops = TokMap.singleton Colon (term RParen (more_pi ()));
+            constr = None;
             name = Some (Lazy (lazy (explicit_pi_vars ())));
             term = None;
             fail = [];
@@ -89,6 +90,7 @@ let pi =
                      (Coloneq, Flag (Default_pi, term RBrace (Lazy (lazy (more_pi ())))));
                      (RBrace, Lazy (lazy (more_pi ())));
                    ]);
+            constr = None;
             name = Some (Lazy (lazy (implicit_pi_vars ())));
             term = None;
             fail = [];
@@ -117,11 +119,11 @@ and compile_pi_names :
     type m n mn.
     (m, n, mn) N.plus -> (string option, mn) Bwv.t -> observation list -> m check option =
  fun mn ctx obs ->
-  let x, obs = get_next obs in
-  match x with
+  match get_next obs with
   | `Done -> raise (Failure "Unexpected end of arguments")
-  | `Name x -> compile_pi_names (Suc mn) (Snoc (ctx, x)) obs
-  | `Term dom -> (
+  | `Name (x, obs) -> compile_pi_names (Suc mn) (Snoc (ctx, x)) obs
+  | `Constr _ -> raise (Failure "Unexpected constr")
+  | `Term (dom, obs) -> (
       let f = get_flag [ Default_pi ] obs in
       match f with
       | Some Default_pi -> raise (Failure "Default arguments not implemented")
@@ -214,6 +216,72 @@ let () =
           return (Synth (Symbol (Sym, Suc Zero, Emp))));
     }
 
+let mtch =
+  make ~name:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
+      let rec pattern_vars () =
+        Inner
+          {
+            name = Some (Lazy (lazy (pattern_vars ())));
+            constr = None;
+            term = None;
+            fail = [];
+            ops =
+              TokMap.singleton Mapsto
+                (terms [ (End, Done n); (Op "|", constr (Lazy (lazy (pattern_vars ())))) ]);
+          } in
+      eop Match
+        (name
+           (op With
+              (Inner
+                 {
+                   ops = TokMap.of_list [ (End, Done n); (Op "|", constr (pattern_vars ())) ];
+                   constr = Some (pattern_vars ());
+                   name = None;
+                   term = None;
+                   fail = [];
+                 }))))
+
+let rec compile_branch_names :
+    type a b ab.
+    (a, b, ab) N.plus ->
+    (string option, ab) Bwv.t ->
+    Constr.t ->
+    observation list ->
+    (a branch * observation list) option =
+ fun ab ctx c obs ->
+  match get_next obs with
+  | `Name (a, obs) -> compile_branch_names (Suc ab) (Snoc (ctx, a)) c obs
+  | `Term (t, obs) ->
+      let* tm = compile ctx t in
+      return (Branch (c, ab, tm), obs)
+  | `Constr _ -> raise (Failure "Unexpected constr")
+  | `Done -> raise (Failure "Unexpected end of input")
+
+let rec compile_branches :
+    type n. (string option, n) Bwv.t -> observation list -> n branch list option =
+ fun ctx obs ->
+  match get_next obs with
+  | `Done -> return []
+  | `Constr (c, obs) ->
+      let* br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
+      let* rest = compile_branches ctx obs in
+      return (br :: rest)
+  | `Term _ -> raise (Failure "Unexpected term")
+  | `Name _ -> raise (Failure "Unexpected name")
+
+let () =
+  add_compiler mtch
+    {
+      compile =
+        (fun ctx obs ->
+          let name, obs = get_name obs in
+          (* Can't match an underscore *)
+          let* name = name in
+          let* x = Bwv.index (Some name) ctx in
+          let* branches = compile_branches ctx obs in
+          return (Match (x, branches)));
+    }
+
 let builtins =
   ref
     (State.empty
@@ -224,4 +292,5 @@ let builtins =
     |> State.add arrow
     |> State.add universe
     |> State.add refl
-    |> State.add sym)
+    |> State.add sym
+    |> State.add mtch)

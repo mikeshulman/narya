@@ -216,6 +216,35 @@ let () =
           return (Synth (Symbol (Sym, Suc Zero, Emp))));
     }
 
+let struc =
+  make ~name:"struc" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
+      let rec struc_fields () =
+        Inner
+          {
+            ops = TokMap.singleton RBrace (Done n);
+            name =
+              Some
+                (op Coloneq (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done n) ]));
+            constr = None;
+            term = None;
+            fail = [];
+          } in
+      eop LBrace (struc_fields ()))
+
+let rec compile_struc :
+    type n. n check Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check option =
+ fun flds ctx obs ->
+  match get_next obs with
+  | `Done -> return (Raw.Struct flds)
+  | `Name (x, obs) ->
+      let tm, obs = get_term obs in
+      let* tm = compile ctx tm in
+      let* x = x in
+      compile_struc (flds |> Field.Map.add (Field.intern x) tm) ctx obs
+  | `Constr _ | `Term _ -> None
+
+let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
+
 let mtch =
   make ~name:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
       let rec pattern_vars () =
@@ -293,4 +322,5 @@ let builtins =
     |> State.add universe
     |> State.add refl
     |> State.add sym
+    |> State.add struc
     |> State.add mtch)

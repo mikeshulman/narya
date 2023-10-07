@@ -256,7 +256,7 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
     (match fn with
     | Const { name; dim } -> (
         match Hashtbl.find_opt Global.constants name with
-        | Some (Defined tree) -> apply_tree (Emp dim) tree (Any (id_deg dim)) (Bwd.prepend args [])
+        | Some (Defined tree) -> apply_tree (Emp dim) !tree (Any (id_deg dim)) (Bwd.prepend args [])
         | Some _ -> None
         | None -> fatalf Anomaly "Undefined constant in apply_spine: %s" (Constant.to_string name))
     | _ -> None)
@@ -270,7 +270,7 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
   | Lam body ->
       (* Pick up another argument.  Note that this fails if ins is nonidentity. *)
       let* newenv, newins, newargs = take_lam_arg env ins args in
-      apply_tree newenv body newins newargs
+      apply_tree newenv !body newins newargs
   | Leaf body ->
       (* We've found a term to evaluate *)
       let res = act_any (eval env body) ins in
@@ -296,7 +296,7 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
               (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
               let env = take_args env dargs plus in
               (* Then we proceed recursively with the body of that branch. *)
-              apply_tree env body ins args
+              apply_tree env !body ins args
           | _ -> None)
       | _ -> None)
   | Cobranches cobranches -> (
@@ -306,8 +306,9 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
           (* This also requires the degeneracy to be the identity. *)
           let* () = is_id_any_deg ins in
           let* body = Field.Map.find_opt fld cobranches in
-          apply_tree env body (Any (perm_of_ins new_ins)) args
+          apply_tree env !body (Any (perm_of_ins new_ins)) args
       | _ -> None)
+  | Empty -> None
 
 and take_lam_arg :
     type n a. (n, a) env -> any_deg -> app list -> ((n, a N.suc) env * any_deg * app list) option =

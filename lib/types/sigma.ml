@@ -30,15 +30,20 @@ let install () =
        });
   Hashtbl.add Global.constants pair
     (Defined
-       (Lam
-          (Lam
-             (Lam
-                (Lam
-                   (Leaf
-                      (Struct
-                         (Field.Map.empty
-                         |> Field.Map.add fst (Var (Pop Top))
-                         |> Field.Map.add snd (Var Top)))))))))
+       (ref
+          (Case.Lam
+             (ref
+                (Case.Lam
+                   (ref
+                      (Case.Lam
+                         (ref
+                            (Case.Lam
+                               (ref
+                                  (Case.Leaf
+                                     (Struct
+                                        (Field.Map.empty
+                                        |> Field.Map.add fst (Var (Pop Top))
+                                        |> Field.Map.add snd (Var Top))))))))))))))
 
 let struc =
   make ~name:"struc" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->

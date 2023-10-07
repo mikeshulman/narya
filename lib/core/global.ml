@@ -12,7 +12,7 @@ let types : (Constant.t, N.zero term) Hashtbl.t = Hashtbl.create 10
 (* Each constant either is an axiom, has a definition (a case tree), is a record (including coinductive ones), or is a datatype (including indexed ones). *)
 type definition =
   | Axiom : definition
-  | Defined : N.zero Case.tree -> definition
+  | Defined : N.zero Case.tree ref -> definition
   | Record : {
       (* Whether the record type supports eta-conversion *)
       eta : bool;

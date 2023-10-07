@@ -30,27 +30,39 @@ let install () =
                    (app (Const stream) ((*A*) Var (Pop (Pop (Pop (Pop Top)))))))))));
   Hashtbl.add Global.constants corec
     (Defined
-       (Lam
-          (Lam
-             (Lam
-                (Lam
-                   (Lam
-                      (Cobranches
-                         (Field.Map.of_list
-                            [
-                              (head, Case.Leaf (app (Var (Pop (Pop Top))) (Var Top)));
-                              ( tail,
-                                Leaf
-                                  (app
-                                     (app
-                                        (app
-                                           (app
-                                              (app (Const corec) (Var (Pop (Pop (Pop (Pop Top))))))
-                                              (Var (Pop (Pop (Pop Top)))))
-                                           (Var (Pop (Pop Top))))
-                                        (Var (Pop Top)))
-                                     (app (Var (Pop Top)) (Var Top))) );
-                            ]))))))))
+       (ref
+          (Case.Lam
+             (ref
+                (Case.Lam
+                   (ref
+                      (Case.Lam
+                         (ref
+                            (Case.Lam
+                               (ref
+                                  (Case.Lam
+                                     (ref
+                                        (Case.Cobranches
+                                           (Field.Map.of_list
+                                              [
+                                                ( head,
+                                                  ref
+                                                    (Case.Leaf (app (Var (Pop (Pop Top))) (Var Top)))
+                                                );
+                                                ( tail,
+                                                  ref
+                                                    (Case.Leaf
+                                                       (app
+                                                          (app
+                                                             (app
+                                                                (app
+                                                                   (app (Const corec)
+                                                                      (Var
+                                                                         (Pop (Pop (Pop (Pop Top))))))
+                                                                   (Var (Pop (Pop (Pop Top)))))
+                                                                (Var (Pop (Pop Top))))
+                                                             (Var (Pop Top)))
+                                                          (app (Var (Pop Top)) (Var Top)))) );
+                                              ]))))))))))))))
 
 (*
   Hashtbl.add Global.types bisim

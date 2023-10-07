@@ -31,6 +31,7 @@ module Code = struct
     | Degenerated_variable_index_in_match
     | Wrong_number_of_arguments_to_pattern of Constr.t
     | No_such_constructor_in_match of Constant.t * Constr.t
+    | Duplicate_constructor_in_match of Constr.t
     | Index_variable_in_index_value
     | Matching_on_nondatatype
     | Matching_on_let_bound_variable
@@ -68,6 +69,7 @@ module Code = struct
     | Degenerated_variable_index_in_match -> Error
     | Wrong_number_of_arguments_to_pattern _ -> Error
     | No_such_constructor_in_match _ -> Error
+    | Duplicate_constructor_in_match _ -> Error
     | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype -> Error
     | Matching_on_let_bound_variable -> Error
@@ -105,6 +107,7 @@ module Code = struct
     | Degenerated_variable_index_in_match -> "E2687"
     | Wrong_number_of_arguments_to_pattern _ -> "E8972"
     | No_such_constructor_in_match _ -> "E8969"
+    | Duplicate_constructor_in_match _ -> "E8969"
     | Index_variable_in_index_value -> "E6437"
     | Matching_on_nondatatype -> "E1270"
     | Matching_on_let_bound_variable -> "E7098"
@@ -186,6 +189,8 @@ let die ?severity (e : Code.t) =
   | No_such_constructor_in_match (d, c) ->
       fatalf ?severity e "Datatype %s being matched against has no constructor %s"
         (Constant.to_string d) (Constr.to_string c)
+  | Duplicate_constructor_in_match c ->
+      fatalf ?severity e "Constructor %s appears twice in match" (Constr.to_string c)
   | Index_variable_in_index_value ->
       fatal ?severity e "Free index variable occurs in inferred index value"
   | Matching_on_nondatatype -> fatal ?severity e "Can't match on variable belonging to non-datatype"

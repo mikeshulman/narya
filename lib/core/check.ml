@@ -392,7 +392,7 @@ and check_tel :
 
 (* Check a case tree.  Unlike the other typechecking functions, this one is imperative: rather than returning a checked case tree, it takes a reference to a case tree as an argument and stores its result into that reference.  The reason for this is that a function defined by a case tree can be recursive, calling itself, and the type-correctness of later (co)branches can depend on the values of previous ones.  Thus, the caller of this function first defines the function with an empty case tree and passes it a reference to that tree, and then as the case tree is checked, its actual definition at the call site is updated.
 
-   This function also needs to be passed a value representing the partially-applied function whose case tree we are currently checking, e.g. since the types of cobranches can depend on that value.  TODO: But when checking matches, we must be able to alter the values of the variables that term was previously applied to.  I guess that's part of the whole readback/re-eval thing. *)
+   This function also needs to be passed a value representing the partially-applied function whose case tree we are currently checking, e.g. since the types of cobranches can depend on that value.  This also will be altered as we proceed, using readback and eval to substitute pattern-matched variables with constructor applications. *)
 let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree ref -> unit =
  fun ctx tm ty prev_tm tree ->
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "checking case tree" in
@@ -474,9 +474,12 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                             Case.Branch (ab, ref Case.Empty))
                           constrs in
                       tree := Case.Branches (ix, tbranches);
-                      (* TODO: This doesn't do coverage checking yet, since it just iterates over the *supplied* branches. *)
                       Mlist.miter
                         (fun [ Branch (constr, user_args, body) ] ->
+                          (* Make sure this isn't a duplicate *)
+                          let (Case.Branch (_, b)) = Constr.Map.find constr tbranches in
+                          if !b <> Case.Empty then die (Duplicate_constructor_in_match constr)
+                          else ();
                           let (Global.Constr { args = argtys; indices = index_terms }) =
                             match Constr.Map.find_opt constr constrs with
                             | Some c -> c
@@ -553,7 +556,12 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                                                 let Eq = N.plus_uniq ab user_args in
                                                 tr)))
                               | _ -> fatal Anomaly "Created datatype is not canonical?"))
-                        [ brs ])
+                        [ brs ];
+                      (* Coverage check *)
+                      Constr.Map.iter
+                        (fun c (Case.Branch (_, b)) ->
+                          if !b = Case.Empty then die (Missing_constructor_in_match c) else ())
+                        tbranches)
               | _ -> die Matching_on_nondatatype))
       | _ -> die Matching_on_nondatatype)
   | _ ->

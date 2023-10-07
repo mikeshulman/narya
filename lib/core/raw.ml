@@ -20,7 +20,7 @@ type _ synth =
 and _ check =
   | Synth : 'a synth -> 'a check
   | Lam : 'a N.suc check -> 'a check
-  | Struct : 'a check Field.Map.t -> 'a check
+  | Struct : 'a check list Field.Map.t -> 'a check
   | Constr : Constr.t * 'a check Bwd.t -> 'a check
   | Match : 'a N.index * 'a branch list -> 'a check
 

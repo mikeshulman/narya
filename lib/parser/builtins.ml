@@ -232,7 +232,8 @@ let struc =
       eop LBrace (struc_fields ()))
 
 let rec compile_struc :
-    type n. n check Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check option =
+    type n.
+    n check list Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check option =
  fun flds ctx obs ->
   match get_next obs with
   | `Done -> return (Raw.Struct flds)
@@ -240,7 +241,7 @@ let rec compile_struc :
       let tm, obs = get_term obs in
       let* tm = compile ctx tm in
       let* x = x in
-      compile_struc (flds |> Field.Map.add (Field.intern x) tm) ctx obs
+      compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
   | `Constr _ | `Term _ -> None
 
 let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }

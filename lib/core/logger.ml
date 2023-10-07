@@ -10,6 +10,7 @@ module Code = struct
     | Unequal_synthesized_type
     | Checking_struct_at_degenerated_record of Constant.t
     | Missing_field_in_struct of Field.t
+    | Duplicate_field_in_struct of Field.t
     | Missing_constructor_in_match of Constr.t
     | Checking_struct_against_nonrecord of Constant.t
     | Checking_constructor_against_nondatatype of Constr.t * Constant.t
@@ -45,6 +46,7 @@ module Code = struct
     | Unequal_synthesized_type -> Error
     | Checking_struct_at_degenerated_record _ -> Error
     | Missing_field_in_struct _ -> Error
+    | Duplicate_field_in_struct _ -> Error
     | Missing_constructor_in_match _ -> Error
     | Checking_struct_against_nonrecord _ -> Error
     | No_such_constructor _ -> Error
@@ -83,6 +85,7 @@ module Code = struct
     | Unequal_synthesized_type -> "E9298"
     | Checking_struct_at_degenerated_record _ -> "E8550"
     | Missing_field_in_struct _ -> "E3907"
+    | Duplicate_field_in_struct _ -> "E3907"
     | Missing_constructor_in_match _ -> "E4524"
     | Checking_struct_against_nonrecord _ -> "E5951"
     | No_such_constructor _ -> "E2441"
@@ -135,7 +138,10 @@ let die ?severity (e : Code.t) =
       fatalf ?severity e
         "Can't check a struct against a record %s with a nonidentity degeneracy applied"
         (Constant.to_string r)
-  | Missing_field_in_struct f -> fatalf ?severity e "Record field %s in struct" (Field.to_string f)
+  | Missing_field_in_struct f ->
+      fatalf ?severity e "Record field %s missing in struct" (Field.to_string f)
+  | Duplicate_field_in_struct f ->
+      fatalf ?severity e "Record field %s appears more than once in struct" (Field.to_string f)
   | Missing_constructor_in_match c ->
       fatalf ?severity e "Missing match clause for constructor %s" (Constr.to_string c)
   | Checking_struct_against_nonrecord c ->

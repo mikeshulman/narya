@@ -78,10 +78,13 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
                 let* ctms, etms = M.get in
                 let prev_etm = Value.Struct (etms, zero_ins dim) in
                 let ety = tyof_field prev_etm ty fld in
-                let tm = Field.Map.find_opt fld tms <|> Missing_field_in_struct fld in
-                let ctm = check ctx tm ety in
-                let etm = Ctx.eval ctx ctm in
-                M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms))
+                match Field.Map.find_opt fld tms with
+                | Some [ tm ] ->
+                    let ctm = check ctx tm ety in
+                    let etm = Ctx.eval ctx ctm in
+                    M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms)
+                | Some _ -> die (Duplicate_field_in_struct fld)
+                | None -> die (Missing_field_in_struct fld))
               [ fields ]
               (Field.Map.empty, Field.Map.empty) in
           Term.Struct ctms
@@ -423,12 +426,12 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
           Mlist.miter
             (fun [ (fld, _) ] ->
               let ety = tyof_field prev_tm ty fld in
-              (* TODO: This enforces coverage checking.  If we want to allow delayed or disabled coverage checking, then a None result here should succeed and do nothing, leaving the corresponding cobranch as Case.Empty. *)
-              let tm =
-                match Field.Map.find_opt fld tms with
-                | Some tm -> tm
-                | None -> die (Missing_field_in_struct fld) in
-              check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields))
+              (* This enforces coverage checking.  If we want to allow delayed or disabled coverage checking, then a None result here should succeed and do nothing, leaving the corresponding cobranch as Case.Empty. *)
+              match Field.Map.find_opt fld tms with
+              | Some [ tm ] ->
+                  check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields)
+              | Some _ -> die (Duplicate_field_in_struct fld)
+              | None -> die (Missing_field_in_struct fld))
             [ fields ]
       | _ -> die (Checking_struct_against_nonrecord name))
   | Match (ix, brs), _ -> (

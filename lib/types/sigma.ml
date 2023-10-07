@@ -96,7 +96,7 @@ let () =
           let () = get_done obs in
           let* x = compile ctx x in
           let* y = compile ctx y in
-          return (Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ])));
+          return (Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ])));
     }
 
 let () =

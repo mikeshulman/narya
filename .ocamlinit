@@ -1,2 +1,2 @@
 #use_output "dune top"
-open Testutil.Mcp
+open Testutil.Repl

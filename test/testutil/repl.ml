@@ -36,32 +36,40 @@ let check_term (rtm : N.zero check) (ety : value) : N.zero term =
   @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
-  let const = Constant.intern name in
-  if Hashtbl.mem Global.types const then raise (Failure ("Constant " ^ name ^ " already defined"))
-  else
-    let rty = must_parse_term ty in
-    let cty = check_type rty in
-    Hashtbl.add Global.types const cty;
-    Hashtbl.add Global.constants const Axiom
+  match Parser.Lexer.Parser.single name with
+  | Some (Name name) ->
+      let const = Constant.intern name in
+      if Hashtbl.mem Global.types const then
+        raise (Failure ("Constant " ^ name ^ " already defined"))
+      else
+        let rty = must_parse_term ty in
+        let cty = check_type rty in
+        Hashtbl.add Global.types const cty;
+        Hashtbl.add Global.constants const Axiom
+  | _ -> raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
 
 let def (name : string) (ty : string) (tm : string) : unit =
-  let const = Constant.intern name in
-  if Hashtbl.mem Global.types const then raise (Failure ("Constant " ^ name ^ " already defined"))
-  else
-    let rty = must_parse_term ty in
-    let rtm = must_parse_term tm in
-    let cty = check_type rty in
-    let ety = eval (Emp D.zero) cty in
-    Hashtbl.add Global.types const cty;
-    let tree = ref Case.Empty in
-    Hashtbl.add Global.constants const (Defined tree);
-    let hd = eval (Emp D.zero) (Const const) in
-    Logger.run ~emit:Terminal.display ~fatal:(fun d ->
-        Hashtbl.remove Global.types const;
-        Hashtbl.remove Global.constants const;
-        Terminal.display d;
-        raise (Failure "Failed to check type"))
-    @@ fun () -> check_tree Ctx.empty rtm ety hd tree
+  match Parser.Lexer.Parser.single name with
+  | Some (Name name) ->
+      let const = Constant.intern name in
+      if Hashtbl.mem Global.types const then
+        raise (Failure ("Constant " ^ name ^ " already defined"))
+      else
+        let rty = must_parse_term ty in
+        let rtm = must_parse_term tm in
+        let cty = check_type rty in
+        let ety = eval (Emp D.zero) cty in
+        Hashtbl.add Global.types const cty;
+        let tree = ref Case.Empty in
+        Hashtbl.add Global.constants const (Defined tree);
+        let hd = eval (Emp D.zero) (Const const) in
+        Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+            Hashtbl.remove Global.types const;
+            Hashtbl.remove Global.constants const;
+            Terminal.display d;
+            raise (Failure "Failed to check type"))
+        @@ fun () -> check_tree Ctx.empty rtm ety hd tree
+  | _ -> raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
 
 let undef (name : string) : unit =
   let const = Constant.intern name in

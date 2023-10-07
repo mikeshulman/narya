@@ -200,6 +200,14 @@ let token : Located_token.t t =
 module Parser = struct
   include Basic.Parser
 
+  (* This is how we make the lexer to plug into the parser. *)
   let init : t = make_partial Indent token
   let restart (lex : t) : t = restart_partial token lex
+
+  (* But occasionally we may also just want to parse a specific string into a single token. *)
+  let single (str : string) : Token.t option =
+    let p =
+      run_on_string str (make Code (located (quoted_string </> onechar_op </> ascii_op </> other)))
+    in
+    if has_succeeded p then Some (snd (final p)) else None
 end

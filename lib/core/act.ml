@@ -12,7 +12,7 @@ exception Invalid_uninst_action
 let deg_plus_to : type m n nk. (m, n) deg -> nk D.t -> string -> nk deg_of =
  fun s nk err ->
   match factor nk (cod_deg s) with
-  | None -> fatal Anomaly ("Invalid degeneracy action on " ^ err)
+  | None -> die Anomaly ("Invalid degeneracy action on " ^ err)
   | Some (Factor nk) ->
       let (Plus mk) = D.plus (D.plus_right nk) in
       let sk = deg_plus s nk mk in
@@ -187,7 +187,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
   | Inst { tm = ty; dim; args; tys = _ } -> (
       (* A type must be fully instantiated, so in particular tys is trivial. *)
       match compare (TubeOf.uninst args) D.zero with
-      | Neq -> fatal Anomaly "act_ty applied to non-fully-instantiated term"
+      | Neq -> die Anomaly "act_ty applied to non-fully-instantiated term"
       | Eq -> (
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           (* This is a user error, e.g. trying to symmetrize a 1-dimensional thing.  So we raise a custom exception here, that can get caught by type synthesis and turned into an error. *)
@@ -215,7 +215,7 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
       | Neq, _ -> raise Invalid_uninst_action
       | Eq, Uninst (UU z, _) -> (
           match compare z D.zero with
-          | Neq -> fatal Anomaly "Acting on non-fully-instantiated type as a type"
+          | Neq -> die Anomaly "Acting on non-fully-instantiated type as a type"
           | Eq -> (
               match D.compare_zero (dom_deg fa) with
               | Zero -> Uninst (act_uninst ty fa, lazy uu)
@@ -230,10 +230,10 @@ and act_ty : type a b. value -> value -> (a, b) deg -> value =
                             act_normal { tm; ty = tmty } fc);
                       } in
                   Inst { tm = act_uninst ty fa; dim; args; tys = TubeOf.empty D.zero }))
-      | _ -> fatal Anomaly "Acting on non-type as if a type")
-  | Lam _ -> fatal Anomaly "A lambda-abstraction cannot be a type to act on"
-  | Struct _ -> fatal Anomaly "A struct cannot be a type to act on"
-  | Constr _ -> fatal Anomaly "A constructor cannot be a type to act on"
+      | _ -> die Anomaly "Acting on non-type as if a type")
+  | Lam _ -> die Anomaly "A lambda-abstraction cannot be a type to act on"
+  | Struct _ -> die Anomaly "A struct cannot be a type to act on"
+  | Constr _ -> die Anomaly "A constructor cannot be a type to act on"
 
 (* Action on a head *)
 and act_head : type a b. head -> (a, b) deg -> head =

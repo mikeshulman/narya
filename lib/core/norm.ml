@@ -46,13 +46,13 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                       match tm with
                       | Uninst (Neu _, (lazy ty)) | Uninst (Canonical _, (lazy ty)) -> { tm; ty }
                       | _ ->
-                          fatal Anomaly
+                          die Anomaly
                             "Evaluation of lower-dimensional constant is not neutral/canonical");
                 })) in
       match Hashtbl.find_opt Global.constants name with
       | Some (Record _) | Some (Data _) -> Uninst (Canonical (name, Emp, zero_ins (dim_env env)), ty)
       | Some Axiom | Some (Defined _) -> apply_spine (Const { name; dim }) Emp ty
-      | None -> fatalf Anomaly "Undefined constant: %s" (Constant.to_string name))
+      | None -> die ~severity:Asai.Diagnostic.Bug Unbound_variable name)
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -71,7 +71,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       (* tys is a complete m+n+k tube *)
       let (Inst_tys tys) = inst_tys newtm in
       match compare (TubeOf.inst tys) mn_k' with
-      | Neq -> die (Dimension_mismatch ("evaluation instantiation", TubeOf.inst tys, mn_k'))
+      | Neq -> die Dimension_mismatch ("evaluation instantiation", TubeOf.inst tys, mn_k')
       | Eq ->
           (* used_tys is an m+n+k tube with m+n uninstantiated and k instantiated.  These are the types that we must instantiate to give the types of the added instantiation arguments. *)
           let used_tys = TubeOf.pboundary (D.zero_plus mn') mn_k tys in
@@ -215,7 +215,7 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
   | Lam body -> (
       let m = CubeOf.dim arg in
       match compare (dim_binder body) m with
-      | Neq -> die (Dimension_mismatch ("applying a lambda", dim_binder body, m))
+      | Neq -> die Dimension_mismatch ("applying a lambda", dim_binder body, m)
       | Eq -> apply_binder body arg)
   (* If it is a neutral application... *)
   | Uninst (tm, (lazy ty)) -> (
@@ -226,11 +226,9 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
           (* ... and that the pi-type and its instantiation have the correct dimension. *)
           let k = CubeOf.dim doms in
           match (compare (TubeOf.inst tyargs) k, compare (CubeOf.dim arg) k) with
-          | Neq, _ ->
-              die (Dimension_mismatch ("applying a neutral function", TubeOf.inst tyargs, k))
+          | Neq, _ -> die Dimension_mismatch ("applying a neutral function", TubeOf.inst tyargs, k)
           | _, Neq ->
-              die
-                (Dimension_mismatch ("applying a neutral function (arguments)", CubeOf.dim arg, k))
+              die Dimension_mismatch ("applying a neutral function (arguments)", CubeOf.dim arg, k)
           | Eq, Eq -> (
               (* We annotate the new argument by its type, extracted from the domain type of the function being applied. *)
               let newarg = norm_of_vals arg doms in
@@ -242,11 +240,11 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
               | Canonical (name, prev_args, ins) -> (
                   match (is_id_perm (perm_of_ins ins), compare (cod_left_ins ins) k) with
                   | Some (), Eq -> Uninst (Canonical (name, Snoc (prev_args, newarg), ins), ty)
-                  | _, Neq -> die (Dimension_mismatch ("applying canonical", cod_left_ins ins, k))
-                  | None, _ -> fatal Anomaly "Insertion mismatch applying canonical")
-              | _ -> fatal Anomaly "Invalid application of non-function uninst"))
-      | _ -> fatal Anomaly "Invalid application by non-function")
-  | _ -> fatal Anomaly "Invalid application of non-function"
+                  | _, Neq -> die Dimension_mismatch ("applying canonical", cod_left_ins ins, k)
+                  | None, _ -> die Anomaly "Insertion mismatch applying canonical")
+              | _ -> die Anomaly "Invalid application of non-function uninst"))
+      | _ -> die Anomaly "Invalid application by non-function")
+  | _ -> die Anomaly "Invalid application of non-function"
 
 (* Compute the application of a head to a spine of arguments (including field projections), using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application, so that we can annotate the latter case. *)
 and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
@@ -258,7 +256,7 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
         match Hashtbl.find_opt Global.constants name with
         | Some (Defined tree) -> apply_tree (Emp dim) !tree (Any (id_deg dim)) (Bwd.prepend args [])
         | Some _ -> None
-        | None -> fatalf Anomaly "Undefined constant in apply_spine: %s" (Constant.to_string name))
+        | None -> die ~severity:Asai.Diagnostic.Bug Unbound_variable name)
     | _ -> None)
     (* If it has no case tree, or is not a constant, we just add the argument to the neutral application spine and return. *)
     ~default:(Uninst (Neu (fn, args), ty))
@@ -361,7 +359,7 @@ and field : value -> Field.t -> value =
       let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
       apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
-  | _ -> fatalf Anomaly "Invalid field %s of non-record type" (Field.to_string fld)
+  | _ -> die ~severity:Asai.Diagnostic.Bug No_such_field (None, fld)
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
 and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
@@ -376,7 +374,7 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
       let m = cod_left_ins ins in
       let mn' = D.plus_out m mn in
       match compare (TubeOf.inst tyargs) mn' with
-      | Neq -> die (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
+      | Neq -> die ?severity Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn')
       | Eq ->
           (* The type must be applied, at dimension m, to exactly the right number of parameters (k). *)
           let env, Emp = take_canonical_args (Emp m) args (N.zero_plus k) Zero in
@@ -405,7 +403,7 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
                      { tm; ty });
                }
                [ TubeOf.middle (D.zero_plus m) mn tyargs ]))
-  | _ -> die (No_such_field (None, fld))
+  | _ -> die ?severity No_such_field (None, fld)
 
 and eval_binder :
     type m n mn b f bf.

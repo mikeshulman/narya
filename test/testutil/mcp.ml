@@ -51,7 +51,8 @@ let check (tm : string) (ty : Value.value) : Value.value =
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 
-let unsynth ?code (tm : string) : unit =
+let unsynth : type a. ?code:a Logger.Code.code -> string -> unit =
+ fun ?code tm ->
   let (Ctx (ctx, names)) = !context in
   match parse_term names tm with
   | Ok (Synth raw) ->
@@ -59,7 +60,7 @@ let unsynth ?code (tm : string) : unit =
           match code with
           | None -> ()
           | Some c ->
-              if d.code = c then ()
+              if d.code = Code c then ()
               else (
                 Terminal.display d;
                 raise (Failure "Unexpected error code")))
@@ -71,7 +72,8 @@ let unsynth ?code (tm : string) : unit =
       print_endline str;
       raise (Failure "Parse error")
 
-let uncheck ?code (tm : string) (ty : Value.value) : unit =
+let uncheck : type a. ?code:a Logger.Code.code -> string -> Value.value -> unit =
+ fun ?code tm ty ->
   let (Ctx (ctx, names)) = !context in
   match parse_term names tm with
   | Ok raw ->
@@ -79,7 +81,7 @@ let uncheck ?code (tm : string) (ty : Value.value) : unit =
           match code with
           | None -> ()
           | Some c ->
-              if d.code = c then ()
+              if d.code = Code c then ()
               else (
                 Terminal.display d;
                 raise (Failure "Unexpected error code")))

@@ -65,5 +65,5 @@ let find_record_field ?severity (name : Constant.t) (fld : Field.t) : field =
   | Record { eta = _; params; dim; dim_faces; params_plus; fields } -> (
       match List.find_opt (fun (f, _) -> f = fld) fields with
       | Some (_, ty) -> Field { params; dim; dim_faces; params_plus; ty }
-      | None -> die ?severity (No_such_field (Some name, fld)))
-  | _ -> die ?severity (No_such_field (None, fld))
+      | None -> die ?severity No_such_field (Some name, fld))
+  | _ -> die ?severity No_such_field (None, fld)

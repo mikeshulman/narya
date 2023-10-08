@@ -10,10 +10,11 @@ open Norm
 open Equal
 open Readback
 
-let ( <|> ) (x : 'a option) (e : Code.t) : 'a =
+let ( <|> ) : type a b. a option -> b Code.code * b -> a =
+ fun x (e, b) ->
   match x with
   | Some x -> x
-  | None -> die e
+  | None -> die e b
 
 (* Look through a specified number of lambdas to find an inner body. *)
 let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check =
@@ -22,7 +23,7 @@ let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check =
   | Zero, _ -> tm
   | Suc _, Lam body -> lambdas (N.suc_plus'' ab) body
   (* Not enough lambdas.  TODO: We could eta-expand in this case, as long as we've picked up at least one lambda. *)
-  | _ -> die Not_enough_lambdas
+  | _ -> die Not_enough_lambdas (N.to_int (Nat ab))
 
 (* Slurp up an entire application spine *)
 let spine : type a. a synth -> a synth * a check list =
@@ -40,12 +41,12 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
   match (tm, uty) with
   | Synth stm, _ ->
       let sval, sty = synth ctx stm in
-      let () = equal_val (Ctx.level ctx) sty ty <|> Unequal_synthesized_type in
+      let () = equal_val (Ctx.level ctx) sty ty <|> (Unequal_synthesized_type, ()) in
       sval
   | Lam _, Pi (doms, cods) -> (
       let m = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) m with
-      | Neq -> die (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
+      | Neq -> die Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m)
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
           (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
@@ -63,7 +64,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
       (* We don't need to name the arguments of Canonical here because tyof_field, called below, uses them. *)
       match Hashtbl.find Global.constants name with
       | Record { fields; _ } ->
-          let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
+          let () = is_id_perm (perm_of_ins ins) <|> (Checking_struct_at_degenerated_record, name) in
           let dim = cod_left_ins ins in
           (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
           let module M = Monad.State (struct
@@ -83,30 +84,30 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
                     let ctm = check ctx tm ety in
                     let etm = Ctx.eval ctx ctm in
                     M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms)
-                | Some _ -> die (Duplicate_field_in_struct fld)
-                | None -> die (Missing_field_in_struct fld))
+                | Some _ -> die Duplicate_field_in_struct fld
+                | None -> die Missing_field_in_struct fld)
               [ fields ]
               (Field.Map.empty, Field.Map.empty) in
           Term.Struct ctms
-      | _ -> die (Checking_struct_against_nonrecord name))
+      | _ -> die Checking_struct_against_nonrecord name)
   | Constr (constr, args), Canonical (name, ty_params_indices, ins) -> (
       (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
       let dim = TubeOf.inst tyargs in
       match compare (cod_left_ins ins) dim with
-      | Neq -> die (Dimension_mismatch ("checking constr", cod_left_ins ins, dim))
+      | Neq -> die Dimension_mismatch ("checking constr", cod_left_ins ins, dim)
       | Eq -> (
           (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_params_indices contains the *values* of the parameters and indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
           match Hashtbl.find Global.constants name with
           (* We do need the constructors of the datatype, as well as its *number* of parameters and indices. *)
           | Data { constrs; params; indices } -> (
               match is_id_perm (perm_of_ins ins) with
-              | None -> fatal Anomaly "Datatypes with degeneracy shouldn't exist"
+              | None -> die Anomaly "Datatypes with degeneracy shouldn't exist"
               | Some () ->
                   (* The datatype must contain a constructor with our current name. *)
                   let (Constr { args = constr_arg_tys; indices = constr_indices }) =
                     match Constr.Map.find_opt constr constrs with
                     | Some c -> c
-                    | None -> die (No_such_constructor (name, constr)) in
+                    | None -> die No_such_constructor (name, constr) in
                   (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
                   let env, ty_indices =
                     take_canonical_args (Emp dim) ty_params_indices (N.zero_plus params) indices
@@ -120,19 +121,19 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
                             match tm.tm with
                             | Constr (tmname, n, tmargs) ->
                                 if tmname <> constr then
-                                  die (Missing_instantiation_constructor (constr, Some tmname))
+                                  die Missing_instantiation_constructor (constr, Some tmname)
                                 else
                                   (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
                                   let _ = compare n (dom_tface fa) in
                                   Bwd.fold_right
                                     (fun a args -> CubeOf.find a (id_sface n) :: args)
                                     tmargs []
-                            | _ -> die (Missing_instantiation_constructor (constr, None)));
+                            | _ -> die Missing_instantiation_constructor (constr, None));
                       }
                       [ tyargs ] in
                   (* Now we evaluate each argument *type* of the constructor at the parameters and the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
                   let env, newargs =
-                    check_tel ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
+                    check_tel constr ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
                   (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
                   let constr_indices =
                     Bwv.map
@@ -151,22 +152,22 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
                                 | Some () -> ()
                                 | None -> (
                                     match is_id_sface fa with
-                                    | Some () -> die Unequal_indices
+                                    | Some () -> die Unequal_indices ()
                                     | None ->
-                                        fatal Anomaly "Mismatching lower-dimensional constructors"));
+                                        die Anomaly "Mismatching lower-dimensional constructors"));
                           }
                           [ t1s; t2s ])
                       [ constr_indices; ty_indices ] in
                   Constr (constr, dim, Bwd.of_list newargs))
-          | _ -> die (Checking_constructor_against_nondatatype (constr, name))))
-  | _ -> die Checking_mismatch
+          | _ -> die Checking_constructor_against_nondatatype (constr, name)))
+  | _ -> die Checking_mismatch ()
 
 and synth : type a. a Ctx.t -> a synth -> a term * value =
  fun ctx tm ->
   match tm with
   | Var v -> (Term.Var v, (snd (Bwv.nth v ctx)).ty)
   | Const name ->
-      let ty = Hashtbl.find_opt Global.types name <|> Unbound_variable name in
+      let ty = Hashtbl.find_opt Global.types name <|> (Unbound_variable, name) in
       (Const name, eval (Emp D.zero) ty)
   | Field (tm, fld) ->
       let stm, sty = synth ctx tm in
@@ -192,7 +193,7 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
           let sx, ety = synth ctx x in
           let ex = Ctx.eval ctx sx in
           (Act (sx, refl), act_ty ex ety refl)
-      | _ -> die (Nonsynthesizing_argument_of_degeneracy "refl"))
+      | _ -> die Nonsynthesizing_argument_of_degeneracy "refl")
   | Symbol (Sym, Zero, Snoc (Emp, x)) -> (
       match x with
       | Synth x -> (
@@ -201,10 +202,10 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
           try
             let symty = act_ty ex ety sym in
             (Act (sx, sym), symty)
-          with Invalid_uninst_action -> die (Low_dimensional_argument_of_degeneracy ("sym", 2)))
-      | _ -> die (Nonsynthesizing_argument_of_degeneracy "sym"))
+          with Invalid_uninst_action -> die Low_dimensional_argument_of_degeneracy ("sym", 2))
+      | _ -> die Nonsynthesizing_argument_of_degeneracy "sym")
   (* If a symbol isn't applied to enough arguments yet, it doesn't typecheck. *)
-  | Symbol (_, Suc _, _) -> die Missing_argument_of_degeneracy
+  | Symbol (_, Suc _, _) -> die Missing_argument_of_degeneracy ()
   | Asc (tm, ty) ->
       let cty = check ctx ty (universe D.zero) in
       let ety = Ctx.eval ctx cty in
@@ -246,7 +247,7 @@ and synth_app :
   | Pi (doms, cods) -> (
       (* Ensure that the pi-type is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
-      | Neq -> die (Dimension_mismatch ("applying function", TubeOf.inst tyargs, CubeOf.dim doms))
+      | Neq -> die Dimension_mismatch ("applying function", TubeOf.inst tyargs, CubeOf.dim doms)
       | Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
           let eargtbl = Hashtbl.create 10 in
@@ -261,7 +262,7 @@ and synth_app :
                     let* ts = M.get in
                     let* tm =
                       match ts with
-                      | [] -> die Not_enough_arguments_to_function
+                      | [] -> die Not_enough_arguments_to_function ()
                       | t :: ts ->
                           let* () = M.put ts in
                           return t in
@@ -287,10 +288,10 @@ and synth_app :
   | UU n -> (
       (* Ensure that the universe is (fully) instantiated at the right dimension. *)
       match compare (TubeOf.inst tyargs) n with
-      | Neq -> die (Dimension_mismatch ("instantiating type", TubeOf.inst tyargs, n))
+      | Neq -> die Dimension_mismatch ("instantiating type", TubeOf.inst tyargs, n)
       | Eq -> (
           match D.compare_zero n with
-          | Zero -> die Instantiating_zero_dimensional_type
+          | Zero -> die Instantiating_zero_dimensional_type ()
           | Pos pn ->
               (* We take enough arguments to instatiate a type of dimension n by one. *)
               let (Is_suc (m, msuc)) = suc_pos pn in
@@ -310,7 +311,7 @@ and synth_app :
                         let* ts = M.get in
                         let* tm =
                           match ts with
-                          | [] -> die Not_enough_arguments_to_instantiation
+                          | [] -> die Not_enough_arguments_to_instantiation ()
                           | t :: ts ->
                               let* () = M.put ts in
                               return t in
@@ -337,18 +338,19 @@ and synth_app :
               (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
               (Term.Inst (sfn, cargs), tyof_inst tyargs eargs, rest)))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
-  | _ -> die Applying_nonfunction_nontype
+  | _ -> die Applying_nonfunction_nontype ()
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube. *)
 and check_tel :
     type n a b c bc.
+    Constr.t ->
     a Ctx.t ->
     (n, b) env ->
     a check list ->
     (b, c, bc) Telescope.t ->
     (D.zero, n, n, value list) TubeOf.t ->
     (n, bc) env * (n, a term) CubeOf.t list =
- fun ctx env tms tys tyargs ->
+ fun c ctx env tms tys tyargs ->
   match (tms, tys) with
   | [], Emp ->
       (* tyargs should consist of empty lists here, since it started out being the constructor arguments of the instantiation arguments. *)
@@ -362,7 +364,7 @@ and check_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> fatal Anomaly "Missing arguments in check_tel"
+                | [] -> die Anomaly "Missing arguments in check_tel"
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =
@@ -387,11 +389,13 @@ and check_tel :
       let ctms = TubeOf.mmap { map = (fun _ [ t ] -> readback_nf coctx t) } [ tyarg ] in
       let etm = Ctx.eval ctx ctm in
       let newenv, newargs =
-        check_tel ctx
+        check_tel c ctx
           (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm)))
           tms tys tyargs in
       (newenv, TubeOf.plus_cube ctms (CubeOf.singleton ctm) :: newargs)
-  | _ -> die Wrong_number_of_arguments_to_constructor
+  | _ ->
+      die Wrong_number_of_arguments_to_constructor
+        (c, List.length tms - N.to_int (Telescope.length tys))
 
 (* Check a case tree.  Unlike the other typechecking functions, this one is imperative: rather than returning a checked case tree, it takes a reference to a case tree as an argument and stores its result into that reference.  The reason for this is that a function defined by a case tree can be recursive, calling itself, and the type-correctness of later (co)branches can depend on the values of previous ones.  Thus, the caller of this function first defines the function with an empty case tree and passes it a reference to that tree, and then as the case tree is checked, its actual definition at the call site is updated.
 
@@ -417,7 +421,7 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
   | Struct tms, Canonical (name, _, ins) -> (
       match Hashtbl.find Global.constants name with
       | Record { fields; _ } ->
-          let () = is_id_perm (perm_of_ins ins) <|> Type_not_fully_instantiated in
+          let () = is_id_perm (perm_of_ins ins) <|> (Type_not_fully_instantiated, "check_tree") in
           let tfields =
             List.fold_left
               (fun m (x, _) -> Field.Map.add x (ref Case.Empty) m)
@@ -430,29 +434,29 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
               match Field.Map.find_opt fld tms with
               | Some [ tm ] ->
                   check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields)
-              | Some _ -> die (Duplicate_field_in_struct fld)
-              | None -> die (Missing_field_in_struct fld))
+              | Some _ -> die Duplicate_field_in_struct fld
+              | None -> die Missing_field_in_struct fld)
             [ fields ]
-      | _ -> die (Checking_struct_against_nonrecord name))
+      | _ -> die Checking_struct_against_nonrecord name)
   | Match (ix, brs), _ -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level and its type.  *)
       let slvl, { tm = _; ty = varty } = Bwv.nth ix ctx in
-      let lvl = slvl <|> Matching_on_let_bound_variable in
+      let lvl = slvl <|> (Matching_on_let_bound_variable, ()) in
       (* The type of the variable must be a datatype.  Currently we don't implement higher-dimensional matches, so it must be zero-dimensional. *)
       let (Fullinst (uvarty, vartyargs)) = full_inst varty "check_tree" in
       match (uvarty, compare (TubeOf.inst vartyargs) D.zero) with
-      | _, Neq -> die Higher_dimensional_match_not_implemented
+      | _, Neq -> die Higher_dimensional_match_not_implemented ()
       | Canonical (name, varty_args, ins), Eq -> (
-          let () = is_id_perm (perm_of_ins ins) <|> Matching_datatype_has_degeneracy in
+          let () = is_id_perm (perm_of_ins ins) <|> (Matching_datatype_has_degeneracy, ()) in
           match compare (cod_left_ins ins) D.zero with
-          | Neq -> die Higher_dimensional_match_not_implemented
+          | Neq -> die Higher_dimensional_match_not_implemented ()
           | Eq -> (
               match Hashtbl.find Global.constants name with
               | Data { params; indices; constrs } -> (
                   (* The datatype instance must have the right number of arguments, which split into parameters and indices. *)
                   let (Wrap varty_args) = Bwv.of_bwd varty_args in
                   match N.compare (N.plus_out params indices) (Bwv.length varty_args) with
-                  | Lt _ | Gt _ -> fatal Anomaly "Wrong number of arguments on datatype"
+                  | Lt _ | Gt _ -> die Anomaly "Wrong number of arguments on datatype"
                   | Eq ->
                       let params, indices = Bwv.split indices varty_args in
                       (* In our simple version of pattern-matching, the "indices" must also be distinct free variables, so in the branch for each constructor they can be set equal to the computed value of that index for that constructor (and in which they cannot occur).  This is a special case of the unification algorithm described in CDP "Pattern-matching without K" where the only allowed rule is "Solution".  Later we can try to enhance it with their full unification algorithm, at least for non-higher datatypes. *)
@@ -462,12 +466,13 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                           (fun [ tm ] ->
                             match (CubeOf.find tm (id_sface D.zero)).tm with
                             | Uninst (Neu (Var { level; deg }, Emp), _) ->
-                                let () = is_id_deg deg <|> Degenerated_variable_index_in_match in
-                                if Hashtbl.mem seen level then die Index_variables_duplicated
+                                let () =
+                                  is_id_deg deg <|> (Degenerated_variable_index_in_match, ()) in
+                                if Hashtbl.mem seen level then die Index_variables_duplicated ()
                                 else (
                                   Hashtbl.add seen level ();
                                   level)
-                            | _ -> die Non_variable_index_in_match)
+                            | _ -> die Non_variable_index_in_match ())
                           [ indices ] in
                       (* Now we construct the match tree with empty branches. *)
                       let tbranches =
@@ -481,15 +486,17 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                         (fun [ Branch (constr, user_args, body) ] ->
                           (* Make sure this isn't a duplicate *)
                           let (Case.Branch (_, b)) = Constr.Map.find constr tbranches in
-                          if !b <> Case.Empty then die (Duplicate_constructor_in_match constr)
-                          else ();
+                          if !b <> Case.Empty then die Duplicate_constructor_in_match constr else ();
                           let (Global.Constr { args = argtys; indices = index_terms }) =
                             match Constr.Map.find_opt constr constrs with
                             | Some c -> c
-                            | None -> die (No_such_constructor_in_match (name, constr)) in
+                            | None -> die No_such_constructor_in_match (name, constr) in
                           (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
                           match N.compare (N.plus_right user_args) (Telescope.length argtys) with
-                          | Lt _ | Gt _ -> die (Wrong_number_of_arguments_to_pattern constr)
+                          | Gt diff ->
+                              die Wrong_number_of_arguments_to_pattern (constr, N.to_int (Nat diff))
+                          | Lt diff ->
+                              die Wrong_number_of_arguments_to_pattern (constr, -N.to_int (Nat diff))
                           | Eq -> (
                               (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the values of the parameters ("params") and the previous new variables. *)
                               let newctx, newenv, newvars =
@@ -516,7 +523,7 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                               match ucty with
                               | Canonical (_, ctyargs, ins) -> (
                                   match compare (cod_left_ins ins) D.zero with
-                                  | Neq -> fatal Anomaly "Created datatype is higher-dimensional?"
+                                  | Neq -> die Anomaly "Created datatype is higher-dimensional?"
                                   | Eq ->
                                       let index_nfs =
                                         Bwv.map
@@ -540,8 +547,8 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                                       let new_coctx = Coctx.of_ctx newctx in
                                       let _ =
                                         try Bwv.map (readback_nf new_coctx) index_nfs
-                                        with Missing_variable -> die Index_variable_in_index_value
-                                      in
+                                        with Missing_variable ->
+                                          die Index_variable_in_index_value () in
 
                                       (* Evaluate "rty" and "rprevtm" in this new context. *)
                                       let newty = Ctx.eval newctx rty in
@@ -554,19 +561,19 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                                               N.compare (N.plus_right ab) (N.plus_right user_args)
                                             with
                                             | Lt _ | Gt _ ->
-                                                fatal Anomaly "Lgth mismatch in check_tree rec"
+                                                die Anomaly "Lgth mismatch in check_tree rec"
                                             | Eq ->
                                                 let Eq = N.plus_uniq ab user_args in
                                                 tr)))
-                              | _ -> fatal Anomaly "Created datatype is not canonical?"))
+                              | _ -> die Anomaly "Created datatype is not canonical?"))
                         [ brs ];
                       (* Coverage check *)
                       Constr.Map.iter
                         (fun c (Case.Branch (_, b)) ->
-                          if !b = Case.Empty then die (Missing_constructor_in_match c) else ())
+                          if !b = Case.Empty then die Missing_constructor_in_match c else ())
                         tbranches)
-              | _ -> die Matching_on_nondatatype))
-      | _ -> die Matching_on_nondatatype)
+              | _ -> die Matching_on_nondatatype (Some name)))
+      | _ -> die Matching_on_nondatatype None)
   | _ ->
       let leaf = check ctx tm ty in
       tree := Case.Leaf leaf

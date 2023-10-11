@@ -16,9 +16,9 @@ type t =
   | Underscore (* _ *)
   | Internal of string (* Starting or ending with _ *)
   | Match
-  | Comatch
   | With
   | End
+  | Def
   | Record
   | Data
   | Section
@@ -52,9 +52,9 @@ let to_string = function
   | Underscore -> "_"
   | Internal s -> s
   | Match -> "match"
-  | Comatch -> "comatch"
   | With -> "with"
   | End -> "end"
+  | Def -> "def"
   | Record -> "record"
   | Data -> "data"
   | Section -> "section"

@@ -143,11 +143,11 @@ let other_char : char t =
 (* Once we have an identifier string, we inspect it and divide into cases to make a Token.t.  *)
 let canonicalize : string -> Token.t t = function
   | "match" -> return Match
-  | "comatch" -> return Comatch
   | "with" -> return With
   | "end" -> return End
   | "let" -> return Let
   | "in" -> return In
+  | "def" -> return Def
   | "record" -> return Record
   | "data" -> return Data
   | "section" -> return Section

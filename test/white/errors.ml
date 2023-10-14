@@ -19,7 +19,7 @@ let () =
   let () = uncheck "x y ↦ x" idff ~code:Not_enough_lambdas in
   let _ = check "x0 x1 x2 ↦ refl f x0 x1 x2" idff in
   let () = uncheck "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~code:Checking_mismatch in
-  let () = unsynth "refl (x ↦ x)" ~code:Nonsynthesizing_argument_of_degeneracy in
+  let () = unsynth "refl (x ↦ x)" ~code:Nonsynthesizing in
   let () = unsynth "refl" ~code:Missing_argument_of_degeneracy in
   let () = unsynth "sym f" ~code:Low_dimensional_argument_of_degeneracy in
   let () = unsynth "g" ~code:Unbound_variable in
@@ -28,6 +28,12 @@ let () =
   let idida, _ = synth "Id (Id A) a a (refl a) a a (refl a)" in
   let () = uncheck "a" idida ~code:Type_not_fully_instantiated in
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
+
+  (* Parse errors *)
+  let () = unsynth "let x := a in b : c" ~code:Parse_error in
+  let () = unsynth "x y |-> z : w" ~code:Parse_error in
+  let () = unsynth "x + y {` unterminated block comment" ~code:Parse_error in
+  let () = unsynth ".fst x" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in
@@ -39,12 +45,14 @@ let () =
   let () = uncheck "{ fst ≔ a }" aa ~code:Checking_mismatch in
   let nat = check "N" uu in
   let () = uncheck "{ fst ≔ a }" nat ~code:Checking_struct_against_nonrecord in
+  let () = uncheck "{ _ ≔ a }" sigab ~code:Unnamed_field_in_struct in
   let s = assume "s" sigab in
   let () = unsynth "s .third" ~code:No_such_field in
   let () = uncheck "0." sigab ~code:Checking_constructor_against_nondatatype in
   let () = uncheck "2." nat ~code:No_such_constructor in
   let () = uncheck "0. a" nat ~code:Wrong_number_of_arguments_to_constructor in
   let () = uncheck "1." nat ~code:Wrong_number_of_arguments_to_constructor in
+  let () = uncheck "4.2" nat ~code:Unsupported_numeral in
 
   (* To test degeneracies on records we have to set up a bunch of stuff, since the simplest case this happens is with Id Gel and squares in the universe. *)
   let () = Types.Gel.install () in

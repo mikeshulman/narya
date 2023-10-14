@@ -2,6 +2,7 @@ open Util
 open Bwd
 open Notations
 open Compile
+open Core.Logger
 open Fmlib_parse
 
 let msg (_ : string) = ()
@@ -238,13 +239,14 @@ let start (state : State.t) : Lex_and_parse.t =
 
 module Reporter = Error_reporter.Make (Lex_and_parse)
 
-let term (state : State.t) (str : string) : (Res.t, string) result =
+let term (state : State.t) (str : string) : Res.t =
   let p = run_on_string str (start state) in
-  if has_succeeded p then Ok (final p)
+  if has_succeeded p then final p
   else if has_failed_syntax p then
-    Error
+    (* TODO: Use Asai for this too *)
+    die Parse_error
       (let r = Reporter.make_syntax p in
        let doc = Reporter.run_on_string str r in
        let open Fmlib_pretty.Print in
        string_of (layout 80 doc))
-  else raise (Failure "Parser failed in an unexpected way")
+  else die Anomaly "Parser failed in an unexpected way"

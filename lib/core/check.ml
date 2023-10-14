@@ -193,7 +193,7 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
           let sx, ety = synth ctx x in
           let ex = Ctx.eval ctx sx in
           (Act (sx, refl), act_ty ex ety refl)
-      | _ -> die Nonsynthesizing_argument_of_degeneracy "refl")
+      | _ -> die Nonsynthesizing "refl")
   | Symbol (Sym, Zero, Snoc (Emp, x)) -> (
       match x with
       | Synth x -> (
@@ -203,7 +203,7 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
             let symty = act_ty ex ety sym in
             (Act (sx, sym), symty)
           with Invalid_uninst_action -> die Low_dimensional_argument_of_degeneracy ("sym", 2))
-      | _ -> die Nonsynthesizing_argument_of_degeneracy "sym")
+      | _ -> die Nonsynthesizing "sym")
   (* If a symbol isn't applied to enough arguments yet, it doesn't typecheck. *)
   | Symbol (_, Suc _, _) -> die Missing_argument_of_degeneracy ()
   | Asc (tm, ty) ->

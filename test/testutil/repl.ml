@@ -8,18 +8,7 @@ open Value
 open Term
 open Raw
 
-let parse_term (tm : string) : (N.zero check, string) result =
-  Result.bind (Parse.term !Builtins.builtins tm) (fun res ->
-      match Compile.compile Emp res with
-      | None -> Error "Compilation error"
-      | Some t -> Ok t)
-
-let must_parse_term (tm : string) : N.zero check =
-  match parse_term tm with
-  | Ok t -> t
-  | Error e ->
-      print_endline e;
-      raise (Failure "Parse error")
+let parse_term (tm : string) : N.zero check = Compile.compile Emp (Parse.term !Builtins.builtins tm)
 
 module Terminal = Asai.Tty.Make (Core.Logger.Code)
 
@@ -36,7 +25,7 @@ let assume (name : string) (ty : string) : unit =
       if Hashtbl.mem Global.types const then
         raise (Failure ("Constant " ^ name ^ " already defined"))
       else
-        let rty = must_parse_term ty in
+        let rty = parse_term ty in
         let cty = check_type rty in
         Hashtbl.add Global.types const cty;
         Hashtbl.add Global.constants const Axiom
@@ -49,8 +38,8 @@ let def (name : string) (ty : string) (tm : string) : unit =
       if Hashtbl.mem Global.types const then
         raise (Failure ("Constant " ^ name ^ " already defined"))
       else
-        let rty = must_parse_term ty in
-        let rtm = must_parse_term tm in
+        let rty = parse_term ty in
+        let rtm = parse_term tm in
         let cty = check_type rty in
         let ety = eval (Emp D.zero) cty in
         Hashtbl.add Global.types const cty;
@@ -73,9 +62,9 @@ let undef (name : string) : unit =
   | None -> raise (Failure ("Can't undefine undefined constant " ^ name))
 
 let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
-  let rty = must_parse_term ty in
-  let rtm1 = must_parse_term tm1 in
-  let rtm2 = must_parse_term tm2 in
+  let rty = parse_term ty in
+  let rtm1 = parse_term tm1 in
+  let rtm2 = parse_term tm2 in
   let cty = check_type rty in
   let ety = eval (Emp D.zero) cty in
   let ctm1 = check_term rtm1 ety in
@@ -87,9 +76,9 @@ let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   | Some () -> ()
 
 let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
-  let rty = must_parse_term ty in
-  let rtm1 = must_parse_term tm1 in
-  let rtm2 = must_parse_term tm2 in
+  let rty = parse_term ty in
+  let rtm1 = parse_term tm1 in
+  let rtm2 = parse_term tm2 in
   let cty = check_type rty in
   let ety = eval (Emp D.zero) cty in
   let ctm1 = check_term rtm1 ety in

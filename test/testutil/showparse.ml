@@ -34,7 +34,4 @@ and get_res (r : Compile.res) : res =
   | Numeral n -> Numeral n
   | Abs (vars, body) -> Abs (vars, get_res body)
 
-let parse state str =
-  match Parse.term state str with
-  | Ok res -> Ok (get_res res)
-  | Error err -> Error err
+let parse state str = get_res (Parse.term state str)

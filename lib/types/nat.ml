@@ -31,9 +31,9 @@ let () =
           let x, obs = get_term obs in
           let y, obs = get_term obs in
           let () = get_done obs in
-          let* x = compile ctx x in
-          let* y = compile ctx y in
-          return (Raw.Synth (App (App (Const plus, x), y))));
+          let x = compile ctx x in
+          let y = compile ctx y in
+          Raw.Synth (App (App (Const plus, x), y)));
     }
 
 let timesn =
@@ -48,9 +48,9 @@ let () =
           let x, obs = get_term obs in
           let y, obs = get_term obs in
           let () = get_done obs in
-          let* x = compile ctx x in
-          let* y = compile ctx y in
-          return (Raw.Synth (App (App (Const times, x), y))));
+          let x = compile ctx x in
+          let y = compile ctx y in
+          Raw.Synth (App (App (Const times, x), y)));
     }
 
 let install_notations () =

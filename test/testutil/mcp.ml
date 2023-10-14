@@ -1,5 +1,6 @@
 open Util
 open Core
+open Logger
 open Parser
 
 (* The current context of assumptions, including names. *)
@@ -10,12 +11,8 @@ let context = ref ectx
 
 (* Functions to synth and check terms *)
 
-let parse_term : type n. (string option, n) Bwv.t -> string -> (n Raw.check, string) result =
- fun names tm ->
-  Result.bind (Parse.term !Builtins.builtins tm) (fun res ->
-      match Compile.compile names res with
-      | None -> Error "Compilation error"
-      | Some t -> Ok t)
+let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check =
+ fun names tm -> Compile.compile names (Parse.term !Builtins.builtins tm)
 
 module Terminal = Asai.Tty.Make (Core.Logger.Code)
 
@@ -26,28 +23,18 @@ let synth (tm : string) : Value.value * Value.value =
       raise (Failure "Failed to synthesize"))
   @@ fun () ->
   match parse_term names tm with
-  | Ok (Synth raw) ->
+  | Synth raw ->
       let syn, ty = Check.synth ctx raw in
       let esyn = Ctx.eval ctx syn in
       (esyn, ty)
-  | Ok _ -> raise (Failure "Non-synthesizing")
-  | Error str ->
-      print_endline str;
-      raise (Failure "Parse error")
+  | _ -> die Nonsynthesizing "toplevel synth"
 
 let check (tm : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
   Logger.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to check"))
-  @@ fun () ->
-  match parse_term names tm with
-  | Ok raw ->
-      let chk = Check.check ctx raw ty in
-      Ctx.eval ctx chk
-  | Error str ->
-      print_endline str;
-      raise (Failure "Parse error")
+  @@ fun () -> Ctx.eval ctx (Check.check ctx (parse_term names tm) ty)
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 
@@ -64,13 +51,10 @@ let unsynth : type a. ?code:a Logger.Code.code -> string -> unit =
             raise (Failure "Unexpected error code")))
   @@ fun () ->
   match parse_term names tm with
-  | Ok (Synth raw) ->
+  | Synth raw ->
       let _ = Check.synth ctx raw in
       raise (Failure "Synthesis success")
-  | Ok _ -> raise (Failure "Non-synthesizing")
-  | Error str ->
-      print_endline str;
-      raise (Failure "Parse error")
+  | _ -> die Nonsynthesizing "top-level unsynth"
 
 let uncheck : type a. ?code:a Logger.Code.code -> string -> Value.value -> unit =
  fun ?code tm ty ->
@@ -84,21 +68,18 @@ let uncheck : type a. ?code:a Logger.Code.code -> string -> Value.value -> unit 
             Terminal.display d;
             raise (Failure "Unexpected error code")))
   @@ fun () ->
-  match parse_term names tm with
-  | Ok raw ->
-      let _ = Check.check ctx raw ty in
-      raise (Failure "Checking success")
-  | Error str ->
-      print_endline str;
-      raise (Failure "Parse error")
+  let _ = Check.check ctx (parse_term names tm) ty in
+  raise (Failure "Checking success")
 
 (* Assert that a term doesn't parse *)
 
 let unparse (tm : string) : unit =
   let (Ctx (_, names)) = !context in
-  match parse_term names tm with
-  | Ok _ -> raise (Failure "Unexpected parse success")
-  | Error _ -> ()
+  try_with
+    ~fatal:(fun _ -> ())
+    (fun () ->
+      let _ = parse_term names tm in
+      raise (Failure "Unexpected parse success"))
 
 (* Add to the context of assumptions *)
 

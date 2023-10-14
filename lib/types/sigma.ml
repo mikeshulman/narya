@@ -27,9 +27,9 @@ let () =
           let tm, obs = get_term obs in
           let ty, obs = get_term obs in
           let () = get_done obs in
-          let* tm = compile ctx tm in
-          let* ty = compile (Snoc (ctx, x)) ty in
-          return (Synth (App (App (Const sigma, tm), Lam ty))));
+          let tm = compile ctx tm in
+          let ty = compile (Snoc (ctx, x)) ty in
+          Synth (App (App (Const sigma, tm), Lam ty)));
     }
 
 let prodn =
@@ -44,9 +44,9 @@ let () =
           let tm, obs = get_term obs in
           let ty, obs = get_term obs in
           let () = get_done obs in
-          let* tm = compile ctx tm in
-          let* ty = compile (Snoc (ctx, None)) ty in
-          return (Synth (App (App (Const sigma, tm), Lam ty))));
+          let tm = compile ctx tm in
+          let ty = compile (Snoc (ctx, None)) ty in
+          Synth (App (App (Const sigma, tm), Lam ty)));
     }
 
 let comma =
@@ -61,9 +61,9 @@ let () =
           let x, obs = get_term obs in
           let y, obs = get_term obs in
           let () = get_done obs in
-          let* x = compile ctx x in
-          let* y = compile ctx y in
-          return (Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ])));
+          let x = compile ctx x in
+          let y = compile ctx y in
+          Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ]));
     }
 
 let install_notations () =

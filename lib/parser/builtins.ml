@@ -3,6 +3,7 @@ open Compile
 open Notations
 open Core
 open Raw
+open Logger
 open Monad.Ops (Monad.Maybe)
 
 let parens =
@@ -45,22 +46,25 @@ let () =
               let term, obs = get_term obs in
               let body, obs = get_term obs in
               let () = get_done obs in
-              let* term = compile ctx term in
-              let* body = compile (Snoc (ctx, x)) body in
-              match (term, body) with
-              | Synth term, Synth body -> return (Synth (Let (term, body)))
-              | _ -> None)
+              let term = compile ctx term in
+              let body = compile (Snoc (ctx, x)) body in
+              match term with
+              | Synth term -> (
+                  match body with
+                  | Synth body -> Synth (Let (term, body))
+                  | _ -> die Nonsynthesizing "body of let")
+              | _ -> die Nonsynthesizing "value of let")
           | Some Asc_let -> (
               let ty, obs = get_term obs in
               let term, obs = get_term obs in
               let body, obs = get_term obs in
               let () = get_done obs in
-              let* term = compile ctx term in
-              let* ty = compile ctx ty in
-              let* body = compile (Snoc (ctx, x)) body in
+              let term = compile ctx term in
+              let ty = compile ctx ty in
+              let body = compile (Snoc (ctx, x)) body in
               match body with
-              | Synth body -> return (Synth (Let (Asc (term, ty), body)))
-              | _ -> None)
+              | Synth body -> Synth (Let (Asc (term, ty), body))
+              | _ -> die Nonsynthesizing "body of let")
           | _ -> raise (Failure "Unrecognized flag"));
     }
 
@@ -104,7 +108,7 @@ let pi =
           ] in
       eops [ (LParen, explicit_pi ()); (LBrace, implicit_pi ()) ])
 
-let rec compile_pi : type n. (string option, n) Bwv.t -> observation list -> n check option =
+let rec compile_pi : type n. (string option, n) Bwv.t -> observation list -> n check =
  fun ctx obs ->
   let f = get_flag [ Explicit_pi; Implicit_pi ] obs in
   match f with
@@ -116,8 +120,7 @@ let rec compile_pi : type n. (string option, n) Bwv.t -> observation list -> n c
       compile ctx body
 
 and compile_pi_names :
-    type m n mn.
-    (m, n, mn) N.plus -> (string option, mn) Bwv.t -> observation list -> m check option =
+    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> observation list -> m check =
  fun mn ctx obs ->
   match get_next obs with
   | `Done -> raise (Failure "Unexpected end of arguments")
@@ -128,17 +131,16 @@ and compile_pi_names :
       match f with
       | Some Default_pi -> raise (Failure "Default arguments not implemented")
       | _ ->
-          let* cod = compile_pi ctx obs in
+          let cod = compile_pi ctx obs in
           compile_pi_doms mn ctx dom cod)
 
 and compile_pi_doms :
-    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> res -> mn check -> m check option
-    =
+    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> res -> mn check -> m check =
  fun mn ctx dom cod ->
   match (mn, ctx) with
-  | Zero, _ -> return cod
+  | Zero, _ -> cod
   | Suc mn, Snoc (ctx, _) ->
-      let* cdom = compile ctx dom in
+      let cdom = compile ctx dom in
       compile_pi_doms mn ctx dom (Synth (Pi (cdom, cod)))
 
 let () = add_compiler pi { compile = compile_pi }
@@ -155,9 +157,9 @@ let () =
           let tm, obs = get_term obs in
           let ty, obs = get_term obs in
           let () = get_done obs in
-          let* tm = compile ctx tm in
-          let* ty = compile ctx ty in
-          return (Synth (Asc (tm, ty))));
+          let tm = compile ctx tm in
+          let ty = compile ctx ty in
+          Synth (Asc (tm, ty)));
     }
 
 let arrow =
@@ -172,9 +174,9 @@ let () =
           let tm, obs = get_term obs in
           let ty, obs = get_term obs in
           let () = get_done obs in
-          let* tm = compile ctx tm in
-          let* ty = compile (Snoc (ctx, None)) ty in
-          return (Synth (Pi (tm, ty))));
+          let tm = compile ctx tm in
+          let ty = compile (Snoc (ctx, None)) ty in
+          Synth (Pi (tm, ty)));
     }
 
 let universe =
@@ -187,7 +189,7 @@ let () =
       compile =
         (fun _ obs ->
           let () = get_done obs in
-          return (Synth (Symbol (UU, Zero, Emp))));
+          Synth (Symbol (UU, Zero, Emp)));
     }
 
 let refl =
@@ -200,7 +202,7 @@ let () =
       compile =
         (fun _ obs ->
           let () = get_done obs in
-          return (Synth (Symbol (Refl, Suc Zero, Emp))));
+          Synth (Symbol (Refl, Suc Zero, Emp)));
     }
 
 let sym =
@@ -213,7 +215,7 @@ let () =
       compile =
         (fun _ obs ->
           let () = get_done obs in
-          return (Synth (Symbol (Sym, Suc Zero, Emp))));
+          Synth (Symbol (Sym, Suc Zero, Emp)));
     }
 
 let struc =
@@ -232,17 +234,17 @@ let struc =
       eop LBrace (struc_fields ()))
 
 let rec compile_struc :
-    type n.
-    n check list Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check option =
+    type n. n check list Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
  fun flds ctx obs ->
   match get_next obs with
-  | `Done -> return (Raw.Struct flds)
-  | `Name (x, obs) ->
+  | `Done -> Raw.Struct flds
+  | `Name (x, obs) -> (
       let tm, obs = get_term obs in
-      let* tm = compile ctx tm in
-      let* x = x in
-      compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
-  | `Constr _ | `Term _ -> None
+      let tm = compile ctx tm in
+      match x with
+      | Some x -> compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
+      | None -> die Unnamed_field_in_struct ())
+  | `Constr _ | `Term _ -> die Anomaly "Impossible thing in struct"
 
 let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
 
@@ -277,27 +279,26 @@ let rec compile_branch_names :
     (string option, ab) Bwv.t ->
     Constr.t ->
     observation list ->
-    (a branch * observation list) option =
+    a branch * observation list =
  fun ab ctx c obs ->
   match get_next obs with
   | `Name (a, obs) -> compile_branch_names (Suc ab) (Snoc (ctx, a)) c obs
   | `Term (t, obs) ->
-      let* tm = compile ctx t in
-      return (Branch (c, ab, tm), obs)
-  | `Constr _ -> raise (Failure "Unexpected constr")
-  | `Done -> raise (Failure "Unexpected end of input")
+      let tm = compile ctx t in
+      (Branch (c, ab, tm), obs)
+  | `Constr _ -> die Anomaly "Unexpected constr"
+  | `Done -> die Anomaly "Unexpected end of input"
 
-let rec compile_branches :
-    type n. (string option, n) Bwv.t -> observation list -> n branch list option =
+let rec compile_branches : type n. (string option, n) Bwv.t -> observation list -> n branch list =
  fun ctx obs ->
   match get_next obs with
-  | `Done -> return []
+  | `Done -> []
   | `Constr (c, obs) ->
-      let* br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
-      let* rest = compile_branches ctx obs in
-      return (br :: rest)
-  | `Term _ -> raise (Failure "Unexpected term")
-  | `Name _ -> raise (Failure "Unexpected name")
+      let br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
+      let rest = compile_branches ctx obs in
+      br :: rest
+  | `Term _ -> die Anomaly "Unexpected term"
+  | `Name _ -> die Anomaly "Unexpected name"
 
 let () =
   add_compiler mtch
@@ -306,10 +307,14 @@ let () =
         (fun ctx obs ->
           let name, obs = get_name obs in
           (* Can't match an underscore *)
-          let* name = name in
-          let* x = Bwv.index (Some name) ctx in
-          let* branches = compile_branches ctx obs in
-          return (Match (x, branches)));
+          match name with
+          | None -> die Unnamed_variable_in_match ()
+          | Some name -> (
+              match Bwv.index (Some name) ctx with
+              | None -> die Unbound_variable name
+              | Some x ->
+                  let branches = compile_branches ctx obs in
+                  Match (x, branches)));
     }
 
 let builtins =

@@ -21,7 +21,7 @@ and res =
 
 (* These "result trees" don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
 
-type compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check option }
+type compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
 let compilers : (Notation.t, compiler) Hashtbl.t = Hashtbl.create 16
 let add_compiler n c = Hashtbl.add compilers n c
@@ -36,16 +36,16 @@ let rec get_flag flags obs =
 
 let rec get_name obs =
   match obs with
-  | [] -> raise (Failure "Missing name")
+  | [] -> die Anomaly "Missing name"
   | Flag _ :: rest -> get_name rest
   | Name x :: rest -> (x, rest)
-  | Constr _ :: _ | Term _ :: _ -> raise (Failure "Missing name")
+  | Constr _ :: _ | Term _ :: _ -> die Anomaly "Missing name"
 
 let rec get_term obs =
   match obs with
-  | [] -> raise (Failure "Missing term")
+  | [] -> die Anomaly "Missing term"
   | Flag _ :: rest -> get_term rest
-  | Constr _ :: _ | Name _ :: _ -> raise (Failure "Missing term")
+  | Constr _ :: _ | Name _ :: _ -> die Anomaly "Missing term"
   | Term x :: rest -> (x, rest)
 
 let rec get_next obs =
@@ -61,7 +61,7 @@ let rec get_done obs =
   match obs with
   | [] -> ()
   | Flag _ :: rest -> get_done rest
-  | _ :: _ -> raise (Failure "Extra stuff")
+  | _ :: _ -> die Anomaly "Extra stuff"
 
 open Monad.Ops (Monad.Maybe)
 
@@ -71,12 +71,12 @@ let compile_numeral n =
     if n = 0 then Raw.Constr (Constr.intern "0", Emp)
     else Raw.Constr (Constr.intern "1", Snoc (Emp, compile_nat (n - 1))) in
   let frac, n = modf n in
-  if classify_float frac = FP_zero && n >= 0. then return (compile_nat (int_of_float n)) else None
+  if classify_float frac = FP_zero && n >= 0. then compile_nat (int_of_float n)
+  else die Unsupported_numeral n
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notatations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
-(* TODO: This function should probably raise Bugs (or maybe some Errors) rather than returning None on failure. *)
-let rec compile : type n. (string option, n) Bwv.t -> res -> n check option =
+let rec compile : type n. (string option, n) Bwv.t -> res -> n check =
  fun ctx res ->
   match res with
   | Notn (n, args) ->
@@ -84,34 +84,34 @@ let rec compile : type n. (string option, n) Bwv.t -> res -> n check option =
       c.compile ctx args
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and symbols, and also field projections.  *)
   | App (fn, arg) -> (
-      let* fn = compile ctx fn in
+      let fn = compile ctx fn in
       match fn with
       | Synth fn -> (
           match fn with
           | Symbol (s, (Suc _ as mn), args) ->
-              let* arg = compile ctx arg in
-              return (Synth (Symbol (s, N.suc_plus'' mn, Snoc (args, arg))))
+              let arg = compile ctx arg in
+              Synth (Symbol (s, N.suc_plus'' mn, Snoc (args, arg)))
           | _ -> (
               match arg with
-              | Field fld -> return (Synth (Field (fn, Field.intern fld)))
+              | Field fld -> Synth (Field (fn, Field.intern fld))
               | _ ->
-                  let* arg = compile ctx arg in
-                  return (Synth (Raw.App (fn, arg)))))
+                  let arg = compile ctx arg in
+                  Synth (Raw.App (fn, arg))))
       | Constr (head, args) ->
-          let* arg = compile ctx arg in
-          return (Raw.Constr (head, Snoc (args, arg)))
-      | _ -> None)
+          let arg = compile ctx arg in
+          Raw.Constr (head, Snoc (args, arg))
+      | _ -> die Nonsynthesizing "application head")
   | Name x -> (
       match Bwv.index (Some x) ctx with
-      | Some n -> return (Synth (Var n))
+      | Some n -> Synth (Var n)
       | None -> (
           match Scope.lookup x with
-          | Some c -> return (Synth (Const c))
+          | Some c -> Synth (Const c)
           | None -> die Unbound_variable x))
-  | Constr name -> return (Raw.Constr (Constr.intern name, Emp))
-  | Field _ -> None (* Field projections have to occur as an "argument" to App. *)
+  | Constr name -> Raw.Constr (Constr.intern name, Emp)
+  | Field _ -> die Anomaly "Field is head"
   | Numeral n -> compile_numeral n
   | Abs ([], body) -> compile ctx body
   | Abs (x :: names, body) ->
-      let* body = compile (Snoc (ctx, x)) (Abs (names, body)) in
-      return (Lam body)
+      let body = compile (Snoc (ctx, x)) (Abs (names, body)) in
+      Lam body

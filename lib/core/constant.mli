@@ -1,5 +1,4 @@
 type t
 
-val intern : string -> t
+val make : unit -> t
 val compare : t -> t -> int
-val to_string : t -> string

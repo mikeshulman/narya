@@ -101,8 +101,6 @@ let () =
                Term (Name "N");
              ] )))
 
-let () = Types.Sigma.install ()
-
 let () =
   assert (
     parse !builtins "{}"
@@ -163,6 +161,9 @@ let () =
                Term (Name "b");
              ] )))
 
+let () = Types.Sigma.install_notations ()
+
+(*  *)
 let () = assert (parse !builtins "A><B" = Ok (Notn ("><", [ Term (Name "A"); Term (Name "B") ])))
 
 let () =

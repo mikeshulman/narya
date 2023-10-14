@@ -7,10 +7,10 @@ open Term
 
 (* Note that the function "install" has to be called explicitly to make Gel-types available. *)
 
-let gel = Constant.intern "Gel"
 let ungel = Field.intern "ungel"
 
 let install () =
+  let gel = Scope.define "Gel" in
   Hashtbl.add Global.types gel
     (pi (UU D.zero)
        (pi (UU D.zero)

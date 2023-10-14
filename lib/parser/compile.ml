@@ -3,6 +3,7 @@ open Core
 open Raw
 open Bwd
 open Notations
+open Logger
 
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow families of state and result types (and it would be tricky to do that correctly anyway), so instead we record the result of parsing as a syntax tree with names, and have a separate step of "compilation" that makes it into a raw term. *)
 
@@ -74,6 +75,7 @@ let compile_numeral n =
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notatations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
+(* TODO: This function should probably raise Bugs (or maybe some Errors) rather than returning None on failure. *)
 let rec compile : type n. (string option, n) Bwv.t -> res -> n check option =
  fun ctx res ->
   match res with
@@ -102,7 +104,10 @@ let rec compile : type n. (string option, n) Bwv.t -> res -> n check option =
   | Name x -> (
       match Bwv.index (Some x) ctx with
       | Some n -> return (Synth (Var n))
-      | None -> return (Synth (Const (Constant.intern x))))
+      | None -> (
+          match Scope.lookup x with
+          | Some c -> return (Synth (Const c))
+          | None -> die Unbound_variable x))
   | Constr name -> return (Raw.Constr (Constr.intern name, Emp))
   | Field _ -> None (* Field projections have to occur as an "argument" to App. *)
   | Numeral n -> compile_numeral n

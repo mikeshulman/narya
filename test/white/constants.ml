@@ -3,6 +3,7 @@ open Repl
 open Core
 
 let () =
+  run @@ fun () ->
   (* Church numerals *)
   def "ℕ" "Type" "(A : Type) → (A → A) → (A → A)";
   def "zero" "ℕ" "A f x ↦ x";
@@ -30,7 +31,7 @@ let () =
   def "ab" "(x:A) × B x" "(a,b)";
   equal_at "ab .fst" "a" "A";
   equal_at "ab .snd" "b" "B a";
-  (match Hashtbl.find Global.constants (Constant.intern "ab") with
+  (match Hashtbl.find Global.constants (Option.get (Scope.lookup "ab")) with
   | Defined _ -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));
 
@@ -55,7 +56,7 @@ let () =
   Types.Nat.install ();
 
   (* Lists *)
-  Types.List.install ();
+  Types.Lst.install ();
   def "append" "(A:Type) -> List A -> List A -> List A"
     "A xs ys |-> match xs with nil. |-> ys | cons. x xs |-> cons. x (append A xs ys) end";
   equal_at "append N (cons. 0 nil.) (cons. 1 (cons. 2 nil.))" "cons. 0 (cons. 1 (cons. 2 nil.))"

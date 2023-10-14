@@ -3,10 +3,11 @@ open Core
 open Util
 open Term
 
-let sum = Constant.intern "sum"
-let ([ inl; inr ] : (Constr.t, N.two) Vec.t) = Vec.map Constr.intern [ "inl"; "inr" ]
+let inl = Constr.intern "inl"
+let inr = Constr.intern "inr"
 
 let install () =
+  let sum = Scope.define "sum" in
   Hashtbl.add Global.types sum (pi (UU D.zero) (pi (UU D.zero) (UU D.zero)));
   Hashtbl.add Global.constants sum
     (Data

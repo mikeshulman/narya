@@ -21,12 +21,12 @@ module Terminal = Asai.Tty.Make (Core.Logger.Code)
 
 let synth (tm : string) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
+  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+      Terminal.display d;
+      raise (Failure "Failed to synthesize"))
+  @@ fun () ->
   match parse_term names tm with
   | Ok (Synth raw) ->
-      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
-          Terminal.display d;
-          raise (Failure "Failed to synthesize"))
-      @@ fun () ->
       let syn, ty = Check.synth ctx raw in
       let esyn = Ctx.eval ctx syn in
       (esyn, ty)
@@ -37,12 +37,12 @@ let synth (tm : string) : Value.value * Value.value =
 
 let check (tm : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
+  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+      Terminal.display d;
+      raise (Failure "Failed to check"))
+  @@ fun () ->
   match parse_term names tm with
   | Ok raw ->
-      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
-          Terminal.display d;
-          raise (Failure "Failed to check"))
-      @@ fun () ->
       let chk = Check.check ctx raw ty in
       Ctx.eval ctx chk
   | Error str ->
@@ -54,17 +54,17 @@ let check (tm : string) (ty : Value.value) : Value.value =
 let unsynth : type a. ?code:a Logger.Code.code -> string -> unit =
  fun ?code tm ->
   let (Ctx (ctx, names)) = !context in
+  Logger.try_with ~fatal:(fun d ->
+      match code with
+      | None -> ()
+      | Some c ->
+          if d.code = Code c then ()
+          else (
+            Terminal.display d;
+            raise (Failure "Unexpected error code")))
+  @@ fun () ->
   match parse_term names tm with
   | Ok (Synth raw) ->
-      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
-          match code with
-          | None -> ()
-          | Some c ->
-              if d.code = Code c then ()
-              else (
-                Terminal.display d;
-                raise (Failure "Unexpected error code")))
-      @@ fun () ->
       let _ = Check.synth ctx raw in
       raise (Failure "Synthesis success")
   | Ok _ -> raise (Failure "Non-synthesizing")
@@ -75,17 +75,17 @@ let unsynth : type a. ?code:a Logger.Code.code -> string -> unit =
 let uncheck : type a. ?code:a Logger.Code.code -> string -> Value.value -> unit =
  fun ?code tm ty ->
   let (Ctx (ctx, names)) = !context in
+  Logger.try_with ~fatal:(fun d ->
+      match code with
+      | None -> ()
+      | Some c ->
+          if d.code = Code c then ()
+          else (
+            Terminal.display d;
+            raise (Failure "Unexpected error code")))
+  @@ fun () ->
   match parse_term names tm with
   | Ok raw ->
-      Logger.run ~emit:Terminal.display ~fatal:(fun d ->
-          match code with
-          | None -> ()
-          | Some c ->
-              if d.code = Code c then ()
-              else (
-                Terminal.display d;
-                raise (Failure "Unexpected error code")))
-      @@ fun () ->
       let _ = Check.check ctx raw ty in
       raise (Failure "Checking success")
   | Error str ->
@@ -128,3 +128,9 @@ let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_none (Equal.equal_val (Ctx.level ctx) tm1 tm2) then ()
   else raise (Failure "Equal terms")
+
+let run f =
+  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+      Terminal.display d;
+      raise (Failure "Fatal error"))
+  @@ fun () -> Scope.run f

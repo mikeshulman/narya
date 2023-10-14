@@ -1,5 +1,9 @@
-type t = string
+type t = int
 
-let intern (str : string) : t = str
+let counter = ref (-1)
+
+let make () : t =
+  counter := !counter + 1;
+  !counter
+
 let compare (x : t) (y : t) = compare x y
-let to_string (x : t) : string = x

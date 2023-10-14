@@ -6,13 +6,14 @@ open Util
 open Term
 open Nat
 
-let ([ vec; concat; ind ] : (Constant.t, N.three) Vec.t) =
-  Vec.map Constant.intern [ "Vec"; "concat"; "Vec_ind" ]
-
-let ([ nil; cons ] : (Constr.t, N.two) Vec.t) = Vec.map Constr.intern [ "nil"; "cons" ]
+let nil = Constr.intern "nil"
+let cons = Constr.intern "cons"
 
 let install () =
   Nat.install ();
+  let vec = Scope.define "Vec" in
+  let concat = Scope.define "concat" in
+  let ind = Scope.define "Vec_ind" in
   Hashtbl.add Global.types vec (pi (UU D.zero) (pi (Const nn) (UU D.zero)));
   Hashtbl.add Global.constants vec
     (Data

@@ -1,5 +1,6 @@
 open Util
 open Core
+open Logger
 
 (* Poor man's parser, reusing the OCaml parser to make a vaguely usable syntax *)
 
@@ -40,8 +41,11 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
   | Var x -> (
       match Bwv.index x ctx with
       | Some v -> Var v
-      | None -> raise (Failure ("Variable " ^ x ^ " not found")))
-  | Const x -> Const (Constant.intern x)
+      | None -> die Unbound_variable x)
+  | Const x -> (
+      match Scope.lookup x with
+      | Some c -> Const c
+      | None -> die Unbound_variable x)
   | UU -> Symbol (UU, Zero, Emp)
   | Field (x, fld) -> Field (parse_syn ctx x, Field.intern fld)
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
@@ -81,22 +85,22 @@ let context = ref ectx
 
 let synth (tm : pmt) : Value.value * Value.value =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_syn names tm in
   Logger.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to synthesize"))
   @@ fun () ->
+  let raw = parse_syn names tm in
   let syn, ty = Check.synth ctx raw in
   let esyn = Ctx.eval ctx syn in
   (esyn, ty)
 
 let check (tm : pmt) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_chk names tm in
   Logger.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to check"))
   @@ fun () ->
+  let raw = parse_chk names tm in
   let chk = Check.check ctx raw ty in
   Ctx.eval ctx chk
 
@@ -104,15 +108,15 @@ let check (tm : pmt) (ty : Value.value) : Value.value =
 
 let unsynth (tm : pmt) : unit =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_syn names tm in
   Logger.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
+  let raw = parse_syn names tm in
   let _ = Check.synth ctx raw in
   raise (Failure "Synthesis success")
 
 let uncheck (tm : pmt) (ty : Value.value) : unit =
   let (Ctx (ctx, names)) = !context in
-  let raw = parse_chk names tm in
   Logger.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
+  let raw = parse_chk names tm in
   let _ = Check.check ctx raw ty in
   raise (Failure "Checking success")
 
@@ -149,3 +153,9 @@ let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
 
 let ( $$ ) (fn : Value.value) (arg : Value.value) : Value.value =
   Norm.apply fn (Dim.CubeOf.singleton arg)
+
+let run f =
+  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+      Terminal.display d;
+      raise (Failure "Fatal error"))
+  @@ fun () -> Scope.run f

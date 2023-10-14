@@ -7,43 +7,10 @@ open Compile
 open Raw
 open Term
 
-let ([ sigma; pair ] : (Constant.t, N.two) Vec.t) = Vec.map Constant.intern [ "Σ"; "pair" ]
-let ([ fst; snd ] : (Field.t, N.two) Vec.t) = Vec.map Field.intern [ "fst"; "snd" ]
-
-let install () =
-  Hashtbl.add Global.types sigma (pi (UU D.zero) (pi (pi (Var Top) (UU D.zero)) (UU D.zero)));
-  Hashtbl.add Global.types pair
-    (pi (UU D.zero)
-       (pi (pi (Var Top) (UU D.zero))
-          (pi (Var (Pop Top))
-             (pi (app (Var (Pop Top)) (Var Top))
-                (app (app (Const sigma) (Var (Pop (Pop (Pop Top))))) (Var (Pop (Pop Top))))))));
-  Hashtbl.add Global.constants sigma
-    (Record
-       {
-         eta = true;
-         params = N.two;
-         dim = D.zero;
-         dim_faces = faces_zero;
-         params_plus = Suc Zero;
-         fields = [ (fst, Var (Pop (Pop Top))); (snd, app (Var (Pop Top)) (Field (Var Top, fst))) ];
-       });
-  Hashtbl.add Global.constants pair
-    (Defined
-       (ref
-          (Case.Lam
-             (ref
-                (Case.Lam
-                   (ref
-                      (Case.Lam
-                         (ref
-                            (Case.Lam
-                               (ref
-                                  (Case.Leaf
-                                     (Struct
-                                        (Field.Map.empty
-                                        |> Field.Map.add fst (Var (Pop Top))
-                                        |> Field.Map.add snd (Var Top))))))))))))))
+let sigma = Constant.make ()
+let fst = Field.intern "fst"
+let snd = Field.intern "snd"
+let pair = Constant.make ()
 
 open Monad.Ops (Monad.Maybe)
 
@@ -99,5 +66,43 @@ let () =
           return (Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ])));
     }
 
-let () =
+let install_notations () =
   Builtins.builtins := !Builtins.builtins |> State.add sigman |> State.add prodn |> State.add comma
+
+let install () =
+  install_notations ();
+  Scope.set "Σ" sigma;
+  Scope.set "pair" pair;
+  Hashtbl.add Global.types sigma (pi (UU D.zero) (pi (pi (Var Top) (UU D.zero)) (UU D.zero)));
+  Hashtbl.add Global.types pair
+    (pi (UU D.zero)
+       (pi (pi (Var Top) (UU D.zero))
+          (pi (Var (Pop Top))
+             (pi (app (Var (Pop Top)) (Var Top))
+                (app (app (Const sigma) (Var (Pop (Pop (Pop Top))))) (Var (Pop (Pop Top))))))));
+  Hashtbl.add Global.constants sigma
+    (Record
+       {
+         eta = true;
+         params = N.two;
+         dim = D.zero;
+         dim_faces = faces_zero;
+         params_plus = Suc Zero;
+         fields = [ (fst, Var (Pop (Pop Top))); (snd, app (Var (Pop Top)) (Field (Var Top, fst))) ];
+       });
+  Hashtbl.add Global.constants pair
+    (Defined
+       (ref
+          (Case.Lam
+             (ref
+                (Case.Lam
+                   (ref
+                      (Case.Lam
+                         (ref
+                            (Case.Lam
+                               (ref
+                                  (Case.Leaf
+                                     (Struct
+                                        (Field.Map.empty
+                                        |> Field.Map.add fst (Var (Pop Top))
+                                        |> Field.Map.add snd (Var Top))))))))))))))

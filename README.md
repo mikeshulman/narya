@@ -7,17 +7,17 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Asai](https://redprl.org/asai/asai/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).
+Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Asai](https://redprl.org/asai/asai/), [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).
 
 ```
 opam switch create 5.1.0
-opam install bwd asai fmlib_parse
+opam install bwd asai yuujinchou fmlib_parse
 cd narya
 dune build
 dune runtest
 ```
 
-There is no executable yet, but you can load the libraries in `utop` and use the `Repl` commands mentioned below.
+There is no executable yet, but you can load the library in an OCaml executable and interact with it using the `Repl` commands mentioned below.
 
 
 ## Parsing
@@ -62,7 +62,7 @@ Numerals are strings consisting of digits and periods, not starting or ending wi
 
 ## REPL
 
-Narya cannot read and parse an entire file yet, so one has to interact with it as an OCaml library.  Currently the easiest way to do this is with the following functions defined in `Testutil.Repl`.  They can be called from the OCaml toplevel, or from an OCaml executable.
+Narya cannot read and parse an entire file yet, so one has to interact with it as an OCaml library.  Currently the easiest way to do this is with the following functions defined in `Testutil.Repl`.  They must be called inside a wrapper of `run @@ fun () ->` which supplies a namespace for definitions, with each call to `run` using a fresh namespace.
 
 - `def NAME TYPE TERM` – Define a global constant called `NAME` having type `TYPE` and value `TERM`.  The arguments `NAME`, `TYPE`, and `TERM` must all be (double-quoted) OCaml strings.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).
 

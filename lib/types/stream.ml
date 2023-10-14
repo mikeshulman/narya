@@ -3,10 +3,12 @@ open Dim
 open Core
 open Term
 
-let ([ stream; corec ] : (Constant.t, N.two) Vec.t) = Vec.map Constant.intern [ "Stream"; "corec" ]
-let ([ head; tail ] : (Field.t, N.two) Vec.t) = Vec.map Field.intern [ "head"; "tail" ]
+let head = Field.intern "head"
+let tail = Field.intern "tail"
 
 let install () =
+  let stream = Scope.define "Stream" in
+  let corec = Scope.define "corec" in
   Hashtbl.add Global.types stream (pi (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants stream
     (Record

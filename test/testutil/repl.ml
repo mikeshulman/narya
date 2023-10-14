@@ -24,21 +24,15 @@ let must_parse_term (tm : string) : N.zero check =
 module Terminal = Asai.Tty.Make (Core.Logger.Code)
 
 let check_type (rty : N.zero check) : N.zero term =
-  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
-      raise (Failure "Failed to check type"))
-  @@ fun () -> check Ctx.empty rty (universe D.zero)
+  Logger.trace "When checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
 
 let check_term (rtm : N.zero check) (ety : value) : N.zero term =
-  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
-      raise (Failure "Failed to check term"))
-  @@ fun () -> check Ctx.empty rtm ety
+  Logger.trace "When checking term" @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
   match Parser.Lexer.Parser.single name with
   | Some (Name name) ->
-      let const = Constant.intern name in
+      let const = Scope.define name in
       if Hashtbl.mem Global.types const then
         raise (Failure ("Constant " ^ name ^ " already defined"))
       else
@@ -51,7 +45,7 @@ let assume (name : string) (ty : string) : unit =
 let def (name : string) (ty : string) (tm : string) : unit =
   match Parser.Lexer.Parser.single name with
   | Some (Name name) ->
-      let const = Constant.intern name in
+      let const = Scope.define name in
       if Hashtbl.mem Global.types const then
         raise (Failure ("Constant " ^ name ^ " already defined"))
       else
@@ -72,9 +66,11 @@ let def (name : string) (ty : string) (tm : string) : unit =
   | _ -> raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
 
 let undef (name : string) : unit =
-  let const = Constant.intern name in
-  Hashtbl.remove Global.types const;
-  Hashtbl.remove Global.constants const
+  match Scope.lookup name with
+  | Some const ->
+      Hashtbl.remove Global.types const;
+      Hashtbl.remove Global.constants const
+  | None -> raise (Failure ("Can't undefine undefined constant " ^ name))
 
 let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   let rty = must_parse_term ty in
@@ -103,3 +99,9 @@ let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   match Equal.equal_at 0 etm1 etm2 ety with
   | None -> ()
   | Some () -> raise (Failure "Equal terms")
+
+let run f =
+  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+      Terminal.display d;
+      raise (Failure "Fatal error"))
+  @@ fun () -> Scope.run f

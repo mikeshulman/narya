@@ -1,4 +1,5 @@
 open Dim
+open Scope
 
 module Code = struct
   type _ code =
@@ -20,7 +21,8 @@ module Code = struct
     | Missing_instantiation_constructor : (Constr.t * Constr.t option) code
     | Unequal_indices : unit code
     | Checking_mismatch : unit code
-    | Unbound_variable : Constant.t code
+    | Unbound_variable : string code
+    | Undefined_constant : Constant.t code
     | Nonsynthesizing_argument_of_degeneracy : string code
     | Low_dimensional_argument_of_degeneracy : (string * int) code
     | Missing_argument_of_degeneracy : unit code
@@ -59,6 +61,7 @@ module Code = struct
     | Checking_constructor_against_nondatatype -> Error
     | Checking_mismatch -> Error
     | Unbound_variable -> Error
+    | Undefined_constant -> Bug
     | No_such_field -> Error
     | Nonsynthesizing_argument_of_degeneracy -> Error
     | Low_dimensional_argument_of_degeneracy -> Error
@@ -100,6 +103,7 @@ module Code = struct
     | Checking_constructor_against_nondatatype -> "E0980"
     | Checking_mismatch -> "E1639"
     | Unbound_variable -> "E5683"
+    | Undefined_constant -> "E8902"
     | No_such_field -> "E9490"
     | Nonsynthesizing_argument_of_degeneracy -> "E1561"
     | Low_dimensional_argument_of_degeneracy -> "E7321"
@@ -144,8 +148,7 @@ let die : type a b. ?severity:Asai.Diagnostic.severity -> a Code.code -> a -> b 
       fatal ?severity (Code e) "Term synthesized a different type than it's being checked against"
   | Checking_struct_at_degenerated_record, r ->
       fatalf ?severity (Code e)
-        "Can't check a struct against a record %s with a nonidentity degeneracy applied"
-        (Constant.to_string r)
+        "Can't check a struct against a record %s with a nonidentity degeneracy applied" (name_of r)
   | Missing_field_in_struct, f ->
       fatalf ?severity (Code e) "Record field %s missing in struct" (Field.to_string f)
   | Duplicate_field_in_struct, f ->
@@ -154,13 +157,12 @@ let die : type a b. ?severity:Asai.Diagnostic.severity -> a Code.code -> a -> b 
   | Missing_constructor_in_match, c ->
       fatalf ?severity (Code e) "Missing match clause for constructor %s" (Constr.to_string c)
   | Checking_struct_against_nonrecord, c ->
-      fatalf ?severity (Code e) "Attempting to check struct against non-record type %s"
-        (Constant.to_string c)
+      fatalf ?severity (Code e) "Attempting to check struct against non-record type %s" (name_of c)
   | Checking_constructor_against_nondatatype, (c, d) ->
       fatalf ?severity (Code e) "Attempting to check constructor %s against non-datatype %s"
-        (Constr.to_string c) (Constant.to_string d)
+        (Constr.to_string c) (name_of d)
   | No_such_constructor, (d, c) ->
-      fatalf ?severity (Code e) "Datatype %s has no constructor named %s" (Constant.to_string d)
+      fatalf ?severity (Code e) "Datatype %s has no constructor named %s" (name_of d)
         (Constr.to_string c)
   | Wrong_number_of_arguments_to_constructor, (c, n) ->
       if n > 0 then
@@ -172,7 +174,7 @@ let die : type a b. ?severity:Asai.Diagnostic.severity -> a Code.code -> a -> b 
   | No_such_field, (d, f) ->
       fatalf ?severity (Code e) "%s has no field named %s"
         (match d with
-        | Some d -> "Record " ^ Constant.to_string d
+        | Some d -> "Record " ^ name_of d
         | None -> "Non-record type")
         (Field.to_string f)
   | Missing_instantiation_constructor, (exp, got) ->
@@ -187,7 +189,8 @@ let die : type a b. ?severity:Asai.Diagnostic.severity -> a Code.code -> a -> b 
         "Indices of constructor application don't match those of datatype instance"
   | Checking_mismatch, () ->
       fatal ?severity (Code e) "Checking term doesn't check against that type"
-  | Unbound_variable, c -> fatalf ?severity (Code e) "Unbound variable: %s" (Constant.to_string c)
+  | Unbound_variable, c -> fatalf ?severity (Code e) "Unbound variable: %s" c
+  | Undefined_constant, c -> fatalf ?severity (Code e) "Unbound variable: %s" (name_of c)
   | Nonsynthesizing_argument_of_degeneracy, deg ->
       fatalf ?severity (Code e) "Argument of %s must synthesize" deg
   | Low_dimensional_argument_of_degeneracy, (deg, dim) ->
@@ -216,7 +219,7 @@ let die : type a b. ?severity:Asai.Diagnostic.severity -> a Code.code -> a -> b 
           (Constr.to_string c) (abs n)
   | No_such_constructor_in_match, (d, c) ->
       fatalf ?severity (Code e) "Datatype %s being matched against has no constructor %s"
-        (Constant.to_string d) (Constr.to_string c)
+        (name_of d) (Constr.to_string c)
   | Duplicate_constructor_in_match, c ->
       fatalf ?severity (Code e) "Constructor %s appears twice in match" (Constr.to_string c)
   | Index_variable_in_index_value, () ->
@@ -225,10 +228,10 @@ let die : type a b. ?severity:Asai.Diagnostic.severity -> a Code.code -> a -> b 
       match c with
       | Some c ->
           fatalf ?severity (Code e) "Can't match on variable belonging to non-datatype %s"
-            (Constant.to_string c)
+            (name_of c)
       | None -> fatal ?severity (Code e) "Can't match on variable belonging to non-datatype")
   | Matching_on_let_bound_variable, () ->
       fatal ?severity (Code e) "Can't match on a let-bound variable"
   | Dimension_mismatch, (op, a, b) ->
       fatalf ?severity (Code e) "Dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
-  | Anomaly, str -> fatal ?severity (Code e) str
+  | Anomaly, str -> fatal ?severity (Code e) ("Anomaly: " ^ str)

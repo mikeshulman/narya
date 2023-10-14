@@ -5,10 +5,12 @@ open Core
 open Util
 open Term
 
-let ([ list; ind ] : (Constant.t, N.two) Vec.t) = Vec.map Constant.intern [ "List"; "List_ind" ]
-let ([ nil; cons ] : (Constr.t, N.two) Vec.t) = Vec.map Constr.intern [ "nil"; "cons" ]
+let nil = Constr.intern "nil"
+let cons = Constr.intern "cons"
 
 let install () =
+  let list = Scope.define "List" in
+  let ind = Scope.define "List_ind" in
   Hashtbl.add Global.types list (pi (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants list
     (Data

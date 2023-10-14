@@ -1,5 +1,5 @@
 (library
   (name core)
-  (libraries util dim bwd)
+  (libraries util dim bwd asai yuujinchou)
 	(instrumentation (backend landmarks --auto)))
 (env (_ (flags (:standard -w -37 -w -30))))

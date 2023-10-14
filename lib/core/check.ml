@@ -167,7 +167,7 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
   match tm with
   | Var v -> (Term.Var v, (snd (Bwv.nth v ctx)).ty)
   | Const name ->
-      let ty = Hashtbl.find_opt Global.types name <|> (Unbound_variable, name) in
+      let ty = Hashtbl.find_opt Global.types name <|> (Undefined_constant, name) in
       (Const name, eval (Emp D.zero) ty)
   | Field (tm, fld) ->
       let stm, sty = synth ctx tm in

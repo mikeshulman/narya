@@ -68,7 +68,7 @@ let cnat n =
 let fifty = check (cnat 50) churchnat
 
 (* Doing 100 takes a noticeable fraction of a second, but only in the typechecking; the parsing is still near instantaneous. *)
-let cien = Parse.parse !Builtins.builtins (cnat 100)
+let cien = Parse.term !Builtins.builtins (cnat 100)
 
 (* Parsing church numerals starts to take a noticable fraction of a second around 2000. *)
 

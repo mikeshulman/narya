@@ -9,7 +9,7 @@ open Term
 open Raw
 
 let parse_term (tm : string) : (N.zero check, string) result =
-  Result.bind (Parse.parse !Builtins.builtins tm) (fun res ->
+  Result.bind (Parse.term !Builtins.builtins tm) (fun res ->
       match Compile.compile Emp res with
       | None -> Error "Compilation error"
       | Some t -> Ok t)

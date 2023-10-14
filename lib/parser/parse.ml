@@ -224,7 +224,7 @@ module Parse_term = struct
   module Parser = struct
     include Basic.Parser
 
-    let parse (state : State.t) : t = make state (term ())
+    let term (state : State.t) : t = make state (term ())
   end
 end
 
@@ -234,11 +234,11 @@ module Lex_and_parse =
 open Lex_and_parse
 
 let start (state : State.t) : Lex_and_parse.t =
-  make Lexer.Parser.init (Parse_term.Parser.parse state)
+  make Lexer.Parser.init (Parse_term.Parser.term state)
 
 module Reporter = Error_reporter.Make (Lex_and_parse)
 
-let parse (state : State.t) (str : string) : (Res.t, string) result =
+let term (state : State.t) (str : string) : (Res.t, string) result =
   let p = run_on_string str (start state) in
   if has_succeeded p then Ok (final p)
   else if has_failed_syntax p then

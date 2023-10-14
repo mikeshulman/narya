@@ -35,6 +35,6 @@ and get_res (r : Compile.res) : res =
   | Abs (vars, body) -> Abs (vars, get_res body)
 
 let parse state str =
-  match Parse.parse state str with
+  match Parse.term state str with
   | Ok res -> Ok (get_res res)
   | Error err -> Error err

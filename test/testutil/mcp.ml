@@ -12,7 +12,7 @@ let context = ref ectx
 
 let parse_term : type n. (string option, n) Bwv.t -> string -> (n Raw.check, string) result =
  fun names tm ->
-  Result.bind (Parse.parse !Builtins.builtins tm) (fun res ->
+  Result.bind (Parse.term !Builtins.builtins tm) (fun res ->
       match Compile.compile names res with
       | None -> Error "Compilation error"
       | Some t -> Ok t)

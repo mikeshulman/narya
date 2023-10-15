@@ -41,11 +41,11 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
   | Var x -> (
       match Bwv.index x ctx with
       | Some v -> Var v
-      | None -> die Unbound_variable x)
+      | None -> fatal (Unbound_variable x))
   | Const x -> (
       match Scope.lookup x with
       | Some c -> Const c
-      | None -> die Unbound_variable x)
+      | None -> fatal (Unbound_variable x))
   | UU -> Symbol (UU, Zero, Emp)
   | Field (x, fld) -> Field (parse_syn ctx x, Field.intern fld)
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)

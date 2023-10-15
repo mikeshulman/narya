@@ -36,16 +36,16 @@ let rec get_flag flags obs =
 
 let rec get_name obs =
   match obs with
-  | [] -> die Anomaly "Missing name"
+  | [] -> fatal (Anomaly "Missing name")
   | Flag _ :: rest -> get_name rest
   | Name x :: rest -> (x, rest)
-  | Constr _ :: _ | Term _ :: _ -> die Anomaly "Missing name"
+  | Constr _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing name")
 
 let rec get_term obs =
   match obs with
-  | [] -> die Anomaly "Missing term"
+  | [] -> fatal (Anomaly "Missing term")
   | Flag _ :: rest -> get_term rest
-  | Constr _ :: _ | Name _ :: _ -> die Anomaly "Missing term"
+  | Constr _ :: _ | Name _ :: _ -> fatal (Anomaly "Missing term")
   | Term x :: rest -> (x, rest)
 
 let rec get_next obs =
@@ -61,7 +61,7 @@ let rec get_done obs =
   match obs with
   | [] -> ()
   | Flag _ :: rest -> get_done rest
-  | _ :: _ -> die Anomaly "Extra stuff"
+  | _ :: _ -> fatal (Anomaly "Extra stuff")
 
 open Monad.Ops (Monad.Maybe)
 
@@ -70,9 +70,9 @@ let compile_numeral n =
   let rec compile_nat n =
     if n = 0 then Raw.Constr (Constr.intern "0", Emp)
     else Raw.Constr (Constr.intern "1", Snoc (Emp, compile_nat (n - 1))) in
-  let frac, n = modf n in
-  if classify_float frac = FP_zero && n >= 0. then compile_nat (int_of_float n)
-  else die Unsupported_numeral n
+  let frac, int = modf n in
+  if classify_float frac = FP_zero && int >= 0. then compile_nat (int_of_float int)
+  else fatal (Unsupported_numeral n)
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notatations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
@@ -100,16 +100,16 @@ let rec compile : type n. (string option, n) Bwv.t -> res -> n check =
       | Constr (head, args) ->
           let arg = compile ctx arg in
           Raw.Constr (head, Snoc (args, arg))
-      | _ -> die Nonsynthesizing "application head")
+      | _ -> fatal (Nonsynthesizing "application head"))
   | Name x -> (
       match Bwv.index (Some x) ctx with
       | Some n -> Synth (Var n)
       | None -> (
           match Scope.lookup x with
           | Some c -> Synth (Const c)
-          | None -> die Unbound_variable x))
+          | None -> fatal (Unbound_variable x)))
   | Constr name -> Raw.Constr (Constr.intern name, Emp)
-  | Field _ -> die Anomaly "Field is head"
+  | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> compile_numeral n
   | Abs ([], body) -> compile ctx body
   | Abs (x :: names, body) ->

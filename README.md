@@ -7,12 +7,16 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Asai](https://redprl.org/asai/asai/), [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).
+Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Asai](https://redprl.org/asai/asai/), [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).  The version of Asai is not yet in Opam, so you need to compile that from source.
 
 ```
 opam switch create 5.1.0
-opam install bwd asai yuujinchou fmlib_parse
-cd narya
+opam install bwd yuujinchou fmlib_parse
+git clone git@github.com:RedPRL/asai.git
+cd asai
+dune build
+dune install
+cd ../narya
 dune build
 dune runtest
 ```

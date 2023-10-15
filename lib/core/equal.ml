@@ -30,7 +30,7 @@ and equal_at : int -> value -> value -> value -> unit option =
       let k = CubeOf.dim doms in
       (* The pi-type must be instantiated at the correct dimension. *)
       match compare (TubeOf.inst tyargs) k with
-      | Neq -> die Dimension_mismatch ("equality at pi", TubeOf.inst tyargs, k)
+      | Neq -> fatal (Dimension_mismatch ("equality at pi", TubeOf.inst tyargs, k))
       | Eq ->
           (* Create variables for all the boundary domains. *)
           let _, newargs, _, new_n = dom_vars ctx doms in
@@ -46,7 +46,8 @@ and equal_at : int -> value -> value -> value -> unit option =
           let (Plus kdim) = D.plus dim in
           match compare (TubeOf.inst tyargs) (D.plus_out k kdim) with
           | Neq ->
-              die Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, D.plus_out k kdim)
+              fatal
+                (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, D.plus_out k kdim))
           | Eq -> (
               if eta then
                 (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
@@ -69,14 +70,15 @@ and equal_at : int -> value -> value -> value -> unit option =
       (* At a datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  *)
       | Data { constrs; params; indices } -> (
           match compare (TubeOf.inst tyargs) k with
-          | Neq -> die Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, k)
+          | Neq -> fatal (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, k))
           | Eq -> (
               match (x, y) with
               | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
                   let* () = guard (xconstr = yconstr) in
                   match (compare xn yn, compare xn (TubeOf.inst tyargs)) with
-                  | Neq, _ -> die Dimension_mismatch ("equality of constrs", xn, yn)
-                  | _, Neq -> die Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs)
+                  | Neq, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, yn))
+                  | _, Neq ->
+                      fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
                   | Eq, Eq ->
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
@@ -94,8 +96,10 @@ and equal_at : int -> value -> value -> value -> unit option =
                                 | Constr (tmname, l, tmargs) ->
                                     if tmname = xconstr then
                                       Bwd.map (fun a -> CubeOf.find a (id_sface l)) tmargs
-                                    else die Anomaly "Inst arg wrong constr in equality at datatype"
-                                | _ -> die Anomaly "Inst arg not constr in equality at datatype");
+                                    else
+                                      fatal
+                                        (Anomaly "Inst arg wrong constr in equality at datatype")
+                                | _ -> fatal (Anomaly "Inst arg not constr in equality at datatype"));
                           }
                           [ tyargs ] in
                       (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
@@ -135,8 +139,8 @@ and equal_val : int -> value -> value -> unit option =
       | _ ->
           msg "Unequal dimensions of instantiation";
           fail)
-  | Lam _, _ | _, Lam _ -> die Anomaly "Unexpected lambda in synthesizing equality-check"
-  | Struct _, _ | _, Struct _ -> die Anomaly "Unexpected struct in synthesizing equality-check"
+  | Lam _, _ | _, Lam _ -> fatal (Anomaly "Unexpected lambda in synthesizing equality-check")
+  | Struct _, _ | _, Struct _ -> fatal (Anomaly "Unexpected struct in synthesizing equality-check")
   | _, _ ->
       msg "Unequal terms in synthesizing equality-check";
       fail
@@ -182,8 +186,9 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       let* () = guard (name1 = name2) in
       match compare (cod_left_ins i1) (cod_left_ins i2) with
       | Neq ->
-          die Dimension_mismatch
-            ("application in canonical equality-check", cod_left_ins i1, cod_left_ins i2)
+          fatal
+            (Dimension_mismatch
+               ("application in canonical equality-check", cod_left_ins i1, cod_left_ins i2))
       | Eq ->
           let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
           let open Mbwd.Monadic (Monad.Maybe) in
@@ -239,7 +244,8 @@ and equal_arg : int -> app -> app -> unit option =
           let open CubeOf.Monadic (Monad.Maybe) in
           miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
       (* If the dimensions don't match, it is a bug rather than a user error, since they are supposed to both be valid arguments of the same function, and any function has a unique dimension. *)
-      | Neq -> die Dimension_mismatch ("application in equality-check", CubeOf.dim a1, CubeOf.dim a2)
+      | Neq ->
+          fatal (Dimension_mismatch ("application in equality-check", CubeOf.dim a1, CubeOf.dim a2))
       )
   | Field f1, Field f2 -> guard (f1 = f2)
   | _, _ -> fail
@@ -266,7 +272,7 @@ and equal_at_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> die Anomaly "Missing arguments in equal_at_tel"
+                | [] -> fatal (Anomaly "Missing arguments in equal_at_tel")
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =
@@ -290,4 +296,4 @@ and equal_at_tel :
       equal_at_tel ctx
         (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)))
         xs ys tys tyargs
-  | _ -> die Anomaly "Length mismatch in equal_at_tel"
+  | _ -> fatal (Anomaly "Length mismatch in equal_at_tel")

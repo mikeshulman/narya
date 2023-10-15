@@ -27,7 +27,7 @@ let synth (tm : string) : Value.value * Value.value =
       let syn, ty = Check.synth ctx raw in
       let esyn = Ctx.eval ctx syn in
       (esyn, ty)
-  | _ -> die Nonsynthesizing "toplevel synth"
+  | _ -> fatal (Nonsynthesizing "toplevel synth")
 
 let check (tm : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
@@ -38,14 +38,21 @@ let check (tm : string) (ty : Value.value) : Value.value =
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 
-let unsynth : type a. ?code:a Logger.Code.code -> string -> unit =
- fun ?code tm ->
+let unsynth : ?code:Logger.Code.t -> ?short:string -> string -> unit =
+ fun ?code ?short tm ->
   let (Ctx (ctx, names)) = !context in
   Logger.try_with ~fatal:(fun d ->
       match code with
-      | None -> ()
+      | None -> (
+          match short with
+          | None -> ()
+          | Some str ->
+              if Logger.Code.short_code d.message = str then ()
+              else (
+                Terminal.display d;
+                raise (Failure "Unexpected error code")))
       | Some c ->
-          if d.code = Code c then ()
+          if d.message = c then ()
           else (
             Terminal.display d;
             raise (Failure "Unexpected error code")))
@@ -54,16 +61,23 @@ let unsynth : type a. ?code:a Logger.Code.code -> string -> unit =
   | Synth raw ->
       let _ = Check.synth ctx raw in
       raise (Failure "Synthesis success")
-  | _ -> die Nonsynthesizing "top-level unsynth"
+  | _ -> fatal (Nonsynthesizing "top-level unsynth")
 
-let uncheck : type a. ?code:a Logger.Code.code -> string -> Value.value -> unit =
- fun ?code tm ty ->
+let uncheck : ?code:Logger.Code.t -> ?short:string -> string -> Value.value -> unit =
+ fun ?code ?short tm ty ->
   let (Ctx (ctx, names)) = !context in
   Logger.try_with ~fatal:(fun d ->
       match code with
-      | None -> ()
+      | None -> (
+          match short with
+          | None -> ()
+          | Some str ->
+              if Logger.Code.short_code d.message = str then ()
+              else (
+                Terminal.display d;
+                raise (Failure "Unexpected error code")))
       | Some c ->
-          if d.code = Code c then ()
+          if d.message = c then ()
           else (
             Terminal.display d;
             raise (Failure "Unexpected error code")))

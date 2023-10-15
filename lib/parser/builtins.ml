@@ -52,8 +52,8 @@ let () =
               | Synth term -> (
                   match body with
                   | Synth body -> Synth (Let (term, body))
-                  | _ -> die Nonsynthesizing "body of let")
-              | _ -> die Nonsynthesizing "value of let")
+                  | _ -> fatal (Nonsynthesizing "body of let"))
+              | _ -> fatal (Nonsynthesizing "value of let"))
           | Some Asc_let -> (
               let ty, obs = get_term obs in
               let term, obs = get_term obs in
@@ -64,7 +64,7 @@ let () =
               let body = compile (Snoc (ctx, x)) body in
               match body with
               | Synth body -> Synth (Let (Asc (term, ty), body))
-              | _ -> die Nonsynthesizing "body of let")
+              | _ -> fatal (Nonsynthesizing "body of let"))
           | _ -> raise (Failure "Unrecognized flag"));
     }
 
@@ -243,8 +243,8 @@ let rec compile_struc :
       let tm = compile ctx tm in
       match x with
       | Some x -> compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
-      | None -> die Unnamed_field_in_struct ())
-  | `Constr _ | `Term _ -> die Anomaly "Impossible thing in struct"
+      | None -> fatal Unnamed_field_in_struct)
+  | `Constr _ | `Term _ -> fatal (Anomaly "Impossible thing in struct")
 
 let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
 
@@ -286,8 +286,8 @@ let rec compile_branch_names :
   | `Term (t, obs) ->
       let tm = compile ctx t in
       (Branch (c, ab, tm), obs)
-  | `Constr _ -> die Anomaly "Unexpected constr"
-  | `Done -> die Anomaly "Unexpected end of input"
+  | `Constr _ -> fatal (Anomaly "Unexpected constr")
+  | `Done -> fatal (Anomaly "Unexpected end of input")
 
 let rec compile_branches : type n. (string option, n) Bwv.t -> observation list -> n branch list =
  fun ctx obs ->
@@ -297,8 +297,8 @@ let rec compile_branches : type n. (string option, n) Bwv.t -> observation list 
       let br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
       let rest = compile_branches ctx obs in
       br :: rest
-  | `Term _ -> die Anomaly "Unexpected term"
-  | `Name _ -> die Anomaly "Unexpected name"
+  | `Term _ -> fatal (Anomaly "Unexpected term")
+  | `Name _ -> fatal (Anomaly "Unexpected name")
 
 let () =
   add_compiler mtch
@@ -308,10 +308,10 @@ let () =
           let name, obs = get_name obs in
           (* Can't match an underscore *)
           match name with
-          | None -> die Unnamed_variable_in_match ()
+          | None -> fatal Unnamed_variable_in_match
           | Some name -> (
               match Bwv.index (Some name) ctx with
-              | None -> die Unbound_variable name
+              | None -> fatal (Unbound_variable name)
               | Some x ->
                   let branches = compile_branches ctx obs in
                   Match (x, branches)));

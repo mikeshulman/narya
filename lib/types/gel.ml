@@ -8,9 +8,10 @@ open Term
 (* Note that the function "install" has to be called explicitly to make Gel-types available. *)
 
 let ungel = Field.intern "ungel"
+let gel = Constant.make ()
 
 let install () =
-  let gel = Scope.define "Gel" in
+  Scope.set "Gel" gel;
   Hashtbl.add Global.types gel
     (pi (UU D.zero)
        (pi (UU D.zero)

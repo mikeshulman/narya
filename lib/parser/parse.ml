@@ -244,9 +244,10 @@ let term (state : State.t) (str : string) : Res.t =
   if has_succeeded p then final p
   else if has_failed_syntax p then
     (* TODO: Use Asai for this too *)
-    die Parse_error
-      (let r = Reporter.make_syntax p in
-       let doc = Reporter.run_on_string str r in
-       let open Fmlib_pretty.Print in
-       string_of (layout 80 doc))
-  else die Anomaly "Parser failed in an unexpected way"
+    fatal
+      (Parse_error
+         (let r = Reporter.make_syntax p in
+          let doc = Reporter.run_on_string str r in
+          let open Fmlib_pretty.Print in
+          string_of (layout 80 doc)))
+  else fatal (Anomaly "Parser failed in an unexpected way")

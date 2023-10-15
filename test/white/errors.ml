@@ -15,25 +15,25 @@ let () =
   let _ = unsynth "refl f a a (refl a) a" ~code:Applying_nonfunction_nontype in
   let () = unsynth "Id A a" ~code:Not_enough_arguments_to_instantiation in
   let idff = check "Id (A→A) f f" uu in
-  let () = uncheck "x ↦ x" idff ~code:Not_enough_lambdas in
-  let () = uncheck "x y ↦ x" idff ~code:Not_enough_lambdas in
+  let () = uncheck "x ↦ x" idff ~code:(Not_enough_lambdas 2) in
+  let () = uncheck "x y ↦ x" idff ~code:(Not_enough_lambdas 1) in
   let _ = check "x0 x1 x2 ↦ refl f x0 x1 x2" idff in
   let () = uncheck "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~code:Checking_mismatch in
-  let () = unsynth "refl (x ↦ x)" ~code:Nonsynthesizing in
+  let () = unsynth "refl (x ↦ x)" ~code:(Nonsynthesizing "refl") in
   let () = unsynth "refl" ~code:Missing_argument_of_degeneracy in
-  let () = unsynth "sym f" ~code:Low_dimensional_argument_of_degeneracy in
-  let () = unsynth "g" ~code:Unbound_variable in
+  let () = unsynth "sym f" ~code:(Low_dimensional_argument_of_degeneracy ("sym", 2)) in
+  let () = unsynth "g" ~code:(Unbound_variable "g") in
   let ida, _ = synth "Id A" in
-  let () = uncheck "a" ida ~code:Type_not_fully_instantiated in
+  let () = uncheck "a" ida ~code:(Type_not_fully_instantiated "typechecking") in
   let idida, _ = synth "Id (Id A) a a (refl a) a a (refl a)" in
-  let () = uncheck "a" idida ~code:Type_not_fully_instantiated in
+  let () = uncheck "a" idida ~code:(Type_not_fully_instantiated "typechecking") in
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
   (* Parse errors *)
-  let () = unsynth "let x := a in b : c" ~code:Parse_error in
-  let () = unsynth "x y |-> z : w" ~code:Parse_error in
-  let () = unsynth "x + y {` unterminated block comment" ~code:Parse_error in
-  let () = unsynth ".fst x" ~code:Parse_error in
+  let () = unsynth "let x := a in b : c" ~short:"E0000" in
+  let () = unsynth "x y |-> z : w" ~short:"E0000" in
+  let () = unsynth "x + y {` unterminated block comment" ~short:"E0000" in
+  let () = unsynth ".fst x" ~short:"E0000" in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in
@@ -41,18 +41,23 @@ let () =
   let atou = check "A→Type" uu in
   let bb = assume "B" atou in
   let sigab = check "(x:A)× B x" uu in
-  let () = uncheck "{ fst ≔ a }" sigab ~code:Missing_field_in_struct in
+  let () = uncheck "{ fst ≔ a }" sigab ~code:(Missing_field_in_struct (Core.Field.intern "snd")) in
   let () = uncheck "{ fst ≔ a }" aa ~code:Checking_mismatch in
   let nat = check "N" uu in
-  let () = uncheck "{ fst ≔ a }" nat ~code:Checking_struct_against_nonrecord in
+  let () = uncheck "{ fst ≔ a }" nat ~code:(Checking_struct_against_nonrecord Types.Nat.nn) in
   let () = uncheck "{ _ ≔ a }" sigab ~code:Unnamed_field_in_struct in
   let s = assume "s" sigab in
-  let () = unsynth "s .third" ~code:No_such_field in
-  let () = uncheck "0." sigab ~code:Checking_constructor_against_nondatatype in
-  let () = uncheck "2." nat ~code:No_such_constructor in
-  let () = uncheck "0. a" nat ~code:Wrong_number_of_arguments_to_constructor in
-  let () = uncheck "1." nat ~code:Wrong_number_of_arguments_to_constructor in
-  let () = uncheck "4.2" nat ~code:Unsupported_numeral in
+  let () =
+    unsynth "s .third" ~code:(No_such_field (Some Types.Sigma.sigma, Core.Field.intern "third"))
+  in
+  let () =
+    uncheck "0." sigab
+      ~code:(Checking_constructor_against_nondatatype (Types.Nat.zero', Types.Sigma.sigma)) in
+  let () = uncheck "2." nat ~code:(No_such_constructor (Types.Nat.nn, Core.Constr.intern "2")) in
+  let () =
+    uncheck "0. a" nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero', 1)) in
+  let () = uncheck "1." nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc', -1)) in
+  let () = uncheck "4.2" nat ~code:(Unsupported_numeral 4.2) in
 
   (* To test degeneracies on records we have to set up a bunch of stuff, since the simplest case this happens is with Id Gel and squares in the universe. *)
   let () = Types.Gel.install () in
@@ -92,5 +97,7 @@ let () =
     synth "sym (refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2) a0 b0 { ungel ≔ r0} a1 b1 { ungel ≔ r1 } a2 b2"
   in
 
-  let () = uncheck "{ ungel ≔ r2 }" symr2ty ~code:Checking_struct_at_degenerated_record in
+  let () =
+    uncheck "{ ungel ≔ r2 }" symr2ty ~code:(Checking_struct_at_degenerated_record Types.Gel.gel)
+  in
   ()

@@ -74,7 +74,7 @@ let compile_numeral n =
   if classify_float frac = FP_zero && int >= 0. then compile_nat (int_of_float int)
   else fatal (Unsupported_numeral n)
 
-(* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notatations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
+(* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
 let rec compile : type n. (string option, n) Bwv.t -> res -> n check =
  fun ctx res ->

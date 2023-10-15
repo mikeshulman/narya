@@ -72,7 +72,7 @@ let compile_numeral n =
   let frac, n = modf n in
   if classify_float frac = FP_zero && n >= 0. then return (compile_nat (int_of_float n)) else None
 
-(* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notatations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
+(* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
 let rec compile : type n. (string option, n) Bwv.t -> res -> n check option =
  fun ctx res ->

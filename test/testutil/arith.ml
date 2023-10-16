@@ -47,7 +47,7 @@ let rec pow x y =
   else if y = 0 then 1
   else x * pow x (y - 1)
 
-let rec eval : res -> int = function
+let rec eval : parse_tree -> int = function
   | Numeral n ->
       let frac, n = modf n in
       if classify_float frac = FP_zero then int_of_float n else raise Syntax_error

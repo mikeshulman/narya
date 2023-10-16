@@ -9,15 +9,19 @@ open Fmlib_parse
 let msg (_ : string) = ()
 (* let msg s = Printf.printf "%s" s *)
 
-module Res = struct
-  type t = res
+(* Sometimes we want to parse only a single term, other times we want to parse and execute a sequence of commands.  Since these two processes return different results, they have to be based on different instances of Token_parser.Make.  But they share all the code of the combinators for parsing terms, so we make those instances of a functor as well. *)
+
+(* Parsing a term outputs a parse tree (which is then compiled in a context of local variables). *)
+module ParseTree = struct
+  type t = parse_tree
 end
 
-module Parse_term = struct
-  module Basic = Token_parser.Make (State) (Token) (Res) (Unit)
+(* The functor that defines all the term-parsing combinators. *)
+module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
+  module Basic = Token_parser.Make (State) (Token) (Final) (Unit)
   open Basic
 
-  let name : res t =
+  let name : parse_tree t =
     step "name" (fun state _ tok ->
         match tok with
         | Name x ->
@@ -25,19 +29,19 @@ module Parse_term = struct
             Some (Name x, state)
         | _ -> None)
 
-  let constr : res t =
+  let constr : parse_tree t =
     step "constructor" (fun state _ tok ->
         match tok with
         | Constr x -> if Token.variableable x then Some (Constr x, state) else None
         | _ -> None)
 
-  let field : res t =
+  let field : parse_tree t =
     step "field" (fun state _ tok ->
         match tok with
         | Field x -> if Token.variableable x then Some (Field x, state) else None
         | _ -> None)
 
-  let numeral : res t =
+  let numeral : parse_tree t =
     step "numeral" (fun state _ tok ->
         match tok with
         | Numeral n -> (
@@ -111,7 +115,7 @@ module Parse_term = struct
   and entry (e : entry) : (observation Bwd.t * Notation.t) t = tree_op e Emp
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
-  and lclosed (tight : Interval.t) (stop : tree TokMap.t) : res t =
+  and lclosed (tight : Interval.t) (stop : tree TokMap.t) : parse_tree t =
     msg (Printf.sprintf "lclosed\n");
     let* state = get in
     let* res, res_tight =
@@ -137,7 +141,8 @@ module Parse_term = struct
     return r
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards. *)
-  and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) : (res * float option) t =
+  and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) :
+      (parse_tree * float option) t =
     let* x =
       step "name" (fun state _ tok ->
           match tok with
@@ -159,8 +164,8 @@ module Parse_term = struct
             return (Abs (Bwd.to_list names, res), Some Float.neg_infinity))
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
-  and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : res)
-      (first_tight : float option) : res t =
+  and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse_tree)
+      (first_tight : float option) : parse_tree t =
     msg (Printf.sprintf "lopen\n");
     (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term. *)
     followed_by
@@ -221,27 +226,30 @@ module Parse_term = struct
     (* If that also fails, another possibility is that we're at the end of the term with no more operators to parse, so we can just return the supplied "first argument". *)
     </> succeed first_arg
 
+  (* The master term-parsing combinator parses an lclosed of arbitrary tightness, with no ending tokens (so it must take up the entire input string). *)
   let term () = lclosed Interval.entire TokMap.empty
-
-  module Parser = struct
-    include Basic.Parser
-
-    let term (state : State.t) : t = make state (term ())
-  end
 end
 
-module Lex_and_parse =
-  Parse_with_lexer.Make (State) (Token) (Res) (Unit) (Lexer.Parser) (Parse_term.Parser)
+(* To parse single terms, we instantiate this to output a parse tree. *)
+module TermCombinators = Combinators (ParseTree)
 
-open Lex_and_parse
+module Parse_term = struct
+  include TermCombinators.Basic.Parser
 
-let start (state : State.t) : Lex_and_parse.t =
-  make Lexer.Parser.init (Parse_term.Parser.term state)
+  let term (state : State.t) : t = TermCombinators.Basic.make state (TermCombinators.term ())
+end
 
-let term (state : State.t) (str : string) : Res.t =
-  let p = run_on_string str (start state) in
+(* Then we connect it up with the lexer. *)
+module Lex_and_parse_term =
+  Parse_with_lexer.Make (State) (Token) (ParseTree) (Unit) (Lexer.Parser) (Parse_term)
+
+open Lex_and_parse_term
+
+let term (state : State.t) (str : string) : parse_tree =
+  let p = run_on_string str (make Lexer.Parser.init (Parse_term.term state)) in
   if has_succeeded p then final p
   else if has_failed_syntax p then
+    (* Fmlib_parse has its own built-in error reporting with locations.  However, we instead use Asai's error reporting, so that we have a common "look" for parse errors and typechecking errors. *)
     let pos = position p in
     let open Asai.Span in
     let source = `String { title = Some "user-supplied term"; content = str } in

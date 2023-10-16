@@ -7,19 +7,19 @@ open Reporter
 
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow families of state and result types (and it would be tricky to do that correctly anyway), so instead we record the result of parsing as a syntax tree with names, and have a separate step of "compilation" that makes it into a raw term. *)
 
-type observation = Flag of flag | Constr of string | Name of string option | Term of res
+type observation = Flag of flag | Constr of string | Name of string option | Term of parse_tree
 
-(* A "result" is traditionally known as a "parse tree" (not to be confused with our "notation trees"). *)
-and res =
+(* A "parse tree" is not to be confused with our "notation trees". *)
+and parse_tree =
   | Notn of Notation.t * observation list
-  | App of res * res
+  | App of parse_tree * parse_tree
   | Name of string
   | Constr of string
   | Field of string
   | Numeral of float
-  | Abs of string option list * res
+  | Abs of string option list * parse_tree
 
-(* These "result trees" don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
+(* These parse trees don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
 
 type compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
@@ -76,7 +76,7 @@ let compile_numeral n =
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
-let rec compile : type n. (string option, n) Bwv.t -> res -> n check =
+let rec compile : type n. (string option, n) Bwv.t -> parse_tree -> n check =
  fun ctx res ->
   match res with
   | Notn (n, args) ->

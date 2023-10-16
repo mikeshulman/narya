@@ -135,7 +135,8 @@ and compile_pi_names :
           compile_pi_doms mn ctx dom cod)
 
 and compile_pi_doms :
-    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> res -> mn check -> m check =
+    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> parse_tree -> mn check -> m check
+    =
  fun mn ctx dom cod ->
   match (mn, ctx) with
   | Zero, _ -> cod

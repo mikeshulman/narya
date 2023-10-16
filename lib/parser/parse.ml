@@ -2,7 +2,8 @@ open Util
 open Bwd
 open Notations
 open Compile
-open Core.Logger
+open Core
+open Reporter
 open Fmlib_parse
 
 let msg (_ : string) = ()
@@ -236,8 +237,6 @@ open Lex_and_parse
 
 let start (state : State.t) : Lex_and_parse.t =
   make Lexer.Parser.init (Parse_term.Parser.term state)
-
-module Reporter = Error_reporter.Make (Lex_and_parse)
 
 let term (state : State.t) (str : string) : Res.t =
   let p = run_on_string str (start state) in

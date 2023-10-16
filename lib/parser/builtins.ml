@@ -3,7 +3,7 @@ open Compile
 open Notations
 open Core
 open Raw
-open Logger
+open Reporter
 open Monad.Ops (Monad.Maybe)
 
 let parens =

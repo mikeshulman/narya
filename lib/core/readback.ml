@@ -1,6 +1,6 @@
 open Bwd
 open Util
-open Logger
+open Reporter
 open Dim
 open Value
 open Term

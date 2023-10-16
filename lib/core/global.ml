@@ -1,7 +1,7 @@
 (* This module should not be opened, but used qualified. *)
 
 open Util
-open Logger
+open Reporter
 open Term
 open Dim
 

@@ -10,13 +10,13 @@ open Raw
 
 let parse_term (tm : string) : N.zero check = Compile.compile Emp (Parse.term !Builtins.builtins tm)
 
-module Terminal = Asai.Tty.Make (Core.Logger.Code)
+module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let check_type (rty : N.zero check) : N.zero term =
-  Logger.trace "When checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
+  Reporter.trace "When checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
 
 let check_term (rtm : N.zero check) (ety : value) : N.zero term =
-  Logger.trace "When checking term" @@ fun () -> check Ctx.empty rtm ety
+  Reporter.trace "When checking term" @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
   match Parser.Lexer.Parser.single name with
@@ -46,7 +46,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
         let tree = ref Case.Empty in
         Hashtbl.add Global.constants const (Defined tree);
         let hd = eval (Emp D.zero) (Const const) in
-        Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+        Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
             Hashtbl.remove Global.types const;
             Hashtbl.remove Global.constants const;
             Terminal.display d;
@@ -90,7 +90,7 @@ let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   | Some () -> raise (Failure "Equal terms")
 
 let run f =
-  Logger.run ~emit:Terminal.display ~fatal:(fun d ->
+  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () -> Scope.run f

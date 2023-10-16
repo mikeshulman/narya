@@ -1,6 +1,6 @@
 open Bwd
 open Util
-open Logger
+open Reporter
 open Raw
 open Value
 open Term

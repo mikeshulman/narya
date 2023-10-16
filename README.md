@@ -7,21 +7,36 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Asai](https://redprl.org/asai/asai/), [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).  The version of Asai is not yet in Opam, so you need to compile that from source.
+Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Asai](https://redprl.org/asai/asai/), [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).  Currently it uses unreleased features of the latter three libraries, so they need to be compiled from source.  For that you may also need to install some prerequisite packages from opam; it should be clear what those are when the builds fail.
 
 ```
 opam switch create 5.1.0
-opam install bwd yuujinchou fmlib_parse
+opam install bwd
+
 git clone git@github.com:RedPRL/asai.git
 cd asai
 dune build
 dune install
-cd ../narya
+cd ..
+
+git clone git@github.com:RedPRL/yuujinchou.git
+cd yuujinchou
+dune build
+dune install
+cd ..
+
+git clone git@github.com:hbr/fmlib.git
+cd fmlib
+dune build
+dune install
+cd ..
+
+cd narya
 dune build
 dune runtest
 ```
 
-There is no executable yet, but you can load the library in an OCaml executable and interact with it using the `Repl` commands mentioned below.
+There is no main executable yet, but you can load the library in a new OCaml executable and interact with it using the `Repl` commands mentioned below.  An example can be found in [constants.ml](test/white/constants.ml).
 
 
 ## Parsing

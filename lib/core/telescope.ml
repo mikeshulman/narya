@@ -1,4 +1,4 @@
-(* This module should nto be opened, but used qualified. *)
+(* This module should not be opened, but used qualified. *)
 
 open Util
 open Term
@@ -14,3 +14,9 @@ let rec length : type a b ab. (a, b, ab) t -> b N.t = function
 let rec plus : type a b ab. (a, b, ab) t -> (a, b, ab) N.plus = function
   | Emp -> Zero
   | Ext (_, tel) -> N.suc_plus (plus tel)
+
+let rec pis : type a b ab. (a, b, ab) t -> ab term -> a term =
+ fun doms cod ->
+  match doms with
+  | Emp -> cod
+  | Ext (dom, doms) -> pi dom (pis doms cod)

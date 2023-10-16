@@ -9,8 +9,6 @@ open Bwd
 module ListM = Mlist.Monadic (Monad.Maybe)
 module BwdM = Mbwd.Monadic (Monad.Maybe)
 
-let msg _ = ()
-
 (* Eta-expanding equality checks.  In all functions, the integer is the current De Bruijn level, i.e. the length of the current context (we don't need any other information about the context). *)
 
 (* Compare two normal forms that are *assumed* to have the same type. *)
@@ -136,14 +134,10 @@ and equal_val : int -> value -> value -> unit option =
           let open TubeOf.Monadic (Monad.Maybe) in
           (* Because instantiation arguments are stored as normals, we use type-sensitive equality to compare them. *)
           miterM { it = (fun _ [ x; y ] -> equal_nf n x y) } [ a1; a2 ]
-      | _ ->
-          msg "Unequal dimensions of instantiation";
-          fail)
+      | _ -> fail)
   | Lam _, _ | _, Lam _ -> fatal (Anomaly "Unexpected lambda in synthesizing equality-check")
   | Struct _, _ | _, Struct _ -> fatal (Anomaly "Unexpected struct in synthesizing equality-check")
-  | _, _ ->
-      msg "Unequal terms in synthesizing equality-check";
-      fail
+  | _, _ -> fail
 
 (* Subroutine of equal_val.  Like it, equality of the types is part of the conclusion, not a hypothesis.  *)
 and equal_uninst : int -> uninst -> uninst -> unit option =
@@ -153,9 +147,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       (* Two universes are equal precisely when they have the same dimension, in which case they also automatically have the same type (a standard instantiation of a (higher) universe of that same dimension). *)
       match compare m n with
       | Eq -> return ()
-      | _ ->
-          msg "Unequal dimensions of universese";
-          fail)
+      | _ -> fail)
   | Neu (fn1, args1), Neu (fn2, args2) ->
       (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside). *)
       let* () = equal_head lvl fn1 fn2 in
@@ -179,9 +171,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
                   equal_val newlvl (apply_binder cod1 sargs) (apply_binder cod2 sargs));
             }
             [ cod1s; cod2s ]
-      | Neq ->
-          msg "Unequal dimensions of pi-type";
-          fail)
+      | Neq -> fail)
   | Canonical (name1, args1, i1), Canonical (name2, args2, i2) -> (
       let* () = guard (name1 = name2) in
       match compare (cod_left_ins i1) (cod_left_ins i2) with
@@ -197,9 +187,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
               let open CubeOf.Monadic (Monad.Maybe) in
               miterM { it = (fun _ [ x; y ] -> equal_nf lvl x y) } [ a1; a2 ])
             [ args1; args2 ])
-  | _ ->
-      msg "Unequal uninstantiated terms";
-      fail
+  | _ -> fail
 
 (* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)
 and equal_head : int -> head -> head -> unit option =
@@ -213,12 +201,8 @@ and equal_head : int -> head -> head -> unit option =
       let* () = guard (c1 = c2) in
       match compare n1 n2 with
       | Eq -> return ()
-      | Neq ->
-          msg "Unequal constants";
-          fail)
-  | _, _ ->
-      msg "Unequal heads";
-      fail
+      | Neq -> fail)
+  | _, _ -> fail
 
 (* Check that the arguments of two entire application spines of equal functions are equal.  This is basically a left fold, but we make sure to iterate from left to right, and fail rather than raising an exception if the lists have different lengths.  *)
 and equal_args : int -> app Bwd.t -> app Bwd.t -> unit option =
@@ -229,9 +213,7 @@ and equal_args : int -> app Bwd.t -> app Bwd.t -> unit option =
       (* Iterating from left to right is important because it ensures that at the point of checking equality for any pair of arguments, we know that they have the same type, since they are valid arguments of equal functions with all previous arguments equal.  *)
       let* () = equal_args lvl rest1 rest2 in
       equal_arg lvl arg1 arg2
-  | Emp, Snoc _ | Snoc _, Emp ->
-      msg "Unequal lengths of application spines";
-      fail
+  | Emp, Snoc _ | Snoc _, Emp -> fail
 
 (* Check that two application arguments are equal, including their outer insertions as well as their values.  As noted above, here we can go back to *assuming* that they have equal types, and thus passing off to the eta-expanding equality check. *)
 and equal_arg : int -> app -> app -> unit option =

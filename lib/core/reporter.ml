@@ -17,25 +17,22 @@ module Code = struct
     | Duplicate_field_in_struct : Field.t -> t
     | Missing_constructor_in_match : Constr.t -> t
     | Unnamed_variable_in_match : t
-    | Checking_struct_against_nonrecord : Constant.t -> t
-    | Checking_constructor_against_nondatatype : (Constr.t * Constant.t) -> t
-    | No_such_constructor : (Constant.t * Constr.t) -> t
+    | Checking_lambda_at_nonfunction : t
+    | Checking_struct_at_nonrecord : Constant.t option -> t
+    | No_such_constructor : (Constant.t option * Constr.t) -> t
     | Wrong_number_of_arguments_to_constructor : (Constr.t * int) -> t
     | No_such_field : (Constant.t option * Field.t) -> t
     | Missing_instantiation_constructor : (Constr.t * Constr.t option) -> t
     | Unequal_indices : t
-    | Checking_mismatch : t
     | Unbound_variable : string -> t
     | Undefined_constant : Constant.t -> t
     | Nonsynthesizing : string -> t
     | Low_dimensional_argument_of_degeneracy : (string * int) -> t
-    | Missing_argument_of_degeneracy : t
+    | Missing_argument_of_degeneracy : string -> t
     | Applying_nonfunction_nontype : t
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : t
-    | Index_variables_duplicated : t
-    | Non_variable_index_in_match : t
-    | Degenerated_variable_index_in_match : t
+    | Invalid_match_index : t
     | Wrong_number_of_arguments_to_pattern : (Constr.t * int) -> t
     | No_such_constructor_in_match : (Constant.t * Constr.t) -> t
     | Duplicate_constructor_in_match : Constr.t -> t
@@ -58,18 +55,17 @@ module Code = struct
     | Duplicate_field_in_struct _ -> Error
     | Missing_constructor_in_match _ -> Error
     | Unnamed_variable_in_match -> Error
-    | Checking_struct_against_nonrecord _ -> Error
+    | Checking_lambda_at_nonfunction -> Error
+    | Checking_struct_at_nonrecord _ -> Error
     | No_such_constructor _ -> Error
     | Missing_instantiation_constructor _ -> Error
     | Unequal_indices -> Error
-    | Checking_constructor_against_nondatatype _ -> Error
-    | Checking_mismatch -> Error
     | Unbound_variable _ -> Error
     | Undefined_constant _ -> Bug
     | No_such_field _ -> Error
     | Nonsynthesizing _ -> Error
     | Low_dimensional_argument_of_degeneracy _ -> Error
-    | Missing_argument_of_degeneracy -> Error
+    | Missing_argument_of_degeneracy _ -> Error
     | Not_enough_arguments_to_function -> Error
     | Instantiating_zero_dimensional_type -> Error
     | Not_enough_arguments_to_instantiation -> Error
@@ -77,9 +73,7 @@ module Code = struct
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy -> Error
-    | Index_variables_duplicated -> Error
-    | Non_variable_index_in_match -> Error
-    | Degenerated_variable_index_in_match -> Error
+    | Invalid_match_index -> Error
     | Wrong_number_of_arguments_to_pattern _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
@@ -92,47 +86,59 @@ module Code = struct
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
-    | Parse_error -> "E0000"
-    | Not_enough_lambdas _ -> "E3349"
-    | Type_not_fully_instantiated _ -> "E7375"
-    | Unequal_synthesized_type -> "E9298"
-    | Checking_struct_at_degenerated_record _ -> "E8550"
-    | Missing_field_in_struct _ -> "E3907"
-    | Unnamed_field_in_struct -> "E4032"
-    | Duplicate_field_in_struct _ -> "E3907"
-    | Missing_constructor_in_match _ -> "E4524"
-    | Unnamed_variable_in_match -> "E9130"
-    | Checking_struct_against_nonrecord _ -> "E5951"
-    | No_such_constructor _ -> "E2441"
-    | Missing_instantiation_constructor _ -> "E5012"
-    | Unequal_indices -> "E2128"
-    | Checking_constructor_against_nondatatype _ -> "E0980"
-    | Checking_mismatch -> "E1639"
-    | Unbound_variable _ -> "E5683"
-    | Undefined_constant _ -> "E8902"
-    | No_such_field _ -> "E9490"
-    | Nonsynthesizing _ -> "E1561"
-    | Low_dimensional_argument_of_degeneracy _ -> "E7321"
-    | Missing_argument_of_degeneracy -> "E5827"
-    | Not_enough_arguments_to_function -> "E2436"
-    | Instantiating_zero_dimensional_type -> "E8486"
-    | Not_enough_arguments_to_instantiation -> "E1920"
-    | Applying_nonfunction_nontype -> "E0794"
-    | Wrong_number_of_arguments_to_constructor _ -> "E3871"
-    | Unimplemented _ -> "E2858"
-    | Matching_datatype_has_degeneracy -> "E3802"
-    | Index_variables_duplicated -> "E8825"
-    | Non_variable_index_in_match -> "E7910"
-    | Degenerated_variable_index_in_match -> "E2687"
-    | Wrong_number_of_arguments_to_pattern _ -> "E8972"
-    | No_such_constructor_in_match _ -> "E8969"
-    | Duplicate_constructor_in_match _ -> "E8969"
-    | Index_variable_in_index_value -> "E6437"
-    | Matching_on_nondatatype _ -> "E1270"
-    | Matching_on_let_bound_variable -> "E7098"
-    | Dimension_mismatch _ -> "E0367"
-    | Unsupported_numeral _ -> "E8920"
-    | Anomaly _ -> "E9499"
+    (* Usually bugs *)
+    | Anomaly _ -> "E0000"
+    (* Unimplemented future features *)
+    | Unimplemented _ -> "E0100"
+    | Unsupported_numeral _ -> "E0101"
+    (* Parse errors *)
+    | Parse_error -> "E0200"
+    (* Scope errors *)
+    | Unbound_variable _ -> "E0300"
+    | Undefined_constant _ -> "E0301"
+    (* Bidirectional typechecking *)
+    | Nonsynthesizing _ -> "E0400"
+    | Unequal_synthesized_type -> "E0401"
+    (* Dimensions *)
+    | Dimension_mismatch _ -> "E0500"
+    | Not_enough_lambdas _ -> "E0501"
+    | Not_enough_arguments_to_function -> "E0502"
+    | Not_enough_arguments_to_instantiation -> "E0503"
+    | Type_not_fully_instantiated _ -> "E0504"
+    | Instantiating_zero_dimensional_type -> "E0505"
+    (* Degeneracies *)
+    | Missing_argument_of_degeneracy _ -> "E0600"
+    | Low_dimensional_argument_of_degeneracy _ -> "E0601"
+    (* Function-types *)
+    | Checking_lambda_at_nonfunction -> "E0700"
+    | Applying_nonfunction_nontype -> "E0701"
+    (* Record fields *)
+    | No_such_field _ -> "E0800"
+    (* Structs *)
+    | Checking_struct_at_nonrecord _ -> "E0900"
+    | Checking_struct_at_degenerated_record _ -> "E0901"
+    | Missing_field_in_struct _ -> "E0902"
+    | Unnamed_field_in_struct -> "E0903"
+    | Duplicate_field_in_struct _ -> "E0904"
+    (* Datatype constructors *)
+    | No_such_constructor _ -> "E1000"
+    | Wrong_number_of_arguments_to_constructor _ -> "E1001"
+    | Missing_instantiation_constructor _ -> "E1002"
+    | Unequal_indices -> "E1003"
+    (* Matches *)
+    (* - Match variable *)
+    | Unnamed_variable_in_match -> "E1100"
+    | Matching_on_let_bound_variable -> "E1101"
+    (* - Match type *)
+    | Matching_on_nondatatype _ -> "E1200"
+    | Matching_datatype_has_degeneracy -> "E1201"
+    | Invalid_match_index -> "E1202"
+    (* - Match branches *)
+    | Missing_constructor_in_match _ -> "E1300"
+    | No_such_constructor_in_match _ -> "E1301"
+    | Duplicate_constructor_in_match _ -> "E1302"
+    | Wrong_number_of_arguments_to_pattern _ -> "E1303"
+    | Index_variable_in_index_value -> "E1304"
 
   let default_text : t -> text = function
     | Parse_error -> text "Parse error"
@@ -156,23 +162,24 @@ module Code = struct
     | Missing_constructor_in_match c ->
         textf "Missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "Unnamed match variable"
-    | Checking_struct_against_nonrecord c ->
-        textf "Attempting to check struct against non-record type %s" (name_of c)
-    | Checking_constructor_against_nondatatype (c, d) ->
-        textf "Attempting to check constructor %s against non-datatype %s" (Constr.to_string c)
-          (name_of d)
-    | No_such_constructor (d, c) ->
-        textf "Datatype %s has no constructor named %s" (name_of d) (Constr.to_string c)
+    | Checking_lambda_at_nonfunction -> text "Checking abstraction against non-function type"
+    | Checking_struct_at_nonrecord c -> (
+        match c with
+        | Some c -> textf "Checking struct against non-record type %s" (name_of c)
+        | None -> text "Checking struct against non-record type")
+    | No_such_constructor (d, c) -> (
+        match d with
+        | Some d ->
+            textf "Canonical type %s has no constructor named %s" (name_of d) (Constr.to_string c)
+        | None -> textf "Non-datatype has no constructor named %s" (Constr.to_string c))
     | Wrong_number_of_arguments_to_constructor (c, n) ->
         if n > 0 then textf "Too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
         else
           textf "Not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
-    | No_such_field (d, f) ->
-        textf "%s has no field named %s"
-          (match d with
-          | Some d -> "Record " ^ name_of d
-          | None -> "Non-record type")
-          (Field.to_string f)
+    | No_such_field (d, f) -> (
+        match d with
+        | Some d -> textf "Record %s has no field named %s" (name_of d) (Field.to_string f)
+        | None -> textf "Non-record type has no field named %s" (Field.to_string f))
     | Missing_instantiation_constructor (exp, got) ->
         textf
           "Instantiation arguments of datatype must be matching constructors: expected %s got %s"
@@ -182,21 +189,18 @@ module Code = struct
           | Some c -> Constr.to_string c)
     | Unequal_indices ->
         text "Indices of constructor application don't match those of datatype instance"
-    | Checking_mismatch -> text "Checking term doesn't check against that type"
     | Unbound_variable c -> textf "Unbound variable: %s" c
-    | Undefined_constant c -> textf "Unbound variable: %s" (name_of c)
+    | Undefined_constant c -> textf "Undefined constant: %s" (name_of c)
     | Nonsynthesizing pos -> textf "Non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
         textf "Argument of %s must be at least %d-dimensional" deg dim
-    | Missing_argument_of_degeneracy -> text "Missing arguments of degeneracy"
+    | Missing_argument_of_degeneracy deg -> textf "Missing argument for degeneracy %s" deg
     | Applying_nonfunction_nontype -> text "Attempt to apply/instantiate a non-function non-type"
     | Unimplemented str -> textf "%s is not yet implemented" str
     | Matching_datatype_has_degeneracy ->
         text "Can't match on element of a datatype with degeneracy applied"
-    | Index_variables_duplicated -> text "Indices of a match variable must be distinct variables"
-    | Non_variable_index_in_match -> text "Indices of a match variable must be free variables"
-    | Degenerated_variable_index_in_match ->
-        text "Indices of a match variable must be free variables without degeneracies"
+    | Invalid_match_index ->
+        text "Indices of a match variable must be distinct free variables without degeneracies"
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
           textf "Too many arguments to constructor %s in match pattern (%d extra)"

@@ -18,9 +18,9 @@ let () =
   let () = uncheck "x ↦ x" idff ~code:(Not_enough_lambdas 2) in
   let () = uncheck "x y ↦ x" idff ~code:(Not_enough_lambdas 1) in
   let _ = check "x0 x1 x2 ↦ refl f x0 x1 x2" idff in
-  let () = uncheck "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~code:Checking_mismatch in
+  let () = uncheck "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~code:Checking_lambda_at_nonfunction in
   let () = unsynth "refl (x ↦ x)" ~code:(Nonsynthesizing "refl") in
-  let () = unsynth "refl" ~code:Missing_argument_of_degeneracy in
+  let () = unsynth "refl" ~code:(Missing_argument_of_degeneracy "refl") in
   let () = unsynth "sym f" ~code:(Low_dimensional_argument_of_degeneracy ("sym", 2)) in
   let () = unsynth "g" ~code:(Unbound_variable "g") in
   let ida, _ = synth "Id A" in
@@ -30,12 +30,12 @@ let () =
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
   (* Parse errors *)
-  let () = unsynth "let x := a in b : c" ~short:"E0000" in
-  let () = unsynth "x y |-> z : w" ~short:"E0000" in
+  let () = unsynth "let x := a in b : c" ~short:"E0200" in
+  let () = unsynth "x y |-> z : w" ~short:"E0200" in
   (* let _ = synth "x y {` unterminated block comment" in *)
-  let () = unsynth "x y {` unterminated block comment" ~short:"E0000" in
+  let () = unsynth "x y {` unterminated block comment" ~short:"E0200" in
   (* let _ = synth ".fst x" in *)
-  let () = unsynth ".fst x" ~short:"E0000" in
+  let () = unsynth ".fst x" ~short:"E0200" in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in
@@ -44,18 +44,18 @@ let () =
   let bb = assume "B" atou in
   let sigab = check "(x:A)× B x" uu in
   let () = uncheck "{ fst ≔ a }" sigab ~code:(Missing_field_in_struct (Core.Field.intern "snd")) in
-  let () = uncheck "{ fst ≔ a }" aa ~code:Checking_mismatch in
+  let () = uncheck "{ fst ≔ a }" aa ~code:(Checking_struct_at_nonrecord None) in
   let nat = check "N" uu in
-  let () = uncheck "{ fst ≔ a }" nat ~code:(Checking_struct_against_nonrecord Types.Nat.nn) in
+  let () = uncheck "{ fst ≔ a }" nat ~code:(Checking_struct_at_nonrecord (Some Types.Nat.nn)) in
   let () = uncheck "{ _ ≔ a }" sigab ~code:Unnamed_field_in_struct in
   let s = assume "s" sigab in
   let () =
     unsynth "s .third" ~code:(No_such_field (Some Types.Sigma.sigma, Core.Field.intern "third"))
   in
   let () =
-    uncheck "0." sigab
-      ~code:(Checking_constructor_against_nondatatype (Types.Nat.zero', Types.Sigma.sigma)) in
-  let () = uncheck "2." nat ~code:(No_such_constructor (Types.Nat.nn, Core.Constr.intern "2")) in
+    uncheck "0." sigab ~code:(No_such_constructor (Some Types.Sigma.sigma, Types.Nat.zero')) in
+  let () =
+    uncheck "2." nat ~code:(No_such_constructor (Some Types.Nat.nn, Core.Constr.intern "2")) in
   let () =
     uncheck "0. a" nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero', 1)) in
   let () = uncheck "1." nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc', -1)) in

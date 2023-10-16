@@ -31,7 +31,7 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy : (string * int) -> t
     | Missing_argument_of_degeneracy : t
     | Applying_nonfunction_nontype : t
-    | Higher_dimensional_match_not_implemented : t
+    | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : t
     | Index_variables_duplicated : t
     | Non_variable_index_in_match : t
@@ -75,7 +75,7 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> Error
     | Applying_nonfunction_nontype -> Error
     | Wrong_number_of_arguments_to_constructor _ -> Error
-    | Higher_dimensional_match_not_implemented -> Error
+    | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy -> Error
     | Index_variables_duplicated -> Error
     | Non_variable_index_in_match -> Error
@@ -119,7 +119,7 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> "E1920"
     | Applying_nonfunction_nontype -> "E0794"
     | Wrong_number_of_arguments_to_constructor _ -> "E3871"
-    | Higher_dimensional_match_not_implemented -> "E2858"
+    | Unimplemented _ -> "E2858"
     | Matching_datatype_has_degeneracy -> "E3802"
     | Index_variables_duplicated -> "E8825"
     | Non_variable_index_in_match -> "E7910"
@@ -190,8 +190,7 @@ module Code = struct
         textf "Argument of %s must be at least %d-dimensional" deg dim
     | Missing_argument_of_degeneracy -> text "Missing arguments of degeneracy"
     | Applying_nonfunction_nontype -> text "Attempt to apply/instantiate a non-function non-type"
-    | Higher_dimensional_match_not_implemented ->
-        text "Matching on higher-dimensional types is not yet implemented"
+    | Unimplemented str -> textf "%s is not yet implemented" str
     | Matching_datatype_has_degeneracy ->
         text "Can't match on element of a datatype with degeneracy applied"
     | Index_variables_duplicated -> text "Indices of a match variable must be distinct variables"

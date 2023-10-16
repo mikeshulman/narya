@@ -65,7 +65,7 @@ let () =
               match body with
               | Synth body -> Synth (Let (Asc (term, ty), body))
               | _ -> fatal (Nonsynthesizing "body of let"))
-          | _ -> raise (Failure "Unrecognized flag"));
+          | _ -> fatal (Anomaly "Unrecognized flag"));
     }
 
 (* Is there any way to avoid these flags too?  If so, we could simplify by getting rid of flags completely. *)
@@ -112,7 +112,7 @@ let rec compile_pi : type n. (string option, n) Bwv.t -> observation list -> n c
  fun ctx obs ->
   let f = get_flag [ Explicit_pi; Implicit_pi ] obs in
   match f with
-  | Some Implicit_pi -> raise (Failure "Implicit pi-types not implemented")
+  | Some Implicit_pi -> fatal (Unimplemented "Implicit pi-types")
   | Some Explicit_pi -> compile_pi_names Zero ctx obs
   | _ ->
       let body, obs = get_term obs in
@@ -123,13 +123,13 @@ and compile_pi_names :
     type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> observation list -> m check =
  fun mn ctx obs ->
   match get_next obs with
-  | `Done -> raise (Failure "Unexpected end of arguments")
+  | `Done -> fatal (Anomaly "Unexpected end of arguments")
   | `Name (x, obs) -> compile_pi_names (Suc mn) (Snoc (ctx, x)) obs
-  | `Constr _ -> raise (Failure "Unexpected constr")
+  | `Constr _ -> fatal (Anomaly "Unexpected constr")
   | `Term (dom, obs) -> (
       let f = get_flag [ Default_pi ] obs in
       match f with
-      | Some Default_pi -> raise (Failure "Default arguments not implemented")
+      | Some Default_pi -> fatal (Unimplemented "Default arguments not implemented")
       | _ ->
           let cod = compile_pi ctx obs in
           compile_pi_doms mn ctx dom cod)

@@ -447,11 +447,11 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
       (* The type of the variable must be a datatype.  Currently we don't implement higher-dimensional matches, so it must be zero-dimensional. *)
       let (Fullinst (uvarty, vartyargs)) = full_inst varty "check_tree" in
       match (uvarty, compare (TubeOf.inst vartyargs) D.zero) with
-      | _, Neq -> fatal Higher_dimensional_match_not_implemented
+      | _, Neq -> fatal (Unimplemented "Matching on higher-dimensional types")
       | Canonical (name, varty_args, ins), Eq -> (
           let () = is_id_perm (perm_of_ins ins) <|> Matching_datatype_has_degeneracy in
           match compare (cod_left_ins ins) D.zero with
-          | Neq -> fatal Higher_dimensional_match_not_implemented
+          | Neq -> fatal (Unimplemented "Matching on higher-dimensional types")
           | Eq -> (
               match Hashtbl.find Global.constants name with
               | Data { params; indices; constrs } -> (

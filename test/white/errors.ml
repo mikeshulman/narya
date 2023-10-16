@@ -30,12 +30,12 @@ let () =
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
   (* Parse errors *)
-  let () = unsynth "let x := a in b : c" ~short:"E0200" in
-  let () = unsynth "x y |-> z : w" ~short:"E0200" in
+  let () = unsynth "let x := a in b : c" ~code:Parse_error in
+  let () = unsynth "x y |-> z : w" ~code:Parse_error in
   (* let _ = synth "x y {` unterminated block comment" in *)
-  let () = unsynth "x y {` unterminated block comment" ~short:"E0200" in
+  let () = unsynth "x y {` unterminated block comment" ~code:Parse_error in
   (* let _ = synth ".fst x" in *)
-  let () = unsynth ".fst x" ~short:"E0200" in
+  let () = unsynth ".fst x" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

@@ -6,9 +6,6 @@ open Core
 open Reporter
 open Fmlib_parse
 
-let msg (_ : string) = ()
-(* let msg s = Printf.printf "%s" s *)
-
 (* Sometimes we want to parse only a single term, other times we want to parse and execute a sequence of commands.  Since these two processes return different results, they have to be based on different instances of Token_parser.Make.  But they share all the code of the combinators for parsing terms, so we make those instances of a functor as well. *)
 
 (* Parsing a term outputs a parse tree (which is then compiled in a context of local variables). *)
@@ -24,9 +21,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   let name : parse_tree t =
     step "name" (fun state _ tok ->
         match tok with
-        | Name x ->
-            msg (Printf.sprintf "Found name %s in name\n" x);
-            Some (Name x, state)
+        | Name x -> Some (Name x, state)
         | _ -> None)
 
   let constr : parse_tree t =
@@ -53,40 +48,30 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   let rec tree_op (ops : tree TokMap.t) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
     let* optree =
-      msg (Printf.sprintf "Looking for op in tree\n");
       step
         (String.concat " or " (List.map (fun (k, _) -> Token.to_string k) (TokMap.bindings ops)))
         (fun state _ tok ->
           let open Monad.Ops (Monad.Maybe) in
           let* br = TokMap.find_opt tok ops in
-          msg (Printf.sprintf "Found op %s in tree\n" (Token.to_string tok));
           return (br, state)) in
     tree optree obs
 
   and tree_name (name : tree option) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t
       =
     let* nametree, x =
-      msg (Printf.sprintf "Looking for name in tree\n");
       step "name" (fun state _ tok ->
           match (name, tok) with
-          | Some br, Name x ->
-              msg (Printf.sprintf "Found name %s in tree\n" x);
-              if Token.variableable x then Some ((br, Some x), state) else None
-          | Some br, Underscore ->
-              msg (Printf.sprintf "Found name _ in tree\n");
-              Some ((br, None), state)
+          | Some br, Name x -> if Token.variableable x then Some ((br, Some x), state) else None
+          | Some br, Underscore -> Some ((br, None), state)
           | _ -> None) in
     tree nametree (Snoc (obs, Name x))
 
   and tree_constr (constr : tree option) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
     let* constrtree, x =
-      msg (Printf.sprintf "Looking for constr in tree\n");
       step "constr" (fun state _ tok ->
           match (constr, tok) with
-          | Some br, Constr x ->
-              msg (Printf.sprintf "Found constr %s in tree\n" x);
-              Some ((br, x), state)
+          | Some br, Constr x -> Some ((br, x), state)
           | _ -> None) in
     tree constrtree (Snoc (obs, Constr x))
 
@@ -94,14 +79,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (observation Bwd.t * Notation.t) t =
     match term with
     | Some e ->
-        msg (Printf.sprintf "Looking for term\n");
         (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
         let* subterm = lclosed Interval.entire e in
         tree_op e (Snoc (obs, Term subterm))
     | None -> unexpected ("failure " ^ String.concat ", " fail)
 
   and tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
-    msg (Printf.sprintf "tree\n");
     match t with
     | Inner { ops; constr; name; term; fail } ->
         backtrack (tree_op ops obs) "operator"
@@ -116,13 +99,10 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
   and lclosed (tight : Interval.t) (stop : tree TokMap.t) : parse_tree t =
-    msg (Printf.sprintf "lclosed\n");
     let* state = get in
     let* res, res_tight =
-      (msg (Printf.sprintf "Looking in left_closeds\n");
-       let* obs, n = entry state.left_closeds in
+      (let* obs, n = entry state.left_closeds in
        let d = get_data n in
-       msg (Printf.sprintf "Finished op %s\n" d.name);
        (* If the parse ended right-open, we call "lclosed" again, with the upper tightness interval starting at the tightness of the just-parsed notation, closed if that notation is right-associative and open otherwise, to pick up the open argument. *)
        match d.right with
        | Closed -> return (Notn (n, Bwd.to_list obs), None)
@@ -137,7 +117,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           return (res, None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
     let* r = lopen tight stop res res_tight in
-    msg (Printf.sprintf "end of lclosed\n");
     return r
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards. *)
@@ -151,9 +130,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           | Mapsto -> Some (`Mapsto, state)
           | _ -> None) in
     match x with
-    | `Name x ->
-        msg (Printf.sprintf "Found name %s in abstraction\n" x);
-        abstraction stop (Snoc (names, Some x))
+    | `Name x -> abstraction stop (Snoc (names, Some x))
     | `Underscore -> abstraction stop (Snoc (names, None))
     | `Mapsto -> (
         match names with
@@ -166,7 +143,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse_tree)
       (first_tight : float option) : parse_tree t =
-    msg (Printf.sprintf "lopen\n");
     (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term. *)
     followed_by
       (step "stopping token (1)" (fun state _ tok ->
@@ -184,8 +160,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     </> (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
     (let* state = get in
      let* res, res_tight =
-       (msg (Printf.sprintf "looking at tighters\n");
-        let* obs, n = entry (TIMap.find tight state.tighters) in
+       (let* obs, n = entry (TIMap.find tight state.tighters) in
         let d = get_data n in
         (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one. *)
         let* () =
@@ -194,7 +169,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           | Some t ->
               if d.left = Closed || Interval.contains (Interval.left d) t then return ()
               else unexpected d.name in
-        msg (Printf.sprintf "Found left-open %s\n" d.name);
         match d.right with
         | Closed -> (
             match d.left with
@@ -205,9 +179,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
               match d.assoc with
               | Right -> Interval.Closed d.tightness
               | Left | Non -> Open d.tightness in
-            msg (Printf.sprintf "Getting the rest of right-open %s\n" d.name);
             let* last_arg = lclosed i stop in
-            msg (Printf.sprintf "Got the rest of right-open %s\n" d.name);
             match d.left with
             | Open ->
                 return
@@ -220,7 +192,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
        (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
        </> let* arg = name </> numeral </> field </> constr in
            return (App (first_arg, arg), None) in
-     msg (Printf.sprintf "Going on\n");
      (* Same comment here about carrying over "tight" as in lclosed. *)
      lopen tight stop res res_tight)
     (* If that also fails, another possibility is that we're at the end of the term with no more operators to parse, so we can just return the supplied "first argument". *)

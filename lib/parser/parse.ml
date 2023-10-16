@@ -243,11 +243,18 @@ let term (state : State.t) (str : string) : Res.t =
   let p = run_on_string str (start state) in
   if has_succeeded p then final p
   else if has_failed_syntax p then
-    (* TODO: Use Asai for this too *)
-    fatal
-      (Parse_error
-         (let r = Reporter.make_syntax p in
-          let doc = Reporter.run_on_string str r in
-          let open Fmlib_pretty.Print in
-          string_of (layout 80 doc)))
+    let pos = position p in
+    let open Asai.Span in
+    let source = `String { title = Some "user-supplied term"; content = str } in
+    let start_of_line = Position.byte_offset_bol pos in
+    (* It appears that fmlib lines are 0-indexed and Asai lines are 1-indexed *)
+    let line_num = Position.line pos + 1 in
+    let offset = Position.byte_offset pos in
+    (* Asai requires a nonzero distance from the starting to ending positions.  So we add one to the ending position, but we don't want to overrun the end of the string. *)
+    let offset = if offset = String.length str then offset - 1 else offset in
+    let pos1 = { source; offset; start_of_line; line_num } in
+    let pos2 = { source; offset = offset + 1; start_of_line; line_num } in
+    let loc = make (pos1, pos2) in
+    (* It should be possible to get more information from the parser than just the location.  Fmlib supplies "failed_expectations", but that doesn't generally seem to be very useful. *)
+    fatal ~loc Parse_error
   else fatal (Anomaly "Parser failed in an unexpected way")

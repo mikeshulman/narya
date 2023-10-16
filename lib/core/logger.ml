@@ -4,7 +4,7 @@ open Asai.Diagnostic
 
 module Code = struct
   type t =
-    | Parse_error : string -> t
+    | Parse_error : t
     | Not_enough_lambdas : int -> t
     | Not_enough_arguments_to_function : t
     | Not_enough_arguments_to_instantiation : t
@@ -48,7 +48,7 @@ module Code = struct
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
-    | Parse_error _ -> Error
+    | Parse_error -> Error
     | Not_enough_lambdas _ -> Error
     | Type_not_fully_instantiated _ -> Error
     | Unequal_synthesized_type -> Error
@@ -92,7 +92,7 @@ module Code = struct
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
-    | Parse_error _ -> "E0000"
+    | Parse_error -> "E0000"
     | Not_enough_lambdas _ -> "E3349"
     | Type_not_fully_instantiated _ -> "E7375"
     | Unequal_synthesized_type -> "E9298"
@@ -135,7 +135,7 @@ module Code = struct
     | Anomaly _ -> "E9499"
 
   let default_text : t -> text = function
-    | Parse_error msg -> textf "Parse error: %s" msg
+    | Parse_error -> text "Parse error"
     | Not_enough_lambdas n ->
         textf "Not enough variables for a higher-dimensional abstraction: need at least %d more" n
     | Not_enough_arguments_to_function ->

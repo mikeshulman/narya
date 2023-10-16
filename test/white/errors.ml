@@ -32,7 +32,9 @@ let () =
   (* Parse errors *)
   let () = unsynth "let x := a in b : c" ~short:"E0000" in
   let () = unsynth "x y |-> z : w" ~short:"E0000" in
-  let () = unsynth "x + y {` unterminated block comment" ~short:"E0000" in
+  (* let _ = synth "x y {` unterminated block comment" in *)
+  let () = unsynth "x y {` unterminated block comment" ~short:"E0000" in
+  (* let _ = synth ".fst x" in *)
   let () = unsynth ".fst x" ~short:"E0000" in
 
   (* Records and datatypes *)

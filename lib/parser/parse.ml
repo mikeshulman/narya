@@ -75,22 +75,22 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           | _ -> None) in
     tree constrtree (Snoc (obs, Constr x))
 
-  and tree_term (term : tree TokMap.t option) (fail : string list) (obs : observation Bwd.t) :
+  and tree_term (term : tree TokMap.t option) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
     match term with
     | Some e ->
         (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
         let* subterm = lclosed Interval.entire e in
         tree_op e (Snoc (obs, Term subterm))
-    | None -> unexpected ("failure " ^ String.concat ", " fail)
+    | None -> fail ()
 
   and tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
     match t with
-    | Inner { ops; constr; name; term; fail } ->
+    | Inner { ops; constr; name; term } ->
         backtrack (tree_op ops obs) "operator"
         </> backtrack (tree_constr constr obs) "constr"
         </> backtrack (tree_name name obs) "name"
-        </> tree_term term fail obs
+        </> tree_term term obs
     | Done n -> return (obs, n)
     | Flag (f, t) -> tree t (Snoc (obs, Flag f))
     | Lazy (lazy t) -> tree t obs

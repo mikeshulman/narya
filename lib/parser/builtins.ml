@@ -82,7 +82,6 @@ let pi =
             constr = None;
             name = Some (Lazy (lazy (explicit_pi_vars ())));
             term = None;
-            fail = [];
           }
       and implicit_pi_vars () =
         Inner
@@ -97,7 +96,6 @@ let pi =
             constr = None;
             name = Some (Lazy (lazy (implicit_pi_vars ())));
             term = None;
-            fail = [];
           }
       and more_pi () =
         ops
@@ -230,7 +228,6 @@ let struc =
                 (op Coloneq (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done n) ]));
             constr = None;
             term = None;
-            fail = [];
           } in
       eop LBrace (struc_fields ()))
 
@@ -257,7 +254,6 @@ let mtch =
             name = Some (Lazy (lazy (pattern_vars ())));
             constr = None;
             term = None;
-            fail = [];
             ops =
               TokMap.singleton Mapsto
                 (terms [ (Op "]", Done n); (Op "|", constr (Lazy (lazy (pattern_vars ())))) ]);
@@ -271,7 +267,6 @@ let mtch =
                    constr = Some (pattern_vars ());
                    name = None;
                    term = None;
-                   fail = [];
                  }))))
 
 let rec compile_branch_names :

@@ -1,4 +1,6 @@
 open Util
+open Core
+open Reporter
 module TokMap = Map.Make (Token)
 module TokSet = Set.Make (Token)
 
@@ -54,39 +56,26 @@ and branch = {
   constr : tree option;
   name : tree option;
   term : tree TokMap.t option;
-  fail : string list;
 }
 
 (* Helper functions for constructing notation trees *)
 
-let op tok x =
-  Inner { ops = TokMap.singleton tok x; constr = None; name = None; term = None; fail = [] }
-
-let ops toks =
-  Inner { ops = TokMap.of_list toks; constr = None; name = None; term = None; fail = [] }
+let op tok x = Inner { ops = TokMap.singleton tok x; constr = None; name = None; term = None }
+let ops toks = Inner { ops = TokMap.of_list toks; constr = None; name = None; term = None }
 
 let term tok x =
-  Inner
-    {
-      ops = TokMap.empty;
-      constr = None;
-      name = None;
-      term = Some (TokMap.singleton tok x);
-      fail = [];
-    }
+  Inner { ops = TokMap.empty; constr = None; name = None; term = Some (TokMap.singleton tok x) }
 
 let terms toks =
-  Inner
-    { ops = TokMap.empty; constr = None; name = None; term = Some (TokMap.of_list toks); fail = [] }
+  Inner { ops = TokMap.empty; constr = None; name = None; term = Some (TokMap.of_list toks) }
 
-let constr x = Inner { ops = TokMap.empty; constr = Some x; name = None; term = None; fail = [] }
-let name x = Inner { ops = TokMap.empty; constr = None; name = Some x; term = None; fail = [] }
-let fail err = { ops = TokMap.empty; constr = None; name = None; term = None; fail = [ err ] }
+let constr x = Inner { ops = TokMap.empty; constr = Some x; name = None; term = None }
+let name x = Inner { ops = TokMap.empty; constr = None; name = Some x; term = None }
 
 (* The entry point of a notation tree must begin with an operator symbol. *)
 type entry = tree TokMap.t
 
-let of_entry e = Inner { ops = e; constr = None; name = None; term = None; fail = [] }
+let of_entry e = Inner { ops = e; constr = None; name = None; term = None }
 let eop tok x = TokMap.singleton tok x
 let eops toks = TokMap.of_list toks
 let empty_entry = TokMap.empty
@@ -125,8 +114,8 @@ let rec merge_tree : tree -> tree -> tree =
             (fun f z -> Flag (f, z))
             xf
             (List.fold_right (fun f z -> Flag (f, z)) yf (Inner (merge_branch xb yb)))))
-      (* We are not maximally tolerant of ambiguity.  In principle, it is possible to have one mixfix notation that is a strict initial segment of the other, like the "if_then_" and "if_then_else_" discussed in Danielsson-Norell.  However, it seems very hard to parse such a setup without a significant amount of backtracking, so we forbid it.  This is detected here at merge time.  Note that this includes the case of two notations that are identical.  (It is, of course, possible to have two notations that start out the same but then diverge, like _⊢_⦂_ and _⊢_type -- this is the whole point of merging trees.)  *)
-      ~default:(Inner (fail "Incompatible notations: one is a prefix of the another."))
+      (* We are not maximally tolerant of ambiguity.  In principle, it is possible to have one mixfix notation that is a strict initial segment of the other, like the "if_then_" and "if_then_else_" discussed in Danielsson-Norell.  However, it seems very hard to parse such a setup without a significant amount of backtracking, so we forbid it.  This is detected here at merge time.  Note that this includes the case of two notations that are identical.  (It is, of course, possible to have two notations that start out the same but then diverge, like _⊢_⦂_ and _⊢_type -- this is the whole point of merging trees.)  However, because this could happen accidentally when importing many notations from different libraries, we don't raise the error unless it actually comes up during parsing, by wrapping it in a lazy branch of the notation tree. *)
+      ~default:(Lazy (lazy (fatal (Parsing_ambiguity "One notation is a prefix of another"))))
 
 and merge_tmap : tree TokMap.t -> tree TokMap.t -> tree TokMap.t =
  fun x y -> TokMap.union (fun _ xb yb -> Some (merge_tree xb yb)) x y
@@ -137,8 +126,7 @@ and merge_branch : branch -> branch -> branch =
   let name = merge_opt merge_tree x.name y.name in
   let constr = merge_opt merge_tree x.constr y.constr in
   let term = merge_opt merge_tmap x.term y.term in
-  let fail = x.fail @ y.fail in
-  { ops; constr; name; term; fail }
+  { ops; constr; name; term }
 
 let merge : entry -> entry -> entry =
  fun x y -> TokMap.union (fun _ xb yb -> Some (merge_tree xb yb)) x y

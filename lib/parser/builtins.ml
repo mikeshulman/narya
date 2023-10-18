@@ -80,6 +80,7 @@ let pi =
           {
             ops = TokMap.singleton Colon (term RParen (more_pi ()));
             constr = None;
+            field = None;
             name = Some (Lazy (lazy (explicit_pi_vars ())));
             term = None;
           }
@@ -94,6 +95,7 @@ let pi =
                      (RBrace, Lazy (lazy (more_pi ())));
                    ]);
             constr = None;
+            field = None;
             name = Some (Lazy (lazy (implicit_pi_vars ())));
             term = None;
           }
@@ -123,7 +125,7 @@ and compile_pi_names :
   match get_next obs with
   | `Done -> fatal (Anomaly "Unexpected end of arguments")
   | `Name (x, obs) -> compile_pi_names (Suc mn) (Snoc (ctx, x)) obs
-  | `Constr _ -> fatal (Anomaly "Unexpected constr")
+  | `Constr _ | `Field _ -> fatal (Anomaly "Impossible thing in pi")
   | `Term (dom, obs) -> (
       let f = get_flag [ Default_pi ] obs in
       match f with
@@ -227,6 +229,7 @@ let struc =
               Some
                 (op Coloneq (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done n) ]));
             constr = None;
+            field = None;
             term = None;
           } in
       eop LBrace (struc_fields ()))
@@ -242,7 +245,7 @@ let rec compile_struc :
       match x with
       | Some x -> compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
       | None -> fatal Unnamed_field_in_struct)
-  | `Constr _ | `Term _ -> fatal (Anomaly "Impossible thing in struct")
+  | `Constr _ | `Field _ | `Term _ -> fatal (Anomaly "Impossible thing in struct")
 
 let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
 
@@ -253,6 +256,7 @@ let mtch =
           {
             name = Some (Lazy (lazy (pattern_vars ())));
             constr = None;
+            field = None;
             term = None;
             ops =
               TokMap.singleton Mapsto
@@ -265,6 +269,7 @@ let mtch =
                  {
                    ops = TokMap.of_list [ (Op "]", Done n); (Op "|", constr (pattern_vars ())) ];
                    constr = Some (pattern_vars ());
+                   field = None;
                    name = None;
                    term = None;
                  }))))
@@ -282,7 +287,7 @@ let rec compile_branch_names :
   | `Term (t, obs) ->
       let tm = compile ctx t in
       (Branch (c, ab, tm), obs)
-  | `Constr _ -> fatal (Anomaly "Unexpected constr")
+  | `Constr _ | `Field _ -> fatal (Anomaly "Impossible thing in match")
   | `Done -> fatal (Anomaly "Unexpected end of input")
 
 let rec compile_branches : type n. (string option, n) Bwv.t -> observation list -> n branch list =
@@ -293,8 +298,7 @@ let rec compile_branches : type n. (string option, n) Bwv.t -> observation list 
       let br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
       let rest = compile_branches ctx obs in
       br :: rest
-  | `Term _ -> fatal (Anomaly "Unexpected term")
-  | `Name _ -> fatal (Anomaly "Unexpected name")
+  | `Field _ | `Term _ | `Name _ -> fatal (Anomaly "Impossible thing in match")
 
 let () =
   add_compiler mtch

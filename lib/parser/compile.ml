@@ -7,7 +7,12 @@ open Reporter
 
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow families of state and result types (and it would be tricky to do that correctly anyway), so instead we record the result of parsing as a syntax tree with names, and have a separate step of "compilation" that makes it into a raw term. *)
 
-type observation = Flag of flag | Constr of string | Name of string option | Term of parse_tree
+type observation =
+  | Flag of flag
+  | Constr of string
+  | Field of string
+  | Name of string option
+  | Term of parse_tree
 
 (* A "parse tree" is not to be confused with our "notation trees". *)
 and parse_tree =
@@ -32,20 +37,20 @@ let rec get_flag flags obs =
   match obs with
   | [] -> None
   | Flag f :: rest -> if List.mem f flags then Some f else get_flag flags rest
-  | Constr _ :: _ | Name _ :: _ | Term _ :: _ -> None
+  | Constr _ :: _ | Field _ :: _ | Name _ :: _ | Term _ :: _ -> None
 
 let rec get_name obs =
   match obs with
   | [] -> fatal (Anomaly "Missing name")
   | Flag _ :: rest -> get_name rest
   | Name x :: rest -> (x, rest)
-  | Constr _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing name")
+  | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing name")
 
 let rec get_term obs =
   match obs with
   | [] -> fatal (Anomaly "Missing term")
   | Flag _ :: rest -> get_term rest
-  | Constr _ :: _ | Name _ :: _ -> fatal (Anomaly "Missing term")
+  | Constr _ :: _ | Field _ :: _ | Name _ :: _ -> fatal (Anomaly "Missing term")
   | Term x :: rest -> (x, rest)
 
 let rec get_next obs =
@@ -53,6 +58,7 @@ let rec get_next obs =
   | [] -> `Done
   | Flag _ :: rest -> get_next rest
   | Constr x :: rest -> `Constr (x, rest)
+  | Field x :: rest -> `Field (x, rest)
   | Name x :: rest -> `Name (x, rest)
   | Term x :: rest -> `Term (x, rest)
 

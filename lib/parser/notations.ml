@@ -54,28 +54,47 @@ type tree =
 and branch = {
   ops : tree TokMap.t;
   constr : tree option;
+  field : tree option;
   name : tree option;
   term : tree TokMap.t option;
 }
 
 (* Helper functions for constructing notation trees *)
 
-let op tok x = Inner { ops = TokMap.singleton tok x; constr = None; name = None; term = None }
-let ops toks = Inner { ops = TokMap.of_list toks; constr = None; name = None; term = None }
+let op tok x =
+  Inner { ops = TokMap.singleton tok x; constr = None; field = None; name = None; term = None }
+
+let ops toks =
+  Inner { ops = TokMap.of_list toks; constr = None; field = None; name = None; term = None }
 
 let term tok x =
-  Inner { ops = TokMap.empty; constr = None; name = None; term = Some (TokMap.singleton tok x) }
+  Inner
+    {
+      ops = TokMap.empty;
+      constr = None;
+      field = None;
+      name = None;
+      term = Some (TokMap.singleton tok x);
+    }
 
 let terms toks =
-  Inner { ops = TokMap.empty; constr = None; name = None; term = Some (TokMap.of_list toks) }
+  Inner
+    {
+      ops = TokMap.empty;
+      constr = None;
+      field = None;
+      name = None;
+      term = Some (TokMap.of_list toks);
+    }
 
-let constr x = Inner { ops = TokMap.empty; constr = Some x; name = None; term = None }
-let name x = Inner { ops = TokMap.empty; constr = None; name = Some x; term = None }
+let constr x = Inner { ops = TokMap.empty; constr = Some x; field = None; name = None; term = None }
+let field x = Inner { ops = TokMap.empty; constr = None; field = Some x; name = None; term = None }
+let name x = Inner { ops = TokMap.empty; constr = None; field = None; name = Some x; term = None }
 
 (* The entry point of a notation tree must begin with an operator symbol. *)
 type entry = tree TokMap.t
 
-let of_entry e = Inner { ops = e; constr = None; name = None; term = None }
+let of_entry e = Inner { ops = e; constr = None; field = None; name = None; term = None }
 let eop tok x = TokMap.singleton tok x
 let eops toks = TokMap.of_list toks
 let empty_entry = TokMap.empty
@@ -125,8 +144,9 @@ and merge_branch : branch -> branch -> branch =
   let ops = merge_tmap x.ops y.ops in
   let name = merge_opt merge_tree x.name y.name in
   let constr = merge_opt merge_tree x.constr y.constr in
+  let field = merge_opt merge_tree x.field y.field in
   let term = merge_opt merge_tmap x.term y.term in
-  { ops; constr; name; term }
+  { ops; constr; field; name; term }
 
 let merge : entry -> entry -> entry =
  fun x y -> TokMap.union (fun _ xb yb -> Some (merge_tree xb yb)) x y

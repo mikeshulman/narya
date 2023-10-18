@@ -75,6 +75,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           | _ -> None) in
     tree constrtree (Snoc (obs, Constr x))
 
+  and tree_field (field : tree option) (obs : observation Bwd.t) :
+      (observation Bwd.t * Notation.t) t =
+    let* fieldtree, x =
+      step "field" (fun state _ tok ->
+          match (field, tok) with
+          | Some br, Field x -> Some ((br, x), state)
+          | _ -> None) in
+    tree fieldtree (Snoc (obs, Field x))
+
   and tree_term (term : tree TokMap.t option) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
     match term with
@@ -86,9 +95,10 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   and tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
     match t with
-    | Inner { ops; constr; name; term } ->
+    | Inner { ops; constr; field; name; term } ->
         backtrack (tree_op ops obs) "operator"
         </> backtrack (tree_constr constr obs) "constr"
+        </> backtrack (tree_field field obs) "field"
         </> backtrack (tree_name name obs) "name"
         </> tree_term term obs
     | Done n -> return (obs, n)

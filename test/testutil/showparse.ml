@@ -4,7 +4,12 @@ open Compile
 
 (* Translate a parse observation into something that shows the names of notations rather than their internal abstract representations, for easier inspection and testing.  Note that since we intercept the parse tree before the "compilation" step, there is no name resolution, so this doesn't need to be run inside a Yuujinchou handler and can use unbound variables. *)
 
-type obs = Flag of flag | Name of string option | Term of parse_tree | Constr of string
+type obs =
+  | Flag of flag
+  | Name of string option
+  | Term of parse_tree
+  | Constr of string
+  | Field of string
 
 and parse_tree =
   | Notn of string * obs list
@@ -21,6 +26,7 @@ let rec get_obs (obs : observation) : obs =
   | Name x -> Name x
   | Term r -> Term (get_tree r)
   | Constr c -> Constr c
+  | Field f -> Field f
 
 and get_tree (r : Compile.parse_tree) : parse_tree =
   match r with

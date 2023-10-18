@@ -307,30 +307,36 @@ let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.
    Matches
  ******************** *)
 
+let rec pattern_vars stop =
+  Inner
+    {
+      name = Some (Lazy (lazy (pattern_vars stop)));
+      constr = None;
+      field = None;
+      term = None;
+      ops =
+        TokMap.singleton Mapsto (terms [ stop; (Op "|", constr (Lazy (lazy (pattern_vars stop)))) ]);
+    }
+
+let innermtch stop n =
+  Inner
+    {
+      ops = TokMap.of_list [ (Op stop, Done n); (Op "|", constr (pattern_vars (Op stop, Done n))) ];
+      constr = Some (pattern_vars (Op stop, Done n));
+      field = None;
+      name = None;
+      term = None;
+    }
+
+type flag += Lam_match
+
 let mtch =
   make ~name:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
-      let rec pattern_vars () =
-        Inner
-          {
-            name = Some (Lazy (lazy (pattern_vars ())));
-            constr = None;
-            field = None;
-            term = None;
-            ops =
-              TokMap.singleton Mapsto
-                (terms [ (Op "]", Done n); (Op "|", constr (Lazy (lazy (pattern_vars ())))) ]);
-          } in
-      eop (Op "[")
-        (name
-           (op (Op "|")
-              (Inner
-                 {
-                   ops = TokMap.of_list [ (Op "]", Done n); (Op "|", constr (pattern_vars ())) ];
-                   constr = Some (pattern_vars ());
-                   field = None;
-                   name = None;
-                   term = None;
-                 }))))
+      eops
+        [
+          (Op "[", name (op (Op "|") (innermtch "]" n)));
+          (Op "[|", Flag (Lam_match, innermtch "|]" n));
+        ])
 
 let rec compile_branch_names :
     type a b ab.
@@ -363,16 +369,21 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let name, obs = get_name obs in
-          (* Can't match an underscore *)
-          match name with
-          | None -> fatal Unnamed_variable_in_match
-          | Some name -> (
-              match Bwv.index (Some name) ctx with
-              | None -> fatal (Unbound_variable name)
-              | Some x ->
-                  let branches = compile_branches ctx obs in
-                  Match (x, branches)));
+          match get_flag [ Lam_match ] obs with
+          | None -> (
+              let name, obs = get_name obs in
+              (* Can't match an underscore *)
+              match name with
+              | None -> fatal Unnamed_variable_in_match
+              | Some name -> (
+                  match Bwv.index (Some name) ctx with
+                  | None -> fatal (Unbound_variable name)
+                  | Some x ->
+                      let branches = compile_branches ctx obs in
+                      Match (x, branches)))
+          | Some _ ->
+              let branches = compile_branches (Snoc (ctx, None)) obs in
+              Lam (Match (Top, branches)));
     }
 
 (* ********************

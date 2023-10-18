@@ -103,6 +103,11 @@ let () =
 
 let () =
   assert (
+    parse !builtins "{.x |-> y}"
+    = Notn ("struc", [ (* flag ignored *) Flag Implicit_pi; Field "x"; Term (Name "y") ]))
+
+let () =
+  assert (
     parse !builtins "{x := y ; z := w}"
     = Notn
         ( "struc",
@@ -112,6 +117,20 @@ let () =
             Name (Some "x");
             Term (Name "y");
             Name (Some "z");
+            Term (Name "w");
+          ] ))
+
+let () =
+  assert (
+    parse !builtins "{.x ↦ y ; .z ↦ w}"
+    = Notn
+        ( "struc",
+          [
+            (* flag ignored *)
+            Flag Implicit_pi;
+            Field "x";
+            Term (Name "y");
+            Field "z";
             Term (Name "w");
           ] ))
 

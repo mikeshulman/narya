@@ -6,6 +6,10 @@ open Raw
 open Reporter
 open Monad.Ops (Monad.Maybe)
 
+(* ********************
+   Parentheses
+ ******************** *)
+
 let parens =
   make ~name:"()" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
       eop LParen (term RParen (Done n)))
@@ -19,6 +23,10 @@ let () =
           let () = get_done obs in
           compile ctx body);
     }
+
+(* ********************
+   Let-binding
+ ******************** *)
 
 (* We could do this without flags, using two different notations. *)
 type flag += Unasc_let | Asc_let
@@ -67,6 +75,10 @@ let () =
               | _ -> fatal (Nonsynthesizing "body of let"))
           | _ -> fatal (Anomaly "Unrecognized flag"));
     }
+
+(* ********************
+   Pi-types
+ ******************** *)
 
 (* Is there any way to avoid these flags too?  If so, we could simplify by getting rid of flags completely. *)
 type flag += Implicit_pi | Explicit_pi | Default_pi
@@ -146,6 +158,10 @@ and compile_pi_doms :
 
 let () = add_compiler pi { compile = compile_pi }
 
+(* ********************
+   Ascription
+ ******************** *)
+
 let asc =
   make ~name:":" ~tightness:Float.neg_infinity ~left:Open ~right:Open ~assoc:Non ~tree:(fun n ->
       eop Colon (Done n))
@@ -162,6 +178,10 @@ let () =
           let ty = compile ctx ty in
           Synth (Asc (tm, ty)));
     }
+
+(* ********************
+   Non-dependent function types
+ ******************** *)
 
 let arrow =
   make ~name:"->" ~tightness:0. ~left:Open ~right:Open ~assoc:Right ~tree:(fun n ->
@@ -180,6 +200,10 @@ let () =
           Synth (Pi (tm, ty)));
     }
 
+(* ********************
+   The universe
+ ******************** *)
+
 let universe =
   make ~name:"Type" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
       eop (Name "Type") (Done n))
@@ -192,6 +216,10 @@ let () =
           let () = get_done obs in
           Synth (Symbol (UU, Zero, Emp)));
     }
+
+(* ********************
+   Degeneracies (refl and sym)
+ ******************** *)
 
 let refl =
   make ~name:"refl" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
@@ -219,6 +247,10 @@ let () =
           Synth (Symbol (Sym, Suc Zero, Emp)));
     }
 
+(* ********************
+   Anonymous structs and comatches
+ ******************** *)
+
 let struc =
   make ~name:"struc" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
       let rec struc_fields () =
@@ -232,22 +264,48 @@ let struc =
             field = None;
             term = None;
           } in
-      eop LBrace (struc_fields ()))
+      let rec comatch_fields () =
+        Inner
+          {
+            ops = TokMap.singleton RBrace (Done n);
+            field =
+              Some
+                (op Mapsto (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done n) ]));
+            constr = None;
+            name = None;
+            term = None;
+          } in
+      eop LBrace
+        (Inner
+           {
+             ops = TokMap.singleton RBrace (Done n);
+             name =
+               Some
+                 (op Coloneq (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done n) ]));
+             field =
+               Some
+                 (op Mapsto (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done n) ]));
+             constr = None;
+             term = None;
+           }))
 
 let rec compile_struc :
     type n. n check list Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
  fun flds ctx obs ->
   match get_next obs with
   | `Done -> Raw.Struct flds
-  | `Name (x, obs) -> (
+  | `Name (Some x, obs) | `Field (x, obs) ->
       let tm, obs = get_term obs in
       let tm = compile ctx tm in
-      match x with
-      | Some x -> compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
-      | None -> fatal Unnamed_field_in_struct)
-  | `Constr _ | `Field _ | `Term _ -> fatal (Anomaly "Impossible thing in struct")
+      compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
+  | `Name (None, _) -> fatal Unnamed_field_in_struct
+  | `Constr _ | `Term _ -> fatal (Anomaly "Impossible thing in struct")
 
 let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
+
+(* ********************
+   Matches
+ ******************** *)
 
 let mtch =
   make ~name:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
@@ -316,6 +374,10 @@ let () =
                   let branches = compile_branches ctx obs in
                   Match (x, branches)));
     }
+
+(* ********************
+   Generating the state
+ ******************** *)
 
 let builtins =
   ref

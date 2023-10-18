@@ -34,6 +34,8 @@ let () =
   (match Hashtbl.find Global.constants (Option.get (Scope.lookup "ab")) with
   | Defined _ -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));
+  def "zero_zero'" "ℕ × ℕ" "{ .fst ↦ zero; .snd ↦ zero }";
+  equal_at "zero_zero" "zero_zero'" "ℕ × ℕ";
 
   (* Coinductive streams *)
   Types.Stream.install ();

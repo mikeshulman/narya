@@ -56,6 +56,7 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `M : N` – Type ascription.  Necessary if you want to apply an abstraction to an argument (i.e. manually write a beta-redex) or similarly apply a field to a structure, since the typechecker is bidirectional.
 - `let x ≔ M in N` – Local binding.  Computationally equivalent to `(x ↦ N) M`, but also binds `x` to `M` while typechecking `N`, which is stronger in the presence of dependent types.  As before, ≔ can be replaced by `:=`, and `let x ≔ (M : A) in N` (commonly needed since `M` must synthesize) can be abbreviated `let x : A ≔ M in N`.
 - `[ x | constr1. a b ↦ M | constr2. c d ↦ N ]` – Match against datatype constructors.  Only valid in a top-level case tree (see below).  This syntax is tentative and might change if I get negative feedback from users; the intent is to clearly dualize the constructor `{ … ; … }` for records/codata to a destructor `[ … | … ]` for data.
+- `{ .fld1 ↦ M; .fld2 ↦ N }` – Copattern match against a codatatype.  In fact this is just a notational variant of an anonymous structure, but it looks even more dual to a match.
 - `Id M X Y` – Homogeneous identity/bridge type.  In fact this is equivalent to `refl M X Y`, and `Id` is just a synonym for `refl`.
 - `refl M` – Reflexivity term.
 - `sym M` – Symmetry of a two-dimensional square.

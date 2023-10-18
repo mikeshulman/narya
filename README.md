@@ -52,10 +52,10 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `M → N` – Non-dependent function-type (right-associative).
 - `M .fld` – Field access of a record (left-associative).
 - `{ fld1 ≔ M; fld2 ≔ N }` – Anonymous record (structure).  The unicode ≔ can be replaced by ASCII `:=`.  Checks, doesn't synthesize.
-- `constr. M N` – Constructor of a datatype, applied to arguments (but not parameters).  Checks, doesn't synthesize.
+- `constr. M N` – Constructor of a datatype, applied to arguments (but not parameters).  Checks, doesn't synthesize.  The postfix period is admittedly unusual; the intent is to emphasize the duality between constructors of a datatype and destructors (fields) of a codatatype/record.
 - `M : N` – Type ascription.  Necessary if you want to apply an abstraction to an argument (i.e. manually write a beta-redex) or similarly apply a field to a structure, since the typechecker is bidirectional.
 - `let x ≔ M in N` – Local binding.  Computationally equivalent to `(x ↦ N) M`, but also binds `x` to `M` while typechecking `N`, which is stronger in the presence of dependent types.  As before, ≔ can be replaced by `:=`, and `let x ≔ (M : A) in N` (commonly needed since `M` must synthesize) can be abbreviated `let x : A ≔ M in N`.
-- `match x with constr1. a b ↦ M | constr2. c d ↦ N end` – Match against datatype constructors.  Only valid in a top-level case tree (see below).
+- `[ x | constr1. a b ↦ M | constr2. c d ↦ N ]` – Match against datatype constructors.  Only valid in a top-level case tree (see below).  This syntax is tentative and might change if I get negative feedback from users; the intent is to clearly dualize the constructor `{ … ; … }` for records/codata to a destructor `[ … | … ]` for data.
 - `Id M X Y` – Homogeneous identity/bridge type.  In fact this is equivalent to `refl M X Y`, and `Id` is just a synonym for `refl`.
 - `refl M` – Reflexivity term.
 - `sym M` – Symmetry of a two-dimensional square.
@@ -124,12 +124,12 @@ Constants that are not records or datatypes can be axioms (undefined), or they c
 
 The syntax for pattern matches is
 ```
-match x with
+[ x |
 | constr1. a b ↦ BRANCH1
 | constr2. c d ↦ BRANCH2
-end
+]
 ```
-Note that `x` must be a *free variable*: it is not possible to match against an arbitrary term (you can achieve that effect by defining an auxiliary constant).  The syntax for abstractions in case trees is the same as that for abstractions in terms, `x ↦ M`, and similarly the syntax for copattern matches in case trees is the same as that for anonymous structures in terms, `{ fld1 ≔ M; fld2 ≔ N }`.  (There is currently no analogue of `match` inside a term; pattern-matching can only be done in the case tree of a toplevel constant.)
+Note that `x` must be a *free variable*: it is not possible to match against an arbitrary term (you can achieve that effect by defining an auxiliary constant).  The syntax for abstractions in case trees is the same as that for abstractions in terms, `x ↦ M`, and similarly the syntax for copattern matches in case trees is the same as that for anonymous structures in terms, `{ fld1 ≔ M; fld2 ≔ N }`.  (There is currently no analogue of matching that can be done inside a term; pattern-matching can only be done in the case tree of a toplevel constant.)
 
 This means that defining a constant to equal something like "`x y ↦ { fld1 ≔ M; fld2 ≔ N }`" appears ambiguous as to whether it is just a leaf or whether it is a case tree involving abstractions and perhaps a copattern match.  The rule to resolve this ambiguity is that *as much as possible of a definition is included in the case tree*.  This is usually what you want.
 

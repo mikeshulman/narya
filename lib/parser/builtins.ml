@@ -260,14 +260,14 @@ let mtch =
             fail = [];
             ops =
               TokMap.singleton Mapsto
-                (terms [ (End, Done n); (Op "|", constr (Lazy (lazy (pattern_vars ())))) ]);
+                (terms [ (Op "]", Done n); (Op "|", constr (Lazy (lazy (pattern_vars ())))) ]);
           } in
-      eop Match
+      eop (Op "[")
         (name
-           (op With
+           (op (Op "|")
               (Inner
                  {
-                   ops = TokMap.of_list [ (End, Done n); (Op "|", constr (pattern_vars ())) ];
+                   ops = TokMap.of_list [ (Op "]", Done n); (Op "|", constr (pattern_vars ())) ];
                    constr = Some (pattern_vars ());
                    name = None;
                    term = None;

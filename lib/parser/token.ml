@@ -15,12 +15,10 @@ type t =
   | Numeral of string (* Digits with internal dots *)
   | Underscore (* _ *)
   | Internal of string (* Starting or ending with _ *)
-  | Match
-  | With
-  | End
   | Def
   | Record
   | Data
+  | Codata
   | Section
   | Let
   | In
@@ -51,12 +49,10 @@ let to_string = function
   | Numeral s -> s
   | Underscore -> "_"
   | Internal s -> s
-  | Match -> "match"
-  | With -> "with"
-  | End -> "end"
   | Def -> "def"
   | Record -> "record"
   | Data -> "data"
+  | Codata -> "codata"
   | Section -> "section"
   | Let -> "let"
   | In -> "in"

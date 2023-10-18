@@ -58,15 +58,24 @@ let () =
   (* Lists *)
   Types.Lst.install ();
   def "append" "(A:Type) -> List A -> List A -> List A"
-    "A xs ys |-> match xs with nil. |-> ys | cons. x xs |-> cons. x (append A xs ys) end";
+    "A xs ys ↦ [ xs
+      | nil.       ↦ ys
+      | cons. x xs ↦ cons. x (append A xs ys)
+      ]";
   equal_at "append N (cons. 0 nil.) (cons. 1 (cons. 2 nil.))" "cons. 0 (cons. 1 (cons. 2 nil.))"
     "List N";
 
   (* Vectors *)
   Types.Vec.install ();
-  def "lplus" "N -> N -> N" "m n |-> match m with 0. |-> n | 1. m |-> 1. (lplus m n) end";
+  def "lplus" "N -> N -> N" "m n ↦ [ m
+    | 0. ↦ n
+    | 1. m ↦ 1. (lplus m n)
+    ]";
   def "vappend" "(A:Type) (m n : N) -> Vec A m -> Vec A n -> Vec A (lplus m n)"
-    "A m n xs ys |-> match xs with nil. |-> ys | cons. m x xs |-> cons. (lplus m n) x (vappend A m n xs ys) end";
+    "A m n xs ys ↦ [ xs
+    | nil.         ↦ ys
+    | cons. m x xs ↦ cons. (lplus m n) x (vappend A m n xs ys)
+    ]";
   equal_at "vappend N 1 2 (cons. 0 0 nil.) (cons. 1 1 (cons. 0 2 nil.))"
     "cons. 2 0 (cons. 1 1 (cons. 0 2 nil.))" "Vec N 3";
 

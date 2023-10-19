@@ -21,6 +21,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   (* We aren't using Fmlib's error reporting, so there's no point to suppling its "expect" strings. *)
   let step f = step "" f
   let followed_by f = followed_by f ""
+  let backtrack f = backtrack f ""
 
   (* First some functions that parse only a single token of a given kind. *)
 
@@ -67,56 +68,37 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           | None -> None) in
     tree optree obs
 
-  and tree_name (name : tree option) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t
-      =
-    (* Failure means: expecting a local variable name or underscore, or the given 'tree option' was None. *)
-    let* nametree, x =
-      step (fun state _ tok ->
-          match (name, tok) with
-          | Some br, Name x -> if Token.variableable x then Some ((br, Some x), state) else None
-          | Some br, Underscore -> Some ((br, None), state)
-          | _ -> None) in
-    tree nametree (Snoc (obs, Name x))
-
-  and tree_constr (constr : tree option) (obs : observation Bwd.t) :
-      (observation Bwd.t * Notation.t) t =
-    (* Failure means: expecting a constr, or the given 'tree option' was None. *)
-    let* constrtree, x =
-      step (fun state _ tok ->
-          match (constr, tok) with
-          | Some br, Constr x -> Some ((br, x), state)
-          | _ -> None) in
-    tree constrtree (Snoc (obs, Constr x))
-
-  and tree_field (field : tree option) (obs : observation Bwd.t) :
-      (observation Bwd.t * Notation.t) t =
-    (* Failure means: expecting a field, or the given 'tree option' was None. *)
-    let* fieldtree, x =
-      step (fun state _ tok ->
-          match (field, tok) with
-          | Some br, Field x -> Some ((br, x), state)
-          | _ -> None) in
-    tree fieldtree (Snoc (obs, Field x))
-
-  and tree_term (term : tree TokMap.t option) (obs : observation Bwd.t) :
-      (observation Bwd.t * Notation.t) t =
-    (* Failure means: failed to parse a term, or the given 'tree map option' was None. *)
-    match term with
-    | Some e ->
-        (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
-        let* subterm = lclosed Interval.entire e in
-        tree_op e (Snoc (obs, Term subterm))
-    | None -> fail ()
-
   and tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
     (* Failure means: all possible branches of the tree were empty or failed. *)
     match t with
-    | Inner { ops; constr; field; name; term } ->
-        backtrack (tree_op ops obs) "operator"
-        </> backtrack (tree_constr constr obs) "constr"
-        </> backtrack (tree_field field obs) "field"
-        </> backtrack (tree_name name obs) "name"
-        </> tree_term term obs
+    | Inner { ops; constr; field; name; term } -> (
+        backtrack
+          (let* br, x =
+             step (fun state _ tok ->
+                 match TokMap.find_opt tok ops with
+                 | Some br -> Some ((br, ([] : observation list)), state)
+                 | None -> (
+                     match (constr, tok) with
+                     | Some br, Constr x -> Some ((br, [ Constr x ]), state)
+                     | _ -> (
+                         match (field, tok) with
+                         | Some br, Field x -> Some ((br, [ Field x ]), state)
+                         | _ -> (
+                             match (name, tok) with
+                             | Some br, Name x ->
+                                 if Token.variableable x then Some ((br, [ Name (Some x) ]), state)
+                                   (* TODO: could report a possible special "invalid local variable name" here. *)
+                                 else None
+                             | Some br, Underscore -> Some ((br, [ Name None ]), state)
+                             | _ -> None)))) in
+           tree br (Bwd.append obs x))
+        </>
+        match term with
+        | Some e ->
+            (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
+            let* subterm = lclosed Interval.entire e in
+            tree_op e (Snoc (obs, Term subterm))
+        | None -> fail ())
     | Done n -> return (obs, n)
     | Flag (f, t) -> tree t (Snoc (obs, Flag f))
     | Lazy (lazy t) -> tree t obs
@@ -138,7 +120,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            let* last_arg = lclosed i stop in
            return (Notn (n, Bwd.to_list (Snoc (obs, Term last_arg))), Some d.tightness))
       (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  Field projections are not allowed since this would be the head of a spine. *)
-      </> backtrack (abstraction stop Emp) "abstraction"
+      </> backtrack (abstraction stop Emp)
       </> let* res = name </> numeral </> constr in
           return (res, None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)

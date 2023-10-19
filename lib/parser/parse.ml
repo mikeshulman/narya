@@ -18,48 +18,60 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   module Basic = Token_parser.Make (State) (Token) (Final) (Unit)
   open Basic
 
+  (* We aren't using Fmlib's error reporting, so there's no point to suppling its "expect" strings. *)
+  let step f = step "" f
+  let followed_by f = followed_by f ""
+
+  (* First some functions that parse only a single token of a given kind. *)
+
   let name : parse_tree t =
-    step "name" (fun state _ tok ->
+    (* Failure means: expecting a name *)
+    step (fun state _ tok ->
         match tok with
         | Name x -> Some (Name x, state)
         | _ -> None)
 
   let constr : parse_tree t =
-    step "constructor" (fun state _ tok ->
+    (* Failure means: expecting a constr *)
+    step (fun state _ tok ->
         match tok with
         | Constr x -> if Token.variableable x then Some (Constr x, state) else None
         | _ -> None)
 
   let field : parse_tree t =
-    step "field" (fun state _ tok ->
+    (* Failure means: expecting a field *)
+    step (fun state _ tok ->
         match tok with
         | Field x -> if Token.variableable x then Some (Field x, state) else None
         | _ -> None)
 
   let numeral : parse_tree t =
-    step "numeral" (fun state _ tok ->
+    (* Failure means: expecting a numeral *)
+    step (fun state _ tok ->
         match tok with
         | Numeral n -> (
             match Float.of_string_opt n with
             | Some n -> Some (Numeral n, state)
-            | None -> None)
+            | None -> fatal (Invalid_numeral n))
         | _ -> None)
+
+  (* Now some functions that parse a token of a single kind and, if successful, continue with a specified tree.  The continuation tree can, of course, fail in its own ways. *)
 
   let rec tree_op (ops : tree TokMap.t) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
+    (* Failure means: expecting one of the tokens in 'ops'. *)
     let* optree =
-      step
-        (String.concat " or " (List.map (fun (k, _) -> Token.to_string k) (TokMap.bindings ops)))
-        (fun state _ tok ->
-          let open Monad.Ops (Monad.Maybe) in
-          let* br = TokMap.find_opt tok ops in
-          return (br, state)) in
+      step (fun state _ tok ->
+          match TokMap.find_opt tok ops with
+          | Some br -> Some (br, state)
+          | None -> None) in
     tree optree obs
 
   and tree_name (name : tree option) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t
       =
+    (* Failure means: expecting a local variable name or underscore, or the given 'tree option' was None. *)
     let* nametree, x =
-      step "name" (fun state _ tok ->
+      step (fun state _ tok ->
           match (name, tok) with
           | Some br, Name x -> if Token.variableable x then Some ((br, Some x), state) else None
           | Some br, Underscore -> Some ((br, None), state)
@@ -68,8 +80,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   and tree_constr (constr : tree option) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
+    (* Failure means: expecting a constr, or the given 'tree option' was None. *)
     let* constrtree, x =
-      step "constr" (fun state _ tok ->
+      step (fun state _ tok ->
           match (constr, tok) with
           | Some br, Constr x -> Some ((br, x), state)
           | _ -> None) in
@@ -77,8 +90,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   and tree_field (field : tree option) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
+    (* Failure means: expecting a field, or the given 'tree option' was None. *)
     let* fieldtree, x =
-      step "field" (fun state _ tok ->
+      step (fun state _ tok ->
           match (field, tok) with
           | Some br, Field x -> Some ((br, x), state)
           | _ -> None) in
@@ -86,6 +100,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   and tree_term (term : tree TokMap.t option) (obs : observation Bwd.t) :
       (observation Bwd.t * Notation.t) t =
+    (* Failure means: failed to parse a term, or the given 'tree map option' was None. *)
     match term with
     | Some e ->
         (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
@@ -94,6 +109,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | None -> fail ()
 
   and tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
+    (* Failure means: all possible branches of the tree were empty or failed. *)
     match t with
     | Inner { ops; constr; field; name; term } ->
         backtrack (tree_op ops obs) "operator"
@@ -133,7 +149,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) :
       (parse_tree * float option) t =
     let* x =
-      step "name" (fun state _ tok ->
+      step (fun state _ tok ->
           match tok with
           | Name x -> if Token.variableable x then Some (`Name x, state) else None
           | Underscore -> Some (`Underscore, state)
@@ -155,18 +171,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (first_tight : float option) : parse_tree t =
     (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term. *)
     followed_by
-      (step "stopping token (1)" (fun state _ tok ->
-           if TokMap.mem tok stop then Some (first_arg, state) else None))
-      "stopping token (2)"
+      (step (fun state _ tok -> if TokMap.mem tok stop then Some (first_arg, state) else None))
     (* Next we test for initial ops of looser left-opens.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
     </> followed_by
-          (step "looser left-open (1)" (fun state _ tok ->
+          (step (fun state _ tok ->
                let open Monad.Ops (Monad.Maybe) in
                let* ivls = TokMap.find_opt tok state.left_opens in
                if List.exists (fun ivl -> Interval.contains ivl (Interval.endpoint tight)) ivls then
                  return (first_arg, state)
                else None))
-          "looser left-open (2)"
     </> (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
     (let* state = get in
      let* res, res_tight =

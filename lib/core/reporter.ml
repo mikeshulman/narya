@@ -6,6 +6,7 @@ module Code = struct
   type t =
     | Parse_error : t
     | Parsing_ambiguity : string -> t
+    | Invalid_numeral : string -> t
     | Not_enough_lambdas : int -> t
     | Not_enough_arguments_to_function : t
     | Not_enough_arguments_to_instantiation : t
@@ -48,6 +49,7 @@ module Code = struct
   let default_severity : t -> Asai.Diagnostic.severity = function
     | Parse_error -> Error
     | Parsing_ambiguity _ -> Error
+    | Invalid_numeral _ -> Error
     | Not_enough_lambdas _ -> Error
     | Type_not_fully_instantiated _ -> Error
     | Unequal_synthesized_type -> Error
@@ -96,6 +98,7 @@ module Code = struct
     (* Parse errors *)
     | Parse_error -> "E0200"
     | Parsing_ambiguity _ -> "E0201"
+    | Invalid_numeral _ -> "E0202"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
@@ -146,6 +149,7 @@ module Code = struct
   let default_text : t -> text = function
     | Parse_error -> text "Parse error"
     | Parsing_ambiguity str -> textf "Potential parsing ambiguity: %s" str
+    | Invalid_numeral str -> textf "Invalid numeral: %s" str
     | Not_enough_lambdas n ->
         textf "Not enough variables for a higher-dimensional abstraction: need at least %d more" n
     | Not_enough_arguments_to_function ->

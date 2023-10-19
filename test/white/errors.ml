@@ -36,6 +36,7 @@ let () =
   let () = unsynth "x y {` unterminated block comment" ~code:Parse_error in
   (* let _ = synth ".fst x" in *)
   let () = unsynth ".fst x" ~code:Parse_error in
+  let () = unsynth "0.1.2" ~code:(Invalid_numeral "0.1.2") in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

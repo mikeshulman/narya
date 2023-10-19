@@ -30,13 +30,25 @@ let () =
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
   (* Parse errors *)
-  let () = unsynth "let x := a in b : c" ~code:Parse_error in
-  let () = unsynth "x y |-> z : w" ~code:Parse_error in
+  (* TODO: Why don't the whole tokens 'coo' and 'woo' get marked as the range? *)
+  (* let _ = synth "let x := a in b : coo" in *)
+  let () = unsynth "let x := a in b : coo" ~code:Parse_error in
+  (* let _ = synth "x y |-> z : woo" in *)
+  let () = unsynth "x y |-> z : woo" ~code:Parse_error in
   (* let _ = synth "x y {` unterminated block comment" in *)
   let () = unsynth "x y {` unterminated block comment" ~code:Parse_error in
+  (* let _ = synth "f (x" in *)
+  let () = unsynth "f (x" ~code:Parse_error in
   (* let _ = synth ".fst x" in *)
   let () = unsynth ".fst x" ~code:Parse_error in
-  let () = unsynth "0.1.2" ~code:(Invalid_numeral "0.1.2") in
+  (* let _ = synth "x .fs.t y" in *)
+  let () = unsynth "x .fs.t y" ~code:(Invalid_field "fs.t") in
+  (* let _ = synth "f (con.str. x)" in *)
+  let () = unsynth "f (con.str. x)" ~code:(Invalid_constr "con.str") in
+  (* let _ = synth "x |-> f 0.1.2 x" in *)
+  let () = unsynth "x |-> f 0.1.2 x" ~code:(Invalid_numeral "0.1.2") in
+  (* let _ = synth "let x.y ≔ z in w" in *)
+  let () = unsynth "let x.y ≔ z in w" ~code:(Invalid_variable "x.y") in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

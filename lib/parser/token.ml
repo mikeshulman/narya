@@ -1,7 +1,6 @@
 type t =
   | Field of string (* Starting with . *)
   | Constr of string (* Ending with . *)
-  | Coercion of string (* Starting and ending with . *)
   | LParen (* ( *)
   | RParen (* ) *)
   | LBrace (* { *)
@@ -12,7 +11,7 @@ type t =
   | Coloneq (* Both := and ≔ *)
   | Dot (* . *)
   | String of string (* Double-quoted *)
-  | Numeral of string (* Digits with internal dots *)
+  | Numeral of float (* Digits with internal dots *)
   | Underscore (* _ *)
   | Internal of string (* Starting or ending with _ *)
   | Def
@@ -35,7 +34,6 @@ let variableable s = not (String.exists (fun c -> c = '.') s)
 let to_string = function
   | Field s -> "." ^ s
   | Constr s -> s ^ "."
-  | Coercion s -> "." ^ s ^ "."
   | LParen -> "("
   | RParen -> ")"
   | LBrace -> "{"
@@ -46,7 +44,7 @@ let to_string = function
   | Coloneq -> ":="
   | Dot -> "."
   | String s -> "\"" ^ s ^ "\""
-  | Numeral s -> s
+  | Numeral s -> Float.to_string s
   | Underscore -> "_"
   | Internal s -> s
   | Def -> "def"

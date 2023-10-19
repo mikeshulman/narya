@@ -16,7 +16,7 @@ let () =
         LParen;
         Name "ns24";
         Op "$#*";
-        Numeral "430";
+        Numeral 430.;
         Op "-";
         RBrace;
         Name "aqo0";
@@ -75,3 +75,8 @@ let () =
 
 let () = assert (lex "Block comments {` can end the file `}" = [ Name "Block"; Name "comments" ])
 let () = assert (nolex "Unterminated {` block comment" = [ ("any character", None) ])
+
+let () =
+  assert (
+    lex "let x := a in b : coo"
+    = [ Let; Name "x"; Coloneq; Name "a"; In; Name "b"; Colon; Name "coo" ])

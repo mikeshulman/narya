@@ -1,5 +1,7 @@
 open Fmlib_parse
 open Token
+open Core
+open Reporter
 
 (* NB: The parsing combinator "string" just parses the characters in the string one by one.  This means that if it succeeds to parse the first character in the string, it consumes that character, and if it fails later in the string then parsing dies completely.  If that's not what you want, which it usually isn't, you need to wrap it in "backtrack".  *)
 
@@ -140,8 +142,8 @@ let other_char : char t =
      else return c)
     "other character"
 
-(* Once we have an identifier string, we inspect it and divide into cases to make a Token.t.  *)
-let canonicalize : string -> Token.t t = function
+(* Once we have an identifier string, we inspect it and divide into cases to make a Token.t.  We take a range so that we can immediately report invalid field, constructor, and numeral names with a position. *)
+let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "let" -> return Let
   | "in" -> return In
   | "def" -> return Def
@@ -154,35 +156,39 @@ let canonicalize : string -> Token.t t = function
   | s -> (
       let len = String.length s in
       match (s.[0], s.[len - 1]) with
-      | '.', '.' ->
-          let name = String.sub s 1 (len - 2) in
-          if String.exists (fun x -> x = '.') name then unexpected "internal dot in coercion name"
-          else return (Coercion name)
+      | '.', '.' -> unexpected ""
       | '.', _ ->
           let name = String.sub s 1 (len - 1) in
-          if String.exists (fun x -> x = '.') name then unexpected "internal dot in field name"
+          if String.exists (fun x -> x = '.') name then
+            fatal ~loc:(Range.convert rng) (Invalid_field name)
           else return (Field name)
       | _, '.' ->
           let name = String.sub s 0 (len - 1) in
           if String.exists (fun x -> x = '.') name then
-            unexpected "internal dot in constructor name"
+            fatal ~loc:(Range.convert rng) (Invalid_constr name)
           else return (Constr name)
       | '_', _ | _, '_' -> return (Internal s)
-      | _ -> if is_numeral s then return (Numeral s) else return (Name s))
+      | _ ->
+          if is_numeral s then
+            match Float.of_string_opt s with
+            | Some n -> return (Numeral n)
+            | None -> fatal ~loc:(Range.convert rng) (Invalid_numeral s)
+          else return (Name s))
 
 (* Now to make a token, we consume as many such characters as possible, adding them one-by-one to a Buffer and then canonicalizing the resulting string. *)
 let other : Token.t t =
-  let* buf =
-    one_or_more_fold_left
-      (fun c ->
-        let buf = Buffer.create 16 in
-        Buffer.add_char buf c;
-        return buf)
-      (fun buf c ->
-        Buffer.add_char buf c;
-        return buf)
-      other_char in
-  canonicalize (Buffer.contents buf)
+  let* rng, buf =
+    located
+      (one_or_more_fold_left
+         (fun c ->
+           let buf = Buffer.create 16 in
+           Buffer.add_char buf c;
+           return buf)
+         (fun buf c ->
+           Buffer.add_char buf c;
+           return buf)
+         other_char) in
+  canonicalize rng (Buffer.contents buf)
 
 (* Finally, a token cannot appear on a blank-only line, and is either a quoted string, a single-character operator, an operator of special ASCII symbols, or something else.  We remove whitespace first (which updates the state!). *)
 let token : Located_token.t t =

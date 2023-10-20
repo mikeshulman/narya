@@ -1,5 +1,6 @@
 open Fmlib_parse
 open Asai.Span
+open Core.Reporter
 
 module S = Algaeff.Reader.Make (struct
   type env = string
@@ -18,8 +19,8 @@ let convert (pos1, pos2) =
   let str, inc =
     if pos1 = pos2 then
       if Position.byte_offset pos2 = String.length str then (str ^ "<EOF>", 5)
-        (* TODO: I don't understand why sometimes the range is 0-width but not at EOF. *)
-      else (str, 1)
+        (* Fmlib also reports a 0-width range in mid-parse if we fail directly (i.e. with "fail" or "unexpected" rather than during a lookahead such as "step").  But our calls to "fail" all include an explicit range, and I believe all our calls to "unexpected" are followed by </> so that they aren't what produces the eventual actual parse error.  Thus I don't think this should happen, so we flag it as an Anomaly.  *)
+      else fatal (Anomaly "Zero-width range during parse failure before EOF")
     else (str, 0) in
   let source = `String { title = Some "user-supplied term"; content = str } in
   make (convert_pos source pos1 0, convert_pos source pos2 inc)

@@ -6,6 +6,7 @@ module Code = struct
   type t =
     | Parse_error : t
     | Parsing_ambiguity : string -> t
+    | No_relative_precedence : string * string -> t
     | Invalid_variable : string -> t
     | Invalid_numeral : string -> t
     | Invalid_constr : string -> t
@@ -52,6 +53,7 @@ module Code = struct
   let default_severity : t -> Asai.Diagnostic.severity = function
     | Parse_error -> Error
     | Parsing_ambiguity _ -> Error
+    | No_relative_precedence _ -> Error
     | Invalid_variable _ -> Error
     | Invalid_numeral _ -> Error
     | Invalid_constr _ -> Error
@@ -108,6 +110,7 @@ module Code = struct
     | Invalid_field _ -> "E0203"
     | Invalid_constr _ -> "E0204"
     | Invalid_numeral _ -> "E0205"
+    | No_relative_precedence _ -> "E0206"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
@@ -162,6 +165,10 @@ module Code = struct
     | Invalid_field str -> textf "Invalid field name: %s" str
     | Invalid_constr str -> textf "Invalid constructor name: %s" str
     | Invalid_numeral str -> textf "Invalid numeral: %s" str
+    | No_relative_precedence (n1, n2) ->
+        textf
+          "Notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
+          n1 n2
     | Not_enough_lambdas n ->
         textf "Not enough variables for a higher-dimensional abstraction: need at least %d more" n
     | Not_enough_arguments_to_function ->

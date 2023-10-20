@@ -4,25 +4,6 @@ open Reporter
 module TokMap = Map.Make (Token)
 module TokSet = Set.Make (Token)
 
-(* A mixfix notation is an abstract object with a global existence.  They are represented internally by integers, to make them easily comparable and look-up-able. *)
-module Notation : sig
-  type t
-
-  val make : unit -> t
-  val compare : t -> t -> int
-end = struct
-  type t = int
-
-  let counter = ref 0
-
-  let make () =
-    let n = !counter in
-    counter := !counter + 1;
-    n
-
-  let compare : t -> t -> int = fun x y -> compare x y
-end
-
 (* A notation is either open or closed, on both sides.  We call these two properties combined its "fixity", since they are equivalent to the traditional classification as infix, prefix, postfix, or "outfix".
 
     left | right | traditional name

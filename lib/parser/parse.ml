@@ -13,9 +13,12 @@ module ParseTree = struct
   type t = parse_tree
 end
 
-(* There is only one "semantic" error, namely an invalid local variable name.  This is a "semantic" error so that we can control exactly what data it stores, and it's not a lexer error because some invalid local variable names are valid as global constant names (namely, those containing internal periods for namespacing), and the lexer can't tell the difference.  *)
+(* We misuse Fmlib's "semantic" errors for a couple of special classes of errors that are really syntactic, but which we don't detect until after the relevant tokens have already been "successfully" parsed, and for which we want to report more structured error information than just an "expected" string. *)
 module SemanticError = struct
-  type t = Invalid_variable of Position.range * string
+  type t =
+    | Invalid_variable of Position.range * string
+    (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because abstractions are implemented specially in the parser and not as an actual Notation. *)
+    | No_relative_precedence of Position.range * string * string
 end
 
 (* The functor that defines all the term-parsing combinators. *)
@@ -23,7 +26,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   module Basic = Token_parser.Make (State) (Token) (Final) (SemanticError)
   open Basic
 
-  (* We aren't using Fmlib's error reporting, so there's no point to suppling its "expect" strings. *)
+  (* We aren't using Fmlib's error reporting, so there's no point in supplying it nonempty "expect" strings. *)
   let step f = step "" f
   let followed_by f = followed_by f ""
   let backtrack f = backtrack f ""
@@ -97,7 +100,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            let i = Interval.right_assoc d.tightness d.assoc in
            (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
            let* last_arg = lclosed i stop in
-           return (Notn (n, Bwd.to_list (Snoc (obs, Term last_arg))), Some d.tightness))
+           return (Notn (n, Bwd.to_list (Snoc (obs, Term last_arg))), Some (d.tightness, d.name)))
       (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  Field projections are not allowed since this would be the head of a spine.  First we look forward past possible variable names to find a Mapsto, to see whether we're looking at an abstraction, and if so we insist on actually parsing that abstraction (and checking that the variable names are valid).  Otherwise, we parse a single name, numeral, or constructor. *)
       </> (let* _ = followed_by (abstraction stop Emp false) in
            abstraction stop Emp true)
@@ -115,7 +118,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
   and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) (for_real : bool) :
-      (parse_tree * float option) t =
+      (parse_tree * (float * string) option) t =
     let* rng, x =
       located
         (step (fun state _ tok ->
@@ -137,12 +140,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             if for_real then
               (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
               let* res = lclosed (Open Float.neg_infinity) stop in
-              return (Abs (Bwd.to_list names, res), Some Float.neg_infinity)
+              return (Abs (Bwd.to_list names, res), Some (Float.neg_infinity, "↦"))
             else return (Name "", None))
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse_tree)
-      (first_tight : float option) : parse_tree t =
+      (first_tight : (float * string) option) : parse_tree t =
     (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
     followed_by
       (step (fun state _ tok ->
@@ -156,15 +159,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
     </> (let* state = get in
          let* res, res_tight =
-           (let* obs, n = entry (TIMap.find tight state.tighters) in
+           (let* rng, (obs, n) = located (entry (TIMap.find tight state.tighters)) in
             let d = get_data n in
-            (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one. *)
+            (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one.  One could make a case that notations d that fail this test should already have been excluded from the 'entry' that we parsed above.  But for one thing, that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Furthermore, doing it this way makes it easier to trap it and issue a more informative error message, which I think is a good thing because this includes example like "let x ≔ M in N : A" and "x ↦ M : A" where the need for parentheses in Narya may be surprising to a new user.  *)
             let* () =
               match first_tight with
               | None -> return ()
-              | Some t ->
+              | Some (t, tname) ->
                   if d.left = Closed || Interval.contains (Interval.left d) t then return ()
-                  else unexpected "" in
+                  else fail (No_relative_precedence (rng, tname, d.name)) in
             match d.right with
             | Closed -> (
                 match d.left with
@@ -180,11 +183,11 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                 | Open ->
                     return
                       ( Notn (n, Term first_arg :: Bwd.to_list (Snoc (obs, Term last_arg))),
-                        Some d.tightness )
+                        Some (d.tightness, d.name) )
                 | Closed ->
                     return
                       ( App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))),
-                        Some d.tightness )))
+                        Some (d.tightness, d.name) )))
            (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
            </> let* arg =
                  step (fun state _ tok ->
@@ -228,5 +231,7 @@ let term (state : State.t) (str : string) : parse_tree =
     (* It should be possible to report more detailed error information from the parser than just the location.  Fmlib supplies "failed_expectations", but I haven't been able to figure out how to make that useful with this parsing algorithm. *)
     fatal ~loc:(Range.convert (range p)) Parse_error
   else
-    let (Invalid_variable (rng, name)) = failed_semantic p in
-    fatal ~loc:(Range.convert rng) (Invalid_variable name)
+    match failed_semantic p with
+    | Invalid_variable (rng, name) -> fatal ~loc:(Range.convert rng) (Invalid_variable name)
+    | No_relative_precedence (rng, n1, n2) ->
+        fatal ~loc:(Range.convert rng) (No_relative_precedence (n1, n2))

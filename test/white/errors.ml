@@ -29,12 +29,11 @@ let () =
   let () = uncheck "a" idida ~code:(Type_not_fully_instantiated "typechecking") in
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
-  (* Parse errors *)
-  (* TODO: Why don't the whole tokens 'coo' and 'woo' get marked as the range? *)
+  (* Parse errors.  Uncomment the "let _" lines and run this file directly with "dune exec" to see the error messages shown as they appear to the user. *)
   (* let _ = synth "let x := a in b : coo" in *)
-  let () = unsynth "let x := a in b : coo" ~code:Parse_error in
+  let () = unsynth "let x := a in b : coo" ~code:(No_relative_precedence ("let", ":")) in
   (* let _ = synth "x y |-> z : woo" in *)
-  let () = unsynth "x y |-> z : woo" ~code:Parse_error in
+  let () = unsynth "x y |-> z : woo" ~code:(No_relative_precedence ("↦", ":")) in
   (* let _ = synth "x y {` unterminated block comment" in *)
   let () = unsynth "x y {` unterminated block comment" ~code:Parse_error in
   (* let _ = synth "f (x" in *)
@@ -52,6 +51,7 @@ let () =
   (* let _ = synth "x.y ↦ z" in *)
   let () = unsynth "x.y ↦ z" ~code:(Invalid_variable "x.y") in
   let () = unsynth "a x.y b ↦ z" ~code:(Invalid_variable "x.y") in
+  let () = unsynth "↦ x" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

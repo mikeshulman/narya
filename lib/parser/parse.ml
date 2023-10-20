@@ -125,7 +125,10 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              match tok with
              | Name x -> Some (`Name x, state)
              | Underscore -> Some (`Underscore, state)
-             | Mapsto -> Some (`Mapsto, state)
+             | Mapsto -> (
+                 match names with
+                 | Emp -> None
+                 | Snoc _ -> Some (`Mapsto, state))
              | _ -> None)) in
     match x with
     | `Name x ->
@@ -133,15 +136,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           abstraction stop (Snoc (names, Some x)) for_real
         else fail (Invalid_variable (rng, x))
     | `Underscore -> abstraction stop (Snoc (names, None)) for_real
-    | `Mapsto -> (
-        match names with
-        | Emp -> unexpected ""
-        | Snoc _ ->
-            if for_real then
-              (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
-              let* res = lclosed (Open Float.neg_infinity) stop in
-              return (Abs (Bwd.to_list names, res), Some (Float.neg_infinity, "↦"))
-            else return (Name "", None))
+    | `Mapsto ->
+        if for_real then
+          (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
+          let* res = lclosed (Open Float.neg_infinity) stop in
+          return (Abs (Bwd.to_list names, res), Some (Float.neg_infinity, "↦"))
+        else return (Name "", None)
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse_tree)

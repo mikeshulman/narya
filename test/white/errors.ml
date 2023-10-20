@@ -51,6 +51,7 @@ let () =
   (* let _ = synth "x.y ↦ z" in *)
   let () = unsynth "x.y ↦ z" ~code:(Invalid_variable "x.y") in
   let () = unsynth "a x.y b ↦ z" ~code:(Invalid_variable "x.y") in
+  (* let _ = synth "↦ x" in *)
   let () = unsynth "↦ x" ~code:Parse_error in
 
   (* Records and datatypes *)

@@ -49,6 +49,9 @@ let () =
   let () = unsynth "x |-> f 0.1.2 x" ~code:(Invalid_numeral "0.1.2") in
   (* let _ = synth "let x.y ≔ z in w" in *)
   let () = unsynth "let x.y ≔ z in w" ~code:(Invalid_variable "x.y") in
+  (* let _ = synth "x.y ↦ z" in *)
+  let () = unsynth "x.y ↦ z" ~code:(Invalid_variable "x.y") in
+  let () = unsynth "a x.y b ↦ z" ~code:(Invalid_variable "x.y") in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

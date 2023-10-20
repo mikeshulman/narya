@@ -98,8 +98,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
            let* last_arg = lclosed i stop in
            return (Notn (n, Bwd.to_list (Snoc (obs, Term last_arg))), Some d.tightness))
-      (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  Field projections are not allowed since this would be the head of a spine. *)
-      </> backtrack (abstraction stop Emp)
+      (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  Field projections are not allowed since this would be the head of a spine.  First we look forward past possible variable names to find a Mapsto, to see whether we're looking at an abstraction, and if so we insist on actually parsing that abstraction (and checking that the variable names are valid).  Otherwise, we parse a single name, numeral, or constructor. *)
+      </> (let* _ = followed_by (abstraction stop Emp false) in
+           abstraction stop Emp true)
       </> let* res =
             step (fun state _ tok ->
                 match tok with
@@ -112,26 +113,32 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     let* r = lopen tight stop res res_tight in
     return r
 
-  (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards. *)
-  and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) :
+  (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
+  and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) (for_real : bool) :
       (parse_tree * float option) t =
-    let* x =
-      step (fun state _ tok ->
-          match tok with
-          | Name x -> if Token.variableable x then Some (`Name x, state) else None
-          | Underscore -> Some (`Underscore, state)
-          | Mapsto -> Some (`Mapsto, state)
-          | _ -> None) in
+    let* rng, x =
+      located
+        (step (fun state _ tok ->
+             match tok with
+             | Name x -> Some (`Name x, state)
+             | Underscore -> Some (`Underscore, state)
+             | Mapsto -> Some (`Mapsto, state)
+             | _ -> None)) in
     match x with
-    | `Name x -> abstraction stop (Snoc (names, Some x))
-    | `Underscore -> abstraction stop (Snoc (names, None))
+    | `Name x ->
+        if (not for_real) || Token.variableable x then
+          abstraction stop (Snoc (names, Some x)) for_real
+        else fail (Invalid_variable (rng, x))
+    | `Underscore -> abstraction stop (Snoc (names, None)) for_real
     | `Mapsto -> (
         match names with
         | Emp -> unexpected ""
         | Snoc _ ->
-            (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
-            let* res = lclosed (Open Float.neg_infinity) stop in
-            return (Abs (Bwd.to_list names, res), Some Float.neg_infinity))
+            if for_real then
+              (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
+              let* res = lclosed (Open Float.neg_infinity) stop in
+              return (Abs (Bwd.to_list names, res), Some Float.neg_infinity)
+            else return (Name "", None))
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse_tree)

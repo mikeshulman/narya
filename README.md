@@ -7,11 +7,11 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Algaeff](https://redprl.org/algaeff/algaeff/Algaeff/index.html), [Asai](https://redprl.org/asai/asai/), [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).  Currently it uses unreleased features of the latter three libraries, so they need to be compiled from source.  For that you may also need to install some prerequisite packages from opam; it should be clear what those are when the builds fail.
+Narya requires OCaml version 5.1.0 and the libraries [Bwd](https://github.com/redprl/ocaml-bwd), [Algaeff](https://redprl.org/algaeff/algaeff/Algaeff/index.html), [Asai](https://redprl.org/asai/asai/), [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/), and [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html).  The first two can be installed from Opam,  but currently Narya uses unreleased features of the latter three libraries.  Thus they need to be compiled from source, which requires installing their prerequisites from opam manually.
 
 ```
 opam switch create 5.1.0
-opam install bwd algaeff
+opam install bwd algaeff notty eio_main alcotest lsp qcheck-core js_of_ocaml js_of_ocaml-ppx
 
 git clone git@github.com:RedPRL/asai.git
 cd asai

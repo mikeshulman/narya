@@ -113,8 +113,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                 | _ -> None) in
           return (res, None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
-    let* r = lopen tight stop res res_tight in
-    return r
+    lopen tight stop res res_tight
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
   and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) (for_real : bool) :

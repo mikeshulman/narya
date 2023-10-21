@@ -242,7 +242,10 @@ module State = struct
     let tighters =
       TIMap.mapi
         (fun i tr ->
-          if data.left = Closed || Interval.contains i data.tightness then merge tr data.tree
+          if
+            (data.left = Closed && Interval.contains i Float.infinity)
+            || Interval.contains i data.tightness
+          then merge tr data.tree
           else tr)
         s.tighters in
     (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)

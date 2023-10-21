@@ -156,7 +156,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              if List.exists (fun ivl -> Interval.contains ivl (Interval.endpoint tight)) ivls then
                return (first_arg, state)
              else None))
-    (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
+    (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  (Actually, if the given interval is (Open ∞), i.e. completely empty, we don't allow left-closed trees either, since function application has tightness +∞.)  *)
     </> (let* state = get in
          let* res, res_tight =
            (let* rng, (obs, n) = located (entry (TIMap.find tight state.tighters)) in
@@ -172,7 +172,10 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             | Closed -> (
                 match d.left with
                 | Open -> return (Notn (n, Term first_arg :: Bwd.to_list obs), None)
-                | Closed -> return (App (first_arg, Notn (n, Bwd.to_list obs)), None))
+                | Closed ->
+                    return
+                      ( App (first_arg, Notn (n, Bwd.to_list obs)),
+                        Some (Float.infinity, "application") ))
             | Open -> (
                 let i =
                   match d.assoc with
@@ -187,17 +190,21 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                 | Closed ->
                     return
                       ( App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))),
-                        Some (d.tightness, d.name) )))
-           (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
+                        (* TODO: Is this right?  In this case it's really the *application* that is "inside" whatever comes next. *)
+                        (* Some (d.tightness, d.name) *)
+                        Some (Float.infinity, "application") )))
+           (* If this fails, and if the given tightness interval includes +∞, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
            </> let* arg =
                  step (fun state _ tok ->
-                     match tok with
-                     | Name x -> Some (Name x, state)
-                     | Numeral n -> Some (Numeral n, state)
-                     | Constr x -> if Token.variableable x then Some (Constr x, state) else None
-                     | Field x -> if Token.variableable x then Some (Field x, state) else None
-                     | _ -> None) in
-               return (App (first_arg, arg), None) in
+                     if tight = Open Float.infinity then None
+                     else
+                       match tok with
+                       | Name x -> Some (Name x, state)
+                       | Numeral n -> Some (Numeral n, state)
+                       | Constr x -> if Token.variableable x then Some (Constr x, state) else None
+                       | Field x -> if Token.variableable x then Some (Field x, state) else None
+                       | _ -> None) in
+               return (App (first_arg, arg), Some (Float.infinity, "application")) in
          (* Same comment here about carrying over "tight" as in lclosed. *)
          lopen tight stop res res_tight)
     (* If that also fails, another possibility is that we're at the end of the term with no more operators to parse, so we can just return the supplied "first argument". *)

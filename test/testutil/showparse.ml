@@ -17,7 +17,7 @@ and parse_tree =
   | Name of string
   | Constr of string
   | Field of string
-  | Numeral of float
+  | Numeral of int
   | Abs of string option list * parse_tree
 
 let rec get_obs (obs : observation) : obs =

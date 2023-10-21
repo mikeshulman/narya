@@ -76,7 +76,7 @@ let () =
   let () =
     uncheck "0. a" nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero', 1)) in
   let () = uncheck "1." nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc', -1)) in
-  let () = uncheck "4.2" nat ~code:(Unsupported_numeral 4.2) in
+  let () = uncheck "4.2" nat ~code:(Invalid_numeral "4.2") in
 
   (* To test degeneracies on records we have to set up a bunch of stuff, since the simplest case this happens is with Id Gel and squares in the universe. *)
   let () = Types.Gel.install () in

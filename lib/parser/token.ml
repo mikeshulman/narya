@@ -11,7 +11,7 @@ type t =
   | Coloneq (* Both := and ≔ *)
   | Dot (* . *)
   | String of string (* Double-quoted *)
-  | Numeral of float (* Digits with internal dots *)
+  | Numeral of int
   | Underscore (* _ *)
   | Internal of string (* Starting or ending with _ *)
   | Def
@@ -44,7 +44,7 @@ let to_string = function
   | Coloneq -> ":="
   | Dot -> "."
   | String s -> "\"" ^ s ^ "\""
-  | Numeral s -> Float.to_string s
+  | Numeral s -> Int.to_string s
   | Underscore -> "_"
   | Internal s -> s
   | Def -> "def"

@@ -44,7 +44,7 @@ let () =
 let () =
   assert (
     parse !builtins "let x := y in z"
-    = Notn ("let", [ Name (Some "x"); Flag Unasc_let; Term (Name "y"); Term (Name "z") ]))
+    = Notn ("let", [ Name (Some "x"); Term (Name "y"); Term (Name "z") ]))
 
 let () =
   assert (
@@ -53,17 +53,14 @@ let () =
         ( "let",
           [
             Name (Some "x");
-            Flag Unasc_let;
             Term (Name "y");
-            Term
-              (Notn ("let", [ Name (Some "a"); Flag Unasc_let; Term (Name "b"); Term (Name "c") ]));
+            Term (Notn ("let", [ Name (Some "a"); Term (Name "b"); Term (Name "c") ]));
           ] ))
 
 let () =
   assert (
     parse !builtins "let x : a := y in z"
-    = Notn
-        ("let", [ Name (Some "x"); Flag Asc_let; Term (Name "a"); Term (Name "y"); Term (Name "z") ]))
+    = Notn ("let", [ Name (Some "x"); Term (Name "a"); Term (Name "y"); Term (Name "z") ]))
 
 let () =
   assert (

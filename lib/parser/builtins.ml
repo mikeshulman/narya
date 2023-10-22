@@ -28,19 +28,10 @@ let () =
    Let-binding
  ******************** *)
 
-(* We could do this without flags, using two different notations. *)
-type flag += Unasc_let | Asc_let
-
 (* Let-in doesn't need to be right-associative in order to chain, because it is left-closed.  Declaring it to be nonassociative means that "let x := y in z : A" doesn't parse without parentheses, which I think is best as it looks ambiguous.  (The same idea applies to abstractions, although they are built into the parser rather than defined as mixfix notations.) *)
 let letin =
   make ~name:"let" ~tightness:Float.neg_infinity ~left:Closed ~right:Open ~assoc:Non ~tree:(fun n ->
-      eop Let
-        (name
-           (ops
-              [
-                (Coloneq, Flag (Unasc_let, term In (Done n)));
-                (Colon, Flag (Asc_let, term Coloneq (term In (Done n))));
-              ])))
+      eop Let (name (ops [ (Coloneq, term In (Done n)); (Colon, term Coloneq (term In (Done n))) ])))
 
 let () =
   add_compiler letin
@@ -48,32 +39,24 @@ let () =
       compile =
         (fun ctx obs ->
           let x, obs = get_name obs in
-          let f = get_flag [ Unasc_let; Asc_let ] obs in
-          match f with
-          | Some Unasc_let -> (
-              let term, obs = get_term obs in
-              let body, obs = get_term obs in
+          let ty_or_tm, obs = get_term obs in
+          let tm_or_body, obs = get_term obs in
+          match get_next obs with
+          | `Term (body, obs) -> (
               let () = get_done obs in
-              let term = compile ctx term in
-              let body = compile (Snoc (ctx, x)) body in
-              match term with
+              let ty, tm = (compile ctx ty_or_tm, compile ctx tm_or_body) in
+              match compile (Snoc (ctx, x)) body with
+              | Synth body -> Synth (Let (Asc (tm, ty), body))
+              | _ -> fatal (Nonsynthesizing "body of let"))
+          | `Done -> (
+              let () = get_done obs in
+              match compile ctx ty_or_tm with
               | Synth term -> (
-                  match body with
+                  match compile (Snoc (ctx, x)) tm_or_body with
                   | Synth body -> Synth (Let (term, body))
                   | _ -> fatal (Nonsynthesizing "body of let"))
               | _ -> fatal (Nonsynthesizing "value of let"))
-          | Some Asc_let -> (
-              let ty, obs = get_term obs in
-              let term, obs = get_term obs in
-              let body, obs = get_term obs in
-              let () = get_done obs in
-              let term = compile ctx term in
-              let ty = compile ctx ty in
-              let body = compile (Snoc (ctx, x)) body in
-              match body with
-              | Synth body -> Synth (Let (Asc (term, ty), body))
-              | _ -> fatal (Nonsynthesizing "body of let"))
-          | _ -> fatal (Anomaly "Unrecognized flag"));
+          | _ -> fatal (Anomaly "impossible thing in let"));
     }
 
 (* ********************

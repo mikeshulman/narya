@@ -77,15 +77,17 @@ let () =
     "A m n xs ys ↦ [ xs
     | nil.         ↦ ys
     | cons. m x xs ↦ cons. (lplus m n) x (vappend A m n xs ys)
-    ]";
+    | ]";
   equal_at "vappend N 1 2 (cons. 0 0 nil.) (cons. 1 1 (cons. 0 2 nil.))"
     "cons. 2 0 (cons. 1 1 (cons. 0 2 nil.))" "Vec N 3";
 
   (* Matching lambda *)
-  def "exp" "N → N → N" "m ↦ [|
+  def "exp" "N → N → N" "m ↦ [
     | 0. ↦ 1. 0.
     | 1. n ↦ exp m n * m
-    |]";
+    ]";
   equal_at "exp 3 2" "9" "N";
+  def "exp2" "N → N → N" "m ↦ [ 0. ↦ 1. 0. | 1. n ↦ exp m n * m ]";
+  equal_at "exp2 2 3" "8" "N";
 
   ()

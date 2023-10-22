@@ -307,22 +307,22 @@ let () = add_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.
    Matches
  ******************** *)
 
-let rec pattern_vars stop =
+let rec pattern_vars n =
   Inner
     {
-      name = Some (Lazy (lazy (pattern_vars stop)));
+      name = Some (Lazy (lazy (pattern_vars n)));
       constr = None;
       field = None;
       term = None;
       ops =
-        TokMap.singleton Mapsto (terms [ stop; (Op "|", constr (Lazy (lazy (pattern_vars stop)))) ]);
+        TokMap.singleton Mapsto (terms [ (Op "|", Lazy (lazy (innermtch n))); (Op "]", Done n) ]);
     }
 
-let innermtch stop n =
+and innermtch n =
   Inner
     {
-      ops = TokMap.of_list [ (Op stop, Done n); (Op "|", constr (pattern_vars (Op stop, Done n))) ];
-      constr = Some (pattern_vars (Op stop, Done n));
+      ops = TokMap.of_list [ (Op "]", Done n) ];
+      constr = Some (pattern_vars n);
       field = None;
       name = None;
       term = None;
@@ -332,11 +332,15 @@ type flag += Lam_match
 
 let mtch =
   make ~name:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
-      eops
-        [
-          (Op "[", name (op (Op "|") (innermtch "]" n)));
-          (Op "[|", Flag (Lam_match, innermtch "|]" n));
-        ])
+      eop (Op "[")
+        (Inner
+           {
+             ops = TokMap.of_list [ (Op "|", innermtch n); (Op "]", Done n) ];
+             name = Some (op (Op "|") (innermtch n));
+             constr = Some (pattern_vars n);
+             field = None;
+             term = None;
+           }))
 
 let rec compile_branch_names :
     type a b ab.
@@ -358,32 +362,35 @@ let rec compile_branches : type n. (string option, n) Bwv.t -> observation list 
  fun ctx obs ->
   match get_next obs with
   | `Done -> []
-  | `Constr (c, obs) ->
-      let br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
-      let rest = compile_branches ctx obs in
-      br :: rest
+  | `Constr (c, obs) -> compile_branch ctx c obs
   | `Field _ | `Term _ | `Name _ -> fatal (Anomaly "Impossible thing in match")
+
+and compile_branch : type n. (string option, n) Bwv.t -> string -> observation list -> n branch list
+    =
+ fun ctx c obs ->
+  let br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
+  let rest = compile_branches ctx obs in
+  br :: rest
 
 let () =
   add_compiler mtch
     {
       compile =
         (fun ctx obs ->
-          match get_flag [ Lam_match ] obs with
-          | None -> (
-              let name, obs = get_name obs in
-              (* Can't match an underscore *)
-              match name with
-              | None -> fatal Unnamed_variable_in_match
-              | Some name -> (
-                  match Bwv.index (Some name) ctx with
-                  | None -> fatal (Unbound_variable name)
-                  | Some x ->
-                      let branches = compile_branches ctx obs in
-                      Match (x, branches)))
-          | Some _ ->
-              let branches = compile_branches (Snoc (ctx, None)) obs in
-              Lam (Match (Top, branches)));
+          match get_next obs with
+          (* Can't match an underscore *)
+          | `Name (None, _) -> fatal Unnamed_variable_in_match
+          | `Name (Some name, obs) -> (
+              match Bwv.index (Some name) ctx with
+              | None -> fatal (Unbound_variable name)
+              | Some x ->
+                  let branches = compile_branches ctx obs in
+                  Match (x, branches))
+          | `Constr (c, obs) ->
+              let branches = compile_branch (Snoc (ctx, None)) c obs in
+              Lam (Match (Top, branches))
+          | `Done -> Lam (Match (Top, []))
+          | `Field _ | `Term _ -> fatal (Anomaly "Impossible thing in match"));
     }
 
 (* ********************

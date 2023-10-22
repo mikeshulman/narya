@@ -90,4 +90,10 @@ let () =
   def "exp2" "N → N → N" "m ↦ [ 0. ↦ 1. 0. | 1. n ↦ exp m n * m ]";
   equal_at "exp2 2 3" "8" "N";
 
+  (* Empty type *)
+  Types.Empty.install ();
+  def "abort1" "(A:Type) → ∅ → A" "A ↦ [ ]";
+  def "abort2" "(A:Type) → ∅ → A" "A ↦ [ | ]";
+  def "abort3" "(A:Type) → ∅ → A" "A x ↦ [ x | ]";
+
   ()

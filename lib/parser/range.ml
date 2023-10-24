@@ -1,5 +1,5 @@
 open Fmlib_parse
-open Asai.Span
+open Asai.Range
 open Core.Reporter
 
 module S = Algaeff.Reader.Make (struct

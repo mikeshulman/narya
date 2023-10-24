@@ -38,10 +38,10 @@ let to_string = function
   | RParen -> ")"
   | LBrace -> "{"
   | RBrace -> "}"
-  | Arrow -> "->"
-  | Mapsto -> "|->"
+  | Arrow -> "→"
+  | Mapsto -> "↦"
   | Colon -> ":"
-  | Coloneq -> ":="
+  | Coloneq -> "≔"
   | Dot -> "."
   | String s -> "\"" ^ s ^ "\""
   | Numeral s -> Int.to_string s
@@ -57,3 +57,6 @@ let to_string = function
   | Op s -> s
   | Name s -> s
   | Eof -> "EOF"
+
+(* Given a token, create a constant pretty-printer that prints that token. *)
+let pp tok ppf () = Uuseg_string.pp_utf_8 ppf (to_string tok)

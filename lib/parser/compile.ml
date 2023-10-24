@@ -46,6 +46,21 @@ let rec get_name obs =
   | Name x :: rest -> (x, rest)
   | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing name")
 
+let rec get_names obs =
+  match obs with
+  | [] | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> ([], obs)
+  | Flag _ :: rest -> get_names rest
+  | Name x :: rest ->
+      let names, rest = get_names rest in
+      (x :: names, rest)
+
+let rec get_constr obs =
+  match obs with
+  | [] -> fatal (Anomaly "Missing constr")
+  | Flag _ :: rest -> get_constr rest
+  | Constr x :: rest -> (x, rest)
+  | Name _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing constr")
+
 let rec get_term obs =
   match obs with
   | [] -> fatal (Anomaly "Missing term")

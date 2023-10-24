@@ -86,6 +86,51 @@ let () =
             Term (Name "N");
           ] ))
 
+(* The parsing of "(X:Type)->Y" is technically ambiguous: in addition to a dependent function-type, it could be a non-dependent function type with ascribed domain.  We always interpret it as a dependent function-type, but to get the non-dependent version you can add extra parentheses.  *)
+let () =
+  assert (
+    parse !builtins "((x:A)) -> B"
+    = Notn
+        ( "->",
+          [
+            Term
+              (Notn
+                 ( "()",
+                   [
+                     Flag Explicit_pi;
+                     Term
+                       (Notn
+                          ( "()",
+                            [
+                              Flag Explicit_pi;
+                              Term (Notn (":", [ Term (Name "x"); Term (Name "A") ]));
+                            ] ));
+                   ] ));
+            Term (Name "B");
+          ] ))
+
+let () =
+  assert (
+    parse !builtins "((x):A) -> B"
+    = Notn
+        ( "->",
+          [
+            Term
+              (Notn
+                 ( "()",
+                   [
+                     Flag Explicit_pi;
+                     Term
+                       (Notn
+                          ( ":",
+                            [
+                              Term (Notn ("()", [ Flag Explicit_pi; Term (Name "x") ]));
+                              Term (Name "A");
+                            ] ));
+                   ] ));
+            Term (Name "B");
+          ] ))
+
 let () =
   assert (
     parse !builtins "{}"

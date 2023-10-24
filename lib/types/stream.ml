@@ -34,37 +34,50 @@ let install () =
     (Defined
        (ref
           (Case.Lam
-             (ref
-                (Case.Lam
-                   (ref
-                      (Case.Lam
-                         (ref
-                            (Case.Lam
-                               (ref
-                                  (Case.Lam
-                                     (ref
-                                        (Case.Cobranches
-                                           (Field.Map.of_list
-                                              [
-                                                ( head,
-                                                  ref
-                                                    (Case.Leaf (app (Var (Pop (Pop Top))) (Var Top)))
-                                                );
-                                                ( tail,
-                                                  ref
-                                                    (Case.Leaf
-                                                       (app
-                                                          (app
-                                                             (app
-                                                                (app
-                                                                   (app (Const corec)
-                                                                      (Var
-                                                                         (Pop (Pop (Pop (Pop Top))))))
-                                                                   (Var (Pop (Pop (Pop Top)))))
-                                                                (Var (Pop (Pop Top))))
-                                                             (Var (Pop Top)))
-                                                          (app (Var (Pop Top)) (Var Top)))) );
-                                              ]))))))))))))))
+             ( faces_zero,
+               Suc Zero,
+               ref
+                 (Case.Lam
+                    ( faces_zero,
+                      Suc Zero,
+                      ref
+                        (Case.Lam
+                           ( faces_zero,
+                             Suc Zero,
+                             ref
+                               (Case.Lam
+                                  ( faces_zero,
+                                    Suc Zero,
+                                    ref
+                                      (Case.Lam
+                                         ( faces_zero,
+                                           Suc Zero,
+                                           ref
+                                             (Case.Cobranches
+                                                (Field.Map.of_list
+                                                   [
+                                                     ( head,
+                                                       ref
+                                                         (Case.Leaf
+                                                            (app (Var (Pop (Pop Top))) (Var Top)))
+                                                     );
+                                                     ( tail,
+                                                       ref
+                                                         (Case.Leaf
+                                                            (app
+                                                               (app
+                                                                  (app
+                                                                     (app
+                                                                        (app (Const corec)
+                                                                           (Var
+                                                                              (Pop
+                                                                                 (Pop
+                                                                                    (Pop (Pop Top))))))
+                                                                        (Var (Pop (Pop (Pop Top)))))
+                                                                     (Var (Pop (Pop Top))))
+                                                                  (Var (Pop Top)))
+                                                               (app (Var (Pop Top)) (Var Top)))) );
+                                                   ])) )) )) )) )) ))))
 
 (*
   Hashtbl.add Global.types bisim

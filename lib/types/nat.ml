@@ -77,64 +77,77 @@ let install () =
   Hashtbl.add Global.types suc (pi (Const nn) (Const nn));
   Hashtbl.add Global.constants suc
     (Defined
-       (ref (Case.Lam (ref (Case.Leaf (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var Top))))))));
+       (ref
+          (Case.Lam
+             ( faces_zero,
+               Suc Zero,
+               ref (Case.Leaf (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var Top)))) ))));
   Hashtbl.add Global.types plus (pi (Const nn) (pi (Const nn) (Const nn)));
   Hashtbl.add Global.types times (pi (Const nn) (pi (Const nn) (Const nn)));
   Hashtbl.add Global.constants plus
     (Defined
        (ref
           (Case.Lam
-             (ref
-                (Case.Lam
-                   (ref
-                      (Case.Branches
-                         ( Top,
-                           Constr.Map.of_list
-                             [
-                               (zero', Case.Branch (Zero, ref (Case.Leaf (Var (Pop Top)))));
-                               ( suc',
-                                 Branch
-                                   ( Suc Zero,
-                                     ref
-                                       (Case.Leaf
-                                          (App
-                                             ( Const suc,
-                                               CubeOf.singleton
-                                                 (App
-                                                    ( App
-                                                        ( Const plus,
-                                                          CubeOf.singleton (Var (Pop (Pop Top))) ),
-                                                      CubeOf.singleton (Var Top) )) ))) ) );
-                             ] ))))))));
+             ( faces_zero,
+               Suc Zero,
+               ref
+                 (Case.Lam
+                    ( faces_zero,
+                      Suc Zero,
+                      ref
+                        (Case.Branches
+                           ( Top,
+                             Constr.Map.of_list
+                               [
+                                 (zero', Case.Branch (Zero, ref (Case.Leaf (Var (Pop Top)))));
+                                 ( suc',
+                                   Branch
+                                     ( Suc Zero,
+                                       ref
+                                         (Case.Leaf
+                                            (App
+                                               ( Const suc,
+                                                 CubeOf.singleton
+                                                   (App
+                                                      ( App
+                                                          ( Const plus,
+                                                            CubeOf.singleton (Var (Pop (Pop Top)))
+                                                          ),
+                                                        CubeOf.singleton (Var Top) )) ))) ) );
+                               ] )) )) ))));
   Hashtbl.add Global.constants times
     (Defined
        (ref
           (Case.Lam
-             (ref
-                (Case.Lam
-                   (ref
-                      (Case.Branches
-                         ( Top,
-                           Constr.Map.of_list
-                             [
-                               (zero', Case.Branch (Zero, ref (Case.Leaf (Const zero))));
-                               ( suc',
-                                 Branch
-                                   ( Suc Zero,
-                                     ref
-                                       (Case.Leaf
-                                          (App
-                                             ( App
-                                                 ( Const plus,
-                                                   CubeOf.singleton
-                                                     (App
-                                                        ( App
-                                                            ( Const times,
-                                                              CubeOf.singleton (Var (Pop (Pop Top)))
-                                                            ),
-                                                          CubeOf.singleton (Var Top) )) ),
-                                               CubeOf.singleton (Var (Pop (Pop Top))) ))) ) );
-                             ] ))))))));
+             ( faces_zero,
+               Suc Zero,
+               ref
+                 (Case.Lam
+                    ( faces_zero,
+                      Suc Zero,
+                      ref
+                        (Case.Branches
+                           ( Top,
+                             Constr.Map.of_list
+                               [
+                                 (zero', Case.Branch (Zero, ref (Case.Leaf (Const zero))));
+                                 ( suc',
+                                   Branch
+                                     ( Suc Zero,
+                                       ref
+                                         (Case.Leaf
+                                            (App
+                                               ( App
+                                                   ( Const plus,
+                                                     CubeOf.singleton
+                                                       (App
+                                                          ( App
+                                                              ( Const times,
+                                                                CubeOf.singleton
+                                                                  (Var (Pop (Pop Top))) ),
+                                                            CubeOf.singleton (Var Top) )) ),
+                                                 CubeOf.singleton (Var (Pop (Pop Top))) ))) ) );
+                               ] )) )) ))));
   Hashtbl.add Global.types ind
     (pi
        ((* P : *) pi (Const nn) (UU D.zero))
@@ -152,34 +165,43 @@ let install () =
     (Defined
        (ref
           (Case.Lam
-             (ref
-                (Case.Lam
-                   (ref
-                      (Case.Lam
-                         (ref
-                            (Case.Lam
-                               (ref
-                                  (Case.Branches
-                                     ( Top,
-                                       Constr.Map.of_list
-                                         [
-                                           ( zero',
-                                             Case.Branch
-                                               (Zero, ref (Case.Leaf (Var (Pop (Pop Top))))) );
-                                           ( suc',
-                                             Branch
-                                               ( Suc Zero,
-                                                 ref
-                                                   (Case.Leaf
-                                                      (app
-                                                         (app (Var (Pop (Pop Top))) (Var Top))
-                                                         (app
-                                                            (app
-                                                               (app
-                                                                  (app (Const ind)
-                                                                     (Var
-                                                                        (Pop (Pop (Pop (Pop Top))))))
-                                                                  (Var (Pop (Pop (Pop Top)))))
-                                                               (Var (Pop (Pop Top))))
-                                                            (Var Top)))) ) );
-                                         ] ))))))))))))
+             ( faces_zero,
+               Suc Zero,
+               ref
+                 (Case.Lam
+                    ( faces_zero,
+                      Suc Zero,
+                      ref
+                        (Case.Lam
+                           ( faces_zero,
+                             Suc Zero,
+                             ref
+                               (Case.Lam
+                                  ( faces_zero,
+                                    Suc Zero,
+                                    ref
+                                      (Case.Branches
+                                         ( Top,
+                                           Constr.Map.of_list
+                                             [
+                                               ( zero',
+                                                 Case.Branch
+                                                   (Zero, ref (Case.Leaf (Var (Pop (Pop Top))))) );
+                                               ( suc',
+                                                 Branch
+                                                   ( Suc Zero,
+                                                     ref
+                                                       (Case.Leaf
+                                                          (app
+                                                             (app (Var (Pop (Pop Top))) (Var Top))
+                                                             (app
+                                                                (app
+                                                                   (app
+                                                                      (app (Const ind)
+                                                                         (Var
+                                                                            (Pop
+                                                                               (Pop (Pop (Pop Top))))))
+                                                                      (Var (Pop (Pop (Pop Top)))))
+                                                                   (Var (Pop (Pop Top))))
+                                                                (Var Top)))) ) );
+                                             ] )) )) )) )) ))))

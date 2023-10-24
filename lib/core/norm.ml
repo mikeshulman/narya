@@ -268,10 +268,36 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
 and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
  fun env tree ins args ->
   match tree with
-  | Lam body ->
+  | Lam (bound_faces, plus_faces, body) -> (
+      (* We fail unless the current insertion is the identity. *)
+      let* () = is_id_any_deg ins in
       (* Pick up another argument.  Note that this fails if ins is nonidentity. *)
-      let* newenv, newins, newargs = take_lam_arg env ins args in
-      apply_tree newenv !body newins newargs
+      let m = dim_env env in
+      let nf = sfaces bound_faces in
+      let (Plus plus_dim) = D.plus (dim_faces bound_faces) in
+      match args with
+      | App (Arg arg, newins) :: args -> (
+          match compare (CubeOf.dim arg) (D.plus_out m plus_dim) with
+          | Neq ->
+              fatal
+                (Dimension_mismatch ("applying case tree", CubeOf.dim arg, D.plus_out m plus_dim))
+          | Eq ->
+              apply_tree
+                (env_append plus_faces env
+                   (Bwv.map
+                      (fun (SFace_of fa) ->
+                        CubeOf.build m
+                          {
+                            build =
+                              (fun fb ->
+                                let (Plus plus_dom) = D.plus (dom_sface fa) in
+                                (CubeOf.find arg (sface_plus_sface fb plus_dim plus_dom fa)).tm);
+                          })
+                      nf))
+                !body
+                (Any (perm_of_ins newins))
+                args)
+      | _ -> None)
   | Leaf body ->
       (* We've found a term to evaluate *)
       let res = act_any (eval env body) ins in
@@ -310,17 +336,6 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
           apply_tree env !body (Any (perm_of_ins new_ins)) args
       | _ -> None)
   | Empty -> None
-
-and take_lam_arg :
-    type n a. (n, a) env -> any_deg -> app list -> ((n, a N.suc) env * any_deg * app list) option =
- fun env ins args ->
-  match args with
-  | App (Arg arg, newins) :: args -> (
-      (* We fail unless the current insertion is the identity.  In addition, the variables bound in a case tree are always zero-dimensional applications, so the apps here must all be the same dimension as the constant instance. *)
-      match (is_id_any_deg ins, compare (dim_env env) (CubeOf.dim arg)) with
-      | Some (), Eq -> Some (Ext (env, val_of_norm_cube arg), Any (perm_of_ins newins), args)
-      | _ -> None)
-  | _ -> None
 
 (* Compute the output type of a function application, given the codomains and instantiation arguments of the pi-type (the latter being the functions acting on the boundary) and the arguments it is applied to. *)
 and tyof_app :

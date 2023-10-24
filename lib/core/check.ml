@@ -419,21 +419,25 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
  fun ctx tm ty prev_tm tree ->
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "checking case tree" in
   match tm with
-  | Lam body -> (
+  | Lam _ -> (
       match uty with
       | Pi (doms, cods) -> (
-          (* For the moment at least, we only allow case trees to contain zero-dimensional lambdas.  With that simplification, the following code is basically copied from Check.check.  Can they be unified? *)
-          match (compare (TubeOf.inst tyargs) D.zero, compare (CubeOf.dim doms) D.zero) with
-          | Neq, _ | _, Neq ->
-              let leaf = check ctx tm ty in
-              tree := Case.Leaf leaf
-          | Eq, Eq ->
-              let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus D.zero) in
+          (* Basically copied from Check.check.  Can they be unified? *)
+          let m = CubeOf.dim doms in
+          match compare (TubeOf.inst tyargs) m with
+          | Neq ->
+              fatal (Dimension_mismatch ("checking lambda in case tree", TubeOf.inst tyargs, m))
+          | Eq ->
+              let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
+              let (Faces dom_faces) = count_faces (CubeOf.dim doms) in
+              let (Plus af) = N.plus (faces_out dom_faces) in
+              let body = lambdas af tm in
               let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
-              let ctx = CubeOf.flatten_append ctx newnfs faces_zero (Suc Zero) in
+              let ctx = CubeOf.flatten_append ctx newnfs dom_faces af in
               let output = tyof_app cods tyargs newargs in
+              (* Different starting here *)
               let tbody = ref Case.Empty in
-              tree := Case.Lam tbody;
+              tree := Case.Lam (dom_faces, af, tbody);
               check_tree ctx body output (apply prev_tm newargs) tbody)
       | _ -> fatal Checking_lambda_at_nonfunction)
   | Struct tms -> (

@@ -96,4 +96,14 @@ let () =
   def "abort2" "(A:Type) → ∅ → A" "A ↦ [ | ]";
   def "abort3" "(A:Type) → ∅ → A" "A x ↦ [ x | ]";
 
+  (* Higher-dimensional lambdas in case trees.  This simple version doesn't actually need them, as it could be just an ordinary higher-dimensional lambda term at a leaf. *)
+  assume "f" "(x:A)→B x";
+  def "reflf" "Id ((x:A)→B x) f f" "x₀ x₁ x₂ ↦ refl f x₀ x₁ x₂";
+  def "reflf_eq_reflf" "Id (Id ((x:A)→B x) f f) reflf (refl f)" "refl (refl f)";
+  (* To test that we actually allow higher-dimensional lambdas in case trees, we need to do some case-tree-only thing inside the lambda, like a match. *)
+  def "refl_abort_f" "∅ → Id ((x:A)→B x) f f" "e x₀ x₁ x₂ ↦ [ e | ]";
+  def "refl_nat_f" "N → Id ((x:A)→B x) f f"
+    "n x₀ x₁ x₂ ↦ [ n | 0. ↦ refl f x₀ x₁ x₂ | 1. _ ↦ refl f x₀ x₁ x₂ ]";
+  def "refl_nat_f_eq_reflf" "Id (Id ((x:A)→B x) f f) (refl_nat_f 0.) (refl f)" "refl (refl f)";
+
   ()

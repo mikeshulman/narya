@@ -48,45 +48,62 @@ let install () =
     (Defined
        (ref
           (Case.Lam
-             (ref
-                (Case.Lam
-                   (ref
-                      (Case.Lam
-                         (ref
-                            (Case.Lam
-                               (ref
-                                  (Case.Lam
-                                     (ref
-                                        (Case.Branches
-                                           ( Top,
-                                             Constr.Map.of_list
-                                               [
-                                                 ( nil,
-                                                   Case.Branch
-                                                     (Zero, ref (Case.Leaf (Var (Pop (Pop Top)))))
-                                                 );
-                                                 ( cons,
-                                                   Branch
-                                                     ( Suc (Suc Zero),
-                                                       ref
-                                                         (Case.Leaf
-                                                            (apps (Var (Pop (Pop (Pop Top))))
-                                                               [
-                                                                 Var (Pop Top);
-                                                                 Var Top;
-                                                                 apps (Const ind)
-                                                                   [
-                                                                     Var
-                                                                       (Pop
-                                                                          (Pop
-                                                                             (Pop
-                                                                                (Pop (Pop (Pop Top))))));
-                                                                     Var
-                                                                       (Pop
-                                                                          (Pop (Pop (Pop (Pop Top)))));
-                                                                     Var (Pop (Pop (Pop (Pop Top))));
-                                                                     Var (Pop (Pop (Pop Top)));
-                                                                     Var Top;
-                                                                   ];
-                                                               ])) ) );
-                                               ] ))))))))))))))
+             ( faces_zero,
+               Suc Zero,
+               ref
+                 (Case.Lam
+                    ( faces_zero,
+                      Suc Zero,
+                      ref
+                        (Case.Lam
+                           ( faces_zero,
+                             Suc Zero,
+                             ref
+                               (Case.Lam
+                                  ( faces_zero,
+                                    Suc Zero,
+                                    ref
+                                      (Case.Lam
+                                         ( faces_zero,
+                                           Suc Zero,
+                                           ref
+                                             (Case.Branches
+                                                ( Top,
+                                                  Constr.Map.of_list
+                                                    [
+                                                      ( nil,
+                                                        Case.Branch
+                                                          ( Zero,
+                                                            ref (Case.Leaf (Var (Pop (Pop Top)))) )
+                                                      );
+                                                      ( cons,
+                                                        Branch
+                                                          ( Suc (Suc Zero),
+                                                            ref
+                                                              (Case.Leaf
+                                                                 (apps (Var (Pop (Pop (Pop Top))))
+                                                                    [
+                                                                      Var (Pop Top);
+                                                                      Var Top;
+                                                                      apps (Const ind)
+                                                                        [
+                                                                          Var
+                                                                            (Pop
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Pop
+                                                                                        (Pop
+                                                                                           (Pop Top))))));
+                                                                          Var
+                                                                            (Pop
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Pop (Pop Top)))));
+                                                                          Var
+                                                                            (Pop
+                                                                               (Pop (Pop (Pop Top))));
+                                                                          Var (Pop (Pop (Pop Top)));
+                                                                          Var Top;
+                                                                        ];
+                                                                    ])) ) );
+                                                    ] )) )) )) )) )) ))))

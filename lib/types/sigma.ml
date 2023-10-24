@@ -94,15 +94,23 @@ let install () =
     (Defined
        (ref
           (Case.Lam
-             (ref
-                (Case.Lam
-                   (ref
-                      (Case.Lam
-                         (ref
-                            (Case.Lam
-                               (ref
-                                  (Case.Leaf
-                                     (Struct
-                                        (Field.Map.empty
-                                        |> Field.Map.add fst (Var (Pop Top))
-                                        |> Field.Map.add snd (Var Top))))))))))))))
+             ( faces_zero,
+               Suc Zero,
+               ref
+                 (Case.Lam
+                    ( faces_zero,
+                      Suc Zero,
+                      ref
+                        (Case.Lam
+                           ( faces_zero,
+                             Suc Zero,
+                             ref
+                               (Case.Lam
+                                  ( faces_zero,
+                                    Suc Zero,
+                                    ref
+                                      (Case.Leaf
+                                         (Struct
+                                            (Field.Map.empty
+                                            |> Field.Map.add fst (Var (Pop Top))
+                                            |> Field.Map.add snd (Var Top)))) )) )) )) ))))

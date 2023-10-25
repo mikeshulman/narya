@@ -232,6 +232,8 @@ module CubeOf : sig
     ('n, 'f) count_faces ->
     ('len, 'f, 'lenf) N.plus ->
     ('b, 'lenf) Bwv.t
+
+  val flatten : ('n, 'b) t -> ('n, 'f) count_faces -> ('b, 'f) Bwv.t
 end
 
 type (_, _, _, _) tface

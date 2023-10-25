@@ -13,4 +13,4 @@ open Util
 type 'a t = { vars : (int option, 'a) Bwv.t; level : int }
 
 let empty : N.zero t = { vars = Emp; level = 0 }
-let of_ctx : type a. a Ctx.t -> a t = fun ctx -> { vars = Bwv.map fst ctx; level = Ctx.level ctx }
+let of_ctx : type a. a Ctx.t -> a t = fun ctx -> { vars = Ctx.levels ctx; level = Ctx.level ctx }

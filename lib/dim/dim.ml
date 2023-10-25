@@ -890,6 +890,11 @@ module CubeOf = struct
    fun acc tr mf lenf ->
     let n = dim tr in
     gflatten_append (D.zero_plus n) (D.zero_plus n) Zero acc tr mf lenf
+
+  let flatten : type n b f. (n, b) t -> (n, f) count_faces -> (b, f) Bwv.t =
+   fun tr mf ->
+    let n = dim tr in
+    gflatten_append (D.zero_plus n) (D.zero_plus n) Zero Emp tr mf (N.zero_plus (faces_out mf))
 end
 
 (* ********** Tube faces ********** *)

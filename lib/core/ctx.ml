@@ -12,9 +12,9 @@ open Norm
 type 'a t = (int option * normal, 'a) Bwv.t
 
 let level : 'a t -> int = fun ctx -> N.to_int (Bwv.length ctx)
-
-(* The empty context *)
 let empty : N.zero t = Emp
+let levels (ctx : 'a t) : (int option, 'a) Bwv.t = Bwv.map fst ctx
+let lookup (ctx : 'a t) (ix : 'a N.index) : int option * normal = Bwv.nth ix ctx
 
 (* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with their boundaries. *)
 let rec env : type a. a t -> (D.zero, a) env = function
@@ -30,17 +30,17 @@ let ext : type a. a t -> value -> a N.suc t =
   let n = level ctx in
   Snoc (ctx, (Some n, { tm = var n ty; ty }))
 
-(* Extend a context by a finite number of new variables, whose types are specified in a hashtable. *)
-let rec exts :
-    type a b ab c. a t -> (a, b, ab) N.plus -> (c, b) Bwv.t -> (c, value) Hashtbl.t -> ab t =
- fun ctx ab keys vals ->
+(* Extend a context by one new variable with an assigned value. *)
+let ext_let (ctx : 'a t) (v : normal) : 'a N.suc t = Snoc (ctx, (None, v))
+
+(* Extend a context by a finite number of new variables, whose types and values are specified in a Bwv. *)
+let rec exts : type a b ab c. a t -> (a, b, ab) N.plus -> (int option * normal, b) Bwv.t -> ab t =
+ fun ctx ab keys ->
   match (ab, keys) with
   | Zero, Emp -> ctx
   | Suc ab, Snoc (keys, key) ->
-      let newctx = exts ctx ab keys vals in
-      let n = level newctx in
-      let ty = Hashtbl.find vals key in
-      Snoc (newctx, (Some n, { tm = var n ty; ty }))
+      let newctx = exts ctx ab keys in
+      Snoc (newctx, key)
 
 (* Extend a context by a finite number of new variables, whose types are specified in a telescope (and hence may depend on the earlier ones).  Also return the new variables in a Bwd and the new environment extended by them. *)
 let ext_tel :
@@ -73,3 +73,14 @@ let ext_tel :
           rest (N.suc_plus'' ac) (N.suc_plus'' dc)
           (Snoc (vars, tm)) in
   ext_tel ctx env tel ac (N.zero_plus (N.plus_right ac)) Emp
+
+(* Let-bind some of the variables in a context *)
+let rec bind_some : type a. (int -> normal option) -> a t -> a t =
+ fun binder ctx ->
+  match ctx with
+  | Emp -> Emp
+  | Snoc (ctx, (None, x)) -> Snoc (bind_some binder ctx, (None, x))
+  | Snoc (ctx, (Some i, x)) -> (
+      match binder i with
+      | None -> Snoc (bind_some binder ctx, (Some i, x))
+      | Some t -> Snoc (bind_some binder ctx, (None, t)))

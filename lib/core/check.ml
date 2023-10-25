@@ -57,7 +57,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
               let body = lambdas af tm in
               (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
               let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
-              let ctx = CubeOf.flatten_append ctx newnfs dom_faces af in
+              let ctx = Ctx.exts ctx af (CubeOf.flatten newnfs dom_faces) in
               (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
               let output = tyof_app cods tyargs newargs in
               let cbody = check ctx body output in
@@ -178,7 +178,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
 and synth : type a. a Ctx.t -> a synth -> a term * value =
  fun ctx tm ->
   match tm with
-  | Var v -> (Term.Var v, (snd (Bwv.nth v ctx)).ty)
+  | Var v -> (Term.Var v, (snd (Ctx.lookup ctx v)).ty)
   | Const name ->
       let ty = Hashtbl.find_opt Global.types name <|> Undefined_constant name in
       (Const name, eval (Emp D.zero) ty)
@@ -228,7 +228,7 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
   | Let (v, body) ->
       let sv, ty = synth ctx v in
       let tm = Ctx.eval ctx sv in
-      let sbody, bodyty = synth (Bwv.Snoc (ctx, (None, { tm; ty }))) body in
+      let sbody, bodyty = synth (Ctx.ext_let ctx { tm; ty }) body in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value. *)
       (Let (sv, sbody), bodyty)
 
@@ -433,7 +433,7 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
               let (Plus af) = N.plus (faces_out dom_faces) in
               let body = lambdas af tm in
               let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
-              let ctx = CubeOf.flatten_append ctx newnfs dom_faces af in
+              let ctx = Ctx.exts ctx af (CubeOf.flatten newnfs dom_faces) in
               let output = tyof_app cods tyargs newargs in
               (* Different starting here *)
               let tbody = ref Case.Empty in
@@ -465,7 +465,7 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
       | _ -> fatal (Checking_struct_at_nonrecord None))
   | Match (ix, brs) -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level and its type.  *)
-      let slvl, { tm = _; ty = varty } = Bwv.nth ix ctx in
+      let slvl, { tm = _; ty = varty } = Ctx.lookup ctx ix in
       let lvl = slvl <|> Matching_on_let_bound_variable in
       (* The type of the variable must be a datatype.  Currently we don't implement higher-dimensional matches, so it must be zero-dimensional. *)
       let (Fullinst (uvarty, vartyargs)) = full_inst varty "check_tree" in
@@ -558,17 +558,13 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                                           (Bwv.take_bwd (Bwv.length index_vals) ctyargs) in
                                       (* Let-bind the match variable to the constructor applied to these new variables, and the "index_vars" to the index values. *)
                                       let newctx =
-                                        Bwv.map
-                                          (fun e ->
-                                            match fst e with
-                                            | None -> e
-                                            | Some x -> (
-                                                if x = lvl then
-                                                  (None, { tm = constr_tm; ty = constr_ty })
-                                                else
-                                                  match Bwv.index x index_vars with
-                                                  | None -> e
-                                                  | Some y -> (None, Bwv.nth y index_nfs)))
+                                        Ctx.bind_some
+                                          (fun x ->
+                                            if x = lvl then Some { tm = constr_tm; ty = constr_ty }
+                                            else
+                                              Option.map
+                                                (fun y -> Bwv.nth y index_nfs)
+                                                (Bwv.index x index_vars))
                                           newctx in
                                       (* Readback the index values into this context and discard the result, catching Missing_variable to return None.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)
                                       let new_coctx = Coctx.of_ctx newctx in

@@ -375,6 +375,7 @@ let rec of_bwd : type a. a Bwd.t -> a wrapped = function
       let (Wrap xs') = of_bwd xs in
       Wrap (Snoc (xs', x))
 
+(* As befits backwards vectors and lists, this takes n elements from the *right* of a Bwd to form a Bwv. *)
 let rec take_bwd : type a n. n N.t -> a Bwd.t -> (a, n) t =
  fun n xs ->
   match (n, xs) with
@@ -388,3 +389,5 @@ let rec to_bwd_map : type a b n. (a -> b) -> (a, n) t -> b Bwd.t =
   match xs with
   | Emp -> Emp
   | Snoc (xs, x) -> Snoc (to_bwd_map f xs, f x)
+
+let to_bwd : type a n. (a, n) t -> a Bwd.t = fun xs -> to_bwd_map (fun x -> x) xs

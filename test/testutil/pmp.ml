@@ -75,7 +75,7 @@ let struc tms = Struct tms
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 (* The current context of assumptions, including names. *)
-type ctx = Ctx : 'n Ctx.t * (string, 'n) Bwv.t -> ctx
+type ctx = Ctx : ('n, 'b) Ctx.t * (string, 'n) Bwv.t -> ctx
 
 let ectx = Ctx (Ctx.empty, Emp)
 let context = ref ectx

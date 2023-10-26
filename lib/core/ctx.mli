@@ -1,25 +1,30 @@
 open Util
-open Dim
-open Term
-open Value
 
-type 'a t
+type (_, _) t
 
-val level : 'a t -> int
-val empty : N.zero t
-val levels : 'a t -> (int option, 'a) Bwv.t
-val lookup : 'a t -> 'a N.index -> int option * normal
-val env : 'a t -> (D.zero, 'a) env
-val eval : 'a t -> 'a term -> value
-val ext : 'a t -> value -> 'a N.suc t
-val ext_let : 'a t -> normal -> 'a N.suc t
-val exts : 'a t -> ('a, 'b, 'ab) N.plus -> (int option * normal, 'b) Bwv.t -> 'ab t
+val level : ('a, 'b) t -> int
+val empty : (N.zero, N.zero) t
+val levels : ('a, 'b) t -> (int option, 'b) Bwv.t
+val lookup : ('a, 'b) t -> 'a N.index -> int option * Value.normal * 'b N.index
+
+(* val env : ('a, 'b) t -> (Dim.D.zero, 'b) Value.env *)
+val eval : ('a, 'b) t -> 'b Term.term -> Value.value
+val ext : ('a, 'b) t -> Value.value -> ('a N.suc, 'b N.suc) t
+val ext_let : ('a, 'b) t -> Value.normal -> ('a N.suc, 'b N.suc) t
+
+val exts :
+  ('a, 'd) t ->
+  ('a, 'b, 'ab) N.plus ->
+  ('d, 'b, 'db) N.plus ->
+  (int option * Value.normal, 'b) Bwv.t ->
+  ('ab, 'db) t
 
 val ext_tel :
-  'a t ->
-  (D.zero, 'b) env ->
+  ('a, 'e) t ->
+  (Dim.D.zero, 'b) Value.env ->
   ('b, 'c, 'bc) Telescope.t ->
   ('a, 'c, 'ac) N.plus ->
-  'ac t * (D.zero, 'bc) env * (value, 'c) Bwv.t
+  ('e, 'c, 'ec) N.plus ->
+  ('ac, 'ec) t * (Dim.D.zero, 'bc) Value.env * (Value.value, 'c) Bwv.t
 
-val bind_some : (int -> normal option) -> 'a t -> 'a t
+val bind_some : (int -> Value.normal option) -> ('a, 'e) t -> ('a, 'e) t

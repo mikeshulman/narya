@@ -13,4 +13,9 @@ open Util
 type 'a t = { vars : (int option, 'a) Bwv.t; level : int }
 
 let empty : N.zero t = { vars = Emp; level = 0 }
-let of_ctx : type a. a Ctx.t -> a t = fun ctx -> { vars = Ctx.levels ctx; level = Ctx.level ctx }
+
+(* The co-context corresponding to a context includes all the invisible variables. *)
+let of_ctx : type a b. (a, b) Ctx.t -> b t =
+ fun ctx ->
+  let vars = Ctx.levels ctx in
+  { vars; level = Ctx.level ctx }

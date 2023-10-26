@@ -34,7 +34,7 @@ let spine : type a. a synth -> a synth * a check list =
     | _ -> (tm, args) in
   spine tm []
 
-let rec check : type a. a Ctx.t -> a check -> value -> a term =
+let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
  fun ctx tm ty ->
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
@@ -54,14 +54,15 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
               (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
               let (Faces dom_faces) = count_faces (CubeOf.dim doms) in
               let (Plus af) = N.plus (faces_out dom_faces) in
+              let (Plus ef) = N.plus (faces_out dom_faces) in
               let body = lambdas af tm in
               (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
               let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
-              let ctx = Ctx.exts ctx af (CubeOf.flatten newnfs dom_faces) in
+              let ctx = Ctx.exts ctx af ef (CubeOf.flatten newnfs dom_faces) in
               (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
               let output = tyof_app cods tyargs newargs in
               let cbody = check ctx body output in
-              Term.Lam (Bind (dom_faces, af, cbody)))
+              Term.Lam (Bind (dom_faces, ef, cbody)))
       | _ -> fatal Checking_lambda_at_nonfunction)
   | Struct tms -> (
       match uty with
@@ -73,7 +74,7 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
               let dim = cod_left_ins ins in
               (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
               let module M = Monad.State (struct
-                type t = a term Field.Map.t * value Field.Map.t
+                type t = b term Field.Map.t * value Field.Map.t
               end) in
               let open Monad.Ops (M) in
               let open Mlist.Monadic (M) in
@@ -175,10 +176,12 @@ let rec check : type a. a Ctx.t -> a check -> value -> a term =
       | _ -> fatal (No_such_constructor (None, constr)))
   | Match _ -> fatal (Unimplemented "Matching in terms (rather than case trees)")
 
-and synth : type a. a Ctx.t -> a synth -> a term * value =
+and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
  fun ctx tm ->
   match tm with
-  | Var v -> (Term.Var v, (snd (Ctx.lookup ctx v)).ty)
+  | Var v ->
+      let _, x, v = Ctx.lookup ctx v in
+      (Term.Var v, x.ty)
   | Const name ->
       let ty = Hashtbl.find_opt Global.types name <|> Undefined_constant name in
       (Const name, eval (Emp D.zero) ty)
@@ -233,7 +236,7 @@ and synth : type a. a Ctx.t -> a synth -> a term * value =
       (Let (sv, sbody), bodyty)
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
-and synth_apps : type a. a Ctx.t -> a term -> value -> a check list -> a term * value =
+and synth_apps : type a b. (a, b) Ctx.t -> b term -> value -> a check list -> b term * value =
  fun ctx sfn sty args ->
   (* Failure of full_inst here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
   let (Fullinst (fnty, tyargs)) = full_inst sty "synth_apps" in
@@ -244,13 +247,13 @@ and synth_apps : type a. a Ctx.t -> a term -> value -> a check list -> a term * 
   | _ :: _ -> synth_apps ctx afn aty aargs
 
 and synth_app :
-    type a n.
-    a Ctx.t ->
-    a term ->
+    type a b n.
+    (a, b) Ctx.t ->
+    b term ->
     uninst ->
     (D.zero, n, n, normal) TubeOf.t ->
     a check list ->
-    a term * value * a check list =
+    b term * value * a check list =
  fun ctx sfn fnty tyargs args ->
   let module M = Monad.State (struct
     type t = a check list
@@ -356,14 +359,14 @@ and synth_app :
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube. *)
 and check_tel :
-    type n a b c bc.
+    type n a b c bc e.
     Constr.t ->
-    a Ctx.t ->
+    (a, e) Ctx.t ->
     (n, b) env ->
     a check list ->
     (b, c, bc) Telescope.t ->
     (D.zero, n, n, value list) TubeOf.t ->
-    (n, bc) env * (n, a term) CubeOf.t list =
+    (n, bc) env * (n, e term) CubeOf.t list =
  fun c ctx env tms tys tyargs ->
   match (tms, tys) with
   | [], Emp ->
@@ -415,7 +418,8 @@ and check_tel :
 (* Check a case tree.  Unlike the other typechecking functions, this one is imperative: rather than returning a checked case tree, it takes a reference to a case tree as an argument and stores its result into that reference.  The reason for this is that a function defined by a case tree can be recursive, calling itself, and the type-correctness of later (co)branches can depend on the values of previous ones.  Thus, the caller of this function first defines the function with an empty case tree and passes it a reference to that tree, and then as the case tree is checked, its actual definition at the call site is updated.
 
    This function also needs to be passed a value representing the partially-applied function whose case tree we are currently checking, e.g. since the types of cobranches can depend on that value.  This also will be altered as we proceed, using readback and eval to substitute pattern-matched variables with constructor applications. *)
-let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree ref -> unit =
+let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Case.tree ref -> unit
+    =
  fun ctx tm ty prev_tm tree ->
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "checking case tree" in
   match tm with
@@ -431,13 +435,14 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
               let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
               let (Faces dom_faces) = count_faces (CubeOf.dim doms) in
               let (Plus af) = N.plus (faces_out dom_faces) in
+              let (Plus ef) = N.plus (faces_out dom_faces) in
               let body = lambdas af tm in
               let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
-              let ctx = Ctx.exts ctx af (CubeOf.flatten newnfs dom_faces) in
+              let ctx = Ctx.exts ctx af ef (CubeOf.flatten newnfs dom_faces) in
               let output = tyof_app cods tyargs newargs in
               (* Different starting here *)
               let tbody = ref Case.Empty in
-              tree := Case.Lam (dom_faces, af, tbody);
+              tree := Case.Lam (dom_faces, ef, tbody);
               check_tree ctx body output (apply prev_tm newargs) tbody)
       | _ -> fatal Checking_lambda_at_nonfunction)
   | Struct tms -> (
@@ -465,7 +470,7 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
       | _ -> fatal (Checking_struct_at_nonrecord None))
   | Match (ix, brs) -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level and its type.  *)
-      let slvl, { tm = _; ty = varty } = Ctx.lookup ctx ix in
+      let slvl, { tm = _; ty = varty }, ix = Ctx.lookup ctx ix in
       let lvl = slvl <|> Matching_on_let_bound_variable in
       (* The type of the variable must be a datatype.  Currently we don't implement higher-dimensional matches, so it must be zero-dimensional. *)
       let (Fullinst (uvarty, vartyargs)) = full_inst varty "check_tree" in
@@ -526,8 +531,9 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                                 (Wrong_number_of_arguments_to_pattern (constr, -N.to_int (Nat diff)))
                           | Eq -> (
                               (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the values of the parameters ("params") and the previous new variables. *)
+                              let (Plus ef) = N.plus (N.plus_right user_args) in
                               let newctx, newenv, newvars =
-                                Ctx.ext_tel ctx (env_of_bwv D.zero params) argtys user_args in
+                                Ctx.ext_tel ctx (env_of_bwv D.zero params) argtys user_args ef in
                               (* The type of the match must be specialized in the branches by substituting different constructors for that variable, as well as the index values for the index variables.  Thus, we readback the type into this extended context, so we can re-evaluate it with those variables bound to values. *)
                               let coctx = Coctx.of_ctx newctx in
                               let rty = readback_val coctx ty in
@@ -586,7 +592,7 @@ let rec check_tree : type a. a Ctx.t -> a check -> value -> value -> a Case.tree
                                             | Lt _ | Gt _ ->
                                                 fatal (Anomaly "Lgth mismatch in check_tree rec")
                                             | Eq ->
-                                                let Eq = N.plus_uniq ab user_args in
+                                                let Eq = N.plus_uniq ab ef in
                                                 tr)))
                               | _ -> fatal (Anomaly "Created datatype is not canonical?")))
                         [ brs ];

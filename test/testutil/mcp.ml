@@ -3,7 +3,7 @@ open Core
 open Parser
 
 (* The current context of assumptions, including names. *)
-type ctx = Ctx : 'n Ctx.t * (string option, 'n) Bwv.t -> ctx
+type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx
 
 let ectx = Ctx (Ctx.empty, Emp)
 let context = ref ectx

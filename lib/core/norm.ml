@@ -366,7 +366,7 @@ and tyof_app :
             out_tm);
       }
       [ fns ] in
-  inst (apply_binder (BindCube.find cods (id_sface (CubeOf.dim args))) args) out_args
+  inst (apply_binder (BindCube.find_top cods) args) out_args
 
 (* Compute a field of a structure, at a particular dimension. *)
 and field : value -> Field.t -> value =

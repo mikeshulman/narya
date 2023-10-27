@@ -137,7 +137,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                                       (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
                                       let _ = compare n (dom_tface fa) in
                                       Bwd.fold_right
-                                        (fun a args -> CubeOf.find a (id_sface n) :: args)
+                                        (fun a args -> CubeOf.find_top a :: args)
                                         tmargs []
                                 | _ -> fatal (Missing_instantiation_constructor (constr, None)));
                           }

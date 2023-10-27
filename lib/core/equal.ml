@@ -91,9 +91,9 @@ and equal_at : int -> value -> value -> value -> unit option =
                             map =
                               (fun _ [ tm ] ->
                                 match tm.tm with
-                                | Constr (tmname, l, tmargs) ->
+                                | Constr (tmname, _, tmargs) ->
                                     if tmname = xconstr then
-                                      Bwd.map (fun a -> CubeOf.find a (id_sface l)) tmargs
+                                      Bwd.map (fun a -> CubeOf.find_top a) tmargs
                                     else
                                       fatal
                                         (Anomaly "Inst arg wrong constr in equality at datatype")
@@ -102,12 +102,8 @@ and equal_at : int -> value -> value -> value -> unit option =
                           [ tyargs ] in
                       (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
                       equal_at_tel ctx env
-                        (Bwd.fold_right
-                           (fun a args -> CubeOf.find a (id_sface xn) :: args)
-                           xargs [])
-                        (Bwd.fold_right
-                           (fun a args -> CubeOf.find a (id_sface xn) :: args)
-                           yargs [])
+                        (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                        (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
                         argtys
                         (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ]))
               | Constr _, _ | _, Constr _ -> fail

@@ -146,6 +146,7 @@ module Cube (F : Fam) : sig
   val dim : ('n, 'b) t -> 'n D.t
   val singleton : (D.zero, 'b) F.t -> (D.zero, 'b) t
   val find : ('n, 'b) t -> ('k, 'n) sface -> ('k, 'b) F.t
+  val find_top : ('n, 'b) t -> ('n, 'b) F.t
 
   module Heter : sig
     type (_, _) hft =

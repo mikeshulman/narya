@@ -563,6 +563,12 @@ module Cube (F : Fam) = struct
     let (Le km) = plus_of_sface d in
     gfind tr km km d
 
+  let rec gfind_top : type k n b. (k, n, b) gt -> (n, b) F.t = function
+    | Leaf x -> x
+    | Branch (_, br) -> gfind_top br
+
+  let find_top : type n b. (n, b) t -> (n, b) F.t = fun tr -> gfind_top tr
+
   (* Heterogeneous lists and multimaps, which take the current face as input everywhere in addition to the values in the data structure.  We use the technique of heteregeneous generic traversal, which is a much more significant win here in terms of coding because we only have to descend into gt's once, and all the other operations can be derived from the simpler t version. *)
 
   module Heter = struct

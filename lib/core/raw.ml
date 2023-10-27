@@ -4,6 +4,7 @@ open Util
 (* Raw (unchecked) terms, using intrinsically well-scoped De Bruijn indices, and separated into synthesizing terms and checking terms.  These match the user-facing syntax rather than the internal syntax.  In particular, applications, abstractions, and pi-types are all unary, there is only one universe, and the only operator actions are Id, refl, and sym. *)
 
 (* A "symbol" is something that acts like a function in concrete syntax, being applied to its arguments (or perhaps being the output of a notation).  However, unlike a function, it doesn't typecheck unless it's applied to the right number of arguments, and it can require some of its arguments to synthesize.  We parametrize a symbol by the number of arguments it requires.  *)
+(* TODO: Probably get rid of these; treat universes as one thing and degeneracies as another. *)
 type _ symbol = Refl : N.one symbol | Sym : N.one symbol | UU : N.zero symbol
 
 type _ synth =

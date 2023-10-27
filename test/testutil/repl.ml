@@ -13,29 +13,34 @@ let parse_term (tm : string) : N.zero check = Compile.compile Emp (Parse.term !B
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let check_type (rty : N.zero check) : N.zero term =
-  Reporter.trace "When checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
+  Reporter.trace "when checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
 
 let check_term (rtm : N.zero check) (ety : value) : N.zero term =
-  Reporter.trace "When checking term" @@ fun () -> check Ctx.empty rtm ety
+  Reporter.trace "when checking term" @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
   match Parser.Lexer.Parser.single name with
   | Some (Name name) ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then
+        (* TODO: This should be an Asai message *)
         raise (Failure ("Constant " ^ name ^ " already defined"))
       else
         let rty = parse_term ty in
         let cty = check_type rty in
         Hashtbl.add Global.types const cty;
         Hashtbl.add Global.constants const Axiom
-  | _ -> raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
+  | _ ->
+      (* TODO: This should be an Asai message *)
+      raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
 
 let def (name : string) (ty : string) (tm : string) : unit =
   match Parser.Lexer.Parser.single name with
   | Some (Name name) ->
+      Reporter.tracef "when defining %s" name @@ fun () ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then
+        (* TODO: This should be an Asai message *)
         raise (Failure ("Constant " ^ name ^ " already defined"))
       else
         let rty = parse_term ty in
@@ -46,13 +51,15 @@ let def (name : string) (ty : string) (tm : string) : unit =
         let tree = ref Case.Empty in
         Hashtbl.add Global.constants const (Defined tree);
         let hd = eval (Emp D.zero) (Const const) in
-        Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
+        Reporter.try_with ~fatal:(fun d ->
             Hashtbl.remove Global.types const;
             Hashtbl.remove Global.constants const;
-            Terminal.display d;
-            raise (Failure "Failed to check type"))
-        @@ fun () -> check_tree Ctx.empty rtm ety hd tree
-  | _ -> raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
+            Reporter.fatal_diagnostic d)
+        @@ fun () ->
+        Reporter.trace "when checking term" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
+  | _ ->
+      (* TODO: This should be an Asai message *)
+      raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
 
 let undef (name : string) : unit =
   match Scope.lookup name with

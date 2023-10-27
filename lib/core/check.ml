@@ -174,6 +174,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                           [ constr_indices; ty_indices ] in
                       Constr (constr, dim, Bwd.of_list newargs))
               | _ -> fatal (No_such_constructor (Some name, constr))))
+      (* TODO: If checking against a pi-type, we could automatically eta-expand. *)
       | _ -> fatal (No_such_constructor (None, constr)))
   | Match _ -> fatal (Unimplemented "Matching in terms (rather than case trees)")
 
@@ -602,7 +603,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                       (* Coverage check *)
                       Constr.Map.iter
                         (fun c (Case.Branch (_, b)) ->
-                          if !b = Case.Empty then fatal (Missing_constructor_in_match c) else ())
+                          if !b = Case.Empty then fatal (Missing_constructor_in_match c))
                         tbranches)
               | _ -> fatal (Matching_on_nondatatype (Some name))))
       | _ -> fatal (Matching_on_nondatatype None))

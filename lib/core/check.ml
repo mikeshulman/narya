@@ -53,8 +53,9 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
               let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
               (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
               let (Faces dom_faces) = count_faces (CubeOf.dim doms) in
-              let (Plus af) = N.plus (faces_out dom_faces) in
-              let (Plus ef) = N.plus (faces_out dom_faces) in
+              let f = faces_out dom_faces in
+              let (Plus af) = N.plus f in
+              let (Plus ef) = N.plus f in
               let body = lambdas af tm in
               (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
               let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
@@ -434,8 +435,9 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
           | Eq ->
               let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
               let (Faces dom_faces) = count_faces (CubeOf.dim doms) in
-              let (Plus af) = N.plus (faces_out dom_faces) in
-              let (Plus ef) = N.plus (faces_out dom_faces) in
+              let f = faces_out dom_faces in
+              let (Plus af) = N.plus f in
+              let (Plus ef) = N.plus f in
               let body = lambdas af tm in
               let _, newargs, newnfs, _ = dom_vars (Ctx.level ctx) doms in
               let ctx = Ctx.exts ctx af ef (CubeOf.flatten newnfs dom_faces) in
@@ -469,7 +471,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
           | _ -> fatal (Checking_struct_at_nonrecord (Some name)))
       | _ -> fatal (Checking_struct_at_nonrecord None))
   | Match (ix, brs) -> (
-      (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level and its type.  *)
+      (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
       let slvl, { tm = _; ty = varty }, ix = Ctx.lookup ctx ix in
       let lvl = slvl <|> Matching_on_let_bound_variable in
       (* The type of the variable must be a datatype.  Currently we don't implement higher-dimensional matches, so it must be zero-dimensional. *)
@@ -483,7 +485,8 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
           | Eq -> (
               match Hashtbl.find Global.constants name with
               | Data { params; indices; constrs } -> (
-                  (* The datatype instance must have the right number of arguments, which split into parameters and indices. *)
+                  (* The datatype instance must have the right number of arguments, which we split into parameters and indices. *)
+                  (* TODO: Could pass the N.t (N.plus_out params indices) to of_bwd and have it produce a Bwv.t option. *)
                   let (Wrap varty_args) = Bwv.of_bwd varty_args in
                   match N.compare (N.plus_out params indices) (Bwv.length varty_args) with
                   | Lt _ | Gt _ -> fatal (Anomaly "Wrong number of arguments on datatype")

@@ -57,12 +57,14 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              match TokMap.find_opt tok ops with
              | Some br -> Some (Ok (br, ([] : observation list)), state)
              | None -> (
+                 (* Constructor and field names have already been validated by the lexer. *)
                  match (constr, tok) with
                  | Some br, Constr x -> Some (Ok (br, [ Constr x ]), state)
                  | _ -> (
                      match (field, tok) with
                      | Some br, Field x -> Some (Ok (br, [ Field x ]), state)
                      | _ -> (
+                         (* A "name" in a notation tree must be a valid *local* variable name. *)
                          match (name, tok) with
                          | Some br, Name x ->
                              if Token.variableable x then Some (Ok (br, [ Name (Some x) ]), state)
@@ -110,7 +112,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                 match tok with
                 | Name x -> Some (Name x, state)
                 | Numeral n -> Some (Numeral n, state)
-                | Constr x -> if Token.variableable x then Some (Constr x, state) else None
+                (* Constructor names have already been validated by the lexer. *)
+                | Constr x -> Some (Constr x, state)
                 | _ -> None) in
           return (res, None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
@@ -132,6 +135,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              | _ -> None)) in
     match x with
     | `Name x ->
+        (* A name in an abstraction must be a valid *local* variable name *)
         if (not for_real) || Token.variableable x then
           abstraction stop (Snoc (names, Some x)) for_real
         else fail (Invalid_variable (rng, x))
@@ -201,8 +205,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                        match tok with
                        | Name x -> Some (Name x, state)
                        | Numeral n -> Some (Numeral n, state)
-                       | Constr x -> if Token.variableable x then Some (Constr x, state) else None
-                       | Field x -> if Token.variableable x then Some (Field x, state) else None
+                       (* Constructor and field names have already been validated by the lexer. *)
+                       | Constr x -> Some (Constr x, state)
+                       | Field x -> Some (Field x, state)
                        | _ -> None) in
                return (App (first_arg, arg), Some (Float.infinity, "application")) in
          (* Same comment here about carrying over "tight" as in lclosed. *)

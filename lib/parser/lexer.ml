@@ -156,23 +156,24 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | s -> (
       let len = String.length s in
       match (s.[0], s.[len - 1]) with
-      | '.', '.' -> unexpected ""
+      | '.', '.' -> fatal ~loc:(Range.convert rng) Parse_error
       | '.', _ ->
           let name = String.sub s 1 (len - 1) in
-          if String.exists (fun x -> x = '.') name then
-            fatal ~loc:(Range.convert rng) (Invalid_field name)
-          else return (Field name)
+          (* We allow as a "field name" anything starting with a period and not containing any other periods. *)
+          if Token.variableable name then return (Field name)
+          else fatal ~loc:(Range.convert rng) (Invalid_field name)
       | _, '.' ->
           let name = String.sub s 0 (len - 1) in
-          if String.exists (fun x -> x = '.') name then
-            fatal ~loc:(Range.convert rng) (Invalid_constr name)
-          else return (Constr name)
+          (* We allow as a "constructor name" anything ending with a period and not containing any other periods. *)
+          if Token.variableable name then return (Constr name)
+          else fatal ~loc:(Range.convert rng) (Invalid_constr name)
       | '_', _ | _, '_' -> return (Internal s)
       | _ ->
           if is_numeral s then
             match int_of_string_opt s with
             | Some n -> return (Numeral n)
             | None -> fatal ~loc:(Range.convert rng) (Invalid_numeral s)
+            (* Anything else, not starting or ending with a period, and that doesn't consist entirely of digits and periods, is potentially a valid name.  The periods will be interpreted later as namespacing of constants (hence are disallowed in a local variable). *)
           else return (Name s))
 
 (* Now to make a token, we consume as many such characters as possible, adding them one-by-one to a Buffer and then canonicalizing the resulting string. *)

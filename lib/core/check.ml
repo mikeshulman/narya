@@ -452,7 +452,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
       | Canonical (name, _, ins) -> (
           match Hashtbl.find Global.constants name with
           | Record { fields; _ } ->
-              let () = is_id_perm (perm_of_ins ins) <|> Type_not_fully_instantiated "check_tree" in
+              let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
               let tfields =
                 List.fold_left
                   (fun m (x, _) -> Field.Map.add x (ref Case.Empty) m)

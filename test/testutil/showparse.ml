@@ -18,7 +18,7 @@ and parse_tree =
   | Constr of string
   | Field of string
   | Numeral of int
-  | Abs of string option list * parse_tree
+  | Abs of [ `Normal | `Cube ] * string option list * parse_tree
 
 let rec get_obs (obs : observation) : obs =
   match obs with
@@ -38,6 +38,6 @@ and get_tree (r : Compile.parse_tree) : parse_tree =
   | Constr x -> Constr x
   | Field x -> Field x
   | Numeral n -> Numeral n
-  | Abs (vars, body) -> Abs (vars, get_tree body)
+  | Abs (cube, vars, body) -> Abs (cube, vars, get_tree body)
 
 let parse state str = get_tree (Parse.term state str)

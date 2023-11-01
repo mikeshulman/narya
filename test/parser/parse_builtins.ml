@@ -16,13 +16,15 @@ let () =
           [ Flag Explicit_pi; Name (Some "x"); Name (Some "w"); Term (Name "y"); Term (Name "z") ]
         ))
 
-let () = assert (parse !builtins "x y |-> z" = Abs ([ Some "x"; Some "y" ], Name "z"))
+let () = assert (parse !builtins "x y |-> z" = Abs (`Normal, [ Some "x"; Some "y" ], Name "z"))
+let () = assert (parse !builtins "x y |=> z" = Abs (`Cube, [ Some "x"; Some "y" ], Name "z"))
 
 let () =
   assert (
     parse !builtins "x y |-> (z : w)"
     = Abs
-        ( [ Some "x"; Some "y" ],
+        ( `Normal,
+          [ Some "x"; Some "y" ],
           Notn
             ( "()",
               [
@@ -37,7 +39,9 @@ let () =
     = Notn
         ( ":",
           [
-            Term (Notn ("()", [ Flag Explicit_pi; Term (Abs ([ Some "x"; Some "y" ], Name "z")) ]));
+            Term
+              (Notn
+                 ("()", [ Flag Explicit_pi; Term (Abs (`Normal, [ Some "x"; Some "y" ], Name "z")) ]));
             Term (Name "w");
           ] ))
 

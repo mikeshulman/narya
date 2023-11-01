@@ -106,6 +106,15 @@ let () =
     "n x₀ x₁ x₂ ↦ [ n | 0. ↦ refl f x₀ x₁ x₂ | 1. _ ↦ refl f x₀ x₁ x₂ ]";
   def "refl_nat_f_eq_reflf" "Id (Id ((x:A)→B x) f f) (refl_nat_f 0.) (refl f)" "refl (refl f)";
 
+  (* We also test cube variable abstraction syntax *)
+  def "refl_abort_f_cube" "∅ → Id ((x:A)→B x) f f" "e x ⤇ [ e | ]";
+  def "refl_nat_f_cube" "N → Id ((x:A)→B x) f f"
+    "n x ⤇ [ n | 0. ↦ refl f (x .0) (x .1) (x .2) | 1. _ ↦ refl f (x .0) (x .1) (x .2) ]";
+  (* These are actually *unequal* because definition by case trees is generative. *)
+  unequal_at "refl_nat_f" "refl_nat_f_cube" "N → Id ((x:A)→B x) f f";
+  (* But they become equal when evaluated at concrete numbers so that the case trees compute away. *)
+  equal_at "refl_nat_f 3" "refl_nat_f_cube 3" "Id ((x:A)→B x) f f";
+
   (* Higher-dimensional matches *)
   def "foo" "(x y : N) → Id N x y → N" "x y p ↦ [ p | 0. ↦ 0 | 1. n ↦ 1 ]";
   def "bar" "(x y : N) → Id N x y → N" "x y ↦ [ 0. ↦ 0. | 1. p ↦ p .0 ]";

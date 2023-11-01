@@ -21,7 +21,7 @@ type _ synth =
 
 and _ check =
   | Synth : 'a synth -> 'a check
-  | Lam : 'a N.suc check -> 'a check
+  | Lam : [ `Cube | `Normal ] * 'a N.suc check -> 'a check
   | Struct : 'a check list Field.Map.t -> 'a check
   | Constr : Constr.t * 'a check Bwd.t -> 'a check
   | Match : 'a index * 'a branch list -> 'a check
@@ -32,4 +32,4 @@ let rec raw_lam : type a b ab. (a, b, ab) N.plus -> ab check -> a check =
  fun ab tm ->
   match ab with
   | Zero -> tm
-  | Suc ab -> raw_lam ab (Lam tm)
+  | Suc ab -> raw_lam ab (Lam (`Normal, tm))

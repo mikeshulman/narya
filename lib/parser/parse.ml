@@ -131,7 +131,11 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              | Mapsto -> (
                  match names with
                  | Emp -> None
-                 | Snoc _ -> Some (`Mapsto, state))
+                 | Snoc _ -> Some (`Mapsto `Normal, state))
+             | DblMapsto -> (
+                 match names with
+                 | Emp -> None
+                 | Snoc _ -> Some (`Mapsto `Cube, state))
              | _ -> None)) in
     match x with
     | `Name x ->
@@ -140,11 +144,11 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           abstraction stop (Snoc (names, Some x)) for_real
         else fail (Invalid_variable (rng, x))
     | `Underscore -> abstraction stop (Snoc (names, None)) for_real
-    | `Mapsto ->
+    | `Mapsto cube ->
         if for_real then
           (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
           let* res = lclosed (Open Float.neg_infinity) stop in
-          return (Abs (Bwd.to_list names, res), Some (Float.neg_infinity, "↦"))
+          return (Abs (cube, Bwd.to_list names, res), Some (Float.neg_infinity, "↦"))
         else return (Name "", None)
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)

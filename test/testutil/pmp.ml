@@ -22,7 +22,7 @@ type pmt =
 (* Using a Bwv of variable names, to turn them into De Bruijn indices, we can parse such a term into a synth/checkable one. *)
 let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
  fun ctx -> function
-  | Lam (x, body) -> Lam (parse_chk (Snoc (ctx, x)) body)
+  | Lam (x, body) -> Lam (`Normal, parse_chk (Snoc (ctx, x)) body)
   | Struct tms ->
       Struct
         (List.fold_left

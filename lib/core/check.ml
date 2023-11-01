@@ -22,7 +22,7 @@ let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check =
  fun ab tm ->
   match (ab, tm) with
   | Zero, _ -> tm
-  | Suc _, Lam body -> lambdas (N.suc_plus'' ab) body
+  | Suc _, Lam (`Normal, body) -> lambdas (N.suc_plus'' ab) body
   (* Not enough lambdas.  TODO: We could eta-expand in this case, as long as we've picked up at least one lambda. *)
   | _ -> fatal (Not_enough_lambdas (N.to_int (N.plus_right ab)))
 
@@ -44,7 +44,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
       let sval, sty = synth ctx stm in
       let () = equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type in
       sval
-  | Lam _ -> (
+  | Lam (cube, body) -> (
       match uty with
       | Pi (doms, cods) -> (
           let m = CubeOf.dim doms in
@@ -52,17 +52,21 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
           | Neq -> fatal (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
           | Eq ->
               let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
-              (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
-              let (Faces dom_faces) = count_faces m in
-              let f = faces_out dom_faces in
-              let (Plus af) = N.plus f in
-              let body = lambdas af tm in
               (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
               let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
-              let ctx = Ctx.split ctx dom_faces af newnfs in
               (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
               let output = tyof_app cods tyargs newargs in
-              let cbody = check ctx body output in
+              let cbody =
+                match cube with
+                | `Normal ->
+                    (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
+                    let (Faces dom_faces) = count_faces m in
+                    let f = faces_out dom_faces in
+                    let (Plus af) = N.plus f in
+                    check (Ctx.split ctx dom_faces af newnfs) (lambdas af tm) output
+                | `Cube ->
+                    (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
+                    check (Ctx.vis ctx newnfs) body output in
               Term.Lam (m, cbody))
       | _ -> fatal Checking_lambda_at_nonfunction)
   | Struct tms -> (
@@ -414,7 +418,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
  fun ctx tm ty prev_tm tree ->
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "checking case tree" in
   match tm with
-  | Lam _ -> (
+  | Lam (cube, body) -> (
       match uty with
       | Pi (doms, cods) -> (
           (* Basically copied from Check.check.  Can they be unified? *)
@@ -422,19 +426,23 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
           match compare (TubeOf.inst tyargs) m with
           | Neq ->
               fatal (Dimension_mismatch ("checking lambda in case tree", TubeOf.inst tyargs, m))
-          | Eq ->
+          | Eq -> (
               let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
-              let (Faces dom_faces) = count_faces m in
-              let f = faces_out dom_faces in
-              let (Plus af) = N.plus f in
-              let body = lambdas af tm in
               let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
-              let ctx = Ctx.split ctx dom_faces af newnfs in
               let output = tyof_app cods tyargs newargs in
-              (* Different starting here *)
               let tbody = ref Case.Empty in
               tree := Case.Lam (m, tbody);
-              check_tree ctx body output (apply prev_tm newargs) tbody)
+              match cube with
+              | `Normal ->
+                  let (Faces dom_faces) = count_faces m in
+                  let f = faces_out dom_faces in
+                  let (Plus af) = N.plus f in
+                  let ctx = Ctx.split ctx dom_faces af newnfs in
+                  let body = lambdas af tm in
+                  check_tree ctx body output (apply prev_tm newargs) tbody
+              | `Cube ->
+                  let ctx = Ctx.vis ctx newnfs in
+                  check_tree ctx body output (apply prev_tm newargs) tbody))
       | _ -> fatal Checking_lambda_at_nonfunction)
   | Struct tms -> (
       match uty with

@@ -23,7 +23,7 @@ and parse_tree =
   | Constr of string
   | Field of string
   | Numeral of int
-  | Abs of string option list * parse_tree
+  | Abs of [ `Cube | `Normal ] * string option list * parse_tree
 
 (* These parse trees don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
 
@@ -138,7 +138,7 @@ let rec compile : type n. (string option, n) Bwv.t -> parse_tree -> n check =
   | Constr name -> Raw.Constr (Constr.intern name, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> compile_numeral n
-  | Abs ([], body) -> compile ctx body
-  | Abs (x :: names, body) ->
-      let body = compile (Snoc (ctx, x)) (Abs (names, body)) in
-      Lam body
+  | Abs (_, [], body) -> compile ctx body
+  | Abs (cube, x :: names, body) ->
+      let body = compile (Snoc (ctx, x)) (Abs (cube, names, body)) in
+      Lam (cube, body)

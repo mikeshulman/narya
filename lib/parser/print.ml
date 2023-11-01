@@ -49,10 +49,14 @@ let rec pp_term (ppf : formatter) (tr : parse_tree) : unit =
   | Constr c -> pp_constr ppf c
   | Field f -> pp_field ppf f
   | Numeral n -> pp_print_int ppf n
-  | Abs (vars, body) ->
+  | Abs (cube, vars, body) ->
       fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
         (pp_print_list ~pp_sep:pp_print_space pp_var)
-        vars pp_tok Mapsto pp_term body
+        vars pp_tok
+        (match cube with
+        | `Normal -> Mapsto
+        | `Cube -> DblMapsto)
+        pp_term body
 
 and pp_spine (ppf : formatter) (tr : parse_tree) : unit =
   match tr with
@@ -66,8 +70,12 @@ let rec pp_case (ppf : formatter) (tr : parse_tree) : unit =
       match Hashtbl.find_opt pp_cases n with
       | Some pp -> pp ppf obs
       | None -> pp_term ppf tr)
-  | Abs (vars, body) ->
+  | Abs (cube, vars, body) ->
       fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
         (pp_print_list ~pp_sep:pp_print_space pp_var)
-        vars pp_tok Mapsto pp_case body
+        vars pp_tok
+        (match cube with
+        | `Normal -> Mapsto
+        | `Cube -> DblMapsto)
+        pp_case body
   | _ -> pp_term ppf tr

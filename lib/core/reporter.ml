@@ -179,7 +179,7 @@ module Code = struct
           "notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
           n1 n2
     | Not_enough_lambdas n ->
-        textf "not enough variables for a higher-dimensional abstraction: need at least %d more" n
+        textf "not enough non-cube variables for higher-dimensional abstraction: need %d more" n
     | Not_enough_arguments_to_function ->
         text "not enough arguments for a higher-dimensional function application"
     | Not_enough_arguments_to_instantiation ->

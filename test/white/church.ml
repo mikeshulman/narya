@@ -15,31 +15,41 @@ let unequal_at tm1 tm2 ty =
 let uu = Synth UU
 let raw_nat = Pi (Synth (Pi (uu, uu)), Synth (Pi (uu, uu)))
 let nat = ev (synth raw_nat)
-let zero = ev (check (Lam (Lam (Synth (Var (Top, None))))) nat)
-let one = ev (check (Lam (Lam (Synth (App (Var (Pop Top, None), Synth (Var (Top, None))))))) nat)
+let zero = ev (check (Lam (`Normal, Lam (`Normal, Synth (Var (Top, None))))) nat)
+
+let one =
+  ev
+    (check
+       (Lam (`Normal, Lam (`Normal, Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))))))
+       nat)
 
 let two =
   ev
     (check
        (Lam
-          (Lam
-             (Synth
-                (App
-                   (Var (Pop Top, None), Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))))))))
+          ( `Normal,
+            Lam
+              ( `Normal,
+                Synth
+                  (App
+                     ( Var (Pop Top, None),
+                       Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))) )) ) ))
        nat)
 
 let three =
   ev
     (check
        (Lam
-          (Lam
-             (Synth
-                (App
-                   ( Var (Pop Top, None),
-                     Synth
-                       (App
-                          ( Var (Pop Top, None),
-                            Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))) )) )))))
+          ( `Normal,
+            Lam
+              ( `Normal,
+                Synth
+                  (App
+                     ( Var (Pop Top, None),
+                       Synth
+                         (App
+                            ( Var (Pop Top, None),
+                              Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))) )) )) ) ))
        nat)
 
 let () = equal_at zero zero nat
@@ -52,16 +62,20 @@ let binop = ev (synth (Pi (Synth raw_nat, Synth (Pi (Synth raw_nat, Synth raw_na
 let plus =
   check
     (Lam
-       (Lam
-          (Lam
-             (Lam
-                (Synth
-                   (App
-                      ( App (Var (Pop (Pop (Pop Top)), None), Synth (Var (Pop Top, None))),
-                        Synth
-                          (App
-                             ( App (Var (Pop (Pop Top), None), Synth (Var (Pop Top, None))),
-                               Synth (Var (Top, None)) )) )))))))
+       ( `Normal,
+         Lam
+           ( `Normal,
+             Lam
+               ( `Normal,
+                 Lam
+                   ( `Normal,
+                     Synth
+                       (App
+                          ( App (Var (Pop (Pop (Pop Top)), None), Synth (Var (Pop Top, None))),
+                            Synth
+                              (App
+                                 ( App (Var (Pop (Pop Top), None), Synth (Var (Pop Top, None))),
+                                   Synth (Var (Top, None)) )) )) ) ) ) ))
     binop
 
 let plus = ev plus

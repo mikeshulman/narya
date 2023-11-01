@@ -573,8 +573,8 @@ let () =
                   Match ((x, None), branches))
           | `Constr (c, obs) ->
               let branches = compile_branch (Snoc (ctx, None)) c obs in
-              Lam (Match ((Top, None), branches))
-          | `Done -> Lam (Match ((Top, None), []))
+              Lam (`Normal, Match ((Top, None), branches))
+          | `Done -> Lam (`Normal, Match ((Top, None), []))
           | `Field _ | `Term _ -> fatal (Anomaly "Impossible thing in match"));
     }
 

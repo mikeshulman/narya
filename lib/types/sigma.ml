@@ -29,7 +29,7 @@ let () =
           let () = get_done obs in
           let tm = compile ctx tm in
           let ty = compile (Snoc (ctx, x)) ty in
-          Synth (App (App (Const sigma, tm), Lam ty)));
+          Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
 let prodn =
@@ -46,7 +46,7 @@ let () =
           let () = get_done obs in
           let tm = compile ctx tm in
           let ty = compile (Snoc (ctx, None)) ty in
-          Synth (App (App (Const sigma, tm), Lam ty)));
+          Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
 let comma =

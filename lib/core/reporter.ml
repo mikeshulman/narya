@@ -25,10 +25,10 @@ module Code = struct
     | Unnamed_variable_in_match : t
     | Checking_lambda_at_nonfunction : t
     | Checking_struct_at_nonrecord : Constant.t option -> t
-    | No_such_constructor : (Constant.t option * Constr.t) -> t
-    | Wrong_number_of_arguments_to_constructor : (Constr.t * int) -> t
-    | No_such_field : (Constant.t option * Field.t) -> t
-    | Missing_instantiation_constructor : (Constr.t * Constr.t option) -> t
+    | No_such_constructor : Constant.t option * Constr.t -> t
+    | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
+    | No_such_field : Constant.t option * Field.t -> t
+    | Missing_instantiation_constructor : Constr.t * Constr.t option -> t
     | Unequal_indices : t
     | Unbound_variable : string -> t
     | Undefined_constant : Constant.t -> t
@@ -39,13 +39,13 @@ module Code = struct
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : t
     | Invalid_match_index : t
-    | Wrong_number_of_arguments_to_pattern : (Constr.t * int) -> t
-    | No_such_constructor_in_match : (Constant.t * Constr.t) -> t
+    | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
+    | No_such_constructor_in_match : Constant.t * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Index_variable_in_index_value : t
     | Matching_on_nondatatype : Constant.t option -> t
     | Matching_on_let_bound_variable : t
-    | Dimension_mismatch : (string * 'a D.t * 'b D.t) -> t
+    | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : float -> t
     | Anomaly : string -> t

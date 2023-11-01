@@ -5,14 +5,15 @@ open Bwd
 
 (* Operator actions on values.  Unlike substitution, operator actions take a *value* as input (and produces another value). *)
 
-exception Invalid_uninst_action
-
 (* Since values don't have a statically specified dimension, we have to act on them by an *arbitrary* degeneracy, which means that in many places we have to check dynamically that the dimensions either match or can be extended to match.  This function encapsulates that. *)
-(* TODO: Take an optional error message parameter, passed through from act_ty. *)
-let deg_plus_to : type m n nk. (m, n) deg -> nk D.t -> string -> nk deg_of =
- fun s nk err ->
+let deg_plus_to : type m n nk. ?on:string -> ?err:Code.t -> (m, n) deg -> nk D.t -> nk deg_of =
+ fun ?on ?err s nk ->
   match factor nk (cod_deg s) with
-  | None -> fatal (Anomaly ("Invalid degeneracy action on " ^ err))
+  | None -> (
+      match (err, on) with
+      | Some e, _ -> fatal e
+      | None, Some x -> fatal (Anomaly ("Invalid degeneracy action on " ^ x))
+      | None, None -> fatal (Anomaly "Invalid degeneracy action"))
   | Some (Factor nk) ->
       let (Plus mk) = D.plus (D.plus_right nk) in
       let sk = deg_plus s nk mk in
@@ -24,7 +25,7 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
   match v with
   | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, Lazy.from_val (act_ty v ty s))
   | Inst { tm; dim; args; tys } ->
-      let (Of fa) = deg_plus_to s (TubeOf.uninst args) "instantiation" in
+      let (Of fa) = deg_plus_to s (TubeOf.uninst args) ~on:"instantiation" in
       (* The action on an instantiation instantiates the same dimension j, but the leftover dimensions are now the domain of the degeneracy. *)
       let j = TubeOf.inst args in
       (* let n = TubeOf.uninst args in *)
@@ -54,13 +55,13 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
           } in
       Inst { tm = act_uninst tm fa; dim; args; tys }
   | Lam body ->
-      let (Of fa) = deg_plus_to s (dim_binder body) "lambda" in
+      let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
       Lam (act_binder body fa)
   | Struct (fields, ins) ->
       let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
       Struct (Field.Map.map (fun tm -> act_value tm fa) fields, new_ins)
   | Constr (name, dim, args) ->
-      let (Of fa) = deg_plus_to s dim "constr" in
+      let (Of fa) = deg_plus_to s dim ~on:"constr" in
       Constr
         ( name,
           dom_deg fa,
@@ -84,11 +85,11 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
       let fn = act_head fn s' in
       Neu (fn, args)
   | UU nk ->
-      let (Of fa) = deg_plus_to s nk "universe" in
+      let (Of fa) = deg_plus_to s nk ~on:"universe" in
       UU (dom_deg fa)
   | Pi (doms, cods) ->
       let k = CubeOf.dim doms in
-      let (Of fa) = deg_plus_to s k "pi-type" in
+      let (Of fa) = deg_plus_to s k ~on:"pi-type" in
       let mi = dom_deg fa in
       let doms' =
         CubeOf.build mi
@@ -172,38 +173,38 @@ and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }
 
 (* When acting on a neutral or normal, we also need to specify the typed of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions.  This function computes this "type of acted terms". *)
-and act_ty : type a b. value -> value -> (a, b) deg -> value =
- fun tm tmty s ->
+and act_ty : type a b. ?err:Code.t -> value -> value -> (a, b) deg -> value =
+ fun ?err tm tmty s ->
   match tmty with
   | Inst { tm = ty; dim; args; tys = _ } -> (
       (* A type must be fully instantiated, so in particular tys is trivial. *)
       match compare (TubeOf.uninst args) D.zero with
       | Neq -> fatal (Anomaly "act_ty applied to non-fully-instantiated term")
-      | Eq -> (
+      | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
-          (* This is a user error, e.g. trying to symmetrize a 1-dimensional thing.  So we raise a custom exception here, that can get caught by type synthesis and turned into an error. *)
-          match deg_plus_to s (TubeOf.inst args) "instantiated type" with
-          | exception _ -> raise Invalid_uninst_action
-          | Of fa ->
-              (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
-              let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
-              (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
-              let args =
-                TubeOf.build D.zero
-                  (D.zero_plus (dom_deg fa))
-                  {
-                    build =
-                      (fun fb ->
-                        let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
-                        act_normal (CubeOf.find args' fd) fc);
-                  } in
-              Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args; tys = TubeOf.empty D.zero }))
+          (* This can be a user error, e.g. when trying to symmetrize a 1-dimensional thing, so we allow the caller to provide a different error code. *)
+          let (Of fa) = deg_plus_to s (TubeOf.inst args) ?err ~on:"instantiated type" in
+          (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
+          let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
+          (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
+          let args =
+            TubeOf.build D.zero
+              (D.zero_plus (dom_deg fa))
+              {
+                build =
+                  (fun fb ->
+                    let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
+                    act_normal (CubeOf.find args' fd) fc);
+              } in
+          Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args; tys = TubeOf.empty D.zero })
   | Uninst (ty, (lazy uu)) -> (
       (* This is just the case when dim = 0, so it is the same except simpler. *)
       let fa = s in
       match (compare (cod_deg fa) D.zero, uu) with
-      (* Again this is a user error, this time of trying to symmetrize a 0-dimensional thing. *)
-      | Neq, _ -> raise Invalid_uninst_action
+      (* This can also be a user error, e.g. symmetrizing a 0-dimensional thing, so we allow the caller to provide a different error code. *)
+      | Neq, _ ->
+          fatal
+            (Option.value ~default:(Anomaly "Invalid degeneracy action on uninstantiated type") err)
       | Eq, Uninst (UU z, _) -> (
           match compare z D.zero with
           | Neq -> fatal (Anomaly "Acting on non-fully-instantiated type as a type")
@@ -234,9 +235,9 @@ and act_head : type a b. head -> (a, b) deg -> head =
   | Var { level; deg } ->
       let (DegExt (_, _, deg)) = comp_deg_extending deg s in
       Var { level; deg }
-  (* To act on a constant, we just change its dimension.  This is correct because all constants are originally zero-dimensional, so an n-dimensional one is already a substitution along (Emp n).  *)
+  (* To act on a constant, we just change its dimension.  This is correct because all constants are originally zero-dimensional, so an n-dimensional one is already a substitution along (Emp n).  TODO: This needs to be updated since constants can be higher-dimensional.  *)
   | Const { name; dim } ->
-      let (Of s') = deg_plus_to s dim "constant" in
+      let (Of s') = deg_plus_to s dim ~on:"constant" in
       Const { name; dim = dom_deg s' }
 
 (* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)

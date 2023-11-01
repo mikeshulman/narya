@@ -207,19 +207,17 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       synth_apps ctx sfn sty args
   | Symbol (Refl, Zero, Snoc (Emp, x)) -> (
       match x with
-      | Synth x -> (
+      | Synth x ->
           let sx, ety = synth ctx x in
           let ex = Ctx.eval ctx sx in
-          try (Act (sx, refl), act_ty ex ety refl)
-          with Invalid_uninst_action -> fatal (Anomaly "Invalid reflexivity action"))
+          (Act (sx, refl), act_ty ex ety refl)
       | _ -> fatal (Nonsynthesizing "refl"))
   | Symbol (Sym, Zero, Snoc (Emp, x)) -> (
       match x with
-      | Synth x -> (
+      | Synth x ->
           let sx, ety = synth ctx x in
           let ex = Ctx.eval ctx sx in
-          try (Act (sx, sym), act_ty ex ety sym)
-          with Invalid_uninst_action -> fatal (Low_dimensional_argument_of_degeneracy ("sym", 2)))
+          (Act (sx, sym), act_ty ex ety sym ~err:(Low_dimensional_argument_of_degeneracy ("sym", 2)))
       | _ -> fatal (Nonsynthesizing "sym"))
   (* If a symbol isn't applied to enough arguments yet, it doesn't typecheck. *)
   | Symbol (Refl, Suc _, _) -> fatal (Missing_argument_of_degeneracy "refl")

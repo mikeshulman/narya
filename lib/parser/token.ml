@@ -9,9 +9,13 @@ type t =
   | RBrace (* } *)
   | Arrow (* Both -> and → *)
   | Mapsto (* Both |-> and ↦ *)
+  | DblMapsto (* Both |=> and ⤇ *)
   | Colon (* : *)
   | Coloneq (* Both := and ≔ *)
+  | DblColoneq (* Both ::= and ⩴ *)
+  | Pluseq (* Both += and ⩲ *)
   | Dot (* . *)
+  | Ellipsis (* ... and … *)
   | String of string (* Double-quoted *)
   | Numeral of int
   | Underscore (* _ *)
@@ -44,9 +48,13 @@ let to_string = function
   | RBrace -> "}"
   | Arrow -> "→"
   | Mapsto -> "↦"
+  | DblMapsto -> "⤇"
   | Colon -> ":"
   | Coloneq -> "≔"
+  | DblColoneq -> "⩴"
+  | Pluseq -> "⩲"
   | Dot -> "."
+  | Ellipsis -> "..."
   | String s -> "\"" ^ s ^ "\""
   | Numeral s -> Int.to_string s
   | Underscore -> "_"

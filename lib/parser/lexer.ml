@@ -94,10 +94,18 @@ let onechar_op : Token.t t =
        return RBrace)
   </> (let* _ = backtrack (string "\u{21A6}") "\"\u{21A6}\"" in
        return Mapsto)
+  </> (let* _ = backtrack (string "\u{2907}") "\"\u{2907}\"" in
+       return DblMapsto)
   </> (let* _ = backtrack (string "\u{2192}") "\"\u{2192}\"" in
        return Arrow)
   </> (let* _ = backtrack (string "\u{2254}") "\"\u{2254}\"" in
        return Coloneq)
+  </> (let* _ = backtrack (string "\u{2A74}") "\"\u{2A74}\"" in
+       return DblColoneq)
+  </> (let* _ = backtrack (string "\u{2A72}") "\"\u{2A72}\"" in
+       return Pluseq)
+  </> (let* _ = backtrack (string "\u{2026}") "\"\u{2026}\"" in
+       return Ellipsis)
   <?> "one-character operator"
 
 (* Any sequence consisting entirely of these characters is its own token. *)
@@ -109,8 +117,12 @@ let ascii_op : Token.t t =
   match op with
   | "->" -> return Arrow
   | "|->" -> return Mapsto
+  | "|=>" -> return DblMapsto
   | ":=" -> return Coloneq
+  | "::=" -> return DblColoneq
+  | "+=" -> return Pluseq
   | ":" -> return Colon
+  | "..." -> return Ellipsis
   | _ -> return (Op op)
 
 (* A numeral is a string composed entirely of digits and periods (and not starting or ending with a period, but that's taken care of later in "canonicalize".  Of course if there is more than one period it's not a *valid* numeral, but we don't allow it as another kind of token either. *)
@@ -121,16 +133,21 @@ let is_numeral s = String.for_all is_digit_or_dot s
 (* To detect the characters allowed in a general identifier, we can easily exclude the special ascii symbols, along with parentheses, braces, and whitespace (including tabs). *)
 let special_ascii = "()[]{} \t\n\r" ^ ascii_symbols
 
-(* But to exclude the special unicode characters, since they are multibyte we require lookahead.  We note that each of our three special Unicode characters begins with the same byte. *)
-let arrow = "\u{2192}"
-let lead_char = arrow.[0]
-let arrow_rest = String.sub arrow 1 (String.length arrow - 1)
-let mapsto = "\u{21A6}"
-let () = assert (mapsto.[0] = lead_char)
-let mapsto_rest = String.sub mapsto 1 (String.length mapsto - 1)
-let coloneq = "\u{2254}"
-let () = assert (coloneq.[0] = lead_char)
-let coloneq_rest = String.sub coloneq 1 (String.length coloneq - 1)
+(* But to exclude the special unicode characters, since they are multibyte we require lookahead.  We note that each of our special Unicode characters → ↦ ≔ ⩴ ⤇ ⩲ … begins with the same byte 0xE2.*)
+let lead_char = "\u{2192}".[0]
+
+let not_special chr =
+  assert (chr.[0] = lead_char);
+  let rest = String.sub chr 1 (String.length chr - 1) in
+  not_followed_by (string rest) ("not a \"" ^ chr ^ "\"")
+
+let not_arrow = not_special "\u{2192}"
+let not_mapsto = not_special "\u{21A6}"
+let not_dblmapsto = not_special "\u{2907}"
+let not_coloneq = not_special "\u{2254}"
+let not_dblcoloneq = not_special "\u{2A74}"
+let not_pluseq = not_special "\u{2A72}"
+let not_ellipsis = not_special "\u{2026}"
 
 let other_char : char t =
   (* We need a backtrack here, so that we don't consume the first byte of the special Unicode characters if their appearance is what ends our identifier. *)
@@ -139,9 +156,13 @@ let other_char : char t =
        charp (fun x -> not (String.exists (fun y -> y = x) special_ascii)) "alphanumeric or unicode"
      in
      if c = lead_char then
-       let* () = not_followed_by (string arrow_rest) "not a \"\u{2192}\"" in
-       let* () = not_followed_by (string mapsto_rest) "not a \"\u{21A6}\"" in
-       let* () = not_followed_by (string coloneq_rest) "not a \"\u{2254}\"" in
+       let* () = not_arrow in
+       let* () = not_mapsto in
+       let* () = not_dblmapsto in
+       let* () = not_coloneq in
+       let* () = not_dblcoloneq in
+       let* () = not_pluseq in
+       let* () = not_ellipsis in
        return c
      else return c)
     "other character"
@@ -156,6 +177,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "codata" -> return Codata
   | "section" -> return Section
   | "." -> return Dot
+  | "..." -> return Ellipsis
   | "_" -> return Underscore
   | s -> (
       let len = String.length s in

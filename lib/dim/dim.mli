@@ -1,13 +1,4 @@
 open Util
-
-module Endpoints : sig
-  type len
-  type t
-
-  val len : len N.t
-  val indices : (t, len) Bwv.t
-end
-
 open Monoid
 module D : MonoidPos
 
@@ -134,6 +125,11 @@ val sfaces_plus :
   ('a, 'fm) Bwv.t ->
   ('b, 'fn) Bwv.t ->
   ('c, 'fmn) Bwv.t
+
+type any_sface = Any_sface : ('n, 'k) sface -> any_sface
+
+val string_of_sface : ('n, 'k) sface -> string
+val sface_of_string : string -> any_sface option
 
 module type Fam = sig
   type ('a, 'b) t

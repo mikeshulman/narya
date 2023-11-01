@@ -10,6 +10,19 @@ module Endpoints = struct
 
   let len : len N.t = N.two
   let indices : (t, len) Bwv.t = Snoc (Snoc (Emp, Pop Top), Top)
+
+  let to_string : t option -> string = function
+    | Some Top -> "1"
+    | Some (Pop x) ->
+        let Top = x in
+        "0"
+    | None -> "2"
+
+  let of_char : char -> (t option, unit) result = function
+    | '0' -> Ok (Some (Pop Top))
+    | '1' -> Ok (Some Top)
+    | '2' -> Ok None
+    | _ -> Error ()
 end
 
 (* ********** Dimensions ********** *)
@@ -462,6 +475,23 @@ let rec plus_of_sface : type m mn. (m, mn) sface -> (m, mn) d_le = function
   | Mid d ->
       let (Le mn) = plus_of_sface d in
       Le (N.suc_plus' mn)
+
+type any_sface = Any_sface : ('n, 'k) sface -> any_sface
+
+let rec string_of_sface : type n k. (n, k) sface -> string = function
+  | Zero -> ""
+  | End (fa, e) -> string_of_sface fa ^ Endpoints.to_string (Some e)
+  | Mid fa -> string_of_sface fa ^ Endpoints.to_string None
+
+let sface_of_string : string -> any_sface option =
+ fun str ->
+  String.fold_left
+    (fun fa x ->
+      match (fa, Endpoints.of_char x) with
+      | None, _ | _, Error _ -> None
+      | Some (Any_sface fa), Ok (Some e) -> Some (Any_sface (End (fa, e)))
+      | Some (Any_sface fa), Ok None -> Some (Any_sface (Mid fa)))
+    (Some (Any_sface Zero)) str
 
 (* ********** Backwards faces ********** *)
 

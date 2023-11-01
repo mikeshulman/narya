@@ -501,13 +501,13 @@ let rec pattern_vars n =
       field = None;
       term = None;
       ops =
-        TokMap.singleton Mapsto (terms [ (Op "|", Lazy (lazy (innermtch n))); (Op "]", Done n) ]);
+        TokMap.singleton Mapsto (terms [ (Op "|", Lazy (lazy (innermtch n))); (RBracket, Done n) ]);
     }
 
 and innermtch n =
   Inner
     {
-      ops = TokMap.of_list [ (Op "]", Done n) ];
+      ops = TokMap.of_list [ (RBracket, Done n) ];
       constr = Some (pattern_vars n);
       field = None;
       name = None;
@@ -516,10 +516,10 @@ and innermtch n =
 
 let mtch =
   make ~name:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non ~tree:(fun n ->
-      eop (Op "[")
+      eop LBracket
         (Inner
            {
-             ops = TokMap.of_list [ (Op "|", innermtch n); (Op "]", Done n) ];
+             ops = TokMap.of_list [ (Op "|", innermtch n); (RBracket, Done n) ];
              name = Some (op (Op "|") (innermtch n));
              constr = Some (pattern_vars n);
              field = None;
@@ -611,20 +611,20 @@ and pp_match box ppf obs =
   match get_next obs with
   | `Name (name, obs) ->
       if box then pp_open_vbox ppf 0;
-      pp_tok ppf (Op "[");
+      pp_tok ppf LBracket;
       pp_print_string ppf " ";
       pp_var ppf name;
       pp_branches true ppf obs;
       if compact () then pp_print_string ppf " " else pp_print_cut ppf ();
-      pp_tok ppf (Op "]");
+      pp_tok ppf RBracket;
       if box then pp_close_box ppf ()
   | _ ->
       let cpt = compact () in
       if box || not cpt then pp_open_vbox ppf 0;
-      pp_tok ppf (Op "[");
+      pp_tok ppf LBracket;
       pp_branches ((not box) || not cpt) ppf obs;
       if cpt then pp_print_string ppf " " else pp_print_cut ppf ();
-      pp_tok ppf (Op "]");
+      pp_tok ppf RBracket;
       if box || not cpt then pp_close_box ppf ()
 
 (* Matches are only valid in case trees. *)

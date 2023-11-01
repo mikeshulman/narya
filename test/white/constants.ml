@@ -93,7 +93,7 @@ let () =
   (* Empty type *)
   Types.Empty.install ();
   def "abort1" "(A:Type) → ∅ → A" "A ↦ [ ]";
-  def "abort2" "(A:Type) → ∅ → A" "A ↦ [ | ]";
+  def "abort2" "(A:Type) → ∅ → A" "A ↦ [|]";
   def "abort3" "(A:Type) → ∅ → A" "A x ↦ [ x | ]";
 
   (* Higher-dimensional lambdas in case trees.  This simple version doesn't actually need them, as it could be just an ordinary higher-dimensional lambda term at a leaf. *)

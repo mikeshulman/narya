@@ -84,6 +84,10 @@ let onechar_op : Token.t t =
    return LParen)
   </> (let* _ = char ')' in
        return RParen)
+  </> (let* _ = char '[' in
+       return LBracket)
+  </> (let* _ = char ']' in
+       return RBracket)
   </> (let* _ = char '{' in
        return LBrace)
   </> (let* _ = char '}' in
@@ -97,7 +101,7 @@ let onechar_op : Token.t t =
   <?> "one-character operator"
 
 (* Any sequence consisting entirely of these characters is its own token. *)
-let ascii_symbols = "[]~!@#$%^&*/?=+\\|,<>:;-"
+let ascii_symbols = "~!@#$%^&*/?=+\\|,<>:;-"
 let is_ascii_symbol c = String.exists (fun x -> x = c) ascii_symbols
 
 let ascii_op : Token.t t =
@@ -115,7 +119,7 @@ let is_digit_or_dot c = String.exists (fun x -> x = c) digits_dot
 let is_numeral s = String.for_all is_digit_or_dot s
 
 (* To detect the characters allowed in a general identifier, we can easily exclude the special ascii symbols, along with parentheses, braces, and whitespace (including tabs). *)
-let special_ascii = "(){} \t\n\r" ^ ascii_symbols
+let special_ascii = "()[]{} \t\n\r" ^ ascii_symbols
 
 (* But to exclude the special unicode characters, since they are multibyte we require lookahead.  We note that each of our three special Unicode characters begins with the same byte. *)
 let arrow = "\u{2192}"

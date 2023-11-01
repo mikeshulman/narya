@@ -3,6 +3,8 @@ type t =
   | Constr of string (* Ending with . *)
   | LParen (* ( *)
   | RParen (* ) *)
+  | LBracket (* [ *)
+  | RBracket (* ] *)
   | LBrace (* { *)
   | RBrace (* } *)
   | Arrow (* Both -> and → *)
@@ -36,6 +38,8 @@ let to_string = function
   | Constr s -> s ^ "."
   | LParen -> "("
   | RParen -> ")"
+  | LBracket -> "["
+  | RBracket -> "]"
   | LBrace -> "{"
   | RBrace -> "}"
   | Arrow -> "→"

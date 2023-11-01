@@ -20,7 +20,7 @@ let () =
         Op "-";
         RBrace;
         Name "aqo0";
-        Op "[";
+        LBracket;
         Name "eouOEU";
         RParen;
         LBrace;

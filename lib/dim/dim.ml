@@ -992,6 +992,17 @@ let rec tface_plus :
 
 type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface
 
+(* Any strict face is either a proper face or the top face. *)
+(*
+let rec pface_of_sface : type m n. (m, n) sface -> (m, n) pface option = function
+  | Zero -> None
+  | End (fa, e) -> Some (End (fa, D.zero_plus (cod_sface fa), e))
+  | Mid fa -> (
+      match pface_of_sface fa with
+      | Some fb -> Some (Mid fb)
+      | None -> None)
+*)
+
 (* Any strict face can be added to a tube face on the left to get another tube face. *)
 
 let rec sface_plus_tface :
@@ -1943,6 +1954,8 @@ let one = D.one
 let pos_one : one D.pos = Pos D.zero
 let faces_one : (one, N.three) count_faces = Suc (Zero, N.one_times N.three)
 let refl : (one, D.zero) deg = Zero D.one
+let zero_sface_one : (D.zero, one) sface = End (Zero, Pop Top)
+let one_sface_one : (D.zero, one) sface = End (Zero, Top)
 
 type two = D.two
 

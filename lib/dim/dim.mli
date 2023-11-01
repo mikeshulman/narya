@@ -435,6 +435,8 @@ val one : one D.t
 val pos_one : one D.pos
 val faces_one : (one, N.three) count_faces
 val refl : (one, D.zero) deg
+val zero_sface_one : (D.zero, one) sface
+val one_sface_one : (D.zero, one) sface
 
 type two
 

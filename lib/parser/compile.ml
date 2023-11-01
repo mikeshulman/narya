@@ -108,9 +108,10 @@ let rec compile : type n. (string option, n) Bwv.t -> parse_tree -> n check =
       match fn with
       | Synth fn -> (
           match fn with
-          | Symbol (s, (Suc _ as mn), args) ->
-              let arg = compile ctx arg in
-              Synth (Symbol (s, N.suc_plus'' mn, Snoc (args, arg)))
+          | Act (str, s, None) -> (
+              match compile ctx arg with
+              | Synth arg -> Synth (Act (str, s, Some arg))
+              | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
           | _ -> (
               match arg with
               | Field fld -> (

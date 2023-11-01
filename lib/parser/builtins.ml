@@ -353,7 +353,7 @@ let () =
       compile =
         (fun _ obs ->
           let () = get_done obs in
-          Synth (Symbol (Refl, Suc Zero, Emp)));
+          Synth (Act ("refl", Dim.refl, None)));
     };
   add_term_pp refl @@ fun ppf obs ->
   let () = get_done obs in
@@ -369,7 +369,7 @@ let () =
       compile =
         (fun _ obs ->
           let () = get_done obs in
-          Synth (Symbol (Sym, Suc Zero, Emp)));
+          Synth (Act ("sym", Dim.sym, None)));
     };
   add_term_pp sym @@ fun ppf obs ->
   let () = get_done obs in

@@ -33,7 +33,7 @@ module Code = struct
     | Unbound_variable : string -> t
     | Undefined_constant : Constant.t -> t
     | Nonsynthesizing : string -> t
-    | Low_dimensional_argument_of_degeneracy : (string * int) -> t
+    | Low_dimensional_argument_of_degeneracy : (string * 'a D.t) -> t
     | Missing_argument_of_degeneracy : string -> t
     | Applying_nonfunction_nontype : t
     | Unimplemented : string -> t
@@ -225,7 +225,7 @@ module Code = struct
     | Undefined_constant c -> textf "Undefined constant: %s" (name_of c)
     | Nonsynthesizing pos -> textf "Non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
-        textf "Argument of %s must be at least %d-dimensional" deg dim
+        textf "Argument of %s must be at least %d-dimensional" deg (to_int dim)
     | Missing_argument_of_degeneracy deg -> textf "Missing argument for degeneracy %s" deg
     | Applying_nonfunction_nontype -> text "Attempt to apply/instantiate a non-function non-type"
     | Unimplemented str -> textf "%s is not yet implemented" str

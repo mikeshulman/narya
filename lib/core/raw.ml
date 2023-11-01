@@ -7,21 +7,17 @@ open Dim
 (* A raw De Bruijn index is a well-scoped natural number together with a possible face.  During typechecking we will verify that the face, if given, is applicable to the variable as a "cube variable", and compile the combination into a more strongly well-scoped kind of index. *)
 type 'a index = 'a N.index * any_sface option
 
-(* A "symbol" is something that acts like a function in concrete syntax, being applied to its arguments (or perhaps being the output of a notation).  However, unlike a function, it doesn't typecheck unless it's applied to the right number of arguments, and it can require some of its arguments to synthesize.  We parametrize a symbol by the number of arguments it requires.  *)
-(* TODO: Probably get rid of these; treat universes as one thing and degeneracies as another. *)
-type _ symbol = Refl : N.one symbol | Sym : N.one symbol
-
 type _ synth =
   | Var : 'a index -> 'a synth
   | Const : Constant.t -> 'a synth
   | Field : 'a synth * Field.t -> 'a synth
   | Pi : 'a check * 'a N.suc check -> 'a synth
   | App : 'a synth * 'a check -> 'a synth
-  (* In raw syntax, we allow a symbol to be applied to fewer than the correct number of arguments.  This is so that they can be parsed as function applications, with arguments added on one by one as they are parsed.  *)
-  | Symbol : 'mn symbol * ('m, 'n, 'mn) N.plus * ('a check, 'm) Bwv.t -> 'a synth
   | Asc : 'a check * 'a check -> 'a synth
   | Let : 'a synth * 'a N.suc synth -> 'a synth
   | UU : 'a synth
+  (* The argument of a degeneracy action is optional so that we can parse the name of the degeneracy alone and then its argument as looking like an application of a function, even though it's not actually a function since (among other things) we require the argument to synthesize. *)
+  | Act : string * ('m, 'n) deg * 'a synth option -> 'a synth
 
 and _ check =
   | Synth : 'a synth -> 'a check

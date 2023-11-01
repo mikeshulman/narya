@@ -1,5 +1,6 @@
 open Dim
 open Scope
+open Hctx
 open Asai.Diagnostic
 
 module Code = struct
@@ -49,6 +50,7 @@ module Code = struct
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : float -> t
     | Anomaly : string -> t
+    | No_such_level : level -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -97,11 +99,13 @@ module Code = struct
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
+    | No_such_level _ -> Bug
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
     (* Usually bugs *)
     | Anomaly _ -> "E0000"
+    | No_such_level _ -> "E0001"
     (* Unimplemented future features *)
     | Unimplemented _ -> "E0100"
     | Unsupported_numeral _ -> "E0101"
@@ -254,7 +258,8 @@ module Code = struct
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %f" n
-    | Anomaly str -> text ("anomaly: " ^ str)
+    | Anomaly str -> textf "anomaly: %s" str
+    | No_such_level i -> textf "no such level variable in context: (%d,%d)" (fst i) (snd i)
 end
 
 include Asai.StructuredReporter.Make (Code)

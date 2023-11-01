@@ -40,3 +40,6 @@ let rec exts : type a b n. b N.t -> (a, b, n) has_exts =
 type 'a index =
   | Top : ('k, 'n) sface -> ('a, 'n) ext index
   | Pop : 'xs index -> ('xs, 'x) ext index
+
+(* A De Bruijn level is a pair of integers: one for the position (counting in) of the cube-variable-bundle in the context, and one that counts through the faces of that bundle. *)
+type level = int * int

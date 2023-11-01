@@ -6,8 +6,6 @@ open Value
 open Term
 open Norm
 
-exception Missing_variable
-
 (* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
 
 let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> a term =
@@ -158,7 +156,7 @@ and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
   | Var { level; deg } -> (
       match Ctx.find_level ctx level with
       | Some x -> Act (Var x, deg)
-      | None -> raise Missing_variable)
+      | None -> fatal (No_such_level level))
   (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
   | Const { name; dim } -> Act (Const name, deg_zero dim)
 

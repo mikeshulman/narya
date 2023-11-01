@@ -152,7 +152,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                             CubeOf.build dim
                               { build = (fun fa -> eval (Act (env, op_of_sface fa)) ix) })
                           constr_indices in
-                      (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, throwing an exception in case I was wrong about that.  *)
+                      (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, raising an anomaly in case I was wrong about that.  *)
                       let () =
                         Bwv.miter
                           (fun [ t1s; t2s ] ->
@@ -614,16 +614,19 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                                           (* Now we let-bind the match variable to the constructor applied to these new variables, the "index_vars" to the index values, and the inst_vars to the boundary constructor values. *)
                                           let newctx =
                                             Ctx.bind_some (Hashtbl.find_opt new_vals) newctx in
-                                          (* We readback the index and instantiation values into this context and discard the result, catching Missing_variable to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)
+                                          (* We readback the index and instantiation values into this context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)
                                           let _ =
-                                            try
-                                              Hashtbl.iter
-                                                (fun _ v ->
-                                                  let _ = readback_nf newctx v in
-                                                  ())
-                                                new_vals
-                                            with Missing_variable ->
-                                              fatal Index_variable_in_index_value in
+                                            Reporter.try_with ~fatal:(fun d ->
+                                                match d.message with
+                                                | No_such_level _ ->
+                                                    fatal Index_variable_in_index_value
+                                                | _ -> fatal_diagnostic d)
+                                            @@ fun () ->
+                                            Hashtbl.iter
+                                              (fun _ v ->
+                                                let _ = readback_nf newctx v in
+                                                ())
+                                              new_vals in
                                           (* We evaluate "rty" and "rprevtm" in this new context, to obtain the type at which the branch body will be checked, and the up-until-now term that will be in effect for that checking. *)
                                           let newty = Ctx.eval newctx rty in
                                           let new_prev_tm = Ctx.eval newctx rprevtm in

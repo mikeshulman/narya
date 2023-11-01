@@ -46,6 +46,7 @@ module Code = struct
     | Matching_on_nondatatype : Constant.t option -> t
     | Matching_on_let_bound_variable : t
     | Dimension_mismatch : (string * 'a D.t * 'b D.t) -> t
+    | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : float -> t
     | Anomaly : string -> t
 
@@ -80,6 +81,7 @@ module Code = struct
     | Missing_argument_of_degeneracy _ -> Error
     | Not_enough_arguments_to_function -> Error
     | Instantiating_zero_dimensional_type -> Error
+    | Invalid_variable_face _ -> Error
     | Not_enough_arguments_to_instantiation -> Error
     | Applying_nonfunction_nontype -> Error
     | Wrong_number_of_arguments_to_constructor _ -> Error
@@ -124,6 +126,7 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> "E0503"
     | Type_not_fully_instantiated _ -> "E0504"
     | Instantiating_zero_dimensional_type -> "E0505"
+    | Invalid_variable_face _ -> "E0506"
     (* Degeneracies *)
     | Missing_argument_of_degeneracy _ -> "E0600"
     | Low_dimensional_argument_of_degeneracy _ -> "E0601"
@@ -165,6 +168,8 @@ module Code = struct
     | Invalid_field str -> textf "Invalid field name: %s" str
     | Invalid_constr str -> textf "Invalid constructor name: %s" str
     | Invalid_numeral str -> textf "Invalid numeral: %s" str
+    | Invalid_variable_face (k, fa) ->
+        textf "Invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
     | No_relative_precedence (n1, n2) ->
         textf
           "Notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"

@@ -7,15 +7,16 @@ open Check
 open Value
 open Term
 open Raw
+open Hctx
 
 let parse_term (tm : string) : N.zero check = Compile.compile Emp (Parse.term !Builtins.builtins tm)
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let check_type (rty : N.zero check) : N.zero term =
+let check_type (rty : N.zero check) : emp term =
   Reporter.trace "when checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
 
-let check_term (rtm : N.zero check) (ety : value) : N.zero term =
+let check_term (rtm : N.zero check) (ety : value) : emp term =
   Reporter.trace "when checking term" @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
@@ -56,7 +57,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
             Hashtbl.remove Global.constants const;
             Reporter.fatal_diagnostic d)
         @@ fun () ->
-        Reporter.trace "when checking term" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
+        Reporter.trace "when checking case tree" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
   | _ ->
       (* TODO: This should be an Asai message *)
       raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))

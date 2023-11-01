@@ -1,6 +1,5 @@
 open Dim
 open Core
-open Util
 open Term
 
 let inl = Constr.intern "inl"
@@ -12,10 +11,13 @@ let install () =
   Hashtbl.add Global.constants sum
     (Data
        {
-         params = N.two;
+         params = Suc (Suc Zero);
          indices = Zero;
          constrs =
            Constr.Map.empty
-           |> Constr.Map.add inl (Global.Constr { args = Ext (Var (Pop Top), Emp); indices = Emp })
-           |> Constr.Map.add inr (Global.Constr { args = Ext (Var Top, Emp); indices = Emp });
+           |> Constr.Map.add inl
+                (Global.Constr
+                   { args = Ext (Var (Pop (Top (id_sface D.zero))), Emp); indices = Emp })
+           |> Constr.Map.add inr
+                (Global.Constr { args = Ext (Var (Top (id_sface D.zero)), Emp); indices = Emp });
        })

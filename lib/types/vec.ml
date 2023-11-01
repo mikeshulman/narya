@@ -2,7 +2,6 @@ open Bwd
 open Bwd.Infix
 open Dim
 open Core
-open Util
 open Term
 open Nat
 
@@ -18,7 +17,7 @@ let install () =
   Hashtbl.add Global.constants vec
     (Data
        {
-         params = N.one;
+         params = Suc Zero;
          indices = Suc Zero;
          constrs =
            Constr.Map.empty
@@ -31,16 +30,23 @@ let install () =
                        Ext
                          ( Const nn,
                            Ext
-                             ( Var (Pop Top),
+                             ( Var (Pop (Top (id_sface D.zero))),
                                Ext
                                  ( App
-                                     ( App (Const vec, CubeOf.singleton (Term.Var (Pop (Pop Top)))),
-                                       CubeOf.singleton (Term.Var (Pop Top)) ),
+                                     ( App
+                                         ( Const vec,
+                                           CubeOf.singleton
+                                             (Term.Var (Pop (Pop (Top (id_sface D.zero))))) ),
+                                       CubeOf.singleton (Term.Var (Pop (Top (id_sface D.zero)))) ),
                                    Emp ) ) );
                      indices =
                        Snoc
                          ( Emp,
-                           Constr (suc', D.zero, Emp <: CubeOf.singleton (Term.Var (Pop (Pop Top))))
+                           Constr
+                             ( suc',
+                               D.zero,
+                               Emp
+                               <: CubeOf.singleton (Term.Var (Pop (Pop (Top (id_sface D.zero))))) )
                          );
                    });
        });
@@ -49,69 +55,94 @@ let install () =
        (pi (Const nn)
           (pi (Const nn)
              (pi
-                (apps (Const vec) [ Var (Pop (Pop Top)); Var (Pop Top) ])
+                (apps (Const vec)
+                   [ Var (Pop (Pop (Top (id_sface D.zero)))); Var (Pop (Top (id_sface D.zero))) ])
                 (pi
-                   (apps (Const vec) [ Var (Pop (Pop (Pop Top))); Var (Pop Top) ])
                    (apps (Const vec)
                       [
-                        Var (Pop (Pop (Pop (Pop Top))));
-                        apps (Const plus) [ Var (Pop (Pop (Pop Top))); Var (Pop (Pop Top)) ];
+                        Var (Pop (Pop (Pop (Top (id_sface D.zero)))));
+                        Var (Pop (Top (id_sface D.zero)));
+                      ])
+                   (apps (Const vec)
+                      [
+                        Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero))))));
+                        apps (Const plus)
+                          [
+                            Var (Pop (Pop (Pop (Top (id_sface D.zero)))));
+                            Var (Pop (Pop (Top (id_sface D.zero))));
+                          ];
                       ]))))));
   Hashtbl.add Global.types ind
     (pi (UU D.zero)
        (pi
-          (pi (Const nn) (pi (apps (Const vec) [ Var (Pop Top); Var Top ]) (UU D.zero)))
+          (pi (Const nn)
+             (pi
+                (apps (Const vec)
+                   [ Var (Pop (Top (id_sface D.zero))); Var (Top (id_sface D.zero)) ])
+                (UU D.zero)))
           (pi
-             (apps (Var Top) [ constr zero' Emp; constr nil Emp ])
+             (apps (Var (Top (id_sface D.zero))) [ constr zero' Emp; constr nil Emp ])
              (pi
                 (pi (Const nn)
-                   (pi (Var (Pop (Pop (Pop Top))))
+                   (pi
+                      (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
                       (pi
-                         (apps (Const vec) [ Var (Pop (Pop (Pop (Pop Top)))); Var (Pop Top) ])
+                         (apps (Const vec)
+                            [
+                              Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero))))));
+                              Var (Pop (Top (id_sface D.zero)));
+                            ])
                          (pi
-                            (apps (Var (Pop (Pop (Pop (Pop Top))))) [ Var (Pop (Pop Top)); Var Top ])
-                            (apps (Var (Pop (Pop (Pop (Pop (Pop Top))))))
+                            (apps
+                               (Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero)))))))
                                [
-                                 constr suc' (Emp <: Var (Pop (Pop (Pop Top))));
+                                 Var (Pop (Pop (Top (id_sface D.zero))));
+                                 Var (Top (id_sface D.zero));
+                               ])
+                            (apps
+                               (Var (Pop (Pop (Pop (Pop (Pop (Top (id_sface D.zero))))))))
+                               [
+                                 constr suc' (Emp <: Var (Pop (Pop (Pop (Top (id_sface D.zero))))));
                                  constr cons
                                    (Emp
-                                   <: Var (Pop (Pop (Pop Top)))
-                                   <: Var (Pop (Pop Top))
-                                   <: Var (Pop Top));
+                                   <: Var (Pop (Pop (Pop (Top (id_sface D.zero)))))
+                                   <: Var (Pop (Pop (Top (id_sface D.zero))))
+                                   <: Var (Pop (Top (id_sface D.zero))));
                                ])))))
                 (pi (Const nn)
                    (pi
-                      (apps (Const vec) [ Var (Pop (Pop (Pop (Pop Top)))); Var Top ])
-                      (apps (Var (Pop (Pop (Pop (Pop Top))))) [ Var (Pop Top); Var Top ])))))));
+                      (apps (Const vec)
+                         [
+                           Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero))))));
+                           Var (Top (id_sface D.zero));
+                         ])
+                      (apps
+                         (Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero)))))))
+                         [ Var (Pop (Top (id_sface D.zero))); Var (Top (id_sface D.zero)) ])))))));
   Hashtbl.add Global.constants ind
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
+             ( D.zero,
                ref
                  (Case.Lam
-                    ( faces_zero,
-                      Suc Zero,
+                    ( D.zero,
                       ref
                         (Case.Lam
-                           ( faces_zero,
-                             Suc Zero,
+                           ( D.zero,
                              ref
                                (Case.Lam
-                                  ( faces_zero,
-                                    Suc Zero,
+                                  ( D.zero,
                                     ref
                                       (Case.Lam
-                                         ( faces_zero,
-                                           Suc Zero,
+                                         ( D.zero,
                                            ref
                                              (Case.Lam
-                                                ( faces_zero,
-                                                  Suc Zero,
+                                                ( D.zero,
                                                   ref
                                                     (Case.Branches
-                                                       ( Top,
+                                                       ( Top (id_sface D.zero),
+                                                         D.zero,
                                                          Constr.Map.of_list
                                                            [
                                                              ( nil,
@@ -119,7 +150,13 @@ let install () =
                                                                  ( Zero,
                                                                    ref
                                                                      (Case.Leaf
-                                                                        (Var (Pop (Pop (Pop Top)))))
+                                                                        (Var
+                                                                           (Pop
+                                                                              (Pop
+                                                                                 (Pop
+                                                                                    (Top
+                                                                                       (id_sface
+                                                                                          D.zero)))))))
                                                                  ) );
                                                              ( cons,
                                                                Branch
@@ -132,11 +169,26 @@ let install () =
                                                                                  (Pop
                                                                                     (Pop
                                                                                        (Pop
-                                                                                          (Pop Top))))))
+                                                                                          (Pop
+                                                                                             (Top
+                                                                                                (id_sface
+                                                                                                   D
+                                                                                                   .zero))))))))
                                                                            [
-                                                                             Var (Pop (Pop Top));
-                                                                             Var (Pop Top);
-                                                                             Var Top;
+                                                                             Var
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Top
+                                                                                        (id_sface
+                                                                                           D.zero))));
+                                                                             Var
+                                                                               (Pop
+                                                                                  (Top
+                                                                                     (id_sface
+                                                                                        D.zero)));
+                                                                             Var
+                                                                               (Top
+                                                                                  (id_sface D.zero));
                                                                              apps (Const ind)
                                                                                [
                                                                                  Var
@@ -150,7 +202,12 @@ let install () =
                                                                                                     Pop
                                                                                                     (
                                                                                                     Pop
-                                                                                                    Top))))))));
+                                                                                                    (
+                                                                                                    Top
+                                                                                                    (
+                                                                                                    id_sface
+                                                                                                    D
+                                                                                                    .zero))))))))));
                                                                                  Var
                                                                                    (Pop
                                                                                       (Pop
@@ -160,7 +217,12 @@ let install () =
                                                                                                   (Pop
                                                                                                     (
                                                                                                     Pop
-                                                                                                    Top)))))));
+                                                                                                    (
+                                                                                                    Top
+                                                                                                    (
+                                                                                                    id_sface
+                                                                                                    D
+                                                                                                    .zero)))))))));
                                                                                  Var
                                                                                    (Pop
                                                                                       (Pop
@@ -168,16 +230,34 @@ let install () =
                                                                                             (Pop
                                                                                                (Pop
                                                                                                   (Pop
-                                                                                                    Top))))));
+                                                                                                    (
+                                                                                                    Top
+                                                                                                    (
+                                                                                                    id_sface
+                                                                                                    D
+                                                                                                    .zero))))))));
                                                                                  Var
                                                                                    (Pop
                                                                                       (Pop
                                                                                          (Pop
                                                                                             (Pop
                                                                                                (Pop
-                                                                                                  Top)))));
-                                                                                 Var (Pop (Pop Top));
-                                                                                 Var Top;
+                                                                                                  (Top
+                                                                                                    (
+                                                                                                    id_sface
+                                                                                                    D
+                                                                                                    .zero)))))));
+                                                                                 Var
+                                                                                   (Pop
+                                                                                      (Pop
+                                                                                         (Top
+                                                                                            (id_sface
+                                                                                               D
+                                                                                               .zero))));
+                                                                                 Var
+                                                                                   (Top
+                                                                                      (id_sface
+                                                                                         D.zero));
                                                                                ];
                                                                            ])) ) );
                                                            ] )) )) )) )) )) )) ))))

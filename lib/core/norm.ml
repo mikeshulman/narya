@@ -6,19 +6,22 @@ open Act
 open Term
 open Bwd
 open Monad.Ops (Monad.Maybe)
+open Hctx
 
 (* Look up a value in an environment by variable index.  The result has to have a degeneracy action applied (from the actions stored in the environment).  Thus this depends on being able to act on a value by a degeneracy, so we can't define it until after act.ml is loaded (unless we do open recursive trickery). *)
-let lookup : type n b. (n, b) env -> b N.index -> value =
+let lookup : type n b. (n, b) env -> b index -> value =
  fun env v ->
   (* We traverse the environment, accumulating operator actions as we go, until we find the specified index. *)
-  let rec lookup : type m n b. (n, b) env -> b N.index -> (m, n) op -> value =
+  let rec lookup : type m n b. (n, b) env -> b index -> (m, n) op -> value =
    fun env v op ->
     match (env, v) with
     | Emp _, _ -> .
-    | Ext (_, entry), Top ->
+    | Ext (_, entry), Top fa -> (
         (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
         let (Op (f, s)) = op in
-        act_value (CubeOf.find entry f) s
+        match compare (cod_sface fa) (CubeOf.dim entry) with
+        | Eq -> act_value (CubeOf.find (CubeOf.find entry fa) f) s
+        | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry)))
     | Ext (env, _), Pop v -> lookup env v op
     | Act (env, op'), _ -> lookup env v (comp_op op' op) in
   lookup env v (id_op (dim_env env))
@@ -107,9 +110,9 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
           inst newtm newargs)
-  | Lam (Bind (n_faces, plus_n_faces, body)) ->
-      let (Plus mn) = D.plus (dim_faces n_faces) in
-      Lam (eval_binder env n_faces mn plus_n_faces body)
+  | Lam (n, body) ->
+      let (Plus mn) = D.plus n in
+      Lam (eval_binder env mn body)
   | App (fn, args) ->
       (* First we evaluate the function. *)
       let efn = eval env fn in
@@ -171,8 +174,8 @@ let rec eval : type m b. (m, b) env -> b term -> value =
             build =
               (fun fab ->
                 let (SFace_of_plus (k_l, fa, fb)) = sface_of_plus m_n fab in
-                let (Bind (lf, nlf, cod)) = CodCube.find cods fb in
-                eval_binder (Act (env, op_of_sface fa)) lf k_l nlf cod);
+                let cod = CodCube.find cods fb in
+                eval_binder (Act (env, op_of_sface fa)) k_l cod);
           } in
       let tytbl = Hashtbl.create 10 in
       let tys =
@@ -199,7 +202,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   | Let (v, body) ->
       let args =
         CubeOf.build (dim_env env) { build = (fun fa -> eval (Act (env, op_of_sface fa)) v) } in
-      eval (Ext (env, args)) body
+      eval (Ext (env, CubeOf.singleton args)) body
   (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
   | Act (x, s) ->
       let k = dim_env env in
@@ -268,13 +271,12 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
 and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
  fun env tree ins args ->
   match tree with
-  | Lam (bound_faces, plus_faces, body) -> (
+  | Lam (n, body) -> (
       (* We fail unless the current insertion is the identity. *)
       let* () = is_id_any_deg ins in
       (* Pick up another argument.  Note that this fails if ins is nonidentity. *)
       let m = dim_env env in
-      let nf = sfaces bound_faces in
-      let (Plus plus_dim) = D.plus (dim_faces bound_faces) in
+      let (Plus plus_dim) = D.plus n in
       match args with
       | App (Arg arg, newins) :: args -> (
           match compare (CubeOf.dim arg) (D.plus_out m plus_dim) with
@@ -283,17 +285,20 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
                 (Dimension_mismatch ("applying case tree", CubeOf.dim arg, D.plus_out m plus_dim))
           | Eq ->
               apply_tree
-                (env_append plus_faces env
-                   (Bwv.map
-                      (fun (SFace_of fa) ->
-                        CubeOf.build m
-                          {
-                            build =
-                              (fun fb ->
-                                let (Plus plus_dom) = D.plus (dom_sface fa) in
-                                (CubeOf.find arg (sface_plus_sface fb plus_dim plus_dom fa)).tm);
-                          })
-                      nf))
+                (Ext
+                   ( env,
+                     CubeOf.build n
+                       {
+                         build =
+                           (fun fa ->
+                             CubeOf.build m
+                               {
+                                 build =
+                                   (fun fb ->
+                                     let (Plus plus_dom) = D.plus (dom_sface fa) in
+                                     (CubeOf.find arg (sface_plus_sface fb plus_dim plus_dom fa)).tm);
+                               });
+                       } ))
                 !body
                 (Any (perm_of_ins newins))
                 args)
@@ -311,20 +316,24 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
                | Field fld -> field f fld)
                (perm_of_ins i))
            res args)
-  | Branches (ix, branches) -> (
+  | Branches (ix, n, branches) -> (
       (* Get the argument being inspected *)
+      let m = dim_env env in
       match lookup env ix with
       (* It must be an application of a constructor *)
       | Constr (name, dim, dargs) -> (
-          (* A case tree can only include 0-dimensional applications, so the dimension here must match the dimension we're using it at. *)
-          match compare dim (dim_env env) with
-          | Eq ->
-              let* (Branch (plus, body)) = Constr.Map.find_opt name branches in
-              (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick out a possibly-smaller number of them (determined by a subset) and add them to the environment. *)
-              let env = take_args env dargs plus in
-              (* Then we proceed recursively with the body of that branch. *)
-              apply_tree env !body ins args
-          | _ -> None)
+          match Constr.Map.find_opt name branches with
+          (* Matches are constructed to contain all the constructors of the datatype being matched on, and this constructor belongs to that datatype, so it ought to be in the match. *)
+          | None -> fatal (Anomaly "Constructor missing from compiled match")
+          | Some (Branch (plus, body)) -> (
+              let (Plus mn) = D.plus n in
+              match compare dim (D.plus_out m mn) with
+              | Eq ->
+                  (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
+                  let env = take_args env mn dargs plus in
+                  (* Then we proceed recursively with the body of that branch. *)
+                  apply_tree env !body ins args
+              | _ -> None))
       | _ -> None)
   | Cobranches cobranches -> (
       (* A cobranch can only succeed if there is a field projection to match against occurring next in the spine. *)
@@ -385,7 +394,7 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
   match ty with
   | Canonical (name, args, ins) -> (
       (* The head of the type must be a record type with a field having the correct name. *)
-      let (Field { params = k; dim = n; dim_faces = nf; params_plus = kf; ty = fldty }) =
+      let (Field { params = kc; dim = n; ty = fldty }) =
         Global.find_record_field ?severity name fld in
       (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n.  *)
       let (Plus mn) = D.plus n in
@@ -396,21 +405,23 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
           fatal ?severity (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
       | Eq ->
           (* The type must be applied, at dimension m, to exactly the right number of parameters (k). *)
-          let env, Emp = take_canonical_args (Emp m) args (N.zero_plus k) Zero in
+          let env, Emp = take_canonical_args (Emp m) args kc N.zero in
           (* If so, then the type of the field projection comes from the type associated to that field name in general, evaluated at the supplied parameters along with the term itself and its boundaries. *)
           let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
           let entries =
-            Bwv.map
-              (fun (SFace_of fb) ->
-                CubeOf.build m
-                  {
-                    build =
-                      (fun fa ->
-                        let (Plus pq) = D.plus (dom_sface fb) in
-                        CubeOf.find tyargs' (sface_plus_sface fa mn pq fb));
-                  })
-              (sfaces nf) in
-          let env = env_append kf env entries in
+            CubeOf.build n
+              {
+                build =
+                  (fun fb ->
+                    CubeOf.build m
+                      {
+                        build =
+                          (fun fa ->
+                            let (Plus pq) = D.plus (dom_sface fb) in
+                            CubeOf.find tyargs' (sface_plus_sface fa mn pq fb));
+                      });
+              } in
+          let env = Value.Ext (env, entries) in
           (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
           inst (eval env fldty)
             (TubeOf.mmap
@@ -425,47 +436,47 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
   | _ -> fatal ?severity (No_such_field (None, fld))
 
 and eval_binder :
-    type m n mn b f bf.
-    (m, b) env ->
-    (n, f) count_faces ->
-    (m, n, mn) D.plus ->
-    (b, f, bf) N.plus ->
-    bf term ->
-    mn Value.binder =
- fun env bound_faces plus_dim plus_faces body ->
-  (* let n = dim_faces bound_faces in *)
+    type m n mn b. (m, b) env -> (m, n, mn) D.plus -> (b, n) ext term -> mn Value.binder =
+ fun env plus_dim body ->
+  let n = D.plus_right plus_dim in
   let m = dim_env env in
-  let nf = sfaces bound_faces in
   let args =
-    Bwv.map
-      (fun (SFace_of fa) ->
-        CubeOf.build m
-          {
-            build =
-              (fun fb ->
-                let (Plus plus_dom) = D.plus (dom_sface fa) in
-                Face_of
-                  (Face
-                     ( sface_plus_sface fb plus_dim plus_dom fa,
-                       id_perm (D.plus_out (dom_sface fb) plus_dom) )));
-          })
-      nf in
+    CubeOf.build n
+      {
+        build =
+          (fun fa ->
+            CubeOf.build m
+              {
+                build =
+                  (fun fb ->
+                    let (Plus plus_dom) = D.plus (dom_sface fa) in
+                    Face_of
+                      (Face
+                         ( sface_plus_sface fb plus_dim plus_dom fa,
+                           id_perm (D.plus_out (dom_sface fb) plus_dom) )));
+              });
+      } in
   let perm = id_perm (D.plus_out m plus_dim) in
-  Value.Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
+  Value.Bind { env; perm; plus_dim; body; args }
 
 and apply_binder : type n. n Value.binder -> (n, value) CubeOf.t -> value =
  fun (Value.Bind b) argstbl ->
   act_value
     (eval
-       (env_append b.plus_faces b.env
-          (Bwv.map
-             (fun ffs ->
-               CubeOf.mmap
-                 {
-                   map =
-                     (fun _ [ Face_of (Face (fa, fb)) ] -> act_value (CubeOf.find argstbl fa) fb);
-                 }
-                 [ ffs ])
-             b.args))
+       (Ext
+          ( b.env,
+            CubeOf.mmap
+              {
+                map =
+                  (fun _ [ ffs ] ->
+                    CubeOf.mmap
+                      {
+                        map =
+                          (fun _ [ Face_of (Face (fa, fb)) ] ->
+                            act_value (CubeOf.find argstbl fa) fb);
+                      }
+                      [ ffs ]);
+              }
+              [ b.args ] ))
        b.body)
     b.perm

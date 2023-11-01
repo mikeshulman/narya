@@ -1,4 +1,3 @@
-open Util
 open Dim
 open Core
 open Term
@@ -16,17 +15,25 @@ let install () =
     (pi (UU D.zero)
        (pi (UU D.zero)
           (pi
-             (pi (Var (N.Pop N.Top)) (pi (Var (N.Pop N.Top)) (UU D.zero)))
+             (pi
+                (Var (Pop (Top (id_sface D.zero))))
+                (pi (Var (Pop (Top (id_sface D.zero)))) (UU D.zero)))
              (Inst
-                (Act (UU D.zero, refl), TubeOf.pair (Var (N.Pop (N.Pop N.Top))) (Var (N.Pop N.Top)))))));
+                ( Act (UU D.zero, refl),
+                  TubeOf.pair
+                    (Var (Pop (Pop (Top (id_sface D.zero)))))
+                    (Var (Pop (Top (id_sface D.zero)))) )))));
   Hashtbl.add Global.constants gel
     (Record
        {
          eta = true;
-         params = N.three;
+         params = Suc (Suc (Suc Zero));
          dim = one;
-         dim_faces = faces_one;
-         params_plus = Suc (Suc (Suc Zero));
          fields =
-           [ (ungel, app (app (Var (Pop (Pop (Pop Top)))) (Var (Pop (Pop Top)))) (Var (Pop Top))) ];
+           [
+             ( ungel,
+               app
+                 (app (Var (Pop (Top (id_sface D.zero)))) (Var (Top zero_sface_one)))
+                 (Var (Top one_sface_one)) );
+           ];
        })

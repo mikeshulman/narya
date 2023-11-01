@@ -1,4 +1,3 @@
-open Util
 open Dim
 open Core
 open Term
@@ -14,44 +13,45 @@ let install () =
     (Record
        {
          eta = false;
-         params = N.one;
+         params = Suc Zero;
          dim = D.zero;
-         dim_faces = faces_zero;
-         params_plus = Suc Zero;
          fields =
-           [ (head, Var (Pop Top)); (tail, App (Const stream, CubeOf.singleton (Var (Pop Top)))) ];
+           [
+             (head, Var (Pop (Top (id_sface D.zero))));
+             (tail, App (Const stream, CubeOf.singleton (Var (Pop (Top (id_sface D.zero))))));
+           ];
        });
   Hashtbl.add Global.types corec
     (pi ((* A : *) UU D.zero)
        (pi ((* K : *) UU D.zero)
           (pi
-             ((* h : *) pi ((* k : K *) Var Top) ((*A*) Var (Pop (Pop Top))))
+             ((* h : *) pi
+                ((* k : K *) Var (Top (id_sface D.zero)))
+                ((*A*) Var (Pop (Pop (Top (id_sface D.zero))))))
              (pi
-                ((* t : *) pi ((* k : K *) Var (Pop Top)) ((*K*) Var (Pop (Pop Top))))
-                (pi ((* k : K *) Var (Pop (Pop Top)))
-                   (app (Const stream) ((*A*) Var (Pop (Pop (Pop (Pop Top)))))))))));
+                ((* t : *) pi
+                   ((* k : K *) Var (Pop (Top (id_sface D.zero))))
+                   ((*K*) Var (Pop (Pop (Top (id_sface D.zero))))))
+                (pi
+                   ((* k : K *) Var (Pop (Pop (Top (id_sface D.zero)))))
+                   (app (Const stream) ((*A*) Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero)))))))))))));
   Hashtbl.add Global.constants corec
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
+             ( D.zero,
                ref
                  (Case.Lam
-                    ( faces_zero,
-                      Suc Zero,
+                    ( D.zero,
                       ref
                         (Case.Lam
-                           ( faces_zero,
-                             Suc Zero,
+                           ( D.zero,
                              ref
                                (Case.Lam
-                                  ( faces_zero,
-                                    Suc Zero,
+                                  ( D.zero,
                                     ref
                                       (Case.Lam
-                                         ( faces_zero,
-                                           Suc Zero,
+                                         ( D.zero,
                                            ref
                                              (Case.Cobranches
                                                 (Field.Map.of_list
@@ -59,8 +59,10 @@ let install () =
                                                      ( head,
                                                        ref
                                                          (Case.Leaf
-                                                            (app (Var (Pop (Pop Top))) (Var Top)))
-                                                     );
+                                                            (app
+                                                               (Var
+                                                                  (Pop (Pop (Top (id_sface D.zero)))))
+                                                               (Var (Top (id_sface D.zero))))) );
                                                      ( tail,
                                                        ref
                                                          (Case.Leaf
@@ -72,66 +74,26 @@ let install () =
                                                                            (Var
                                                                               (Pop
                                                                                  (Pop
-                                                                                    (Pop (Pop Top))))))
-                                                                        (Var (Pop (Pop (Pop Top)))))
-                                                                     (Var (Pop (Pop Top))))
-                                                                  (Var (Pop Top)))
-                                                               (app (Var (Pop Top)) (Var Top)))) );
+                                                                                    (Pop
+                                                                                       (Pop
+                                                                                          (Top
+                                                                                             (id_sface
+                                                                                                D
+                                                                                                .zero))))))))
+                                                                        (Var
+                                                                           (Pop
+                                                                              (Pop
+                                                                                 (Pop
+                                                                                    (Top
+                                                                                       (id_sface
+                                                                                          D.zero)))))))
+                                                                     (Var
+                                                                        (Pop
+                                                                           (Pop
+                                                                              (Top (id_sface D.zero))))))
+                                                                  (Var (Pop (Top (id_sface D.zero)))))
+                                                               (app
+                                                                  (Var (Pop (Top (id_sface D.zero))))
+                                                                  (Var (Top (id_sface D.zero))))))
+                                                     );
                                                    ])) )) )) )) )) ))))
-
-(*
-  Hashtbl.add Global.types bisim
-    (Pi
-       ( (* A : *) (UU D.zero),
-         Pi
-           ( (* K : *) (UU D.zero),
-             Pi
-               ( (* l : *)
-                 Pi
-                   ( (* k : K *) Var Top,
-                     (* Stream A *) App (Const stream, CubeOf.singleton (Var (Pop (Pop Top)))) ),
-                 Pi
-                   ( (* r : *)
-                     Pi
-                       ( (* k : K *) Var (Pop Top),
-                         (* Stream A *)
-                         App (Const stream, CubeOf.singleton (Var (Pop (Pop (Pop Top))))) ),
-                     Pi
-                       ( (* h : *)
-                         Pi
-                           ( (* k : K *) Var (Pop (Pop Top)),
-                             (* Id A (l k .head) (r k .head) *)
-                             Inst
-                               ( (* Id A *) Refl ((* A *) Var (Pop (Pop (Pop (Pop Top))))),
-                                 TubeOf.pair
-                                   (Field
-                                      ( App
-                                          ( (* l *) Var (Pop (Pop Top)),
-                                            CubeOf.singleton ((* k *) Var Top) ),
-                                        head ))
-                                   (Field
-                                      ( App
-                                          ((* r *) Var (Pop Top), CubeOf.singleton ((* k *) Var Top)),
-                                        head )) ) ),
-                         Pi
-                           (* TODO: Is this possible to state in general? *)
-                           ( (* t : *) Sorry.e (),
-                             Pi
-                               ( (* k : K *) Var (Pop (Pop (Pop (Pop Top)))),
-                                 (* Id (Stream A) (l k) (r k) *)
-                                 Inst
-                                   ( Refl
-                                       ((* Stream A *)
-                                          App
-                                          ( Const stream,
-                                            CubeOf.singleton
-                                              ((* A *) Var (Pop (Pop (Pop (Pop (Pop (Pop Top)))))))
-                                          )),
-                                     TubeOf.pair
-                                       (App
-                                          ( (* l *) Var (Pop (Pop (Pop (Pop Top)))),
-                                            CubeOf.singleton ((* k *) Var Top) ))
-                                       (App
-                                          ( (* r *) Var (Pop (Pop (Pop Top))),
-                                            CubeOf.singleton ((* k *) Var Top) )) ) ) ) ) ) ) ) ))
-*)

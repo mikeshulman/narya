@@ -31,11 +31,11 @@ and equal_at : int -> value -> value -> value -> unit option =
       | Neq -> fatal (Dimension_mismatch ("equality at pi", TubeOf.inst tyargs, k))
       | Eq ->
           (* Create variables for all the boundary domains. *)
-          let _, newargs, _, new_n = dom_vars ctx doms in
+          let newargs, _ = dom_vars ctx doms in
           (* Calculate the output type of the application to those variables *)
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
-          equal_at new_n (apply x newargs) (apply y newargs) output)
+          equal_at (ctx + 1) (apply x newargs) (apply y newargs) output)
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       (* The insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it. *)
@@ -81,9 +81,7 @@ and equal_at : int -> value -> value -> value -> unit option =
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
                       (* We take the parameters from the arguments of the instance of the datatype, ignoring the indices, and put them into an environment. *)
-                      let env, _ =
-                        take_canonical_args (Emp k) canonical_args (N.zero_plus params) indices
-                      in
+                      let env, _ = take_canonical_args (Emp k) canonical_args params (Nat indices) in
                       (* The instantiation must be at other instances of the same constructor; we take its arguments as in 'check'. *)
                       let tyarg_args =
                         TubeOf.mmap
@@ -156,15 +154,15 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       | Eq ->
           let open CubeOf.Monadic (Monad.Maybe) in
           let* () = miterM { it = (fun _ [ x; y ] -> equal_val lvl x y) } [ dom1s; dom2s ] in
-          (* We create variables for all the domains, in order to typecheck all the codomains.  The codomain boundary types only use some of those variables, but it doesn't hurt to have the others around. *)
-          let _, newargs, _, newlvl = dom_vars lvl dom1s in
+          (* We create variables for all the domains, in order to equality-check all the codomains.  The codomain boundary types only use some of those variables, but it doesn't hurt to have the others around. *)
+          let newargs, _ = dom_vars lvl dom1s in
           let open BindCube.Monadic (Monad.Maybe) in
           miterM
             {
               it =
                 (fun s [ cod1; cod2 ] ->
                   let sargs = CubeOf.subcube s newargs in
-                  equal_val newlvl (apply_binder cod1 sargs) (apply_binder cod2 sargs));
+                  equal_val (lvl + 1) (apply_binder cod1 sargs) (apply_binder cod2 sargs));
             }
             [ cod1s; cod2s ]
       | Neq -> fail)
@@ -272,6 +270,6 @@ and equal_at_tel :
       let ity = inst ety tyarg in
       let* () = equal_at ctx x y ity in
       equal_at_tel ctx
-        (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)))
+        (Ext (env, CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x))))
         xs ys tys tyargs
   | _ -> fatal (Anomaly "Length mismatch in equal_at_tel")

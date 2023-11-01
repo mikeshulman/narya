@@ -569,11 +569,12 @@ let () =
               | None -> fatal (Unbound_variable name)
               | Some x ->
                   let branches = compile_branches ctx obs in
-                  Match (x, branches))
+                  (* TODO: Allow matching on boundaries of cube variables. *)
+                  Match ((x, None), branches))
           | `Constr (c, obs) ->
               let branches = compile_branch (Snoc (ctx, None)) c obs in
-              Lam (Match (Top, branches))
-          | `Done -> Lam (Match (Top, []))
+              Lam (Match ((Top, None), branches))
+          | `Done -> Lam (Match ((Top, None), []))
           | `Field _ | `Term _ -> fatal (Anomaly "Impossible thing in match"));
     }
 

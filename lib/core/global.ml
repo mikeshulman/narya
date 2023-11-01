@@ -4,35 +4,34 @@ open Util
 open Reporter
 open Term
 open Dim
+open Hctx
 
 (* The global environment of constants *)
 
-let types : (Constant.t, N.zero term) Hashtbl.t = Hashtbl.create 10
+let types : (Constant.t, emp term) Hashtbl.t = Hashtbl.create 10
 
 (* Each constant either is an axiom, has a definition (a case tree), is a record (including coinductive ones), or is a datatype (including indexed ones). *)
 type definition =
   | Axiom : definition
-  | Defined : N.zero Case.tree ref -> definition
+  | Defined : emp Case.tree ref -> definition
   | Record : {
       (* Whether the record type supports eta-conversion *)
       eta : bool;
       (* The number of parameters of an instance of the record type, which must also be the number of Pis in its type (which is where the types *of* the parameters are recorded). *)
-      params : 'p N.t;
+      params : (emp, 'p, 'pc, D.zero) exts;
       (* The dimension of the record type itself, as a type.  In nearly all cases this will be zero; the main exception is Gel/Corr. *)
       dim : 'n D.t;
       (* The fields are listed in order, so that each can depend on the previous ones.  Each field has a type that depends on the parameters of the record type, along with an element of that type and its boundaries if any. *)
-      dim_faces : ('n, 'f) count_faces;
-      params_plus : ('p, 'f, 'pf) N.plus;
-      fields : (Field.t * 'pf term) list;
+      fields : (Field.t * ('pc, 'n) ext term) list;
     }
       -> definition
   | Data : {
       (* The number of parameters *)
-      params : 'p N.t;
+      params : (emp, 'p, 'pc, D.zero) exts;
       (* The number of indices.  Together these sum to the number of Pis in its type.  *)
       indices : ('p, 'i, 'pi) N.plus;
       (* The constructors.  These are typechecked in order, but once the datatype is defined the order doesn't matter any more, so we store them in a map. *)
-      constrs : ('p, 'i) constr Constr.Map.t;
+      constrs : ('pc, 'i) constr Constr.Map.t;
     }
       -> definition
 
@@ -51,19 +50,12 @@ let constants : (Constant.t, definition) Hashtbl.t = Hashtbl.create 10
 (* TODO: More generally, any function on a fully general instance of some canonical type can be declared a "method" and parsed and typechecked like a field, with the argument and all its parameters synthesizing.  Similarly, any function into an instance of a canonical type with some of its arguments fully general can be declared a "generator" and parsed and typechecked like a constructor, with those arguments as "parameters" that are checked and hence can be omitted.  *)
 
 type field =
-  | Field : {
-      params : 'p N.t;
-      dim : 'n D.t;
-      dim_faces : ('n, 'f) count_faces;
-      params_plus : ('p, 'f, 'pf) N.plus;
-      ty : 'pf term;
-    }
-      -> field
+  | Field : { params : (emp, 'p, 'pc, D.zero) exts; dim : 'n D.t; ty : ('pc, 'n) ext term } -> field
 
 let find_record_field ?severity (name : Constant.t) (fld : Field.t) : field =
   match Hashtbl.find constants name with
-  | Record { eta = _; params; dim; dim_faces; params_plus; fields } -> (
+  | Record { eta = _; params; dim; fields } -> (
       match List.find_opt (fun (f, _) -> f = fld) fields with
-      | Some (_, ty) -> Field { params; dim; dim_faces; params_plus; ty }
+      | Some (_, ty) -> Field { params; dim; ty }
       | None -> fatal ?severity (No_such_field (Some name, fld)))
   | _ -> fatal ?severity (No_such_field (None, fld))

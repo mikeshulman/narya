@@ -1,4 +1,3 @@
-open Util
 open Reporter
 open Dim
 open Value
@@ -9,6 +8,7 @@ open Bwd
 exception Invalid_uninst_action
 
 (* Since values don't have a statically specified dimension, we have to act on them by an *arbitrary* degeneracy, which means that in many places we have to check dynamically that the dimensions either match or can be extended to match.  This function encapsulates that. *)
+(* TODO: Take an optional error message parameter, passed through from act_ty. *)
 let deg_plus_to : type m n nk. (m, n) deg -> nk D.t -> string -> nk deg_of =
  fun s nk err ->
   match factor nk (cod_deg s) with
@@ -18,14 +18,11 @@ let deg_plus_to : type m n nk. (m, n) deg -> nk D.t -> string -> nk deg_of =
       let sk = deg_plus s nk mk in
       Of sk
 
-(* Existential GADT that encapsulates the output of acting on a binder, along with the extended degeneracy so that it can be used elsewhere with the same dimension. *)
-type _ plus_binder = Binder : ('mi, 'ni) deg * 'mi binder -> 'ni plus_binder
-
 (* Since a value is either instantiated or uninstantiated, this function just deals with instantiations and lambda-abstractions and passes everything else off to act_uninst. *)
 let rec act_value : type m n. value -> (m, n) deg -> value =
  fun v s ->
   match v with
-  | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, lazy (act_ty v ty s))
+  | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, Lazy.from_val (act_ty v ty s))
   | Inst { tm; dim; args; tys } ->
       let (Of fa) = deg_plus_to s (TubeOf.uninst args) "instantiation" in
       (* The action on an instantiation instantiates the same dimension j, but the leftover dimensions are now the domain of the degeneracy. *)
@@ -128,10 +125,10 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
       Canonical (name, new_args, new_ins)
 
 and act_binder : type m n. n binder -> (m, n) deg -> m binder =
- fun (Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }) fa ->
+ fun (Bind { env; perm; plus_dim; body; args }) fa ->
   let m = dim_env env in
   let m_n = plus_dim in
-  (* let n = D.plus_right m_n in *)
+  let n = D.plus_right m_n in
   let mn = D.plus_out m m_n in
   (* We factor the degeneracy as a strict degeneracy determined by fc, following a permutation fb (a.k.a. an insertion into zero). *)
   let (Insfact (fc, ins)) = insfact fa (D.zero_plus mn) in
@@ -145,37 +142,31 @@ and act_binder : type m n. n binder -> (m, n) deg -> m binder =
   let (Plus jm) = D.plus m in
   let fcm = deg_plus fc (D.zero_plus m) jm in
   let env = Act (env, op_of_deg fcm) in
-  (* Now we have to assemble the arguments.  First we compute some faces. *)
+  (* Now we have to assemble the arguments. *)
   let plus_dim = D.plus_assocl jm plus_dim j_mn in
-  let n_faces = sfaces bound_faces in
-  (* We collate the previous argument matrix in a hashtable for random access *)
-  let tbl = Hashtbl.create 10 in
-  let () =
-    Bwv.iter2
-      (fun x v ->
-        CubeOf.miter { it = (fun y [ arg ] -> Hashtbl.add tbl (SFace_of y, x) arg) } [ v ])
-      n_faces args in
-  (* Now to make the new argument matrix... *)
+  (* To make the new argument matrix... *)
   let args =
-    Bwv.map
-      (fun (SFace_of fv) ->
-        (* let c = dom_sface fv in *)
-        CubeOf.build (D.plus_out j jm)
-          {
-            build =
-              (fun frfu ->
-                (* ...we split the face of j+m into a face fr of j and a face fu of m... *)
-                let (SFace_of_plus (_, fr, fu)) = sface_of_plus jm frfu in
-                (* ...combine the face fu of m and the face fv of n using the previous argument matrix... *)
-                let (Face_of fs) = Hashtbl.find tbl (SFace_of fu, SFace_of fv) in
-                let (Plus ci) = D.plus (dom_face fs) in
-                (* ...add the resulting face to fr... *)
-                let frfs = face_plus_face (face_of_sface fr) j_mn ci fs in
-                (* ...and combine it with the inverse of fb from above. *)
-                Face_of (comp_face (face_of_perm fbinv) frfs));
-          })
-      n_faces in
-  Bind { env; perm; plus_dim; bound_faces; plus_faces; body; args }
+    CubeOf.build n
+      {
+        build =
+          (fun fv ->
+            (* let c = dom_sface fv in *)
+            CubeOf.build (D.plus_out j jm)
+              {
+                build =
+                  (fun frfu ->
+                    (* ...we split the face of j+m into a face fr of j and a face fu of m... *)
+                    let (SFace_of_plus (_, fr, fu)) = sface_of_plus jm frfu in
+                    (* ...combine the face fu of m and the face fv of n using the previous argument matrix... *)
+                    let (Face_of fs) = CubeOf.find (CubeOf.find args fv) fu in
+                    let (Plus ci) = D.plus (dom_face fs) in
+                    (* ...add the resulting face to fr... *)
+                    let frfs = face_plus_face (face_of_sface fr) j_mn ci fs in
+                    (* ...and combine it with the inverse of fb from above. *)
+                    Face_of (comp_face (face_of_perm fbinv) frfs));
+              });
+      } in
+  Bind { env; perm; plus_dim; body; args }
 
 and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }

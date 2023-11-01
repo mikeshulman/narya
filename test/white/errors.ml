@@ -1,5 +1,6 @@
 open Testutil
 open Mcp
+open Dim
 
 let () =
   run @@ fun () ->
@@ -22,6 +23,11 @@ let () =
   let () = unsynth "refl (x ↦ x)" ~code:(Nonsynthesizing "refl") in
   let () = unsynth "refl" ~code:(Missing_argument_of_degeneracy "refl") in
   let () = unsynth "sym f" ~code:(Low_dimensional_argument_of_degeneracy ("sym", 2)) in
+  let a0 = assume "a0" aa in
+  let a1 = assume "a1" aa in
+  let idaa, _ = synth "Id A a0 a1" in
+  let a2 = assume "a2" idaa in
+  let () = unsynth "sym a2" ~code:(Low_dimensional_argument_of_degeneracy ("sym", 2)) in
   let () = unsynth "g" ~code:(Unbound_variable "g") in
   let ida, _ = synth "Id A" in
   let () = uncheck "a" ida ~code:(Type_not_fully_instantiated "typechecking") in
@@ -119,4 +125,7 @@ let () =
   let () =
     uncheck "{ ungel ≔ r2 }" symr2ty ~code:(Checking_struct_at_degenerated_record Types.Gel.gel)
   in
+
+  (* Cube variables *)
+  let () = uncheck "x ↦ x .0" atoa ~code:(Invalid_variable_face (D.zero, zero_sface_one)) in
   ()

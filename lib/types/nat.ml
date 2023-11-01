@@ -65,7 +65,7 @@ let install () =
   Hashtbl.add Global.constants nn
     (Data
        {
-         params = N.zero;
+         params = Zero;
          indices = Zero;
          constrs =
            Constr.Map.empty
@@ -79,27 +79,30 @@ let install () =
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
-               ref (Case.Leaf (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var Top)))) ))));
+             ( D.zero,
+               ref
+                 (Case.Leaf
+                    (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var (Top (id_sface D.zero))))))
+             ))));
   Hashtbl.add Global.types plus (pi (Const nn) (pi (Const nn) (Const nn)));
   Hashtbl.add Global.types times (pi (Const nn) (pi (Const nn) (Const nn)));
   Hashtbl.add Global.constants plus
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
+             ( D.zero,
                ref
                  (Case.Lam
-                    ( faces_zero,
-                      Suc Zero,
+                    ( D.zero,
                       ref
                         (Case.Branches
-                           ( Top,
+                           ( Top (id_sface D.zero),
+                             D.zero,
                              Constr.Map.of_list
                                [
-                                 (zero', Case.Branch (Zero, ref (Case.Leaf (Var (Pop Top)))));
+                                 ( zero',
+                                   Case.Branch
+                                     (Zero, ref (Case.Leaf (Var (Pop (Top (id_sface D.zero)))))) );
                                  ( suc',
                                    Branch
                                      ( Suc Zero,
@@ -111,23 +114,25 @@ let install () =
                                                    (App
                                                       ( App
                                                           ( Const plus,
-                                                            CubeOf.singleton (Var (Pop (Pop Top)))
+                                                            CubeOf.singleton
+                                                              (Var
+                                                                 (Pop (Pop (Top (id_sface D.zero)))))
                                                           ),
-                                                        CubeOf.singleton (Var Top) )) ))) ) );
+                                                        CubeOf.singleton
+                                                          (Var (Top (id_sface D.zero))) )) ))) ) );
                                ] )) )) ))));
   Hashtbl.add Global.constants times
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
+             ( D.zero,
                ref
                  (Case.Lam
-                    ( faces_zero,
-                      Suc Zero,
+                    ( D.zero,
                       ref
                         (Case.Branches
-                           ( Top,
+                           ( Top (id_sface D.zero),
+                             D.zero,
                              Constr.Map.of_list
                                [
                                  (zero', Case.Branch (Zero, ref (Case.Leaf (Const zero))));
@@ -144,64 +149,95 @@ let install () =
                                                           ( App
                                                               ( Const times,
                                                                 CubeOf.singleton
-                                                                  (Var (Pop (Pop Top))) ),
-                                                            CubeOf.singleton (Var Top) )) ),
-                                                 CubeOf.singleton (Var (Pop (Pop Top))) ))) ) );
+                                                                  (Var
+                                                                     (Pop
+                                                                        (Pop (Top (id_sface D.zero)))))
+                                                              ),
+                                                            CubeOf.singleton
+                                                              (Var (Top (id_sface D.zero))) )) ),
+                                                 CubeOf.singleton
+                                                   (Var (Pop (Pop (Top (id_sface D.zero))))) ))) )
+                                 );
                                ] )) )) ))));
   Hashtbl.add Global.types ind
     (pi
        ((* P : *) pi (Const nn) (UU D.zero))
        (pi
-          ((* z : *) app (Var Top) (Const zero))
+          ((* z : *) app (Var (Top (id_sface D.zero))) (Const zero))
           (pi
              ((* s : *)
               pi ((* n : *) Const nn)
                 (pi
                    ((* pn : *)
-                    app (Var (Pop (Pop Top))) (Var Top))
-                   (app (Var (Pop (Pop (Pop Top)))) (app (Const suc) (Var (Pop Top))))))
-             (pi ((* n : *) Const nn) (app (Var (Pop (Pop (Pop Top)))) (Var Top))))));
+                    app
+                      (Var (Pop (Pop (Top (id_sface D.zero)))))
+                      (Var (Top (id_sface D.zero))))
+                   (app
+                      (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
+                      (app (Const suc) (Var (Pop (Top (id_sface D.zero))))))))
+             (pi ((* n : *) Const nn)
+                (app (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))) (Var (Top (id_sface D.zero))))))));
   Hashtbl.add Global.constants ind
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
+             ( D.zero,
                ref
                  (Case.Lam
-                    ( faces_zero,
-                      Suc Zero,
+                    ( D.zero,
                       ref
                         (Case.Lam
-                           ( faces_zero,
-                             Suc Zero,
+                           ( D.zero,
                              ref
                                (Case.Lam
-                                  ( faces_zero,
-                                    Suc Zero,
+                                  ( D.zero,
                                     ref
                                       (Case.Branches
-                                         ( Top,
+                                         ( Top (id_sface D.zero),
+                                           D.zero,
                                            Constr.Map.of_list
                                              [
                                                ( zero',
                                                  Case.Branch
-                                                   (Zero, ref (Case.Leaf (Var (Pop (Pop Top))))) );
+                                                   ( Zero,
+                                                     ref
+                                                       (Case.Leaf
+                                                          (Var (Pop (Pop (Top (id_sface D.zero))))))
+                                                   ) );
                                                ( suc',
                                                  Branch
                                                    ( Suc Zero,
                                                      ref
                                                        (Case.Leaf
                                                           (app
-                                                             (app (Var (Pop (Pop Top))) (Var Top))
+                                                             (app
+                                                                (Var
+                                                                   (Pop
+                                                                      (Pop (Top (id_sface D.zero)))))
+                                                                (Var (Top (id_sface D.zero))))
                                                              (app
                                                                 (app
                                                                    (app
                                                                       (app (Const ind)
                                                                          (Var
                                                                             (Pop
-                                                                               (Pop (Pop (Pop Top))))))
-                                                                      (Var (Pop (Pop (Pop Top)))))
-                                                                   (Var (Pop (Pop Top))))
-                                                                (Var Top)))) ) );
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Pop
+                                                                                        (Top
+                                                                                           (id_sface
+                                                                                              D.zero))))))))
+                                                                      (Var
+                                                                         (Pop
+                                                                            (Pop
+                                                                               (Pop
+                                                                                  (Top
+                                                                                     (id_sface
+                                                                                        D.zero)))))))
+                                                                   (Var
+                                                                      (Pop
+                                                                         (Pop
+                                                                            (Top (id_sface D.zero))))))
+                                                                (Var (Top (id_sface D.zero)))))) )
+                                               );
                                              ] )) )) )) )) ))))

@@ -106,4 +106,30 @@ let () =
     "n x₀ x₁ x₂ ↦ [ n | 0. ↦ refl f x₀ x₁ x₂ | 1. _ ↦ refl f x₀ x₁ x₂ ]";
   def "refl_nat_f_eq_reflf" "Id (Id ((x:A)→B x) f f) (refl_nat_f 0.) (refl f)" "refl (refl f)";
 
+  (* Higher-dimensional matches *)
+  def "foo" "(x y : N) → Id N x y → N" "x y p ↦ [ p | 0. ↦ 0 | 1. n ↦ 1 ]";
+  def "bar" "(x y : N) → Id N x y → N" "x y ↦ [ 0. ↦ 0. | 1. p ↦ p .0 ]";
+  equal_at "bar 1 1 (refl (1:N))" "0" "N";
+  equal_at "bar 2 2 (refl (2:N))" "1" "N";
+  def "prec" "N → N" "[ 0. ↦ 0. | 1. n ↦ n ]";
+  def "idnat" "(x y : N) → Id N x y → Id N x y" "x y ↦ [ 0. ↦ 0. | 1. p ↦ 1. p ]";
+  def "apprec" "(x y : N) → Id N x y → Id N (prec x) (prec y)" "x y p ↦ [ p | 0. ↦ 0. | 1. p ↦ p ]";
+  Types.Unit.install ();
+  def "code" "N → N → Type" "[ 0. ↦ [ 0. ↦ ⊤ | 1. _ ↦ ∅ ] | 1. m ↦ [ 0. ↦ ∅ | 1. n ↦ code m n ] ]";
+  def "rcode" "(x:N) → code x x" "[ 0. ↦ {} | 1. n ↦ rcode n ]";
+  def "encode" "(x y : N) → Id N x y → code x y"
+    "x y ↦ [ 0. ↦ {} | 1. p ↦ encode (p .0) (p .1) (p .2) ]";
+  def "decode" "(x y : N) → code x y → Id N x y"
+    "[ 0. ↦ [ 0. ↦ _ ↦ 0.
+             | 1. _ ↦ [ ] ]
+     | 1. x ↦ [ 0. ↦ [ ]
+               | 1. y ↦ c ↦ 1. (decode x y c) ] ]";
+  def "encode_decode" "(x y : N) (c : code x y) → Id (code x y) (encode x y (decode x y c)) c"
+    "[ 0. ↦ [ 0. ↦ _ ↦ {}
+             | 1. _ ↦ [ ] ]
+     | 1. x ↦ [ 0. ↦ [ ]
+               | 1. y ↦ c ↦ encode_decode x y c ] ]";
+  def "decode_encode" "(x y : N) (p : Id N x y) → Id (Id N x y) (decode x y (encode x y p)) p"
+    "x y ↦ [ 0. ↦ 0.
+            | 1. p ↦ 1. (decode_encode (p .0) (p .1) (p .2)) ]";
   ()

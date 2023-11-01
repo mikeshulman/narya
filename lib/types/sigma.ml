@@ -73,44 +73,50 @@ let install () =
   install_notations ();
   Scope.set "Σ" sigma;
   Scope.set "pair" pair;
-  Hashtbl.add Global.types sigma (pi (UU D.zero) (pi (pi (Var Top) (UU D.zero)) (UU D.zero)));
+  Hashtbl.add Global.types sigma
+    (pi (UU D.zero) (pi (pi (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
   Hashtbl.add Global.types pair
     (pi (UU D.zero)
-       (pi (pi (Var Top) (UU D.zero))
-          (pi (Var (Pop Top))
-             (pi (app (Var (Pop Top)) (Var Top))
-                (app (app (Const sigma) (Var (Pop (Pop (Pop Top))))) (Var (Pop (Pop Top))))))));
+       (pi
+          (pi (Var (Top (id_sface D.zero))) (UU D.zero))
+          (pi
+             (Var (Pop (Top (id_sface D.zero))))
+             (pi
+                (app (Var (Pop (Top (id_sface D.zero)))) (Var (Top (id_sface D.zero))))
+                (app
+                   (app (Const sigma) (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))))
+                   (Var (Pop (Pop (Top (id_sface D.zero))))))))));
   Hashtbl.add Global.constants sigma
     (Record
        {
          eta = true;
-         params = N.two;
+         params = Suc (Suc Zero);
          dim = D.zero;
-         dim_faces = faces_zero;
-         params_plus = Suc Zero;
-         fields = [ (fst, Var (Pop (Pop Top))); (snd, app (Var (Pop Top)) (Field (Var Top, fst))) ];
+         fields =
+           [
+             (fst, Var (Pop (Pop (Top (id_sface D.zero)))));
+             ( snd,
+               app (Var (Pop (Top (id_sface D.zero)))) (Field (Var (Top (id_sface D.zero)), fst)) );
+           ];
        });
   Hashtbl.add Global.constants pair
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
+             ( D.zero,
                ref
                  (Case.Lam
-                    ( faces_zero,
-                      Suc Zero,
+                    ( D.zero,
                       ref
                         (Case.Lam
-                           ( faces_zero,
-                             Suc Zero,
+                           ( D.zero,
                              ref
                                (Case.Lam
-                                  ( faces_zero,
-                                    Suc Zero,
+                                  ( D.zero,
                                     ref
                                       (Case.Leaf
                                          (Struct
                                             (Field.Map.empty
-                                            |> Field.Map.add fst (Var (Pop Top))
-                                            |> Field.Map.add snd (Var Top)))) )) )) )) ))))
+                                            |> Field.Map.add fst (Var (Pop (Top (id_sface D.zero))))
+                                            |> Field.Map.add snd (Var (Top (id_sface D.zero)))))) ))
+                           )) )) ))))

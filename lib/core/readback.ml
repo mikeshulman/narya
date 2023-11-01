@@ -10,10 +10,11 @@ exception Missing_variable
 
 (* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
 
-let rec readback_nf : type a. a Coctx.t -> normal -> a term = fun n x -> readback_at n x.tm x.ty
+let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> a term =
+ fun n x -> readback_at n x.tm x.ty
 
-and readback_at : type a. a Coctx.t -> value -> value -> a term =
- fun n tm ty ->
+and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
+ fun ctx tm ty ->
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
   match uty with
   | Pi (doms, cods) -> (
@@ -21,12 +22,10 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
       match compare (TubeOf.inst tyargs) k with
       | Neq -> fatal (Dimension_mismatch ("reading back pi", TubeOf.inst tyargs, k))
       | Eq ->
-          let (Faces df) = count_faces k in
-          let (Plus af) = N.plus (faces_out df) in
-          let vars, args, _, level = dom_vars n.level doms in
-          let ctx = { Coctx.vars = CubeOf.flatten_append n.vars vars df af; level } in
+          let args, newnfs = dom_vars (Ctx.length ctx) doms in
+          let newctx = Ctx.vis ctx newnfs in
           let output = tyof_app cods tyargs args in
-          Lam (Bind (df, af, readback_at ctx (apply tm args) output)))
+          Lam (k, readback_at newctx (apply tm args) output))
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
@@ -43,7 +42,7 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
                   let* fields = M.get in
                   M.put
                     (fields
-                    |> Field.Map.add fld (readback_at n (field tm fld) (tyof_field tm ty fld))))
+                    |> Field.Map.add fld (readback_at ctx (field tm fld) (tyof_field tm ty fld))))
                 [ fields ] Field.Map.empty in
             Struct fields
           else
@@ -56,10 +55,10 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
                       M.put
                         (fields
                         |> Field.Map.add fld
-                             (readback_at n (Field.Map.find fld tmflds) (tyof_field tm ty fld))))
+                             (readback_at ctx (Field.Map.find fld tmflds) (tyof_field tm ty fld))))
                     [ fields ] Field.Map.empty in
                 Act (Struct fields, perm_of_ins tmins)
-            | _ -> readback_val n tm)
+            | _ -> readback_val ctx tm)
       | Data { constrs; params; indices } -> (
           match compare (TubeOf.inst tyargs) k with
           | Neq -> fatal (Dimension_mismatch ("reading back canonical", TubeOf.inst tyargs, k))
@@ -73,7 +72,7 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
                       let env, _ =
-                        take_canonical_args (Emp k) canonical_args (N.zero_plus params) indices
+                        take_canonical_args (Emp k) canonical_args params (N.plus_right indices)
                       in
                       let tyarg_args =
                         TubeOf.mmap
@@ -94,17 +93,17 @@ and readback_at : type a. a Coctx.t -> value -> value -> a term =
                         ( xconstr,
                           k,
                           Bwd.of_list
-                            (readback_at_tel n env
+                            (readback_at_tel ctx env
                                (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
                                argtys
                                (TubeOf.mmap
                                   { map = (fun _ [ args ] -> Bwd.to_list args) }
                                   [ tyarg_args ])) ))
-              | _ -> readback_val n tm))
-      | _ -> readback_val n tm)
-  | _ -> readback_val n tm
+              | _ -> readback_val ctx tm))
+      | _ -> readback_val ctx tm)
+  | _ -> readback_val ctx tm
 
-and readback_val : type a. a Coctx.t -> value -> a term =
+and readback_val : type a z. (z, a) Ctx.t -> value -> a term =
  fun n x ->
   match x with
   | Uninst (u, _) -> readback_uninst n u
@@ -116,25 +115,22 @@ and readback_val : type a. a Coctx.t -> value -> a term =
   | Struct _ -> fatal (Anomaly "Unexpected struct in synthesizing readback")
   | Constr _ -> fatal (Anomaly "Unexpected constr in synthesizing readback")
 
-and readback_uninst : type a. a Coctx.t -> uninst -> a term =
+and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
  fun ctx x ->
   match x with
   | UU m -> UU m
   | Pi (doms, cods) ->
       let k = CubeOf.dim doms in
-      let vars, args, _, level = dom_vars ctx.level doms in
+      let args, newnfs = dom_vars (Ctx.length ctx) doms in
       Pi
         ( CubeOf.mmap { map = (fun _ [ dom ] -> readback_val ctx dom) } [ doms ],
           CodCube.build k
             {
               build =
                 (fun fa ->
-                  let (Faces sf) = count_faces (dom_sface fa) in
-                  let (Plus asf) = N.plus (faces_out sf) in
-                  let svars = CubeOf.subcube fa vars in
-                  let sctx = { Coctx.vars = CubeOf.flatten_append ctx.vars svars sf asf; level } in
+                  let sctx = Ctx.vis ctx (CubeOf.subcube fa newnfs) in
                   let sargs = CubeOf.subcube fa args in
-                  Bind (sf, asf, readback_val sctx (apply_binder (BindCube.find cods fa) sargs)));
+                  readback_val sctx (apply_binder (BindCube.find cods fa) sargs));
             } )
   | Neu (fn, args) ->
       Bwd.fold_left
@@ -151,21 +147,24 @@ and readback_uninst : type a. a Coctx.t -> uninst -> a term =
         ( Bwd.fold_left
             (fun fn arg ->
               App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ arg ]))
-            (Const name) args,
+            (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
+            (Act (Const name, deg_zero (cod_left_ins ins)))
+            args,
           perm_of_ins ins )
 
-and readback_head : type a k. a Coctx.t -> head -> a term =
+and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
  fun ctx h ->
   match h with
   | Var { level; deg } -> (
-      match Bwv.index (Some level) ctx.vars with
+      match Ctx.find_level ctx level with
       | Some x -> Act (Var x, deg)
       | None -> raise Missing_variable)
+  (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
   | Const { name; dim } -> Act (Const name, deg_zero dim)
 
 and readback_at_tel :
-    type n c a b ab.
-    c Coctx.t ->
+    type n c a b ab z.
+    (z, c) Ctx.t ->
     (n, a) env ->
     value list ->
     (a, b, ab) Telescope.t ->
@@ -207,6 +206,8 @@ and readback_at_tel :
       let ity = inst ety tyarg in
       TubeOf.plus_cube tms (CubeOf.singleton (readback_at ctx x ity))
       :: readback_at_tel ctx
-           (Ext (env, TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)))
+           (Ext
+              ( env,
+                CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)) ))
            xs tys tyargs
   | _ -> fatal (Anomaly "Length mismatch in equal_at_tel")

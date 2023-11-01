@@ -1,4 +1,5 @@
 open Util
+open Dim
 open Core
 open Raw
 open Bwd
@@ -112,7 +113,13 @@ let rec compile : type n. (string option, n) Bwv.t -> parse_tree -> n check =
               Synth (Symbol (s, N.suc_plus'' mn, Snoc (args, arg)))
           | _ -> (
               match arg with
-              | Field fld -> Synth (Field (fn, Field.intern fld))
+              | Field fld -> (
+                  match sface_of_string fld with
+                  | Some fa -> (
+                      match fn with
+                      | Var (v, None) -> Synth (Var (v, Some fa))
+                      | _ -> fatal Parse_error)
+                  | _ -> Synth (Field (fn, Field.intern fld)))
               | _ ->
                   let arg = compile ctx arg in
                   Synth (Raw.App (fn, arg))))
@@ -122,7 +129,7 @@ let rec compile : type n. (string option, n) Bwv.t -> parse_tree -> n check =
       | _ -> fatal (Nonsynthesizing "application head"))
   | Name x -> (
       match Bwv.index (Some x) ctx with
-      | Some n -> Synth (Var n)
+      | Some n -> Synth (Var (n, None))
       | None -> (
           match Scope.lookup x with
           | Some c -> Synth (Const c)

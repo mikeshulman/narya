@@ -2,7 +2,6 @@ open Bwd
 open Bwd.Infix
 open Dim
 open Core
-open Util
 open Term
 
 let nil = Constr.intern "nil"
@@ -15,7 +14,7 @@ let install () =
   Hashtbl.add Global.constants list
     (Data
        {
-         params = N.one;
+         params = Suc Zero;
          indices = Zero;
          constrs =
            Constr.Map.empty
@@ -23,68 +22,87 @@ let install () =
            |> Constr.Map.add cons
                 (Global.Constr
                    {
-                     args = Ext (Var Top, Ext (app (Const list) (Term.Var (Pop Top)), Emp));
+                     args =
+                       Ext
+                         ( Var (Top (id_sface D.zero)),
+                           Ext (app (Const list) (Term.Var (Pop (Top (id_sface D.zero)))), Emp) );
                      indices = Emp;
                    });
        });
   Hashtbl.add Global.types ind
     (pi (UU D.zero)
        (pi
-          (pi (app (Const list) (Var Top)) (UU D.zero))
+          (pi (app (Const list) (Var (Top (id_sface D.zero)))) (UU D.zero))
           (pi
-             (app (Var Top) (constr nil Emp))
+             (app (Var (Top (id_sface D.zero))) (constr nil Emp))
              (pi
-                (pi (Var (Pop (Pop Top)))
-                   (pi
-                      (app (Const list) (Var (Pop (Pop (Pop Top)))))
-                      (pi
-                         (app (Var (Pop (Pop (Pop Top)))) (Var Top))
-                         (app (Var (Pop (Pop (Pop (Pop Top)))))
-                            (constr cons (Emp <: Var (Pop (Pop Top)) <: Var (Pop Top)))))))
                 (pi
-                   (app (Const list) (Var (Pop (Pop (Pop Top)))))
-                   (app (Var (Pop (Pop (Pop Top)))) (Var Top)))))));
+                   (Var (Pop (Pop (Top (id_sface D.zero)))))
+                   (pi
+                      (app (Const list) (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))))
+                      (pi
+                         (app
+                            (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
+                            (Var (Top (id_sface D.zero))))
+                         (app
+                            (Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero)))))))
+                            (constr cons
+                               (Emp
+                               <: Var (Pop (Pop (Top (id_sface D.zero))))
+                               <: Var (Pop (Top (id_sface D.zero)))))))))
+                (pi
+                   (app (Const list) (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))))
+                   (app
+                      (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
+                      (Var (Top (id_sface D.zero)))))))));
   Hashtbl.add Global.constants ind
     (Defined
        (ref
           (Case.Lam
-             ( faces_zero,
-               Suc Zero,
+             ( D.zero,
                ref
                  (Case.Lam
-                    ( faces_zero,
-                      Suc Zero,
+                    ( D.zero,
                       ref
                         (Case.Lam
-                           ( faces_zero,
-                             Suc Zero,
+                           ( D.zero,
                              ref
                                (Case.Lam
-                                  ( faces_zero,
-                                    Suc Zero,
+                                  ( D.zero,
                                     ref
                                       (Case.Lam
-                                         ( faces_zero,
-                                           Suc Zero,
+                                         ( D.zero,
                                            ref
                                              (Case.Branches
-                                                ( Top,
+                                                ( Top (id_sface D.zero),
+                                                  D.zero,
                                                   Constr.Map.of_list
                                                     [
                                                       ( nil,
                                                         Case.Branch
                                                           ( Zero,
-                                                            ref (Case.Leaf (Var (Pop (Pop Top)))) )
-                                                      );
+                                                            ref
+                                                              (Case.Leaf
+                                                                 (Var
+                                                                    (Pop
+                                                                       (Pop (Top (id_sface D.zero))))))
+                                                          ) );
                                                       ( cons,
                                                         Branch
                                                           ( Suc (Suc Zero),
                                                             ref
                                                               (Case.Leaf
-                                                                 (apps (Var (Pop (Pop (Pop Top))))
+                                                                 (apps
+                                                                    (Var
+                                                                       (Pop
+                                                                          (Pop
+                                                                             (Pop
+                                                                                (Top
+                                                                                   (id_sface D.zero))))))
                                                                     [
-                                                                      Var (Pop Top);
-                                                                      Var Top;
+                                                                      Var
+                                                                        (Pop (Top (id_sface D.zero)));
+                                                                      Var (Top (id_sface D.zero));
                                                                       apps (Const ind)
                                                                         [
                                                                           Var
@@ -93,17 +111,38 @@ let install () =
                                                                                   (Pop
                                                                                      (Pop
                                                                                         (Pop
-                                                                                           (Pop Top))))));
+                                                                                           (Pop
+                                                                                              (Top
+                                                                                                 (id_sface
+                                                                                                    D
+                                                                                                    .zero))))))));
                                                                           Var
                                                                             (Pop
                                                                                (Pop
                                                                                   (Pop
-                                                                                     (Pop (Pop Top)))));
+                                                                                     (Pop
+                                                                                        (Pop
+                                                                                           (Top
+                                                                                              (id_sface
+                                                                                                 D
+                                                                                                 .zero)))))));
                                                                           Var
                                                                             (Pop
-                                                                               (Pop (Pop (Pop Top))));
-                                                                          Var (Pop (Pop (Pop Top)));
-                                                                          Var Top;
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Pop
+                                                                                        (Top
+                                                                                           (id_sface
+                                                                                              D.zero))))));
+                                                                          Var
+                                                                            (Pop
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Top
+                                                                                        (id_sface
+                                                                                           D.zero)))));
+                                                                          Var
+                                                                            (Top (id_sface D.zero));
                                                                         ];
                                                                     ])) ) );
                                                     ] )) )) )) )) )) ))))

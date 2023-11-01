@@ -3,8 +3,12 @@ open Reporter
 open Dim
 open Term
 open Bwd
+open Hctx
 
-(* Internal values, the result of evaluation with closures for abstractions.  Use De Bruijn *levels*, so that weakening is implicit.  Fully internal unbiased syntax lives here: in addition to higher-dimensional applications and abstractions, we also have higher-dimensional pi-types, higher-dimensional universes, and floors of higher-dimensional types.  Separated into neutrals and normals, so that there are no beta-redexes.  Explicit substitutions (environments) are stored on binders, for NBE.  Operator actions are treated as a mix between substitutions and syntax. *)
+(* Internal values, the result of evaluation, with closures for abstractions.  Use De Bruijn *levels*, so that weakening is implicit.  Fully internal unbiased syntax lives here: in addition to higher-dimensional applications and abstractions, we also have higher-dimensional pi-types, higher-dimensional universes, and instantiations of higher-dimensional types.  Separated into neutrals and normals, so that there are no beta-redexes.  Explicit substitutions (environments) are stored on binders, for NBE. *)
+
+(* A De Bruijn level is a pair of integers: one for the position (counting in) of the cube-variable-bundle in the context, and one that counts through the faces of that bundle. *)
+type level = int * int
 
 (* The codomains of a pi-type are stored as a Cube of binders, and since binders are a type family this dependence has to be specified by applying a module functor (rather than just parametrizing a type).  Since values are defined mutually with binders, we need to "apply the functor Cube" mutually with the definition of these types.  This is possible using a recursive module. *)
 module rec Value : sig
@@ -16,7 +20,7 @@ module rec Value : sig
   module BindCube : module type of Cube (BindFam)
 
   type head =
-    | Var : { level : int; deg : ('m, 'n) deg } -> head
+    | Var : { level : level; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; dim : 'n D.t } -> head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
@@ -27,10 +31,8 @@ module rec Value : sig
         env : ('m, 'a) env;
         perm : 'mn perm;
         plus_dim : ('m, 'n, 'mn) D.plus;
-        bound_faces : ('n, 'fn) count_faces;
-        plus_faces : ('a, 'fn, 'afn) N.plus;
-        body : 'afn term;
-        args : (('m, 'mn face_of) CubeOf.t, 'fn) Bwv.t;
+        body : ('a, 'n) ext term;
+        args : ('n, ('m, 'mn face_of) CubeOf.t) CubeOf.t;
       }
         -> 'mn binder
 
@@ -56,8 +58,8 @@ module rec Value : sig
   and normal = { tm : value; ty : value }
 
   and (_, _) env =
-    | Emp : 'n D.t -> ('n, N.zero) env
-    | Ext : ('n, 'b) env * ('n, value) CubeOf.t -> ('n, 'b N.suc) env
+    | Emp : 'n D.t -> ('n, emp) env
+    | Ext : ('n, 'b) env * ('k, ('n, value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) ext) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end = struct
   (* Here is the recursive application of the functor Cube.  First we define a module to pass as its argument, with type defined to equal the yet-to-be-defined binder, referred to recursively. *)
@@ -70,7 +72,7 @@ end = struct
   (* The head of an elimination spine is either a variable or a constant. *)
   type head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
-    | Var : { level : int; deg : ('m, 'n) deg } -> head
+    | Var : { level : level; deg : ('m, 'n) deg } -> head
     (* A constant occurs at a specified dimension. *)
     | Const : { name : Constant.t; dim : 'n D.t } -> head
 
@@ -88,26 +90,23 @@ end = struct
         env : ('m, 'a) env;
         perm : 'mn perm;
         plus_dim : ('m, 'n, 'mn) D.plus;
-        bound_faces : ('n, 'fn) count_faces;
-        plus_faces : ('a, 'fn, 'afn) N.plus;
-        body : 'afn term;
-        (* TODO: Can this be just a ('mn,'mn face_of) CubeOf.t, by adding the faces? *)
-        args : (('m, 'mn face_of) CubeOf.t, 'fn) Bwv.t;
+        body : ('a, 'n) ext term;
+        args : ('n, ('m, 'mn face_of) CubeOf.t) CubeOf.t;
       }
         -> 'mn binder
 
-  (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
+  (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
     | UU : 'n D.t -> uninst
-    (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a face tree of binders. *)
+    (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    (* A neutral is an application spine -- a head with a list of applications -- as well as a stored type for it. *)
+    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
     | Neu : head * app Bwd.t -> uninst
-    (* A canonical type has a name, a dimension, and a list of arguments all of that dimension, plus a possible outside insertion like an application.  It can be applied to fewer than the "correct" number of arguments that would be necessary to produce a type. *)
+    (* A canonical type has a name, a degenerated/substituted dimension, and a list of arguments all of that dimension, plus a possible outside insertion like an application.  It can be applied to fewer than the "correct" number of arguments that would be necessary to produce a type.  The dimension is stored implicitly and can be recovered from cod_left_ins.  Note that a canonical type can also have a nonzero "intrinsic" dimension (the main example are the Gel/Glue record types), which appears in the dimension 'k of the insertion; thus if the intrinsic dimension is zero, the insertion must be trivial. *)
     | Canonical : Constant.t * ('n, normal) CubeOf.t Bwd.t * ('m, 'n, 'k) insertion -> uninst
 
   and value =
-    (* An uninstantiated term.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
+    (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
     | Uninst : uninst * value Lazy.t -> value
     (* A term with some nonzero instantiation *)
     | Inst : {
@@ -131,10 +130,11 @@ end = struct
   (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
   and normal = { tm : value; ty : value }
 
-  (* This is a context morphism *from* a De Bruijn LEVEL context *to* a De Bruijn INDEX context.  Specifically, an ('n, 'a) env is a substitution from a level context to an index context of length 'a of dimension 'n. *)
+  (* This is a context morphism *from* a De Bruijn LEVEL context *to* a (typechecked) De Bruijn INDEX context.  Specifically, an ('n, 'a) env is an 'n-dimensional substitution from a level context to an index context indexed by the hctx 'a.  Since the index context could have some variables that are labeled by integers together with faces, the values also have to allow that. *)
   and (_, _) env =
-    | Emp : 'n D.t -> ('n, N.zero) env
-    | Ext : ('n, 'b) env * ('n, value) CubeOf.t -> ('n, 'b N.suc) env
+    | Emp : 'n D.t -> ('n, emp) env
+    (* Here the k-cube denotes a "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, while each of them has an n-cube of values representing a value and its boundaries. *)
+    | Ext : ('n, 'b) env * ('k, ('n, value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) ext) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end
 
@@ -142,8 +142,8 @@ end
 include Value
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
-let var : int -> value -> value =
- fun i ty -> Uninst (Neu (Var { level = i; deg = id_deg D.zero }, Emp), Lazy.from_val ty)
+let var : level -> value -> value =
+ fun level ty -> Uninst (Neu (Var { level; deg = id_deg D.zero }, Emp), Lazy.from_val ty)
 
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function
@@ -161,15 +161,6 @@ let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
 
 let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
-
-(* Add a Bwv of values to an environment all at once. *)
-let rec env_append :
-    type n a b ab. (a, b, ab) N.plus -> (n, a) env -> ((n, value) CubeOf.t, b) Bwv.t -> (n, ab) env
-    =
- fun ab env xss ->
-  match (ab, xss) with
-  | Zero, Emp -> env
-  | Suc ab, Snoc (xss, xs) -> Ext (env_append ab env xss, xs)
 
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  In most situations, the failure of this is a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
@@ -308,46 +299,68 @@ and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, nor
       [ tms; tys ] in
   new_tms
 
-(* Require that the supplied Bwd has exactly b elements n and add them to an environment of dimension n. *)
+(* Assemble an environment from a Bwv of values. *)
+let rec env_of_bwv :
+    type n a ea.
+    n D.t -> ((n, normal) CubeOf.t, a) Bwv.t -> (emp, a, ea, D.zero) exts -> (n, ea) env =
+ fun n xs ea ->
+  match (xs, ea) with
+  | Emp, Zero -> Emp n
+  | Snoc (xs, x), Suc ea -> Ext (env_of_bwv n xs ea, CubeOf.singleton (val_of_norm_cube x))
+
+(* Require that the supplied Bwd contains exactly b arguments, rearrange each mn-cube argument into an n-cube of m-cubes, and add all of them to the given environment. *)
 let rec take_args :
-    type n a b ab. (n, a) env -> (n, value) CubeOf.t Bwd.t -> (a, b, ab) N.plus -> (n, ab) env =
- fun env dargs plus ->
+    type m n mn a b ab.
+    (m, a) env ->
+    (m, n, mn) D.plus ->
+    (mn, value) CubeOf.t Bwd.t ->
+    (a, b, ab, n) exts ->
+    (m, ab) env =
+ fun env mn dargs plus ->
+  let m = dim_env env in
+  let n = D.plus_right mn in
   match (dargs, plus) with
   | Emp, Zero -> env
-  | Snoc (dargs, arg), Suc plus ->
-      (* Since dargs is a backwards list, we have to first take all the other arguments and then our current one.  *)
-      let env = take_args env dargs plus in
-      (* Again, since case trees are specified at dimension zero, all the applications must be the same dimension. *)
-      Ext (env, arg)
+  | Snoc (args, arg), Suc plus ->
+      let env = take_args env mn args plus in
+      Ext
+        ( env,
+          CubeOf.build n
+            {
+              build =
+                (fun fb ->
+                  CubeOf.build m
+                    {
+                      build =
+                        (fun fa ->
+                          let (Plus jk) = D.plus (dom_sface fb) in
+                          let fab = sface_plus_sface fa mn jk fb in
+                          CubeOf.find arg fab);
+                    });
+            } )
   | _ -> fatal (Anomaly "Wrong number of arguments in argument list")
 
-let rec env_of_bwv : type n a. n D.t -> ((n, normal) CubeOf.t, a) Bwv.t -> (n, a) env =
- fun n xs ->
-  match xs with
-  | Emp -> Emp n
-  | Snoc (xs, x) -> Ext (env_of_bwv n xs, val_of_norm_cube x)
-
-(* A version that takes only actual arguments without insertions, adds a specified number of them to the environment, and returns the others in a Bwv of specified length.  *)
+(* A version of take_args that takes some number of actual arguments without insertions from a Bwd, adds a specified number of them to the environment, and returns the others in a Bwv of specified length.  *)
 let rec take_canonical_args :
-    type n a b ab c abc.
+    type n a b ab c.
     (n, a) env ->
     (n, normal) CubeOf.t Bwd.t ->
-    (a, b, ab) N.plus ->
-    (ab, c, abc) N.plus ->
+    (a, b, ab, D.zero) exts ->
+    c N.t ->
     (n, ab) env * ((n, normal) CubeOf.t, c) Bwv.t =
- fun env args ab abc ->
-  match abc with
-  | Suc abc -> (
+ fun env args ab c ->
+  match c with
+  | Nat (Suc c) -> (
       match args with
       | Snoc (args, arg) ->
-          let env, rest = take_canonical_args env args ab abc in
+          let env, rest = take_canonical_args env args ab (Nat c) in
           (env, Snoc (rest, arg))
       | Emp -> fatal (Anomaly "Not enough arguments in canonical argument list"))
-  | Zero -> (
+  | Nat Zero -> (
       match (args, ab) with
       | Snoc (args, arg), Suc ab ->
-          let env, Emp = take_canonical_args env args ab Zero in
-          (Ext (env, val_of_norm_cube arg), Emp)
+          let env, Emp = take_canonical_args env args ab (Nat Zero) in
+          (Ext (env, CubeOf.singleton (val_of_norm_cube arg)), Emp)
       | Emp, Zero -> (env, Emp)
       | _ -> fatal (Anomaly "Wrong number of arguments in canonical argument list"))
 
@@ -424,17 +437,15 @@ let rec tyof_inst :
       } in
   inst (universe m) margs
 
-(* To typecheck a lambda, do an eta-expanding equality check, check pi-types for equality, or read back a pi-type or a term at a pi-type, we must create one new variable for each argument in the boundary.  With De Bruijn levels, these variables are just sequential numbers after some starting point, but we also need them sometimes as values and other times as normals.  We also return the new De Bruijn level. *)
+(* To typecheck a lambda, do an eta-expanding equality check, check pi-types for equality, or read back a pi-type or a term at a pi-type, we must create one new variable for each argument in the boundary.  Sometimes we need these variables as values and other times as normals. *)
 let dom_vars :
-    type m a f af.
-    int ->
-    (m, value) CubeOf.t ->
-    (m, int option) CubeOf.t * (m, value) CubeOf.t * (m, int option * normal) CubeOf.t * int =
- fun level doms ->
+    type m. int -> (m, value) CubeOf.t -> (m, value) CubeOf.t * (m, level option * normal) CubeOf.t
+    =
+ fun i doms ->
   (* To make these variables into values, we need to annotate them with their types, which in general are instantiations of the domains at previous variables.  Thus, we assemble them in a hashtable as we create them for random access to the previous ones. *)
   let argtbl = Hashtbl.create 10 in
-  let level = ref level in
-  let [ vars; args; nfs ] =
+  let j = ref 0 in
+  let [ args; nfs ] =
     CubeOf.pmap
       {
         map =
@@ -448,11 +459,11 @@ let dom_vars :
                        (fun fc ->
                          Hashtbl.find argtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
                    }) in
-            let lvl = !level in
-            level := lvl + 1;
-            let v = { tm = var lvl ty; ty } in
+            let level = (i, !j) in
+            j := !j + 1;
+            let v = { tm = var level ty; ty } in
             Hashtbl.add argtbl (SFace_of fa) v;
-            [ Some lvl; v.tm; (Some lvl, v) ]);
+            [ v.tm; (Some level, v) ]);
       }
-      [ doms ] (Cons (Cons (Cons Nil))) in
-  (vars, args, nfs, !level)
+      [ doms ] (Cons (Cons Nil)) in
+  (args, nfs)

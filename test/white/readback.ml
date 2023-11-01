@@ -4,7 +4,7 @@ open Core
 
 (* Because we haven't written a general way to make contexts into cocontexts, we do all our testing of readback in the empty context without "assume".  Thus we have a lot of abstractions. *)
 
-let roundtrip tm ty = Norm.eval (Emp D.zero) (Readback.readback_at Coctx.empty tm ty)
+let roundtrip tm ty = Norm.eval (Emp D.zero) (Readback.readback_at Ctx.empty tm ty)
 let roundtrip_ok tm ty = equal_at tm (roundtrip tm ty) ty
 
 (* The polymorphic identity *)

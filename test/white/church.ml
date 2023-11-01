@@ -15,13 +15,17 @@ let unequal_at tm1 tm2 ty =
 let uu = Synth (Symbol (UU, Zero, Emp))
 let raw_nat = Pi (Synth (Pi (uu, uu)), Synth (Pi (uu, uu)))
 let nat = ev (synth raw_nat)
-let zero = ev (check (Lam (Lam (Synth (Var Top)))) nat)
-let one = ev (check (Lam (Lam (Synth (App (Var (Pop Top), Synth (Var Top)))))) nat)
+let zero = ev (check (Lam (Lam (Synth (Var (Top, None))))) nat)
+let one = ev (check (Lam (Lam (Synth (App (Var (Pop Top, None), Synth (Var (Top, None))))))) nat)
 
 let two =
   ev
     (check
-       (Lam (Lam (Synth (App (Var (Pop Top), Synth (App (Var (Pop Top), Synth (Var Top))))))))
+       (Lam
+          (Lam
+             (Synth
+                (App
+                   (Var (Pop Top, None), Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))))))))
        nat)
 
 let three =
@@ -31,8 +35,11 @@ let three =
           (Lam
              (Synth
                 (App
-                   ( Var (Pop Top),
-                     Synth (App (Var (Pop Top), Synth (App (Var (Pop Top), Synth (Var Top))))) )))))
+                   ( Var (Pop Top, None),
+                     Synth
+                       (App
+                          ( Var (Pop Top, None),
+                            Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))) )) )))))
        nat)
 
 let () = equal_at zero zero nat
@@ -50,10 +57,11 @@ let plus =
              (Lam
                 (Synth
                    (App
-                      ( App (Var (Pop (Pop (Pop Top))), Synth (Var (Pop Top))),
+                      ( App (Var (Pop (Pop (Pop Top)), None), Synth (Var (Pop Top, None))),
                         Synth
-                          (App (App (Var (Pop (Pop Top)), Synth (Var (Pop Top))), Synth (Var Top)))
-                      )))))))
+                          (App
+                             ( App (Var (Pop (Pop Top), None), Synth (Var (Pop Top, None))),
+                               Synth (Var (Top, None)) )) )))))))
     binop
 
 let plus = ev plus

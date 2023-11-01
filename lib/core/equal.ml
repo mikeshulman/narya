@@ -94,8 +94,8 @@ and equal_at : int -> value -> value -> value -> unit option =
                                       Bwd.map (fun a -> CubeOf.find_top a) tmargs
                                     else
                                       fatal
-                                        (Anomaly "Inst arg wrong constr in equality at datatype")
-                                | _ -> fatal (Anomaly "Inst arg not constr in equality at datatype"));
+                                        (Anomaly "inst arg wrong constr in equality at datatype")
+                                | _ -> fatal (Anomaly "inst arg not constr in equality at datatype"));
                           }
                           [ tyargs ] in
                       (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
@@ -129,8 +129,8 @@ and equal_val : int -> value -> value -> unit option =
           (* Because instantiation arguments are stored as normals, we use type-sensitive equality to compare them. *)
           miterM { it = (fun _ [ x; y ] -> equal_nf n x y) } [ a1; a2 ]
       | _ -> fail)
-  | Lam _, _ | _, Lam _ -> fatal (Anomaly "Unexpected lambda in synthesizing equality-check")
-  | Struct _, _ | _, Struct _ -> fatal (Anomaly "Unexpected struct in synthesizing equality-check")
+  | Lam _, _ | _, Lam _ -> fatal (Anomaly "unexpected lambda in synthesizing equality-check")
+  | Struct _, _ | _, Struct _ -> fatal (Anomaly "unexpected struct in synthesizing equality-check")
   | _, _ -> fail
 
 (* Subroutine of equal_val.  Like it, equality of the types is part of the conclusion, not a hypothesis.  *)
@@ -248,7 +248,7 @@ and equal_at_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> fatal (Anomaly "Missing arguments in equal_at_tel")
+                | [] -> fatal (Anomaly "missing arguments in equal_at_tel")
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =
@@ -272,4 +272,4 @@ and equal_at_tel :
       equal_at_tel ctx
         (Ext (env, CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x))))
         xs ys tys tyargs
-  | _ -> fatal (Anomaly "Length mismatch in equal_at_tel")
+  | _ -> fatal (Anomaly "length mismatch in equal_at_tel")

@@ -51,7 +51,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                       | _ ->
                           fatal
                             (Anomaly
-                               "Evaluation of lower-dimensional constant is not neutral/canonical"));
+                               "evaluation of lower-dimensional constant is not neutral/canonical"));
                 })) in
       match Hashtbl.find_opt Global.constants name with
       | Some (Record _) | Some (Data _) -> Uninst (Canonical (name, Emp, zero_ins (dim_env env)), ty)
@@ -247,10 +247,10 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
                   match (is_id_perm (perm_of_ins ins), compare (cod_left_ins ins) k) with
                   | Some (), Eq -> Uninst (Canonical (name, Snoc (prev_args, newarg), ins), ty)
                   | _, Neq -> fatal (Dimension_mismatch ("applying canonical", cod_left_ins ins, k))
-                  | None, _ -> fatal (Anomaly "Insertion mismatch applying canonical"))
-              | _ -> fatal (Anomaly "Invalid application of non-function uninst")))
-      | _ -> fatal (Anomaly "Invalid application by non-function"))
-  | _ -> fatal (Anomaly "Invalid application of non-function")
+                  | None, _ -> fatal (Anomaly "insertion mismatch applying canonical"))
+              | _ -> fatal (Anomaly "invalid application of non-function uninst")))
+      | _ -> fatal (Anomaly "invalid application by non-function"))
+  | _ -> fatal (Anomaly "invalid application of non-function")
 
 (* Compute the application of a head to a spine of arguments (including field projections), using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application, so that we can annotate the latter case. *)
 and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
@@ -324,7 +324,7 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
       | Constr (name, dim, dargs) -> (
           match Constr.Map.find_opt name branches with
           (* Matches are constructed to contain all the constructors of the datatype being matched on, and this constructor belongs to that datatype, so it ought to be in the match. *)
-          | None -> fatal (Anomaly "Constructor missing from compiled match")
+          | None -> fatal (Anomaly "constructor missing from compiled match")
           | Some (Branch (plus, body)) -> (
               let (Plus mn) = D.plus n in
               match compare dim (D.plus_out m mn) with

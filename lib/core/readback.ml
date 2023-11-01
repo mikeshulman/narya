@@ -85,8 +85,8 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
                                       Bwd.map (fun a -> CubeOf.find_top a) tmargs
                                     else
                                       fatal
-                                        (Anomaly "Inst arg wrong constr in readback at datatype")
-                                | _ -> fatal (Anomaly "Inst arg not constr in readback at datatype"));
+                                        (Anomaly "inst arg wrong constr in readback at datatype")
+                                | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
                           }
                           [ tyargs ] in
                       Constr
@@ -111,9 +111,9 @@ and readback_val : type a z. (z, a) Ctx.t -> value -> a term =
       let tm = readback_uninst n tm in
       let args = TubeOf.mmap { map = (fun _ [ x ] -> readback_nf n x) } [ args ] in
       Inst (tm, args)
-  | Lam _ -> fatal (Anomaly "Unexpected lambda in synthesizing readback")
-  | Struct _ -> fatal (Anomaly "Unexpected struct in synthesizing readback")
-  | Constr _ -> fatal (Anomaly "Unexpected constr in synthesizing readback")
+  | Lam _ -> fatal (Anomaly "unexpected lambda in synthesizing readback")
+  | Struct _ -> fatal (Anomaly "unexpected struct in synthesizing readback")
+  | Constr _ -> fatal (Anomaly "unexpected constr in synthesizing readback")
 
 and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
  fun ctx x ->
@@ -183,7 +183,7 @@ and readback_at_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> fatal (Anomaly "Missing arguments in readback_at_tel")
+                | [] -> fatal (Anomaly "missing arguments in readback_at_tel")
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =
@@ -210,4 +210,4 @@ and readback_at_tel :
               ( env,
                 CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)) ))
            xs tys tyargs
-  | _ -> fatal (Anomaly "Length mismatch in equal_at_tel")
+  | _ -> fatal (Anomaly "length mismatch in equal_at_tel")

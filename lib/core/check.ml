@@ -111,7 +111,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
               (* We do need the constructors of the datatype, as well as its *number* of parameters and indices. *)
               | Data { constrs; params; indices } -> (
                   match is_id_perm (perm_of_ins ins) with
-                  | None -> fatal (Anomaly "Datatypes with degeneracy shouldn't exist")
+                  | None -> fatal (Anomaly "datatypes with degeneracy shouldn't exist")
                   | Some () ->
                       (* The datatype must contain a constructor with our current name. *)
                       let (Constr { args = constr_arg_tys; indices = constr_indices }) =
@@ -167,7 +167,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                                         | Some () -> fatal Unequal_indices
                                         | None ->
                                             fatal
-                                              (Anomaly "Mismatching lower-dimensional constructors")
+                                              (Anomaly "mismatching lower-dimensional constructors")
                                         ));
                               }
                               [ t1s; t2s ])
@@ -370,7 +370,7 @@ and check_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> fatal (Anomaly "Missing arguments in check_tel")
+                | [] -> fatal (Anomaly "missing arguments in check_tel")
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =
@@ -477,7 +477,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
               | Data { params = nparams; indices; constrs } -> (
                   (* The datatype instance must have the right number of arguments, which we split into parameters and indices. *)
                   match Bwv.of_bwd varty_args (N.plus_out (exts_right nparams) indices) with
-                  | None -> fatal (Anomaly "Wrong number of arguments on datatype")
+                  | None -> fatal (Anomaly "wrong number of arguments on datatype")
                   | Some varty_args ->
                       let params, indices = Bwv.split indices varty_args in
                       (* In our simple version of pattern-matching, the "indices" and all their boundaries must also be distinct free variables with no degeneracies, so that in the branch for each constructor they can be set equal to the computed value of that index for that constructor (and in which they cannot occur).  This is a special case of the unification algorithm described in CDP "Pattern-matching without K" where the only allowed rule is "Solution".  Later we can try to enhance it with their full unification algorithm, at least for non-higher datatypes.  In addition, for a higher-dimensional match, the instantiation arguments must also all be distinct variables, distinct from the indices. *)
@@ -520,7 +520,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                           (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
                           let c = Telescope.length argtys in
                           match N.compare (exts_right efc) c with
-                          | Gt _ | Lt _ -> fatal (Anomaly "Length mismatch in check_tree")
+                          | Gt _ | Lt _ -> fatal (Anomaly "length mismatch in check_tree")
                           | Eq -> (
                               match N.compare (N.plus_right user_args) c with
                               | Gt diff ->
@@ -629,7 +629,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                                           let new_prev_tm = Ctx.eval newctx rprevtm in
                                           (* Finally, recurse into the "body". *)
                                           check_tree newctx body newty new_prev_tm br)
-                                  | _ -> fatal (Anomaly "Created datatype is not canonical?"))))
+                                  | _ -> fatal (Anomaly "created datatype is not canonical?"))))
                         [ brs ];
                       (* Coverage check *)
                       Constr.Map.iter

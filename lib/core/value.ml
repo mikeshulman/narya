@@ -225,10 +225,10 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
                   in
                   let tys = inst_args args2 tys in
                   Inst { tm; dim = dim2; args = args2; tys })
-          | _ -> fatal (Anomaly "Can't instantiate non-type"))
-      | Lam _ -> fatal (Anomaly "Can't instantiate lambda-abstraction")
-      | Struct _ -> fatal (Anomaly "Can't instantiate struct")
-      | Constr _ -> fatal (Anomaly "Can't instantiate constructor"))
+          | _ -> fatal (Anomaly "can't instantiate non-type"))
+      | Lam _ -> fatal (Anomaly "can't instantiate lambda-abstraction")
+      | Struct _ -> fatal (Anomaly "can't instantiate struct")
+      | Constr _ -> fatal (Anomaly "can't instantiate constructor"))
 
 and inst_args :
     type m n mn.
@@ -263,15 +263,15 @@ let inst_tys : value -> inst_tys = function
   | Uninst (_, (lazy (Uninst (UU z, _)))) -> (
       match compare z D.zero with
       | Eq -> Inst_tys (TubeOf.empty D.zero)
-      | Neq -> fatal (Anomaly "Higher universe must be instantiated to be a type"))
+      | Neq -> fatal (Anomaly "higher universe must be instantiated to be a type"))
   | Uninst (_, (lazy (Inst { tm = UU _; dim = _; args = tys; tys = _ }))) -> (
       match compare (TubeOf.uninst tys) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (D.zero_plus (TubeOf.inst tys)) (TubeOf.plus tys) in
           Inst_tys (val_of_norm_tube tys)
-      | Neq -> fatal (Anomaly "Universe must be fully instantiated to be a type"))
+      | Neq -> fatal (Anomaly "universe must be fully instantiated to be a type"))
   | Inst { tm = _; dim = _; args = _; tys } -> Inst_tys tys
-  | _ -> fatal (Anomaly "Invalid type, has no instantiation arguments")
+  | _ -> fatal (Anomaly "invalid type, has no instantiation arguments")
 
 (* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
 and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, normal) CubeOf.t =
@@ -338,7 +338,7 @@ let rec take_args :
                           CubeOf.find arg fab);
                     });
             } )
-  | _ -> fatal (Anomaly "Wrong number of arguments in argument list")
+  | _ -> fatal (Anomaly "wrong number of arguments in argument list")
 
 (* A version of take_args that takes some number of actual arguments without insertions from a Bwd, adds a specified number of them to the environment, and returns the others in a Bwv of specified length.  *)
 let rec take_canonical_args :
@@ -355,14 +355,14 @@ let rec take_canonical_args :
       | Snoc (args, arg) ->
           let env, rest = take_canonical_args env args ab (Nat c) in
           (env, Snoc (rest, arg))
-      | Emp -> fatal (Anomaly "Not enough arguments in canonical argument list"))
+      | Emp -> fatal (Anomaly "not enough arguments in canonical argument list"))
   | Nat Zero -> (
       match (args, ab) with
       | Snoc (args, arg), Suc ab ->
           let env, Emp = take_canonical_args env args ab (Nat Zero) in
           (Ext (env, CubeOf.singleton (val_of_norm_cube arg)), Emp)
       | Emp, Zero -> (env, Emp)
-      | _ -> fatal (Anomaly "Wrong number of arguments in canonical argument list"))
+      | _ -> fatal (Anomaly "wrong number of arguments in canonical argument list"))
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
 let rec universe : type n. n D.t -> value =
@@ -390,7 +390,7 @@ and universe_nf : type n. n D.t -> normal =
   let uun = universe n in
   match uun with
   | Uninst (_, (lazy uunty)) -> { tm = uun; ty = uunty }
-  | _ -> fatal (Anomaly "Impossible result from universe")
+  | _ -> fatal (Anomaly "impossible result from universe")
 
 (* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
 let rec tyof_inst :

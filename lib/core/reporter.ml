@@ -162,99 +162,99 @@ module Code = struct
     | Index_variable_in_index_value -> "E1304"
 
   let default_text : t -> text = function
-    | Parse_error -> text "Parse error"
-    | Parsing_ambiguity str -> textf "Potential parsing ambiguity: %s" str
-    | Invalid_variable str -> textf "Invalid local variable name: %s" str
-    | Invalid_field str -> textf "Invalid field name: %s" str
-    | Invalid_constr str -> textf "Invalid constructor name: %s" str
-    | Invalid_numeral str -> textf "Invalid numeral: %s" str
+    | Parse_error -> text "parse error"
+    | Parsing_ambiguity str -> textf "potential parsing ambiguity: %s" str
+    | Invalid_variable str -> textf "invalid local variable name: %s" str
+    | Invalid_field str -> textf "invalid field name: %s" str
+    | Invalid_constr str -> textf "invalid constructor name: %s" str
+    | Invalid_numeral str -> textf "invalid numeral: %s" str
     | Invalid_variable_face (k, fa) ->
-        textf "Invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
+        textf "invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
     | No_relative_precedence (n1, n2) ->
         textf
-          "Notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
+          "notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
           n1 n2
     | Not_enough_lambdas n ->
-        textf "Not enough variables for a higher-dimensional abstraction: need at least %d more" n
+        textf "not enough variables for a higher-dimensional abstraction: need at least %d more" n
     | Not_enough_arguments_to_function ->
-        text "Not enough arguments for a higher-dimensional function application"
+        text "not enough arguments for a higher-dimensional function application"
     | Not_enough_arguments_to_instantiation ->
-        text "Not enough arguments to instantiate a higher-dimensional type"
-    | Type_not_fully_instantiated str -> textf "Type not fully instantiated in %s" str
-    | Instantiating_zero_dimensional_type -> text "Can't apply/instantiate a zero-dimensional type"
+        text "not enough arguments to instantiate a higher-dimensional type"
+    | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
+    | Instantiating_zero_dimensional_type -> text "can't apply/instantiate a zero-dimensional type"
     | Unequal_synthesized_type ->
-        text "Term synthesized a different type than it's being checked against"
+        text "term synthesized a different type than it's being checked against"
     | Checking_struct_at_degenerated_record r ->
-        textf "Can't check a struct against a record %s with a nonidentity degeneracy applied"
+        textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
           (name_of r)
-    | Missing_field_in_struct f -> textf "Record field %s missing in struct" (Field.to_string f)
-    | Unnamed_field_in_struct -> text "Unnamed field in struct"
+    | Missing_field_in_struct f -> textf "record field %s missing in struct" (Field.to_string f)
+    | Unnamed_field_in_struct -> text "unnamed field in struct"
     | Duplicate_field_in_struct f ->
-        textf "Record field %s appears more than once in struct" (Field.to_string f)
+        textf "record field %s appears more than once in struct" (Field.to_string f)
     | Missing_constructor_in_match c ->
-        textf "Missing match clause for constructor %s" (Constr.to_string c)
-    | Unnamed_variable_in_match -> text "Unnamed match variable"
-    | Checking_lambda_at_nonfunction -> text "Checking abstraction against non-function type"
+        textf "missing match clause for constructor %s" (Constr.to_string c)
+    | Unnamed_variable_in_match -> text "unnamed match variable"
+    | Checking_lambda_at_nonfunction -> text "checking abstraction against non-function type"
     | Checking_struct_at_nonrecord c -> (
         match c with
-        | Some c -> textf "Checking struct against non-record type %s" (name_of c)
-        | None -> text "Checking struct against non-record type")
+        | Some c -> textf "checking struct against non-record type %s" (name_of c)
+        | None -> text "checking struct against non-record type")
     | No_such_constructor (d, c) -> (
         match d with
         | Some d ->
-            textf "Canonical type %s has no constructor named %s" (name_of d) (Constr.to_string c)
-        | None -> textf "Non-datatype has no constructor named %s" (Constr.to_string c))
+            textf "canonical type %s has no constructor named %s" (name_of d) (Constr.to_string c)
+        | None -> textf "non-datatype has no constructor named %s" (Constr.to_string c))
     | Wrong_number_of_arguments_to_constructor (c, n) ->
-        if n > 0 then textf "Too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
+        if n > 0 then textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
         else
-          textf "Not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
+          textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
     | No_such_field (d, f) -> (
         match d with
-        | Some d -> textf "Record %s has no field named %s" (name_of d) (Field.to_string f)
-        | None -> textf "Non-record type has no field named %s" (Field.to_string f))
+        | Some d -> textf "record %s has no field named %s" (name_of d) (Field.to_string f)
+        | None -> textf "non-record type has no field named %s" (Field.to_string f))
     | Missing_instantiation_constructor (exp, got) ->
         textf
-          "Instantiation arguments of datatype must be matching constructors: expected %s got %s"
+          "instantiation arguments of datatype must be matching constructors: expected %s got %s"
           (Constr.to_string exp)
           (match got with
           | None -> "non-constructor"
           | Some c -> Constr.to_string c)
     | Unequal_indices ->
-        text "Indices of constructor application don't match those of datatype instance"
-    | Unbound_variable c -> textf "Unbound variable: %s" c
-    | Undefined_constant c -> textf "Undefined constant: %s" (name_of c)
-    | Nonsynthesizing pos -> textf "Non-synthesizing term in synthesizing position (%s)" pos
+        text "indices of constructor application don't match those of datatype instance"
+    | Unbound_variable c -> textf "unbound variable: %s" c
+    | Undefined_constant c -> textf "undefined constant: %s" (name_of c)
+    | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
-        textf "Argument of %s must be at least %d-dimensional" deg (to_int dim)
-    | Missing_argument_of_degeneracy deg -> textf "Missing argument for degeneracy %s" deg
-    | Applying_nonfunction_nontype -> text "Attempt to apply/instantiate a non-function non-type"
+        textf "argument of %s must be at least %d-dimensional" deg (to_int dim)
+    | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
+    | Applying_nonfunction_nontype -> text "attempt to apply/instantiate a non-function non-type"
     | Unimplemented str -> textf "%s is not yet implemented" str
     | Matching_datatype_has_degeneracy ->
-        text "Can't match on element of a datatype with degeneracy applied"
+        text "can't match on element of a datatype with degeneracy applied"
     | Invalid_match_index ->
-        text "Indices of a match variable must be distinct free variables without degeneracies"
+        text "indices of a match variable must be distinct free variables without degeneracies"
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
-          textf "Too many arguments to constructor %s in match pattern (%d extra)"
+          textf "too many arguments to constructor %s in match pattern (%d extra)"
             (Constr.to_string c) n
         else
-          textf "Not enough arguments to constructor %s in match pattern (need %d more)"
+          textf "not enough arguments to constructor %s in match pattern (need %d more)"
             (Constr.to_string c) (abs n)
     | No_such_constructor_in_match (d, c) ->
-        textf "Datatype %s being matched against has no constructor %s" (name_of d)
+        textf "datatype %s being matched against has no constructor %s" (name_of d)
           (Constr.to_string c)
     | Duplicate_constructor_in_match c ->
-        textf "Constructor %s appears twice in match" (Constr.to_string c)
-    | Index_variable_in_index_value -> text "Free index variable occurs in inferred index value"
+        textf "constructor %s appears twice in match" (Constr.to_string c)
+    | Index_variable_in_index_value -> text "free index variable occurs in inferred index value"
     | Matching_on_nondatatype c -> (
         match c with
-        | Some c -> textf "Can't match on variable belonging to non-datatype %s" (name_of c)
-        | None -> text "Can't match on variable belonging to non-datatype")
-    | Matching_on_let_bound_variable -> text "Can't match on a let-bound variable"
+        | Some c -> textf "can't match on variable belonging to non-datatype %s" (name_of c)
+        | None -> text "can't match on variable belonging to non-datatype")
+    | Matching_on_let_bound_variable -> text "can't match on a let-bound variable"
     | Dimension_mismatch (op, a, b) ->
-        textf "Dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
-    | Unsupported_numeral n -> textf "Unsupported numeral: %f" n
-    | Anomaly str -> text ("Anomaly: " ^ str)
+        textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
+    | Unsupported_numeral n -> textf "unsupported numeral: %f" n
+    | Anomaly str -> text ("anomaly: " ^ str)
 end
 
 include Asai.StructuredReporter.Make (Code)

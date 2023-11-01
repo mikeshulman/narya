@@ -193,7 +193,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       let etm = Ctx.eval ctx stm in
       let newty = tyof_field ~severity:Asai.Diagnostic.Error etm sty fld in
       (Field (stm, fld), newty)
-  | Symbol (UU, Zero, Emp) -> (Term.UU D.zero, universe D.zero)
+  | UU -> (Term.UU D.zero, universe D.zero)
   | Pi (dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let cdom = check ctx dom (universe D.zero) in

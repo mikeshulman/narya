@@ -45,7 +45,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       match Scope.lookup x with
       | Some c -> Const c
       | None -> Reporter.fatal (Unbound_variable x))
-  | UU -> Symbol (UU, Zero, Emp)
+  | UU -> UU
   | Field (x, fld) -> Field (parse_syn ctx x, Field.intern fld)
   | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
   | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)

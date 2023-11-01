@@ -333,7 +333,7 @@ let () =
       compile =
         (fun _ obs ->
           let () = get_done obs in
-          Synth (Symbol (UU, Zero, Emp)));
+          Synth UU);
     };
   add_term_pp universe @@ fun ppf obs ->
   let () = get_done obs in

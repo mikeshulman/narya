@@ -12,7 +12,7 @@ let equal_at tm1 tm2 ty =
 let unequal_at tm1 tm2 ty =
   if Option.is_none (Equal.equal_at 0 tm1 tm2 ty) then () else raise (Failure "Equal")
 
-let uu = Synth (Symbol (UU, Zero, Emp))
+let uu = Synth UU
 let raw_nat = Pi (Synth (Pi (uu, uu)), Synth (Pi (uu, uu)))
 let nat = ev (synth raw_nat)
 let zero = ev (check (Lam (Lam (Synth (Var (Top, None))))) nat)

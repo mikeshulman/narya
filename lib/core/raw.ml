@@ -9,7 +9,7 @@ type 'a index = 'a N.index * any_sface option
 
 (* A "symbol" is something that acts like a function in concrete syntax, being applied to its arguments (or perhaps being the output of a notation).  However, unlike a function, it doesn't typecheck unless it's applied to the right number of arguments, and it can require some of its arguments to synthesize.  We parametrize a symbol by the number of arguments it requires.  *)
 (* TODO: Probably get rid of these; treat universes as one thing and degeneracies as another. *)
-type _ symbol = Refl : N.one symbol | Sym : N.one symbol | UU : N.zero symbol
+type _ symbol = Refl : N.one symbol | Sym : N.one symbol
 
 type _ synth =
   | Var : 'a index -> 'a synth
@@ -21,6 +21,7 @@ type _ synth =
   | Symbol : 'mn symbol * ('m, 'n, 'mn) N.plus * ('a check, 'm) Bwv.t -> 'a synth
   | Asc : 'a check * 'a check -> 'a synth
   | Let : 'a synth * 'a N.suc synth -> 'a synth
+  | UU : 'a synth
 
 and _ check =
   | Synth : 'a synth -> 'a check

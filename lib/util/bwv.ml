@@ -366,14 +366,16 @@ let rec unbind : type b m n mn. (m, n, mn) N.times -> (b, mn) t -> ((b, m) t, n)
       let xss, xs = unappend mnm xss in
       Snoc (unbind mn xss, xs)
 
-(* Converting from a Bwd *)
-type 'a wrapped = Wrap : ('a, 'n) t -> 'a wrapped
-
-let rec of_bwd : type a. a Bwd.t -> a wrapped = function
-  | Emp -> Wrap Emp
-  | Snoc (xs, x) ->
-      let (Wrap xs') = of_bwd xs in
-      Wrap (Snoc (xs', x))
+(* Ensure that a Bwd has exactly a specified number of elements and return them in a Bwv of that length, returning None if the Bwd has too many or too few elements. *)
+let rec of_bwd : type a n. a Bwd.t -> n N.t -> (a, n) t option =
+ fun xs n ->
+  let open Monad.Ops (Monad.Maybe) in
+  match (xs, n) with
+  | Emp, Nat Zero -> Some Emp
+  | Snoc (xs, x), Nat (Suc n) ->
+      let* xs' = of_bwd xs (Nat n) in
+      Some (Snoc (xs', x))
+  | _ -> None
 
 (* As befits backwards vectors and lists, this takes n elements from the *right* of a Bwd to form a Bwv. *)
 let rec take_bwd : type a n. n N.t -> a Bwd.t -> (a, n) t =

@@ -488,13 +488,9 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
               match Hashtbl.find Global.constants name with
               | Data { params = nparams; indices; constrs } -> (
                   (* The datatype instance must have the right number of arguments, which we split into parameters and indices. *)
-                  (* TODO: Could pass the N.t (N.plus_out params indices) to of_bwd and have it produce a Bwv.t option. *)
-                  let (Wrap varty_args) = Bwv.of_bwd varty_args in
-                  match
-                    N.compare (N.plus_out (exts_right nparams) indices) (Bwv.length varty_args)
-                  with
-                  | Lt _ | Gt _ -> fatal (Anomaly "Wrong number of arguments on datatype")
-                  | Eq ->
+                  match Bwv.of_bwd varty_args (N.plus_out (exts_right nparams) indices) with
+                  | None -> fatal (Anomaly "Wrong number of arguments on datatype")
+                  | Some varty_args ->
                       let params, indices = Bwv.split indices varty_args in
                       (* In our simple version of pattern-matching, the "indices" and all their boundaries must also be distinct free variables with no degeneracies, so that in the branch for each constructor they can be set equal to the computed value of that index for that constructor (and in which they cannot occur).  This is a special case of the unification algorithm described in CDP "Pattern-matching without K" where the only allowed rule is "Solution".  Later we can try to enhance it with their full unification algorithm, at least for non-higher datatypes.  In addition, for a higher-dimensional match, the instantiation arguments must also all be distinct variables, distinct from the indices. *)
                       let seen = Hashtbl.create 10 in

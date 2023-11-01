@@ -47,8 +47,6 @@ and (_, _) constr =
 
 let constants : (Constant.t, definition) Hashtbl.t = Hashtbl.create 10
 
-(* TODO: More generally, any function on a fully general instance of some canonical type can be declared a "method" and parsed and typechecked like a field, with the argument and all its parameters synthesizing.  Similarly, any function into an instance of a canonical type with some of its arguments fully general can be declared a "generator" and parsed and typechecked like a constructor, with those arguments as "parameters" that are checked and hence can be omitted.  *)
-
 type field =
   | Field : { params : (emp, 'p, 'pc, D.zero) exts; dim : 'n D.t; ty : ('pc, 'n) ext term } -> field
 

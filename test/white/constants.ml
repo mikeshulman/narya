@@ -95,6 +95,7 @@ let () =
   def "abort1" "(A:Type) → ∅ → A" "A ↦ [ ]";
   def "abort2" "(A:Type) → ∅ → A" "A ↦ [|]";
   def "abort3" "(A:Type) → ∅ → A" "A x ↦ [ x | ]";
+  def "abort4" "(A:Type) → ∅ → A" "A x ↦ [ x ]";
 
   (* Higher-dimensional lambdas in case trees.  This simple version doesn't actually need them, as it could be just an ordinary higher-dimensional lambda term at a leaf. *)
   assume "f" "(x:A)→B x";
@@ -141,4 +142,11 @@ let () =
   def "decode_encode" "(x y : N) (p : Id N x y) → Id (Id N x y) (decode x y (encode x y p)) p"
     "x y ↦ [ 0. ↦ 0.
             | 1. p ↦ 1. (decode_encode (p .0) (p .1) (p .2)) ]";
+
+  (* Matching on a boundary of a cube variable *)
+  def "mtchbd0" "(e:∅) (f : N → N) → Id (N → N) f f" "e f n ⤇ [ n .0 | 0. ↦ [ e ] | 1. _ ↦ [ e ] ]";
+
+  (* TODO: Some bug happening here, to do with higher-dimensional matches I think *)
+  (* def "mtchbd" "(e:∅) (f : N → N) → Id (N → N) f f"
+     "e f n0 n1 n2 ↦ [ n0 | 0. ↦ [e] | 1. _ ↦ refl f n0 n1 n2 ]"; *)
   ()

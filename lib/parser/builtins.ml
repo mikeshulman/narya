@@ -520,7 +520,16 @@ let mtch =
         (Inner
            {
              ops = TokMap.of_list [ (Op "|", innermtch n); (RBracket, Done n) ];
-             name = Some (op (Op "|") (innermtch n));
+             name =
+               Some
+                 (Inner
+                    {
+                      ops = TokMap.of_list [ (Op "|", innermtch n); (RBracket, Done n) ];
+                      name = None;
+                      constr = None;
+                      field = Some (op (Op "|") (innermtch n));
+                      term = None;
+                    });
              constr = Some (pattern_vars n);
              field = None;
              term = None;
@@ -568,12 +577,21 @@ let () =
               match Bwv.index (Some name) ctx with
               | None -> fatal (Unbound_variable name)
               | Some x ->
+                  let fa, obs =
+                    (* If the next thing looks like a field, it might mean a face of a cube variable. *)
+                    match get_next obs with
+                    | `Field (fld, obs) -> (
+                        match Dim.sface_of_string fld with
+                        | Some fa -> (Some fa, obs)
+                        | None -> fatal Parse_error)
+                    | _ -> (None, obs) in
                   let branches = compile_branches ctx obs in
-                  (* TODO: Allow matching on boundaries of cube variables. *)
-                  Match ((x, None), branches))
+                  Match ((x, fa), branches))
+          (* If we went right to a constructor, then that means it's a matching lambda. *)
           | `Constr (c, obs) ->
               let branches = compile_branch (Snoc (ctx, None)) c obs in
               Lam (`Normal, Match ((Top, None), branches))
+          (* If we went right to Done, that means it's a matching lambda with zero branches. *)
           | `Done -> Lam (`Normal, Match ((Top, None), []))
           | `Field _ | `Term _ -> fatal (Anomaly "Impossible thing in match"));
     }

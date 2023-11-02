@@ -6,12 +6,12 @@ let () =
   let uu, _ = synth "Type" in
   let aa = assume "A" uu in
   let a = assume "a" aa in
-  let va0, _ = synth "Vec A 0." in
+  let va0, _ = synth "Vec A zero." in
   let a0 = check "nil." va0 in
-  let va1, _ = synth "Vec A (1. 0.)" in
-  let a1 = check "cons. 0. a nil." va1 in
-  let va2, _ = synth "Vec A (1. (1. 0.))" in
-  let a2 = check "cons. (1. 0.) a (cons. 0. a nil.)" va2 in
+  let va1, _ = synth "Vec A (suc. zero.)" in
+  let a1 = check "cons. zero. a nil." va1 in
+  let va2, _ = synth "Vec A (suc. (suc. zero.))" in
+  let a2 = check "cons. (suc. zero.) a (cons. zero. a nil.)" va2 in
   let va3, _ = synth "Vec A 3" in
   let a3 = check "cons. 2 a (cons. 1 a (cons. 0 a nil.))" va3 in
 
@@ -30,7 +30,7 @@ let () =
 
   let indty', _ =
     synth
-      "(A:Type) (C : (n:N) (xs : Vec A n) → Type) → C 0 nil. → ((n:N) (x:A) (xs: Vec A n) → C n xs → C (1. n) (cons. n x xs)) → (n:N) (xs : Vec A n) → C n xs"
+      "(A:Type) (C : (n:N) (xs : Vec A n) → Type) → C 0 nil. → ((n:N) (x:A) (xs: Vec A n) → C n xs → C (suc. n) (cons. n x xs)) → (n:N) (xs : Vec A n) → C n xs"
   in
 
   let () = equal indty indty' in
@@ -38,7 +38,7 @@ let () =
   (* We can define concatenation by induction.  But it works better with a left-recursive version of nat addition. *)
   let rntonton = "N → N → N" in
   let ntonton, _ = synth rntonton in
-  let rlplus = "m n ↦ N_ind (_ ↦ N) n (_ IH ↦ 1. IH) m" in
+  let rlplus = "m n ↦ N_ind (_ ↦ N) n (_ IH ↦ suc. IH) m" in
   let lplus = check rlplus ntonton in
   let lp = Printf.sprintf "((%s) : %s)" rlplus rntonton in
 
@@ -49,8 +49,8 @@ let () =
 
   let rlpassoc =
     Printf.sprintf
-      "m n k ↦ N_ind (m ↦ Id N (%s (%s m n) k) (%s m (%s n k))) (refl (%s n k)) (_ IH ↦ 1. IH) m" lp
-      lp lp lp lp in
+      "m n k ↦ N_ind (m ↦ Id N (%s (%s m n) k) (%s m (%s n k))) (refl (%s n k)) (_ IH ↦ suc. IH) m"
+      lp lp lp lp lp in
 
   let lpassoc = check rlpassoc lpassoc_ty in
   let lpa = Printf.sprintf "((%s) : %s)" rlpassoc rlpassoc_ty in
@@ -58,7 +58,7 @@ let () =
   (* And right unital *)
   let rlpru_ty = Printf.sprintf "(m:N) → Id N (%s m 0) m" lp in
   let lpru_ty = check rlpru_ty uu in
-  let rlpru = Printf.sprintf "m ↦ N_ind (m ↦ Id N (%s m 0) m) (refl (0:N)) (_ IH ↦ 1. IH) m" lp in
+  let rlpru = Printf.sprintf "m ↦ N_ind (m ↦ Id N (%s m 0) m) (refl (0:N)) (_ IH ↦ suc. IH) m" lp in
   let lpru = check rlpru lpru_ty in
   let lpr = Printf.sprintf "((%s) : %s)" rlpru rlpru_ty in
 

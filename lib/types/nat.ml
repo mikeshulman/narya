@@ -14,8 +14,8 @@ let suc = Constant.make ()
 let plus = Constant.make ()
 let times = Constant.make ()
 let ind = Constant.make ()
-let zero' = Constr.intern "0"
-let suc' = Constr.intern "1"
+let zero' = Constr.intern "zero"
+let suc' = Constr.intern "suc"
 
 open Monad.Ops (Monad.Maybe)
 

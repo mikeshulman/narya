@@ -4,33 +4,33 @@ let () =
   run @@ fun () ->
   Types.Nat.install ();
   let nat, _ = synth !~"N" in
-  let raw0 = !."0" in
+  let raw0 = !."zero" in
   let zero = check raw0 nat in
-  let raw1 = !."1" $ raw0 in
+  let raw1 = !."suc" $ raw0 in
   let one = check raw1 nat in
-  let raw2 = !."1" $ raw1 in
+  let raw2 = !."suc" $ raw1 in
   let two = check raw2 nat in
-  let raw3 = !."1" $ raw2 in
+  let raw3 = !."suc" $ raw2 in
   let three = check raw3 nat in
-  let raw4 = !."1" $ raw3 in
+  let raw4 = !."suc" $ raw3 in
   let four = check raw4 nat in
 
   (* Identity types *)
-  let id00, _ = synth (id !~"N" !."0" !."0") in
-  let eq00 = check !."0" id00 in
-  let id01, _ = synth (id !~"N" !."0" (!."1" $ !."0")) in
-  let () = uncheck !."0" id01 in
+  let id00, _ = synth (id !~"N" !."zero" !."zero") in
+  let eq00 = check !."zero" id00 in
+  let id01, _ = synth (id !~"N" !."zero" (!."suc" $ !."zero")) in
+  let () = uncheck !."zero" id01 in
   let id11, _ = synth (id !~"N" raw1 raw1) in
-  let eq11 = check (!."1" $ !."0") id11 in
+  let eq11 = check (!."suc" $ !."zero") id11 in
 
   let congsuc_ty, _ =
     synth
       (("x", !~"N")
       @=> ("y", !~"N")
       @=> ("", id !~"N" !!"x" !!"y")
-      @=> id !~"N" (!."1" $ !!"x") (!."1" $ !!"y")) in
+      @=> id !~"N" (!."suc" $ !!"x") (!."suc" $ !!"y")) in
 
-  let congsuc = check ("x" @-> "y" @-> "p" @-> (!."1" $ !!"p")) congsuc_ty in
+  let congsuc = check ("x" @-> "y" @-> "p" @-> (!."suc" $ !!"p")) congsuc_ty in
 
   let cong2suc_ty, _ =
     synth
@@ -53,14 +53,14 @@ let () =
             $ !!"x20"
             $ !!"x21" )
       @=> (refl (refl !~"N")
-          $ (!."1" $ !!"x00")
-          $ (!."1" $ !!"x01")
-          $ (!."1" $ !!"x02")
-          $ (!."1" $ !!"x10")
-          $ (!."1" $ !!"x11")
-          $ (!."1" $ !!"x12")
-          $ (!."1" $ !!"x20")
-          $ (!."1" $ !!"x21"))) in
+          $ (!."suc" $ !!"x00")
+          $ (!."suc" $ !!"x01")
+          $ (!."suc" $ !!"x02")
+          $ (!."suc" $ !!"x10")
+          $ (!."suc" $ !!"x11")
+          $ (!."suc" $ !!"x12")
+          $ (!."suc" $ !!"x20")
+          $ (!."suc" $ !!"x21"))) in
 
   let cong2suc =
     check
@@ -73,7 +73,7 @@ let () =
       @-> "x20"
       @-> "x21"
       @-> "x22"
-      @-> (!."1" $ !!"x22"))
+      @-> (!."suc" $ !!"x22"))
       cong2suc_ty in
 
   (* Addition *)
@@ -99,7 +99,7 @@ let () =
   in
 
   let refl_zero, _ = synth (refl (raw0 <:> !~"N")) in
-  let id_zero_zero, _ = synth (id !~"N" !."0" !."0") in
+  let id_zero_zero, _ = synth (id !~"N" !."zero" !."zero") in
   let () = equal_at refl_zero_plus_zero refl_zero id_zero_zero in
 
   let refl_one_plus_one, _ =
@@ -108,7 +108,8 @@ let () =
 
   let refl_one, _ = synth (refl (raw1 <:> !~"N")) in
   let refl_two, _ = synth (refl (raw2 <:> !~"N")) in
-  let id_two_two, _ = synth (id !~"N" (!."1" $ (!."1" $ !."0")) (!."1" $ (!."1" $ !."0"))) in
+  let id_two_two, _ =
+    synth (id !~"N" (!."suc" $ (!."suc" $ !."zero")) (!."suc" $ (!."suc" $ !."zero"))) in
   let () = equal_at refl_one_plus_one refl_two id_two_two in
 
   (* We can also define addition with the general recursor/inductor  *)

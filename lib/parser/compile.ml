@@ -90,8 +90,9 @@ open Monad.Ops (Monad.Maybe)
 (* At present we only know how to compile natural number numerals. *)
 let compile_numeral n =
   let rec compile_nat n =
-    if n = 0 then Raw.Constr (Constr.intern "0", Emp)
-    else Raw.Constr (Constr.intern "1", Snoc (Emp, compile_nat (n - 1))) in
+    (* TODO: Would be better not to hardcode these. *)
+    if n = 0 then Raw.Constr (Constr.intern "zero", Emp)
+    else Raw.Constr (Constr.intern "suc", Snoc (Emp, compile_nat (n - 1))) in
   compile_nat n
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)

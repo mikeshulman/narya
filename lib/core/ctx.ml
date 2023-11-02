@@ -237,54 +237,30 @@ let ext_tel :
   ext_tel ctx env tel ac ec (N.zero_plus (N.plus_right ac)) Emp
 
 (* Let-bind some of the variables in a context *)
+
+let bind_some_cube :
+    type n.
+    (level -> normal option) ->
+    (n, level option * normal) CubeOf.t ->
+    (n, level option * normal) CubeOf.t =
+ fun binder xs ->
+  CubeOf.mmap
+    {
+      map =
+        (fun _ [ (i, x) ] ->
+          match i with
+          | None -> (i, x)
+          | Some i -> (
+              match binder i with
+              | None -> (Some i, x)
+              | Some t -> (None, t)));
+    }
+    [ xs ]
+
 let rec bind_some : type a e n. (level -> normal option) -> (a, e) t -> (a, e) t =
  fun binder ctx ->
   match ctx with
   | Emp -> Emp
-  | Vis (ctx, xs) ->
-      Vis
-        ( bind_some binder ctx,
-          CubeOf.mmap
-            {
-              map =
-                (fun _ [ (i, x) ] ->
-                  match i with
-                  | None -> (i, x)
-                  | Some i -> (
-                      match binder i with
-                      | None -> (Some i, x)
-                      | Some t -> (None, t)));
-            }
-            [ xs ] )
-  | Invis (ctx, xs) ->
-      Invis
-        ( bind_some binder ctx,
-          CubeOf.mmap
-            {
-              map =
-                (fun _ [ (i, x) ] ->
-                  match i with
-                  | None -> (i, x)
-                  | Some i -> (
-                      match binder i with
-                      | None -> (Some i, x)
-                      | Some t -> (None, t)));
-            }
-            [ xs ] )
-  | Split (ctx, af, pf, xs) ->
-      Split
-        ( bind_some binder ctx,
-          af,
-          pf,
-          CubeOf.mmap
-            {
-              map =
-                (fun _ [ (i, x) ] ->
-                  match i with
-                  | None -> (i, x)
-                  | Some i -> (
-                      match binder i with
-                      | None -> (Some i, x)
-                      | Some t -> (None, t)));
-            }
-            [ xs ] )
+  | Vis (ctx, xs) -> Vis (bind_some binder ctx, bind_some_cube binder xs)
+  | Invis (ctx, xs) -> Invis (bind_some binder ctx, bind_some_cube binder xs)
+  | Split (ctx, af, pf, xs) -> Split (bind_some binder ctx, af, pf, bind_some_cube binder xs)

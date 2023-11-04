@@ -196,7 +196,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
       | '_', _ | _, '_' -> return (Internal s)
       | _ ->
           if is_numeral s then
-            match int_of_string_opt s with
+            match Float.of_string_opt s with
             | Some n -> return (Numeral n)
             | None -> fatal ~loc:(Range.convert rng) (Invalid_numeral s)
             (* Anything else, not starting or ending with a period, and that doesn't consist entirely of digits and periods, is potentially a valid name.  The periods will be interpreted later as namespacing of constants (hence are disallowed in a local variable). *)

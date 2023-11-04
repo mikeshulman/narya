@@ -16,7 +16,7 @@ let () =
         LParen;
         Name "ns24";
         Op "$#*";
-        Numeral 430;
+        Numeral 430.;
         Op "-";
         RBrace;
         Name "aqo0";

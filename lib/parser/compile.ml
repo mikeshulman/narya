@@ -22,7 +22,7 @@ and parse_tree =
   | Name of string
   | Constr of string
   | Field of string
-  | Numeral of int
+  | Numeral of float
   | Abs of [ `Cube | `Normal ] * string option list * parse_tree
 
 (* These parse trees don't know anything about the *meanings* of notations either; those are registered separately in a hashtable and called by the compile function below.  *)
@@ -93,7 +93,9 @@ let compile_numeral n =
     (* TODO: Would be better not to hardcode these. *)
     if n = 0 then Raw.Constr (Constr.intern "zero", Emp)
     else Raw.Constr (Constr.intern "suc", Snoc (Emp, compile_nat (n - 1))) in
-  compile_nat n
+  let frac, int = modf n in
+  if classify_float frac = FP_zero && int >= 0. then compile_nat (int_of_float int)
+  else fatal (Unsupported_numeral n)
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 

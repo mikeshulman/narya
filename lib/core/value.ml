@@ -165,13 +165,10 @@ type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_i
 let full_inst ?severity (ty : value) (err : string) : full_inst =
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
-  | Uninst (ty, (lazy univ)) -> (
-      match univ with
-      | Uninst (UU n, _) -> (
-          match compare n D.zero with
-          | Eq -> Fullinst (ty, TubeOf.empty D.zero)
-          | Neq -> fatal ?severity (Type_not_fully_instantiated err))
-      | _ -> fatal ?severity (Type_not_fully_instantiated err))
+  | Uninst (ty, (lazy (Uninst (UU n, _)))) -> (
+      match compare n D.zero with
+      | Eq -> Fullinst (ty, TubeOf.empty D.zero)
+      | Neq -> fatal ?severity (Type_not_fully_instantiated err))
   | Inst { tm = ty; dim = _; args; tys = _ } -> (
       match compare (TubeOf.uninst args) D.zero with
       | Eq ->

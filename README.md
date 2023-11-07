@@ -11,7 +11,7 @@ Narya requires OCaml version 5.1.0 and the libraries [Fmlib_parse](https://hbr.g
 
 ```
 opam switch create 5.1.0
-opam install fmlib_parse bwd algaeff notty eio_main alcotest lsp qcheck-core js_of_ocaml js_of_ocaml-ppx
+opam install zarith fmlib_parse bwd algaeff notty eio_main alcotest lsp qcheck-core js_of_ocaml js_of_ocaml-ppx
 
 git clone git@github.com:RedPRL/asai.git
 cd asai

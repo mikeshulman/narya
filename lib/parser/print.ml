@@ -48,7 +48,7 @@ let rec pp_term (ppf : formatter) (tr : parse_tree) : unit =
   | Name x -> pp_utf_8 ppf x
   | Constr c -> pp_constr ppf c
   | Field f -> pp_field ppf f
-  | Numeral n -> pp_print_float ppf n
+  | Numeral n -> Q.pp_print ppf n
   | Abs (cube, vars, body) ->
       fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
         (pp_print_list ~pp_sep:pp_print_space pp_var)

@@ -17,7 +17,7 @@ type t =
   | Dot (* . *)
   | Ellipsis (* ... and … *)
   | String of string (* Double-quoted *)
-  | Numeral of float
+  | Numeral of Q.t
   | Underscore (* _ *)
   | Internal of string (* Starting or ending with _ *)
   | Def
@@ -56,7 +56,7 @@ let to_string = function
   | Dot -> "."
   | Ellipsis -> "..."
   | String s -> "\"" ^ s ^ "\""
-  | Numeral s -> Float.to_string s
+  | Numeral s -> Q.to_string s
   | Underscore -> "_"
   | Internal s -> s
   | Def -> "def"

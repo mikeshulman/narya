@@ -1,4 +1,4 @@
 (library
   (name testutil)
-  (libraries asai util core types parser fmlib_parse))
+  (libraries zarith asai util core types parser fmlib_parse))
 (env (_ (flags (:standard -w -37 -w -30))))

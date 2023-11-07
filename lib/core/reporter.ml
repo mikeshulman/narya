@@ -48,7 +48,7 @@ module Code = struct
     | Matching_on_let_bound_variable : t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
-    | Unsupported_numeral : float -> t
+    | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
     | No_such_level : level -> t
 
@@ -257,7 +257,7 @@ module Code = struct
     | Matching_on_let_bound_variable -> text "can't match on a let-bound variable"
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
-    | Unsupported_numeral n -> textf "unsupported numeral: %f" n
+    | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "no such level variable in context: (%d,%d)" (fst i) (snd i)
 end

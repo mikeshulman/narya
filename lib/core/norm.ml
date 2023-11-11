@@ -272,9 +272,9 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
  fun env tree ins args ->
   match tree with
   | Lam (n, body) -> (
-      (* We fail unless the current insertion is the identity. *)
+      (* We fail unless the current insertion is the identity.  TODO: Actually should we allow degeneracies for higher lambdas and behave like degeneracy actions on lambdas?  *)
       let* () = is_id_any_deg ins in
-      (* Pick up another argument.  Note that this fails if ins is nonidentity. *)
+      (* Pick up another argument. *)
       let m = dim_env env in
       let (Plus plus_dim) = D.plus n in
       match args with

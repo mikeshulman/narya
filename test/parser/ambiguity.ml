@@ -1,20 +1,18 @@
 open Core
 open Parser
-open Notations
+open Notation
 open Testutil
 open Showparse
 
 (* We raise an error if one notation is a prefix of another, since parsing such combinations would require too much backtracking.  Here we test the generation of that error. *)
 
-let ifthen =
-  make ~name:"ifthen" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right ~tree:(fun n ->
-      eop (Name "if") (term (Name "then") (Done n)))
-
+let ifthen = make ~origname:"ifthen" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
+let () = set_tree ifthen (eop (Name "if") (term (Name "then") (Done ifthen)))
 let ifthen_only = State.empty |> State.add ifthen
+let ifthenelse = make ~origname:"ifthenelse" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
 
-let ifthenelse =
-  make ~name:"ifthenelse" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right ~tree:(fun n ->
-      eop (Name "if") (term (Name "then") (term (Name "else") (Done n))))
+let () =
+  set_tree ifthenelse (eop (Name "if") (term (Name "then") (term (Name "else") (Done ifthenelse))))
 
 let ifthenelse_only = State.empty |> State.add ifthenelse
 let both = State.empty |> State.add ifthen |> State.add ifthenelse
@@ -42,9 +40,10 @@ let () =
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
 
-let ifthenelif =
-  make ~name:"ifthenelif" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right ~tree:(fun n ->
-      eop (Name "if") (term (Name "then") (term (Name "elif") (Done n))))
+let ifthenelif = make ~origname:"ifthenelif" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
+
+let () =
+  set_tree ifthenelif (eop (Name "if") (term (Name "then") (term (Name "elif") (Done ifthenelif))))
 
 let better_both = State.empty |> State.add ifthenelse |> State.add ifthenelif
 

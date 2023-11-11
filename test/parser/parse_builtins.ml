@@ -26,22 +26,23 @@ let () =
         ( `Normal,
           [ Some "x"; Some "y" ],
           Notn
-            ( "()",
+            ( "parens",
               [
                 (* Flag is ignored, since the eventual notation is not a pi. *)
                 Flag Explicit_pi;
-                Term (Notn (":", [ Term (Name "z"); Term (Name "w") ]));
+                Term (Notn ("ascription", [ Term (Name "z"); Term (Name "w") ]));
               ] ) ))
 
 let () =
   assert (
     parse !builtins "(x y |-> z) : w"
     = Notn
-        ( ":",
+        ( "ascription",
           [
             Term
               (Notn
-                 ("()", [ Flag Explicit_pi; Term (Abs (`Normal, [ Some "x"; Some "y" ], Name "z")) ]));
+                 ( "parens",
+                   [ Flag Explicit_pi; Term (Abs (`Normal, [ Some "x"; Some "y" ], Name "z")) ] ));
             Term (Name "w");
           ] ))
 
@@ -95,19 +96,19 @@ let () =
   assert (
     parse !builtins "((x:A)) -> B"
     = Notn
-        ( "->",
+        ( "arrow",
           [
             Term
               (Notn
-                 ( "()",
+                 ( "parens",
                    [
                      Flag Explicit_pi;
                      Term
                        (Notn
-                          ( "()",
+                          ( "parens",
                             [
                               Flag Explicit_pi;
-                              Term (Notn (":", [ Term (Name "x"); Term (Name "A") ]));
+                              Term (Notn ("ascription", [ Term (Name "x"); Term (Name "A") ]));
                             ] ));
                    ] ));
             Term (Name "B");
@@ -117,18 +118,18 @@ let () =
   assert (
     parse !builtins "((x):A) -> B"
     = Notn
-        ( "->",
+        ( "arrow",
           [
             Term
               (Notn
-                 ( "()",
+                 ( "parens",
                    [
                      Flag Explicit_pi;
                      Term
                        (Notn
-                          ( ":",
+                          ( "ascription",
                             [
-                              Term (Notn ("()", [ Flag Explicit_pi; Term (Name "x") ]));
+                              Term (Notn ("parens", [ Flag Explicit_pi; Term (Name "x") ]));
                               Term (Name "A");
                             ] ));
                    ] ));
@@ -213,18 +214,18 @@ let () =
 let () = Types.Sigma.install_notations ()
 
 (*  *)
-let () = assert (parse !builtins "A><B" = Notn ("><", [ Term (Name "A"); Term (Name "B") ]))
+let () = assert (parse !builtins "A><B" = Notn ("prod", [ Term (Name "A"); Term (Name "B") ]))
 
 let () =
   assert (
     parse !builtins "A >< B >< C"
-    = Notn ("><", [ Term (Name "A"); Term (Notn ("><", [ Term (Name "B"); Term (Name "C") ])) ]))
+    = Notn ("prod", [ Term (Name "A"); Term (Notn ("prod", [ Term (Name "B"); Term (Name "C") ])) ]))
 
 let () =
   assert (
     parse !builtins "(x:A) >< B x"
     = Notn
-        ( "sig",
+        ( "sigma",
           [
             (* ignored flag *)
             Flag Explicit_pi;
@@ -237,14 +238,14 @@ let () =
   assert (
     parse !builtins "(x:A) >< (y:B x) >< C x y"
     = Notn
-        ( "sig",
+        ( "sigma",
           [
             Flag Explicit_pi;
             Name (Some "x");
             Term (Name "A");
             Term
               (Notn
-                 ( "sig",
+                 ( "sigma",
                    [
                      Flag Explicit_pi;
                      Name (Some "y");

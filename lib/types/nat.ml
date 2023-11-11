@@ -4,7 +4,7 @@ open Util
 open Dim
 open Core
 open Parser
-open Notations
+open Notation
 open Compile
 open Term
 
@@ -19,12 +19,13 @@ let suc' = Constr.intern "suc"
 
 open Monad.Ops (Monad.Maybe)
 
-let plusn =
-  make ~name:"+" ~tightness:0. ~left:Open ~right:Open ~assoc:Left ~tree:(fun n ->
-      eop (Op "+") (Done n))
+(* TODO: printing these notations *)
+
+let plusn = make ~origname:"plus" ~tightness:0. ~left:Open ~right:Open ~assoc:Left
 
 let () =
-  add_compiler plusn
+  set_tree plusn (eop (Op "+") (Done plusn));
+  set_compiler plusn
     {
       compile =
         (fun ctx obs ->
@@ -36,12 +37,11 @@ let () =
           Raw.Synth (App (App (Const plus, x), y)));
     }
 
-let timesn =
-  make ~name:"*" ~tightness:1. ~left:Open ~right:Open ~assoc:Left ~tree:(fun n ->
-      eop (Op "*") (Done n))
+let timesn = make ~origname:"times" ~tightness:1. ~left:Open ~right:Open ~assoc:Left
 
 let () =
-  add_compiler timesn
+  set_tree timesn (eop (Op "*") (Done timesn));
+  set_compiler timesn
     {
       compile =
         (fun ctx obs ->

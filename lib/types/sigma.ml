@@ -2,7 +2,7 @@ open Util
 open Dim
 open Core
 open Parser
-open Notations
+open Notation
 open Compile
 open Raw
 open Term
@@ -14,12 +14,15 @@ let pair = Constant.make ()
 
 open Monad.Ops (Monad.Maybe)
 
-let sigman =
-  make ~name:"sig" ~tightness:10. ~left:Closed ~right:Open ~assoc:Right ~tree:(fun n ->
-      eop LParen (name (op Colon (term RParen (ops [ (Name "×", Done n); (Op "><", Done n) ])))))
+(* TODO: printing these notations *)
+
+let sigman = make ~origname:"sigma" ~tightness:10. ~left:Closed ~right:Open ~assoc:Right
 
 let () =
-  add_compiler sigman
+  set_tree sigman
+    (eop LParen
+       (name (op Colon (term RParen (ops [ (Name "×", Done sigman); (Op "><", Done sigman) ])))));
+  set_compiler sigman
     {
       compile =
         (fun ctx obs ->
@@ -32,12 +35,11 @@ let () =
           Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
-let prodn =
-  make ~name:"><" ~tightness:10. ~left:Open ~right:Open ~assoc:Right ~tree:(fun n ->
-      eops [ (Name "×", Done n); (Op "><", Done n) ])
+let prodn = make ~origname:"prod" ~tightness:10. ~left:Open ~right:Open ~assoc:Right
 
 let () =
-  add_compiler prodn
+  set_tree prodn (eops [ (Name "×", Done prodn); (Op "><", Done prodn) ]);
+  set_compiler prodn
     {
       compile =
         (fun ctx obs ->
@@ -49,12 +51,11 @@ let () =
           Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
-let comma =
-  make ~name:"," ~tightness:10. ~left:Open ~right:Open ~assoc:Right ~tree:(fun n ->
-      eop (Op ",") (Done n))
+let comma = make ~origname:"comma" ~tightness:10. ~left:Open ~right:Open ~assoc:Right
 
 let () =
-  add_compiler comma
+  set_tree comma (eop (Op ",") (Done comma));
+  set_compiler comma
     {
       compile =
         (fun ctx obs ->

@@ -116,6 +116,7 @@ let test_compactness () =
   ()
 
 let () =
+  Parser.Print.pp_as_case Compact @@ fun () ->
   test_reformat ();
   Printf.printf "--------------------\nNoncompactly\n--------------------\n\n";
   Parser.Print.noncompactly test_compactness;

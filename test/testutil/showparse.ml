@@ -1,11 +1,9 @@
 open Parser
-open Notations
-open Compile
 
 (* Translate a parse observation into something that shows the names of notations rather than their internal abstract representations, for easier inspection and testing.  Note that since we intercept the parse tree before the "compilation" step, there is no name resolution, so this doesn't need to be run inside a Yuujinchou handler and can use unbound variables. *)
 
 type obs =
-  | Flag of flag
+  | Flag of Notation.flag
   | Name of string option
   | Term of parse_tree
   | Constr of string
@@ -20,19 +18,17 @@ and parse_tree =
   | Numeral of Q.t
   | Abs of [ `Normal | `Cube ] * string option list * parse_tree
 
-let rec get_obs (obs : observation) : obs =
+let rec get_obs (obs : Notation.observation) : obs =
   match obs with
-  | Flag f -> Flag f
+  | Flagged f -> Flag f
   | Name x -> Name x
   | Term r -> Term (get_tree r)
   | Constr c -> Constr c
   | Field f -> Field f
 
-and get_tree (r : Compile.parse_tree) : parse_tree =
+and get_tree (r : Notation.parse) : parse_tree =
   match r with
-  | Notn (n, args) ->
-      let d = get_data n in
-      Notn (d.name, List.map get_obs args)
+  | Notn (n, args) -> Notn (Notation.origname n, List.map get_obs args)
   | App (x, y) -> App (get_tree x, get_tree y)
   | Name x -> Name x
   | Constr x -> Constr x

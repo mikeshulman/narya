@@ -10,7 +10,7 @@ let reformat str =
   pp_set_margin std_formatter !margin;
   pp_set_max_indent std_formatter (max (!margin - 12) (!margin / 2));
   pp_open_hovbox std_formatter 0;
-  pp_case std_formatter tr;
+  pp_term std_formatter tr;
   pp_close_box std_formatter ();
   pp_print_newline std_formatter ();
   pp_print_newline std_formatter ()

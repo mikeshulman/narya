@@ -24,10 +24,10 @@ let empty : t =
     tighters =
       TIMap.of_list
         [
-          (Open Float.infinity, empty_entry);
-          (Closed Float.infinity, empty_entry);
-          (Open Float.neg_infinity, empty_entry);
-          (Closed Float.neg_infinity, empty_entry);
+          (Strict Float.infinity, empty_entry);
+          (Nonstrict Float.infinity, empty_entry);
+          (Strict Float.neg_infinity, empty_entry);
+          (Nonstrict Float.neg_infinity, empty_entry);
         ];
     left_opens = TokMap.empty;
   }
@@ -48,7 +48,7 @@ let add (n : notation) (s : t) : t =
   (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)
   let tighters =
     (* We use Open here, but we could equally have used Closed, since we always add them in pairs. *)
-    if not (TIMap.mem (Open (tightness n)) tighters) then
+    if not (TIMap.mem (Strict (tightness n)) tighters) then
       let open_tighters =
         NSet.fold
           (fun m tr ->
@@ -61,8 +61,8 @@ let add (n : notation) (s : t) : t =
             if left m = Open && tightness n = tightness m then merge (tree m) tr else tr)
           notations open_tighters in
       tighters
-      |> TIMap.add (Open (tightness n)) open_tighters
-      |> TIMap.add (Closed (tightness n)) closed_tighters
+      |> TIMap.add (Strict (tightness n)) open_tighters
+      |> TIMap.add (Nonstrict (tightness n)) closed_tighters
     else tighters in
   let left_opens =
     if left n = Open then

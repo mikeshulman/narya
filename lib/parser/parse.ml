@@ -168,7 +168,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     </> (let* state = get in
          let* res, res_tight =
            (let* rng, (obs, n) = located (entry (TIMap.find tight state.tighters)) in
-            (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one.  One could make a case that notations d that fail this test should already have been excluded from the 'entry' that we parsed above.  But for one thing, that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Furthermore, doing it this way makes it easier to trap it and issue a more informative error message, which I think is a good thing because this includes examples like "let x ≔ M in N : A" and "x ↦ M : A" where the need for parentheses in Narya may be surprising to a new user.  *)
+            (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one.  One could make a case that notations n that fail this test should already have been excluded from the 'entry' that we parsed above.  But for one thing, that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Furthermore, doing it this way makes it easier to trap it and issue a more informative error message, which I think is a good thing because this includes examples like "let x ≔ M in N : A" and "x ↦ M : A" where the need for parentheses in Narya may be surprising to a new user.  *)
             let* () =
               match first_tight with
               | None -> return ()
@@ -197,9 +197,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                 | Closed ->
                     return
                       ( App (first_arg, Notn (n, Bwd.to_list (Snoc (obs, Term last_arg)))),
-                        (* TODO: Is this right?  In this case it's really the *application* that is "inside" whatever comes next. *)
-                        (* Some (d.tightness, d.name) *)
-                        Some (Float.infinity, "application") )))
+                        (* There is a question of what tightness to return here, so that a later left-open notation knows what is trying to be inside its left-open argument.  One can argue that we should return ∞, because it's really the *application* that would be *directly* inside that argument, and applications have tightness ∞.  Returning ∞ would have the result that if ~ is a nonassociative prefix operator and + is a nonassociative (or right-associative) infix operator of the same tightness, then "f ~ x + y" would parse as "(f (~ x)) + y", even though "~ x + y" would not parse.  While arguably logical, this may be unexpected.  Furthermore, if dually # is a nonassociative postfix operator of that same tightness, then "x + f # y" does not parse, in particular not as "x + ((f #) y)", because encountering the # inside the right-open argument of + fails immediately without looking ahead to see whether it's about to be applied to something.  So, for symmetry's sake, we forbid the dual behavior also. *)
+                        Some (tightness n, origname n) )))
            (* If this fails, and if the given tightness interval includes +∞, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
            </> let* arg =
                  step (fun state _ tok ->

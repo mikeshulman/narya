@@ -10,13 +10,13 @@ let unparse state str =
   raise (Failure "Unexpected parse success")
 
 (* We define a nonassociative prefix notation @ of tightness +∞, the same tightness as function application. *)
-let att = make ~origname:"at" ~tightness:Float.infinity ~left:Closed ~right:Open ~assoc:Non
+let att = make ~name:"at" ~tightness:Float.infinity ~left:Closed ~right:Open ~assoc:Non
 let () = set_tree att (eop (Op "@") (Done att))
 
 (* And also postfix notations ! and ? of tightness +∞, one left-associative and one not. *)
-let bang = make ~origname:"bang" ~tightness:Float.infinity ~left:Open ~right:Closed ~assoc:Non
+let bang = make ~name:"bang" ~tightness:Float.infinity ~left:Open ~right:Closed ~assoc:Non
 let () = set_tree bang (eop (Op "!") (Done bang))
-let query = make ~origname:"query" ~tightness:Float.infinity ~left:Open ~right:Closed ~assoc:Left
+let query = make ~name:"query" ~tightness:Float.infinity ~left:Open ~right:Closed ~assoc:Left
 let () = set_tree query (eop (Op "?") (Done query))
 let prefixes = !builtins |> State.add att |> State.add bang |> State.add query
 
@@ -69,11 +69,11 @@ let () =
     = Notn ("query", [ Term (App (Notn ("query", [ Term (Ident "f") ]), Ident "x")) ]))
 
 (* We define nonassociative prefix, infix, and postfix operators of the same tightness. *)
-let twiddle = make ~origname:"twiddle" ~tightness:0. ~left:Closed ~right:Open ~assoc:Non
+let twiddle = make ~name:"twiddle" ~tightness:0. ~left:Closed ~right:Open ~assoc:Non
 let () = set_tree twiddle (eop (Op "~") (Done twiddle))
-let star = make ~origname:"star" ~tightness:0. ~left:Open ~right:Closed ~assoc:Non
+let star = make ~name:"star" ~tightness:0. ~left:Open ~right:Closed ~assoc:Non
 let () = set_tree star (eop (Op "*") (Done star))
-let perc = make ~origname:"perc" ~tightness:0. ~left:Open ~right:Open ~assoc:Non
+let perc = make ~name:"perc" ~tightness:0. ~left:Open ~right:Open ~assoc:Non
 let () = set_tree perc (eop (Op "%") (Done perc))
 let prefixes = !builtins |> State.add twiddle |> State.add star |> State.add perc
 

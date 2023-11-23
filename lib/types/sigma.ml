@@ -16,7 +16,7 @@ open Monad.Ops (Monad.Maybe)
 
 (* TODO: printing these notations *)
 
-let sigman = make ~origname:"sigma" ~tightness:10. ~left:Closed ~right:Open ~assoc:Right
+let sigman = make ~name:"sigma" ~tightness:10. ~left:Closed ~right:Open ~assoc:Right
 
 let () =
   set_tree sigman
@@ -35,7 +35,7 @@ let () =
           Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
-let prodn = make ~origname:"prod" ~tightness:10. ~left:Open ~right:Open ~assoc:Right
+let prodn = make ~name:"prod" ~tightness:10. ~left:Open ~right:Open ~assoc:Right
 
 let () =
   set_tree prodn (eops [ (Ident "×", Done prodn); (Op "><", Done prodn) ]);
@@ -51,7 +51,7 @@ let () =
           Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
-let comma = make ~origname:"comma" ~tightness:10. ~left:Open ~right:Open ~assoc:Right
+let comma = make ~name:"comma" ~tightness:10. ~left:Open ~right:Open ~assoc:Right
 
 let () =
   set_tree comma (eop (Op ",") (Done comma));

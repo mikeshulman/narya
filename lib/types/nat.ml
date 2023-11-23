@@ -21,7 +21,7 @@ open Monad.Ops (Monad.Maybe)
 
 (* TODO: printing these notations *)
 
-let plusn = make ~origname:"plus" ~tightness:0. ~left:Open ~right:Open ~assoc:Left
+let plusn = make ~name:"plus" ~tightness:0. ~left:Open ~right:Open ~assoc:Left
 
 let () =
   set_tree plusn (eop (Op "+") (Done plusn));
@@ -37,7 +37,7 @@ let () =
           Raw.Synth (App (App (Const plus, x), y)));
     }
 
-let timesn = make ~origname:"times" ~tightness:1. ~left:Open ~right:Open ~assoc:Left
+let timesn = make ~name:"times" ~tightness:1. ~left:Open ~right:Open ~assoc:Left
 
 let () =
   set_tree timesn (eop (Op "*") (Done timesn));

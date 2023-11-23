@@ -68,7 +68,7 @@ and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 
 
    Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side), so we give those a tightness of NaN.  User-defined notations that are open on at least one side have finite tightness, while +∞ and −∞ tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −∞, while +∞ is currently unused -- Danielsson-Norell say that parentheses are tighter than everything, but in our setup they don't need a tightness at all since they are closed on both sides. *)
 and notation = {
-  origname : string;
+  name : string;
   id : int; (* Autonumber primary key *)
   dummy : unit -> unit; (* Block polymorphic comparison *)
   tightness : float;
@@ -94,7 +94,7 @@ module Notation = struct
 end
 
 (* The definition of Notation.t is abstract outside this module, so that we can guarantee they are only created with "make" below and the primary key increments every time.  Thus, we have to provide accessor functions for all the fields that should be visible outside this module. *)
-let origname n = n.origname
+let name n = n.name
 let tightness n = n.tightness
 let left n = n.left
 let right n = n.right
@@ -108,12 +108,12 @@ let set_print_as_case n p = n.print_as_case <- Some p
 let compiler n = n.compiler
 let set_compiler n c = n.compiler <- c
 
-let make ~origname ~tightness ~left ~right ~assoc =
+let make ~name ~tightness ~left ~right ~assoc =
   let id = !counter in
   let dummy () = () in
   counter := !counter + 1;
   {
-    origname;
+    name;
     id;
     dummy;
     tightness;

@@ -12,7 +12,7 @@ open Monad.Ops (Monad.Maybe)
    Parentheses
  ******************** *)
 
-let parens = make ~origname:"parens" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
+let parens = make ~name:"parens" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
   set_tree parens (eop LParen (term RParen (Done parens)));
@@ -40,7 +40,7 @@ let () =
 
 (* Let-in doesn't need to be right-associative in order to chain, because it is left-closed.  Declaring it to be nonassociative means that "let x := y in z : A" doesn't parse without parentheses, which I think is best as it looks ambiguous.  (The same idea applies to abstractions, although they are built into the parser rather than defined as mixfix notations.) *)
 
-let letin = make ~origname:"let" ~tightness:Float.neg_infinity ~left:Closed ~right:Open ~assoc:Non
+let letin = make ~name:"let" ~tightness:Float.neg_infinity ~left:Closed ~right:Open ~assoc:Non
 
 let () =
   set_tree letin
@@ -105,7 +105,7 @@ let () =
    Non-dependent function types
  ******************** *)
 
-let arrow = make ~origname:"arrow" ~tightness:0. ~left:Open ~right:Open ~assoc:Right
+let arrow = make ~name:"arrow" ~tightness:0. ~left:Open ~right:Open ~assoc:Right
 
 let () =
   set_tree arrow (eop Arrow (Done arrow));
@@ -130,7 +130,7 @@ let () =
 (* I think these are the only flags we're using, so if we could get rid of them, we could simplify by getting rid of flags completely. *)
 type flag += Implicit_pi | Explicit_pi | Default_pi
 
-let pi = make ~origname:"pi" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
+let pi = make ~name:"pi" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
 
 let rec explicit_pi () = Flag (Explicit_pi, ident (explicit_pi_vars ()))
 and implicit_pi () = Flag (Implicit_pi, ident (implicit_pi_vars ()))
@@ -297,9 +297,7 @@ let () =
    Ascription
  ******************** *)
 
-let asc =
-  make ~origname:"ascription" ~tightness:Float.neg_infinity ~left:Open ~right:Open ~assoc:Non
-
+let asc = make ~name:"ascription" ~tightness:Float.neg_infinity ~left:Open ~right:Open ~assoc:Non
 let () = set_tree asc (eop Colon (Done asc))
 
 let () =
@@ -324,7 +322,7 @@ let () =
    The universe
  ******************** *)
 
-let universe = make ~origname:"Type" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
+let universe = make ~name:"Type" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
   set_tree universe (eop (Ident "Type") (Done universe));
@@ -343,7 +341,7 @@ let () =
    Degeneracies (refl and sym)
  ******************** *)
 
-let refl = make ~origname:"refl" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
+let refl = make ~name:"refl" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
   set_tree refl (eops [ (Ident "refl", Done refl); (Ident "Id", Done refl) ]);
@@ -358,7 +356,7 @@ let () =
   let () = get_done obs in
   pp_print_string ppf "refl"
 
-let sym = make ~origname:"sym" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
+let sym = make ~name:"sym" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
   set_tree sym (eop (Ident "sym") (Done sym));
@@ -377,7 +375,7 @@ let () =
    Anonymous structs and comatches
  ******************** *)
 
-let struc = make ~origname:"struc" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
+let struc = make ~name:"struc" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
   set_tree struc
@@ -484,7 +482,7 @@ let () =
    Matches
  ******************** *)
 
-let mtch = make ~origname:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
+let mtch = make ~name:"match" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let rec pattern_vars () =
   Inner

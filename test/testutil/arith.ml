@@ -3,17 +3,17 @@ open Notation
 
 (* Notations for arithmetic.  This has nothing to do with the Nat of type theory, it's just a way of testing the parser. *)
 
-let plus = make ~origname:"+" ~tightness:0. ~left:Open ~right:Open ~assoc:Left
+let plus = make ~name:"+" ~tightness:0. ~left:Open ~right:Open ~assoc:Left
 let () = set_tree plus (eop (Op "+") (Done plus))
-let minus = make ~origname:"-" ~tightness:0. ~left:Open ~right:Open ~assoc:Left
+let minus = make ~name:"-" ~tightness:0. ~left:Open ~right:Open ~assoc:Left
 let () = set_tree minus (eop (Op "-") (Done minus))
-let times = make ~origname:"*" ~tightness:10. ~left:Open ~right:Open ~assoc:Left
+let times = make ~name:"*" ~tightness:10. ~left:Open ~right:Open ~assoc:Left
 let () = set_tree times (eop (Op "*") (Done times))
-let div = make ~origname:"/" ~tightness:10. ~left:Open ~right:Open ~assoc:Left
+let div = make ~name:"/" ~tightness:10. ~left:Open ~right:Open ~assoc:Left
 let () = set_tree div (eop (Op "/") (Done div))
-let exp = make ~origname:"^" ~tightness:20. ~left:Open ~right:Open ~assoc:Right
+let exp = make ~name:"^" ~tightness:20. ~left:Open ~right:Open ~assoc:Right
 let () = set_tree exp (eop (Op "^") (Done exp))
-let parens = make ~origname:"()" ~tightness:Float.infinity ~left:Closed ~right:Closed ~assoc:Non
+let parens = make ~name:"()" ~tightness:Float.infinity ~left:Closed ~right:Closed ~assoc:Non
 let () = set_tree parens (eop LParen (term RParen (Done parens)))
 
 let arith =

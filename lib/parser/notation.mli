@@ -41,7 +41,7 @@ and parse =
 and notation
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
-val origname : notation -> string
+val name : notation -> string
 val tightness : notation -> float
 val left : notation -> openness
 val right : notation -> openness
@@ -56,7 +56,7 @@ val print_as_case : notation -> (Format.formatter -> observation list -> unit) o
 val set_print_as_case : notation -> (Format.formatter -> observation list -> unit) -> unit
 
 val make :
-  origname:string ->
+  name:string ->
   tightness:float ->
   left:openness ->
   right:openness ->

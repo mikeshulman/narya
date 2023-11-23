@@ -136,6 +136,7 @@ let set_print n p = n.print <- Some p
 let print_as_case n = n.print_as_case
 let set_print_as_case n p = n.print_as_case <- Some p
 
+(* Create a new notation with specified name, fixity, and tightness.  Its mutable fields must be set later. *)
 let make name fixity tightness =
   let left, right, assoc = fixprops fixity in
   let id = !counter in
@@ -189,6 +190,8 @@ let constr x =
 let field x = Inner { ops = TokMap.empty; constr = None; field = Some x; ident = None; term = None }
 let ident x = Inner { ops = TokMap.empty; constr = None; field = None; ident = Some x; term = None }
 let of_entry e = Inner { ops = e; constr = None; field = None; ident = None; term = None }
+
+(* Similar, but for "entries". *)
 let eop tok x = TokMap.singleton tok x
 let eops toks = TokMap.of_list toks
 let empty_entry = TokMap.empty

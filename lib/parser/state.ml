@@ -7,7 +7,7 @@ module TIMap = Map.Make (Interval)
 type t = {
   (* All the available notations. *)
   notations : NSet.t;
-  (* We store a pre-merged tree of all left-closed notations. *)
+  (* We store a pre-merged tree of all left-closed notations.  TODO: This should really be the same as tighters of the empty interval (-∞,+∞], but that doesn't seem to work right now. *)
   left_closeds : entry;
   (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval. *)
   tighters : entry TIMap.t;

@@ -28,7 +28,7 @@ type t =
   | Let
   | In
   | Op of string (* Sequence of common ASCII symbols *)
-  (* Alphanumeric/unicode with only internal dots and underscores only.  We can't separate these out into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
+  (* Alphanumeric/unicode with dots and underscores occuring only internally.  We can't separate these out at lexing time into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
   | Ident of string
   | Eof
 

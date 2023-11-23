@@ -4,6 +4,7 @@ open Notation
 
 type t = Strict of float | Nonstrict of float
 
+let empty = Strict Float.infinity
 let entire = Nonstrict Float.neg_infinity
 
 let to_string = function

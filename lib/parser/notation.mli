@@ -4,6 +4,7 @@ module TokMap : module type of Map.Make (Token)
 
 type openness = Open | Closed
 type associativity = Left | Right | Non
+type fixity = Infix | Infixl | Infixr | Prefix | Prefixr | Postfix | Postfixl | Outfix
 type flag = ..
 
 type tree =
@@ -54,15 +55,7 @@ val print : notation -> (Format.formatter -> observation list -> unit) option
 val set_print : notation -> (Format.formatter -> observation list -> unit) -> unit
 val print_as_case : notation -> (Format.formatter -> observation list -> unit) option
 val set_print_as_case : notation -> (Format.formatter -> observation list -> unit) -> unit
-
-val make :
-  name:string ->
-  tightness:float ->
-  left:openness ->
-  right:openness ->
-  assoc:associativity ->
-  notation
-
+val make : string -> fixity -> float -> notation
 val equal : notation -> notation -> bool
 
 module Notation : sig

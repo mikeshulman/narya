@@ -18,12 +18,25 @@ type openness = Open | Closed
 (* A notation is left-associative, right-associative, or non-associative.  Note that only an infix or prefix notation can meaningfully be right-associative, while only an infix or postfix notation can meaningfully be left-associative. *)
 type associativity = Left | Right | Non
 
-(* While parsing a notation, we may need to record certain information other than the idents and subterms encountered.  We store this in "flags". *)
+(* Fixity determines two opennesses and associativity. *)
+type fixity = Infix | Infixl | Infixr | Prefix | Prefixr | Postfix | Postfixl | Outfix
+
+let fixprops = function
+  | Infix -> (Open, Open, Non)
+  | Infixl -> (Open, Open, Left)
+  | Infixr -> (Open, Open, Right)
+  | Prefix -> (Closed, Open, Non)
+  | Prefixr -> (Closed, Open, Right)
+  | Postfix -> (Open, Closed, Non)
+  | Postfixl -> (Open, Closed, Left)
+  | Outfix -> (Closed, Closed, Non)
+
+(* While parsing a notation, we may need to record certain information other than the identifiers, constructors, fields, and subterms encountered.  We store this in "flags". *)
 type flag = ..
 
 (* A "notation tree" (not to be confused with a "parse tree", which is the *result* of parsing) carries the information about how to parse one or more notations.  Each individual notation is defined by giving one tree, but multiple such trees can also be "merged" together.  This allows different notations that start out looking the same to be parsed with minimal backtracking, as we don't need to "decide" which notation we're parsing until we get to the point of the tree where they diverge.  Accordingly, although each notation is associated to a defining tree, a tree also stores pointers to notations at its leaves, since a merged tree could parse many different notations depending on which path through it is taken. *)
 
-(* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only store the operators, idents, and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
+(* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only store the operators, constructors, fields, identifiers, and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
 type tree =
   | Inner : branch -> tree
   | Done : notation -> tree
@@ -31,7 +44,7 @@ type tree =
   (* Trees associated to notations of arbitrary length are infinite, so we allow them to be computed lazily as needed. *)
   | Lazy : tree Lazy.t -> tree
 
-(* When there is a choice in parsing, we arrange it so that there is as little backtracking required as possible: we test all the possible next literal tokens, the possibility of a field or constructor, variable, other term, or being done with this node.  With this arrangement, the only necessary backtracking is that a var could also be a term, so if both of those options are present, we have to backtrack after trying to parse a var and failing. *)
+(* When there is a choice in parsing, we arrange it so that there is as little backtracking required as possible: we test all the possible next literal tokens, the possibility of a field or constructor, variable, other term, or being done with this node.  With this arrangement, the only necessary backtracking is that an identifier or constructor could also be a term.  So if both of those options are present, we have to backtrack after trying to parse a constructor or identifier and failing. *)
 and branch = {
   ops : tree TokMap.t;
   constr : tree option;
@@ -59,6 +72,7 @@ and parse =
   | Constr of string
   | Field of string
   | Numeral of Q.t
+  (* A parsed abstraction already knows whether it is a normal abstraction or a cubical one, since different symbols ↦ and ⤇ are used. *)
   | Abs of [ `Cube | `Normal ] * string option list * parse
 
 (* A compilation function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
@@ -66,7 +80,7 @@ and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 
 
 (* A notation has a precedence, which we call "tightness" to make it obvious that higher numbers bind more tightly, and is a floating-point number.  Using a DAG for precedence, as in Danielsson-Norell, is a nice idea, but it seems to require a lot of backtracking: if when parsing the right-hand argument of a notation ∧ you encounter a notation * that isn't tighter than ∧, you can't know yet that it is forbidden; you have to keep parsing in case you encounter another notation like = that is tighter than ∧ and looser than *, or in fact multiple such notations forming some arbitrarily complicated path through the DAG.  This is incompatible with the minimal-backtracking approach we take, so we stick to numerical tightnesses.
 
-   Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side), so we give those a tightness of NaN.  User-defined notations that are open on at least one side have finite tightness, while +∞ and −∞ tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −∞, while +∞ is currently unused -- Danielsson-Norell say that parentheses are tighter than everything, but in our setup they don't need a tightness at all since they are closed on both sides. *)
+   Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side), so we give those a tightness of NaN.  User-defined notations that are open on at least one side have finite tightness, while +∞ and −∞ tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −∞, while +∞ is currently unused.  (Danielsson-Norell say that parentheses are tighter than everything, but in our setup they don't need a tightness at all since they are closed on both sides.) *)
 and notation = {
   name : string;
   id : int; (* Autonumber primary key *)
@@ -75,10 +89,10 @@ and notation = {
   left : openness;
   right : openness;
   assoc : associativity;
-  (* The remaining fields are mutable because they have to be able to refer to the notation object itself, so we have a circular data structure.  They aren't expected to mutate further after being set once. *)
-  mutable tree : entry;
-  mutable compiler : compiler;
-  (* Some notations only make sense in terms others only make sense in case trees, and some make sense in either.  Thus, a notation can supply either or both of these printing functions. *)
+  (* The remaining fields are mutable because they have to be able to refer to the notation object itself, so we have a circular data structure.  They aren't expected to mutate further after being set once.  Thus we store them as options, to record whether they have been set. *)
+  mutable tree : entry option;
+  mutable compiler : compiler option;
+  (* Some notations only make sense in terms, others only make sense in case trees, and some make sense in either.  Thus, a notation can supply either or both of these printing functions. *)
   mutable print : (Format.formatter -> observation list -> unit) option;
   mutable print_as_case : (Format.formatter -> observation list -> unit) option;
 }
@@ -87,28 +101,43 @@ and notation = {
 let counter = ref 0
 let equal : notation -> notation -> bool = fun x y -> x.id = y.id
 
+(* A "comparable" module that we can pass to functors like Map.Make. *)
 module Notation = struct
   type t = notation
 
   let compare : t -> t -> int = fun x y -> compare x.id y.id
 end
 
-(* The definition of Notation.t is abstract outside this module, so that we can guarantee they are only created with "make" below and the primary key increments every time.  Thus, we have to provide accessor functions for all the fields that should be visible outside this module. *)
+(* The definition of Notation.t is abstract outside this file, so that we can guarantee they are only created with "make" below and the primary key increments every time.  Thus, we have to provide getter functions for all the fields that should be visible outside this file. *)
 let name n = n.name
 let tightness n = n.tightness
 let left n = n.left
 let right n = n.right
 let assoc n = n.assoc
-let tree n = n.tree
-let set_tree n t = n.tree <- t
+
+(* For the mutable fields, we also have to provide setter functions.  Since these fields are only intended to be set once, the setters throw an exception if the value is already set (and the getters for tree and compiler throw an exception if it is not yet set).  *)
+
+let tree n = Option.get n.tree
+
+let set_tree n t =
+  match n.tree with
+  | Some _ -> raise (Invalid_argument "notation tree already set")
+  | None -> n.tree <- Some t
+
+let compiler n = Option.get n.compiler
+
+let set_compiler n c =
+  match n.compiler with
+  | Some _ -> raise (Invalid_argument "notation compiler already set")
+  | None -> n.compiler <- Some c
+
 let print n = n.print
 let set_print n p = n.print <- Some p
 let print_as_case n = n.print_as_case
 let set_print_as_case n p = n.print_as_case <- Some p
-let compiler n = n.compiler
-let set_compiler n c = n.compiler <- c
 
-let make ~name ~tightness ~left ~right ~assoc =
+let make name fixity tightness =
+  let left, right, assoc = fixprops fixity in
   let id = !counter in
   let dummy () = () in
   counter := !counter + 1;
@@ -120,10 +149,10 @@ let make ~name ~tightness ~left ~right ~assoc =
     left;
     right;
     assoc;
-    tree = TokMap.empty;
+    tree = None;
     print = None;
     print_as_case = None;
-    compiler = { compile = (fun _ _ -> raise (Failure "compile unset")) };
+    compiler = None;
   }
 
 (* Helper functions for constructing notation trees *)

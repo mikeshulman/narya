@@ -6,10 +6,10 @@ open Showparse
 
 (* We raise an error if one notation is a prefix of another, since parsing such combinations would require too much backtracking.  Here we test the generation of that error. *)
 
-let ifthen = make ~name:"ifthen" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
+let ifthen = make "ifthen" Prefixr 0.
 let () = set_tree ifthen (eop (Ident "if") (term (Ident "then") (Done ifthen)))
 let ifthen_only = State.empty |> State.add ifthen
-let ifthenelse = make ~name:"ifthenelse" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
+let ifthenelse = make "ifthenelse" Prefixr 0.
 
 let () =
   set_tree ifthenelse
@@ -41,7 +41,7 @@ let () =
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
 
-let ifthenelif = make ~name:"ifthenelif" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
+let ifthenelif = make "ifthenelif" Prefixr 0.
 
 let () =
   set_tree ifthenelif

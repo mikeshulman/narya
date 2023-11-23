@@ -7,12 +7,13 @@ open Showparse
 (* We raise an error if one notation is a prefix of another, since parsing such combinations would require too much backtracking.  Here we test the generation of that error. *)
 
 let ifthen = make ~origname:"ifthen" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
-let () = set_tree ifthen (eop (Name "if") (term (Name "then") (Done ifthen)))
+let () = set_tree ifthen (eop (Ident "if") (term (Ident "then") (Done ifthen)))
 let ifthen_only = State.empty |> State.add ifthen
 let ifthenelse = make ~origname:"ifthenelse" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
 
 let () =
-  set_tree ifthenelse (eop (Name "if") (term (Name "then") (term (Name "else") (Done ifthenelse))))
+  set_tree ifthenelse
+    (eop (Ident "if") (term (Ident "then") (term (Ident "else") (Done ifthenelse))))
 
 let ifthenelse_only = State.empty |> State.add ifthenelse
 let both = State.empty |> State.add ifthen |> State.add ifthenelse
@@ -24,10 +25,10 @@ let () =
       Terminal.display d;
       raise (Failure "Parse failure"))
   @@ fun () ->
-  assert (parse ifthen_only "if x then y" = Notn ("ifthen", [ Term (Name "x"); Term (Name "y") ]));
+  assert (parse ifthen_only "if x then y" = Notn ("ifthen", [ Term (Ident "x"); Term (Ident "y") ]));
   assert (
     parse ifthenelse_only "if x then y else z"
-    = Notn ("ifthenelse", [ Term (Name "x"); Term (Name "y"); Term (Name "z") ]))
+    = Notn ("ifthenelse", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]))
 
 let () =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
@@ -36,14 +37,15 @@ let () =
         Terminal.display d;
         raise (Failure "Unexpected error code")))
   @@ fun () ->
-  assert (parse both "if x then y" = Notn ("ifthen", [ Term (Name "x"); Term (Name "y") ]))
+  assert (parse both "if x then y" = Notn ("ifthen", [ Term (Ident "x"); Term (Ident "y") ]))
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
 
 let ifthenelif = make ~origname:"ifthenelif" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
 
 let () =
-  set_tree ifthenelif (eop (Name "if") (term (Name "then") (term (Name "elif") (Done ifthenelif))))
+  set_tree ifthenelif
+    (eop (Ident "if") (term (Ident "then") (term (Ident "elif") (Done ifthenelif))))
 
 let better_both = State.empty |> State.add ifthenelse |> State.add ifthenelif
 
@@ -54,7 +56,7 @@ let () =
   @@ fun () ->
   assert (
     parse better_both "if x then y else z"
-    = Notn ("ifthenelse", [ Term (Name "x"); Term (Name "y"); Term (Name "z") ]));
+    = Notn ("ifthenelse", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]));
   assert (
     parse better_both "if x then y elif z"
-    = Notn ("ifthenelif", [ Term (Name "x"); Term (Name "y"); Term (Name "z") ]))
+    = Notn ("ifthenelif", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]))

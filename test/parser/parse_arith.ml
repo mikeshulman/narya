@@ -2,38 +2,38 @@ open Testutil
 open Showparse
 open Arith
 
-let () = assert (parse arith "x" = Name "x")
-let () = assert (parse arith "x + y" = Notn ("+", [ Term (Name "x"); Term (Name "y") ]))
+let () = assert (parse arith "x" = Ident "x")
+let () = assert (parse arith "x + y" = Notn ("+", [ Term (Ident "x"); Term (Ident "y") ]))
 
 let () =
   assert (
     parse arith "x + y + z"
-    = Notn ("+", [ Term (Notn ("+", [ Term (Name "x"); Term (Name "y") ])); Term (Name "z") ]))
+    = Notn ("+", [ Term (Notn ("+", [ Term (Ident "x"); Term (Ident "y") ])); Term (Ident "z") ]))
 
 let () =
   assert (
     parse arith "x ^ y ^ z"
-    = Notn ("^", [ Term (Name "x"); Term (Notn ("^", [ Term (Name "y"); Term (Name "z") ])) ]))
+    = Notn ("^", [ Term (Ident "x"); Term (Notn ("^", [ Term (Ident "y"); Term (Ident "z") ])) ]))
 
 let () =
   assert (
     parse arith "x * y + z"
-    = Notn ("+", [ Term (Notn ("*", [ Term (Name "x"); Term (Name "y") ])); Term (Name "z") ]))
+    = Notn ("+", [ Term (Notn ("*", [ Term (Ident "x"); Term (Ident "y") ])); Term (Ident "z") ]))
 
 let () =
   assert (
     parse arith "x + y * z"
-    = Notn ("+", [ Term (Name "x"); Term (Notn ("*", [ Term (Name "y"); Term (Name "z") ])) ]))
+    = Notn ("+", [ Term (Ident "x"); Term (Notn ("*", [ Term (Ident "y"); Term (Ident "z") ])) ]))
 
 let () =
   assert (
     parse arith "x + y - z"
-    = Notn ("-", [ Term (Notn ("+", [ Term (Name "x"); Term (Name "y") ])); Term (Name "z") ]))
+    = Notn ("-", [ Term (Notn ("+", [ Term (Ident "x"); Term (Ident "y") ])); Term (Ident "z") ]))
 
 let () =
   assert (
     parse arith "x - y + z"
-    = Notn ("+", [ Term (Notn ("-", [ Term (Name "x"); Term (Name "y") ])); Term (Name "z") ]))
+    = Notn ("+", [ Term (Notn ("-", [ Term (Ident "x"); Term (Ident "y") ])); Term (Ident "z") ]))
 
 let () =
   assert (
@@ -41,10 +41,12 @@ let () =
     = Notn
         ( "+",
           [
-            Term (Name "x");
+            Term (Ident "x");
             Term
               (Notn
-                 ("*", [ Term (Notn ("^", [ Term (Name "y"); Term (Name "z") ])); Term (Name "w") ]));
+                 ( "*",
+                   [ Term (Notn ("^", [ Term (Ident "y"); Term (Ident "z") ])); Term (Ident "w") ]
+                 ));
           ] ))
 
 let () =
@@ -55,15 +57,17 @@ let () =
           [
             Term
               (Notn
-                 ("*", [ Term (Name "x"); Term (Notn ("^", [ Term (Name "y"); Term (Name "z") ])) ]));
-            Term (Name "w");
+                 ( "*",
+                   [ Term (Ident "x"); Term (Notn ("^", [ Term (Ident "y"); Term (Ident "z") ])) ]
+                 ));
+            Term (Ident "w");
           ] ))
 
-let () = assert (parse arith "(x)" = Notn ("()", [ Term (Name "x") ]))
+let () = assert (parse arith "(x)" = Notn ("()", [ Term (Ident "x") ]))
 
 let () =
   assert (
-    parse arith "(x+y)" = Notn ("()", [ Term (Notn ("+", [ Term (Name "x"); Term (Name "y") ])) ]))
+    parse arith "(x+y)" = Notn ("()", [ Term (Notn ("+", [ Term (Ident "x"); Term (Ident "y") ])) ]))
 
 let () =
   assert (
@@ -71,24 +75,24 @@ let () =
     = Notn
         ( "+",
           [
-            Term (Name "x");
-            Term (Notn ("()", [ Term (Notn ("+", [ Term (Name "y"); Term (Name "z") ])) ]));
+            Term (Ident "x");
+            Term (Notn ("()", [ Term (Notn ("+", [ Term (Ident "y"); Term (Ident "z") ])) ]));
           ] ))
 
-let () = assert (parse arith "x y" = App (Name "x", Name "y"))
-let () = assert (parse arith "x (y)" = App (Name "x", Notn ("()", [ Term (Name "y") ])))
-let () = assert (parse arith "(x) y" = App (Notn ("()", [ Term (Name "x") ]), Name "y"))
+let () = assert (parse arith "x y" = App (Ident "x", Ident "y"))
+let () = assert (parse arith "x (y)" = App (Ident "x", Notn ("()", [ Term (Ident "y") ])))
+let () = assert (parse arith "(x) y" = App (Notn ("()", [ Term (Ident "x") ]), Ident "y"))
 
 let () =
-  assert (parse arith "x y + z" = Notn ("+", [ Term (App (Name "x", Name "y")); Term (Name "z") ]))
+  assert (parse arith "x y + z" = Notn ("+", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]))
 
 let () =
-  assert (parse arith "x + y z" = Notn ("+", [ Term (Name "x"); Term (App (Name "y", Name "z")) ]))
+  assert (parse arith "x + y z" = Notn ("+", [ Term (Ident "x"); Term (App (Ident "y", Ident "z")) ]))
 
-let () = assert (parse arith "x y z" = App (App (Name "x", Name "y"), Name "z"))
+let () = assert (parse arith "x y z" = App (App (Ident "x", Ident "y"), Ident "z"))
 
 let () =
-  assert (parse arith "x (y z)" = App (Name "x", Notn ("()", [ Term (App (Name "y", Name "z")) ])))
+  assert (parse arith "x (y z)" = App (Ident "x", Notn ("()", [ Term (App (Ident "y", Ident "z")) ])))
 
 let () =
   assert (
@@ -96,7 +100,7 @@ let () =
     = Notn
         ( "+",
           [
-            Term (Name "x");
+            Term (Ident "x");
             Term
               (App
                  ( Notn
@@ -108,21 +112,21 @@ let () =
                                 [
                                   Term
                                     (App
-                                       ( Name "v",
+                                       ( Ident "v",
                                          Notn
                                            ( "()",
                                              [
                                                Term
-                                                 (Notn ("+", [ Term (Name "y"); Term (Name "z") ]));
+                                                 (Notn ("+", [ Term (Ident "y"); Term (Ident "z") ]));
                                              ] ) ));
-                                  Term (Name "w");
+                                  Term (Ident "w");
                                 ] ));
                        ] ),
-                   Name "u" ));
+                   Ident "u" ));
           ] ))
 
-let () = assert (parse arith "a. b c" = App (App (Constr "a", Name "b"), Name "c"))
-let () = assert (parse arith "a .b c" = App (App (Name "a", Field "b"), Name "c"))
+let () = assert (parse arith "a. b c" = App (App (Constr "a", Ident "b"), Ident "c"))
+let () = assert (parse arith "a .b c" = App (App (Ident "a", Field "b"), Ident "c"))
 
 (* Parsing the church numeral 500, or even 1000, takes a near-negligible amount of time.  I think it helps that we have minimized backtracking. *)
 let rec cnat n = if n <= 0 then "x" else "(f " ^ cnat (n - 1) ^ ")"

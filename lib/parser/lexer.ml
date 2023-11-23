@@ -199,7 +199,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
             try return (Numeral (Q.of_string s))
             with _ -> fatal ~loc:(Range.convert rng) (Invalid_numeral s)
             (* Anything else, not starting or ending with a period, and that doesn't consist entirely of digits and periods, is potentially a valid name.  The periods will be interpreted later as namespacing of constants (hence are disallowed in a local variable). *)
-          else return (Name s))
+          else return (Ident s))
 
 (* Now to make a token, we consume as many such characters as possible, adding them one-by-one to a Buffer and then canonicalizing the resulting string. *)
 let other : Token.t t =

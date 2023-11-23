@@ -16,7 +16,7 @@ and branch = {
   ops : tree TokMap.t;
   constr : tree option;
   field : tree option;
-  name : tree option;
+  ident : tree option;
   term : tree TokMap.t option;
 }
 
@@ -26,13 +26,13 @@ and observation =
   | Flagged of flag
   | Constr of string
   | Field of string
-  | Name of string option
+  | Ident of string option
   | Term of parse
 
 and parse =
   | Notn of notation * observation list
   | App of parse * parse
-  | Name of string
+  | Ident of string
   | Constr of string
   | Field of string
   | Numeral of Q.t
@@ -78,7 +78,7 @@ val term : TokMap.key -> tree -> tree
 val terms : (TokMap.key * tree) list -> tree
 val constr : tree -> tree
 val field : tree -> tree
-val name : tree -> tree
+val ident : tree -> tree
 val of_entry : tree TokMap.t -> tree
 val eop : TokMap.key -> 'a -> 'a TokMap.t
 val eops : (TokMap.key * 'a) list -> 'a TokMap.t

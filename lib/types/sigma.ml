@@ -21,12 +21,12 @@ let sigman = make ~origname:"sigma" ~tightness:10. ~left:Closed ~right:Open ~ass
 let () =
   set_tree sigman
     (eop LParen
-       (name (op Colon (term RParen (ops [ (Name "×", Done sigman); (Op "><", Done sigman) ])))));
+       (ident (op Colon (term RParen (ops [ (Ident "×", Done sigman); (Op "><", Done sigman) ])))));
   set_compiler sigman
     {
       compile =
         (fun ctx obs ->
-          let x, obs = get_name obs in
+          let x, obs = get_ident obs in
           let tm, obs = get_term obs in
           let ty, obs = get_term obs in
           let () = get_done obs in
@@ -38,7 +38,7 @@ let () =
 let prodn = make ~origname:"prod" ~tightness:10. ~left:Open ~right:Open ~assoc:Right
 
 let () =
-  set_tree prodn (eops [ (Name "×", Done prodn); (Op "><", Done prodn) ]);
+  set_tree prodn (eops [ (Ident "×", Done prodn); (Op "><", Done prodn) ]);
   set_compiler prodn
     {
       compile =

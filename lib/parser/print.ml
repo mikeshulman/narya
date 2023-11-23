@@ -56,7 +56,7 @@ let rec pp_term (ppf : formatter) (tr : Notation.parse) : unit =
           | Some pp -> pp ppf obs
           | None -> fatal (Anomaly "Unprintable term"))
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine tr
-      | Name x -> pp_utf_8 ppf x
+      | Ident x -> pp_utf_8 ppf x
       | Constr c -> pp_constr ppf c
       | Field f -> pp_field ppf f
       | Numeral n -> Q.pp_print ppf n

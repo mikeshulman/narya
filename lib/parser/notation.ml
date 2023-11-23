@@ -18,12 +18,12 @@ type openness = Open | Closed
 (* A notation is left-associative, right-associative, or non-associative.  Note that only an infix or prefix notation can meaningfully be right-associative, while only an infix or postfix notation can meaningfully be left-associative. *)
 type associativity = Left | Right | Non
 
-(* While parsing a notation, we may need to record certain information other than the names and subterms encountered.  We store this in "flags". *)
+(* While parsing a notation, we may need to record certain information other than the idents and subterms encountered.  We store this in "flags". *)
 type flag = ..
 
 (* A "notation tree" (not to be confused with a "parse tree", which is the *result* of parsing) carries the information about how to parse one or more notations.  Each individual notation is defined by giving one tree, but multiple such trees can also be "merged" together.  This allows different notations that start out looking the same to be parsed with minimal backtracking, as we don't need to "decide" which notation we're parsing until we get to the point of the tree where they diverge.  Accordingly, although each notation is associated to a defining tree, a tree also stores pointers to notations at its leaves, since a merged tree could parse many different notations depending on which path through it is taken. *)
 
-(* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only store the operators, names, and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
+(* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only store the operators, idents, and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
 type tree =
   | Inner : branch -> tree
   | Done : notation -> tree
@@ -36,26 +36,26 @@ and branch = {
   ops : tree TokMap.t;
   constr : tree option;
   field : tree option;
-  name : tree option;
+  ident : tree option;
   term : tree TokMap.t option;
 }
 
 (* The entry point of a notation tree must begin with an operator symbol. *)
 and entry = tree TokMap.t
 
-(* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with names, and have a separate step of "compilation" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
+(* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "compilation" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
 and observation =
   | Flagged of flag
   | Constr of string
   | Field of string
-  | Name of string option
+  | Ident of string option
   | Term of parse
 
 (* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "compilation" functions.  *)
 and parse =
   | Notn of notation * observation list
   | App of parse * parse
-  | Name of string
+  | Ident of string
   | Constr of string
   | Field of string
   | Numeral of Q.t
@@ -129,10 +129,10 @@ let make ~origname ~tightness ~left ~right ~assoc =
 (* Helper functions for constructing notation trees *)
 
 let op tok x =
-  Inner { ops = TokMap.singleton tok x; constr = None; field = None; name = None; term = None }
+  Inner { ops = TokMap.singleton tok x; constr = None; field = None; ident = None; term = None }
 
 let ops toks =
-  Inner { ops = TokMap.of_list toks; constr = None; field = None; name = None; term = None }
+  Inner { ops = TokMap.of_list toks; constr = None; field = None; ident = None; term = None }
 
 let term tok x =
   Inner
@@ -140,7 +140,7 @@ let term tok x =
       ops = TokMap.empty;
       constr = None;
       field = None;
-      name = None;
+      ident = None;
       term = Some (TokMap.singleton tok x);
     }
 
@@ -150,14 +150,16 @@ let terms toks =
       ops = TokMap.empty;
       constr = None;
       field = None;
-      name = None;
+      ident = None;
       term = Some (TokMap.of_list toks);
     }
 
-let constr x = Inner { ops = TokMap.empty; constr = Some x; field = None; name = None; term = None }
-let field x = Inner { ops = TokMap.empty; constr = None; field = Some x; name = None; term = None }
-let name x = Inner { ops = TokMap.empty; constr = None; field = None; name = Some x; term = None }
-let of_entry e = Inner { ops = e; constr = None; field = None; name = None; term = None }
+let constr x =
+  Inner { ops = TokMap.empty; constr = Some x; field = None; ident = None; term = None }
+
+let field x = Inner { ops = TokMap.empty; constr = None; field = Some x; ident = None; term = None }
+let ident x = Inner { ops = TokMap.empty; constr = None; field = None; ident = Some x; term = None }
+let of_entry e = Inner { ops = e; constr = None; field = None; ident = None; term = None }
 let eop tok x = TokMap.singleton tok x
 let eops toks = TokMap.of_list toks
 let empty_entry = TokMap.empty
@@ -205,11 +207,11 @@ and merge_tmap : tree TokMap.t -> tree TokMap.t -> tree TokMap.t =
 and merge_branch : branch -> branch -> branch =
  fun x y ->
   let ops = merge_tmap x.ops y.ops in
-  let name = merge_opt merge_tree x.name y.name in
+  let ident = merge_opt merge_tree x.ident y.ident in
   let constr = merge_opt merge_tree x.constr y.constr in
   let field = merge_opt merge_tree x.field y.field in
   let term = merge_opt merge_tmap x.term y.term in
-  { ops; constr; field; name; term }
+  { ops; constr; field; ident; term }
 
 let merge : entry -> entry -> entry =
  fun x y -> TokMap.union (fun _ xb yb -> Some (merge_tree xb yb)) x y

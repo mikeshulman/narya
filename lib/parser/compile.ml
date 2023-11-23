@@ -6,41 +6,41 @@ open Bwd
 open Reporter
 open Notation
 
-(* The individual notation implementations are passed a list of "observations" which are the names, terms, and flags seen and recorded while parsing that notation.  They extract its pieces using these functions, which ignore all flags except those specifically requested (since other flags might pertain to other notations that got partially parsed).  *)
+(* The individual notation implementations are passed a list of "observations" which are the idents, terms, and flags seen and recorded while parsing that notation.  They extract its pieces using these functions, which ignore all flags except those specifically requested (since other flags might pertain to other notations that got partially parsed).  *)
 
 let rec get_flag flags (obs : observation list) =
   match obs with
   | [] -> None
   | Flagged f :: rest -> if List.mem f flags then Some f else get_flag flags rest
-  | Constr _ :: _ | Field _ :: _ | Name _ :: _ | Term _ :: _ -> None
+  | Constr _ :: _ | Field _ :: _ | Ident _ :: _ | Term _ :: _ -> None
 
-let rec get_name (obs : observation list) =
+let rec get_ident (obs : observation list) =
   match obs with
-  | [] -> fatal (Anomaly "Missing name")
-  | Flagged _ :: rest -> get_name rest
-  | Name x :: rest -> (x, rest)
-  | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing name")
+  | [] -> fatal (Anomaly "Missing ident")
+  | Flagged _ :: rest -> get_ident rest
+  | Ident x :: rest -> (x, rest)
+  | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing ident")
 
-let rec get_names (obs : observation list) =
+let rec get_idents (obs : observation list) =
   match obs with
   | [] | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> ([], obs)
-  | Flagged _ :: rest -> get_names rest
-  | Name x :: rest ->
-      let names, rest = get_names rest in
-      (x :: names, rest)
+  | Flagged _ :: rest -> get_idents rest
+  | Ident x :: rest ->
+      let idents, rest = get_idents rest in
+      (x :: idents, rest)
 
 let rec get_constr (obs : observation list) =
   match obs with
   | [] -> fatal (Anomaly "Missing constr")
   | Flagged _ :: rest -> get_constr rest
   | Constr x :: rest -> (x, rest)
-  | Name _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing constr")
+  | Ident _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing constr")
 
 let rec get_term (obs : observation list) =
   match obs with
   | [] -> fatal (Anomaly "Missing term")
   | Flagged _ :: rest -> get_term rest
-  | Constr _ :: _ | Field _ :: _ | Name _ :: _ -> fatal (Anomaly "Missing term")
+  | Constr _ :: _ | Field _ :: _ | Ident _ :: _ -> fatal (Anomaly "Missing term")
   | Term x :: rest -> (x, rest)
 
 let rec get_next (obs : observation list) =
@@ -49,7 +49,7 @@ let rec get_next (obs : observation list) =
   | Flagged _ :: rest -> get_next rest
   | Constr x :: rest -> `Constr (x, rest)
   | Field x :: rest -> `Field (x, rest)
-  | Name x :: rest -> `Name (x, rest)
+  | Ident x :: rest -> `Ident (x, rest)
   | Term x :: rest -> `Term (x, rest)
 
 (* Just a sanity check at the end that there's nothing left. *)
@@ -101,17 +101,17 @@ let rec compile : type n. (string option, n) Bwv.t -> parse -> n check =
           let arg = compile ctx arg in
           Raw.Constr (head, Snoc (args, arg))
       | _ -> fatal (Nonsynthesizing "application head"))
-  | Name x -> (
+  | Ident x -> (
       match Bwv.index (Some x) ctx with
       | Some n -> Synth (Var (n, None))
       | None -> (
           match Scope.lookup x with
           | Some c -> Synth (Const c)
           | None -> fatal (Unbound_variable x)))
-  | Constr name -> Raw.Constr (Constr.intern name, Emp)
+  | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> compile_numeral n
   | Abs (_, [], body) -> compile ctx body
-  | Abs (cube, x :: names, body) ->
-      let body = compile (Snoc (ctx, x)) (Abs (cube, names, body)) in
+  | Abs (cube, x :: idents, body) ->
+      let body = compile (Snoc (ctx, x)) (Abs (cube, idents, body)) in
       Lam (cube, body)

@@ -34,24 +34,24 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   let rec tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
     match t with
-    | Inner { ops; constr; field; name; term } -> (
+    | Inner { ops; constr; field; ident; term } -> (
         match term with
         | Some e ->
             (* If a term is allowed, we first try parsing something else, and if that fails we backtrack and parse a term.  Some backtracking seems unavoidable here, because if we see for instance "(x : A) (y : B)" we have no way of knowing at first whether it is the beginning of an iterated Π-type or whether it means the existing variable x ascribed to the type A, applied as a function to the existing variable y ascribed to the type B.  It is also possible for there to be ambiguity, e.g. "(x : A) → B" looks like a Π-type, but could also be a *non* dependent function-type with its domain ascribed.  We resolve the ambiguity in favor of non-terms first, so that this example parses as a Π-type (the other reading is very unlikely to be what was meant).  Note that this also means the "semantic" errors of invalid variable names from inside the backtrack are lost if it fails and we go on to a term.  But that makes sense, because invalid variable names are valid as constant names, and if a term is allowed they can be parsed as constants (and then generate a name resolution error later if there is no such constant). *)
-            backtrack (inner_nonterm ops constr field name obs)
+            backtrack (inner_nonterm ops constr field ident obs)
             </>
             (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
             let* subterm = lclosed Interval.entire e in
             tree_op e (Snoc (obs, Term subterm))
         | None ->
             (* If a term is not allowed, we simply parse something else, with no backtracking needed. *)
-            inner_nonterm ops constr field name obs)
+            inner_nonterm ops constr field ident obs)
     | Done n -> return (obs, n)
     | Flag (f, t) -> tree t (Snoc (obs, Flagged f))
     | Lazy (lazy t) -> tree t obs
 
   (* Parse an inner branch of a tree except for the possibility of a term. *)
-  and inner_nonterm ops constr field name obs =
+  and inner_nonterm ops constr field ident obs =
     let* rng, ok =
       located
         (step (fun state _ tok ->
@@ -65,20 +65,20 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                      match (field, tok) with
                      | Some br, Field x -> Some (Ok (br, [ Field x ]), state)
                      | _ -> (
-                         (* A "name" in a notation tree must be a valid *local* variable name. *)
-                         match (name, tok) with
-                         | Some br, Name x ->
-                             if Token.variableable x then Some (Ok (br, [ Name (Some x) ]), state)
+                         (* A "ident" in a notation tree must be a valid *local* variable name. *)
+                         match (ident, tok) with
+                         | Some br, Ident x ->
+                             if Token.variableable x then Some (Ok (br, [ Ident (Some x) ]), state)
                                (* We'd like to report "invalid local variable name" here, but we can't raise it directly through Asai because there could be backtracking.  We also want to mark it as a "semantic error" so we can control exactly what data is attached to it, but we can't do that by failing a 'step' with None.  So instead we "succeed" the 'step' but return an error value that encodes the invalid variable name.  *)
                              else Some (Error x, state)
-                         | Some br, Underscore -> Some (Ok (br, [ Name None ]), state)
+                         | Some br, Underscore -> Some (Ok (br, [ Ident None ]), state)
                          | _ -> None))))) in
     (* Now outside the 'step', we test whether there was an error value, and if so we raise the appropriate semantic error.  *)
     match ok with
     | Ok (br, x) -> tree br (Bwd.append obs x)
-    | Error name ->
+    | Error ident ->
         (* The 'position' of the parser at this point is *past* the offending variable name, since the 'step' call succeeded.  But we want to mark the error as occurring on the offending variable name, and we can get its range from the 'located' wrapper around the 'step' call, and store it in the semantic error message. *)
-        fail (Invalid_variable (rng, name))
+        fail (Invalid_variable (rng, ident))
 
   and tree_op (ops : tree TokMap.t) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
     let* optree =
@@ -106,11 +106,11 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  (Field projections are not allowed since this would be the head of a spine.)  First we look forward past possible variable names to find a Mapsto, to see whether we're looking at an abstraction, and if so we insist on actually parsing that abstraction (and checking that the variable names are valid).  It seems that we must do this with backtracking, since if there *isn't* a Mapsto out there, a list of names might not just be something simple like an application spine but might include infix parts of notations.  The "followed_by" combination is to allow the abstraction to fail permanently on an invalid variable name (having consumed at least one name), while failing without consuming anything if there isn't a Mapsto. *)
       </> (let* _ = followed_by (abstraction stop Emp false) in
            abstraction stop Emp true)
-      (* Otherwise, we parse a single name, numeral, or constructor. *)
+      (* Otherwise, we parse a single ident, numeral, or constructor. *)
       </> let* res =
             step (fun state _ tok ->
                 match tok with
-                | Name x -> Some (Name x, state)
+                | Ident x -> Some (Ident x, state)
                 | Numeral n -> Some (Numeral n, state)
                 (* Constructor names have already been validated by the lexer. *)
                 | Constr x -> Some (Constr x, state)
@@ -120,36 +120,36 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     lopen tight stop res res_tight
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
-  and abstraction (stop : tree TokMap.t) (names : string option Bwd.t) (for_real : bool) :
+  and abstraction (stop : tree TokMap.t) (idents : string option Bwd.t) (for_real : bool) :
       (parse * (float * string) option) t =
     let* rng, x =
       located
         (step (fun state _ tok ->
              match tok with
-             | Name x -> Some (`Name x, state)
+             | Ident x -> Some (`Ident x, state)
              | Underscore -> Some (`Underscore, state)
              | Mapsto -> (
-                 match names with
+                 match idents with
                  | Emp -> None
                  | Snoc _ -> Some (`Mapsto `Normal, state))
              | DblMapsto -> (
-                 match names with
+                 match idents with
                  | Emp -> None
                  | Snoc _ -> Some (`Mapsto `Cube, state))
              | _ -> None)) in
     match x with
-    | `Name x ->
-        (* A name in an abstraction must be a valid *local* variable name *)
+    | `Ident x ->
+        (* An ident in an abstraction must be a valid *local* variable name *)
         if (not for_real) || Token.variableable x then
-          abstraction stop (Snoc (names, Some x)) for_real
+          abstraction stop (Snoc (idents, Some x)) for_real
         else fail (Invalid_variable (rng, x))
-    | `Underscore -> abstraction stop (Snoc (names, None)) for_real
+    | `Underscore -> abstraction stop (Snoc (idents, None)) for_real
     | `Mapsto cube ->
         if for_real then
           (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
           let* res = lclosed (Strict Float.neg_infinity) stop in
-          return (Abs (cube, Bwd.to_list names, res), Some (Float.neg_infinity, "mapsto"))
-        else return (Name "", None)
+          return (Abs (cube, Bwd.to_list idents, res), Some (Float.neg_infinity, "mapsto"))
+        else return (Ident "", None)
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse)
@@ -172,9 +172,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             let* () =
               match first_tight with
               | None -> return ()
-              | Some (t, tname) ->
+              | Some (t, tident) ->
                   if left n = Closed || Interval.contains (Interval.left n) t then return ()
-                  else fail (No_relative_precedence (rng, tname, origname n)) in
+                  else fail (No_relative_precedence (rng, tident, origname n)) in
             match right n with
             | Closed -> (
                 match left n with
@@ -205,7 +205,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                      if tight = Strict Float.infinity then None
                      else
                        match tok with
-                       | Name x -> Some (Name x, state)
+                       | Ident x -> Some (Ident x, state)
                        | Numeral n -> Some (Numeral n, state)
                        (* Constructor and field names have already been validated by the lexer. *)
                        | Constr x -> Some (Constr x, state)
@@ -246,6 +246,6 @@ let term (state : State.t) (str : string) : parse =
     fatal ~loc:(Range.convert (range p)) Parse_error
   else
     match failed_semantic p with
-    | Invalid_variable (rng, name) -> fatal ~loc:(Range.convert rng) (Invalid_variable name)
+    | Invalid_variable (rng, ident) -> fatal ~loc:(Range.convert rng) (Invalid_variable ident)
     | No_relative_precedence (rng, n1, n2) ->
         fatal ~loc:(Range.convert rng) (No_relative_precedence (n1, n2))

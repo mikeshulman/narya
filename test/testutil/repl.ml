@@ -21,7 +21,7 @@ let check_term (rtm : N.zero check) (ety : value) : emp term =
 
 let assume (name : string) (ty : string) : unit =
   match Parser.Lexer.Parser.single name with
-  | Some (Name name) ->
+  | Some (Ident name) ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then
         (* TODO: This should be an Asai message *)
@@ -37,7 +37,7 @@ let assume (name : string) (ty : string) : unit =
 
 let def (name : string) (ty : string) (tm : string) : unit =
   match Parser.Lexer.Parser.single name with
-  | Some (Name name) ->
+  | Some (Ident name) ->
       Reporter.tracef "when defining %s" name @@ fun () ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then

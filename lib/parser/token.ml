@@ -29,7 +29,7 @@ type t =
   | In
   | Op of string (* Sequence of common ASCII symbols *)
   (* Alphanumeric/unicode with only internal dots and underscores only.  We can't separate these out into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
-  | Name of string
+  | Ident of string
   | Eof
 
 let compare : t -> t -> int = compare
@@ -67,7 +67,7 @@ let to_string = function
   | Let -> "let"
   | In -> "in"
   | Op s -> s
-  | Name s -> s
+  | Ident s -> s
   | Eof -> "EOF"
 
 (* Given a token, create a constant pretty-printer that prints that token. *)

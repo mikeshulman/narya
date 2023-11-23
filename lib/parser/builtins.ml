@@ -45,13 +45,13 @@ let letin = make ~origname:"let" ~tightness:Float.neg_infinity ~left:Closed ~rig
 let () =
   set_tree letin
     (eop Let
-       (name
+       (ident
           (ops [ (Coloneq, term In (Done letin)); (Colon, term Coloneq (term In (Done letin))) ])));
   set_compiler letin
     {
       compile =
         (fun ctx obs ->
-          let x, obs = get_name obs in
+          let x, obs = get_ident obs in
           let ty_or_tm, obs = get_term obs in
           let tm_or_body, obs = get_term obs in
           match get_next obs with
@@ -73,7 +73,7 @@ let () =
     };
   set_print letin (fun ppf obs ->
       let rec pp_let ppf obs =
-        let x, obs = get_name obs in
+        let x, obs = get_ident obs in
         let ty_or_tm, obs = get_term obs in
         let tm_or_body, obs = get_term obs in
         match get_next obs with
@@ -132,8 +132,8 @@ type flag += Implicit_pi | Explicit_pi | Default_pi
 
 let pi = make ~origname:"pi" ~tightness:0. ~left:Closed ~right:Open ~assoc:Right
 
-let rec explicit_pi () = Flag (Explicit_pi, name (explicit_pi_vars ()))
-and implicit_pi () = Flag (Implicit_pi, name (implicit_pi_vars ()))
+let rec explicit_pi () = Flag (Explicit_pi, ident (explicit_pi_vars ()))
+and implicit_pi () = Flag (Implicit_pi, ident (implicit_pi_vars ()))
 
 and explicit_pi_vars () =
   Inner
@@ -141,7 +141,7 @@ and explicit_pi_vars () =
       ops = TokMap.singleton Colon (term RParen (more_pi ()));
       constr = None;
       field = None;
-      name = Some (Lazy (lazy (explicit_pi_vars ())));
+      ident = Some (Lazy (lazy (explicit_pi_vars ())));
       term = None;
     }
 
@@ -157,7 +157,7 @@ and implicit_pi_vars () =
              ]);
       constr = None;
       field = None;
-      name = Some (Lazy (lazy (implicit_pi_vars ())));
+      ident = Some (Lazy (lazy (implicit_pi_vars ())));
       term = None;
     }
 
@@ -187,7 +187,7 @@ and compile_pi_names :
  fun mn ctx obs ->
   match get_next obs with
   | `Done -> fatal (Anomaly "Unexpected end of arguments")
-  | `Name (x, obs) -> compile_pi_names (Suc mn) (Snoc (ctx, x)) obs
+  | `Ident (x, obs) -> compile_pi_names (Suc mn) (Snoc (ctx, x)) obs
   | `Constr _ | `Field _ -> fatal (Anomaly "Impossible thing in pi")
   | `Term (dom, obs) -> (
       let f = get_flag [ Default_pi ] obs in
@@ -212,7 +212,7 @@ let rec pp_pi (arr : bool) (obs : observation list) : int * (formatter -> unit -
   let f = get_flag [ Explicit_pi; Implicit_pi ] obs in
   match f with
   | Some Implicit_pi -> (
-      let names, obs = get_names obs in
+      let names, obs = get_idents obs in
       let ty, obs = get_term obs in
       let f = get_flag [ Default_pi ] obs in
       match f with
@@ -228,7 +228,7 @@ let rec pp_pi (arr : bool) (obs : observation list) : int * (formatter -> unit -
               rest ppf ()),
             body ))
   | Some Explicit_pi -> (
-      let names, obs = get_names obs in
+      let idents, obs = get_idents obs in
       let ty, obs = get_term obs in
       let f = get_flag [ Default_pi ] obs in
       match f with
@@ -240,7 +240,7 @@ let rec pp_pi (arr : bool) (obs : observation list) : int * (formatter -> unit -
               if arr then fprintf ppf "%a " pp_tok Arrow;
               fprintf ppf "%a%a %a %a%a%t" pp_tok LParen
                 (pp_print_list ~pp_sep:pp_print_space pp_var)
-                names pp_tok Colon pp_term ty pp_tok RParen (fun ppf -> pp_print_break ppf sp 0);
+                idents pp_tok Colon pp_term ty pp_tok RParen (fun ppf -> pp_print_break ppf sp 0);
               rest ppf ()),
             body ))
   | _ -> (
@@ -327,7 +327,7 @@ let () =
 let universe = make ~origname:"Type" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
-  set_tree universe (eop (Name "Type") (Done universe));
+  set_tree universe (eop (Ident "Type") (Done universe));
   set_compiler universe
     {
       compile =
@@ -346,7 +346,7 @@ let () =
 let refl = make ~origname:"refl" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
-  set_tree refl (eops [ (Name "refl", Done refl); (Name "Id", Done refl) ]);
+  set_tree refl (eops [ (Ident "refl", Done refl); (Ident "Id", Done refl) ]);
   set_compiler refl
     {
       compile =
@@ -361,7 +361,7 @@ let () =
 let sym = make ~origname:"sym" ~tightness:Float.nan ~left:Closed ~right:Closed ~assoc:Non
 
 let () =
-  set_tree sym (eop (Name "sym") (Done sym));
+  set_tree sym (eop (Ident "sym") (Done sym));
   set_compiler sym
     {
       compile =
@@ -385,7 +385,7 @@ let () =
        Inner
          {
            ops = TokMap.singleton RBrace (Done struc);
-           name =
+           ident =
              Some
                (op Coloneq
                   (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done struc) ]));
@@ -402,14 +402,14 @@ let () =
                (op Mapsto
                   (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done struc) ]));
            constr = None;
-           name = None;
+           ident = None;
            term = None;
          } in
      eop LBrace
        (Inner
           {
             ops = TokMap.singleton RBrace (Done struc);
-            name =
+            ident =
               Some
                 (op Coloneq
                    (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done struc) ]));
@@ -426,11 +426,11 @@ let rec compile_struc :
  fun flds ctx obs ->
   match get_next obs with
   | `Done -> Raw.Struct flds
-  | `Name (Some x, obs) | `Field (x, obs) ->
+  | `Ident (Some x, obs) | `Field (x, obs) ->
       let tm, obs = get_term obs in
       let tm = compile ctx tm in
       compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
-  | `Name (None, _) -> fatal Unnamed_field_in_struct
+  | `Ident (None, _) -> fatal Unnamed_field_in_struct
   | `Constr _ | `Term _ -> fatal (Anomaly "Impossible thing in struct")
 
 let () = set_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
@@ -446,13 +446,13 @@ let rec pp_fld :
 and pp_fields ppf obs =
   match get_next obs with
   | `Done -> ()
-  | `Name (Some x, obs) | `Field (x, obs) ->
+  | `Ident (Some x, obs) | `Field (x, obs) ->
       let tm, obs = get_term obs in
       (match state () with
       | Term -> pp_fld ppf pp_var (Some x) Coloneq tm obs
       | Case -> pp_fld ppf pp_field x Mapsto tm obs);
       pp_fields ppf obs
-  | `Name (None, _) -> fatal Unnamed_field_in_struct
+  | `Ident (None, _) -> fatal Unnamed_field_in_struct
   | `Constr _ | `Term _ -> fatal (Anomaly "Impossible thing in struct")
 
 let pp_struc ppf obs =
@@ -489,7 +489,7 @@ let mtch = make ~origname:"match" ~tightness:Float.nan ~left:Closed ~right:Close
 let rec pattern_vars () =
   Inner
     {
-      name = Some (Lazy (lazy (pattern_vars ())));
+      ident = Some (Lazy (lazy (pattern_vars ())));
       constr = None;
       field = None;
       term = None;
@@ -504,7 +504,7 @@ and innermtch () =
       ops = TokMap.of_list [ (RBracket, Done mtch) ];
       constr = Some (pattern_vars ());
       field = None;
-      name = None;
+      ident = None;
       term = None;
     }
 
@@ -514,12 +514,12 @@ let () =
        (Inner
           {
             ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done mtch) ];
-            name =
+            ident =
               Some
                 (Inner
                    {
                      ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done mtch) ];
-                     name = None;
+                     ident = None;
                      constr = None;
                      field = Some (op (Op "|") (innermtch ()));
                      term = None;
@@ -538,7 +538,7 @@ let rec compile_branch_names :
     a Raw.branch * observation list =
  fun ab ctx c obs ->
   match get_next obs with
-  | `Name (a, obs) -> compile_branch_names (Suc ab) (Snoc (ctx, a)) c obs
+  | `Ident (a, obs) -> compile_branch_names (Suc ab) (Snoc (ctx, a)) c obs
   | `Term (t, obs) ->
       let tm = compile ctx t in
       (Branch (c, ab, tm), obs)
@@ -551,7 +551,7 @@ let rec compile_branches : type n. (string option, n) Bwv.t -> observation list 
   match get_next obs with
   | `Done -> []
   | `Constr (c, obs) -> compile_branch ctx c obs
-  | `Field _ | `Term _ | `Name _ -> fatal (Anomaly "Impossible thing in match")
+  | `Field _ | `Term _ | `Ident _ -> fatal (Anomaly "Impossible thing in match")
 
 and compile_branch :
     type n. (string option, n) Bwv.t -> string -> observation list -> n Raw.branch list =
@@ -567,10 +567,10 @@ let () =
         (fun ctx obs ->
           match get_next obs with
           (* Can't match an underscore *)
-          | `Name (None, _) -> fatal Unnamed_variable_in_match
-          | `Name (Some name, obs) -> (
-              match Bwv.index (Some name) ctx with
-              | None -> fatal (Unbound_variable name)
+          | `Ident (None, _) -> fatal Unnamed_variable_in_match
+          | `Ident (Some ident, obs) -> (
+              match Bwv.index (Some ident) ctx with
+              | None -> fatal (Unbound_variable ident)
               | Some x ->
                   let fa, obs =
                     (* If the next thing looks like a field, it might mean a face of a cube variable. *)
@@ -593,7 +593,7 @@ let () =
 
 let rec branch_vars obs =
   match get_next obs with
-  | `Name (x, obs) ->
+  | `Ident (x, obs) ->
       let rest, obs = branch_vars obs in
       (x :: rest, obs)
   | _ -> ([], obs)
@@ -622,11 +622,11 @@ let rec pp_branches brk ppf obs =
 
 and pp_match box ppf obs =
   match get_next obs with
-  | `Name (name, obs) ->
+  | `Ident (ident, obs) ->
       if box then pp_open_vbox ppf 0;
       pp_tok ppf LBracket;
       pp_print_string ppf " ";
-      pp_var ppf name;
+      pp_var ppf ident;
       pp_branches true ppf obs;
       if style () = Compact then pp_print_string ppf " " else pp_print_cut ppf ();
       pp_tok ppf RBracket;

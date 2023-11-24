@@ -39,7 +39,7 @@ type flag = ..
 (* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only store the operators, constructors, fields, identifiers, and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
 type tree =
   | Inner : branch -> tree
-  | Done : notation -> tree
+  | Done : 'tight notation -> tree
   | Flag : flag * tree -> tree
   (* Trees associated to notations of arbitrary length are infinite, so we allow them to be computed lazily as needed. *)
   | Lazy : tree Lazy.t -> tree
@@ -66,7 +66,7 @@ and observation =
 
 (* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "compilation" functions.  *)
 and parse =
-  | Notn of notation * observation list
+  | Notn : 'tight notation * observation list -> parse
   | App of parse * parse
   | Ident of string
   | Constr of string
@@ -81,11 +81,11 @@ and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 
 (* A notation has a precedence, which we call "tightness" to make it obvious that higher numbers bind more tightly, and is a floating-point number.  Using a DAG for precedence, as in Danielsson-Norell, is a nice idea, but it seems to require a lot of backtracking: if when parsing the right-hand argument of a notation ∧ you encounter a notation * that isn't tighter than ∧, you can't know yet that it is forbidden; you have to keep parsing in case you encounter another notation like = that is tighter than ∧ and looser than *, or in fact multiple such notations forming some arbitrarily complicated path through the DAG.  This is incompatible with the minimal-backtracking approach we take, so we stick to numerical tightnesses.
 
    Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side), so we give those a tightness of NaN.  User-defined notations that are open on at least one side have finite tightness, while +∞ and −∞ tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −∞, while +∞ is currently unused.  (Danielsson-Norell say that parentheses are tighter than everything, but in our setup they don't need a tightness at all since they are closed on both sides.) *)
-and notation = {
+and 'tight notation = {
   name : string;
   id : int; (* Autonumber primary key *)
   dummy : unit -> unit; (* Block polymorphic comparison *)
-  tightness : No.wrapped;
+  tightness : 'tight No.t;
   left : openness;
   right : openness;
   assoc : associativity;
@@ -99,13 +99,13 @@ and notation = {
 
 (* The primary key is used to compare notations. *)
 let counter = ref 0
-let equal : notation -> notation -> bool = fun x y -> x.id = y.id
+let equal : type t1 t2. t1 notation -> t2 notation -> bool = fun x y -> x.id = y.id
 
 (* A "comparable" module that we can pass to functors like Map.Make. *)
 module Notation = struct
-  type t = notation
+  type t = Wrap : 't notation -> t
 
-  let compare : t -> t -> int = fun x y -> compare x.id y.id
+  let compare : t -> t -> int = fun (Wrap x) (Wrap y) -> compare x.id y.id
 end
 
 (* The definition of Notation.t is abstract outside this file, so that we can guarantee they are only created with "make" below and the primary key increments every time.  Thus, we have to provide getter functions for all the fields that should be visible outside this file. *)
@@ -137,7 +137,8 @@ let print_as_case n = n.print_as_case
 let set_print_as_case n p = n.print_as_case <- Some p
 
 (* Create a new notation with specified name, fixity, and tightness.  Its mutable fields must be set later. *)
-let make name fixity tightness =
+let make : type tight. string -> fixity -> tight No.t -> tight notation =
+ fun name fixity tightness ->
   let left, right, assoc = fixprops fixity in
   let id = !counter in
   let dummy () = () in
@@ -146,7 +147,7 @@ let make name fixity tightness =
     name;
     id;
     dummy;
-    tightness = Wrap tightness;
+    tightness;
     left;
     right;
     assoc;

@@ -33,35 +33,41 @@ let empty : t =
     left_opens = TokMap.empty;
   }
 
-let add (n : notation) (s : t) : t =
-  let notations = NSet.add n s.notations in
+let add (n : 'tight notation) (s : t) : t =
+  let notations = NSet.add (Wrap n) s.notations in
   let left_closeds = if left n = Closed then merge s.left_closeds (tree n) else s.left_closeds in
   (* First we merge the new notation to all the tighter-trees in which it should lie. *)
   let tighters =
     TIMap.mapi
       (fun i tr ->
-        let (Wrap t) = tightness n in
-        if (left n = Closed && Interval.contains i No.plus_omega) || Interval.contains i t then
-          merge tr (tree n)
+        if
+          (left n = Closed && Interval.contains i No.plus_omega)
+          || Interval.contains i (tightness n)
+        then merge tr (tree n)
         else tr)
       s.tighters in
   (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)
   let tighters =
     (* We use Open here, but we could equally have used Closed, since we always add them in pairs. *)
-    let (Wrap t) = tightness n in
-    if not (TIMap.mem (Strict t) tighters) then
+    if not (TIMap.mem (Strict (tightness n)) tighters) then
       let open_tighters =
         NSet.fold
-          (fun m tr ->
-            if left m = Closed || tightness n < tightness m then merge (tree m) tr else tr)
+          (fun (Wrap m) tr ->
+            match (left m, No.compare Strict (tightness n) (tightness m)) with
+            | Closed, _ | _, Some _ -> merge (tree m) tr
+            | _ -> tr)
           notations empty_entry in
       let closed_tighters =
         NSet.fold
-          (fun m tr ->
+          (fun (Wrap m) tr ->
             (* Leaving off "left m = Open" here would re-merge in all the left-closed notations, and merging a tree with itself can lead to infinite loops.  (The physical equality test above should catch most of them, but when it comes to avoiding infinite loops I'm a belt-and-suspenders person.) *)
-            if left m = Open && tightness n = tightness m then merge (tree m) tr else tr)
+            match (left m, No.equalb (tightness n) (tightness m)) with
+            | Open, _ | _, true -> merge (tree m) tr
+            | _ -> tr)
           notations open_tighters in
-      tighters |> TIMap.add (Strict t) open_tighters |> TIMap.add (Nonstrict t) closed_tighters
+      tighters
+      |> TIMap.add (Strict (tightness n)) open_tighters
+      |> TIMap.add (Nonstrict (tightness n)) closed_tighters
     else tighters in
   let left_opens =
     if left n = Open then

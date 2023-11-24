@@ -9,7 +9,7 @@ type flag = ..
 
 type tree =
   | Inner : branch -> tree
-  | Done : notation -> tree
+  | Done : 'tight notation -> tree
   | Flag : flag * tree -> tree
   | Lazy : tree Lazy.t -> tree
 
@@ -31,7 +31,7 @@ and observation =
   | Term of parse
 
 and parse =
-  | Notn of notation * observation list
+  | Notn : 'tight notation * observation list -> parse
   | App of parse * parse
   | Ident of string
   | Constr of string
@@ -39,27 +39,27 @@ and parse =
   | Numeral of Q.t
   | Abs of [ `Cube | `Normal ] * string option list * parse
 
-and notation
+and 'tight notation
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
-val name : notation -> string
-val tightness : notation -> No.wrapped
-val left : notation -> openness
-val right : notation -> openness
-val assoc : notation -> associativity
-val tree : notation -> entry
-val set_tree : notation -> entry -> unit
-val compiler : notation -> compiler
-val set_compiler : notation -> compiler -> unit
-val print : notation -> (Format.formatter -> observation list -> unit) option
-val set_print : notation -> (Format.formatter -> observation list -> unit) -> unit
-val print_as_case : notation -> (Format.formatter -> observation list -> unit) option
-val set_print_as_case : notation -> (Format.formatter -> observation list -> unit) -> unit
-val make : string -> fixity -> 'a No.t -> notation
-val equal : notation -> notation -> bool
+val name : 'tight notation -> string
+val tightness : 'tight notation -> 'tight No.t
+val left : 'tight notation -> openness
+val right : 'tight notation -> openness
+val assoc : 'tight notation -> associativity
+val tree : 'tight notation -> entry
+val set_tree : 'tight notation -> entry -> unit
+val compiler : 'tight notation -> compiler
+val set_compiler : 'tight notation -> compiler -> unit
+val print : 'tight notation -> (Format.formatter -> observation list -> unit) option
+val set_print : 'tight notation -> (Format.formatter -> observation list -> unit) -> unit
+val print_as_case : 'tight notation -> (Format.formatter -> observation list -> unit) option
+val set_print_as_case : 'tight notation -> (Format.formatter -> observation list -> unit) -> unit
+val make : string -> fixity -> 'tight No.t -> 'tight notation
+val equal : 't1 notation -> 't2 notation -> bool
 
 module Notation : sig
-  type t = notation
+  type t = Wrap : 'tight notation -> t
 
   val compare : t -> t -> int
 end

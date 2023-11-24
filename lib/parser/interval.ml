@@ -35,24 +35,16 @@ let contains : type a. t -> a No.t -> bool =
       | None -> false)
 
 (* A notation has associated upper tightness intervals on both the left and the right, which specify what tightnesses of other notations can appear in an open subterm on that side.  Thus, both of these intervals start at the tightness of the notation, with their open- or closed-ness determined by its associativity. *)
-let left : notation -> t =
- fun d ->
-  match assoc d with
-  | Left ->
-      let (Wrap t) = tightness d in
-      Nonstrict t
-  | Right | Non ->
-      let (Wrap t) = tightness d in
-      Strict t
+let left : 'tight notation -> t =
+ fun n ->
+  match assoc n with
+  | Left -> Nonstrict (tightness n)
+  | Right | Non -> Strict (tightness n)
 
-let right : notation -> t =
- fun d ->
-  match assoc d with
-  | Right ->
-      let (Wrap t) = tightness d in
-      Nonstrict t
-  | Left | Non ->
-      let (Wrap t) = tightness d in
-      Strict t
+let right : 'tight notation -> t =
+ fun n ->
+  match assoc n with
+  | Right -> Nonstrict (tightness n)
+  | Left | Non -> Strict (tightness n)
 
 let compare : t -> t -> int = fun x y -> compare x y

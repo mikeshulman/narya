@@ -1,3 +1,4 @@
+open Util
 open Notation
 module TokMap = Map.Make (Token)
 module NSet = Set.Make (Notation)
@@ -24,10 +25,10 @@ let empty : t =
     tighters =
       TIMap.of_list
         [
-          (Strict Float.infinity, empty_entry);
-          (Nonstrict Float.infinity, empty_entry);
-          (Strict Float.neg_infinity, empty_entry);
-          (Nonstrict Float.neg_infinity, empty_entry);
+          (Strict No.plus_omega, empty_entry);
+          (Nonstrict No.plus_omega, empty_entry);
+          (Strict No.minus_omega, empty_entry);
+          (Nonstrict No.minus_omega, empty_entry);
         ];
     left_opens = TokMap.empty;
   }
@@ -39,16 +40,16 @@ let add (n : notation) (s : t) : t =
   let tighters =
     TIMap.mapi
       (fun i tr ->
-        if
-          (left n = Closed && Interval.contains i Float.infinity)
-          || Interval.contains i (tightness n)
-        then merge tr (tree n)
+        let (Wrap t) = tightness n in
+        if (left n = Closed && Interval.contains i No.plus_omega) || Interval.contains i t then
+          merge tr (tree n)
         else tr)
       s.tighters in
   (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)
   let tighters =
     (* We use Open here, but we could equally have used Closed, since we always add them in pairs. *)
-    if not (TIMap.mem (Strict (tightness n)) tighters) then
+    let (Wrap t) = tightness n in
+    if not (TIMap.mem (Strict t) tighters) then
       let open_tighters =
         NSet.fold
           (fun m tr ->
@@ -60,9 +61,7 @@ let add (n : notation) (s : t) : t =
             (* Leaving off "left m = Open" here would re-merge in all the left-closed notations, and merging a tree with itself can lead to infinite loops.  (The physical equality test above should catch most of them, but when it comes to avoiding infinite loops I'm a belt-and-suspenders person.) *)
             if left m = Open && tightness n = tightness m then merge (tree m) tr else tr)
           notations open_tighters in
-      tighters
-      |> TIMap.add (Strict (tightness n)) open_tighters
-      |> TIMap.add (Nonstrict (tightness n)) closed_tighters
+      tighters |> TIMap.add (Strict t) open_tighters |> TIMap.add (Nonstrict t) closed_tighters
     else tighters in
   let left_opens =
     if left n = Open then

@@ -99,7 +99,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
        match right n with
        | Closed -> return (Notn (n, Bwd.to_list obs), None)
        | Open ->
-           let i = Interval.right_assoc (tightness n) (assoc n) in
+           let (Wrap t) = tightness n in
+           let i = Interval.right_assoc t (assoc n) in
            (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
            let* last_arg = lclosed i stop in
            return (Notn (n, Bwd.to_list (Snoc (obs, Term last_arg))), Some (tightness n, name n)))
@@ -121,7 +122,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
   and abstraction (stop : tree TokMap.t) (idents : string option Bwd.t) (for_real : bool) :
-      (parse * (float * string) option) t =
+      (parse * (No.wrapped * string) option) t =
     let* rng, x =
       located
         (step (fun state _ tok ->
@@ -147,13 +148,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | `Mapsto cube ->
         if for_real then
           (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
-          let* res = lclosed (Strict Float.neg_infinity) stop in
-          return (Abs (cube, Bwd.to_list idents, res), Some (Float.neg_infinity, "mapsto"))
+          let* res = lclosed (Strict No.minus_omega) stop in
+          return (Abs (cube, Bwd.to_list idents, res), Some (No.Wrap No.minus_omega, "mapsto"))
         else return (Ident "", None)
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse)
-      (first_tight : (float * string) option) : parse t =
+      (first_tight : (No.wrapped * string) option) : parse t =
     (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
     followed_by
       (step (fun state _ tok ->
@@ -161,8 +162,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            else
              let open Monad.Ops (Monad.Maybe) in
              let* ivls = TokMap.find_opt tok state.left_opens in
-             if List.exists (fun ivl -> Interval.contains ivl (Interval.endpoint tight)) ivls then
-               return (first_arg, state)
+             let (Wrap t) = Interval.endpoint tight in
+             if List.exists (fun ivl -> Interval.contains ivl t) ivls then return (first_arg, state)
              else None))
     (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  (Actually, if the given interval is (Strict ∞), i.e. completely empty, we don't allow left-closed trees either, since function application has tightness +∞.)  *)
     </> (let* state = get in
@@ -172,7 +173,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             let* () =
               match first_tight with
               | None -> return ()
-              | Some (t, tident) ->
+              | Some (Wrap t, tident) ->
                   if left n = Closed || Interval.contains (Interval.left n) t then return ()
                   else fail (No_relative_precedence (rng, tident, name n)) in
             match right n with
@@ -182,12 +183,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                 | Closed ->
                     return
                       ( App (first_arg, Notn (n, Bwd.to_list obs)),
-                        Some (Float.infinity, "application") ))
+                        Some (No.Wrap No.plus_omega, "application") ))
             | Open -> (
                 let i =
+                  let (Wrap t) = tightness n in
                   match assoc n with
-                  | Right -> Interval.Nonstrict (tightness n)
-                  | Left | Non -> Strict (tightness n) in
+                  | Right -> Interval.Nonstrict t
+                  | Left | Non -> Strict t in
                 let* last_arg = lclosed i stop in
                 match left n with
                 | Open ->
@@ -202,7 +204,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            (* If this fails, and if the given tightness interval includes +∞, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
            </> let* arg =
                  step (fun state _ tok ->
-                     if tight = Strict Float.infinity then None
+                     if tight = Strict No.plus_omega then None
                      else
                        match tok with
                        | Ident x -> Some (Ident x, state)
@@ -211,7 +213,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                        | Constr x -> Some (Constr x, state)
                        | Field x -> Some (Field x, state)
                        | _ -> None) in
-               return (App (first_arg, arg), Some (Float.infinity, "application")) in
+               return (App (first_arg, arg), Some (No.Wrap No.plus_omega, "application")) in
          (* Same comment here about carrying over "tight" as in lclosed. *)
          lopen tight stop res res_tight)
     (* If that also fails, another possibility is that we're at the end of the term with no more operators to parse, so we can just return the supplied "first argument". *)

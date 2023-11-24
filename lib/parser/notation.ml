@@ -85,7 +85,7 @@ and notation = {
   name : string;
   id : int; (* Autonumber primary key *)
   dummy : unit -> unit; (* Block polymorphic comparison *)
-  tightness : float;
+  tightness : No.wrapped;
   left : openness;
   right : openness;
   assoc : associativity;
@@ -146,7 +146,7 @@ let make name fixity tightness =
     name;
     id;
     dummy;
-    tightness;
+    tightness = Wrap tightness;
     left;
     right;
     assoc;

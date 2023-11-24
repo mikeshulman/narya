@@ -21,7 +21,7 @@ open Monad.Ops (Monad.Maybe)
 
 (* TODO: printing these notations *)
 
-let plusn = make "plus" Infixl 0.
+let plusn = make "plus" Infixl No.zero
 
 let () =
   set_tree plusn (eop (Op "+") (Done plusn));
@@ -37,7 +37,7 @@ let () =
           Raw.Synth (App (App (Const plus, x), y)));
     }
 
-let timesn = make "times" Infixl 1.
+let timesn = make "times" Infixl No.one
 
 let () =
   set_tree timesn (eop (Op "*") (Done timesn));

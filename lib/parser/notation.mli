@@ -43,7 +43,7 @@ and notation
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
 val name : notation -> string
-val tightness : notation -> float
+val tightness : notation -> No.wrapped
 val left : notation -> openness
 val right : notation -> openness
 val assoc : notation -> associativity
@@ -55,7 +55,7 @@ val print : notation -> (Format.formatter -> observation list -> unit) option
 val set_print : notation -> (Format.formatter -> observation list -> unit) -> unit
 val print_as_case : notation -> (Format.formatter -> observation list -> unit) option
 val set_print_as_case : notation -> (Format.formatter -> observation list -> unit) -> unit
-val make : string -> fixity -> float -> notation
+val make : string -> fixity -> 'a No.t -> notation
 val equal : notation -> notation -> bool
 
 module Notation : sig

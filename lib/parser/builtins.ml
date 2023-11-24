@@ -12,7 +12,7 @@ open Monad.Ops (Monad.Maybe)
    Parentheses
  ******************** *)
 
-let parens = make "parens" Outfix Float.nan
+let parens = make "parens" Outfix No.plus_omega
 
 let () =
   set_tree parens (eop LParen (term RParen (Done parens)));
@@ -40,7 +40,7 @@ let () =
 
 (* Let-in doesn't need to be right-associative in order to chain, because it is left-closed.  Declaring it to be nonassociative means that "let x := y in z : A" doesn't parse without parentheses, which I think is best as it looks ambiguous.  (The same idea applies to abstractions, although they are built into the parser rather than defined as mixfix notations.) *)
 
-let letin = make "let" Prefix Float.neg_infinity
+let letin = make "let" Prefix No.minus_omega
 
 let () =
   set_tree letin
@@ -105,7 +105,7 @@ let () =
    Non-dependent function types
  ******************** *)
 
-let arrow = make "arrow" Infixr 0.
+let arrow = make "arrow" Infixr No.zero
 
 let () =
   set_tree arrow (eop Arrow (Done arrow));
@@ -130,7 +130,7 @@ let () =
 (* I think these are the only flags we're using, so if we could get rid of them, we could simplify by getting rid of flags completely. *)
 type flag += Implicit_pi | Explicit_pi | Default_pi
 
-let pi = make "pi" Prefixr 0.
+let pi = make "pi" Prefixr No.zero
 
 let rec explicit_pi () = Flag (Explicit_pi, ident (explicit_pi_vars ()))
 and implicit_pi () = Flag (Implicit_pi, ident (implicit_pi_vars ()))
@@ -297,7 +297,7 @@ let () =
    Ascription
  ******************** *)
 
-let asc = make "ascription" Infix Float.neg_infinity
+let asc = make "ascription" Infix No.minus_omega
 let () = set_tree asc (eop Colon (Done asc))
 
 let () =
@@ -322,7 +322,7 @@ let () =
    The universe
  ******************** *)
 
-let universe = make "Type" Outfix Float.nan
+let universe = make "Type" Outfix No.plus_omega
 
 let () =
   set_tree universe (eop (Ident "Type") (Done universe));
@@ -341,7 +341,7 @@ let () =
    Degeneracies (refl and sym)
  ******************** *)
 
-let refl = make "refl" Outfix Float.nan
+let refl = make "refl" Outfix No.plus_omega
 
 let () =
   set_tree refl (eops [ (Ident "refl", Done refl); (Ident "Id", Done refl) ]);
@@ -356,7 +356,7 @@ let () =
   let () = get_done obs in
   pp_print_string ppf "refl"
 
-let sym = make "sym" Outfix Float.nan
+let sym = make "sym" Outfix No.plus_omega
 
 let () =
   set_tree sym (eop (Ident "sym") (Done sym));
@@ -375,7 +375,7 @@ let () =
    Anonymous structs and comatches
  ******************** *)
 
-let struc = make "struc" Outfix Float.nan
+let struc = make "struc" Outfix No.plus_omega
 
 let () =
   set_tree struc
@@ -482,7 +482,7 @@ let () =
    Matches
  ******************** *)
 
-let mtch = make "match" Outfix Float.nan
+let mtch = make "match" Outfix No.plus_omega
 
 let rec pattern_vars () =
   Inner

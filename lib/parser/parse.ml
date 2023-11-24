@@ -174,9 +174,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             let* () =
               match first_tight with
               | None -> return ()
-              | Some (Wrap t, tident) ->
-                  if left n = Closed || Interval.contains (Interval.left n) t then return ()
-                  else fail (No_relative_precedence (rng, tident, name n)) in
+              | Some (Wrap t, tident) -> (
+                  match left n with
+                  | Closed -> return ()
+                  | Open _ ->
+                      if Interval.contains (Interval.left n) t then return ()
+                      else fail (No_relative_precedence (rng, tident, name n))) in
             match right n with
             | Closed -> (
                 match left n with

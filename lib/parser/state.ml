@@ -33,18 +33,20 @@ let empty : t =
     left_opens = TokMap.empty;
   }
 
-let add (n : 'tight notation) (s : t) : t =
+let add : type left tight right. (left, tight, right) notation -> t -> t =
+ fun n s ->
   let notations = NSet.add (Wrap n) s.notations in
-  let left_closeds = if left n = Closed then merge s.left_closeds (tree n) else s.left_closeds in
+  let left_closeds =
+    match left n with
+    | Closed -> merge s.left_closeds (tree n)
+    | Open _ -> s.left_closeds in
   (* First we merge the new notation to all the tighter-trees in which it should lie. *)
   let tighters =
     TIMap.mapi
       (fun i tr ->
-        if
-          (left n = Closed && Interval.contains i No.plus_omega)
-          || Interval.contains i (tightness n)
-        then merge tr (tree n)
-        else tr)
+        match left n with
+        | Closed -> if Interval.contains i No.plus_omega then merge tr (tree n) else tr
+        | Open _ -> if Interval.contains i (tightness n) then merge tr (tree n) else tr)
       s.tighters in
   (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)
   let tighters =

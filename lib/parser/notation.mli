@@ -2,13 +2,25 @@ open Util
 open Core.Raw
 module TokMap : module type of Map.Make (Token)
 
-type openness = Open : 's No.strictness -> openness | Closed : openness
-type fixity = Infix | Infixl | Infixr | Prefix | Prefixr | Postfix | Postfixl | Outfix
+type closed = Dummy_closed
+type 's opn = Dummy_open
+type _ openness = Open : 's No.strictness -> 's opn openness | Closed : closed openness
+
+type (_, _) fixity =
+  | Infix : (No.strict opn, No.strict opn) fixity
+  | Infixl : (No.nonstrict opn, No.strict opn) fixity
+  | Infixr : (No.strict opn, No.nonstrict opn) fixity
+  | Prefix : (closed, No.strict opn) fixity
+  | Prefixr : (closed, No.nonstrict opn) fixity
+  | Postfix : (No.strict opn, closed) fixity
+  | Postfixl : (No.nonstrict opn, closed) fixity
+  | Outfix : (closed, closed) fixity
+
 type flag = ..
 
 type tree =
   | Inner : branch -> tree
-  | Done : 'tight notation -> tree
+  | Done : ('left, 'tight, 'right) notation -> tree
   | Flag : flag * tree -> tree
   | Lazy : tree Lazy.t -> tree
 
@@ -30,7 +42,7 @@ and observation =
   | Term of parse
 
 and parse =
-  | Notn : 'tight notation * observation list -> parse
+  | Notn : ('left, 'tight, 'right) notation * observation list -> parse
   | App of parse * parse
   | Ident of string
   | Constr of string
@@ -38,26 +50,35 @@ and parse =
   | Numeral of Q.t
   | Abs of [ `Cube | `Normal ] * string option list * parse
 
-and 'tight notation
+and ('left, 'tight, 'right) notation
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
-val name : 'tight notation -> string
-val tightness : 'tight notation -> 'tight No.t
-val left : 'tight notation -> openness
-val right : 'tight notation -> openness
-val tree : 'tight notation -> entry
-val set_tree : 'tight notation -> entry -> unit
-val compiler : 'tight notation -> compiler
-val set_compiler : 'tight notation -> compiler -> unit
-val print : 'tight notation -> (Format.formatter -> observation list -> unit) option
-val set_print : 'tight notation -> (Format.formatter -> observation list -> unit) -> unit
-val print_as_case : 'tight notation -> (Format.formatter -> observation list -> unit) option
-val set_print_as_case : 'tight notation -> (Format.formatter -> observation list -> unit) -> unit
-val make : string -> fixity -> 'tight No.t -> 'tight notation
-val equal : 't1 notation -> 't2 notation -> bool
+val name : ('left, 'tight, 'right) notation -> string
+val tightness : ('left, 'tight, 'right) notation -> 'tight No.t
+val left : ('left, 'tight, 'right) notation -> 'left openness
+val right : ('left, 'tight, 'right) notation -> 'right openness
+val tree : ('left, 'tight, 'right) notation -> entry
+val set_tree : ('left, 'tight, 'right) notation -> entry -> unit
+val compiler : ('left, 'tight, 'right) notation -> compiler
+val set_compiler : ('left, 'tight, 'right) notation -> compiler -> unit
+
+val print :
+  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) option
+
+val set_print :
+  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) -> unit
+
+val print_as_case :
+  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) option
+
+val set_print_as_case :
+  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) -> unit
+
+val make : string -> ('left, 'right) fixity -> 'tight No.t -> ('left, 'tight, 'right) notation
+val equal : ('l1, 't1, 'r1) notation -> ('l2, 't2, 'r2) notation -> bool
 
 module Notation : sig
-  type t = Wrap : 'tight notation -> t
+  type t = Wrap : ('left, 'tight, 'right) notation -> t
 
   val compare : t -> t -> int
 end

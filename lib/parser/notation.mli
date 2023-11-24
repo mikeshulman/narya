@@ -42,7 +42,10 @@ and observation =
   | Term of parse
 
 and parse =
-  | Notn : ('left, 'tight, 'right) notation * observation list -> parse
+  | Infix : ('l opn, 'tight, 'r opn) notation * observation list -> parse
+  | Prefix : (closed, 'tight, 'r opn) notation * observation list -> parse
+  | Postfix : ('l opn, 'tight, closed) notation * observation list -> parse
+  | Outfix : (closed, 'tight, closed) notation * observation list -> parse
   | App of parse * parse
   | Ident of string
   | Constr of string

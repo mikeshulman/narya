@@ -74,7 +74,10 @@ let compile_numeral (n : Q.t) =
 let rec compile : type n. (string option, n) Bwv.t -> parse -> n check =
  fun ctx res ->
   match res with
-  | Notn (n, args) -> (compiler n).compile ctx args
+  | Infix (n, args) -> (compiler n).compile ctx args
+  | Prefix (n, args) -> (compiler n).compile ctx args
+  | Postfix (n, args) -> (compiler n).compile ctx args
+  | Outfix (n, args) -> (compiler n).compile ctx args
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and symbols, and also field projections.  *)
   | App (fn, arg) -> (
       let fn = compile ctx fn in

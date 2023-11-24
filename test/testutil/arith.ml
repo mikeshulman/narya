@@ -41,7 +41,7 @@ let rec eval : parse -> int = function
   | App (x, y) ->
       let x = eval x and y = eval y in
       x * y
-  | Notn (op, [ Term x; Term y ]) ->
+  | Infix (op, [ Term x; Term y ]) ->
       let x = eval x and y = eval y in
       if equal op plus then x + y
       else if equal op minus then x - y
@@ -49,7 +49,6 @@ let rec eval : parse -> int = function
       else if equal op div then if x mod y = 0 then x / y else raise Fraction
       else if equal op exp then pow x y
       else raise (Failure "Wrong number of right arguments")
-  | Notn (op, [ Term x ]) ->
+  | Outfix (op, [ Term x ]) ->
       if equal op parens then eval x else raise (Failure "Wrong number of right arguments")
-  | Notn _ -> raise (Failure "Wrong number of right arguments")
   | _ -> raise Syntax_error

@@ -2,6 +2,7 @@ open Core
 open Format
 open Uuseg_string
 open Reporter
+open Notation
 
 (* We have two styles of output, compact and noncompact.  The caller can specify which to use with a reader effect.  We also have two different printing states, for case trees and terms. *)
 
@@ -31,14 +32,14 @@ let pp_constr (ppf : formatter) (c : string) : unit = fprintf ppf "%a." pp_utf_8
 let pp_field (ppf : formatter) (c : string) : unit = fprintf ppf ".%a" pp_utf_8 c
 
 (* Print a parse tree. *)
-let rec pp_term (ppf : formatter) (tr : Notation.parse) : unit =
+let rec pp_term (ppf : formatter) (tr : parse) : unit =
   match state () with
   | Case -> (
       match tr with
-      | Notn (n, obs) -> (
-          match Notation.print_as_case n with
-          | Some pp -> pp ppf obs
-          | None -> as_term @@ fun () -> pp_term ppf tr)
+      | Infix (n, obs) -> pp_notn_case ppf n obs tr
+      | Prefix (n, obs) -> pp_notn_case ppf n obs tr
+      | Postfix (n, obs) -> pp_notn_case ppf n obs tr
+      | Outfix (n, obs) -> pp_notn_case ppf n obs tr
       | Abs (cube, vars, body) ->
           fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
             (pp_print_list ~pp_sep:pp_print_space pp_var)
@@ -51,10 +52,10 @@ let rec pp_term (ppf : formatter) (tr : Notation.parse) : unit =
       | _ -> as_term @@ fun () -> pp_term ppf tr)
   | Term -> (
       match tr with
-      | Notn (n, obs) -> (
-          match Notation.print n with
-          | Some pp -> pp ppf obs
-          | None -> fatal (Anomaly "Unprintable term"))
+      | Infix (n, obs) -> pp_notn ppf n obs
+      | Prefix (n, obs) -> pp_notn ppf n obs
+      | Postfix (n, obs) -> pp_notn ppf n obs
+      | Outfix (n, obs) -> pp_notn ppf n obs
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine tr
       | Ident x -> pp_utf_8 ppf x
       | Constr c -> pp_constr ppf c
@@ -69,7 +70,22 @@ let rec pp_term (ppf : formatter) (tr : Notation.parse) : unit =
             | `Cube -> DblMapsto)
             pp_term body)
 
-and pp_spine (ppf : formatter) (tr : Notation.parse) : unit =
+and pp_notn_case :
+    type left tight right.
+    formatter -> (left, tight, right) notation -> observation list -> parse -> unit =
+ fun ppf n obs tr ->
+  match print_as_case n with
+  | Some pp -> pp ppf obs
+  | None -> as_term @@ fun () -> pp_term ppf tr
+
+and pp_notn :
+    type left tight right. formatter -> (left, tight, right) notation -> observation list -> unit =
+ fun ppf n obs ->
+  match print n with
+  | Some pp -> pp ppf obs
+  | None -> fatal (Anomaly "Unprintable term")
+
+and pp_spine (ppf : formatter) (tr : parse) : unit =
   match tr with
   | App (head, arg) -> fprintf ppf "%a@ %a" pp_spine head pp_term arg
   | _ -> pp_term ppf tr

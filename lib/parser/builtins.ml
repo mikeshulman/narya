@@ -97,7 +97,7 @@ let () =
         | _ -> fatal (Anomaly "impossible thing in let")
       and pp_let_body ppf tr =
         match tr with
-        | Notn (n, obs) when equal n letin -> pp_let ppf obs
+        | Prefix (n, obs) when equal n letin -> pp_let ppf obs
         | _ -> pp_term ppf tr in
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
@@ -247,8 +247,8 @@ let rec pp_pi (arr : bool) (obs : observation list) : int * (formatter -> unit -
       let body, obs = get_term obs in
       let () = get_done obs in
       match body with
-      | Notn (n, obs) when equal n pi -> pp_pi false obs
-      | Notn (n, obs) when equal n arrow ->
+      | Prefix (n, obs) when equal n pi -> pp_pi false obs
+      | Infix (n, obs) when equal n arrow ->
           let rest, body = pp_arrow true obs in
           (1, rest, body)
       | _ -> (0, (fun _ () -> ()), body))
@@ -258,14 +258,14 @@ and pp_arrow (arr : bool) (obs : observation list) : (formatter -> unit -> unit)
   let body, obs = get_term obs in
   let () = get_done obs in
   match body with
-  | Notn (n, obs) when equal n pi ->
+  | Prefix (n, obs) when equal n pi ->
       let sp, rest, body = pp_pi true obs in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
           fprintf ppf "%a%t" pp_term dom (fun ppf -> pp_print_break ppf sp 0);
           rest ppf ()),
         body )
-  | Notn (n, obs) when equal n arrow ->
+  | Infix (n, obs) when equal n arrow ->
       let rest, body = pp_arrow true obs in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
@@ -604,7 +604,7 @@ let rec pp_branches brk ppf obs =
       let style = style () in
       if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match tm with
-      | Notn (n, brobs) when equal n mtch && style = Compact ->
+      | Outfix (n, brobs) when equal n mtch && style = Compact ->
           fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a%a@] %a@]" pp_tok (Op "|") pp_constr c
             (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
             vars pp_tok Mapsto (pp_match false) brobs

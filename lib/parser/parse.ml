@@ -149,7 +149,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | `Mapsto cube ->
         if for_real then
           (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
-          let* res = lclosed (Strict No.minus_omega) stop in
+          let* res = lclosed (Interval (Strict, No.minus_omega)) stop in
           return (Abs (cube, Bwd.to_list idents, res), Some (No.Wrap No.minus_omega, "mapsto"))
         else return (Ident "", None)
 
@@ -188,8 +188,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             | Open -> (
                 let i =
                   match assoc n with
-                  | Right -> Interval.Nonstrict (tightness n)
-                  | Left | Non -> Strict (tightness n) in
+                  | Right -> Interval.Interval (Nonstrict, tightness n)
+                  | Left | Non -> Interval (Strict, tightness n) in
                 let* last_arg = lclosed i stop in
                 match left n with
                 | Open ->
@@ -204,7 +204,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            (* If this fails, and if the given tightness interval includes +∞, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
            </> let* arg =
                  step (fun state _ tok ->
-                     if tight = Strict No.plus_omega then None
+                     if tight = Interval (Strict, No.plus_omega) then None
                      else
                        match tok with
                        | Ident x -> Some (Ident x, state)

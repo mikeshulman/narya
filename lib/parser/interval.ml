@@ -16,12 +16,6 @@ let endpoint : t -> No.wrapped = function
   | Interval (No.Nonstrict, x) -> Wrap x
   | Interval (Strict, x) -> Wrap x
 
-let right_assoc : type a. a No.t -> associativity -> t =
- fun tight assoc ->
-  match assoc with
-  | Right -> Interval (Nonstrict, tight)
-  | Left | Non -> Interval (Strict, tight)
-
 let contains : type a. t -> a No.t -> bool =
  fun (Interval (s, p)) x ->
   match No.compare s p x with

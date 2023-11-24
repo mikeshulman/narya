@@ -99,7 +99,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
        match right n with
        | Closed -> return (Notn (n, Bwd.to_list obs), None)
        | Open ->
-           let i = Interval.right_assoc (tightness n) (assoc n) in
+           let i = Interval.right n in
            (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
            let* last_arg = lclosed i stop in
            return

@@ -74,10 +74,10 @@ let compile_numeral (n : Q.t) =
 let rec compile : type n. (string option, n) Bwv.t -> parse -> n check =
  fun ctx res ->
   match res with
-  | Infix (n, args) -> (compiler n).compile ctx args
-  | Prefix (n, args) -> (compiler n).compile ctx args
-  | Postfix (n, args) -> (compiler n).compile ctx args
-  | Outfix (n, args) -> (compiler n).compile ctx args
+  | Infix (n, arg, args) -> (compiler n).compile ctx (arg :: Bwd.to_list args)
+  | Prefix (n, args) -> (compiler n).compile ctx (Bwd.to_list args)
+  | Postfix (n, arg, args) -> (compiler n).compile ctx (arg :: Bwd.to_list args)
+  | Outfix (n, args) -> (compiler n).compile ctx (Bwd.to_list args)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and symbols, and also field projections.  *)
   | App (fn, arg) -> (
       let fn = compile ctx fn in

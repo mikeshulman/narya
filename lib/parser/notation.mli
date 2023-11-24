@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Core.Raw
 module TokMap : module type of Map.Make (Token)
@@ -42,10 +43,10 @@ and observation =
   | Term of parse
 
 and parse =
-  | Infix : ('l opn, 'tight, 'r opn) notation * observation list -> parse
-  | Prefix : (closed, 'tight, 'r opn) notation * observation list -> parse
-  | Postfix : ('l opn, 'tight, closed) notation * observation list -> parse
-  | Outfix : (closed, 'tight, closed) notation * observation list -> parse
+  | Infix : ('l opn, 'tight, 'r opn) notation * observation * observation Bwd.t -> parse
+  | Prefix : (closed, 'tight, 'r opn) notation * observation Bwd.t -> parse
+  | Postfix : ('l opn, 'tight, closed) notation * observation * observation Bwd.t -> parse
+  | Outfix : (closed, 'tight, closed) notation * observation Bwd.t -> parse
   | App of parse * parse
   | Ident of string
   | Constr of string

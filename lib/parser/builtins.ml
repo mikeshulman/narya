@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Compile
 open Print
@@ -97,7 +98,7 @@ let () =
         | _ -> fatal (Anomaly "impossible thing in let")
       and pp_let_body ppf tr =
         match tr with
-        | Prefix (n, obs) when equal n letin -> pp_let ppf obs
+        | Prefix (n, obs) when equal n letin -> pp_let ppf (Bwd.to_list obs)
         | _ -> pp_term ppf tr in
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
@@ -247,9 +248,9 @@ let rec pp_pi (arr : bool) (obs : observation list) : int * (formatter -> unit -
       let body, obs = get_term obs in
       let () = get_done obs in
       match body with
-      | Prefix (n, obs) when equal n pi -> pp_pi false obs
-      | Infix (n, obs) when equal n arrow ->
-          let rest, body = pp_arrow true obs in
+      | Prefix (n, obs) when equal n pi -> pp_pi false (Bwd.to_list obs)
+      | Infix (n, arg, obs) when equal n arrow ->
+          let rest, body = pp_arrow true (arg :: Bwd.to_list obs) in
           (1, rest, body)
       | _ -> (0, (fun _ () -> ()), body))
 
@@ -259,14 +260,14 @@ and pp_arrow (arr : bool) (obs : observation list) : (formatter -> unit -> unit)
   let () = get_done obs in
   match body with
   | Prefix (n, obs) when equal n pi ->
-      let sp, rest, body = pp_pi true obs in
+      let sp, rest, body = pp_pi true (Bwd.to_list obs) in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
           fprintf ppf "%a%t" pp_term dom (fun ppf -> pp_print_break ppf sp 0);
           rest ppf ()),
         body )
-  | Infix (n, obs) when equal n arrow ->
-      let rest, body = pp_arrow true obs in
+  | Infix (n, arg, obs) when equal n arrow ->
+      let rest, body = pp_arrow true (arg :: Bwd.to_list obs) in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
           fprintf ppf "%a@ " pp_term dom;
@@ -607,7 +608,7 @@ let rec pp_branches brk ppf obs =
       | Outfix (n, brobs) when equal n mtch && style = Compact ->
           fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a%a@] %a@]" pp_tok (Op "|") pp_constr c
             (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
-            vars pp_tok Mapsto (pp_match false) brobs
+            vars pp_tok Mapsto (pp_match false) (Bwd.to_list brobs)
       | _ ->
           fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a%a@]%t%a@]" pp_tok (Op "|") pp_constr c
             (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))

@@ -1,3 +1,4 @@
+open Bwd
 open Core
 open Format
 open Uuseg_string
@@ -36,10 +37,10 @@ let rec pp_term (ppf : formatter) (tr : parse) : unit =
   match state () with
   | Case -> (
       match tr with
-      | Infix (n, obs) -> pp_notn_case ppf n obs tr
-      | Prefix (n, obs) -> pp_notn_case ppf n obs tr
-      | Postfix (n, obs) -> pp_notn_case ppf n obs tr
-      | Outfix (n, obs) -> pp_notn_case ppf n obs tr
+      | Infix (n, arg, obs) -> pp_notn_case ppf n (arg :: Bwd.to_list obs) tr
+      | Prefix (n, obs) -> pp_notn_case ppf n (Bwd.to_list obs) tr
+      | Postfix (n, arg, obs) -> pp_notn_case ppf n (arg :: Bwd.to_list obs) tr
+      | Outfix (n, obs) -> pp_notn_case ppf n (Bwd.to_list obs) tr
       | Abs (cube, vars, body) ->
           fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
             (pp_print_list ~pp_sep:pp_print_space pp_var)
@@ -52,10 +53,10 @@ let rec pp_term (ppf : formatter) (tr : parse) : unit =
       | _ -> as_term @@ fun () -> pp_term ppf tr)
   | Term -> (
       match tr with
-      | Infix (n, obs) -> pp_notn ppf n obs
-      | Prefix (n, obs) -> pp_notn ppf n obs
-      | Postfix (n, obs) -> pp_notn ppf n obs
-      | Outfix (n, obs) -> pp_notn ppf n obs
+      | Infix (n, arg, obs) -> pp_notn ppf n (arg :: Bwd.to_list obs)
+      | Prefix (n, obs) -> pp_notn ppf n (Bwd.to_list obs)
+      | Postfix (n, arg, obs) -> pp_notn ppf n (arg :: Bwd.to_list obs)
+      | Outfix (n, obs) -> pp_notn ppf n (Bwd.to_list obs)
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine tr
       | Ident x -> pp_utf_8 ppf x
       | Constr c -> pp_constr ppf c

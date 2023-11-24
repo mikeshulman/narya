@@ -62,7 +62,7 @@ let add (n : 'tight notation) (s : t) : t =
           (fun (Wrap m) tr ->
             (* Leaving off "left m = Open" here would re-merge in all the left-closed notations, and merging a tree with itself can lead to infinite loops.  (The physical equality test above should catch most of them, but when it comes to avoiding infinite loops I'm a belt-and-suspenders person.) *)
             match (left m, No.equalb (tightness n) (tightness m)) with
-            | Open, _ | _, true -> merge (tree m) tr
+            | Open _, _ | _, true -> merge (tree m) tr
             | _ -> tr)
           notations open_tighters in
       tighters
@@ -70,8 +70,9 @@ let add (n : 'tight notation) (s : t) : t =
       |> TIMap.add (Interval (Nonstrict, tightness n)) closed_tighters
     else tighters in
   let left_opens =
-    if left n = Open then
-      let ivl = Interval.left n in
-      TokMap.fold (fun tok _ map -> TokMap.add_to_list tok ivl map) (tree n) s.left_opens
-    else s.left_opens in
+    match left n with
+    | Open _ ->
+        let ivl = Interval.left n in
+        TokMap.fold (fun tok _ map -> TokMap.add_to_list tok ivl map) (tree n) s.left_opens
+    | Closed -> s.left_opens in
   { notations; left_closeds; left_opens; tighters }

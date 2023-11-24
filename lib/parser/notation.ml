@@ -12,24 +12,23 @@ module TokMap = Map.Make (Token)
    closed| open  | prefix
     open |closed | postfix
    closed|closed | closed / outfix / around-fix
-*)
-type openness = Open | Closed
 
-(* A notation is left-associative, right-associative, or non-associative.  Note that only an infix or prefix notation can meaningfully be right-associative, while only an infix or postfix notation can meaningfully be left-associative. *)
-type associativity = Left | Right | Non
+   A notation is left-associative, right-associative, or non-associative.  It can only be associative on a side where it is open, i.e. only an infix or prefix notation can meaningfully be right-associative, while only an infix or postfix notation can meaningfully be left-associative.  Thus, instead of storing associativity separately, we store a "strictness" along with openness. *)
+type openness = Open : 's No.strictness -> openness | Closed : openness
 
 (* Fixity determines two opennesses and associativity. *)
 type fixity = Infix | Infixl | Infixr | Prefix | Prefixr | Postfix | Postfixl | Outfix
 
+(* This is where we enforce that an infix notation can't be associative on both sides. *)
 let fixprops = function
-  | Infix -> (Open, Open, Non)
-  | Infixl -> (Open, Open, Left)
-  | Infixr -> (Open, Open, Right)
-  | Prefix -> (Closed, Open, Non)
-  | Prefixr -> (Closed, Open, Right)
-  | Postfix -> (Open, Closed, Non)
-  | Postfixl -> (Open, Closed, Left)
-  | Outfix -> (Closed, Closed, Non)
+  | Infix -> (Open Strict, Open Strict)
+  | Infixl -> (Open Nonstrict, Open Strict)
+  | Infixr -> (Open Strict, Open Nonstrict)
+  | Prefix -> (Closed, Open Strict)
+  | Prefixr -> (Closed, Open Nonstrict)
+  | Postfix -> (Open Strict, Closed)
+  | Postfixl -> (Open Nonstrict, Closed)
+  | Outfix -> (Closed, Closed)
 
 (* While parsing a notation, we may need to record certain information other than the identifiers, constructors, fields, and subterms encountered.  We store this in "flags". *)
 type flag = ..
@@ -88,7 +87,6 @@ and 'tight notation = {
   tightness : 'tight No.t;
   left : openness;
   right : openness;
-  assoc : associativity;
   (* The remaining fields are mutable because they have to be able to refer to the notation object itself, so we have a circular data structure.  They aren't expected to mutate further after being set once.  Thus we store them as options, to record whether they have been set. *)
   mutable tree : entry option;
   mutable compiler : compiler option;
@@ -113,7 +111,6 @@ let name n = n.name
 let tightness n = n.tightness
 let left n = n.left
 let right n = n.right
-let assoc n = n.assoc
 
 (* For the mutable fields, we also have to provide setter functions.  Since these fields are only intended to be set once, the setters throw an exception if the value is already set (and the getters for tree and compiler throw an exception if it is not yet set).  *)
 
@@ -139,7 +136,7 @@ let set_print_as_case n p = n.print_as_case <- Some p
 (* Create a new notation with specified name, fixity, and tightness.  Its mutable fields must be set later. *)
 let make : type tight. string -> fixity -> tight No.t -> tight notation =
  fun name fixity tightness ->
-  let left, right, assoc = fixprops fixity in
+  let left, right = fixprops fixity in
   let id = !counter in
   let dummy () = () in
   counter := !counter + 1;
@@ -150,7 +147,6 @@ let make : type tight. string -> fixity -> tight No.t -> tight notation =
     tightness;
     left;
     right;
-    assoc;
     tree = None;
     print = None;
     print_as_case = None;

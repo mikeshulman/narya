@@ -98,7 +98,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
        (* If the parse ended right-open, we call "lclosed" again, with the upper tightness interval starting at the tightness of the just-parsed notation, closed if that notation is right-associative and open otherwise, to pick up the open argument. *)
        match right n with
        | Closed -> return (Notn (n, Bwd.to_list obs), None)
-       | Open ->
+       | Open _ ->
            let i = Interval.right n in
            (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
            let* last_arg = lclosed i stop in
@@ -180,19 +180,16 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             match right n with
             | Closed -> (
                 match left n with
-                | Open -> return (Notn (n, Term first_arg :: Bwd.to_list obs), None)
+                | Open _ -> return (Notn (n, Term first_arg :: Bwd.to_list obs), None)
                 | Closed ->
                     return
                       ( App (first_arg, Notn (n, Bwd.to_list obs)),
                         Some (No.Wrap No.plus_omega, "application") ))
-            | Open -> (
-                let i =
-                  match assoc n with
-                  | Right -> Interval.Interval (Nonstrict, tightness n)
-                  | Left | Non -> Interval (Strict, tightness n) in
+            | Open _ -> (
+                let i = Interval.right n in
                 let* last_arg = lclosed i stop in
                 match left n with
-                | Open ->
+                | Open _ ->
                     return
                       ( Notn (n, Term first_arg :: Bwd.to_list (Snoc (obs, Term last_arg))),
                         Some (No.Wrap (tightness n), name n) )

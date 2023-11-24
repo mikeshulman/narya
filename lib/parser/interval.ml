@@ -25,14 +25,14 @@ let contains : type a. t -> a No.t -> bool =
 (* A notation has associated upper tightness intervals on both the left and the right, which specify what tightnesses of other notations can appear in an open subterm on that side.  Thus, both of these intervals start at the tightness of the notation, with their open- or closed-ness determined by its associativity. *)
 let left : 'tight notation -> t =
  fun n ->
-  match assoc n with
-  | Left -> Interval (Nonstrict, tightness n)
-  | Right | Non -> Interval (Strict, tightness n)
+  match left n with
+  | Open s -> Interval (s, tightness n)
+  | Closed -> raise (Invalid_argument "closed notations can't be left-associative")
 
 let right : 'tight notation -> t =
  fun n ->
-  match assoc n with
-  | Right -> Interval (Nonstrict, tightness n)
-  | Left | Non -> Interval (Strict, tightness n)
+  match right n with
+  | Open s -> Interval (s, tightness n)
+  | Closed -> raise (Invalid_argument "closed notations can't be right-associative")
 
 let compare : t -> t -> int = fun x y -> compare x y

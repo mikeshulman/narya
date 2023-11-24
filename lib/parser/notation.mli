@@ -2,8 +2,7 @@ open Util
 open Core.Raw
 module TokMap : module type of Map.Make (Token)
 
-type openness = Open | Closed
-type associativity = Left | Right | Non
+type openness = Open : 's No.strictness -> openness | Closed : openness
 type fixity = Infix | Infixl | Infixr | Prefix | Prefixr | Postfix | Postfixl | Outfix
 type flag = ..
 
@@ -46,7 +45,6 @@ val name : 'tight notation -> string
 val tightness : 'tight notation -> 'tight No.t
 val left : 'tight notation -> openness
 val right : 'tight notation -> openness
-val assoc : 'tight notation -> associativity
 val tree : 'tight notation -> entry
 val set_tree : 'tight notation -> entry -> unit
 val compiler : 'tight notation -> compiler

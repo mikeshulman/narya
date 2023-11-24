@@ -20,26 +20,28 @@ type 's opn = Dummy_open
 type _ openness = Open : 's No.strictness -> 's opn openness | Closed : closed openness
 
 (* These opennesses are determined by a more traditional fixity. *)
-type (_, _) fixity =
-  | Infix : (No.strict opn, No.strict opn) fixity
-  | Infixl : (No.nonstrict opn, No.strict opn) fixity
-  | Infixr : (No.strict opn, No.nonstrict opn) fixity
-  | Prefix : (closed, No.strict opn) fixity
-  | Prefixr : (closed, No.nonstrict opn) fixity
-  | Postfix : (No.strict opn, closed) fixity
-  | Postfixl : (No.nonstrict opn, closed) fixity
-  | Outfix : (closed, closed) fixity
+type (_, _, _) fixity =
+  | Infix : 'tight No.t -> (No.strict opn, 'tight, No.strict opn) fixity
+  | Infixl : 'tight No.t -> (No.nonstrict opn, 'tight, No.strict opn) fixity
+  | Infixr : 'tight No.t -> (No.strict opn, 'tight, No.nonstrict opn) fixity
+  | Prefix : 'tight No.t -> (closed, 'tight, No.strict opn) fixity
+  | Prefixr : 'tight No.t -> (closed, 'tight, No.nonstrict opn) fixity
+  | Postfix : 'tight No.t -> (No.strict opn, 'tight, closed) fixity
+  | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
+  | Outfix : (closed, No.plus_omega, closed) fixity
 
 (* This is where we enforce that an infix notation can't be associative on both sides. *)
-let fixprops : type l r. (l, r) fixity -> l openness * r openness = function
-  | Infix -> (Open Strict, Open Strict)
-  | Infixl -> (Open Nonstrict, Open Strict)
-  | Infixr -> (Open Strict, Open Nonstrict)
-  | Prefix -> (Closed, Open Strict)
-  | Prefixr -> (Closed, Open Nonstrict)
-  | Postfix -> (Open Strict, Closed)
-  | Postfixl -> (Open Nonstrict, Closed)
-  | Outfix -> (Closed, Closed)
+let fixprops :
+    type left tight right.
+    (left, tight, right) fixity -> left openness * tight No.t * right openness = function
+  | Infix t -> (Open Strict, t, Open Strict)
+  | Infixl t -> (Open Nonstrict, t, Open Strict)
+  | Infixr t -> (Open Strict, t, Open Nonstrict)
+  | Prefix t -> (Closed, t, Open Strict)
+  | Prefixr t -> (Closed, t, Open Nonstrict)
+  | Postfix t -> (Open Strict, t, Closed)
+  | Postfixl t -> (Open Nonstrict, t, Closed)
+  | Outfix -> (Closed, No.plus_omega, Closed)
 
 (* While parsing a notation, we may need to record certain information other than the identifiers, constructors, fields, and subterms encountered.  We store this in "flags". *)
 type flag = ..
@@ -148,10 +150,9 @@ let set_print_as_case n p = n.print_as_case <- Some p
 
 (* Create a new notation with specified name, fixity, and tightness.  Its mutable fields must be set later. *)
 let make :
-    type left tight right.
-    string -> (left, right) fixity -> tight No.t -> (left, tight, right) notation =
- fun name fixity tightness ->
-  let left, right = fixprops fixity in
+    type left tight right. string -> (left, tight, right) fixity -> (left, tight, right) notation =
+ fun name fixity ->
+  let left, tightness, right = fixprops fixity in
   let id = !counter in
   let dummy () = () in
   counter := !counter + 1;

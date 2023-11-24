@@ -6,15 +6,15 @@ type closed = Dummy_closed
 type 's opn = Dummy_open
 type _ openness = Open : 's No.strictness -> 's opn openness | Closed : closed openness
 
-type (_, _) fixity =
-  | Infix : (No.strict opn, No.strict opn) fixity
-  | Infixl : (No.nonstrict opn, No.strict opn) fixity
-  | Infixr : (No.strict opn, No.nonstrict opn) fixity
-  | Prefix : (closed, No.strict opn) fixity
-  | Prefixr : (closed, No.nonstrict opn) fixity
-  | Postfix : (No.strict opn, closed) fixity
-  | Postfixl : (No.nonstrict opn, closed) fixity
-  | Outfix : (closed, closed) fixity
+type (_, _, _) fixity =
+  | Infix : 'tight No.t -> (No.strict opn, 'tight, No.strict opn) fixity
+  | Infixl : 'tight No.t -> (No.nonstrict opn, 'tight, No.strict opn) fixity
+  | Infixr : 'tight No.t -> (No.strict opn, 'tight, No.nonstrict opn) fixity
+  | Prefix : 'tight No.t -> (closed, 'tight, No.strict opn) fixity
+  | Prefixr : 'tight No.t -> (closed, 'tight, No.nonstrict opn) fixity
+  | Postfix : 'tight No.t -> (No.strict opn, 'tight, closed) fixity
+  | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
+  | Outfix : (closed, No.plus_omega, closed) fixity
 
 type flag = ..
 
@@ -74,7 +74,7 @@ val print_as_case :
 val set_print_as_case :
   ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) -> unit
 
-val make : string -> ('left, 'right) fixity -> 'tight No.t -> ('left, 'tight, 'right) notation
+val make : string -> ('left, 'tight, 'right) fixity -> ('left, 'tight, 'right) notation
 val equal : ('l1, 't1, 'r1) notation -> ('l2, 't2, 'r2) notation -> bool
 
 module Notation : sig

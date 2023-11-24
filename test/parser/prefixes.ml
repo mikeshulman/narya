@@ -11,13 +11,13 @@ let unparse state str =
   raise (Failure "Unexpected parse success")
 
 (* We define a nonassociative prefix notation @ of tightness +∞, the same tightness as function application. *)
-let att = make "at" Prefix No.plus_omega
+let att = make "at" (Prefix No.plus_omega)
 let () = set_tree att (eop (Op "@") (Done att))
 
 (* And also postfix notations ! and ? of tightness +∞, one left-associative and one not. *)
-let bang = make "bang" Postfix No.plus_omega
+let bang = make "bang" (Postfix No.plus_omega)
 let () = set_tree bang (eop (Op "!") (Done bang))
-let query = make "query" Postfixl No.plus_omega
+let query = make "query" (Postfixl No.plus_omega)
 let () = set_tree query (eop (Op "?") (Done query))
 let prefixes = !builtins |> State.add att |> State.add bang |> State.add query
 
@@ -70,11 +70,11 @@ let () =
     = Notn ("query", [ Term (App (Notn ("query", [ Term (Ident "f") ]), Ident "x")) ]))
 
 (* We define nonassociative prefix, infix, and postfix operators of the same tightness. *)
-let twiddle = make "twiddle" Prefix No.zero
+let twiddle = make "twiddle" (Prefix No.zero)
 let () = set_tree twiddle (eop (Op "~") (Done twiddle))
-let star = make "star" Postfix No.zero
+let star = make "star" (Postfix No.zero)
 let () = set_tree star (eop (Op "*") (Done star))
-let perc = make "perc" Infix No.zero
+let perc = make "perc" (Infix No.zero)
 let () = set_tree perc (eop (Op "%") (Done perc))
 let prefixes = !builtins |> State.add twiddle |> State.add star |> State.add perc
 

@@ -16,7 +16,7 @@ open Monad.Ops (Monad.Maybe)
 
 (* TODO: printing these notations *)
 
-let sigman = make "sigma" Prefixr No.one
+let sigman = make "sigma" (Prefixr No.one)
 
 let () =
   set_tree sigman
@@ -35,7 +35,7 @@ let () =
           Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
-let prodn = make "prod" Infixr No.one
+let prodn = make "prod" (Infixr No.one)
 
 let () =
   set_tree prodn (eops [ (Ident "×", Done prodn); (Op "><", Done prodn) ]);
@@ -51,7 +51,7 @@ let () =
           Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
     }
 
-let comma = make "comma" Infixr No.one
+let comma = make "comma" (Infixr No.one)
 
 let () =
   set_tree comma (eop (Op ",") (Done comma));

@@ -4,17 +4,17 @@ open Notation
 
 (* Notations for arithmetic.  This has nothing to do with the Nat of type theory, it's just a way of testing the parser. *)
 
-let plus = make "+" Infixl No.zero
+let plus = make "+" (Infixl No.zero)
 let () = set_tree plus (eop (Op "+") (Done plus))
-let minus = make "-" Infixl No.zero
+let minus = make "-" (Infixl No.zero)
 let () = set_tree minus (eop (Op "-") (Done minus))
-let times = make "*" Infixl No.one
+let times = make "*" (Infixl No.one)
 let () = set_tree times (eop (Op "*") (Done times))
-let div = make "/" Infixl No.one
+let div = make "/" (Infixl No.one)
 let () = set_tree div (eop (Op "/") (Done div))
-let exp = make "^" Infixr No.two
+let exp = make "^" (Infixr No.two)
 let () = set_tree exp (eop (Op "^") (Done exp))
-let parens = make "()" Outfix No.plus_omega
+let parens = make "()" Outfix
 let () = set_tree parens (eop LParen (term RParen (Done parens)))
 
 let arith =

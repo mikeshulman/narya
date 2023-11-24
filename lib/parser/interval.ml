@@ -3,18 +3,19 @@ open Notation
 
 (* An "upper tightness interval" is of the form (p,+∞] or [p,+∞] for some tightness p.  Ordinarily we would call these "open" and "closed" intervals, but due to the potential confusion with "closed" and "open" notations we call them instead "strict" and "nonstrict". *)
 
-type t = Interval : 's No.strictness * 'a No.t -> t
+type ('a, 's) tt = 's No.strictness * 'a No.t
+type t = Interval : ('s, 'a) tt -> t
 
-let empty = Interval (Strict, No.plus_omega)
-let entire = Interval (Nonstrict, No.minus_omega)
+let empty : (No.plus_omega, No.strict) tt = (Strict, No.plus_omega)
+let entire : (No.minus_omega, No.nonstrict) tt = (Nonstrict, No.minus_omega)
 
 let to_string = function
   | Interval (Nonstrict, x) -> Printf.sprintf "[%s,inf]" (No.to_string x)
   | Interval (Strict, x) -> Printf.sprintf "(%s,inf]" (No.to_string x)
 
-let endpoint : t -> No.wrapped = function
-  | Interval (No.Nonstrict, x) -> Wrap x
-  | Interval (Strict, x) -> Wrap x
+let endpoint : type e s. (e, s) tt -> No.wrapped = function
+  | No.Nonstrict, x -> Wrap x
+  | Strict, x -> Wrap x
 
 let contains : type a. t -> a No.t -> bool =
  fun (Interval (s, p)) x ->

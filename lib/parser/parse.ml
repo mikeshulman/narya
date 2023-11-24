@@ -91,7 +91,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   and entry (e : entry) : (observation Bwd.t * Notation.t) t = tree_op e Emp
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
-  and lclosed (tight : Interval.t) (stop : tree TokMap.t) : parse t =
+  and lclosed : type lt ls. (lt, ls) Interval.tt -> tree TokMap.t -> parse t =
+   fun tight stop ->
     let* state = get in
     let* res, res_tight =
       (let* obs, Wrap n = entry state.left_closeds in
@@ -102,7 +103,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            match right n with
            | Closed -> return (Outfix (n, obs), None)
            | Open _ ->
-               let i = Interval.right n in
+               let (Interval i) = Interval.right n in
                (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
                let* last_arg = lclosed i stop in
                return (Prefix (n, Snoc (obs, Term last_arg)), Some (No.Wrap (tightness n), name n))))
@@ -150,13 +151,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | `Mapsto cube ->
         if for_real then
           (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
-          let* res = lclosed (Interval (Strict, No.minus_omega)) stop in
+          let* res = lclosed (Strict, No.minus_omega) stop in
           return (Abs (cube, Bwd.to_list idents, res), Some (No.Wrap No.minus_omega, "mapsto"))
         else return (Ident "", None)
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
-  and lopen (tight : Interval.t) (stop : tree TokMap.t) (first_arg : parse)
-      (first_tight : (No.wrapped * string) option) : parse t =
+  and lopen :
+      type lt ls.
+      (lt, ls) Interval.tt -> tree TokMap.t -> parse -> (No.wrapped * string) option -> parse t =
+   fun tight stop first_arg first_tight ->
     (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
     followed_by
       (step (fun state _ tok ->
@@ -170,7 +173,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  (Actually, if the given interval is (Strict ∞), i.e. completely empty, we don't allow left-closed trees either, since function application has tightness +∞.)  *)
     </> (let* state = get in
          let* res, res_tight =
-           (let* rng, (obs, Wrap n) = located (entry (TIMap.find tight state.tighters)) in
+           (let* rng, (obs, Wrap n) = located (entry (TIMap.find (Interval tight) state.tighters)) in
             (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one.  One could make a case that notations n that fail this test should already have been excluded from the 'entry' that we parsed above.  But for one thing, that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Furthermore, doing it this way makes it easier to trap it and issue a more informative error message, which I think is a good thing because this includes examples like "let x ≔ M in N : A" and "x ↦ M : A" where the need for parentheses in Narya may be surprising to a new user.  *)
             let* () =
               match first_tight with
@@ -190,7 +193,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                       (App (first_arg, Outfix (n, obs)), Some (No.Wrap No.plus_omega, "application"))
                 )
             | Open _ -> (
-                let i = Interval.right n in
+                let (Interval i) = Interval.right n in
                 let* last_arg = lclosed i stop in
                 match left n with
                 | Open _ ->
@@ -205,7 +208,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            (* If this fails, and if the given tightness interval includes +∞, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
            </> let* arg =
                  step (fun state _ tok ->
-                     if tight = Interval (Strict, No.plus_omega) then None
+                     if Interval.Interval tight = Interval (Strict, No.plus_omega) then None
                      else
                        match tok with
                        | Ident x -> Some (Ident x, state)

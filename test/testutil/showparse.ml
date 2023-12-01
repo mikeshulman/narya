@@ -1,4 +1,3 @@
-open Bwd
 open Parser
 
 (* Translate a parse observation into something that shows the names of notations rather than their internal abstract representations, for easier inspection and testing.  Note that since we intercept the parse tree before the "compilation" step, there is no name resolution, so this doesn't need to be run inside a Yuujinchou handler and can use unbound variables. *)
@@ -30,15 +29,7 @@ let rec get_obs (obs : Notation.observation) : obs =
 and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
  fun r ->
   match r with
-  | Infix n ->
-      Notn
-        ( Notation.name n.notn,
-          List.map get_obs (Term n.first :: Bwd.to_list (Snoc (n.inner, Notation.Term n.last))) )
-  | Prefix n ->
-      Notn
-        (Notation.name n.notn, List.map get_obs (Bwd.to_list (Snoc (n.inner, Notation.Term n.last))))
-  | Postfix n -> Notn (Notation.name n.notn, List.map get_obs (Term n.first :: Bwd.to_list n.inner))
-  | Outfix n -> Notn (Notation.name n.notn, List.map get_obs (Bwd.to_list n.inner))
+  | Notn n -> Notn (Notation.name n.notn, List.map get_obs (Notation.args n))
   | App a -> App (get_tree a.fn, get_tree a.arg)
   | Ident x -> Ident x
   | Constr x -> Constr x

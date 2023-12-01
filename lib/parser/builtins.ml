@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Compile
 open Print
@@ -98,8 +97,7 @@ let () =
         | _ -> fatal (Anomaly "impossible thing in let")
       and pp_let_body ppf tr =
         match tr with
-        | Wrap (Prefix { notn; inner; last; _ }) when equal notn letin ->
-            pp_let ppf (Bwd.to_list (Snoc (inner, Term last)))
+        | Wrap (Notn n) when equal n.notn letin -> pp_let ppf (args n)
         | _ -> pp_term ppf tr in
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
@@ -251,10 +249,9 @@ let rec pp_pi (arr : bool) (obs : observation list) :
       let Wrap body, obs = get_term obs in
       let () = get_done obs in
       match body with
-      | Prefix { notn; inner; last; _ } when equal notn pi ->
-          pp_pi false (Bwd.to_list (Snoc (inner, Term last)))
-      | Infix { notn; first; inner; last; _ } when equal notn arrow ->
-          let rest, body = pp_arrow true (Term first :: Bwd.to_list (Snoc (inner, Term last))) in
+      | Notn n when equal n.notn pi -> pp_pi false (args n)
+      | Notn n when equal n.notn arrow ->
+          let rest, body = pp_arrow true (args n) in
           (1, rest, body)
       | _ -> (0, (fun _ () -> ()), Wrap body))
 
@@ -263,15 +260,15 @@ and pp_arrow (arr : bool) (obs : observation list) : (formatter -> unit -> unit)
   let Wrap body, obs = get_term obs in
   let () = get_done obs in
   match body with
-  | Prefix { notn; inner; last; _ } when equal notn pi ->
-      let sp, rest, body = pp_pi true (Bwd.to_list (Snoc (inner, Term last))) in
+  | Notn n when equal n.notn pi ->
+      let sp, rest, body = pp_pi true (args n) in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
           fprintf ppf "%a%t" pp_term dom (fun ppf -> pp_print_break ppf sp 0);
           rest ppf ()),
         body )
-  | Infix { notn; first; inner; last; _ } when equal notn arrow ->
-      let rest, body = pp_arrow true (Term first :: Bwd.to_list (Snoc (inner, Term last))) in
+  | Notn n when equal n.notn arrow ->
+      let rest, body = pp_arrow true (args n) in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
           fprintf ppf "%a@ " pp_term dom;
@@ -615,10 +612,10 @@ let rec pp_branches brk ppf obs =
       let style = style () in
       if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match tm with
-      | Outfix { notn; inner; _ } when equal notn mtch && style = Compact ->
+      | Notn n when equal n.notn mtch && style = Compact ->
           fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a%a@] %a@]" pp_tok (Op "|") pp_constr c
             (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
-            vars pp_tok Mapsto (pp_match false) (Bwd.to_list inner)
+            vars pp_tok Mapsto (pp_match false) (args n)
       | _ ->
           fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a%a@]%t%a@]" pp_tok (Op "|") pp_constr c
             (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))

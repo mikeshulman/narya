@@ -105,7 +105,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
            raise (Failure "left-open notation in state.left_closeds")
        | Closed -> (
            match right notn with
-           | Closed -> return { get = (fun _ -> Ok (Outfix { notn; inner })) }
+           | Closed -> return { get = (fun _ -> Ok (outfix ~notn ~inner)) }
            (* If the parse ended right-open, we call "lclosed" again, with the right-side upper tightness interval of the just-parsed notation, to pick up the open argument. *)
            | Open _ ->
                let i = interval_right notn in
@@ -120,7 +120,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                        | None -> Error (name notn)
                        | Some right_ok -> (
                            match last_arg.get ivl with
-                           | Ok last -> Ok (Prefix { notn; inner; last; right_ok })
+                           | Ok last -> Ok (prefix ~notn ~inner ~last ~right_ok)
                            | Error e -> Error e));
                  }))
       (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  (Field projections are not allowed since this would be the head of a spine.)  First we look forward past possible variable names to find a Mapsto, to see whether we're looking at an abstraction, and if so we insist on actually parsing that abstraction (and checking that the variable names are valid).  It seems that we must do this with backtracking, since if there *isn't* a Mapsto out there, a list of names might not just be something simple like an application spine but might include infix parts of notations.  The "followed_by" combination is to allow the abstraction to fail permanently on an invalid variable name (having consumed at least one name), while failing without consuming anything if there isn't a Mapsto. *)
@@ -228,7 +228,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                             match right notn with
                             | Closed ->
                                 return
-                                  { get = (fun _ -> Ok (Postfix { notn; first; inner; left_ok })) }
+                                  { get = (fun _ -> Ok (postfix ~notn ~first ~inner ~left_ok)) }
                             | Open _ ->
                                 let* last_arg = lclosed (interval_right notn) stop in
                                 return
@@ -239,8 +239,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                           (last_arg.get ivl, Interval.contains ivl (tightness notn))
                                         with
                                         | Ok last, Some right_ok ->
-                                            Ok
-                                              (Infix { notn; first; inner; last; left_ok; right_ok })
+                                            Ok (infix ~notn ~first ~inner ~last ~left_ok ~right_ok)
                                         | Error e, _ -> Error e
                                         | _, None -> Error (name notn));
                                   }))
@@ -261,7 +260,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                               (App
                                                  {
                                                    fn;
-                                                   arg = Outfix { notn; inner };
+                                                   arg = outfix ~notn ~inner;
                                                    left_ok = nontrivial;
                                                    right_ok;
                                                  }));
@@ -282,7 +281,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                               (App
                                                  {
                                                    fn;
-                                                   arg = Prefix { notn; inner; last; right_ok };
+                                                   arg = prefix ~notn ~inner ~last ~right_ok;
                                                    left_ok = nontrivial;
                                                    right_ok = right_app;
                                                  })

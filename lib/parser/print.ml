@@ -1,4 +1,3 @@
-open Bwd
 open Core
 open Format
 open Uuseg_string
@@ -38,13 +37,7 @@ let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
   match state () with
   | Case -> (
       match tr with
-      | Infix { notn; first; inner; last; _ } ->
-          pp_notn_case ppf notn (Term first :: Bwd.to_list (Snoc (inner, Term last))) wtr
-      | Prefix { notn; inner; last; _ } ->
-          pp_notn_case ppf notn (Bwd.to_list (Snoc (inner, Term last))) wtr
-      | Postfix { notn; first; inner; _ } ->
-          pp_notn_case ppf notn (Term first :: Bwd.to_list inner) wtr
-      | Outfix { notn; inner; _ } -> pp_notn_case ppf notn (Bwd.to_list inner) wtr
+      | Notn n -> pp_notn_case ppf n.notn (args n) wtr
       | Abs { cube; vars; body; _ } ->
           fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
             (pp_print_list ~pp_sep:pp_print_space pp_var)
@@ -57,11 +50,7 @@ let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
       | _ -> as_term @@ fun () -> pp_term ppf wtr)
   | Term -> (
       match tr with
-      | Infix { notn; first; inner; last; _ } ->
-          pp_notn ppf notn (Term first :: Bwd.to_list (Snoc (inner, Term last)))
-      | Prefix { notn; inner; last; _ } -> pp_notn ppf notn (Bwd.to_list (Snoc (inner, Term last)))
-      | Postfix { notn; first; inner; _ } -> pp_notn ppf notn (Term first :: Bwd.to_list inner)
-      | Outfix { notn; inner; _ } -> pp_notn ppf notn (Bwd.to_list inner)
+      | Notn n -> pp_notn ppf n.notn (args n)
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
       | Ident x -> pp_utf_8 ppf x
       | Constr c -> pp_constr ppf c

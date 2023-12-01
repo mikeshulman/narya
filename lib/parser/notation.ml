@@ -77,36 +77,31 @@ and observation =
   | Ident of string option
   | Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
+(* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness, and may require witnesses that it is tight enough on the left and/or the right also depending on its openness. *)
+and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn = {
+  notn : ('left, 'tight, 'right) notation;
+  first : ('lt, 'ls, 'tight, 'left) first_arg;
+  inner : observation Bwd.t;
+  last : ('tight, 'right, 'rt, 'rs) last_arg;
+  left_ok : ('lt, 'ls, 'tight, 'left) tighter_than;
+  right_ok : ('rt, 'rs, 'tight, 'right) tighter_than;
+}
+
+and (_, _, _, _) first_arg =
+  | Some_first : ('lt, 'ls, 'tight, 'l) parse -> ('lt, 'ls, 'tight, 'l opn) first_arg
+  | No_first : ('lt, 'ls, 'tight, closed) first_arg
+
+and (_, _, _, _) last_arg =
+  | Some_last : ('tight, 'r, 'rt, 'rs) parse -> ('tight, 'r opn, 'rt, 'rs) last_arg
+  | No_last : ('tight, closed, 'rt, 'rs) last_arg
+
+and (_, _, _, _) tighter_than =
+  | Open_ok : ('lt, 'ls, 'tight) No.lt -> ('lt, 'ls, 'tight, 'l opn) tighter_than
+  | Closed_ok : ('lt, 'ls, 'tight, closed) tighter_than
+
 (* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "compilation" functions.  *)
 and (_, _, _, _) parse =
-  | Infix : {
-      notn : ('l opn, 'tight, 'r opn) notation;
-      first : ('lt, 'ls, 'tight, 'l) parse;
-      last : ('tight, 'r, 'rt, 'rs) parse;
-      inner : observation Bwd.t;
-      left_ok : ('lt, 'ls, 'tight) No.lt;
-      right_ok : ('rt, 'rs, 'tight) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
-  | Prefix : {
-      notn : (closed, 'tight, 'r opn) notation;
-      last : ('tight, 'r, 'rt, 'rs) parse;
-      inner : observation Bwd.t;
-      right_ok : ('rt, 'rs, 'tight) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
-  | Postfix : {
-      notn : ('l opn, 'tight, closed) notation;
-      first : ('lt, 'ls, 'tight, 'l) parse;
-      inner : observation Bwd.t;
-      left_ok : ('lt, 'ls, 'tight) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
-  | Outfix : {
-      notn : (closed, 'tight, closed) notation;
-      inner : observation Bwd.t;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
+  | Notn : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('lt, 'ls, 'rt, 'rs) parse
   (* We treat application as a left-associative binary infix operator of tightness +ω.  Note that like any infix operator, its left argument must be in its left interval and its right argument must be in its right interval. *)
   | App : {
       fn : ('lt, 'ls, No.plus_omega, No.nonstrict) parse;
@@ -148,6 +143,54 @@ and ('left, 'tight, 'right) notation = {
   mutable print : (Format.formatter -> observation list -> unit) option;
   mutable print_as_case : (Format.formatter -> observation list -> unit) option;
 }
+
+let infix ~notn ~first ~inner ~last ~left_ok ~right_ok =
+  Notn
+    {
+      notn;
+      first = Some_first first;
+      inner;
+      last = Some_last last;
+      left_ok = Open_ok left_ok;
+      right_ok = Open_ok right_ok;
+    }
+
+let prefix ~notn ~inner ~last ~right_ok =
+  Notn
+    {
+      notn;
+      first = No_first;
+      inner;
+      last = Some_last last;
+      left_ok = Closed_ok;
+      right_ok = Open_ok right_ok;
+    }
+
+let postfix ~notn ~first ~inner ~left_ok =
+  Notn
+    {
+      notn;
+      first = Some_first first;
+      inner;
+      last = No_last;
+      left_ok = Open_ok left_ok;
+      right_ok = Closed_ok;
+    }
+
+let outfix ~notn ~inner =
+  Notn { notn; first = No_first; inner; last = No_last; left_ok = Closed_ok; right_ok = Closed_ok }
+
+let args :
+    type left tight right lt ls rt rs.
+    (left, tight, right, lt, ls, rt, rs) parsed_notn -> observation list =
+ fun n ->
+  let args =
+    match n.last with
+    | Some_last tm -> Snoc (n.inner, Term tm)
+    | No_last -> n.inner in
+  match n.first with
+  | Some_first tm -> Term tm :: Bwd.to_list args
+  | No_first -> Bwd.to_list args
 
 type wrapped_parse = Wrap : ('lt, 'ls, 'rt, 'rs) parse -> wrapped_parse
 

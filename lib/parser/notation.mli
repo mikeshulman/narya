@@ -42,35 +42,29 @@ and observation =
   | Ident of string option
   | Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
+and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn = {
+  notn : ('left, 'tight, 'right) notation;
+  first : ('lt, 'ls, 'tight, 'left) first_arg;
+  inner : observation Bwd.t;
+  last : ('tight, 'right, 'rt, 'rs) last_arg;
+  left_ok : ('lt, 'ls, 'tight, 'left) tighter_than;
+  right_ok : ('rt, 'rs, 'tight, 'right) tighter_than;
+}
+
+and (_, _, _, _) first_arg =
+  | Some_first : ('lt, 'ls, 'tight, 'l) parse -> ('lt, 'ls, 'tight, 'l opn) first_arg
+  | No_first : ('lt, 'ls, 'tight, closed) first_arg
+
+and (_, _, _, _) last_arg =
+  | Some_last : ('tight, 'r, 'rt, 'rs) parse -> ('tight, 'r opn, 'rt, 'rs) last_arg
+  | No_last : ('tight, closed, 'rt, 'rs) last_arg
+
+and (_, _, _, _) tighter_than =
+  | Open_ok : ('lt, 'ls, 'tight) No.lt -> ('lt, 'ls, 'tight, 'l opn) tighter_than
+  | Closed_ok : ('lt, 'ls, 'tight, closed) tighter_than
+
 and (_, _, _, _) parse =
-  | Infix : {
-      notn : ('l opn, 'tight, 'r opn) notation;
-      first : ('lt, 'ls, 'tight, 'l) parse;
-      last : ('tight, 'r, 'rt, 'rs) parse;
-      inner : observation Bwd.t;
-      left_ok : ('lt, 'ls, 'tight) No.lt;
-      right_ok : ('rt, 'rs, 'tight) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
-  | Prefix : {
-      notn : (closed, 'tight, 'r opn) notation;
-      last : ('tight, 'r, 'rt, 'rs) parse;
-      inner : observation Bwd.t;
-      right_ok : ('rt, 'rs, 'tight) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
-  | Postfix : {
-      notn : ('l opn, 'tight, closed) notation;
-      first : ('lt, 'ls, 'tight, 'l) parse;
-      inner : observation Bwd.t;
-      left_ok : ('lt, 'ls, 'tight) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
-  | Outfix : {
-      notn : (closed, 'tight, closed) notation;
-      inner : observation Bwd.t;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
+  | Notn : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('lt, 'ls, 'rt, 'rs) parse
   | App : {
       fn : ('lt, 'ls, No.plus_omega, No.nonstrict) parse;
       arg : (No.plus_omega, No.strict, 'rt, 'rs) parse;
@@ -92,6 +86,32 @@ and (_, _, _, _) parse =
 
 and ('left, 'tight, 'right) notation
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
+
+val infix :
+  notn:('a opn, 'b, 'c opn) notation ->
+  first:('d, 'e, 'b, 'a) parse ->
+  inner:observation Bwd.t ->
+  last:('b, 'c, 'f, 'g) parse ->
+  left_ok:('d, 'e, 'b) Util.No.lt ->
+  right_ok:('f, 'g, 'b) Util.No.lt ->
+  ('d, 'e, 'f, 'g) parse
+
+val prefix :
+  notn:(closed, 'a, 'b opn) notation ->
+  inner:observation Bwd.t ->
+  last:('a, 'b, 'c, 'd) parse ->
+  right_ok:('c, 'd, 'a) Util.No.lt ->
+  ('e, 'f, 'c, 'd) parse
+
+val postfix :
+  notn:('a opn, 'b, closed) notation ->
+  first:('c, 'd, 'b, 'a) parse ->
+  inner:observation Bwd.t ->
+  left_ok:('c, 'd, 'b) Util.No.lt ->
+  ('c, 'd, 'e, 'f) parse
+
+val outfix : notn:(closed, 'a, closed) notation -> inner:observation Bwd.t -> ('b, 'c, 'd, 'e) parse
+val args : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> observation list
 
 type wrapped_parse = Wrap : ('lt, 'ls, 'rt, 'rs) parse -> wrapped_parse
 

@@ -59,6 +59,8 @@ let () =
   let () = unsynth "a x.y b ↦ z" ~code:(Invalid_variable "x.y") in
   (* let _ = synth "↦ x" in *)
   let () = unsynth "↦ x" ~code:Parse_error in
+  (* let _ = synth "(f x) y ↦ z" in *)
+  let () = unsynth "(f x) y ↦ z" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

@@ -80,11 +80,7 @@ let rec compile : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
     =
  fun ctx res ->
   match res with
-  | Infix n ->
-      (compiler n.notn).compile ctx (Term n.first :: Bwd.to_list (Snoc (n.inner, Term n.last)))
-  | Prefix n -> (compiler n.notn).compile ctx (Bwd.to_list (Snoc (n.inner, Term n.last)))
-  | Postfix n -> (compiler n.notn).compile ctx (Term n.first :: Bwd.to_list n.inner)
-  | Outfix n -> (compiler n.notn).compile ctx (Bwd.to_list n.inner)
+  | Notn n -> (compiler n.notn).compile ctx (args n)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and symbols, and also field projections.  *)
   | App { fn; arg; _ } -> (
       let fn = compile ctx fn in

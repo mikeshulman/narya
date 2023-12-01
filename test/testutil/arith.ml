@@ -36,12 +36,12 @@ let rec pow x y =
   else if y = 0 then 1
   else x * pow x (y - 1)
 
-let rec eval : parse -> int = function
+let rec eval : type lt ls rt rs. (lt, ls, rt, rs) parse -> int = function
   | Numeral n -> if n.den = Z.one then Z.to_int n.num else raise Syntax_error
-  | App (x, y) ->
-      let x = eval x and y = eval y in
+  | App { fn; arg; _ } ->
+      let x = eval fn and y = eval arg in
       x * y
-  | Infix (op, Term x, Snoc (Emp, Term y)) ->
+  | Infix { notn = op; first = x; last = y; inner = Emp; _ } ->
       let x = eval x and y = eval y in
       if equal op plus then x + y
       else if equal op minus then x - y
@@ -49,6 +49,6 @@ let rec eval : parse -> int = function
       else if equal op div then if x mod y = 0 then x / y else raise Fraction
       else if equal op exp then pow x y
       else raise (Failure "Wrong number of right arguments")
-  | Outfix (op, Snoc (Emp, Term x)) ->
+  | Outfix { notn = op; inner = Snoc (Emp, Term x) } ->
       if equal op parens then eval x else raise (Failure "Wrong number of right arguments")
   | _ -> raise Syntax_error

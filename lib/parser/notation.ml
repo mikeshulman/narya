@@ -75,21 +75,58 @@ and observation =
   | Constr of string
   | Field of string
   | Ident of string option
-  | Term of parse
+  | Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
 (* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "compilation" functions.  *)
-and parse =
-  | Infix : ('l opn, 'tight, 'r opn) notation * observation * observation Bwd.t -> parse
-  | Prefix : (closed, 'tight, 'r opn) notation * observation Bwd.t -> parse
-  | Postfix : ('l opn, 'tight, closed) notation * observation * observation Bwd.t -> parse
-  | Outfix : (closed, 'tight, closed) notation * observation Bwd.t -> parse
-  | App of parse * parse
-  | Ident of string
-  | Constr of string
-  | Field of string
-  | Numeral of Q.t
-  (* A parsed abstraction already knows whether it is a normal abstraction or a cubical one, since different symbols ↦ and ⤇ are used. *)
-  | Abs of [ `Cube | `Normal ] * string option list * parse
+and (_, _, _, _) parse =
+  | Infix : {
+      notn : ('l opn, 'tight, 'r opn) notation;
+      first : ('lt, 'ls, 'tight, 'l) parse;
+      last : ('tight, 'r, 'rt, 'rs) parse;
+      inner : observation Bwd.t;
+      left_ok : ('lt, 'ls, 'tight) No.lt;
+      right_ok : ('rt, 'rs, 'tight) No.lt;
+    }
+      -> ('lt, 'ls, 'rt, 'rs) parse
+  | Prefix : {
+      notn : (closed, 'tight, 'r opn) notation;
+      last : ('tight, 'r, 'rt, 'rs) parse;
+      inner : observation Bwd.t;
+      right_ok : ('rt, 'rs, 'tight) No.lt;
+    }
+      -> ('lt, 'ls, 'rt, 'rs) parse
+  | Postfix : {
+      notn : ('l opn, 'tight, closed) notation;
+      first : ('lt, 'ls, 'tight, 'l) parse;
+      inner : observation Bwd.t;
+      left_ok : ('lt, 'ls, 'tight) No.lt;
+    }
+      -> ('lt, 'ls, 'rt, 'rs) parse
+  | Outfix : {
+      notn : (closed, 'tight, closed) notation;
+      inner : observation Bwd.t;
+    }
+      -> ('lt, 'ls, 'rt, 'rs) parse
+  (* We treat application as a left-associative binary infix operator of tightness +ω.  Note that like any infix operator, its left argument must be in its left interval and its right argument must be in its right interval. *)
+  | App : {
+      fn : ('lt, 'ls, No.plus_omega, No.nonstrict) parse;
+      arg : (No.plus_omega, No.strict, 'rt, 'rs) parse;
+      left_ok : ('lt, 'ls, No.plus_omega) No.lt;
+      right_ok : ('rt, 'rs, No.plus_omega) No.lt;
+    }
+      -> ('lt, 'ls, 'rt, 'rs) parse
+  | Ident : string -> ('lt, 'ls, 'rt, 'rs) parse
+  | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
+  | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
+  | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse
+  (* A parsed abstraction already knows whether it is a normal abstraction or a cubical one, since different symbols ↦ and ⤇ are used.  We treat abstraction as a non-associative prefix operator of tightness -ω.  TODO: Should really be more like an infix operator, since it can't appear inside anything tighter than -ω coming from the left either.  But then we need to special-case somehow that it can right-associate with *itself* though not ascription. *)
+  | Abs : {
+      cube : [ `Cube | `Normal ];
+      vars : string option list;
+      body : (No.minus_omega, No.strict, 'rt, 'rs) parse;
+      right_ok : ('rt, 'rs, No.minus_omega) No.lt;
+    }
+      -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A compilation function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
@@ -112,6 +149,13 @@ and ('left, 'tight, 'right) notation = {
   mutable print_as_case : (Format.formatter -> observation list -> unit) option;
 }
 
+type wrapped_parse = Wrap : ('lt, 'ls, 'rt, 'rs) parse -> wrapped_parse
+
+(* When parsing from left to right, we have to return a partial parse tree without knowing yet what tightness interval it will have to be in from the right.  So we return it as a callback that takes that interval as an argument and can fail, returning the name of the offending notation if it fails.  One could argue that instead the allowable tightness intervals should be returned along with the partial parse tree and used to restrict the allowable notations parsed afterwards.  But for one thing, that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Furthermore, doing it this way makes it easier to trap it and issue a more informative error message, which I think is a good thing because this includes examples like "let x ≔ M in N : A" and "x ↦ M : A" where the need for parentheses in Narya may be surprising to a new user. *)
+type ('lt, 'ls) right_wrapped_parse = {
+  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse, string) Result.t;
+}
+
 (* The primary key is used to compare notations. *)
 let counter = ref 0
 
@@ -130,6 +174,17 @@ let name n = n.name
 let tightness n = n.tightness
 let left n = n.left
 let right n = n.right
+
+(* A notation has associated upper tightness intervals on both the left and the right, which specify what tightnesses of other notations can appear in an open subterm on that side.  Thus, both of these intervals start at the tightness of the notation, with their open- or closed-ness determined by its associativity. *)
+let interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) Interval.tt =
+ fun n ->
+  let (Open s) = left n in
+  (s, tightness n)
+
+let interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.tt =
+ fun n ->
+  let (Open s) = right n in
+  (s, tightness n)
 
 (* For the mutable fields, we also have to provide setter functions.  Since these fields are only intended to be set once, the setters throw an exception if the value is already set (and the getters for tree and compiler throw an exception if it is not yet set).  *)
 

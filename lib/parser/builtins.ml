@@ -21,7 +21,7 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let body, obs = get_term obs in
+          let Wrap body, obs = get_term obs in
           let () = get_done obs in
           compile ctx body);
     };
@@ -53,10 +53,10 @@ let () =
       compile =
         (fun ctx obs ->
           let x, obs = get_ident obs in
-          let ty_or_tm, obs = get_term obs in
-          let tm_or_body, obs = get_term obs in
+          let Wrap ty_or_tm, obs = get_term obs in
+          let Wrap tm_or_body, obs = get_term obs in
           match get_next obs with
-          | `Term (body, obs) -> (
+          | `Term (Wrap body, obs) -> (
               let () = get_done obs in
               let ty, tm = (compile ctx ty_or_tm, compile ctx tm_or_body) in
               match compile (Snoc (ctx, x)) body with
@@ -98,7 +98,8 @@ let () =
         | _ -> fatal (Anomaly "impossible thing in let")
       and pp_let_body ppf tr =
         match tr with
-        | Prefix (n, obs) when equal n letin -> pp_let ppf (Bwd.to_list obs)
+        | Wrap (Prefix { notn; inner; last; _ }) when equal notn letin ->
+            pp_let ppf (Bwd.to_list (Snoc (inner, Term last)))
         | _ -> pp_term ppf tr in
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
@@ -114,8 +115,8 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let dom, obs = get_term obs in
-          let cod, obs = get_term obs in
+          let Wrap dom, obs = get_term obs in
+          let Wrap cod, obs = get_term obs in
           let () = get_done obs in
           let dom = compile ctx dom in
           let cod = compile (Snoc (ctx, None)) cod in
@@ -179,7 +180,7 @@ let rec compile_pi : type n. (string option, n) Bwv.t -> observation list -> n c
   | Some Implicit_pi -> fatal (Unimplemented "Implicit pi-types")
   | Some Explicit_pi -> compile_pi_names Zero ctx obs
   | _ ->
-      let body, obs = get_term obs in
+      let Wrap body, obs = get_term obs in
       let () = get_done obs in
       compile ctx body
 
@@ -199,17 +200,19 @@ and compile_pi_names :
           compile_pi_doms mn ctx dom cod)
 
 and compile_pi_doms :
-    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> parse -> mn check -> m check =
- fun mn ctx dom cod ->
+    type m n mn.
+    (m, n, mn) N.plus -> (string option, mn) Bwv.t -> wrapped_parse -> mn check -> m check =
+ fun mn ctx (Wrap dom) cod ->
   match (mn, ctx) with
   | Zero, _ -> cod
   | Suc mn, Snoc (ctx, _) ->
       let cdom = compile ctx dom in
-      compile_pi_doms mn ctx dom (Synth (Pi (cdom, cod)))
+      compile_pi_doms mn ctx (Wrap dom) (Synth (Pi (cdom, cod)))
 
 let () = set_compiler pi { compile = compile_pi }
 
-let rec pp_pi (arr : bool) (obs : observation list) : int * (formatter -> unit -> unit) * parse =
+let rec pp_pi (arr : bool) (obs : observation list) :
+    int * (formatter -> unit -> unit) * wrapped_parse =
   let f = get_flag [ Explicit_pi; Implicit_pi ] obs in
   match f with
   | Some Implicit_pi -> (
@@ -245,29 +248,30 @@ let rec pp_pi (arr : bool) (obs : observation list) : int * (formatter -> unit -
               rest ppf ()),
             body ))
   | _ -> (
-      let body, obs = get_term obs in
+      let Wrap body, obs = get_term obs in
       let () = get_done obs in
       match body with
-      | Prefix (n, obs) when equal n pi -> pp_pi false (Bwd.to_list obs)
-      | Infix (n, arg, obs) when equal n arrow ->
-          let rest, body = pp_arrow true (arg :: Bwd.to_list obs) in
+      | Prefix { notn; inner; last; _ } when equal notn pi ->
+          pp_pi false (Bwd.to_list (Snoc (inner, Term last)))
+      | Infix { notn; first; inner; last; _ } when equal notn arrow ->
+          let rest, body = pp_arrow true (Term first :: Bwd.to_list (Snoc (inner, Term last))) in
           (1, rest, body)
-      | _ -> (0, (fun _ () -> ()), body))
+      | _ -> (0, (fun _ () -> ()), Wrap body))
 
-and pp_arrow (arr : bool) (obs : observation list) : (formatter -> unit -> unit) * parse =
+and pp_arrow (arr : bool) (obs : observation list) : (formatter -> unit -> unit) * wrapped_parse =
   let dom, obs = get_term obs in
-  let body, obs = get_term obs in
+  let Wrap body, obs = get_term obs in
   let () = get_done obs in
   match body with
-  | Prefix (n, obs) when equal n pi ->
-      let sp, rest, body = pp_pi true (Bwd.to_list obs) in
+  | Prefix { notn; inner; last; _ } when equal notn pi ->
+      let sp, rest, body = pp_pi true (Bwd.to_list (Snoc (inner, Term last))) in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
           fprintf ppf "%a%t" pp_term dom (fun ppf -> pp_print_break ppf sp 0);
           rest ppf ()),
         body )
-  | Infix (n, arg, obs) when equal n arrow ->
-      let rest, body = pp_arrow true (arg :: Bwd.to_list obs) in
+  | Infix { notn; first; inner; last; _ } when equal notn arrow ->
+      let rest, body = pp_arrow true (Term first :: Bwd.to_list (Snoc (inner, Term last))) in
       ( (fun ppf () ->
           if arr then fprintf ppf "%a " pp_tok Arrow;
           fprintf ppf "%a@ " pp_term dom;
@@ -278,7 +282,7 @@ and pp_arrow (arr : bool) (obs : observation list) : (formatter -> unit -> unit)
           if arr then fprintf ppf "%a " pp_tok Arrow;
           (* The @, here are the zero-space cuts that play the role of the returned 0s in the last case of pp_pi, so we don't need to return a number from pp_arrow. *)
           fprintf ppf "%a@," pp_term dom),
-        body )
+        Wrap body )
 
 let () =
   set_print pi @@ fun ppf obs ->
@@ -306,8 +310,8 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let tm, obs = get_term obs in
-          let ty, obs = get_term obs in
+          let Wrap tm, obs = get_term obs in
+          let Wrap ty, obs = get_term obs in
           let () = get_done obs in
           let tm = compile ctx tm in
           let ty = compile ctx ty in
@@ -426,7 +430,7 @@ let rec compile_struc :
   match get_next obs with
   | `Done -> Raw.Struct flds
   | `Ident (Some x, obs) | `Field (x, obs) ->
-      let tm, obs = get_term obs in
+      let Wrap tm, obs = get_term obs in
       let tm = compile ctx tm in
       compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
   | `Ident (None, _) -> fatal Unnamed_field_in_struct
@@ -436,7 +440,13 @@ let () = set_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.
 
 let rec pp_fld :
     type a.
-    formatter -> (formatter -> a -> unit) -> a -> Token.t -> parse -> observation list -> unit =
+    formatter ->
+    (formatter -> a -> unit) ->
+    a ->
+    Token.t ->
+    wrapped_parse ->
+    observation list ->
+    unit =
  fun ppf pp x tok tm obs ->
   fprintf ppf "@[<hov 2>%a %a@ %a@]%a" pp x pp_tok tok pp_term tm
     (pp_print_option (fun ppf -> fprintf ppf " %a@ " pp_tok))
@@ -538,7 +548,7 @@ let rec compile_branch_names :
  fun ab ctx c obs ->
   match get_next obs with
   | `Ident (a, obs) -> compile_branch_names (Suc ab) (Snoc (ctx, a)) c obs
-  | `Term (t, obs) ->
+  | `Term (Wrap t, obs) ->
       let tm = compile ctx t in
       (Branch (c, ab, tm), obs)
   | `Constr _ | `Field _ -> fatal (Anomaly "Impossible thing in match")
@@ -601,20 +611,20 @@ let rec pp_branches brk ppf obs =
   match get_next obs with
   | `Constr (c, obs) ->
       let vars, obs = branch_vars obs in
-      let tm, obs = get_term obs in
+      let Wrap tm, obs = get_term obs in
       let style = style () in
       if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match tm with
-      | Outfix (n, brobs) when equal n mtch && style = Compact ->
+      | Outfix { notn; inner; _ } when equal notn mtch && style = Compact ->
           fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a%a@] %a@]" pp_tok (Op "|") pp_constr c
             (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
-            vars pp_tok Mapsto (pp_match false) (Bwd.to_list brobs)
+            vars pp_tok Mapsto (pp_match false) (Bwd.to_list inner)
       | _ ->
           fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a%a@]%t%a@]" pp_tok (Op "|") pp_constr c
             (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
             vars pp_tok Mapsto
             (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
-            pp_term tm);
+            pp_term (Wrap tm));
       pp_branches true ppf obs
   | `Done -> ()
   | _ -> fatal (Anomaly "Impossible thing in match")

@@ -33,15 +33,19 @@ let pp_constr (ppf : formatter) (c : string) : unit = fprintf ppf "%a." pp_utf_8
 let pp_field (ppf : formatter) (c : string) : unit = fprintf ppf ".%a" pp_utf_8 c
 
 (* Print a parse tree. *)
-let rec pp_term (ppf : formatter) (tr : parse) : unit =
+let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
+  let (Wrap tr) = wtr in
   match state () with
   | Case -> (
       match tr with
-      | Infix (n, arg, obs) -> pp_notn_case ppf n (arg :: Bwd.to_list obs) tr
-      | Prefix (n, obs) -> pp_notn_case ppf n (Bwd.to_list obs) tr
-      | Postfix (n, arg, obs) -> pp_notn_case ppf n (arg :: Bwd.to_list obs) tr
-      | Outfix (n, obs) -> pp_notn_case ppf n (Bwd.to_list obs) tr
-      | Abs (cube, vars, body) ->
+      | Infix { notn; first; inner; last; _ } ->
+          pp_notn_case ppf notn (Term first :: Bwd.to_list (Snoc (inner, Term last))) wtr
+      | Prefix { notn; inner; last; _ } ->
+          pp_notn_case ppf notn (Bwd.to_list (Snoc (inner, Term last))) wtr
+      | Postfix { notn; first; inner; _ } ->
+          pp_notn_case ppf notn (Term first :: Bwd.to_list inner) wtr
+      | Outfix { notn; inner; _ } -> pp_notn_case ppf notn (Bwd.to_list inner) wtr
+      | Abs { cube; vars; body; _ } ->
           fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
             (pp_print_list ~pp_sep:pp_print_space pp_var)
             vars pp_tok
@@ -49,31 +53,32 @@ let rec pp_term (ppf : formatter) (tr : parse) : unit =
             | `Normal -> Mapsto
             | `Cube -> DblMapsto)
             (* TODO: Test that passing through a lambda doesn't drop into term parsing *)
-            pp_term body
-      | _ -> as_term @@ fun () -> pp_term ppf tr)
+            pp_term (Wrap body)
+      | _ -> as_term @@ fun () -> pp_term ppf wtr)
   | Term -> (
       match tr with
-      | Infix (n, arg, obs) -> pp_notn ppf n (arg :: Bwd.to_list obs)
-      | Prefix (n, obs) -> pp_notn ppf n (Bwd.to_list obs)
-      | Postfix (n, arg, obs) -> pp_notn ppf n (arg :: Bwd.to_list obs)
-      | Outfix (n, obs) -> pp_notn ppf n (Bwd.to_list obs)
-      | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine tr
+      | Infix { notn; first; inner; last; _ } ->
+          pp_notn ppf notn (Term first :: Bwd.to_list (Snoc (inner, Term last)))
+      | Prefix { notn; inner; last; _ } -> pp_notn ppf notn (Bwd.to_list (Snoc (inner, Term last)))
+      | Postfix { notn; first; inner; _ } -> pp_notn ppf notn (Term first :: Bwd.to_list inner)
+      | Outfix { notn; inner; _ } -> pp_notn ppf notn (Bwd.to_list inner)
+      | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
       | Ident x -> pp_utf_8 ppf x
       | Constr c -> pp_constr ppf c
       | Field f -> pp_field ppf f
       | Numeral n -> Q.pp_print ppf n
-      | Abs (cube, vars, body) ->
+      | Abs { cube; vars; body; _ } ->
           fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
             (pp_print_list ~pp_sep:pp_print_space pp_var)
             vars pp_tok
             (match cube with
             | `Normal -> Mapsto
             | `Cube -> DblMapsto)
-            pp_term body)
+            pp_term (Wrap body))
 
 and pp_notn_case :
     type left tight right.
-    formatter -> (left, tight, right) notation -> observation list -> parse -> unit =
+    formatter -> (left, tight, right) notation -> observation list -> wrapped_parse -> unit =
  fun ppf n obs tr ->
   match print_as_case n with
   | Some pp -> pp ppf obs
@@ -86,9 +91,9 @@ and pp_notn :
   | Some pp -> pp ppf obs
   | None -> fatal (Anomaly "Unprintable term")
 
-and pp_spine (ppf : formatter) (tr : parse) : unit =
+and pp_spine (ppf : formatter) (tr : wrapped_parse) : unit =
   match tr with
-  | App (head, arg) -> fprintf ppf "%a@ %a" pp_spine head pp_term arg
+  | Wrap (App { fn; arg; _ }) -> fprintf ppf "%a@ %a" pp_spine (Wrap fn) pp_term (Wrap arg)
   | _ -> pp_term ppf tr
 
 let pp_as_term style f = Reader.run ~env:(style, Term) f

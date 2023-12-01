@@ -11,7 +11,7 @@ module TIMap = Map.Make (Interval)
 
 (* Parsing a term outputs a parse tree (which is then compiled in a context of local variables). *)
 module ParseTree = struct
-  type t = parse
+  type t = wrapped_parse
 end
 
 (* We misuse Fmlib's "semantic" errors for a couple of special classes of errors that are really syntactic, but which we don't detect until after the relevant tokens have already been "successfully" parsed, and for which we want to report more structured error information than just an "expected" string. *)
@@ -36,13 +36,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     match t with
     | Inner { ops; constr; field; ident; term } -> (
         match term with
-        | Some e ->
+        | Some e -> (
             (* If a term is allowed, we first try parsing something else, and if that fails we backtrack and parse a term.  Some backtracking seems unavoidable here, because if we see for instance "(x : A) (y : B)" we have no way of knowing at first whether it is the beginning of an iterated Π-type or whether it means the existing variable x ascribed to the type A, applied as a function to the existing variable y ascribed to the type B.  It is also possible for there to be ambiguity, e.g. "(x : A) → B" looks like a Π-type, but could also be a *non* dependent function-type with its domain ascribed.  We resolve the ambiguity in favor of non-terms first, so that this example parses as a Π-type (the other reading is very unlikely to be what was meant).  Note that this also means the "semantic" errors of invalid variable names from inside the backtrack are lost if it fails and we go on to a term.  But that makes sense, because invalid variable names are valid as constant names, and if a term is allowed they can be parsed as constants (and then generate a name resolution error later if there is no such constant). *)
             backtrack (inner_nonterm ops constr field ident obs)
             </>
             (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
             let* subterm = lclosed Interval.entire e in
-            tree_op e (Snoc (obs, Term subterm))
+            match subterm.get Interval.entire with
+            | Ok tm -> tree_op e (Snoc (obs, Term tm))
+            | Error _ -> fatal (Anomaly "Interior term failed"))
         | None ->
             (* If a term is not allowed, we simply parse something else, with no backtracking needed. *)
             inner_nonterm ops constr field ident obs)
@@ -91,41 +93,59 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   and entry (e : entry) : (observation Bwd.t * Notation.t) t = tree_op e Emp
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
-  and lclosed : type lt ls. (lt, ls) Interval.tt -> tree TokMap.t -> parse t =
+  and lclosed : type lt ls. (lt, ls) Interval.tt -> tree TokMap.t -> (lt, ls) right_wrapped_parse t
+      =
    fun tight stop ->
     let* state = get in
-    let* res, res_tight =
-      (let* obs, Wrap n = entry state.left_closeds in
-       match left n with
-       | Open _ -> raise (Failure "left-open notation in state.left_closeds")
+    let* res =
+      (let* inner, Wrap notn = entry state.left_closeds in
+       match left notn with
+       | Open _ ->
+           (* TODO : Guarantee this statically *)
+           raise (Failure "left-open notation in state.left_closeds")
        | Closed -> (
-           (* If the parse ended right-open, we call "lclosed" again, with the upper tightness interval starting at the tightness of the just-parsed notation, closed if that notation is right-associative and open otherwise, to pick up the open argument. *)
-           match right n with
-           | Closed -> return (Outfix (n, obs), None)
+           match right notn with
+           | Closed -> return { get = (fun _ -> Ok (Outfix { notn; inner })) }
+           (* If the parse ended right-open, we call "lclosed" again, with the right-side upper tightness interval of the just-parsed notation, to pick up the open argument. *)
            | Open _ ->
-               let (Interval i) = Interval.right n in
+               let i = interval_right notn in
                (* Note that the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed.  Thus, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
                let* last_arg = lclosed i stop in
-               return (Prefix (n, Snoc (obs, Term last_arg)), Some (No.Wrap (tightness n), name n))))
+               return
+                 {
+                   get =
+                     (* Both the notation and anything in its right-open argument must be allowed in a right-tightness interval. *)
+                     (fun ivl ->
+                       match Interval.contains ivl (tightness notn) with
+                       | None -> Error (name notn)
+                       | Some right_ok -> (
+                           match last_arg.get ivl with
+                           | Ok last -> Ok (Prefix { notn; inner; last; right_ok })
+                           | Error e -> Error e));
+                 }))
       (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  (Field projections are not allowed since this would be the head of a spine.)  First we look forward past possible variable names to find a Mapsto, to see whether we're looking at an abstraction, and if so we insist on actually parsing that abstraction (and checking that the variable names are valid).  It seems that we must do this with backtracking, since if there *isn't* a Mapsto out there, a list of names might not just be something simple like an application spine but might include infix parts of notations.  The "followed_by" combination is to allow the abstraction to fail permanently on an invalid variable name (having consumed at least one name), while failing without consuming anything if there isn't a Mapsto. *)
-      </> (let* _ = followed_by (abstraction stop Emp false) in
-           abstraction stop Emp true)
+      </> (let* _ = followed_by (abstraction tight stop Emp false) in
+           abstraction tight stop Emp true)
       (* Otherwise, we parse a single ident, numeral, or constructor. *)
-      </> let* res =
-            step (fun state _ tok ->
-                match tok with
-                | Ident x -> Some (Ident x, state)
-                | Numeral n -> Some (Numeral n, state)
-                (* Constructor names have already been validated by the lexer. *)
-                | Constr x -> Some (Constr x, state)
-                | _ -> None) in
-          return (res, None) in
+      </> step (fun state _ tok ->
+              match tok with
+              | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
+              | Numeral n -> Some ({ get = (fun _ -> Ok (Numeral n)) }, state)
+              (* Constructor names have already been validated by the lexer. *)
+              | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
+              | _ -> None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
-    lopen tight stop res res_tight
+    lopen tight stop res
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
-  and abstraction (stop : tree TokMap.t) (idents : string option Bwd.t) (for_real : bool) :
-      (parse * (No.wrapped * string) option) t =
+  and abstraction :
+      type lt ls.
+      (lt, ls) Interval.tt ->
+      tree TokMap.t ->
+      string option Bwd.t ->
+      bool ->
+      (lt, ls) right_wrapped_parse t =
+   fun tight stop idents for_real ->
     let* rng, x =
       located
         (step (fun state _ tok ->
@@ -145,86 +165,166 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | `Ident x ->
         (* An ident in an abstraction must be a valid *local* variable name *)
         if (not for_real) || Token.variableable x then
-          abstraction stop (Snoc (idents, Some x)) for_real
+          abstraction tight stop (Snoc (idents, Some x)) for_real
         else fail (Invalid_variable (rng, x))
-    | `Underscore -> abstraction stop (Snoc (idents, None)) for_real
+    | `Underscore -> abstraction tight stop (Snoc (idents, None)) for_real
     | `Mapsto cube ->
         if for_real then
           (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
-          let* res = lclosed (Strict, No.minus_omega) stop in
-          return (Abs (cube, Bwd.to_list idents, res), Some (No.Wrap No.minus_omega, "mapsto"))
-        else return (Ident "", None)
+          let* body = lclosed (Strict, No.minus_omega) stop in
+          return
+            {
+              get =
+                (fun ivl ->
+                  match Interval.contains ivl No.minus_omega with
+                  | None -> Error "mapsto"
+                  | Some right_ok -> (
+                      match body.get ivl with
+                      | Ok body -> Ok (Abs { cube; vars = Bwd.to_list idents; body; right_ok })
+                      | Error e -> Error e));
+            }
+        else return { get = (fun _ -> Ok (Ident "")) }
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen :
       type lt ls.
-      (lt, ls) Interval.tt -> tree TokMap.t -> parse -> (No.wrapped * string) option -> parse t =
-   fun tight stop first_arg first_tight ->
-    (* We start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
-    followed_by
-      (step (fun state _ tok ->
-           if TokMap.mem tok stop then Some (first_arg, state)
-           else
-             let open Monad.Ops (Monad.Maybe) in
-             let* ivls = TokMap.find_opt tok state.left_opens in
-             let (Wrap t) = Interval.endpoint tight in
-             if List.exists (fun ivl -> Interval.contains ivl t) ivls then return (first_arg, state)
-             else None))
-    (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  (Actually, if the given interval is (Strict ∞), i.e. completely empty, we don't allow left-closed trees either, since function application has tightness +∞.)  *)
-    </> (let* state = get in
-         let* res, res_tight =
-           (let* rng, (obs, Wrap n) = located (entry (TIMap.find (Interval tight) state.tighters)) in
-            (* We enforce that the notation parsed previously, if right-open, is allowed to appear inside the left argument of this one.  One could make a case that notations n that fail this test should already have been excluded from the 'entry' that we parsed above.  But for one thing, that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Furthermore, doing it this way makes it easier to trap it and issue a more informative error message, which I think is a good thing because this includes examples like "let x ≔ M in N : A" and "x ↦ M : A" where the need for parentheses in Narya may be surprising to a new user.  *)
-            let* () =
-              match first_tight with
-              | None -> return ()
-              | Some (Wrap t, tident) -> (
-                  match left n with
-                  | Closed -> return ()
-                  | Open _ ->
-                      if Interval.contains (Interval.left n) t then return ()
-                      else fail (No_relative_precedence (rng, tident, name n))) in
-            match right n with
-            | Closed -> (
-                match left n with
-                | Open _ -> return (Postfix (n, Term first_arg, obs), None)
-                | Closed ->
-                    return
-                      (App (first_arg, Outfix (n, obs)), Some (No.Wrap No.plus_omega, "application"))
-                )
-            | Open _ -> (
-                let (Interval i) = Interval.right n in
-                let* last_arg = lclosed i stop in
-                match left n with
-                | Open _ ->
-                    return
-                      ( Infix (n, Term first_arg, Snoc (obs, Term last_arg)),
-                        Some (No.Wrap (tightness n), name n) )
-                | Closed ->
-                    return
-                      ( App (first_arg, Prefix (n, Snoc (obs, Term last_arg))),
-                        (* There is a question of what tightness to return here, so that a later left-open notation knows what is trying to be inside its left-open argument.  One can argue that we should return ∞, because it's really the *application* that would be *directly* inside that argument, and applications have tightness ∞.  Returning ∞ would have the result that if ~ is a nonassociative prefix operator and + is a nonassociative (or right-associative) infix operator of the same tightness, then "f ~ x + y" would parse as "(f (~ x)) + y", even though "~ x + y" would not parse.  While arguably logical, this may be unexpected.  Furthermore, if dually # is a nonassociative postfix operator of that same tightness, then "x + f # y" does not parse, in particular not as "x + ((f #) y)", because encountering the # inside the right-open argument of + fails immediately without looking ahead to see whether it's about to be applied to something.  So, for symmetry's sake, we forbid the dual behavior also. *)
-                        Some (No.Wrap (tightness n), name n) )))
-           (* If this fails, and if the given tightness interval includes +∞, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
-           </> let* arg =
-                 step (fun state _ tok ->
-                     if Interval.Interval tight = Interval (Strict, No.plus_omega) then None
-                     else
-                       match tok with
-                       | Ident x -> Some (Ident x, state)
-                       | Numeral n -> Some (Numeral n, state)
-                       (* Constructor and field names have already been validated by the lexer. *)
-                       | Constr x -> Some (Constr x, state)
-                       | Field x -> Some (Field x, state)
-                       | _ -> None) in
-               return (App (first_arg, arg), Some (No.Wrap No.plus_omega, "application")) in
-         (* Same comment here about carrying over "tight" as in lclosed. *)
-         lopen tight stop res res_tight)
-    (* If that also fails, another possibility is that we're at the end of the term with no more operators to parse, so we can just return the supplied "first argument". *)
-    </> succeed first_arg
+      (lt, ls) Interval.tt ->
+      tree TokMap.t ->
+      (lt, ls) right_wrapped_parse ->
+      (lt, ls) right_wrapped_parse t =
+   fun tight stop first_arg ->
+    match Interval.contains tight No.plus_omega with
+    (* If the left tightness interval is the empty one (+ω,+ω], we aren't allowed to go on at all.  Otherwise, we need to get a witness of nonemptiness of that interval, for the case when we end up with an application. *)
+    | None -> succeed first_arg
+    | Some nontrivial ->
+        (* Now we start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
+        followed_by
+          (step (fun state _ tok ->
+               if TokMap.mem tok stop then Some (first_arg, state)
+               else
+                 let open Monad.Ops (Monad.Maybe) in
+                 let* ivls = TokMap.find_opt tok state.left_opens in
+                 let (Wrap t) = Interval.endpoint tight in
+                 if
+                   List.exists
+                     (fun (Interval.Interval ivl) -> Option.is_some (Interval.contains ivl t))
+                     ivls
+                 then return (first_arg, state)
+                 else None))
+        (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  (Actually, if the given interval is (Strict ∞), i.e. completely empty, we don't allow left-closed trees either, since function application has tightness +∞.)  *)
+        </> (let* state = get in
+             let* res =
+               (let* rng, (inner, Wrap notn) =
+                  located (entry (TIMap.find (Interval tight) state.tighters)) in
+                match Interval.contains tight (tightness notn) with
+                (* TODO: Ensure this statically by indexing the entries in state.tighters. *)
+                | None -> raise (Failure "wrong tightness in notation tree")
+                | Some left_ok -> (
+                    match left notn with
+                    | Open _ -> (
+                        match first_arg.get (interval_left notn) with
+                        | Error e -> fail (No_relative_precedence (rng, e, name notn))
+                        | Ok first -> (
+                            match right notn with
+                            | Closed ->
+                                return
+                                  { get = (fun _ -> Ok (Postfix { notn; first; inner; left_ok })) }
+                            | Open _ ->
+                                let* last_arg = lclosed (interval_right notn) stop in
+                                return
+                                  {
+                                    get =
+                                      (fun ivl ->
+                                        match
+                                          (last_arg.get ivl, Interval.contains ivl (tightness notn))
+                                        with
+                                        | Ok last, Some right_ok ->
+                                            Ok
+                                              (Infix { notn; first; inner; last; left_ok; right_ok })
+                                        | Error e, _ -> Error e
+                                        | _, None -> Error (name notn));
+                                  }))
+                    | Closed -> (
+                        match first_arg.get (Nonstrict, No.plus_omega) with
+                        | Error e -> fail (No_relative_precedence (rng, e, "application"))
+                        | Ok fn -> (
+                            match right notn with
+                            | Closed ->
+                                return
+                                  {
+                                    get =
+                                      (fun ivl ->
+                                        match Interval.contains ivl No.plus_omega with
+                                        | None -> Error "application"
+                                        | Some right_ok ->
+                                            Ok
+                                              (App
+                                                 {
+                                                   fn;
+                                                   arg = Outfix { notn; inner };
+                                                   left_ok = nontrivial;
+                                                   right_ok;
+                                                 }));
+                                  }
+                            | Open _ ->
+                                let* last_arg = lclosed (interval_right notn) stop in
+                                return
+                                  {
+                                    get =
+                                      (fun ivl ->
+                                        match
+                                          ( last_arg.get ivl,
+                                            Interval.contains ivl (tightness notn),
+                                            Interval.contains ivl No.plus_omega )
+                                        with
+                                        | Ok last, Some right_ok, Some right_app ->
+                                            Ok
+                                              (App
+                                                 {
+                                                   fn;
+                                                   arg = Prefix { notn; inner; last; right_ok };
+                                                   left_ok = nontrivial;
+                                                   right_ok = right_app;
+                                                 })
+                                        | Error e, _, _ -> Error e
+                                        | _, None, _ -> Error (name notn)
+                                        | _, _, None -> Error "application");
+                                  }))))
+               (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
+               </> let* rng, arg =
+                     located
+                       (step (fun state _ tok ->
+                            match tok with
+                            | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
+                            | Numeral n -> Some ({ get = (fun _ -> Ok (Numeral n)) }, state)
+                            (* Constructor and field names have already been validated by the lexer. *)
+                            | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
+                            | Field x -> Some ({ get = (fun _ -> Ok (Field x)) }, state)
+                            | _ -> None)) in
+                   match first_arg.get (Nonstrict, No.plus_omega) with
+                   | Error e -> fail (No_relative_precedence (rng, e, "application"))
+                   | Ok fn ->
+                       return
+                         {
+                           get =
+                             (fun ivl ->
+                               match (arg.get ivl, Interval.contains ivl No.plus_omega) with
+                               | Ok arg, Some right_ok ->
+                                   Ok (App { fn; arg; left_ok = nontrivial; right_ok })
+                               | Error e, _ -> Error e
+                               | _, None -> Error "application");
+                         } in
+             (* Same comment here about carrying over "tight" as in lclosed. *)
+             lopen tight stop res)
+        (* If that also fails, another possibility is that we're at the end of the term with no more operators to parse, so we can just return the supplied "first argument". *)
+        </> succeed first_arg
 
   (* The master term-parsing combinator parses an lclosed of arbitrary tightness, with no ending tokens (so it must take up the entire input string). *)
-  let term () = lclosed Interval.entire TokMap.empty
+  let term () =
+    let* tm = lclosed Interval.entire TokMap.empty in
+    match tm.get Interval.entire with
+    | Ok tm -> return (Wrap tm)
+    | Error _ -> fatal (Anomaly "Outer term failed")
 end
 
 (* To parse single terms, we instantiate this to output a parse tree. *)
@@ -242,7 +342,7 @@ module Lex_and_parse_term =
 
 open Lex_and_parse_term
 
-let term (state : State.t) (str : string) : parse =
+let term (state : State.t) (str : string) : wrapped_parse =
   Range.run ~env:str @@ fun () ->
   let p = run_on_string str (make Lexer.Parser.init (Parse_term.term state)) in
   if has_succeeded p then final p

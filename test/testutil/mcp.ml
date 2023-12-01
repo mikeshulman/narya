@@ -11,7 +11,9 @@ let context = ref ectx
 (* Functions to synth and check terms *)
 
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check =
- fun names tm -> Compile.compile names (Parse.term !Builtins.builtins tm)
+ fun names tm ->
+  let (Wrap tm) = Parse.term !Builtins.builtins tm in
+  Compile.compile names tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 

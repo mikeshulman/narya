@@ -43,10 +43,16 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   (* First we merge the new notation to all the tighter-trees in which it should lie. *)
   let tighters =
     TIMap.mapi
-      (fun i tr ->
+      (fun (Interval i) tr ->
         match left n with
-        | Closed -> if Interval.contains i No.plus_omega then merge tr (tree n) else tr
-        | Open _ -> if Interval.contains i (tightness n) then merge tr (tree n) else tr)
+        | Closed -> (
+            match Interval.contains i No.plus_omega with
+            | Some _ -> merge tr (tree n)
+            | None -> tr)
+        | Open _ -> (
+            match Interval.contains i (tightness n) with
+            | Some _ -> merge tr (tree n)
+            | None -> tr))
       s.tighters in
   (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)
   let tighters =
@@ -74,7 +80,7 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   let left_opens =
     match left n with
     | Open _ ->
-        let ivl = Interval.left n in
+        let ivl = Interval.Interval (interval_left n) in
         TokMap.fold (fun tok _ map -> TokMap.add_to_list tok ivl map) (tree n) s.left_opens
     | Closed -> s.left_opens in
   { notations; left_closeds; left_opens; tighters }

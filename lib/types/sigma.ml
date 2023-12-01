@@ -27,8 +27,8 @@ let () =
       compile =
         (fun ctx obs ->
           let x, obs = get_ident obs in
-          let tm, obs = get_term obs in
-          let ty, obs = get_term obs in
+          let Wrap tm, obs = get_term obs in
+          let Wrap ty, obs = get_term obs in
           let () = get_done obs in
           let tm = compile ctx tm in
           let ty = compile (Snoc (ctx, x)) ty in
@@ -43,8 +43,8 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let tm, obs = get_term obs in
-          let ty, obs = get_term obs in
+          let Wrap tm, obs = get_term obs in
+          let Wrap ty, obs = get_term obs in
           let () = get_done obs in
           let tm = compile ctx tm in
           let ty = compile (Snoc (ctx, None)) ty in
@@ -59,8 +59,8 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let x, obs = get_term obs in
-          let y, obs = get_term obs in
+          let Wrap x, obs = get_term obs in
+          let Wrap y, obs = get_term obs in
           let () = get_done obs in
           let x = compile ctx x in
           let y = compile ctx y in

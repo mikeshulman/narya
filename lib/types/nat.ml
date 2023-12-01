@@ -29,8 +29,8 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let x, obs = get_term obs in
-          let y, obs = get_term obs in
+          let Wrap x, obs = get_term obs in
+          let Wrap y, obs = get_term obs in
           let () = get_done obs in
           let x = compile ctx x in
           let y = compile ctx y in
@@ -45,8 +45,8 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let x, obs = get_term obs in
-          let y, obs = get_term obs in
+          let Wrap x, obs = get_term obs in
+          let Wrap y, obs = get_term obs in
           let () = get_done obs in
           let x = compile ctx x in
           let y = compile ctx y in

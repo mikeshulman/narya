@@ -27,17 +27,25 @@ let rec get_obs (obs : Notation.observation) : obs =
   | Constr c -> Constr c
   | Field f -> Field f
 
-and get_tree (r : Notation.parse) : parse_tree =
+and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
+ fun r ->
   match r with
-  | Infix (n, arg, args) -> Notn (Notation.name n, List.map get_obs (arg :: Bwd.to_list args))
-  | Prefix (n, args) -> Notn (Notation.name n, List.map get_obs (Bwd.to_list args))
-  | Postfix (n, arg, args) -> Notn (Notation.name n, List.map get_obs (arg :: Bwd.to_list args))
-  | Outfix (n, args) -> Notn (Notation.name n, List.map get_obs (Bwd.to_list args))
-  | App (x, y) -> App (get_tree x, get_tree y)
+  | Infix n ->
+      Notn
+        ( Notation.name n.notn,
+          List.map get_obs (Term n.first :: Bwd.to_list (Snoc (n.inner, Notation.Term n.last))) )
+  | Prefix n ->
+      Notn
+        (Notation.name n.notn, List.map get_obs (Bwd.to_list (Snoc (n.inner, Notation.Term n.last))))
+  | Postfix n -> Notn (Notation.name n.notn, List.map get_obs (Term n.first :: Bwd.to_list n.inner))
+  | Outfix n -> Notn (Notation.name n.notn, List.map get_obs (Bwd.to_list n.inner))
+  | App a -> App (get_tree a.fn, get_tree a.arg)
   | Ident x -> Ident x
   | Constr x -> Constr x
   | Field x -> Field x
   | Numeral n -> Numeral n
-  | Abs (cube, vars, body) -> Abs (cube, vars, get_tree body)
+  | Abs { cube; vars; body; right_ok = _ } -> Abs (cube, vars, get_tree body)
 
-let parse state str = get_tree (Parse.term state str)
+let parse state str =
+  let (Wrap tm) = Parse.term state str in
+  get_tree tm

@@ -36,21 +36,26 @@ let rec get_constr (obs : observation list) =
   | Constr x :: rest -> (x, rest)
   | Ident _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing constr")
 
-let rec get_term (obs : observation list) =
+let rec get_term (obs : observation list) : wrapped_parse * observation list =
   match obs with
   | [] -> fatal (Anomaly "Missing term")
   | Flagged _ :: rest -> get_term rest
   | Constr _ :: _ | Field _ :: _ | Ident _ :: _ -> fatal (Anomaly "Missing term")
-  | Term x :: rest -> (x, rest)
+  | Term x :: rest -> (Wrap x, rest)
 
-let rec get_next (obs : observation list) =
+let rec get_next (obs : observation list) :
+    [ `Done
+    | `Constr of string * observation list
+    | `Field of string * observation list
+    | `Ident of string option * observation list
+    | `Term of wrapped_parse * observation list ] =
   match obs with
   | [] -> `Done
   | Flagged _ :: rest -> get_next rest
   | Constr x :: rest -> `Constr (x, rest)
   | Field x :: rest -> `Field (x, rest)
   | Ident x :: rest -> `Ident (x, rest)
-  | Term x :: rest -> `Term (x, rest)
+  | Term x :: rest -> `Term (Wrap x, rest)
 
 (* Just a sanity check at the end that there's nothing left. *)
 let rec get_done (obs : observation list) =
@@ -71,15 +76,17 @@ let compile_numeral (n : Q.t) =
 
 (* Now the master compilation function.  Note that this function calls the "compile" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
-let rec compile : type n. (string option, n) Bwv.t -> parse -> n check =
+let rec compile : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, rs) parse -> n check
+    =
  fun ctx res ->
   match res with
-  | Infix (n, arg, args) -> (compiler n).compile ctx (arg :: Bwd.to_list args)
-  | Prefix (n, args) -> (compiler n).compile ctx (Bwd.to_list args)
-  | Postfix (n, arg, args) -> (compiler n).compile ctx (arg :: Bwd.to_list args)
-  | Outfix (n, args) -> (compiler n).compile ctx (Bwd.to_list args)
+  | Infix n ->
+      (compiler n.notn).compile ctx (Term n.first :: Bwd.to_list (Snoc (n.inner, Term n.last)))
+  | Prefix n -> (compiler n.notn).compile ctx (Bwd.to_list (Snoc (n.inner, Term n.last)))
+  | Postfix n -> (compiler n.notn).compile ctx (Term n.first :: Bwd.to_list n.inner)
+  | Outfix n -> (compiler n.notn).compile ctx (Bwd.to_list n.inner)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and symbols, and also field projections.  *)
-  | App (fn, arg) -> (
+  | App { fn; arg; _ } -> (
       let fn = compile ctx fn in
       match fn with
       | Synth fn -> (
@@ -114,7 +121,7 @@ let rec compile : type n. (string option, n) Bwv.t -> parse -> n check =
   | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> compile_numeral n
-  | Abs (_, [], body) -> compile ctx body
-  | Abs (cube, x :: idents, body) ->
-      let body = compile (Snoc (ctx, x)) (Abs (cube, idents, body)) in
+  | Abs { cube = _; vars = []; body; right_ok = _ } -> compile ctx body
+  | Abs { cube; vars = x :: vars; body; right_ok } ->
+      let body = compile (Snoc (ctx, x)) (Abs { cube; vars; body; right_ok }) in
       Lam (cube, body)

@@ -102,7 +102,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
        match left notn with
        | Open _ ->
            (* TODO : Guarantee this statically *)
-           raise (Failure "left-open notation in state.left_closeds")
+           fatal (Anomaly "left-open notation in state.left_closeds")
        | Closed -> (
            match right notn with
            | Closed -> return { get = (fun _ -> Ok (outfix ~notn ~inner)) }
@@ -207,84 +207,81 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                  let (Wrap t) = Interval.endpoint tight in
                  let* _ = Interval.contains ivl t in
                  return (first_arg, state)))
-        (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  (Actually, if the given interval is (Strict ∞), i.e. completely empty, we don't allow left-closed trees either, since function application has tightness +∞.)  *)
+        (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
         </> (let* state = get in
              let* res =
                (let* rng, (inner, Wrap notn) =
                   located (entry (TIMap.find (Interval tight) state.tighters)) in
-                match Interval.contains tight (tightness notn) with
+                match (Interval.contains tight (tightness notn), left notn) with
                 (* TODO: Ensure this statically by indexing the entries in state.tighters. *)
-                | None -> raise (Failure "wrong tightness in notation tree")
-                | Some left_ok -> (
-                    match left notn with
-                    | Open _ -> (
-                        match first_arg.get (interval_left notn) with
-                        | Error e -> fail (No_relative_precedence (rng, e, name notn))
-                        | Ok first -> (
-                            match right notn with
-                            | Closed ->
-                                return
-                                  { get = (fun _ -> Ok (postfix ~notn ~first ~inner ~left_ok)) }
-                            | Open _ ->
-                                let* last_arg = lclosed (interval_right notn) stop in
-                                return
-                                  {
-                                    get =
-                                      (fun ivl ->
-                                        match
-                                          (last_arg.get ivl, Interval.contains ivl (tightness notn))
-                                        with
-                                        | Ok last, Some right_ok ->
-                                            Ok (infix ~notn ~first ~inner ~last ~left_ok ~right_ok)
-                                        | Error e, _ -> Error e
-                                        | _, None -> Error (name notn));
-                                  }))
-                    | Closed -> (
-                        match first_arg.get (Nonstrict, No.plus_omega) with
-                        | Error e -> fail (No_relative_precedence (rng, e, "application"))
-                        | Ok fn -> (
-                            match right notn with
-                            | Closed ->
-                                return
-                                  {
-                                    get =
-                                      (fun ivl ->
-                                        match Interval.contains ivl No.plus_omega with
-                                        | None -> Error "application"
-                                        | Some right_ok ->
-                                            Ok
-                                              (App
-                                                 {
-                                                   fn;
-                                                   arg = outfix ~notn ~inner;
-                                                   left_ok = nontrivial;
-                                                   right_ok;
-                                                 }));
-                                  }
-                            | Open _ ->
-                                let* last_arg = lclosed (interval_right notn) stop in
-                                return
-                                  {
-                                    get =
-                                      (fun ivl ->
-                                        match
-                                          ( last_arg.get ivl,
-                                            Interval.contains ivl (tightness notn),
-                                            Interval.contains ivl No.plus_omega )
-                                        with
-                                        | Ok last, Some right_ok, Some right_app ->
-                                            Ok
-                                              (App
-                                                 {
-                                                   fn;
-                                                   arg = prefix ~notn ~inner ~last ~right_ok;
-                                                   left_ok = nontrivial;
-                                                   right_ok = right_app;
-                                                 })
-                                        | Error e, _, _ -> Error e
-                                        | _, None, _ -> Error (name notn)
-                                        | _, _, None -> Error "application");
-                                  }))))
+                | None, Open _ -> fatal (Anomaly "wrong tightness in notation tree")
+                | Some left_ok, Open _ -> (
+                    match first_arg.get (interval_left notn) with
+                    | Error e -> fail (No_relative_precedence (rng, e, name notn))
+                    | Ok first -> (
+                        match right notn with
+                        | Closed ->
+                            return { get = (fun _ -> Ok (postfix ~notn ~first ~inner ~left_ok)) }
+                        | Open _ ->
+                            let* last_arg = lclosed (interval_right notn) stop in
+                            return
+                              {
+                                get =
+                                  (fun ivl ->
+                                    match
+                                      (last_arg.get ivl, Interval.contains ivl (tightness notn))
+                                    with
+                                    | Ok last, Some right_ok ->
+                                        Ok (infix ~notn ~first ~inner ~last ~left_ok ~right_ok)
+                                    | Error e, _ -> Error e
+                                    | _, None -> Error (name notn));
+                              }))
+                | _, Closed -> (
+                    match first_arg.get (Nonstrict, No.plus_omega) with
+                    | Error e -> fail (No_relative_precedence (rng, e, "application"))
+                    | Ok fn -> (
+                        match right notn with
+                        | Closed ->
+                            return
+                              {
+                                get =
+                                  (fun ivl ->
+                                    match Interval.contains ivl No.plus_omega with
+                                    | None -> Error "application"
+                                    | Some right_ok ->
+                                        Ok
+                                          (App
+                                             {
+                                               fn;
+                                               arg = outfix ~notn ~inner;
+                                               left_ok = nontrivial;
+                                               right_ok;
+                                             }));
+                              }
+                        | Open _ ->
+                            let* last_arg = lclosed (interval_right notn) stop in
+                            return
+                              {
+                                get =
+                                  (fun ivl ->
+                                    match
+                                      ( last_arg.get ivl,
+                                        Interval.contains ivl (tightness notn),
+                                        Interval.contains ivl No.plus_omega )
+                                    with
+                                    | Ok last, Some right_ok, Some right_app ->
+                                        Ok
+                                          (App
+                                             {
+                                               fn;
+                                               arg = prefix ~notn ~inner ~last ~right_ok;
+                                               left_ok = nontrivial;
+                                               right_ok = right_app;
+                                             })
+                                    | Error e, _, _ -> Error e
+                                    | _, None, _ -> Error (name notn)
+                                    | _, _, None -> Error "application");
+                              })))
                (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
                </> let* rng, arg =
                      located

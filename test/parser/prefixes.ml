@@ -92,4 +92,9 @@ let () =
 let () =
   assert (
     parse prefixes "f % x ↦ y"
-    = Notn ("perc", [ Term (Ident "f"); Term (Abs (`Normal, [ Some "x" ], Ident "y")) ]))
+    = Notn ("perc", [ Term (Ident "f"); Term (Abs (`Normal, [ Some "x" ], Ident "y")) ]));
+  assert (
+    parse prefixes "a % b ~ c"
+    = Notn
+        ( "perc",
+          [ Term (Ident "a"); Term (App (Ident "b", Notn ("twiddle", [ Term (Ident "c") ]))) ] ))

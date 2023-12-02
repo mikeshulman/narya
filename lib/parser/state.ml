@@ -8,8 +8,8 @@ module TIMap = Map.Make (Interval)
 type t = {
   (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval.  In particular, for the empty interval (+ω,+ω] this contains only the left-closed trees, and for the entire interval [-ω,+ω] it contains all notation trees. *)
   tighters : entry TIMap.t;
-  (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  Since more than one left-open notation could in theory start with the same token, we actually store a list of such intervals.  In practice, the loosest one will be used preferentially. *)
-  left_opens : Interval.t list TokMap.t;
+  (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  If there is more than one left-open notation starting with the same token, we store the loosest such interval. *)
+  left_opens : Interval.t TokMap.t;
 }
 
 let empty : t =
@@ -71,7 +71,14 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
     match left n with
     | Open _ ->
         let ivl = Interval.Interval (interval_left n) in
-        TokMap.fold (fun tok _ map -> TokMap.add_to_list tok ivl map) (tree n) s.left_opens
+        TokMap.fold
+          (fun tok _ map ->
+            TokMap.update tok
+              (function
+                | None -> Some ivl
+                | Some ivl2 -> Some (Interval.union ivl ivl2))
+              map)
+          (tree n) s.left_opens
     | Closed -> s.left_opens in
   { tighters; left_opens }
 

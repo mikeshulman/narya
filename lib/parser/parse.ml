@@ -203,14 +203,10 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                if TokMap.mem tok stop then Some (first_arg, state)
                else
                  let open Monad.Ops (Monad.Maybe) in
-                 let* ivls = TokMap.find_opt tok state.left_opens in
+                 let* (Interval ivl) = TokMap.find_opt tok state.left_opens in
                  let (Wrap t) = Interval.endpoint tight in
-                 if
-                   List.exists
-                     (fun (Interval.Interval ivl) -> Option.is_some (Interval.contains ivl t))
-                     ivls
-                 then return (first_arg, state)
-                 else None))
+                 let* _ = Interval.contains ivl t in
+                 return (first_arg, state)))
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  (Actually, if the given interval is (Strict ∞), i.e. completely empty, we don't allow left-closed trees either, since function application has tightness +∞.)  *)
         </> (let* state = get in
              let* res =

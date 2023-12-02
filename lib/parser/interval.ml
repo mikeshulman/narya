@@ -19,4 +19,16 @@ let endpoint : type e s. (e, s) tt -> No.wrapped = function
 let contains : type a s b. (a, s) tt -> b No.t -> (a, s, b) No.lt option =
  fun (s, p) x -> No.compare s p x
 
+let union : t -> t -> t =
+ fun (Interval (s1, t1) as i1) (Interval (s2, t2) as i2) ->
+  match No.compare Strict t1 t2 with
+  | Some _ -> i1
+  | None -> (
+      match No.compare Strict t2 t1 with
+      | Some _ -> i2
+      | None -> (
+          match (s1, s2) with
+          | Strict, Strict -> Interval (Strict, t1)
+          | _ -> Interval (Nonstrict, t1)))
+
 let compare : t -> t -> int = fun x y -> compare x y

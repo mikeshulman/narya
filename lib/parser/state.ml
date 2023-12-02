@@ -6,9 +6,7 @@ module TIMap = Map.Make (Interval)
 
 (* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation state", which can be used for parsing, and let other modules manipulate those states by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a state, remove some, and then create a new state with just those.) *)
 type t = {
-  (* All the available notations. *)
-  notations : NSet.t;
-  (* We store a pre-merged tree of all left-closed notations.  TODO: This should really be the same as tighters of the empty interval (-∞,+∞], but that doesn't seem to work right now. *)
+  (* We store a pre-merged tree of all left-closed notations.  TODO: This should really be the same as tighters of the empty interval (+∞,+∞], but that doesn't seem to work right now. *)
   left_closeds : entry;
   (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval. *)
   tighters : entry TIMap.t;
@@ -16,11 +14,8 @@ type t = {
   left_opens : Interval.t list TokMap.t;
 }
 
-let notations : t -> NSet.t = fun s -> s.notations
-
 let empty : t =
   {
-    notations = NSet.empty;
     left_closeds = empty_entry;
     tighters =
       TIMap.of_list
@@ -35,7 +30,6 @@ let empty : t =
 
 let add : type left tight right. (left, tight, right) notation -> t -> t =
  fun n s ->
-  let notations = NSet.add (Wrap n) s.notations in
   let left_closeds =
     match left n with
     | Closed -> merge s.left_closeds (tree n)
@@ -54,25 +48,34 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
             | Some _ -> merge tr (tree n)
             | None -> tr))
       s.tighters in
-  (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals. *)
+  (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
   let tighters =
     (* We use Open here, but we could equally have used Closed, since we always add them in pairs. *)
     if not (TIMap.mem (Interval (Strict, tightness n)) tighters) then
-      let open_tighters =
-        NSet.fold
-          (fun (Wrap m) tr ->
-            match (left m, No.compare Strict (tightness n) (tightness m)) with
-            | Closed, _ | _, Some _ -> merge (tree m) tr
-            | _ -> tr)
-          notations empty_entry in
-      let closed_tighters =
-        NSet.fold
-          (fun (Wrap m) tr ->
-            (* Leaving off "left m = Open" here would re-merge in all the left-closed notations, and merging a tree with itself can lead to infinite loops.  (The physical equality test above should catch most of them, but when it comes to avoiding infinite loops I'm a belt-and-suspenders person.) *)
-            match (left m, No.equalb (tightness n) (tightness m)) with
-            | Open _, _ | _, true -> merge (tree m) tr
-            | _ -> tr)
-          notations open_tighters in
+      let _, open_tighters =
+        TIMap.fold
+          (fun (Interval (strict, tight)) entry ((No.Wrap next_tight, _) as next) ->
+            match
+              ( strict,
+                No.compare Nonstrict (tightness n) tight,
+                No.compare Nonstrict tight next_tight )
+            with
+            | Nonstrict, Some _, Some _ -> (No.Wrap tight, entry)
+            | _ -> next)
+          tighters
+          (No.Wrap No.plus_omega, empty_entry) in
+      let _, closed_tighters =
+        TIMap.fold
+          (fun (Interval (strict, tight)) entry ((No.Wrap prev_tight, _) as prev) ->
+            match
+              ( strict,
+                No.compare Nonstrict tight (tightness n),
+                No.compare Nonstrict prev_tight tight )
+            with
+            | Strict, Some _, Some _ -> (No.Wrap tight, entry)
+            | _ -> prev)
+          tighters
+          (No.Wrap No.minus_omega, empty_entry) in
       tighters
       |> TIMap.add (Interval (Strict, tightness n)) open_tighters
       |> TIMap.add (Interval (Nonstrict, tightness n)) closed_tighters
@@ -83,4 +86,4 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
         let ivl = Interval.Interval (interval_left n) in
         TokMap.fold (fun tok _ map -> TokMap.add_to_list tok ivl map) (tree n) s.left_opens
     | Closed -> s.left_opens in
-  { notations; left_closeds; left_opens; tighters }
+  { left_closeds; left_opens; tighters }

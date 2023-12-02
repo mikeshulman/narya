@@ -98,7 +98,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
    fun tight stop ->
     let* state = get in
     let* res =
-      (let* inner, Wrap notn = entry state.left_closeds in
+      (let* inner, Wrap notn = entry (State.left_closeds state) in
        match left notn with
        | Open _ ->
            (* TODO : Guarantee this statically *)

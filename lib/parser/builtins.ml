@@ -138,16 +138,15 @@ and implicit_pi () = Flag (Implicit_pi, ident (implicit_pi_vars ()))
 and explicit_pi_vars () =
   Inner
     {
+      empty_branch with
       ops = TokMap.singleton Colon (term RParen (more_pi ()));
-      constr = None;
-      field = None;
       ident = Some (Lazy (lazy (explicit_pi_vars ())));
-      term = None;
     }
 
 and implicit_pi_vars () =
   Inner
     {
+      empty_branch with
       ops =
         TokMap.singleton Colon
           (terms
@@ -155,10 +154,7 @@ and implicit_pi_vars () =
                (Coloneq, Flag (Default_pi, term RBrace (Lazy (lazy (more_pi ())))));
                (RBrace, Lazy (lazy (more_pi ())));
              ]);
-      constr = None;
-      field = None;
       ident = Some (Lazy (lazy (implicit_pi_vars ())));
-      term = None;
     }
 
 and more_pi () =
@@ -384,30 +380,27 @@ let () =
     (let rec struc_fields () =
        Inner
          {
+           empty_branch with
            ops = TokMap.singleton RBrace (Done struc);
            ident =
              Some
                (op Coloneq
                   (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done struc) ]));
-           constr = None;
-           field = None;
-           term = None;
          } in
      let rec comatch_fields () =
        Inner
          {
+           empty_branch with
            ops = TokMap.singleton RBrace (Done struc);
            field =
              Some
                (op Mapsto
                   (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done struc) ]));
-           constr = None;
-           ident = None;
-           term = None;
          } in
      eop LBrace
        (Inner
           {
+            empty_branch with
             ops = TokMap.singleton RBrace (Done struc);
             ident =
               Some
@@ -417,8 +410,6 @@ let () =
               Some
                 (op Mapsto
                    (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done struc) ]));
-            constr = None;
-            term = None;
           }))
 
 let rec compile_struc :
@@ -495,10 +486,8 @@ let mtch = make "match" Outfix
 let rec pattern_vars () =
   Inner
     {
+      empty_branch with
       ident = Some (Lazy (lazy (pattern_vars ())));
-      constr = None;
-      field = None;
-      term = None;
       ops =
         TokMap.singleton Mapsto
           (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done mtch) ]);
@@ -507,11 +496,9 @@ let rec pattern_vars () =
 and innermtch () =
   Inner
     {
+      empty_branch with
       ops = TokMap.of_list [ (RBracket, Done mtch) ];
       constr = Some (pattern_vars ());
-      field = None;
-      ident = None;
-      term = None;
     }
 
 let () =
@@ -519,6 +506,7 @@ let () =
     (eop LBracket
        (Inner
           {
+            empty_branch with
             ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done mtch) ];
             ident =
               Some
@@ -531,8 +519,6 @@ let () =
                      term = None;
                    });
             constr = Some (pattern_vars ());
-            field = None;
-            term = None;
           }))
 
 let rec compile_branch_names :

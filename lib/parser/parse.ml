@@ -208,8 +208,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
         </> (let* state = get in
              let* res =
-               (let* rng, (inner, Wrap notn) =
-                  located (entry (TIMap.find (Interval tight) state.tighters)) in
+               (let* rng, (inner, Wrap notn) = located (entry (State.tighters state tight)) in
                 match (Interval.contains tight (tightness notn), left notn) with
                 (* TODO: Ensure this statically by indexing the entries in state.tighters. *)
                 | None, Open _ -> fatal (Anomaly "wrong tightness in notation tree")

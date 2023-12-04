@@ -32,13 +32,18 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   let followed_by f = followed_by f ""
   let backtrack f = backtrack f ""
 
-  let rec tree (t : tree) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
+  let rec tree :
+      type tight strict.
+      (tight, strict) tree ->
+      observation Bwd.t ->
+      (observation Bwd.t * (tight, strict) notation_in_interval) t =
+   fun t obs ->
     match t with
-    | Inner { ops; constr; field; ident; term } -> (
+    | Inner ({ term; _ } as br) -> (
         match term with
         | Some e -> (
             (* If a term is allowed, we first try parsing something else, and if that fails we backtrack and parse a term.  Some backtracking seems unavoidable here, because if we see for instance "(x : A) (y : B)" we have no way of knowing at first whether it is the beginning of an iterated Π-type or whether it means the existing variable x ascribed to the type A, applied as a function to the existing variable y ascribed to the type B.  It is also possible for there to be ambiguity, e.g. "(x : A) → B" looks like a Π-type, but could also be a *non* dependent function-type with its domain ascribed.  We resolve the ambiguity in favor of non-terms first, so that this example parses as a Π-type (the other reading is very unlikely to be what was meant).  Note that this also means the "semantic" errors of invalid variable names from inside the backtrack are lost if it fails and we go on to a term.  But that makes sense, because invalid variable names are valid as constant names, and if a term is allowed they can be parsed as constants (and then generate a name resolution error later if there is no such constant). *)
-            backtrack (inner_nonterm ops constr field ident obs)
+            backtrack (inner_nonterm br obs)
             </>
             (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
             let* subterm = lclosed Interval.entire e in
@@ -47,13 +52,19 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             | Error _ -> fatal (Anomaly "Interior term failed"))
         | None ->
             (* If a term is not allowed, we simply parse something else, with no backtracking needed. *)
-            inner_nonterm ops constr field ident obs)
-    | Done n -> return (obs, Notation.Wrap n)
+            inner_nonterm br obs)
+    | Done_open (lt, n) -> return (obs, Open_in_interval (lt, n))
+    | Done_closed n -> return (obs, Closed_in_interval n)
     | Flag (f, t) -> tree t (Snoc (obs, Flagged f))
     | Lazy (lazy t) -> tree t obs
 
   (* Parse an inner branch of a tree except for the possibility of a term. *)
-  and inner_nonterm ops constr field ident obs =
+  and inner_nonterm :
+      type tight strict.
+      (tight, strict) branch ->
+      observation Bwd.t ->
+      (observation Bwd.t * (tight, strict) notation_in_interval) t =
+   fun { ops; constr; field; ident; term = _ } obs ->
     let* rng, ok =
       located
         (step (fun state _ tok ->
@@ -82,7 +93,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
         (* The 'position' of the parser at this point is *past* the offending variable name, since the 'step' call succeeded.  But we want to mark the error as occurring on the offending variable name, and we can get its range from the 'located' wrapper around the 'step' call, and store it in the semantic error message. *)
         fail (Invalid_variable (rng, ident))
 
-  and tree_op (ops : tree TokMap.t) (obs : observation Bwd.t) : (observation Bwd.t * Notation.t) t =
+  and tree_op :
+      type tight strict.
+      (tight, strict) tree TokMap.t ->
+      observation Bwd.t ->
+      (observation Bwd.t * (tight, strict) notation_in_interval) t =
+   fun ops obs ->
     let* optree =
       step (fun state _ tok ->
           match TokMap.find_opt tok ops with
@@ -90,20 +106,23 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           | None -> None) in
     tree optree obs
 
-  and entry (e : entry) : (observation Bwd.t * Notation.t) t = tree_op e Emp
+  and entry :
+      type tight strict.
+      (tight, strict) tree TokMap.t -> (observation Bwd.t * (tight, strict) notation_in_interval) t
+      =
+   fun e -> tree_op e Emp
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
-  and lclosed : type lt ls. (lt, ls) Interval.tt -> tree TokMap.t -> (lt, ls) right_wrapped_parse t
-      =
+  and lclosed :
+      type lt ls rt rs.
+      (lt, ls) Interval.tt -> (rt, rs) tree TokMap.t -> (lt, ls) right_wrapped_parse t =
    fun tight stop ->
     let* state = get in
     let* res =
-      (let* inner, Wrap notn = entry (State.left_closeds state) in
-       match left notn with
-       | Open _ ->
-           (* TODO : Guarantee this statically *)
-           fatal (Anomaly "left-open notation in state.left_closeds")
-       | Closed -> (
+      (let* inner, notn = entry (State.left_closeds state) in
+       match notn with
+       | Open_in_interval (lt, _) -> No.plusomega_nlt lt
+       | Closed_in_interval notn -> (
            match right notn with
            | Closed -> return { get = (fun _ -> Ok (outfix ~notn ~inner)) }
            | Open _ ->
@@ -137,9 +156,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
   and abstraction :
-      type lt ls.
+      type lt ls rt rs.
       (lt, ls) Interval.tt ->
-      tree TokMap.t ->
+      (rt, rs) tree TokMap.t ->
       string option Bwd.t ->
       bool ->
       (lt, ls) right_wrapped_parse t =
@@ -185,9 +204,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen :
-      type lt ls.
+      type lt ls rt rs.
       (lt, ls) Interval.tt ->
-      tree TokMap.t ->
+      (rt, rs) tree TokMap.t ->
       (lt, ls) right_wrapped_parse ->
       (lt, ls) right_wrapped_parse t =
    fun tight stop first_arg ->
@@ -208,11 +227,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
         </> (let* state = get in
              let* res =
-               (let* rng, (inner, Wrap notn) = located (entry (State.tighters state tight)) in
-                match (Interval.contains tight (tightness notn), left notn) with
-                (* TODO: Ensure this statically by indexing the entries in state.tighters. *)
-                | None, Open _ -> fatal (Anomaly "wrong tightness in notation tree")
-                | Some left_ok, Open _ -> (
+               (let* rng, (inner, notn) = located (entry (State.tighters state tight)) in
+                match notn with
+                | Open_in_interval (left_ok, notn) -> (
                     match first_arg.get (interval_left notn) with
                     | Error e -> fail (No_relative_precedence (rng, e, name notn))
                     | Ok first -> (
@@ -233,7 +250,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                     | Error e, _ -> Error e
                                     | _, None -> Error (name notn));
                               }))
-                | _, Closed -> (
+                | Closed_in_interval notn -> (
                     match first_arg.get (Nonstrict, No.plus_omega) with
                     | Error e -> fail (No_relative_precedence (rng, e, "application"))
                     | Ok fn -> (

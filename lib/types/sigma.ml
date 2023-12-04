@@ -20,8 +20,12 @@ let sigman = make "sigma" (Prefixr No.one)
 
 let () =
   set_tree sigman
-    (eop LParen
-       (ident (op Colon (term RParen (ops [ (Ident "×", Done sigman); (Op "><", Done sigman) ])))));
+    (Closed_entry
+       (eop LParen
+          (ident
+             (op Colon
+                (term RParen
+                   (ops [ (Ident "×", Done_closed sigman); (Op "><", Done_closed sigman) ]))))));
   set_compiler sigman
     {
       compile =
@@ -38,7 +42,7 @@ let () =
 let prodn = make "prod" (Infixr No.one)
 
 let () =
-  set_tree prodn (eops [ (Ident "×", Done prodn); (Op "><", Done prodn) ]);
+  set_tree prodn (Open_entry (eops [ (Ident "×", done_open prodn); (Op "><", done_open prodn) ]));
   set_compiler prodn
     {
       compile =
@@ -54,7 +58,7 @@ let () =
 let comma = make "comma" (Infixr No.one)
 
 let () =
-  set_tree comma (eop (Op ",") (Done comma));
+  set_tree comma (Open_entry (eop (Op ",") (done_open comma)));
   set_compiler comma
     {
       compile =
@@ -67,8 +71,13 @@ let () =
           Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ]));
     }
 
+let installed = ref false
+
 let install_notations () =
-  Builtins.builtins := !Builtins.builtins |> State.add sigman |> State.add prodn |> State.add comma
+  if not !installed then (
+    installed := true;
+    Builtins.builtins :=
+      !Builtins.builtins |> State.add sigman |> State.add prodn |> State.add comma)
 
 let install () =
   install_notations ();

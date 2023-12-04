@@ -15,7 +15,7 @@ open Monad.Ops (Monad.Maybe)
 let parens = make "parens" Outfix
 
 let () =
-  set_tree parens (eop LParen (term RParen (Done parens)));
+  set_tree parens (Closed_entry (eop LParen (term RParen (Done_closed parens))));
   set_compiler parens
     {
       compile =
@@ -44,9 +44,14 @@ let letin = make "let" (Prefix No.minus_omega)
 
 let () =
   set_tree letin
-    (eop Let
-       (ident
-          (ops [ (Coloneq, term In (Done letin)); (Colon, term Coloneq (term In (Done letin))) ])));
+    (Closed_entry
+       (eop Let
+          (ident
+             (ops
+                [
+                  (Coloneq, term In (Done_closed letin));
+                  (Colon, term Coloneq (term In (Done_closed letin)));
+                ]))));
   set_compiler letin
     {
       compile =
@@ -108,7 +113,7 @@ let () =
 let arrow = make "arrow" (Infixr No.zero)
 
 let () =
-  set_tree arrow (eop Arrow (Done arrow));
+  set_tree arrow (Open_entry (eop Arrow (done_open arrow)));
   set_compiler arrow
     {
       compile =
@@ -166,10 +171,10 @@ and more_pi () =
     [
       (LParen, Lazy (lazy (explicit_pi ())));
       (LBrace, Lazy (lazy (implicit_pi ())));
-      (Arrow, Done pi);
+      (Arrow, Done_closed pi);
     ]
 
-let () = set_tree pi (eops [ (LParen, explicit_pi ()); (LBrace, implicit_pi ()) ])
+let () = set_tree pi (Closed_entry (eops [ (LParen, explicit_pi ()); (LBrace, implicit_pi ()) ]))
 
 let rec compile_pi : type n. (string option, n) Bwv.t -> observation list -> n check =
  fun ctx obs ->
@@ -300,7 +305,7 @@ let () =
  ******************** *)
 
 let asc = make "ascription" (Infix No.minus_omega)
-let () = set_tree asc (eop Colon (Done asc))
+let () = set_tree asc (Open_entry (eop Colon (done_open asc)))
 
 let () =
   set_compiler asc
@@ -327,7 +332,7 @@ let () =
 let universe = make "Type" Outfix
 
 let () =
-  set_tree universe (eop (Ident "Type") (Done universe));
+  set_tree universe (Closed_entry (eop (Ident "Type") (Done_closed universe)));
   set_compiler universe
     {
       compile =
@@ -346,7 +351,8 @@ let () =
 let refl = make "refl" Outfix
 
 let () =
-  set_tree refl (eops [ (Ident "refl", Done refl); (Ident "Id", Done refl) ]);
+  set_tree refl
+    (Closed_entry (eops [ (Ident "refl", Done_closed refl); (Ident "Id", Done_closed refl) ]));
   set_compiler refl
     {
       compile =
@@ -361,7 +367,7 @@ let () =
 let sym = make "sym" Outfix
 
 let () =
-  set_tree sym (eop (Ident "sym") (Done sym));
+  set_tree sym (Closed_entry (eop (Ident "sym") (Done_closed sym)));
   set_compiler sym
     {
       compile =
@@ -384,11 +390,11 @@ let () =
     (let rec struc_fields () =
        Inner
          {
-           ops = TokMap.singleton RBrace (Done struc);
+           ops = TokMap.singleton RBrace (Done_closed struc);
            ident =
              Some
                (op Coloneq
-                  (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done struc) ]));
+                  (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done_closed struc) ]));
            constr = None;
            field = None;
            term = None;
@@ -396,30 +402,33 @@ let () =
      let rec comatch_fields () =
        Inner
          {
-           ops = TokMap.singleton RBrace (Done struc);
+           ops = TokMap.singleton RBrace (Done_closed struc);
            field =
              Some
                (op Mapsto
-                  (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done struc) ]));
+                  (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed struc) ]));
            constr = None;
            ident = None;
            term = None;
          } in
-     eop LBrace
-       (Inner
-          {
-            ops = TokMap.singleton RBrace (Done struc);
-            ident =
-              Some
-                (op Coloneq
-                   (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done struc) ]));
-            field =
-              Some
-                (op Mapsto
-                   (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done struc) ]));
-            constr = None;
-            term = None;
-          }))
+     Closed_entry
+       (eop LBrace
+          (Inner
+             {
+               ops = TokMap.singleton RBrace (Done_closed struc);
+               ident =
+                 Some
+                   (op Coloneq
+                      (terms
+                         [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done_closed struc) ]));
+               field =
+                 Some
+                   (op Mapsto
+                      (terms
+                         [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed struc) ]));
+               constr = None;
+               term = None;
+             })))
 
 let rec compile_struc :
     type n. n check list Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
@@ -501,13 +510,13 @@ let rec pattern_vars () =
       term = None;
       ops =
         TokMap.singleton Mapsto
-          (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done mtch) ]);
+          (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]);
     }
 
 and innermtch () =
   Inner
     {
-      ops = TokMap.of_list [ (RBracket, Done mtch) ];
+      ops = TokMap.of_list [ (RBracket, Done_closed mtch) ];
       constr = Some (pattern_vars ());
       field = None;
       ident = None;
@@ -516,24 +525,26 @@ and innermtch () =
 
 let () =
   set_tree mtch
-    (eop LBracket
-       (Inner
-          {
-            ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done mtch) ];
-            ident =
-              Some
-                (Inner
-                   {
-                     ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done mtch) ];
-                     ident = None;
-                     constr = None;
-                     field = Some (op (Op "|") (innermtch ()));
-                     term = None;
-                   });
-            constr = Some (pattern_vars ());
-            field = None;
-            term = None;
-          }))
+    (Closed_entry
+       (eop LBracket
+          (Inner
+             {
+               ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done_closed mtch) ];
+               ident =
+                 Some
+                   (Inner
+                      {
+                        ops =
+                          TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done_closed mtch) ];
+                        ident = None;
+                        constr = None;
+                        field = Some (op (Op "|") (innermtch ()));
+                        term = None;
+                      });
+               constr = Some (pattern_vars ());
+               field = None;
+               term = None;
+             })))
 
 let rec compile_branch_names :
     type a b ab.

@@ -8,13 +8,17 @@ open Showparse
 (* We raise an error if one notation is a prefix of another, since parsing such combinations would require too much backtracking.  Here we test the generation of that error. *)
 
 let ifthen = make "ifthen" (Prefixr No.zero)
-let () = set_tree ifthen (eop (Ident "if") (term (Ident "then") (Done ifthen)))
+
+let () =
+  set_tree ifthen (Closed_entry (eop (Ident "if") (term (Ident "then") (Done_closed ifthen))))
+
 let ifthen_only = State.empty |> State.add ifthen
 let ifthenelse = make "ifthenelse" (Prefixr No.zero)
 
 let () =
   set_tree ifthenelse
-    (eop (Ident "if") (term (Ident "then") (term (Ident "else") (Done ifthenelse))))
+    (Closed_entry
+       (eop (Ident "if") (term (Ident "then") (term (Ident "else") (Done_closed ifthenelse)))))
 
 let ifthenelse_only = State.empty |> State.add ifthenelse
 let both = State.empty |> State.add ifthen |> State.add ifthenelse
@@ -33,7 +37,10 @@ let () =
 
 let () =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      if d.message = Parsing_ambiguity "One notation is a prefix of another" then ()
+      if
+        d.message
+        = Parsing_ambiguity "One notation is a prefix of another: [ifthen] and [ifthenelse]"
+      then ()
       else (
         Terminal.display d;
         raise (Failure "Unexpected error code")))
@@ -46,7 +53,8 @@ let ifthenelif = make "ifthenelif" (Prefixr No.zero)
 
 let () =
   set_tree ifthenelif
-    (eop (Ident "if") (term (Ident "then") (term (Ident "elif") (Done ifthenelif))))
+    (Closed_entry
+       (eop (Ident "if") (term (Ident "then") (term (Ident "elif") (Done_closed ifthenelif)))))
 
 let better_both = State.empty |> State.add ifthenelse |> State.add ifthenelif
 

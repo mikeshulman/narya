@@ -31,4 +31,17 @@ let union : t -> t -> t =
           | Strict, Strict -> Interval (Strict, t1)
           | _ -> Interval (Nonstrict, t1)))
 
+type (_, _, _, _) subset =
+  | Subset_strict : ('t2, No.strict, 't1) No.lt -> ('t1, 's1, 't2, 's2) subset
+  | Subset_eq : ('t, 's, 't, 's) subset
+  | Subset_nonstrict_strict : ('t, No.strict, 't, No.nonstrict) subset
+
+let subset_contains :
+    type t1 s1 t2 s2 a. (t1, s1, t2, s2) subset -> (t1, s1, a) No.lt -> (t2, s2, a) No.lt =
+ fun sub lt1 ->
+  match sub with
+  | Subset_strict lt2 -> No.lt_trans Strict_any lt2 lt1
+  | Subset_eq -> lt1
+  | Subset_nonstrict_strict -> No.lt_to_le lt1
+
 let compare : t -> t -> int = fun x y -> compare x y

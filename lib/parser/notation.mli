@@ -19,21 +19,22 @@ type (_, _, _) fixity =
 
 type flag = ..
 
-type tree =
-  | Inner : branch -> tree
-  | Done : ('left, 'tight, 'right) notation -> tree
-  | Flag : flag * tree -> tree
-  | Lazy : tree Lazy.t -> tree
+type (_, _) tree =
+  | Inner : ('t, 's) branch -> ('t, 's) tree
+  | Done_open : ('t, 's, 'tight) No.lt * ('left opn, 'tight, 'right) notation -> ('t, 's) tree
+  | Done_closed : (closed, 'tight, 'right) notation -> ('t, 's) tree
+  | Flag : flag * ('t, 's) tree -> ('t, 's) tree
+  | Lazy : ('t, 's) tree Lazy.t -> ('t, 's) tree
 
-and branch = {
-  ops : tree TokMap.t;
-  constr : tree option;
-  field : tree option;
-  ident : tree option;
-  term : tree TokMap.t option;
+and ('t, 's) branch = {
+  ops : ('t, 's) tree TokMap.t;
+  constr : ('t, 's) tree option;
+  field : ('t, 's) tree option;
+  ident : ('t, 's) tree option;
+  term : ('t, 's) tree TokMap.t option;
 }
 
-and entry = tree TokMap.t
+and ('t, 's) entry = ('t, 's) tree TokMap.t
 
 and observation =
   | Flagged of flag
@@ -84,6 +85,10 @@ and (_, _, _, _) parse =
     }
       -> ('lt, 'ls, 'rt, 'rs) parse
 
+and ('left, 'tight) notation_entry =
+  | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry
+  | Closed_entry : (No.plus_omega, No.strict) entry -> (closed, 'tight) notation_entry
+
 and ('left, 'tight, 'right) notation
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
@@ -125,8 +130,8 @@ val left : ('left, 'tight, 'right) notation -> 'left openness
 val right : ('left, 'tight, 'right) notation -> 'right openness
 val interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) Interval.tt
 val interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.tt
-val tree : ('left, 'tight, 'right) notation -> entry
-val set_tree : ('left, 'tight, 'right) notation -> entry -> unit
+val tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry
+val set_tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry -> unit
 val compiler : ('left, 'tight, 'right) notation -> compiler
 val set_compiler : ('left, 'tight, 'right) notation -> compiler -> unit
 
@@ -151,18 +156,28 @@ module Notation : sig
   val compare : t -> t -> int
 end
 
+type (_, _) notation_in_interval =
+  | Open_in_interval :
+      ('lt, 'ls, 'tight) No.lt * ('left opn, 'tight, 'right) notation
+      -> ('lt, 'ls) notation_in_interval
+  | Closed_in_interval : (closed, 'tight, 'right) notation -> ('lt, 'ls) notation_in_interval
+
 (*  *)
-val op : TokMap.key -> tree -> tree
-val ops : (TokMap.key * tree) list -> tree
-val term : TokMap.key -> tree -> tree
-val terms : (TokMap.key * tree) list -> tree
-val constr : tree -> tree
-val field : tree -> tree
-val ident : tree -> tree
-val of_entry : tree TokMap.t -> tree
+val op : TokMap.key -> ('t, 's) tree -> ('t, 's) tree
+val ops : (TokMap.key * ('t, 's) tree) list -> ('t, 's) tree
+val term : TokMap.key -> ('t, 's) tree -> ('t, 's) tree
+val terms : (TokMap.key * ('t, 's) tree) list -> ('t, 's) tree
+val constr : ('t, 's) tree -> ('t, 's) tree
+val field : ('t, 's) tree -> ('t, 's) tree
+val ident : ('t, 's) tree -> ('t, 's) tree
+val of_entry : ('t, 's) tree TokMap.t -> ('t, 's) tree
+val done_open : ('left opn, 'tight, 'right) notation -> ('tight, No.nonstrict) tree
 val eop : TokMap.key -> 'a -> 'a TokMap.t
 val eops : (TokMap.key * 'a) list -> 'a TokMap.t
 val empty_entry : 'a TokMap.t
 
 (*  *)
-val merge : entry -> entry -> entry
+val lower : ('t2, 's2, 't1, 's1) Interval.subset -> ('t2, 's2) entry -> ('t1, 's1) entry
+
+val merge :
+  ('t2, 's2, 't1, 's1) Interval.subset -> ('t1, 's1) entry -> ('t2, 's2) entry -> ('t1, 's1) entry

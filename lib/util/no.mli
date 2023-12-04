@@ -19,6 +19,7 @@ type _ strictness = Strict : strict strictness | Nonstrict : nonstrict strictnes
 type (_, _, _) lt
 
 val le_refl : 'a t -> ('a, nonstrict, 'a) lt
+val plusomega_nlt : (plus_omega, strict, 'a) lt -> 'b
 val lt_to_le : ('a, strict, 'b) lt -> ('a, 's, 'b) lt
 
 type (_, _, _) strict_trans =

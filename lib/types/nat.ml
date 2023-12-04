@@ -24,7 +24,7 @@ open Monad.Ops (Monad.Maybe)
 let plusn = make "plus" (Infixl No.zero)
 
 let () =
-  set_tree plusn (eop (Op "+") (Done plusn));
+  set_tree plusn (Open_entry (eop (Op "+") (done_open plusn)));
   set_compiler plusn
     {
       compile =
@@ -40,7 +40,7 @@ let () =
 let timesn = make "times" (Infixl No.one)
 
 let () =
-  set_tree timesn (eop (Op "*") (Done timesn));
+  set_tree timesn (Open_entry (eop (Op "*") (done_open timesn)));
   set_compiler timesn
     {
       compile =
@@ -53,8 +53,12 @@ let () =
           Raw.Synth (App (App (Const times, x), y)));
     }
 
+let installed = ref false
+
 let install_notations () =
-  Builtins.builtins := !Builtins.builtins |> State.add plusn |> State.add timesn
+  if not !installed then (
+    installed := true;
+    Builtins.builtins := !Builtins.builtins |> State.add plusn |> State.add timesn)
 
 let install () =
   install_notations ();

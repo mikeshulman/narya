@@ -5,7 +5,7 @@ module TokMap = Map.Make (Token)
 module NSet = Set.Make (Notation)
 
 module EntryPair = struct
-  type 'a t = { strict : entry; nonstrict : entry }
+  type 'a t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
 end
 
 module EntryMap = No.MapMake (EntryPair)
@@ -27,45 +27,58 @@ let empty : t =
     left_opens = TokMap.empty;
   }
 
-let merger :
-    type a s b. entry -> (a, s, b) No.lt -> s No.strictness -> a EntryPair.t -> a EntryPair.t =
- fun tr _ str { strict; nonstrict } ->
-  let nonstrict = merge nonstrict tr in
-  let strict =
-    match str with
-    | Nonstrict -> strict
-    | Strict -> merge strict tr in
-  { nonstrict; strict }
-
-let merge_all :
-    type a s b. entry -> (a, s, b) No.lt -> s No.strictness -> a EntryPair.t -> a EntryPair.t =
- fun tr _ _ { strict; nonstrict } ->
-  let nonstrict = merge nonstrict tr in
-  let strict = merge strict tr in
-  { nonstrict; strict }
-
 let add : type left tight right. (left, tight, right) notation -> t -> t =
  fun n s ->
-  (* First we merge the new notation to all the tighter-trees in which it should lie. *)
-  let tighters =
-    match left n with
-    | Open _ ->
-        EntryMap.map_le { map = (fun lt str -> merger (tree n) lt str) } (tightness n) s.tighters
-    | Closed ->
-        EntryMap.map_le { map = (fun lt str -> merge_all (tree n) lt str) } No.plus_omega s.tighters
-  in
-  (* Then, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
+  (* First, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
   let tighters =
     EntryMap.add_cut (tightness n)
-      (fun lower upper ->
-        match (lower, upper) with
-        | Lower (_, l), Upper (_, u) -> { strict = u.nonstrict; nonstrict = l.strict }
-        | _ -> fatal (Anomaly "Missing ±ω in notation state"))
-      tighters in
+      (fun _ up ->
+        match up with
+        | Upper (lt, u) ->
+            let nonstrict = lower (Subset_strict lt) u.nonstrict in
+            let strict = lower (Subset_strict lt) u.nonstrict in
+            { strict; nonstrict }
+        | _ -> fatal (Anomaly "Missing +ω in notation state"))
+      s.tighters in
+  (* Then we merge the new notation to all the tighter-trees in which it should lie. *)
+  let tighters =
+    match (left n, tree n) with
+    | Open _, Open_entry tr ->
+        EntryMap.map_compare
+          {
+            map_lt =
+              (fun lt { strict; nonstrict } ->
+                {
+                  nonstrict = merge (Subset_strict lt) nonstrict tr;
+                  strict = merge (Subset_strict lt) strict tr;
+                });
+            map_gt = (fun _ e -> e);
+            map_eq =
+              (fun { strict; nonstrict } -> { nonstrict = merge Subset_eq nonstrict tr; strict });
+          }
+          (tightness n) tighters
+    | Closed, Closed_entry tr ->
+        EntryMap.map_compare
+          {
+            map_lt =
+              (fun lt { strict; nonstrict } ->
+                {
+                  nonstrict = merge (Subset_strict lt) nonstrict tr;
+                  strict = merge (Subset_strict lt) strict tr;
+                });
+            map_gt = (fun _ e -> e);
+            map_eq =
+              (fun { strict; nonstrict } ->
+                {
+                  nonstrict = merge Subset_nonstrict_strict nonstrict tr;
+                  strict = merge Subset_eq strict tr;
+                });
+          }
+          No.plus_omega tighters in
   (* Finally, we update the map of all starting tokens of left-open notations. *)
   let left_opens =
-    match left n with
-    | Open _ ->
+    match (left n, tree n) with
+    | Open _, Open_entry tr ->
         let ivl = Interval.Interval (interval_left n) in
         TokMap.fold
           (fun tok _ map ->
@@ -74,13 +87,14 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
                 | None -> Some ivl
                 | Some ivl2 -> Some (Interval.union ivl ivl2))
               map)
-          (tree n) s.left_opens
-    | Closed -> s.left_opens in
+          tr s.left_opens
+    | Closed, _ -> s.left_opens in
   { tighters; left_opens }
 
-let left_closeds s = (Option.get (EntryMap.find s.tighters No.plus_omega)).strict
+let left_closeds : t -> (No.plus_omega, No.strict) entry =
+ fun s -> (Option.get (EntryMap.find s.tighters No.plus_omega)).strict
 
-let tighters : type strict tight. t -> strict No.strictness * tight No.t -> entry =
+let tighters : type strict tight. t -> strict No.strictness * tight No.t -> (tight, strict) entry =
  fun state (strict, tight) ->
   let ep = Option.get (EntryMap.find state.tighters tight) in
   match strict with

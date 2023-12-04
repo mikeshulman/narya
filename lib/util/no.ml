@@ -44,6 +44,9 @@ let rec le_refl : type a. a t -> (a, nonstrict, a) lt = function
   | Fin (Plus a) -> Plus_plus (a, a, le_refl (Fin a))
   | Fin (Minus a) -> Minus_minus (a, a, le_refl (Fin a))
 
+let plusomega_nlt : type a b. (plus_omega, strict, a) lt -> b = function
+  | Fin_plusomega _ -> .
+
 type (_, _, _) strict_trans =
   | Strict_any : (strict, 'a, 'b) strict_trans
   | Any_strict : ('a, strict, 'b) strict_trans

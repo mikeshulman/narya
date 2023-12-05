@@ -92,6 +92,8 @@ and ('left, 'tight) notation_entry =
 and ('left, 'tight, 'right) notation
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
+val empty_branch : ('left, 'tight) branch
+
 val infix :
   notn:('a opn, 'b, 'c opn) notation ->
   first:('d, 'e, 'b, 'a) parse ->

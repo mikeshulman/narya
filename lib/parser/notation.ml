@@ -149,6 +149,8 @@ and ('left, 'tight, 'right) notation = {
   mutable print_as_case : (Format.formatter -> observation list -> unit) option;
 }
 
+let empty_branch = { ops = TokMap.empty; constr = None; field = None; ident = None; term = None }
+
 let infix ~notn ~first ~inner ~last ~left_ok ~right_ok =
   Notn
     {
@@ -285,38 +287,14 @@ let make :
 
 (* Helper functions for constructing notation trees *)
 
-let op tok x =
-  Inner { ops = TokMap.singleton tok x; constr = None; field = None; ident = None; term = None }
-
-let ops toks =
-  Inner { ops = TokMap.of_list toks; constr = None; field = None; ident = None; term = None }
-
-let term tok x =
-  Inner
-    {
-      ops = TokMap.empty;
-      constr = None;
-      field = None;
-      ident = None;
-      term = Some (TokMap.singleton tok x);
-    }
-
-let terms toks =
-  Inner
-    {
-      ops = TokMap.empty;
-      constr = None;
-      field = None;
-      ident = None;
-      term = Some (TokMap.of_list toks);
-    }
-
-let constr x =
-  Inner { ops = TokMap.empty; constr = Some x; field = None; ident = None; term = None }
-
-let field x = Inner { ops = TokMap.empty; constr = None; field = Some x; ident = None; term = None }
-let ident x = Inner { ops = TokMap.empty; constr = None; field = None; ident = Some x; term = None }
-let of_entry e = Inner { ops = e; constr = None; field = None; ident = None; term = None }
+let op tok x = Inner { empty_branch with ops = TokMap.singleton tok x }
+let ops toks = Inner { empty_branch with ops = TokMap.of_list toks }
+let term tok x = Inner { empty_branch with term = Some (TokMap.singleton tok x) }
+let terms toks = Inner { empty_branch with term = Some (TokMap.of_list toks) }
+let constr x = Inner { empty_branch with constr = Some x }
+let field x = Inner { empty_branch with field = Some x }
+let ident x = Inner { empty_branch with ident = Some x }
+let of_entry e = Inner { empty_branch with ops = e }
 let done_open n = Done_open (No.le_refl (tightness n), n)
 
 (* Similar, but for "entries". *)

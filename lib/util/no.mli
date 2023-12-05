@@ -22,10 +22,14 @@ val le_refl : 'a t -> ('a, nonstrict, 'a) lt
 val lt_to_le : ('a, strict, 'b) lt -> ('a, 's, 'b) lt
 
 type (_, _, _) strict_trans =
-  | Strict_any : (strict, 'a, 'a) strict_trans
-  | Any_strict : ('a, strict, 'a) strict_trans
+  | Strict_any : (strict, 'a, 'b) strict_trans
+  | Any_strict : ('a, strict, 'b) strict_trans
   | Nonstrict_nonstrict : (nonstrict, nonstrict, nonstrict) strict_trans
 
+type (_, _) has_strict_trans =
+  | Strict_trans : ('s1, 's2, 's3) strict_trans -> ('s1, 's2) has_strict_trans
+
+val strict_trans : 's1 strictness -> 's2 strictness -> ('s1, 's2) has_strict_trans
 val equal : 'a t -> 'b t -> ('a, 'b) Monoid.compare
 val equalb : 'a t -> 'b t -> bool
 
@@ -54,9 +58,13 @@ module MapMake : functor (F : Fam) -> sig
   val add : 'a no -> 'a F.t -> t -> t
   val remove : 'a no -> t -> t
 
-  type 'b map_le = { map : 'a 's. ('a, 's, 'b) lt -> 's strictness -> 'a F.t -> 'a F.t }
+  type 'b map_compare = {
+    map_lt : 'a 's. ('a, strict, 'b) lt -> 'a F.t -> 'a F.t;
+    map_gt : 'a 's. ('b, strict, 'a) lt -> 'a F.t -> 'a F.t;
+    map_eq : 'b F.t -> 'b F.t;
+  }
 
-  val map_le : 'b map_le -> 'b no -> t -> t
+  val map_compare : 'b map_compare -> 'b no -> t -> t
 
   type 'a upper = Upper : ('a, strict, 'c) lt * 'c F.t -> 'a upper | No_upper : 'a upper
   type 'a lower = Lower : ('b, strict, 'a) lt * 'b F.t -> 'a lower | No_lower : 'a lower

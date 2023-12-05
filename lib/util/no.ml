@@ -45,9 +45,19 @@ let rec le_refl : type a. a t -> (a, nonstrict, a) lt = function
   | Fin (Minus a) -> Minus_minus (a, a, le_refl (Fin a))
 
 type (_, _, _) strict_trans =
-  | Strict_any : (strict, 'a, 'a) strict_trans
-  | Any_strict : ('a, strict, 'a) strict_trans
+  | Strict_any : (strict, 'a, 'b) strict_trans
+  | Any_strict : ('a, strict, 'b) strict_trans
   | Nonstrict_nonstrict : (nonstrict, nonstrict, nonstrict) strict_trans
+
+type (_, _) has_strict_trans =
+  | Strict_trans : ('s1, 's2, 's3) strict_trans -> ('s1, 's2) has_strict_trans
+
+let strict_trans : type s1 s2. s1 strictness -> s2 strictness -> (s1, s2) has_strict_trans =
+ fun s1 s2 ->
+  match (s1, s2) with
+  | Strict, _ -> Strict_trans Strict_any
+  | _, Strict -> Strict_trans Any_strict
+  | Nonstrict, Nonstrict -> Strict_trans Nonstrict_nonstrict
 
 let rec lt_to_le : type a b s. (a, strict, b) lt -> (a, s, b) lt =
  fun lt ->
@@ -346,6 +356,7 @@ let rec prepend_fin : type a b c. b fin -> (a, b, c) prepend -> c fin =
 (* For a backwards 'a and forwards 'b, "('a, 'b) then_lt" says that whenever we prepend 'a onto a forwards sign-sequence 'c, the result is less than 'b.  This is a strong sort of inequality a<b. *)
 
 type ('a, 'b) then_lt = { then_lt : 'c 'ac 's. 'c fin -> ('a, 'c, 'ac) prepend -> ('ac, 's, 'b) lt }
+type ('a, 'b) then_gt = { then_gt : 'c 'ac 's. 'c fin -> ('a, 'c, 'ac) prepend -> ('b, 's, 'ac) lt }
 
 (* It is strong enough that extending 'a by anything preserves it. *)
 
@@ -354,6 +365,12 @@ let then_plus_lt : type a b. (a, b) then_lt -> (a then_plus, b) then_lt =
 
 let then_minus_lt : type a b. (a, b) then_lt -> (a then_minus, b) then_lt =
  fun g -> { then_lt = (fun c (Minus ac) -> g.then_lt (Minus c) ac) }
+
+let then_plus_gt : type a b. (a, b) then_gt -> (a then_plus, b) then_gt =
+ fun g -> { then_gt = (fun c (Plus ac) -> g.then_gt (Plus c) ac) }
+
+let then_minus_gt : type a b. (a, b) then_gt -> (a then_minus, b) then_gt =
+ fun g -> { then_gt = (fun c (Minus ac) -> g.then_gt (Minus c) ac) }
 
 (* Inequalities b<c and b≤c are preserved by prepending any a onto both b and c. *)
 
@@ -375,6 +392,14 @@ let then_minus_lt' : type a b. (a, zero, b) prepend -> (a then_minus, b) then_lt
 let then_minus_plus_lt' : type a b c. b fin -> (a, b plus, c) prepend -> (a then_minus, c) then_lt =
  fun b ab ->
   { then_lt = (fun d (Minus a_md) -> prepend_lt (Minus d) (Plus b) (Minus_plus (d, b)) a_md ab) }
+
+let then_plus_gt' : type a b. (a, zero, b) prepend -> (a then_plus, b) then_gt =
+ fun a_zero ->
+  { then_gt = (fun c (Plus a_mc) -> prepend_lt Zero (Plus c) (Zero_plus c) a_zero a_mc) }
+
+let then_plus_minus_gt' : type a b c. b fin -> (a, b minus, c) prepend -> (a then_plus, c) then_gt =
+ fun b ab ->
+  { then_gt = (fun d (Plus a_md) -> prepend_lt (Minus b) (Plus d) (Minus_plus (b, d)) ab a_md) }
 
 (* We define a notion of intrinsically well-typed immutable map, associating to some numbers 'a an element of 'a F.t. *)
 
@@ -464,12 +489,17 @@ module MapMake (F : Fam) = struct
     | Minus_omega -> { map with minus_omega = None }
     | Plus_omega -> { map with plus_omega = None }
 
-  (* 'map_le' applies a given polymorphic function to all elements of the map whose index is less than or equal to some fixed number, also passing the function a witness of that inequality as well as its strictness.  This requires a record type to pass the polymorphic mapper argument, as well as several helper functions.  *)
+  (* 'map_compare' applies one of three polymorphic function to all elements of the map, based on whether their index is less than, greater than, or equal to some specified number, passing a witness of inequality if relevant.  This requires a record type to hold the polymorphic mapper arguments, as well as several helper functions.  *)
 
-  type 'b map_le = { map : 'a 's. ('a, 's, 'b) lt -> 's strictness -> 'a F.t -> 'a F.t }
+  type 'b map_compare = {
+    map_lt : 'a 's. ('a, strict, 'b) lt -> 'a F.t -> 'a F.t;
+    map_gt : 'a 's. ('b, strict, 'a) lt -> 'a F.t -> 'a F.t;
+    map_eq : 'b F.t -> 'b F.t;
+  }
 
-  (* "fin_map_all" applies a function to all elements of a fin_t, assuming that that is valid given its parameter. *)
-  let rec fin_map_all : type a b c. c map_le -> (a, c) then_lt -> a fin_t -> a fin_t =
+  (* "fin_map_lt" applies map_lt to all elements of a fin_t, assuming that that is valid given its parameter, and dually for "fin_map_gt". *)
+
+  let rec fin_map_lt : type a b c. c map_compare -> (a, c) then_lt -> a fin_t -> a fin_t =
    fun f x map ->
     match map with
     | Emp -> Emp
@@ -477,12 +507,25 @@ module MapMake (F : Fam) = struct
         Node
           ( (match z with
             | None -> None
-            | Some (ab, y) -> Some (ab, f.map (x.then_lt Zero ab) Strict y)),
-            fin_map_all f (then_minus_lt x) mmap,
-            fin_map_all f (then_plus_lt x) pmap )
+            | Some (ab, y) -> Some (ab, f.map_lt (x.then_lt Zero ab) y)),
+            fin_map_lt f (then_minus_lt x) mmap,
+            fin_map_lt f (then_plus_lt x) pmap )
 
-  (* Similarly, "fin_map_plusomega" applies a function to all elements of a fin_t, because +ω is greater than them. *)
-  let rec fin_map_plusomega : type a. plus_omega map_le -> a fin_t -> a fin_t =
+  let rec fin_map_gt : type a b c. c map_compare -> (a, c) then_gt -> a fin_t -> a fin_t =
+   fun f x map ->
+    match map with
+    | Emp -> Emp
+    | Node (z, mmap, pmap) ->
+        Node
+          ( (match z with
+            | None -> None
+            | Some (ab, y) -> Some (ab, f.map_gt (x.then_gt Zero ab) y)),
+            fin_map_gt f (then_minus_gt x) mmap,
+            fin_map_gt f (then_plus_gt x) pmap )
+
+  (* Similarly, "fin_map_plusomega" applies a function to all elements of a fin_t, because +ω is greater than them, and dually. *)
+
+  let rec fin_map_plusomega : type a. plus_omega map_compare -> a fin_t -> a fin_t =
    fun f map ->
     match map with
     | Emp -> Emp
@@ -490,11 +533,24 @@ module MapMake (F : Fam) = struct
         Node
           ( (match z with
             | None -> None
-            | Some (ab, y) -> Some (ab, f.map (Fin_plusomega (prepend_fin Zero ab)) Strict y)),
+            | Some (ab, y) -> Some (ab, f.map_lt (Fin_plusomega (prepend_fin Zero ab)) y)),
             fin_map_plusomega f mmap,
             fin_map_plusomega f pmap )
 
-  let rec fin_map_le : type a b c. c map_le -> b fin -> (a, b, c) prepend -> a fin_t -> a fin_t =
+  let rec fin_map_minusomega : type a. minus_omega map_compare -> a fin_t -> a fin_t =
+   fun f map ->
+    match map with
+    | Emp -> Emp
+    | Node (z, mmap, pmap) ->
+        Node
+          ( (match z with
+            | None -> None
+            | Some (ab, y) -> Some (ab, f.map_gt (Minusomega_fin (prepend_fin Zero ab)) y)),
+            fin_map_minusomega f mmap,
+            fin_map_minusomega f pmap )
+
+  let rec fin_map_compare :
+      type a b c. c map_compare -> b fin -> (a, b, c) prepend -> a fin_t -> a fin_t =
    fun f x ab map ->
     match map with
     | Emp -> Emp
@@ -506,38 +562,47 @@ module MapMake (F : Fam) = struct
               | None -> None
               | Some (a_zero, z) ->
                   let Eq = prepend_uniq ab a_zero in
-                  Some (ab, f.map (le_refl (Fin (prepend_fin Zero ab))) Nonstrict z) in
-            Node (z, fin_map_all f (then_minus_lt' ab) mmap, pmap)
+                  Some (ab, f.map_eq z) in
+            Node (z, fin_map_lt f (then_minus_lt' ab) mmap, fin_map_gt f (then_plus_gt' ab) pmap)
         | Plus x ->
             let z =
               match z with
               | None -> None
               | Some (a_zero, z) ->
-                  Some (a_zero, f.map (prepend_lt Zero (Plus x) (Zero_plus x) a_zero ab) Strict z)
+                  Some (a_zero, f.map_lt (prepend_lt Zero (Plus x) (Zero_plus x) a_zero ab) z) in
+            Node
+              (z, fin_map_lt f (then_minus_plus_lt' x ab) mmap, fin_map_compare f x (Plus ab) pmap)
+        | Minus x ->
+            let z =
+              match z with
+              | None -> None
+              | Some (a_zero, z) ->
+                  Some (a_zero, f.map_gt (prepend_lt (Minus x) Zero (Minus_zero x) ab a_zero) z)
             in
-            Node (z, fin_map_all f (then_minus_plus_lt' x ab) mmap, fin_map_le f x (Plus ab) pmap)
-        | Minus x -> Node (z, fin_map_le f x (Minus ab) mmap, pmap))
+            Node
+              (z, fin_map_compare f x (Minus ab) mmap, fin_map_gt f (then_plus_minus_gt' x ab) pmap)
+        )
 
-  let map_le : type b. b map_le -> b no -> t -> t =
+  let map_compare : type b. b map_compare -> b no -> t -> t =
    fun f x map ->
     match x with
     | Minus_omega ->
         {
-          minus_omega = Option.map (f.map Minusomega_minusomega Nonstrict) map.minus_omega;
-          fin = map.fin;
-          plus_omega = map.plus_omega;
+          minus_omega = Option.map f.map_eq map.minus_omega;
+          fin = fin_map_minusomega f map.fin;
+          plus_omega = Option.map (f.map_gt Minusomega_plusomega) map.plus_omega;
         }
     | Fin x ->
         {
-          minus_omega = Option.map (f.map (Minusomega_fin x) Strict) map.minus_omega;
-          fin = fin_map_le f x Zero map.fin;
-          plus_omega = map.plus_omega;
+          minus_omega = Option.map (f.map_lt (Minusomega_fin x)) map.minus_omega;
+          fin = fin_map_compare f x Zero map.fin;
+          plus_omega = Option.map (f.map_gt (Fin_plusomega x)) map.plus_omega;
         }
     | Plus_omega ->
         {
-          minus_omega = Option.map (f.map Minusomega_plusomega Strict) map.minus_omega;
+          minus_omega = Option.map (f.map_lt Minusomega_plusomega) map.minus_omega;
           fin = fin_map_plusomega f map.fin;
-          plus_omega = Option.map (f.map Plusomega_plusomega Nonstrict) map.plus_omega;
+          plus_omega = Option.map f.map_eq map.plus_omega;
         }
 
   (* 'fin_least' finds the element in a fin_t with the least index, or None if the map is empty. *)

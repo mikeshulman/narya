@@ -17,22 +17,32 @@ let () =
             Flag Explicit_pi; Ident (Some "x"); Ident (Some "w"); Term (Ident "y"); Term (Ident "z");
           ] ))
 
-let () = assert (parse !builtins "x y |-> z" = Abs (`Normal, [ Some "x"; Some "y" ], Ident "z"))
-let () = assert (parse !builtins "x y |=> z" = Abs (`Cube, [ Some "x"; Some "y" ], Ident "z"))
+let () =
+  assert (
+    parse !builtins "x y |-> z"
+    = Notn ("abstraction", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]))
+
+let () =
+  assert (
+    parse !builtins "x y |=> z"
+    = Notn ("cube_abstraction", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]))
 
 let () =
   assert (
     parse !builtins "x y |-> (z : w)"
-    = Abs
-        ( `Normal,
-          [ Some "x"; Some "y" ],
-          Notn
-            ( "parens",
-              [
-                (* Flag is ignored, since the eventual notation is not a pi. *)
-                Flag Explicit_pi;
-                Term (Notn ("ascription", [ Term (Ident "z"); Term (Ident "w") ]));
-              ] ) ))
+    = Notn
+        ( "abstraction",
+          [
+            Term (App (Ident "x", Ident "y"));
+            Term
+              (Notn
+                 ( "parens",
+                   [
+                     (* Flag is ignored, since the eventual notation is not a pi. *)
+                     Flag Explicit_pi;
+                     Term (Notn ("ascription", [ Term (Ident "z"); Term (Ident "w") ]));
+                   ] ));
+          ] ))
 
 let () =
   assert (
@@ -43,7 +53,11 @@ let () =
             Term
               (Notn
                  ( "parens",
-                   [ Flag Explicit_pi; Term (Abs (`Normal, [ Some "x"; Some "y" ], Ident "z")) ] ));
+                   [
+                     Flag Explicit_pi;
+                     Term
+                       (Notn ("abstraction", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]));
+                   ] ));
             Term (Ident "w");
           ] ))
 

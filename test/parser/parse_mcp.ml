@@ -29,9 +29,6 @@ let () =
   let f'', _ = synth "(x ↦ f x) : (x:A)→ B x" in
   let () = equal_at f f'' atob in
 
-  (* Since lambdas and ascription have the same scope, and ascription is nonassociative, this is a parse error.  I think this is a good thing, because it *looks* ambiguous to me.  The user should disambiguate it with parentheses. *)
-  let () = unparse "x ↦ f x : (x:A)→ B x" in
-
   (* Cubes *)
   let xx = assume "X" uu in
   let x00 = assume "x00" xx in

@@ -28,8 +28,8 @@ and _ check =
 
 and _ branch = Branch : Constr.t * ('a, 'b, 'ab) N.plus * 'ab check -> 'a branch
 
-let rec raw_lam : type a b ab. (a, b, ab) N.plus -> ab check -> a check =
- fun ab tm ->
+let rec raw_lam : type a b ab. [ `Cube | `Normal ] -> (a, b, ab) N.plus -> ab check -> a check =
+ fun cube ab tm ->
   match ab with
   | Zero -> tm
-  | Suc ab -> raw_lam ab (Lam (`Normal, tm))
+  | Suc ab -> raw_lam cube ab (Lam (cube, tm))

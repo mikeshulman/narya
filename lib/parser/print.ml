@@ -38,15 +38,6 @@ let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
   | Case -> (
       match tr with
       | Notn n -> pp_notn_case ppf n.notn (args n) wtr
-      | Abs { cube; vars; body; _ } ->
-          fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
-            (pp_print_list ~pp_sep:pp_print_space pp_var)
-            vars pp_tok
-            (match cube with
-            | `Normal -> Mapsto
-            | `Cube -> DblMapsto)
-            (* TODO: Test that passing through a lambda doesn't drop into term parsing *)
-            pp_term (Wrap body)
       | _ -> as_term @@ fun () -> pp_term ppf wtr)
   | Term -> (
       match tr with
@@ -55,15 +46,7 @@ let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
       | Ident x -> pp_utf_8 ppf x
       | Constr c -> pp_constr ppf c
       | Field f -> pp_field ppf f
-      | Numeral n -> Q.pp_print ppf n
-      | Abs { cube; vars; body; _ } ->
-          fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
-            (pp_print_list ~pp_sep:pp_print_space pp_var)
-            vars pp_tok
-            (match cube with
-            | `Normal -> Mapsto
-            | `Cube -> DblMapsto)
-            pp_term (Wrap body))
+      | Numeral n -> Q.pp_print ppf n)
 
 and pp_notn_case :
     type left tight right.

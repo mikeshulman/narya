@@ -16,7 +16,6 @@ and parse_tree =
   | Constr of string
   | Field of string
   | Numeral of Q.t
-  | Abs of [ `Normal | `Cube ] * string option list * parse_tree
 
 let rec get_obs (obs : Notation.observation) : obs =
   match obs with
@@ -35,7 +34,6 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Constr x -> Constr x
   | Field x -> Field x
   | Numeral n -> Numeral n
-  | Abs { cube; vars; body; right_ok = _ } -> Abs (cube, vars, get_tree body)
 
 let parse state str =
   let (Wrap tm) = Parse.term state str in

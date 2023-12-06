@@ -115,14 +115,6 @@ and (_, _, _, _) parse =
   | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse
-  (* A parsed abstraction already knows whether it is a normal abstraction or a cubical one, since different symbols ↦ and ⤇ are used.  We treat abstraction as a non-associative prefix operator of tightness -ω.  TODO: Should really be more like an infix operator, since it can't appear inside anything tighter than -ω coming from the left either.  But then we need to special-case somehow that it can right-associate with *itself* though not ascription. *)
-  | Abs : {
-      cube : [ `Cube | `Normal ];
-      vars : string option list;
-      body : (No.minus_omega, No.strict, 'rt, 'rs) parse;
-      right_ok : ('rt, 'rs, No.minus_omega) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A compilation function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
 and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
@@ -201,7 +193,7 @@ let args :
 
 type wrapped_parse = Wrap : ('lt, 'ls, 'rt, 'rs) parse -> wrapped_parse
 
-(* When parsing from left to right, we have to return a partial parse tree without knowing yet what tightness interval it will have to be in from the right.  So we return it as a callback that takes that interval as an argument and can fail, returning the name of the offending notation if it fails.  One could argue that instead the allowable tightness intervals should be returned along with the partial parse tree and used to restrict the allowable notations parsed afterwards.  But for one thing, that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Furthermore, doing it this way makes it easier to trap it and issue a more informative error message, which I think is a good thing because this includes examples like "let x ≔ M in N : A" and "x ↦ M : A" where the need for parentheses in Narya may be surprising to a new user. *)
+(* When parsing from left to right, we have to return a partial parse tree without knowing yet what tightness interval it will have to be in from the right.  So we return it as a callback that takes that interval as an argument and can fail, returning the name of the offending notation if it fails.  One could argue that instead the allowable tightness intervals should be returned along with the partial parse tree and used to restrict the allowable notations parsed afterwards.  But that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Doing it this way also makes it easier to trap it and issue a more informative error message. *)
 type ('lt, 'ls) right_wrapped_parse = {
   get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse, string) Result.t;
 }
@@ -252,7 +244,10 @@ let set_tree n t =
   | Some _ -> raise (Invalid_argument "notation tree already set")
   | None -> n.tree <- Some t
 
-let compiler n = Option.get n.compiler
+let compiler n =
+  match n.compiler with
+  | Some c -> c
+  | None -> raise (Invalid_argument "notation has no compiler")
 
 let set_compiler n c =
   match n.compiler with

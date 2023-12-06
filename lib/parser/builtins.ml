@@ -38,7 +38,7 @@ let () =
    Let-binding
  ******************** *)
 
-(* Let-in doesn't need to be right-associative in order to chain, because it is left-closed.  Declaring it to be nonassociative means that "let x := y in z : A" doesn't parse without parentheses, which I think is best as it looks ambiguous.  (The same idea applies to abstractions, although they are built into the parser rather than defined as mixfix notations.) *)
+(* Let-in doesn't need to be right-associative in order to chain, because it is left-closed.  Declaring it to be nonassociative means that "let x := y in z : A" doesn't parse without parentheses, which I think is best as it looks ambiguous.  *)
 
 let letin = make "let" (Prefix No.minus_omega)
 
@@ -320,6 +320,87 @@ let () =
   let ty, obs = get_term obs in
   let () = get_done obs in
   fprintf ppf "@[<b 0>%a@ %a %a" pp_term tm pp_tok Colon pp_term ty
+
+(* ********************
+   Underscores
+ ******************** *)
+
+(* At present, the underscore doesn't have a meaning on its own, so compiling it is an error.  Its only function so far is to be recognized in the left-hand argument of an abstraction as denoting an unnamed variable. *)
+
+let underscore = make "underscore" Outfix
+
+let () =
+  set_tree underscore (Closed_entry (eop Underscore (Done_closed underscore)));
+  set_compiler underscore { compile = (fun _ _ -> fatal (Unimplemented "unification arguments")) };
+  set_print underscore @@ fun ppf obs ->
+  let () = get_done obs in
+  pp_tok ppf Underscore
+
+(* ********************
+   Abstraction
+ ******************** *)
+
+(* Abstractions are encoded as a right-associative infix operator that inspects its left-hand argument deeply before compiling it, expecting it to look like an application spine of variables, and then instead binds those variables in its right-hand argument. *)
+
+let abs = make "abstraction" (Infixr No.minus_omega)
+let () = set_tree abs (Open_entry (eop Mapsto (done_open abs)))
+let cubeabs = make "cube_abstraction" (Infixr No.minus_omega)
+let () = set_tree cubeabs (Open_entry (eop DblMapsto (done_open cubeabs)))
+
+type _ extended_ctx =
+  | Extctx : ('n, 'm, 'nm) N.plus * (string option, 'nm) Bwv.t -> 'n extended_ctx
+
+let rec get_vars :
+    type n lt1 ls1 rt1 rs1. (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse -> n extended_ctx
+    =
+ fun ctx vars ->
+  match vars with
+  | Ident x ->
+      if Token.variableable x then Extctx (Suc Zero, Snoc (ctx, Some x))
+        (* TODO: Can we report the range for errors produced here? *)
+      else fatal (Invalid_variable x)
+  | Notn n when equal n.notn underscore -> Extctx (Suc Zero, Snoc (ctx, None))
+  | App { fn; arg = Ident x; _ } ->
+      if Token.variableable x then
+        let (Extctx (ab, ctx)) = get_vars ctx fn in
+        Extctx (Suc ab, Snoc (ctx, Some x))
+      else fatal (Invalid_variable x)
+  | App { fn; arg = Notn n; _ } when equal n.notn underscore ->
+      let (Extctx (ab, ctx)) = get_vars ctx fn in
+      Extctx (Suc ab, Snoc (ctx, None))
+  | _ -> fatal Parse_error
+
+let compile_abs cube =
+  {
+    compile =
+      (fun ctx obs ->
+        let Wrap vars, obs = get_term obs in
+        let Wrap body, obs = get_term obs in
+        let () = get_done obs in
+        let (Extctx (ab, ctx)) = get_vars ctx vars in
+        raw_lam cube ab (compile ctx body));
+  }
+
+let pp_abs cube ppf obs =
+  let vars, obs = get_term obs in
+  let body, obs = get_term obs in
+  let () = get_done obs in
+  fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
+    (* It seems to work the same to just print the list of variables as if it were an application spine.  *)
+    (* (pp_print_list ~pp_sep:pp_print_space pp_var) *)
+    pp_term vars pp_tok
+    (match cube with
+    | `Normal -> Mapsto
+    | `Cube -> DblMapsto)
+    pp_term body
+
+let () =
+  set_compiler abs (compile_abs `Normal);
+  set_compiler cubeabs (compile_abs `Cube);
+  set_print abs (pp_abs `Normal);
+  set_print cubeabs (pp_abs `Cube);
+  set_print_as_case abs (pp_abs `Normal);
+  set_print_as_case cubeabs (pp_abs `Cube)
 
 (* ********************
    The universe
@@ -657,6 +738,9 @@ let builtins =
     |> State.add letin
     |> State.add pi
     |> State.add asc
+    |> State.add underscore
+    |> State.add abs
+    |> State.add cubeabs
     |> State.add arrow
     |> State.add universe
     |> State.add refl

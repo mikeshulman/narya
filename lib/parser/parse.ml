@@ -18,7 +18,7 @@ end
 module SemanticError = struct
   type t =
     | Invalid_variable of Position.range * string
-    (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because abstractions are implemented specially in the parser and not as an actual Notation. *)
+    (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because applications are implemented specially in the parser and not as an actual Notation. *)
     | No_relative_precedence of Position.range * string * string
 end
 
@@ -140,9 +140,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                            | Ok last -> Ok (prefix ~notn ~inner ~last ~right_ok)
                            | Error e -> Error e));
                  }))
-      (* If parsing a left-closed notation fails, we can instead parse an abstraction, a single variable name, a numeral, or a constructor.  (Field projections are not allowed since this would be the head of a spine.)  First we look forward past possible variable names to find a Mapsto, to see whether we're looking at an abstraction, and if so we insist on actually parsing that abstraction (and checking that the variable names are valid).  It seems that we must do this with backtracking, since if there *isn't* a Mapsto out there, a list of names might not just be something simple like an application spine but might include infix parts of notations.  The "followed_by" combination is to allow the abstraction to fail permanently on an invalid variable name (having consumed at least one name), while failing without consuming anything if there isn't a Mapsto. *)
-      </> (let* _ = followed_by (abstraction tight stop Emp false) in
-           abstraction tight stop Emp true)
       (* Otherwise, we parse a single ident, numeral, or constructor. *)
       </> step (fun state _ tok ->
               match tok with
@@ -153,54 +150,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
               | _ -> None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
     lopen tight stop res
-
-  (* If we see a variable name or an underscore, there's a chance that it's actually the beginning of an abstraction.  Thus, we pick up as many variable names as possible and look for a mapsto afterwards.  The parameter for_real says whether to insist the variable names are valid and actually parse the body of the abstraction. *)
-  and abstraction :
-      type lt ls rt rs.
-      (lt, ls) Interval.tt ->
-      (rt, rs) tree TokMap.t ->
-      string option Bwd.t ->
-      bool ->
-      (lt, ls) right_wrapped_parse t =
-   fun tight stop idents for_real ->
-    let* rng, x =
-      located
-        (step (fun state _ tok ->
-             match tok with
-             | Ident x -> Some (`Ident x, state)
-             | Underscore -> Some (`Underscore, state)
-             | Mapsto -> (
-                 match idents with
-                 | Emp -> None
-                 | Snoc _ -> Some (`Mapsto `Normal, state))
-             | DblMapsto -> (
-                 match idents with
-                 | Emp -> None
-                 | Snoc _ -> Some (`Mapsto `Cube, state))
-             | _ -> None)) in
-    match x with
-    | `Ident x ->
-        (* An ident in an abstraction must be a valid *local* variable name *)
-        if (not for_real) || Token.variableable x then
-          abstraction tight stop (Snoc (idents, Some x)) for_real
-        else fail (Invalid_variable (rng, x))
-    | `Underscore -> abstraction tight stop (Snoc (idents, None)) for_real
-    | `Mapsto cube ->
-        if for_real then
-          (* An abstraction should be thought of as having −∞ tightness, so we allow almost anything at all to its right.  Except, of course, for the stop-tokens currently in effect, since we we need to be able to delimit an abstraction by parentheses or other right-closed notations.  Moreover, we make it *not* "right-associative", i.e. the tightness interval is open, so that operators of actual tightness −∞ (such as type ascription ":") can *not* appear undelimited inside it.  This is intentional: I feel that "x ↦ M : A" is inherently ambiguous and should be required to be parenthesized one way or the other.  (The other possible parsing of the unparenthesized version is disallowed because : is not left-associative, so it can't contain an abstraction to its left.) *)
-          let* body = lclosed (Strict, No.minus_omega) stop in
-          return
-            {
-              get =
-                (fun ivl ->
-                  match Interval.contains ivl No.minus_omega with
-                  | None -> Error "mapsto"
-                  | Some right_ok -> (
-                      match body.get ivl with
-                      | Ok body -> Ok (Abs { cube; vars = Bwd.to_list idents; body; right_ok })
-                      | Error e -> Error e));
-            }
-        else return { get = (fun _ -> Ok (Ident "")) }
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen :

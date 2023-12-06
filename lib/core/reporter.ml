@@ -232,7 +232,7 @@ module Code = struct
         textf "argument of %s must be at least %d-dimensional" deg (to_int dim)
     | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
     | Applying_nonfunction_nontype -> text "attempt to apply/instantiate a non-function non-type"
-    | Unimplemented str -> textf "%s is not yet implemented" str
+    | Unimplemented str -> textf "%s not yet implemented" str
     | Matching_datatype_has_degeneracy ->
         text "can't match on element of a datatype with degeneracy applied"
     | Invalid_match_index ->

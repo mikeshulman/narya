@@ -41,6 +41,7 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `Type` – The unique universe (currently we have type-in-type).
 - `M N` – Function application (left-associative).
 - `x ↦ M` – Lambda-abstraction.  The unicode ↦ can be replaced by ASCII `|->`.
+- `x y z ↦ M` – Iterated lambda-abstraction.
 - `(x : M) → N` – Pi-type.  The unicode → can be replaced by ASCII `->`.
 - `(x : M) (y z : N) (w : P) → Q` – Multivariable Pi-type.
 - `M → N` – Non-dependent function-type (right-associative).
@@ -58,7 +59,7 @@ The parser supports arbitrary mixfix operations with associativities and precede
 
 Function application and field access can be thought of as left-associative infix operations with zero infix symbols and tightness +∞.  They are implemented specially internally, so that tightness +∞ is not technically used currently at all, but they should interact correctly with any other notations declared to have tightness +∞.  In particular, a nonassociative prefix notation of tightness +∞, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  There are no such notations currently, but future possibilities include explicification of implicit functions and universe lifting.
 
-Abstraction, ascription, and let-bindings have tightness −∞, so they bind more loosely than anything except each other.  Type ascription is non-associative, so `M : N : P` is a parse error.  Abstraction, let-binding, and pi-types are also non-associative: because they are left-closed, they don't need to be right-associative in order to get the expected behavior of `x ↦ y ↦ M` and `(x : M) → (y : N) → P` (although note that these are redundant since one can also write `x y ↦ M` and `(x : M) (y : N) → P`).  This non-associativity means that they cannot be mixed with type ascription: `x ↦ M : A` is a parse error.  This is intentional, as I regard that as inherently ambiguous; you should write either `x ↦ (M : A)` or `(x ↦ M) : A` depending on what you meant.  The same applies to `let x ≔ M in N : A`.
+Abstraction, ascription, and let-bindings have tightness −∞, so they bind more loosely than anything except each other.  Type ascription is non-associative, so `M : N : P` is a parse error.  Let-binding and pi-types are also non-associative: because they are left-closed, they don't need to be right-associative in order to get the expected behavior of `let x ≔ M in let y ≔ N in P` and `(x : M) → (y : N) → P` (although note that the latter is redundant since one can also write `(x : M) (y : N) → P`).  This non-associativity means that they cannot be mixed with type ascription: `let x ≔ M in N : A` is a parse error.  Abstraction is right-associative, so that `x ↦ y ↦ M` parses correctly (though it can also be abbreviated as `x y ↦ M`).  This means that `x ↦ M : A` parses as `x ↦ (M : A)`.
 
 Pi-types and function-types have tightness 0.
 

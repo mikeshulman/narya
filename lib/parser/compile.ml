@@ -117,7 +117,3 @@ let rec compile : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
   | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> compile_numeral n
-  | Abs { cube = _; vars = []; body; right_ok = _ } -> compile ctx body
-  | Abs { cube; vars = x :: vars; body; right_ok } ->
-      let body = compile (Snoc (ctx, x)) (Abs { cube; vars; body; right_ok }) in
-      Lam (cube, body)

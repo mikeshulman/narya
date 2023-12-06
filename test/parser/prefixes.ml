@@ -91,10 +91,20 @@ let () =
 
 let () =
   assert (
-    parse prefixes "f % x ↦ y"
-    = Notn ("perc", [ Term (Ident "f"); Term (Abs (`Normal, [ Some "x" ], Ident "y")) ]));
-  assert (
     parse prefixes "a % b ~ c"
     = Notn
         ( "perc",
           [ Term (Ident "a"); Term (App (Ident "b", Notn ("twiddle", [ Term (Ident "c") ]))) ] ))
+
+(* A right-associative infix operator of tightness -ω can have an abstraction on its right. *)
+let atat = make "atat" (Infixr No.minus_omega)
+let () = set_tree atat (Open_entry (eop (Op "@@") (done_open atat)))
+let prefixes = !builtins |> State.add atat
+
+let () =
+  assert (
+    parse prefixes "f @@ x ↦ y"
+    = Notn
+        ( "atat",
+          [ Term (Ident "f"); Term (Notn ("abstraction", [ Term (Ident "x"); Term (Ident "y") ])) ]
+        ))

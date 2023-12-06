@@ -77,13 +77,6 @@ and (_, _, _, _) parse =
   | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse
-  | Abs : {
-      cube : [ `Cube | `Normal ];
-      vars : string option list;
-      body : (No.minus_omega, No.strict, 'rt, 'rs) parse;
-      right_ok : ('rt, 'rs, No.minus_omega) No.lt;
-    }
-      -> ('lt, 'ls, 'rt, 'rs) parse
 
 and ('left, 'tight) notation_entry =
   | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry

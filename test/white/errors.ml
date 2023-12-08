@@ -36,8 +36,6 @@ let () =
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
   (* Parse errors.  Uncomment the "let _" lines and run this file directly with "dune exec" to see the error messages shown as they appear to the user. *)
-  (* let _ = synth "let x := a in b : coo" in *)
-  let () = unsynth "let x := a in b : coo" ~code:(No_relative_precedence ("let", "ascription")) in
   (* let _ = synth "x y {` unterminated block comment" in *)
   let () = unsynth "x y {` unterminated block comment" ~code:Parse_error in
   (* let _ = synth "f (x" in *)

@@ -41,9 +41,7 @@ let () =
 
 (* Let-in doesn't need to be right-associative in order to chain, because it is left-closed.  Declaring it to be nonassociative means that "let x := y in z : A" doesn't parse without parentheses, which I think is best as it looks ambiguous.  *)
 
-(* TODO: We should probably make it right-associative too, now that abstraction and pi-types are. *)
-
-let letin = make "let" (Prefix No.minus_omega)
+let letin = make "let" (Prefixr No.minus_omega)
 
 let () =
   set_tree letin

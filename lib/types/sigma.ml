@@ -17,33 +17,6 @@ open Monad.Ops (Monad.Maybe)
 
 (* TODO: printing these notations *)
 
-let sigman = make "sigma" (Prefixr No.one)
-
-let () =
-  set_tree sigman
-    (Closed_entry
-       (eop LParen
-          (ident
-             (op Colon
-                (term RParen
-                   (ops [ (Ident "×", Done_closed sigman); (Op "><", Done_closed sigman) ]))))));
-  set_processor sigman
-    {
-      process =
-        (fun ctx obs ->
-          match obs with
-          | [ Term x; Term tm; Term ty ] ->
-              let x =
-                match x with
-                | Ident x -> Some x
-                | Placeholder -> None
-                | _ -> fatal Parse_error in
-              let tm = process ctx tm in
-              let ty = process (Snoc (ctx, x)) ty in
-              Synth (App (App (Const sigma, tm), Lam (`Normal, ty)))
-          | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
-    }
-
 let prodn = make "prod" (Infixr No.one)
 
 let () =
@@ -52,12 +25,23 @@ let () =
     {
       process =
         (fun ctx obs ->
-          match obs with
-          | [ Term tm; Term ty ] ->
-              let tm = process ctx tm in
-              let ty = process (Snoc (ctx, None)) ty in
-              Synth (App (App (Const sigma, tm), Lam (`Normal, ty)))
-          | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
+          let x, Term a, Term b =
+            match obs with
+            | [ one; b ] -> (
+                match one with
+                | Term (Notn n) when equal (notn n) Builtins.parens -> (
+                    match args n with
+                    | [ Term (Notn n) ] when equal (notn n) Builtins.asc -> (
+                        match args n with
+                        | [ Term (Ident x); Term a ] -> (Some x, Term a, b)
+                        | [ Term Placeholder; Term a ] -> (None, Term a, b)
+                        | _ -> (None, one, b))
+                    | _ -> (None, one, b))
+                | _ -> (None, one, b))
+            | _ -> fatal (Anomaly "invalid notation arguments for sigma") in
+          let a = process ctx a in
+          let b = process (Snoc (ctx, x)) b in
+          Synth (App (App (Const sigma, a), Lam (`Normal, b))));
     }
 
 let comma = make "comma" (Infixr No.one)
@@ -81,8 +65,7 @@ let installed = ref false
 let install_notations () =
   if not !installed then (
     installed := true;
-    Builtins.builtins :=
-      !Builtins.builtins |> State.add sigman |> State.add prodn |> State.add comma)
+    Builtins.builtins := !Builtins.builtins |> State.add prodn |> State.add comma)
 
 let install () =
   install_notations ();

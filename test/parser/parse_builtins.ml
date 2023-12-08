@@ -204,25 +204,36 @@ let () =
   assert (
     parse !builtins "(x:A) >< B x"
     = Notn
-        ( "sigma",
+        ( "prod",
           [
-            (* ignored flag *) Term (Ident "x"); Term (Ident "A"); Term (App (Ident "B", Ident "x"));
+            Term
+              (Notn
+                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "A") ])) ]));
+            Term (App (Ident "B", Ident "x"));
           ] ))
 
 let () =
   assert (
     parse !builtins "(x:A) >< (y:B x) >< C x y"
     = Notn
-        ( "sigma",
+        ( "prod",
           [
-            Term (Ident "x");
-            Term (Ident "A");
             Term
               (Notn
-                 ( "sigma",
+                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "A") ])) ]));
+            Term
+              (Notn
+                 ( "prod",
                    [
-                     Term (Ident "y");
-                     Term (App (Ident "B", Ident "x"));
+                     Term
+                       (Notn
+                          ( "parens",
+                            [
+                              Term
+                                (Notn
+                                   ( "ascription",
+                                     [ Term (Ident "y"); Term (App (Ident "B", Ident "x")) ] ));
+                            ] ));
                      Term (App (App (Ident "C", Ident "x"), Ident "y"));
                    ] ));
           ] ))

@@ -135,6 +135,7 @@ let rec get_pi_vars :
   | Ident x -> if Token.variableable x then Some x :: vars else fatal (Invalid_variable x)
   | Placeholder -> None :: vars
   | App { fn; arg = Ident x; _ } ->
+      (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
       if Token.variableable x then get_pi_vars fn (Some x :: vars) else fatal (Invalid_variable x)
   | _ -> raise Not_a_pi_arg
 

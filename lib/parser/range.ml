@@ -3,7 +3,7 @@ open Asai.Range
 open Core.Reporter
 
 module S = Algaeff.Reader.Make (struct
-  type env = string
+  type t = string
 end)
 
 let convert_pos (src : source) pos =

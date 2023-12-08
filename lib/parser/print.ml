@@ -10,7 +10,7 @@ type style = Compact | Noncompact
 type context = Term | Case
 
 module Reader = Algaeff.Reader.Make (struct
-  type env = style * context
+  type t = style * context
 end)
 
 let style () = fst (Reader.read ())

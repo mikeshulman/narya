@@ -75,7 +75,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                  | Some br, Constr x -> Some (Ok (br, [ Term (Constr x) ]), state)
                  | _ -> (
                      match (field, tok) with
-                     | Some br, Field x -> Some (Ok (br, [ Field x ]), state)
+                     | Some br, Field x -> Some (Ok (br, [ Term (Field x) ]), state)
                      | _ -> (
                          (* A "ident" in a notation tree must be a valid *local* variable name. *)
                          match (ident, tok) with

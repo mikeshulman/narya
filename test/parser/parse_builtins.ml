@@ -161,7 +161,8 @@ let () = assert (parse !builtins "{}" = Notn ("struc", []))
 let () =
   assert (parse !builtins "{x := y}" = Notn ("struc", [ Ident (Some "x"); Term (Ident "y") ]))
 
-let () = assert (parse !builtins "{.x |-> y}" = Notn ("struc", [ Field "x"; Term (Ident "y") ]))
+let () =
+  assert (parse !builtins "{.x |-> y}" = Notn ("struc", [ Term (Field "x"); Term (Ident "y") ]))
 
 let () =
   assert (
@@ -179,7 +180,7 @@ let () =
 let () =
   assert (
     parse !builtins "{.x ↦ y ; .z ↦ w}"
-    = Notn ("struc", [ Field "x"; Term (Ident "y"); Field "z"; Term (Ident "w") ]))
+    = Notn ("struc", [ Term (Field "x"); Term (Ident "y"); Term (Field "z"); Term (Ident "w") ]))
 
 let () =
   assert (

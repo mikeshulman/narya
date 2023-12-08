@@ -437,7 +437,7 @@ let rec compile_struc :
  fun flds ctx obs ->
   match obs with
   | [] -> Raw.Struct flds
-  | Ident (Some x) :: obs | Field x :: obs -> (
+  | Ident (Some x) :: obs | Term (Field x) :: obs -> (
       match obs with
       | Term tm :: obs ->
           let tm = compile ctx tm in
@@ -466,7 +466,7 @@ and pp_fields : formatter -> observation list -> unit =
  fun ppf obs ->
   match obs with
   | [] -> ()
-  | Ident (Some x) :: obs | Field x :: obs -> (
+  | Ident (Some x) :: obs | Term (Field x) :: obs -> (
       match obs with
       | Term tm :: obs ->
           (match state () with
@@ -593,7 +593,7 @@ let () =
                   let fa, obs =
                     (* If the next thing looks like a field, it might mean a face of a cube variable. *)
                     match obs with
-                    | Field fld :: obs -> (
+                    | Term (Field fld) :: obs -> (
                         match Dim.sface_of_string fld with
                         | Some fa -> (Some fa, obs)
                         | None -> fatal Parse_error)

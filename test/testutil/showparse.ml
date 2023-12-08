@@ -16,7 +16,6 @@ let rec get_obs (obs : Notation.observation) : obs =
   match obs with
   | Ident x -> Ident x
   | Term r -> Term (get_tree r)
-  | Field f -> Field f
 
 and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
  fun r ->

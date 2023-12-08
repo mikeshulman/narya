@@ -63,7 +63,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (tight, strict) branch ->
       observation Bwd.t ->
       (observation Bwd.t * (tight, strict) notation_in_interval) t =
-   fun { ops; constr; field; ident; term = _ } obs ->
+   fun { ops; field; ident; term = _ } obs ->
     let* rng, ok =
       located
         (step (fun state _ tok ->
@@ -71,20 +71,17 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              | Some br -> Some (Ok (br, ([] : observation list)), state)
              | None -> (
                  (* Constructor and field names have already been validated by the lexer. *)
-                 match (constr, tok) with
-                 | Some br, Constr x -> Some (Ok (br, [ Term (Constr x) ]), state)
+                 match (field, tok) with
+                 | Some br, Field x -> Some (Ok (br, [ Term (Field x) ]), state)
                  | _ -> (
-                     match (field, tok) with
-                     | Some br, Field x -> Some (Ok (br, [ Term (Field x) ]), state)
-                     | _ -> (
-                         (* A "ident" in a notation tree must be a valid *local* variable name. *)
-                         match (ident, tok) with
-                         | Some br, Ident x ->
-                             if Token.variableable x then Some (Ok (br, [ Term (Ident x) ]), state)
-                               (* We'd like to report "invalid local variable name" here, but we can't raise it directly through Asai because there could be backtracking.  We also want to mark it as a "semantic error" so we can control exactly what data is attached to it, but we can't do that by failing a 'step' with None.  So instead we "succeed" the 'step' but return an error value that encodes the invalid variable name.  *)
-                             else Some (Error x, state)
-                         | Some br, Underscore -> Some (Ok (br, [ Term Placeholder ]), state)
-                         | _ -> None))))) in
+                     (* A "ident" in a notation tree must be a valid *local* variable name. *)
+                     match (ident, tok) with
+                     | Some br, Ident x ->
+                         if Token.variableable x then Some (Ok (br, [ Term (Ident x) ]), state)
+                           (* We'd like to report "invalid local variable name" here, but we can't raise it directly through Asai because there could be backtracking.  We also want to mark it as a "semantic error" so we can control exactly what data is attached to it, but we can't do that by failing a 'step' with None.  So instead we "succeed" the 'step' but return an error value that encodes the invalid variable name.  *)
+                         else Some (Error x, state)
+                     | Some br, Underscore -> Some (Ok (br, [ Term Placeholder ]), state)
+                     | _ -> None)))) in
     (* Now outside the 'step', we test whether there was an error value, and if so we raise the appropriate semantic error.  *)
     match ok with
     | Ok (br, x) -> tree br (Bwd.append obs x)

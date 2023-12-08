@@ -57,7 +57,6 @@ type (_, _) tree =
 (* When there is a choice in parsing, we arrange it so that there is as little backtracking required as possible: we test all the possible next literal tokens, the possibility of a field or constructor, variable, other term, or being done with this node.  With this arrangement, the only necessary backtracking is that an identifier or constructor could also be a term.  So if both of those options are present, we have to backtrack after trying to parse a constructor or identifier and failing. *)
 and ('t, 's) branch = {
   ops : ('t, 's) tree TokMap.t;
-  constr : ('t, 's) tree option;
   field : ('t, 's) tree option;
   ident : ('t, 's) tree option;
   term : ('t, 's) tree TokMap.t option;
@@ -133,7 +132,7 @@ and ('left, 'tight, 'right) notation = {
   mutable print_as_case : (Format.formatter -> observation list -> unit) option;
 }
 
-let empty_branch = { ops = TokMap.empty; constr = None; field = None; ident = None; term = None }
+let empty_branch = { ops = TokMap.empty; field = None; ident = None; term = None }
 
 let infix ~notn ~first ~inner ~last ~left_ok ~right_ok =
   Notn
@@ -278,7 +277,6 @@ let op tok x = Inner { empty_branch with ops = TokMap.singleton tok x }
 let ops toks = Inner { empty_branch with ops = TokMap.of_list toks }
 let term tok x = Inner { empty_branch with term = Some (TokMap.singleton tok x) }
 let terms toks = Inner { empty_branch with term = Some (TokMap.of_list toks) }
-let constr x = Inner { empty_branch with constr = Some x }
 let field x = Inner { empty_branch with field = Some x }
 let ident x = Inner { empty_branch with ident = Some x }
 let of_entry e = Inner { empty_branch with ops = e }
@@ -315,10 +313,9 @@ let rec lower_tree :
 
 and lower_branch :
     type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) branch -> (t1, s1) branch =
- fun sub { ops; constr; field; ident; term } ->
+ fun sub { ops; field; ident; term } ->
   {
     ops = TokMap.map (lower_tree sub) ops;
-    constr = Option.map (lower_tree sub) constr;
     field = Option.map (lower_tree sub) field;
     ident = Option.map (lower_tree sub) ident;
     term = Option.map (TokMap.map (lower_tree sub)) term;
@@ -328,9 +325,8 @@ let lower : type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) entry
  fun sub map -> TokMap.map (lower_tree sub) map
 
 let rec names : type t s. (t, s) tree -> string list = function
-  | Inner { ops; constr; ident; field; term } ->
-      Option.fold ~none:[] ~some:names constr
-      @ Option.fold ~none:[] ~some:names ident
+  | Inner { ops; ident; field; term } ->
+      Option.fold ~none:[] ~some:names ident
       @ Option.fold ~none:[] ~some:names field
       @ names_tmap ops
       @ Option.fold ~none:[] ~some:names_tmap term
@@ -380,10 +376,9 @@ and merge_branch :
  fun sub x y ->
   let ops = merge_tmap sub x.ops y.ops in
   let ident = merge_opt (merge_tree sub) (lower_tree sub) x.ident y.ident in
-  let constr = merge_opt (merge_tree sub) (lower_tree sub) x.constr y.constr in
   let field = merge_opt (merge_tree sub) (lower_tree sub) x.field y.field in
   let term = merge_opt (merge_tmap sub) (TokMap.map (lower_tree sub)) x.term y.term in
-  { ops; constr; field; ident; term }
+  { ops; field; ident; term }
 
 let merge :
     type t1 t2 s1 s2.

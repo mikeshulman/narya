@@ -72,7 +72,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              | None -> (
                  (* Constructor and field names have already been validated by the lexer. *)
                  match (constr, tok) with
-                 | Some br, Constr x -> Some (Ok (br, [ Constr x ]), state)
+                 | Some br, Constr x -> Some (Ok (br, [ Term (Constr x) ]), state)
                  | _ -> (
                      match (field, tok) with
                      | Some br, Field x -> Some (Ok (br, [ Field x ]), state)
@@ -244,7 +244,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                     | _, None, _ -> Error (name notn)
                                     | _, _, None -> Error "application");
                               })))
-               (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Abstractions are not allowed as undelimited arguments.  Constructors *are* allowed, because they might have no arguments. *)
+               (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
                </> let* rng, arg =
                      located
                        (step (fun state _ tok ->

@@ -34,7 +34,6 @@ and ('t, 's) branch = {
 and ('t, 's) entry = ('t, 's) tree TokMap.t
 
 and observation =
-  | Constr of string
   | Field of string
   | Ident of string option
   | Term : ('lt, 'ls, 'rt, 'rs) parse -> observation

@@ -568,7 +568,7 @@ let rec compile_branches : type n. (string option, n) Bwv.t -> observation list 
  fun ctx obs ->
   match obs with
   | [] -> []
-  | Constr c :: obs -> compile_branch ctx c obs
+  | Term (Constr c) :: obs -> compile_branch ctx c obs
   | _ -> fatal (Anomaly "invalid notation arguments for match")
 
 and compile_branch :
@@ -601,7 +601,7 @@ let () =
                   let branches = compile_branches ctx obs in
                   Match ((x, fa), branches))
           (* If we went right to a constructor, then that means it's a matching lambda. *)
-          | Constr c :: obs ->
+          | Term (Constr c) :: obs ->
               let branches = compile_branch (Snoc (ctx, None)) c obs in
               Lam (`Normal, Match ((Top, None), branches))
           (* If we went right to Done, that means it's a matching lambda with zero branches. *)
@@ -620,7 +620,7 @@ let rec branch_vars : observation list -> string option list * observation list 
 let rec pp_branches : bool -> formatter -> observation list -> unit =
  fun brk ppf obs ->
   match obs with
-  | Constr c :: obs -> (
+  | Term (Constr c) :: obs -> (
       let vars, obs = branch_vars obs in
       match obs with
       | Term tm :: obs ->

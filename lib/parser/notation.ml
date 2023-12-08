@@ -54,7 +54,7 @@ type (_, _) tree =
   (* Trees associated to notations of arbitrary length are infinite, so we allow them to be computed lazily as needed. *)
   | Lazy : ('t, 's) tree Lazy.t -> ('t, 's) tree
 
-(* When there is a choice in parsing, we arrange it so that there is as little backtracking required as possible: we test all the possible next literal tokens, the possibility of a field or constructor, variable, other term, or being done with this node.  With this arrangement, the only necessary backtracking is that an identifier or constructor could also be a term.  So if both of those options are present, we have to backtrack after trying to parse a constructor or identifier and failing. *)
+(* When there is a choice in parsing, we arrange it so that no backtracking is required.  We test all the possible next literal tokens, the possibility of a notation operator, field, or other term being done with this node.  Constructors and identifiers are considered special terms and extracted during postprocessing.  Operators and fields cannot also be other terms, so there is no need for backtracking. *)
 and ('t, 's) branch = {
   ops : ('t, 's) tree TokMap.t;
   field : ('t, 's) tree option;

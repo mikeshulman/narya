@@ -14,7 +14,7 @@ module ParseTree = struct
   type t = observation
 end
 
-(* We misuse Fmlib's "semantic" errors for a couple of special classes of errors that are really syntactic, but which we don't detect until after the relevant tokens have already been "successfully" parsed, and for which we want to report more structured error information than just an "expected" string. *)
+(* We misuse Fmlib's "semantic" errors for a special class of errors that are really syntactic, but which we don't detect until after the relevant tokens have already been "successfully" parsed, and for which we want to report more structured error information than just an "expected" string. *)
 module SemanticError = struct
   type t =
     (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because applications are implemented specially in the parser and not as an actual Notation. *)
@@ -29,7 +29,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   (* We aren't using Fmlib's error reporting, so there's no point in supplying it nonempty "expect" strings. *)
   let step f = step "" f
   let followed_by f = followed_by f ""
-  let backtrack f = backtrack f ""
 
   let rec tree :
       type tight strict.
@@ -41,17 +40,14 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | Inner ({ term; _ } as br) -> (
         match term with
         | Some e -> (
-            (* If a term is allowed, we first try parsing something else, and if that fails we backtrack and parse a term.  This appears to be necessary because an ident or a constr could also begin a term. *)
-            backtrack (inner_nonterm br obs)
+            inner_nonterm br obs
             </>
             (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
             let* subterm = lclosed Interval.entire e in
             match subterm.get Interval.entire with
             | Ok tm -> tree_op e (Snoc (obs, Term tm))
             | Error n -> fatal (Anomaly (Printf.sprintf "Interior term failed on notation %s" n)))
-        | None ->
-            (* If a term is not allowed, we simply parse something else, with no backtracking needed. *)
-            inner_nonterm br obs)
+        | None -> inner_nonterm br obs)
     | Done_open (lt, n) -> return (obs, Open_in_interval (lt, n))
     | Done_closed n -> return (obs, Closed_in_interval n)
     | Lazy (lazy t) -> tree t obs

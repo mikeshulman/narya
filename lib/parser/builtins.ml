@@ -46,26 +46,27 @@ let () =
   set_tree letin
     (Closed_entry
        (eop Let
-          (ident
-             (ops
-                [
-                  (Coloneq, term In (Done_closed letin));
-                  (Colon, term Coloneq (term In (Done_closed letin)));
-                ]))));
+          (terms
+             [
+               (Coloneq, term In (Done_closed letin));
+               (Colon, term Coloneq (term In (Done_closed letin)));
+             ])));
   set_processor letin
     {
       process =
         (fun ctx obs ->
           match obs with
           | [ Term x; Term ty; Term tm; Term body ] -> (
+              let x = get_var x in
               let ty, tm = (process ctx ty, process ctx tm) in
-              match process (Snoc (ctx, get_var x)) body with
+              match process (Snoc (ctx, x)) body with
               | Synth body -> Synth (Let (Asc (tm, ty), body))
               | _ -> fatal (Nonsynthesizing "body of let"))
           | [ Term x; Term tm; Term body ] -> (
+              let x = get_var x in
               match process ctx tm with
               | Synth term -> (
-                  match process (Snoc (ctx, get_var x)) body with
+                  match process (Snoc (ctx, x)) body with
                   | Synth body -> Synth (Let (term, body))
                   | _ -> fatal (Nonsynthesizing "body of let"))
               | _ -> fatal (Nonsynthesizing "value of let"))
@@ -372,37 +373,38 @@ let () =
 
 let struc = make "struc" Outfix
 
+let rec struc_fields () =
+  Inner
+    {
+      empty_branch with
+      ops = TokMap.singleton RBrace (Done_closed struc);
+      term =
+        Some
+          (TokMap.singleton Coloneq
+             (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done_closed struc) ]));
+    }
+
+let rec comatch_fields () =
+  Inner
+    {
+      empty_branch with
+      ops = TokMap.singleton RBrace (Done_closed struc);
+      field =
+        Some
+          (op Mapsto
+             (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed struc) ]));
+    }
+
 let () =
   set_tree struc
-    (let rec struc_fields () =
-       Inner
-         {
-           empty_branch with
-           ops = TokMap.singleton RBrace (Done_closed struc);
-           ident =
-             Some
-               (op Coloneq
-                  (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done_closed struc) ]));
-         } in
-     let rec comatch_fields () =
-       Inner
-         {
-           empty_branch with
-           ops = TokMap.singleton RBrace (Done_closed struc);
-           field =
-             Some
-               (op Mapsto
-                  (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed struc) ]));
-         } in
-     Closed_entry
+    (Closed_entry
        (eop LBrace
           (Inner
              {
-               empty_branch with
                ops = TokMap.singleton RBrace (Done_closed struc);
-               ident =
+               term =
                  Some
-                   (op Coloneq
+                   (TokMap.singleton Coloneq
                       (terms
                          [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done_closed struc) ]));
                field =
@@ -504,19 +506,17 @@ let () =
              {
                empty_branch with
                ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done_closed mtch) ];
-               ident =
-                 Some
-                   (Inner
-                      {
-                        empty_branch with
-                        ops =
-                          TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done_closed mtch) ];
-                        field = Some (op (Op "|") (innermtch ()));
-                      });
                term =
                  Some
-                   (TokMap.singleton Mapsto
-                      (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]));
+                   (TokMap.of_list
+                      [
+                        (Op "|", innermtch ());
+                        (RBracket, Done_closed mtch);
+                        ( Mapsto,
+                          terms
+                            [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]
+                        );
+                      ]);
              })))
 
 let rec get_pattern :
@@ -555,17 +555,13 @@ let () =
           | Term (Ident ident) :: obs -> (
               match Bwv.index (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)
-              | Some x ->
-                  let fa, obs =
-                    (* If the next thing is a field, it must mean a face of a cube variable. *)
-                    match obs with
-                    | Term (Field fld) :: obs -> (
-                        match Dim.sface_of_string fld with
-                        | Some fa -> (Some fa, obs)
-                        | None -> fatal Parse_error)
-                    | _ -> (None, obs) in
-                  let branches = process_branches ctx obs in
-                  Match ((x, fa), branches))
+              | Some x -> Match ((x, None), process_branches ctx obs))
+          (* If the first thing is a field of an ident, it must mean a face of a cube variable. *)
+          | Term (App { fn = Ident ident; arg = Field fld; _ }) :: obs -> (
+              match (Bwv.index (Some ident) ctx, Dim.sface_of_string fld) with
+              | Some x, Some fa -> Match ((x, Some fa), process_branches ctx obs)
+              | None, _ -> fatal (Unbound_variable ident)
+              | _ -> fatal Parse_error)
           (* Otherwise, it's a matching lambda. *)
           | _ ->
               let branches = process_branches (Snoc (ctx, None)) obs in

@@ -8,7 +8,7 @@ open Notation
 open Monad.Ops (Monad.Maybe)
 
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option = function
-  | Ident x -> Some x
+  | Ident x -> if Token.variableable x then Some x else fatal (Invalid_variable x)
   | Placeholder -> None
   | _ -> fatal Parse_error
 

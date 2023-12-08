@@ -26,7 +26,6 @@ type (_, _) tree =
 and ('t, 's) branch = {
   ops : ('t, 's) tree TokMap.t;
   field : ('t, 's) tree option;
-  ident : ('t, 's) tree option;
   term : ('t, 's) tree TokMap.t option;
 }
 
@@ -135,7 +134,6 @@ val ops : (TokMap.key * ('t, 's) tree) list -> ('t, 's) tree
 val term : TokMap.key -> ('t, 's) tree -> ('t, 's) tree
 val terms : (TokMap.key * ('t, 's) tree) list -> ('t, 's) tree
 val field : ('t, 's) tree -> ('t, 's) tree
-val ident : ('t, 's) tree -> ('t, 's) tree
 val of_entry : ('t, 's) tree TokMap.t -> ('t, 's) tree
 val done_open : ('left opn, 'tight, 'right) notation -> ('tight, No.nonstrict) tree
 val eop : TokMap.key -> 'a -> 'a TokMap.t

@@ -67,7 +67,7 @@ and ('t, 's) branch = {
 and ('t, 's) entry = ('t, 's) tree TokMap.t
 
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "compilation" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
-and observation = Ident of string option | Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
+and observation = Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
 (* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness, and may require witnesses that it is tight enough on the left and/or the right also depending on its openness. *)
 and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn = {
@@ -102,6 +102,7 @@ and (_, _, _, _) parse =
       right_ok : ('rt, 'rs, No.plus_omega) No.lt;
     }
       -> ('lt, 'ls, 'rt, 'rs) parse
+  | Placeholder : ('lt, 'ls, 'rt, 'rs) parse
   | Ident : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse

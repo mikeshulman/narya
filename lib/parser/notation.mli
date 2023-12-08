@@ -32,7 +32,7 @@ and ('t, 's) branch = {
 }
 
 and ('t, 's) entry = ('t, 's) tree TokMap.t
-and observation = Ident of string option | Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
+and observation = Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn
 
 and (_, _, _, _) parse =
@@ -44,6 +44,7 @@ and (_, _, _, _) parse =
       right_ok : ('rt, 'rs, No.plus_omega) No.lt;
     }
       -> ('lt, 'ls, 'rt, 'rs) parse
+  | Placeholder : ('lt, 'ls, 'rt, 'rs) parse
   | Ident : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse

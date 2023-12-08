@@ -7,6 +7,11 @@ open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
 
+let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option = function
+  | Ident x -> Some x
+  | Placeholder -> None
+  | _ -> fatal Parse_error
+
 (* At present we only know how to compile natural number numerals. *)
 let compile_numeral (n : Q.t) =
   let rec compile_nat (n : Z.t) =
@@ -48,6 +53,7 @@ let rec compile : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
           let arg = compile ctx arg in
           Raw.Constr (head, Snoc (args, arg))
       | _ -> fatal (Nonsynthesizing "application head"))
+  | Placeholder -> fatal (Unimplemented "unification arguments")
   | Ident x -> (
       match Bwv.index (Some x) ctx with
       | Some n -> Synth (Var (n, None))

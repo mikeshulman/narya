@@ -32,7 +32,12 @@ let () =
       compile =
         (fun ctx obs ->
           match obs with
-          | [ Ident x; Term tm; Term ty ] ->
+          | [ Term x; Term tm; Term ty ] ->
+              let x =
+                match x with
+                | Ident x -> Some x
+                | Placeholder -> None
+                | _ -> fatal Parse_error in
               let tm = compile ctx tm in
               let ty = compile (Snoc (ctx, x)) ty in
               Synth (App (App (Const sigma, tm), Lam (`Normal, ty)))

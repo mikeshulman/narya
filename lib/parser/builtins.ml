@@ -58,15 +58,15 @@ let () =
       compile =
         (fun ctx obs ->
           match obs with
-          | [ Ident x; Term ty; Term tm; Term body ] -> (
+          | [ Term x; Term ty; Term tm; Term body ] -> (
               let ty, tm = (compile ctx ty, compile ctx tm) in
-              match compile (Snoc (ctx, x)) body with
+              match compile (Snoc (ctx, get_var x)) body with
               | Synth body -> Synth (Let (Asc (tm, ty), body))
               | _ -> fatal (Nonsynthesizing "body of let"))
-          | [ Ident x; Term tm; Term body ] -> (
+          | [ Term x; Term tm; Term body ] -> (
               match compile ctx tm with
               | Synth term -> (
-                  match compile (Snoc (ctx, x)) body with
+                  match compile (Snoc (ctx, get_var x)) body with
                   | Synth body -> Synth (Let (term, body))
                   | _ -> fatal (Nonsynthesizing "body of let"))
               | _ -> fatal (Nonsynthesizing "value of let"))
@@ -76,19 +76,20 @@ let () =
       let rec pp_let : formatter -> observation list -> unit =
        fun ppf obs ->
         match obs with
-        | [ Ident x; Term ty; Term tm; Term body ] ->
+        | [ Term x; Term ty; Term tm; Term body ] ->
             fprintf ppf
               (match style () with
               | Compact -> "@[<hov 2>@[<hv 2>%a %a@ %a %a@ %a %a@]@ %a@]@ %a"
               | Noncompact -> "@[<hv 2>%a %a@ %a %a@ %a %a@ %a@]@ %a")
-              pp_tok Let pp_var x pp_tok Colon pp_term (Wrap ty) pp_tok Coloneq pp_term (Wrap tm)
-              pp_tok In pp_let_body (Wrap body)
-        | [ Ident x; Term tm; Term body ] ->
+              pp_tok Let pp_term (Wrap x) pp_tok Colon pp_term (Wrap ty) pp_tok Coloneq pp_term
+              (Wrap tm) pp_tok In pp_let_body (Wrap body)
+        | [ Term x; Term tm; Term body ] ->
             fprintf ppf
               (match style () with
               | Compact -> "@[<hov 2>%a %a %a@ %a@ %a@]@ %a"
               | Noncompact -> "@[<hv 2>%a %a %a@ %a@ %a@]@ %a")
-              pp_tok Let pp_var x pp_tok Coloneq pp_term (Wrap tm) pp_tok In pp_let_body (Wrap body)
+              pp_tok Let pp_term (Wrap x) pp_tok Coloneq pp_term (Wrap tm) pp_tok In pp_let_body
+              (Wrap body)
         | _ -> fatal (Anomaly "invalid notation arguments for let")
       and pp_let_body ppf tr =
         match tr with
@@ -437,13 +438,13 @@ let rec compile_struc :
  fun flds ctx obs ->
   match obs with
   | [] -> Raw.Struct flds
-  | Ident (Some x) :: obs | Term (Field x) :: obs -> (
+  | Term (Ident x) :: obs | Term (Field x) :: obs -> (
       match obs with
       | Term tm :: obs ->
           let tm = compile ctx tm in
           compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
-  | Ident None :: _ -> fatal Unnamed_field_in_struct
+  | Term Placeholder :: _ -> fatal Unnamed_field_in_struct
   | _ -> fatal (Anomaly "invalid notation arguments for struct")
 
 let () = set_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
@@ -466,7 +467,7 @@ and pp_fields : formatter -> observation list -> unit =
  fun ppf obs ->
   match obs with
   | [] -> ()
-  | Ident (Some x) :: obs | Term (Field x) :: obs -> (
+  | Term (Ident x) :: obs | Term (Field x) :: obs -> (
       match obs with
       | Term tm :: obs ->
           (match state () with
@@ -474,7 +475,7 @@ and pp_fields : formatter -> observation list -> unit =
           | Case -> pp_fld ppf pp_field x Mapsto (Wrap tm) obs);
           pp_fields ppf obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
-  | Ident None :: _ -> fatal Unnamed_field_in_struct
+  | Term Placeholder :: _ -> fatal Unnamed_field_in_struct
   | _ -> fatal (Anomaly "invalid notation arguments for struct")
 
 let pp_struc ppf obs =
@@ -508,22 +509,17 @@ let () =
 
 let mtch = make "match" Outfix
 
-let rec pattern_vars () =
-  Inner
-    {
-      empty_branch with
-      ident = Some (Lazy (lazy (pattern_vars ())));
-      ops =
-        TokMap.singleton Mapsto
-          (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]);
-    }
+(* TODO: Have to parse each LHS as a *term* and then inspect it later as a pattern. *)
 
-and innermtch () =
+let rec innermtch () =
   Inner
     {
       empty_branch with
       ops = TokMap.of_list [ (RBracket, Done_closed mtch) ];
-      constr = Some (pattern_vars ());
+      term =
+        Some
+          (TokMap.singleton Mapsto
+             (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]));
     }
 
 let () =
@@ -538,45 +534,42 @@ let () =
                  Some
                    (Inner
                       {
+                        empty_branch with
                         ops =
                           TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done_closed mtch) ];
-                        ident = None;
-                        constr = None;
                         field = Some (op (Op "|") (innermtch ()));
-                        term = None;
                       });
-               constr = Some (pattern_vars ());
+               term =
+                 Some
+                   (TokMap.singleton Mapsto
+                      (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]));
              })))
 
-let rec compile_branch_names :
-    type a b ab.
-    (a, b, ab) N.plus ->
-    (string option, ab) Bwv.t ->
-    Constr.t ->
-    observation list ->
-    a Raw.branch * observation list =
- fun ab ctx c obs ->
-  match obs with
-  | Ident a :: obs -> compile_branch_names (Suc ab) (Snoc (ctx, a)) c obs
-  | Term t :: obs ->
-      let tm = compile ctx t in
-      (Branch (c, ab, tm), obs)
-  | _ -> fatal (Anomaly "invalid notation arguments for match")
+let rec get_pattern :
+    type n lt1 ls1 rt1 rs1.
+    (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse -> Constr.t * n extended_ctx =
+ fun ctx pat ->
+  match pat with
+  | Constr c -> (Constr.intern c, Extctx (Zero, ctx))
+  | App { fn; arg = Ident x; _ } ->
+      if Token.variableable x then
+        let c, Extctx (ab, ctx) = get_pattern ctx fn in
+        (c, Extctx (Suc ab, Snoc (ctx, Some x)))
+      else fatal (Invalid_variable x)
+  | App { fn; arg = Notn n; _ } when equal (notn n) underscore ->
+      let c, Extctx (ab, ctx) = get_pattern ctx fn in
+      (c, Extctx (Suc ab, Snoc (ctx, None)))
+  | _ -> fatal Parse_error
 
 let rec compile_branches : type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list
     =
  fun ctx obs ->
   match obs with
   | [] -> []
-  | Term (Constr c) :: obs -> compile_branch ctx c obs
+  | Term pat :: Term body :: obs ->
+      let c, Extctx (ab, ectx) = get_pattern ctx pat in
+      Branch (c, ab, compile ectx body) :: compile_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for match")
-
-and compile_branch :
-    type n. (string option, n) Bwv.t -> string -> observation list -> n Raw.branch list =
- fun ctx c obs ->
-  let br, obs = compile_branch_names Zero ctx (Constr.intern c) obs in
-  let rest = compile_branches ctx obs in
-  br :: rest
 
 let () =
   set_compiler mtch
@@ -584,9 +577,8 @@ let () =
       compile =
         (fun ctx obs ->
           match obs with
-          (* Can't match an underscore *)
-          | Ident None :: _ -> fatal Unnamed_variable_in_match
-          | Ident (Some ident) :: obs -> (
+          (* If the first thing is an ident, then it's the match variable *)
+          | Term (Ident ident) :: obs -> (
               match Bwv.index (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)
               | Some x ->
@@ -600,55 +592,38 @@ let () =
                     | _ -> (None, obs) in
                   let branches = compile_branches ctx obs in
                   Match ((x, fa), branches))
-          (* If we went right to a constructor, then that means it's a matching lambda. *)
-          | Term (Constr c) :: obs ->
-              let branches = compile_branch (Snoc (ctx, None)) c obs in
-              Lam (`Normal, Match ((Top, None), branches))
-          (* If we went right to Done, that means it's a matching lambda with zero branches. *)
-          | [] -> Lam (`Normal, Match ((Top, None), []))
-          | _ -> fatal (Anomaly "invalid notation arguments for match"));
+          (* Otherwise, it's a matching lambda. *)
+          | _ ->
+              let branches = compile_branches (Snoc (ctx, None)) obs in
+              Lam (`Normal, Match ((Top, None), branches)));
     }
-
-let rec branch_vars : observation list -> string option list * observation list =
- fun obs ->
-  match obs with
-  | Ident x :: obs ->
-      let rest, obs = branch_vars obs in
-      (x :: rest, obs)
-  | _ -> ([], obs)
 
 let rec pp_branches : bool -> formatter -> observation list -> unit =
  fun brk ppf obs ->
   match obs with
-  | Term (Constr c) :: obs -> (
-      let vars, obs = branch_vars obs in
-      match obs with
-      | Term tm :: obs ->
-          let style = style () in
-          if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
-          (match tm with
-          | Notn n when equal (notn n) mtch && style = Compact ->
-              fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a%a@] %a@]" pp_tok (Op "|") pp_constr c
-                (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
-                vars pp_tok Mapsto (pp_match false) (args n)
-          | _ ->
-              fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a%a@]%t%a@]" pp_tok (Op "|") pp_constr c
-                (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
-                vars pp_tok Mapsto
-                (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
-                pp_term (Wrap tm));
-          pp_branches true ppf obs
-      | _ -> fatal (Anomaly "invalid notation arguments for match"))
+  | Term pat :: Term body :: obs ->
+      let style = style () in
+      if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
+      (match body with
+      | Notn n when equal (notn n) mtch && style = Compact ->
+          fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a@] %a@]" pp_tok (Op "|") pp_term (Wrap pat) pp_tok
+            Mapsto (pp_match false) (args n)
+      | _ ->
+          fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a@]%t%a@]" pp_tok (Op "|") pp_term (Wrap pat) pp_tok
+            Mapsto
+            (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
+            pp_term (Wrap body));
+      pp_branches true ppf obs
   | [] -> ()
   | _ -> fatal (Anomaly "invalid notation arguments for match")
 
 and pp_match box ppf obs =
   match obs with
-  | Ident ident :: obs ->
+  | Term (Ident ident) :: obs ->
       if box then pp_open_vbox ppf 0;
       pp_tok ppf LBracket;
       pp_print_string ppf " ";
-      pp_var ppf ident;
+      pp_term ppf (Wrap (Ident ident));
       pp_branches true ppf obs;
       if style () = Compact then pp_print_string ppf " " else pp_print_cut ppf ();
       pp_tok ppf RBracket;

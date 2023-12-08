@@ -50,11 +50,7 @@ let () =
             Term (App (Ident "x", Ident "y"));
             Term
               (Notn
-                 ( "parens",
-                   [
-                     (* Flag is ignored, since the eventual notation is not a pi. *)
-                     Term (Notn ("ascription", [ Term (Ident "z"); Term (Ident "w") ]));
-                   ] ));
+                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "z"); Term (Ident "w") ])) ]));
           ] ))
 
 let () =
@@ -76,7 +72,7 @@ let () =
 let () =
   assert (
     parse !builtins "let x := y in z"
-    = Notn ("let", [ Ident (Some "x"); Term (Ident "y"); Term (Ident "z") ]))
+    = Notn ("let", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]))
 
 let () =
   assert (
@@ -84,15 +80,15 @@ let () =
     = Notn
         ( "let",
           [
-            Ident (Some "x");
+            Term (Ident "x");
             Term (Ident "y");
-            Term (Notn ("let", [ Ident (Some "a"); Term (Ident "b"); Term (Ident "c") ]));
+            Term (Notn ("let", [ Term (Ident "a"); Term (Ident "b"); Term (Ident "c") ]));
           ] ))
 
 let () =
   assert (
     parse !builtins "let x : a := y in z"
-    = Notn ("let", [ Ident (Some "x"); Term (Ident "a"); Term (Ident "y"); Term (Ident "z") ]))
+    = Notn ("let", [ Term (Ident "x"); Term (Ident "a"); Term (Ident "y"); Term (Ident "z") ]))
 
 (* let () =
      assert (
@@ -159,7 +155,7 @@ let () =
 let () = assert (parse !builtins "{}" = Notn ("struc", []))
 
 let () =
-  assert (parse !builtins "{x := y}" = Notn ("struc", [ Ident (Some "x"); Term (Ident "y") ]))
+  assert (parse !builtins "{x := y}" = Notn ("struc", [ Term (Ident "x"); Term (Ident "y") ]))
 
 let () =
   assert (parse !builtins "{.x |-> y}" = Notn ("struc", [ Term (Field "x"); Term (Ident "y") ]))
@@ -167,15 +163,7 @@ let () =
 let () =
   assert (
     parse !builtins "{x := y ; z := w}"
-    = Notn
-        ( "struc",
-          [
-            (* flag ignored *)
-            Ident (Some "x");
-            Term (Ident "y");
-            Ident (Some "z");
-            Term (Ident "w");
-          ] ))
+    = Notn ("struc", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z"); Term (Ident "w") ]))
 
 let () =
   assert (
@@ -185,7 +173,7 @@ let () =
 let () =
   assert (
     parse !builtins "{x := y ; z := w;}"
-    = Notn ("struc", [ Ident (Some "x"); Term (Ident "y"); Ident (Some "z"); Term (Ident "w") ]))
+    = Notn ("struc", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z"); Term (Ident "w") ]))
 
 let () =
   assert (
@@ -193,11 +181,11 @@ let () =
     = Notn
         ( "struc",
           [
-            Ident (Some "x");
+            Term (Ident "x");
             Term (Ident "y");
-            Ident (Some "z");
+            Term (Ident "z");
             Term (Ident "w");
-            Ident (Some "a");
+            Term (Ident "a");
             Term (Ident "b");
           ] ))
 
@@ -218,7 +206,7 @@ let () =
     = Notn
         ( "sigma",
           [
-            (* ignored flag *) Ident (Some "x"); Term (Ident "A"); Term (App (Ident "B", Ident "x"));
+            (* ignored flag *) Term (Ident "x"); Term (Ident "A"); Term (App (Ident "B", Ident "x"));
           ] ))
 
 let () =
@@ -227,13 +215,13 @@ let () =
     = Notn
         ( "sigma",
           [
-            Ident (Some "x");
+            Term (Ident "x");
             Term (Ident "A");
             Term
               (Notn
                  ( "sigma",
                    [
-                     Ident (Some "y");
+                     Term (Ident "y");
                      Term (App (Ident "B", Ident "x"));
                      Term (App (App (Ident "C", Ident "x"), Ident "y"));
                    ] ));

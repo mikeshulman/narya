@@ -7,24 +7,11 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html), [Bwd](https://github.com/redprl/ocaml-bwd), [Algaeff](https://redprl.org/algaeff/algaeff/Algaeff/index.html), [Asai](https://redprl.org/asai/asai/), and [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/).  The first three can be installed from Opam, but currently Narya uses unreleased features of the latter two libraries.  Thus they need to be compiled from source, which requires installing their prerequisites from opam manually.
+Narya requires OCaml version 5.1.0 and the libraries [Zarith](https://antoinemine.github.io/Zarith/doc/latest/index.html), [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html), [Bwd](https://github.com/redprl/ocaml-bwd), [Algaeff](https://redprl.org/algaeff/algaeff/Algaeff/index.html), [Asai](https://redprl.org/asai/asai/), and [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/).
 
 ```
 opam switch create 5.1.0
-opam install zarith fmlib_parse bwd algaeff notty eio_main alcotest lsp qcheck-core js_of_ocaml js_of_ocaml-ppx
-
-git clone git@github.com:RedPRL/asai.git
-cd asai
-dune build
-dune install
-cd ..
-
-git clone git@github.com:RedPRL/yuujinchou.git
-cd yuujinchou
-dune build
-dune install
-cd ..
-
+opam install zarith fmlib_parse bwd algaeff asai yuujinchou
 cd narya
 dune build
 dune runtest
@@ -35,13 +22,14 @@ There is no main executable yet, but you can load the library in a new OCaml exe
 
 ## Parsing
 
-The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be defined (like everything else) using the OCaml interface.  We prefer to say "tightness" instead of "precedence", to make it clear that higher numbers bind more tightly.  Tightnesses are floating-point values; ∞ and −∞ are reserved for internal use, while NaN is used for "closed" notations (those that start and end with a symbol rather than a term) which can occur anywhere and thus don't need a tightness.  More generally, notations can be either left-closed or left-open, and either right-closed or right-open, and tightness and associativity are only relevant on the open side(s).  The built-in notations are:
+The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be defined (like everything else) using the OCaml interface.  We prefer to say "tightness" instead of "precedence", to make it clear that higher numbers bind more tightly.  Tightnesses are *dyadic rational numbers*, including ω and −ω that are reserved for internal use.  Notations can be either left-closed or left-open, and either right-closed or right-open, and tightness and associativity are only relevant on the open side(s).  An infix notation is one that is open on both sides; a prefix notation is closed on the left and open on the right; a postfix notation is open on the left and closed on the right; and a "closed" or "outfix" notation is closed on both sides.  The built-in notations are:
 
 - `( M )` – Parentheses for grouping (a closed notation).
 - `Type` – The unique universe (currently we have type-in-type).
 - `M N` – Function application (left-associative).
 - `x ↦ M` – Lambda-abstraction.  The unicode ↦ can be replaced by ASCII `|->`.
 - `x y z ↦ M` – Iterated lambda-abstraction.
+- `x ⤇ M` – Higher-dimensional lambda-abstraction (see below).
 - `(x : M) → N` – Pi-type.  The unicode → can be replaced by ASCII `->`.
 - `(x : M) (y z : N) (w : P) → Q` – Multivariable Pi-type.
 - `M → N` – Non-dependent function-type (right-associative).
@@ -57,17 +45,17 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `refl M` – Reflexivity term.
 - `sym M` – Symmetry of a two-dimensional square.
 
-Function application and field access can be thought of as left-associative infix operations with zero infix symbols and tightness +∞.  They are implemented specially internally, so that tightness +∞ is not technically used currently at all, but they should interact correctly with any other notations declared to have tightness +∞.  In particular, a nonassociative prefix notation of tightness +∞, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  There are no such notations currently, but future possibilities include explicification of implicit functions and universe lifting.
+Function application and field access can be thought of as left-associative infix operations with zero infix symbols and tightness +ω.  They are implemented specially internally, so that tightness +ω is not technically used currently at all, but they should interact correctly with any other notations declared to have tightness +ω.  In particular, a nonassociative prefix notation of tightness +ω, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  There are no such notations currently, but future possibilities include explicification of implicit functions and universe lifting.
 
-Abstraction, ascription, and let-bindings have tightness −∞, so they bind more loosely than anything except each other.  Type ascription is non-associative, so `M : N : P` is a parse error.  Let-binding and pi-types are also non-associative: because they are left-closed, they don't need to be right-associative in order to get the expected behavior of `let x ≔ M in let y ≔ N in P` and `(x : M) → (y : N) → P` (although note that the latter is redundant since one can also write `(x : M) (y : N) → P`).  This non-associativity means that they cannot be mixed with type ascription: `let x ≔ M in N : A` is a parse error.  Abstraction is right-associative, so that `x ↦ y ↦ M` parses correctly (though it can also be abbreviated as `x y ↦ M`).  This means that `x ↦ M : A` parses as `x ↦ (M : A)`.
+Abstraction, ascription, and let-bindings have tightness −ω, so they bind more loosely than anything except each other.  Type ascription is non-associative, so `M : N : P` is a parse error.  Abstraction and let-binding are right-associative, so that `x ↦ y ↦ M` parses correctly (though it can also be abbreviated as `x y ↦ M`).  In particular, this means that `x ↦ M : A` parses as `x ↦ (M : A)`, and similarly `let x ≔ M in N : A` parses as `let x ≔ M in (N : A)`.  Pi-types and function-types have tightness 0, and are right-associative.
 
-Pi-types and function-types have tightness 0.
+The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: `(x : A) → B` could be a dependent function type, but it could also be a *non-dependent* function type whose domain `x` is ascribed to type `A`.  Narya resolves this in favor of the dependent function type, which is nearly always what is intended; if you really mean the other you can write it as `((x : A)) → B` or `((x) : A) → B`.
 
-There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments can be nested.  However, if (part of) a block comment appears on a line before any code, then no code may appear on that line at all.  In other words, the only whitespace that can appear on a line before code is 0x20 SPACE (tab characters are not allowed anywhere).
+There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments can be nested.  However, if (part of) a block comment appears on a line before any code, then no code may appear on that line at all.  In other words, the only whitespace that can appear on a line before code is 0x20 SPACE (tab characters are not allowed anywhere).  (This may change.)
 
 As in Agda, mixfix notations can involve arbitrary Unicode characters, but must usually be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, in Narya this has the following exceptions:
 
-- The characters `( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ …` with built-in meaning are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for paretheses and braces in Agda, but the others are different: in Narya you can write `A→B`.  The unicode characters in this group all have ASCII substitutes that are completely interchangeable: `-> |-> |=> := ::= += ...`.
+- The characters `( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ …` with built-in meaning are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in Agda, but the others are different: in Narya you can write `A→B` without spaces.  The unicode characters in this group all have ASCII substitutes that are completely interchangeable: `-> |-> |=> := ::= += ...`.
 - A nonempty string consisting of the characters `~ ! @ # $ % ^ & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for parentheses (grouping), curly braces (structures and, later, implicit arguments), backquote (comments), period (fields, constructors, and, later, namespaces), underscore (later, inferred arguments), double quote (later, string literals) and single quote (allowed for primes on variable names).  In particular:
   - Ordinary algebraic operations like `+` and `*` can be defined so that `x+y` and `x*y` are valid.
   - This includes the colon, so you can write `(x:A) → B`, and similarly for the semicolon separating the fields of a structure.  But the user can also use these characters in other operators, such as `::` for list cons.  (Or you can use the Unicode ∷ if you want to require spacing.)
@@ -123,7 +111,7 @@ Constants that are not records or datatypes can be axioms (undefined), or they c
 
 The syntax for pattern matches is
 ```
-[ x |
+[ x
 | constr1. a b ↦ BRANCH1
 | constr2. c d ↦ BRANCH2
 ]
@@ -150,7 +138,9 @@ The identity/bridge type of a pi-type computes to another pi-type.  In Narya thi
 id ((x:A) → B) f g
 (x₀ : A) (x₁ : A) (x₂ : id A x₀ x₁) → id B (f x₀) (g x₁)
 ```
-However, in most cases we can pretend that these two types are literally the same, because the typechecker allows lambda-abstractions matching the structure of the second to also typecheck at the first, and likewise elements of the first can be applied to arguments as if they were functions belonging to the second.  There is no unifier yet, so such an application must include both endpoints `x₀` and `x₁` explicitly as well as the identity `x₂`.
+However, in most cases we can pretend that these two types are literally the same, because the typechecker allows lambda-abstractions matching the structure of the second to also typecheck at the first, and likewise elements of the first can be applied to arguments as if they were functions belonging to the second.
+
+There is no unifier yet, so such an abstraction or application must include both endpoints `x₀` and `x₁` explicitly as well as the identity `x₂`.  However, there is a shorthand syntax for such higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M`.  This binds `x` as a "family" or "cube" of variables which are accessed with a field-like notation: `x .0` and `x .1`, and `x .2`, or in higher dimensions `x .00` through `x .22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`" that has "fields" `x .0` and so on, rather there are really *three different variables* that just happen to have the names `x .0` and `x .1` and `x .2`.
 
 There is no primitive `ap`; instead it is accessed by applying `refl` to a function.  That is, if `f : (x:A) → B`, then `refl f x₀ x₁ x₂` relates `f x₀` to `f x₁` in `B`.  Likewise, identity types can be obtained by applying `refl` to a type: `Id M X Y` is just a convenient abbreviation of `refl M X Y`.
 
@@ -180,6 +170,6 @@ As above, since `Gel A B R` is an identification in the universe, it can be furt
 
 ## Remarks on implementation
 
-As is common for normalization-by-evaluation, the implementation uses De Bruijn *indices* for syntactic terms and De Bruijn *levels* for semantic values.  A little more unusually, however, the De Bruijn indices are intrinsically well-scoped.  This means that the type of terms is parametrized by the length of the context (as a type-level natural number, using GADTs), so that the OCaml compiler ensures *statically* that De Bruijn indices never go out of scope.  Other consistency checks are also ensured statically in a similar way, such as the matching of dimensions for certain types and operators.
+As is common for normalization-by-evaluation, the implementation uses De Bruijn *indices* for syntactic terms and De Bruijn *levels* for semantic values.  A little more unusually, however, the De Bruijn indices are intrinsically well-scoped.  This means that the type of terms is parametrized by the length of the context (as a type-level natural number, using GADTs), so that the OCaml compiler ensures *statically* that De Bruijn indices never go out of scope.  Other consistency checks are also ensured statically in a similar way, such as the matching of dimensions for certain types and operators, and scoping and associativity for notations.  (The latter is the reason why tightnesses are dyadic rationals: they are represented internally as type-level finite surreal sign-sequences.)
 
 This approach does have the drawback that it requires a fair amount of arithmetic on the natural numbers to ensure well-typedness, which is not only tedious but some of it also ends up happening at run-time.  Since type-level natural numbers are represented in unary, this could be a source of inefficiency in the future.

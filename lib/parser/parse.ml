@@ -42,14 +42,14 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | Inner ({ term; _ } as br) -> (
         match term with
         | Some e -> (
-            (* If a term is allowed, we first try parsing something else, and if that fails we backtrack and parse a term.  Some backtracking seems unavoidable here, because if we see for instance "(x : A) (y : B)" we have no way of knowing at first whether it is the beginning of an iterated Π-type or whether it means the existing variable x ascribed to the type A, applied as a function to the existing variable y ascribed to the type B.  It is also possible for there to be ambiguity, e.g. "(x : A) → B" looks like a Π-type, but could also be a *non* dependent function-type with its domain ascribed.  We resolve the ambiguity in favor of non-terms first, so that this example parses as a Π-type (the other reading is very unlikely to be what was meant).  Note that this also means the "semantic" errors of invalid variable names from inside the backtrack are lost if it fails and we go on to a term.  But that makes sense, because invalid variable names are valid as constant names, and if a term is allowed they can be parsed as constants (and then generate a name resolution error later if there is no such constant). *)
+            (* If a term is allowed, we first try parsing something else, and if that fails we backtrack and parse a term.  This appears to be necessary because an ident or a constr could also begin a term. *)
             backtrack (inner_nonterm br obs)
             </>
             (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
             let* subterm = lclosed Interval.entire e in
             match subterm.get Interval.entire with
             | Ok tm -> tree_op e (Snoc (obs, Term tm))
-            | Error _ -> fatal (Anomaly "Interior term failed"))
+            | Error n -> fatal (Anomaly (Printf.sprintf "Interior term failed on notation %s" n)))
         | None ->
             (* If a term is not allowed, we simply parse something else, with no backtracking needed. *)
             inner_nonterm br obs)

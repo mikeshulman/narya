@@ -14,6 +14,7 @@ let () =
   let abtou, _ = synth "(x:A)→ B x → Type" in
   let cc = assume "C" abtou in
   let abtoc, _ = synth "(x:A)→(y:B x)→C x y" in
+
   let g = assume "g" abtoc in
   let a0 = assume "a₀" aa in
   let a1 = assume "a₁" aa in
@@ -108,17 +109,18 @@ let () =
   let t, _ = synth "(x:A) → (y:D) × E" in
   let x = assume "x" t in
   let _ = check "x a .fst" dd in
-  let _ = synth "(x:A) × (y:D) → E" in
+  let _ = unsynth "(u:A) × (v:D) → E" in
+  let _ = synth "(x:A) × ((y:D) → E)" in
   let t, _ = synth "(x:A) → D × E" in
   let x = assume "x" t in
   let _ = check "x a .fst" dd in
-  let t, _ = synth "(x:A) × D → E" in
+  let t, _ = synth "(u:A) × D → E" in
   let x = assume "x" t in
   let _ = check "x (a,d)" ee in
   let t, _ = synth "A → (y:D) × E" in
   let x = assume "x" t in
   let _ = check "x a .fst" dd in
-  let _ = synth "A × (y:D) → E" in
+  let _ = synth "A × ((y:D) → E)" in
   let t, _ = synth "A → D × E" in
   let x = assume "x" t in
   let _ = check "x a .fst" dd in
@@ -192,7 +194,6 @@ nest `}
   let () = unparse "x.x ↦ x.x" in
   let () = unparse "x .y.z" in
   let () = unparse "x.y. z" in
+  let () = unparse "(x.x : A) → B x.x" in
 
-  (* This one actually parses!  In fact it hits the ambiguity issue: it gets rejected as a pi-type since "x.x" is not a valid *local* variable name, but it is still valid under the other interpretation of a non-dependent function-type whose domain is "x.x" ascribed to "A".  However, that doesn't typecheck except in very weird situations. *)
-  let () = unsynth "(x.x : A) → B x.x" in
   ()

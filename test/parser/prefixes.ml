@@ -40,8 +40,7 @@ let () =
 let () =
   assert (
     parse prefixes "@ (f x)"
-    = Notn
-        ("at", [ Term (Notn ("parens", [ Flag Explicit_pi; Term (App (Ident "f", Ident "x")) ])) ]))
+    = Notn ("at", [ Term (Notn ("parens", [ Term (App (Ident "f", Ident "x")) ])) ]))
 
 (* And again, since @ is a prefix notation, it can appear anyhere on the right, including inside itself. *)
 let () = assert (parse prefixes "@ @ x" = Notn ("at", [ Term (Notn ("at", [ Term (Ident "x") ])) ]))

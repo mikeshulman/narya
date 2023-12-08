@@ -107,194 +107,19 @@ let () =
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
 (* ********************
-   Non-dependent function types
+   Underscores
  ******************** *)
 
-let arrow = make "arrow" (Infixr No.zero)
+(* At present, the underscore doesn't have a meaning on its own, so compiling it is an error.  Its only function so far is to be recognized in the left-hand argument of an abstraction or pi-type as denoting an unnamed variable. *)
+
+let underscore = make "underscore" Outfix
 
 let () =
-  set_tree arrow (Open_entry (eop Arrow (done_open arrow)));
-  set_compiler arrow
-    {
-      compile =
-        (fun ctx obs ->
-          let Wrap dom, obs = get_term obs in
-          let Wrap cod, obs = get_term obs in
-          let () = get_done obs in
-          let dom = compile ctx dom in
-          let cod = compile (Snoc (ctx, None)) cod in
-          Synth (Pi (dom, cod)));
-    }
-
-(* These are pretty-printed together with pi-types, see below. *)
-
-(* ********************
-   Pi-types
- ******************** *)
-
-(* I think these are the only flags we're using, so if we could get rid of them, we could simplify by getting rid of flags completely. *)
-type flag += Implicit_pi | Explicit_pi | Default_pi
-
-let pi = make "pi" (Prefixr No.zero)
-
-let rec explicit_pi () = Flag (Explicit_pi, ident (explicit_pi_vars ()))
-and implicit_pi () = Flag (Implicit_pi, ident (implicit_pi_vars ()))
-
-and explicit_pi_vars () =
-  Inner
-    {
-      empty_branch with
-      ops = TokMap.singleton Colon (term RParen (more_pi ()));
-      ident = Some (Lazy (lazy (explicit_pi_vars ())));
-    }
-
-and implicit_pi_vars () =
-  Inner
-    {
-      empty_branch with
-      ops =
-        TokMap.singleton Colon
-          (terms
-             [
-               (Coloneq, Flag (Default_pi, term RBrace (Lazy (lazy (more_pi ())))));
-               (RBrace, Lazy (lazy (more_pi ())));
-             ]);
-      ident = Some (Lazy (lazy (implicit_pi_vars ())));
-    }
-
-and more_pi () =
-  ops
-    [
-      (LParen, Lazy (lazy (explicit_pi ())));
-      (LBrace, Lazy (lazy (implicit_pi ())));
-      (Arrow, Done_closed pi);
-    ]
-
-let () = set_tree pi (Closed_entry (eops [ (LParen, explicit_pi ()); (LBrace, implicit_pi ()) ]))
-
-let rec compile_pi : type n. (string option, n) Bwv.t -> observation list -> n check =
- fun ctx obs ->
-  let f = get_flag [ Explicit_pi; Implicit_pi ] obs in
-  match f with
-  | Some Implicit_pi -> fatal (Unimplemented "Implicit pi-types")
-  | Some Explicit_pi -> compile_pi_names Zero ctx obs
-  | _ ->
-      let Wrap body, obs = get_term obs in
-      let () = get_done obs in
-      compile ctx body
-
-and compile_pi_names :
-    type m n mn. (m, n, mn) N.plus -> (string option, mn) Bwv.t -> observation list -> m check =
- fun mn ctx obs ->
-  match get_next obs with
-  | `Done -> fatal (Anomaly "Unexpected end of arguments")
-  | `Ident (x, obs) -> compile_pi_names (Suc mn) (Snoc (ctx, x)) obs
-  | `Constr _ | `Field _ -> fatal (Anomaly "Impossible thing in pi")
-  | `Term (dom, obs) -> (
-      let f = get_flag [ Default_pi ] obs in
-      match f with
-      | Some Default_pi -> fatal (Unimplemented "Default arguments not implemented")
-      | _ ->
-          let cod = compile_pi ctx obs in
-          compile_pi_doms mn ctx dom cod)
-
-and compile_pi_doms :
-    type m n mn.
-    (m, n, mn) N.plus -> (string option, mn) Bwv.t -> wrapped_parse -> mn check -> m check =
- fun mn ctx (Wrap dom) cod ->
-  match (mn, ctx) with
-  | Zero, _ -> cod
-  | Suc mn, Snoc (ctx, _) ->
-      let cdom = compile ctx dom in
-      compile_pi_doms mn ctx (Wrap dom) (Synth (Pi (cdom, cod)))
-
-let () = set_compiler pi { compile = compile_pi }
-
-let rec pp_pi (arr : bool) (obs : observation list) :
-    int * (formatter -> unit -> unit) * wrapped_parse =
-  let f = get_flag [ Explicit_pi; Implicit_pi ] obs in
-  match f with
-  | Some Implicit_pi -> (
-      let names, obs = get_idents obs in
-      let ty, obs = get_term obs in
-      let f = get_flag [ Default_pi ] obs in
-      match f with
-      | Some Default_pi -> fatal (Unimplemented "Default arguments not implemented")
-      | _ ->
-          let sp, rest, body = pp_pi false obs in
-          ( 1,
-            (fun ppf () ->
-              if arr then pp_tok ppf Arrow;
-              fprintf ppf "%a%a %a %a%a%t" pp_tok LBrace
-                (pp_print_list ~pp_sep:pp_print_space pp_var)
-                names pp_tok Colon pp_term ty pp_tok RBrace (fun ppf -> pp_print_break ppf sp 0);
-              rest ppf ()),
-            body ))
-  | Some Explicit_pi -> (
-      let idents, obs = get_idents obs in
-      let ty, obs = get_term obs in
-      let f = get_flag [ Default_pi ] obs in
-      match f with
-      | Some Default_pi -> fatal (Unimplemented "Default arguments not implemented")
-      | _ ->
-          let sp, rest, body = pp_pi false obs in
-          ( 1,
-            (fun ppf () ->
-              if arr then fprintf ppf "%a " pp_tok Arrow;
-              fprintf ppf "%a%a %a %a%a%t" pp_tok LParen
-                (pp_print_list ~pp_sep:pp_print_space pp_var)
-                idents pp_tok Colon pp_term ty pp_tok RParen (fun ppf -> pp_print_break ppf sp 0);
-              rest ppf ()),
-            body ))
-  | _ -> (
-      let Wrap body, obs = get_term obs in
-      let () = get_done obs in
-      match body with
-      | Notn n when equal n.notn pi -> pp_pi false (args n)
-      | Notn n when equal n.notn arrow ->
-          let rest, body = pp_arrow true (args n) in
-          (1, rest, body)
-      | _ -> (0, (fun _ () -> ()), Wrap body))
-
-and pp_arrow (arr : bool) (obs : observation list) : (formatter -> unit -> unit) * wrapped_parse =
-  let dom, obs = get_term obs in
-  let Wrap body, obs = get_term obs in
+  set_tree underscore (Closed_entry (eop Underscore (Done_closed underscore)));
+  set_compiler underscore { compile = (fun _ _ -> fatal (Unimplemented "unification arguments")) };
+  set_print underscore @@ fun ppf obs ->
   let () = get_done obs in
-  match body with
-  | Notn n when equal n.notn pi ->
-      let sp, rest, body = pp_pi true (args n) in
-      ( (fun ppf () ->
-          if arr then fprintf ppf "%a " pp_tok Arrow;
-          fprintf ppf "%a%t" pp_term dom (fun ppf -> pp_print_break ppf sp 0);
-          rest ppf ()),
-        body )
-  | Notn n when equal n.notn arrow ->
-      let rest, body = pp_arrow true (args n) in
-      ( (fun ppf () ->
-          if arr then fprintf ppf "%a " pp_tok Arrow;
-          fprintf ppf "%a@ " pp_term dom;
-          rest ppf ()),
-        body )
-  | _ ->
-      ( (fun ppf () ->
-          if arr then fprintf ppf "%a " pp_tok Arrow;
-          (* The @, here are the zero-space cuts that play the role of the returned 0s in the last case of pp_pi, so we don't need to return a number from pp_arrow. *)
-          fprintf ppf "%a@," pp_term dom),
-        Wrap body )
-
-let () =
-  set_print pi @@ fun ppf obs ->
-  let _sp, pp_doms, body = pp_pi false obs in
-  fprintf ppf "@[<b 1>@[<hov 2>%a@]%t%a %a@]" pp_doms ()
-    (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
-    pp_tok Arrow pp_term body
-
-let () =
-  set_print arrow @@ fun ppf obs ->
-  let pp_doms, body = pp_arrow false obs in
-  fprintf ppf "@[<b 1>@[<hov 2>%a@]%t%a %a@]" pp_doms ()
-    (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
-    pp_tok Arrow pp_term body
+  pp_tok ppf Underscore
 
 (* ********************
    Ascription
@@ -321,20 +146,129 @@ let () =
   let () = get_done obs in
   fprintf ppf "@[<b 0>%a@ %a %a" pp_term tm pp_tok Colon pp_term ty
 
-(* ********************
-   Underscores
- ******************** *)
+(* ****************************************
+   Function types (dependent and non)
+ **************************************** *)
 
-(* At present, the underscore doesn't have a meaning on its own, so compiling it is an error.  Its only function so far is to be recognized in the left-hand argument of an abstraction as denoting an unnamed variable. *)
+let arrow = make "arrow" (Infixr No.zero)
 
-let underscore = make "underscore" Outfix
+exception Not_a_pi_arg
+
+(* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument. *)
+let rec get_pi_vars :
+    type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list -> string option list =
+ fun xs vars ->
+  match xs with
+  | Ident x -> if Token.variableable x then Some x :: vars else fatal (Invalid_variable x)
+  | Notn n when equal n.notn underscore -> None :: vars
+  | App { fn; arg = Ident x; _ } ->
+      if Token.variableable x then get_pi_vars fn (Some x :: vars) else fatal (Invalid_variable x)
+  | _ -> raise Not_a_pi_arg
+
+(* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables and the type. *)
+let get_pi_arg : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list * wrapped_parse =
+ fun arg ->
+  match arg with
+  | Notn n when equal n.notn asc ->
+      let Wrap xs, obs = get_term (args n) in
+      let dom, obs = get_term obs in
+      let () = get_done obs in
+      (get_pi_vars xs [], dom)
+  | _ -> raise Not_a_pi_arg
+
+(* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of variables with types, prepending that list onto the front of the given accumulation list.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type and cons it onto the list. *)
+let rec get_pi_args :
+    type lt ls rt rs.
+    (lt, ls, rt, rs) parse ->
+    (string option list option * wrapped_parse) list ->
+    (string option list option * wrapped_parse) list =
+ fun doms vars ->
+  try
+    match doms with
+    | Notn n when equal n.notn parens ->
+        let Wrap body, obs = get_term (args n) in
+        let () = get_done obs in
+        let xs, tys = get_pi_arg body in
+        (Some xs, tys) :: vars
+    | App { fn; arg = Notn n; _ } when equal n.notn parens ->
+        let Wrap body, obs = get_term (args n) in
+        let () = get_done obs in
+        let xs, tys = get_pi_arg body in
+        get_pi_args fn ((Some xs, tys) :: vars)
+    | _ -> raise Not_a_pi_arg
+  with Not_a_pi_arg -> (None, Wrap doms) :: vars
+
+(* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
+let rec get_pi :
+    type lt ls rt rs.
+    observation list -> (string option list option * wrapped_parse) list * wrapped_parse =
+ fun obs ->
+  let Wrap dom, obs = get_term obs in
+  let Wrap cod, obs = get_term obs in
+  let () = get_done obs in
+  let doms, cod =
+    match cod with
+    | Notn n when equal n.notn arrow -> get_pi (args n)
+    | _ -> ([], Wrap cod) in
+  (get_pi_args dom doms, cod)
+
+(* Given the variables with domains and the codomain of a pi-type, compile it into a raw term. *)
+let rec compile_pi :
+    type n lt ls rt rs.
+    (string option, n) Bwv.t ->
+    (string option list option * wrapped_parse) list ->
+    (lt, ls, rt, rs) parse ->
+    n check =
+ fun ctx doms cod ->
+  match doms with
+  | [] -> compile ctx cod
+  | (Some [], _) :: doms -> compile_pi ctx doms cod
+  | (None, dom) :: doms -> compile_pi ctx ((Some (None :: []), dom) :: doms) cod
+  | (Some (x :: xs), Wrap dom) :: doms ->
+      let cdom = compile ctx dom in
+      let ctx = Bwv.Snoc (ctx, x) in
+      let cod = compile_pi ctx ((Some xs, Wrap dom) :: doms) cod in
+      Synth (Pi (cdom, cod))
 
 let () =
-  set_tree underscore (Closed_entry (eop Underscore (Done_closed underscore)));
-  set_compiler underscore { compile = (fun _ _ -> fatal (Unimplemented "unification arguments")) };
-  set_print underscore @@ fun ppf obs ->
-  let () = get_done obs in
-  pp_tok ppf Underscore
+  set_tree arrow (Open_entry (eop Arrow (done_open arrow)));
+  set_compiler arrow
+    {
+      compile =
+        (fun ctx obs ->
+          let doms, Wrap cod = get_pi obs in
+          compile_pi ctx doms cod);
+    }
+
+(* Pretty-print the domains of a right-associated iterated function-type *)
+let rec pp_doms :
+    [ `Start | `Dep | `Nondep ] ->
+    formatter ->
+    (string option list option * wrapped_parse) list ->
+    unit =
+ fun prev ppf doms ->
+  match doms with
+  | [] -> ()
+  | (vars, dom) :: doms -> (
+      match vars with
+      | None ->
+          if prev = `Dep || prev = `Nondep then fprintf ppf "@ %a " pp_tok Arrow;
+          fprintf ppf "%a" pp_term dom;
+          pp_doms `Nondep ppf doms
+      | Some xs ->
+          if prev = `Nondep then fprintf ppf "@ %a " pp_tok Arrow;
+          if prev = `Dep then pp_print_space ppf ();
+          fprintf ppf "%a%a %a %a%a" pp_tok LParen
+            (pp_print_list ~pp_sep:pp_print_space pp_var)
+            xs pp_tok Colon pp_term dom pp_tok RParen;
+          pp_doms `Dep ppf doms)
+
+let () =
+  set_print arrow @@ fun ppf obs ->
+  let doms, cod = get_pi obs in
+  fprintf ppf "@[<b 1>@[<hov 2>%a@]%t%a %a@]" (pp_doms `Start) doms
+    (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
+    pp_tok Arrow pp_term cod
 
 (* ********************
    Abstraction
@@ -736,7 +670,7 @@ let builtins =
     (State.empty
     |> State.add parens
     |> State.add letin
-    |> State.add pi
+    (* |> State.add pi *)
     |> State.add asc
     |> State.add underscore
     |> State.add abs

@@ -6,15 +6,29 @@ open Builtins
 let () =
   assert (
     parse !builtins "(x : y) -> z"
-    = Notn ("pi", [ Flag Explicit_pi; Ident (Some "x"); Term (Ident "y"); Term (Ident "z") ]))
+    = Notn
+        ( "arrow",
+          [
+            Term
+              (Notn
+                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "y") ])) ]));
+            Term (Ident "z");
+          ] ))
 
 let () =
   assert (
     parse !builtins "(x w : y) -> z"
     = Notn
-        ( "pi",
+        ( "arrow",
           [
-            Flag Explicit_pi; Ident (Some "x"); Ident (Some "w"); Term (Ident "y"); Term (Ident "z");
+            Term
+              (Notn
+                 ( "parens",
+                   [
+                     Term
+                       (Notn ("ascription", [ Term (App (Ident "x", Ident "w")); Term (Ident "y") ]));
+                   ] ));
+            Term (Ident "z");
           ] ))
 
 let () =
@@ -39,7 +53,6 @@ let () =
                  ( "parens",
                    [
                      (* Flag is ignored, since the eventual notation is not a pi. *)
-                     Flag Explicit_pi;
                      Term (Notn ("ascription", [ Term (Ident "z"); Term (Ident "w") ]));
                    ] ));
           ] ))
@@ -54,7 +67,6 @@ let () =
               (Notn
                  ( "parens",
                    [
-                     Flag Explicit_pi;
                      Term
                        (Notn ("abstraction", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]));
                    ] ));
@@ -82,29 +94,29 @@ let () =
     parse !builtins "let x : a := y in z"
     = Notn ("let", [ Ident (Some "x"); Term (Ident "a"); Term (Ident "y"); Term (Ident "z") ]))
 
-let () =
-  assert (
-    parse !builtins "(x:A){y:B}(z w:C){u : D := M} -> N"
-    = Notn
-        ( "pi",
-          [
-            Flag Explicit_pi;
-            Ident (Some "x");
-            Term (Ident "A");
-            Flag Implicit_pi;
-            Ident (Some "y");
-            Term (Ident "B");
-            Flag Explicit_pi;
-            Ident (Some "z");
-            Ident (Some "w");
-            Term (Ident "C");
-            Flag Implicit_pi;
-            Ident (Some "u");
-            Term (Ident "D");
-            Flag Default_pi;
-            Term (Ident "M");
-            Term (Ident "N");
-          ] ))
+(* let () =
+     assert (
+       parse !builtins "(x:A){y:B}(z w:C){u : D := M} -> N"
+       = Notn
+           ( "pi",
+             [
+
+               Ident (Some "x");
+               Term (Ident "A");
+
+               Ident (Some "y");
+               Term (Ident "B");
+
+               Ident (Some "z");
+               Ident (Some "w");
+               Term (Ident "C");
+
+               Ident (Some "u");
+               Term (Ident "D");
+               Flag Default_pi;
+               Term (Ident "M");
+               Term (Ident "N");
+             ] )) *)
 
 (* The parsing of "(X:Type)->Y" is technically ambiguous: in addition to a dependent function-type, it could be a non-dependent function type with ascribed domain.  We always interpret it as a dependent function-type, but to get the non-dependent version you can add extra parentheses.  *)
 let () =
@@ -117,14 +129,11 @@ let () =
               (Notn
                  ( "parens",
                    [
-                     Flag Explicit_pi;
                      Term
                        (Notn
                           ( "parens",
-                            [
-                              Flag Explicit_pi;
-                              Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "A") ]));
-                            ] ));
+                            [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "A") ])) ]
+                          ));
                    ] ));
             Term (Ident "B");
           ] ))
@@ -139,34 +148,20 @@ let () =
               (Notn
                  ( "parens",
                    [
-                     Flag Explicit_pi;
                      Term
                        (Notn
                           ( "ascription",
-                            [
-                              Term (Notn ("parens", [ Flag Explicit_pi; Term (Ident "x") ]));
-                              Term (Ident "A");
-                            ] ));
+                            [ Term (Notn ("parens", [ Term (Ident "x") ])); Term (Ident "A") ] ));
                    ] ));
             Term (Ident "B");
           ] ))
 
-let () =
-  assert (
-    parse !builtins "{}"
-    = Notn
-        ( "struc",
-          [ (* Flag is ignored, since the eventual notation is not a pi *) Flag Implicit_pi ] ))
+let () = assert (parse !builtins "{}" = Notn ("struc", []))
 
 let () =
-  assert (
-    parse !builtins "{x := y}"
-    = Notn ("struc", [ (* flag ignored *) Flag Implicit_pi; Ident (Some "x"); Term (Ident "y") ]))
+  assert (parse !builtins "{x := y}" = Notn ("struc", [ Ident (Some "x"); Term (Ident "y") ]))
 
-let () =
-  assert (
-    parse !builtins "{.x |-> y}"
-    = Notn ("struc", [ (* flag ignored *) Flag Implicit_pi; Field "x"; Term (Ident "y") ]))
+let () = assert (parse !builtins "{.x |-> y}" = Notn ("struc", [ Field "x"; Term (Ident "y") ]))
 
 let () =
   assert (
@@ -175,7 +170,6 @@ let () =
         ( "struc",
           [
             (* flag ignored *)
-            Flag Implicit_pi;
             Ident (Some "x");
             Term (Ident "y");
             Ident (Some "z");
@@ -185,30 +179,12 @@ let () =
 let () =
   assert (
     parse !builtins "{.x ↦ y ; .z ↦ w}"
-    = Notn
-        ( "struc",
-          [
-            (* flag ignored *)
-            Flag Implicit_pi;
-            Field "x";
-            Term (Ident "y");
-            Field "z";
-            Term (Ident "w");
-          ] ))
+    = Notn ("struc", [ Field "x"; Term (Ident "y"); Field "z"; Term (Ident "w") ]))
 
 let () =
   assert (
     parse !builtins "{x := y ; z := w;}"
-    = Notn
-        ( "struc",
-          [
-            (* flag ignored *)
-            Flag Implicit_pi;
-            Ident (Some "x");
-            Term (Ident "y");
-            Ident (Some "z");
-            Term (Ident "w");
-          ] ))
+    = Notn ("struc", [ Ident (Some "x"); Term (Ident "y"); Ident (Some "z"); Term (Ident "w") ]))
 
 let () =
   assert (
@@ -216,8 +192,6 @@ let () =
     = Notn
         ( "struc",
           [
-            (* flag ignored *)
-            Flag Implicit_pi;
             Ident (Some "x");
             Term (Ident "y");
             Ident (Some "z");
@@ -243,11 +217,7 @@ let () =
     = Notn
         ( "sigma",
           [
-            (* ignored flag *)
-            Flag Explicit_pi;
-            Ident (Some "x");
-            Term (Ident "A");
-            Term (App (Ident "B", Ident "x"));
+            (* ignored flag *) Ident (Some "x"); Term (Ident "A"); Term (App (Ident "B", Ident "x"));
           ] ))
 
 let () =
@@ -256,14 +226,12 @@ let () =
     = Notn
         ( "sigma",
           [
-            Flag Explicit_pi;
             Ident (Some "x");
             Term (Ident "A");
             Term
               (Notn
                  ( "sigma",
                    [
-                     Flag Explicit_pi;
                      Ident (Some "y");
                      Term (App (Ident "B", Ident "x"));
                      Term (App (App (Ident "C", Ident "x"), Ident "y"));

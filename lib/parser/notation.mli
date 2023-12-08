@@ -39,26 +39,7 @@ and observation =
   | Ident of string option
   | Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
-and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn = {
-  notn : ('left, 'tight, 'right) notation;
-  first : ('lt, 'ls, 'tight, 'left) first_arg;
-  inner : observation Bwd.t;
-  last : ('tight, 'right, 'rt, 'rs) last_arg;
-  left_ok : ('lt, 'ls, 'tight, 'left) tighter_than;
-  right_ok : ('rt, 'rs, 'tight, 'right) tighter_than;
-}
-
-and (_, _, _, _) first_arg =
-  | Some_first : ('lt, 'ls, 'tight, 'l) parse -> ('lt, 'ls, 'tight, 'l opn) first_arg
-  | No_first : ('lt, 'ls, 'tight, closed) first_arg
-
-and (_, _, _, _) last_arg =
-  | Some_last : ('tight, 'r, 'rt, 'rs) parse -> ('tight, 'r opn, 'rt, 'rs) last_arg
-  | No_last : ('tight, closed, 'rt, 'rs) last_arg
-
-and (_, _, _, _) tighter_than =
-  | Open_ok : ('lt, 'ls, 'tight) No.lt -> ('lt, 'ls, 'tight, 'l opn) tighter_than
-  | Closed_ok : ('lt, 'ls, 'tight, closed) tighter_than
+and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn
 
 and (_, _, _, _) parse =
   | Notn : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('lt, 'ls, 'rt, 'rs) parse
@@ -108,6 +89,9 @@ val postfix :
 
 val outfix : notn:(closed, 'a, closed) notation -> inner:observation Bwd.t -> ('b, 'c, 'd, 'e) parse
 val args : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> observation list
+
+val notn :
+  ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('left, 'tight, 'right) notation
 
 type wrapped_parse = Wrap : ('lt, 'ls, 'rt, 'rs) parse -> wrapped_parse
 

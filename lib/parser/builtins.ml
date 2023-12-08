@@ -92,7 +92,7 @@ let () =
         | _ -> fatal (Anomaly "invalid notation arguments for let")
       and pp_let_body ppf tr =
         match tr with
-        | Wrap (Notn n) when equal n.notn letin -> pp_let ppf (args n)
+        | Wrap (Notn n) when equal (notn n) letin -> pp_let ppf (args n)
         | _ -> pp_term ppf tr in
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
@@ -151,7 +151,7 @@ let rec get_pi_vars :
  fun xs vars ->
   match xs with
   | Ident x -> if Token.variableable x then Some x :: vars else fatal (Invalid_variable x)
-  | Notn n when equal n.notn underscore -> None :: vars
+  | Notn n when equal (notn n) underscore -> None :: vars
   | App { fn; arg = Ident x; _ } ->
       if Token.variableable x then get_pi_vars fn (Some x :: vars) else fatal (Invalid_variable x)
   | _ -> raise Not_a_pi_arg
@@ -160,7 +160,7 @@ let rec get_pi_vars :
 let get_pi_arg : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list * wrapped_parse =
  fun arg ->
   match arg with
-  | Notn n when equal n.notn asc -> (
+  | Notn n when equal (notn n) asc -> (
       match args n with
       | [ Term xs; Term dom ] -> (get_pi_vars xs [], Wrap dom)
       | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
@@ -175,13 +175,13 @@ let rec get_pi_args :
  fun doms vars ->
   try
     match doms with
-    | Notn n when equal n.notn parens -> (
+    | Notn n when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
             let xs, tys = get_pi_arg body in
             (Some xs, tys) :: vars
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
-    | App { fn; arg = Notn n; _ } when equal n.notn parens -> (
+    | App { fn; arg = Notn n; _ } when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
             let xs, tys = get_pi_arg body in
@@ -197,7 +197,7 @@ let rec get_pi :
   | [ Term dom; Term cod ] ->
       let doms, cod =
         match cod with
-        | Notn n when equal n.notn arrow -> get_pi (args n)
+        | Notn n when equal (notn n) arrow -> get_pi (args n)
         | _ -> ([], Wrap cod) in
       (get_pi_args dom doms, cod)
   | _ -> fatal (Anomaly "invalid notation arguments for arrow")
@@ -283,13 +283,13 @@ let rec get_vars :
       if Token.variableable x then Extctx (Suc Zero, Snoc (ctx, Some x))
         (* TODO: Can we report the range for errors produced here? *)
       else fatal (Invalid_variable x)
-  | Notn n when equal n.notn underscore -> Extctx (Suc Zero, Snoc (ctx, None))
+  | Notn n when equal (notn n) underscore -> Extctx (Suc Zero, Snoc (ctx, None))
   | App { fn; arg = Ident x; _ } ->
       if Token.variableable x then
         let (Extctx (ab, ctx)) = get_vars ctx fn in
         Extctx (Suc ab, Snoc (ctx, Some x))
       else fatal (Invalid_variable x)
-  | App { fn; arg = Notn n; _ } when equal n.notn underscore ->
+  | App { fn; arg = Notn n; _ } when equal (notn n) underscore ->
       let (Extctx (ab, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (ctx, None))
   | _ -> fatal Parse_error
@@ -627,7 +627,7 @@ let rec pp_branches : bool -> formatter -> observation list -> unit =
           let style = style () in
           if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
           (match tm with
-          | Notn n when equal n.notn mtch && style = Compact ->
+          | Notn n when equal (notn n) mtch && style = Compact ->
               fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a%a@] %a@]" pp_tok (Op "|") pp_constr c
                 (fun ppf -> List.iter (fun x -> fprintf ppf "%a@ " pp_var x))
                 vars pp_tok Mapsto (pp_match false) (args n)

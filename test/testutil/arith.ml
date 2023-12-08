@@ -41,14 +41,18 @@ let rec eval : type lt ls rt rs. (lt, ls, rt, rs) parse -> int = function
   | App { fn; arg; _ } ->
       let x = eval fn and y = eval arg in
       x * y
-  | Notn { notn = op; first = Some_first x; last = Some_last y; inner = Emp; _ } ->
-      let x = eval x and y = eval y in
-      if equal op plus then x + y
-      else if equal op minus then x - y
-      else if equal op times then x * y
-      else if equal op div then if x mod y = 0 then x / y else raise Fraction
-      else if equal op exp then pow x y
-      else raise (Failure "Wrong number of right arguments")
-  | Notn { notn = op; inner = Snoc (Emp, Term x); _ } ->
-      if equal op parens then eval x else raise (Failure "Wrong number of right arguments")
+  | Notn n -> (
+      let op = notn n in
+      match args n with
+      | [ Term x; Term y ] ->
+          let x = eval x and y = eval y in
+          if equal op plus then x + y
+          else if equal op minus then x - y
+          else if equal op times then x * y
+          else if equal op div then if x mod y = 0 then x / y else raise Fraction
+          else if equal op exp then pow x y
+          else raise (Failure "Wrong number of right arguments")
+      | [ Term x ] ->
+          if equal op parens then eval x else raise (Failure "Wrong number of right arguments")
+      | _ -> raise (Failure "Wrong number of right arguments"))
   | _ -> raise Syntax_error

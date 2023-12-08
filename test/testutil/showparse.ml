@@ -22,7 +22,7 @@ let rec get_obs (obs : Notation.observation) : obs =
 and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
  fun r ->
   match r with
-  | Notn n -> Notn (Notation.name n.notn, List.map get_obs (Notation.args n))
+  | Notn n -> Notn (Notation.name (Notation.notn n), List.map get_obs (Notation.args n))
   | App a -> App (get_tree a.fn, get_tree a.arg)
   | Ident x -> Ident x
   | Constr x -> Constr x

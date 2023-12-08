@@ -37,11 +37,11 @@ let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
   match state () with
   | Case -> (
       match tr with
-      | Notn n -> pp_notn_case ppf n.notn (args n) wtr
+      | Notn n -> pp_notn_case ppf (notn n) (args n) wtr
       | _ -> as_term @@ fun () -> pp_term ppf wtr)
   | Term -> (
       match tr with
-      | Notn n -> pp_notn ppf n.notn (args n)
+      | Notn n -> pp_notn ppf (notn n) (args n)
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
       | Ident x -> pp_utf_8 ppf x
       | Constr c -> pp_constr ppf c

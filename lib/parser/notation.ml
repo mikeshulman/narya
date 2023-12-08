@@ -44,9 +44,6 @@ let fixprops :
   | Postfixl t -> (Open Nonstrict, t, Closed)
   | Outfix -> (Closed, No.plus_omega, Closed)
 
-(* While parsing a notation, we may need to record certain information other than the identifiers, constructors, fields, and subterms encountered.  We store this in "flags". *)
-type flag = ..
-
 (* A "notation tree" (not to be confused with a "parse tree", which is the *result* of parsing) carries the information about how to parse one or more notations.  Each individual notation is defined by giving one tree, but multiple such trees can also be "merged" together.  This allows different notations that start out looking the same to be parsed with minimal backtracking, as we don't need to "decide" which notation we're parsing until we get to the point of the tree where they diverge.  Accordingly, although each notation is associated to a defining tree, a tree also stores pointers to notations at its leaves, since a merged tree could parse many different notations depending on which path through it is taken. *)
 
 (* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only store the operators, constructors, fields, identifiers, and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
@@ -54,7 +51,6 @@ type (_, _) tree =
   | Inner : ('t, 's) branch -> ('t, 's) tree
   | Done_open : ('t, 's, 'tight) No.lt * ('left opn, 'tight, 'right) notation -> ('t, 's) tree
   | Done_closed : (closed, 'tight, 'right) notation -> ('t, 's) tree
-  | Flag : flag * ('t, 's) tree -> ('t, 's) tree
   (* Trees associated to notations of arbitrary length are infinite, so we allow them to be computed lazily as needed. *)
   | Lazy : ('t, 's) tree Lazy.t -> ('t, 's) tree
 
@@ -72,7 +68,6 @@ and ('t, 's) entry = ('t, 's) tree TokMap.t
 
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "compilation" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
 and observation =
-  | Flagged of flag
   | Constr of string
   | Field of string
   | Ident of string option
@@ -307,12 +302,8 @@ let merge_opt : type a b. (a -> b -> a) -> (b -> a) -> a option -> b option -> a
   | None, Some y -> Some (l y)
   | Some x, Some y -> Some (m x y)
 
-let rec to_branch : type t s. (t, s) tree -> (flag list * (t, s) branch) option = function
-  | Flag (f, x) ->
-      let open Monad.Ops (Monad.Maybe) in
-      let* fs, br = to_branch x in
-      Some (f :: fs, br)
-  | Inner b -> Some ([], b)
+let rec to_branch : type t s. (t, s) tree -> (t, s) branch option = function
+  | Inner b -> Some b
   | Done_open _ | Done_closed _ -> None
   | Lazy (lazy t) -> to_branch t
 
@@ -323,7 +314,6 @@ let rec lower_tree :
   | Inner br -> Inner (lower_branch sub br)
   | Done_open (lt, n) -> Done_open (Interval.subset_contains sub lt, n)
   | Done_closed n -> Done_closed n
-  | Flag (f, tr) -> Flag (f, lower_tree sub tr)
   | Lazy tr -> Lazy (lazy (lower_tree sub (Lazy.force tr)))
 
 and lower_branch :
@@ -349,26 +339,20 @@ let rec names : type t s. (t, s) tree -> string list = function
       @ Option.fold ~none:[] ~some:names_tmap term
   | Done_open (_, n) -> [ name n ]
   | Done_closed n -> [ name n ]
-  | Flag (_, t) -> names t
   | Lazy _ -> []
 
 and names_tmap : type t s. (t, s) tree TokMap.t -> string list =
  fun trees -> TokMap.fold (fun _ t xs -> names t @ xs) trees []
 
-(* If either trees have flags, we just combine them all.  Flags for different notations are disjoint, so they can just ignore each other's. *)
 let rec merge_tree :
     type t1 s1 t2 s2.
     (t2, s2, t1, s1) Interval.subset -> (t1, s1) tree -> (t2, s2) tree -> (t1, s1) tree =
  fun sub xs ys ->
   let open Monad.Ops (Monad.Maybe) in
   Option.value
-    (let* xf, xb = to_branch xs in
-     let* yf, yb = to_branch ys in
-     return
-       (List.fold_right
-          (fun f z -> Flag (f, z))
-          xf
-          (List.fold_right (fun f z -> Flag (f, z)) yf (Inner (merge_branch sub xb yb)))))
+    (let* xb = to_branch xs in
+     let* yb = to_branch ys in
+     return (Inner (merge_branch sub xb yb)))
     (* We are not maximally tolerant of ambiguity.  In principle, it is possible to have one mixfix notation that is a strict initial segment of the other, like the "if_then_" and "if_then_else_" discussed in Danielsson-Norell.  However, it seems very hard to parse such a setup without a significant amount of backtracking, so we forbid it.  This is detected here at merge time.  Note that this includes the case of two notations that are identical.  (It is, of course, possible to have two notations that start out the same but then diverge, like _⊢_⦂_ and _⊢_type -- this is the whole point of merging trees.)  However, because this could happen accidentally when importing many notations from different libraries, we don't raise the error unless it actually comes up during parsing, by wrapping it in a lazy branch of the notation tree. *)
     ~default:
       (Lazy

@@ -17,13 +17,10 @@ type (_, _, _) fixity =
   | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
   | Outfix : (closed, No.plus_omega, closed) fixity
 
-type flag = ..
-
 type (_, _) tree =
   | Inner : ('t, 's) branch -> ('t, 's) tree
   | Done_open : ('t, 's, 'tight) No.lt * ('left opn, 'tight, 'right) notation -> ('t, 's) tree
   | Done_closed : (closed, 'tight, 'right) notation -> ('t, 's) tree
-  | Flag : flag * ('t, 's) tree -> ('t, 's) tree
   | Lazy : ('t, 's) tree Lazy.t -> ('t, 's) tree
 
 and ('t, 's) branch = {
@@ -37,7 +34,6 @@ and ('t, 's) branch = {
 and ('t, 's) entry = ('t, 's) tree TokMap.t
 
 and observation =
-  | Flagged of flag
   | Constr of string
   | Field of string
   | Ident of string option

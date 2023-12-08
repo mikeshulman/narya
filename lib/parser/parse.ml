@@ -55,7 +55,6 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             inner_nonterm br obs)
     | Done_open (lt, n) -> return (obs, Open_in_interval (lt, n))
     | Done_closed n -> return (obs, Closed_in_interval n)
-    | Flag (f, t) -> tree t (Snoc (obs, Flagged f))
     | Lazy (lazy t) -> tree t obs
 
   (* Parse an inner branch of a tree except for the possibility of a term. *)

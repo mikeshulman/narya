@@ -6,44 +6,34 @@ open Bwd
 open Reporter
 open Notation
 
-(* The individual notation implementations are passed a list of "observations" which are the idents, terms, and flags seen and recorded while parsing that notation.  They extract its pieces using these functions, which ignore all flags except those specifically requested (since other flags might pertain to other notations that got partially parsed).  *)
+(* The individual notation implementations are passed a list of "observations" which are the idents and terms seen and recorded while parsing that notation.  They extract its pieces using these functions.  *)
 
-let rec get_flag flags (obs : observation list) =
-  match obs with
-  | [] -> None
-  | Flagged f :: rest -> if List.mem f flags then Some f else get_flag flags rest
-  | Constr _ :: _ | Field _ :: _ | Ident _ :: _ | Term _ :: _ -> None
-
-let rec get_ident (obs : observation list) =
+let get_ident (obs : observation list) =
   match obs with
   | [] -> fatal (Anomaly "Missing ident")
-  | Flagged _ :: rest -> get_ident rest
   | Ident x :: rest -> (x, rest)
   | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing ident")
 
 let rec get_idents (obs : observation list) =
   match obs with
   | [] | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> ([], obs)
-  | Flagged _ :: rest -> get_idents rest
   | Ident x :: rest ->
       let idents, rest = get_idents rest in
       (x :: idents, rest)
 
-let rec get_constr (obs : observation list) =
+let get_constr (obs : observation list) =
   match obs with
   | [] -> fatal (Anomaly "Missing constr")
-  | Flagged _ :: rest -> get_constr rest
   | Constr x :: rest -> (x, rest)
   | Ident _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing constr")
 
-let rec get_term (obs : observation list) : wrapped_parse * observation list =
+let get_term (obs : observation list) : wrapped_parse * observation list =
   match obs with
   | [] -> fatal (Anomaly "Missing term")
-  | Flagged _ :: rest -> get_term rest
   | Constr _ :: _ | Field _ :: _ | Ident _ :: _ -> fatal (Anomaly "Missing term")
   | Term x :: rest -> (Wrap x, rest)
 
-let rec get_next (obs : observation list) :
+let get_next (obs : observation list) :
     [ `Done
     | `Constr of string * observation list
     | `Field of string * observation list
@@ -51,17 +41,15 @@ let rec get_next (obs : observation list) :
     | `Term of wrapped_parse * observation list ] =
   match obs with
   | [] -> `Done
-  | Flagged _ :: rest -> get_next rest
   | Constr x :: rest -> `Constr (x, rest)
   | Field x :: rest -> `Field (x, rest)
   | Ident x :: rest -> `Ident (x, rest)
   | Term x :: rest -> `Term (Wrap x, rest)
 
 (* Just a sanity check at the end that there's nothing left. *)
-let rec get_done (obs : observation list) =
+let get_done (obs : observation list) =
   match obs with
   | [] -> ()
-  | Flagged _ :: rest -> get_done rest
   | _ :: _ -> fatal (Anomaly "Extra stuff")
 
 open Monad.Ops (Monad.Maybe)

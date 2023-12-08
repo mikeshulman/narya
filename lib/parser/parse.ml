@@ -17,7 +17,6 @@ end
 (* We misuse Fmlib's "semantic" errors for a couple of special classes of errors that are really syntactic, but which we don't detect until after the relevant tokens have already been "successfully" parsed, and for which we want to report more structured error information than just an "expected" string. *)
 module SemanticError = struct
   type t =
-    | Invalid_variable of Position.range * string
     (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because applications are implemented specially in the parser and not as an actual Notation. *)
     | No_relative_precedence of Position.range * string * string
 end
@@ -64,22 +63,16 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       observation Bwd.t ->
       (observation Bwd.t * (tight, strict) notation_in_interval) t =
    fun { ops; field; term = _ } obs ->
-    let* rng, ok =
-      located
-        (step (fun state _ tok ->
-             match TokMap.find_opt tok ops with
-             | Some br -> Some (Ok (br, ([] : observation list)), state)
-             | None -> (
-                 (* Constructor and field names have already been validated by the lexer. *)
-                 match (field, tok) with
-                 | Some br, Field x -> Some (Ok (br, [ Term (Field x) ]), state)
-                 | _ -> None))) in
-    (* Now outside the 'step', we test whether there was an error value, and if so we raise the appropriate semantic error.  *)
-    match ok with
-    | Ok (br, x) -> tree br (Bwd.append obs x)
-    | Error ident ->
-        (* The 'position' of the parser at this point is *past* the offending variable name, since the 'step' call succeeded.  But we want to mark the error as occurring on the offending variable name, and we can get its range from the 'located' wrapper around the 'step' call, and store it in the semantic error message. *)
-        fail (Invalid_variable (rng, ident))
+    let* br, x =
+      step (fun state _ tok ->
+          match TokMap.find_opt tok ops with
+          | Some br -> Some ((br, ([] : observation list)), state)
+          | None -> (
+              (* Field names have already been validated by the lexer. *)
+              match (field, tok) with
+              | Some br, Field x -> Some ((br, [ Term (Field x) ]), state)
+              | _ -> None)) in
+    tree br (Bwd.append obs x)
 
   and tree_op :
       type tight strict.
@@ -297,6 +290,5 @@ let term (state : State.t) (str : string) : observation =
     fatal ~loc:(Range.convert (range p)) Parse_error
   else
     match failed_semantic p with
-    | Invalid_variable (rng, ident) -> fatal ~loc:(Range.convert rng) (Invalid_variable ident)
     | No_relative_precedence (rng, n1, n2) ->
         fatal ~loc:(Range.convert rng) (No_relative_precedence (n1, n2))

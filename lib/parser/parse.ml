@@ -146,6 +146,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
               | Numeral n -> Some ({ get = (fun _ -> Ok (Numeral n)) }, state)
               (* Constructor names have already been validated by the lexer. *)
               | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
+              | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
               | _ -> None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
     lopen tight stop res
@@ -253,6 +254,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                             | Numeral n -> Some ({ get = (fun _ -> Ok (Numeral n)) }, state)
                             (* Constructor and field names have already been validated by the lexer. *)
                             | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
+                            | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
                             | Field x -> Some ({ get = (fun _ -> Ok (Field x)) }, state)
                             | _ -> None)) in
                    match first_arg.get (Nonstrict, No.plus_omega) with

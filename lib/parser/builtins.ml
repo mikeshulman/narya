@@ -96,22 +96,6 @@ let () =
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
 (* ********************
-   Underscores
- ******************** *)
-
-(* At present, the underscore doesn't have a meaning on its own, so compiling it is an error.  Its only function so far is to be recognized in the left-hand argument of an abstraction or pi-type as denoting an unnamed variable. *)
-
-let underscore = make "underscore" Outfix
-
-let () =
-  set_tree underscore (Closed_entry (eop Underscore (Done_closed underscore)));
-  set_compiler underscore { compile = (fun _ _ -> fatal (Unimplemented "unification arguments")) };
-  set_print underscore (fun ppf obs ->
-      match obs with
-      | [] -> pp_tok ppf Underscore
-      | _ -> fatal (Anomaly "invalid notation arguments for underscore"))
-
-(* ********************
    Ascription
  ******************** *)
 
@@ -149,7 +133,7 @@ let rec get_pi_vars :
  fun xs vars ->
   match xs with
   | Ident x -> if Token.variableable x then Some x :: vars else fatal (Invalid_variable x)
-  | Notn n when equal (notn n) underscore -> None :: vars
+  | Placeholder -> None :: vars
   | App { fn; arg = Ident x; _ } ->
       if Token.variableable x then get_pi_vars fn (Some x :: vars) else fatal (Invalid_variable x)
   | _ -> raise Not_a_pi_arg
@@ -281,13 +265,13 @@ let rec get_vars :
       if Token.variableable x then Extctx (Suc Zero, Snoc (ctx, Some x))
         (* TODO: Can we report the range for errors produced here? *)
       else fatal (Invalid_variable x)
-  | Notn n when equal (notn n) underscore -> Extctx (Suc Zero, Snoc (ctx, None))
+  | Placeholder -> Extctx (Suc Zero, Snoc (ctx, None))
   | App { fn; arg = Ident x; _ } ->
       if Token.variableable x then
         let (Extctx (ab, ctx)) = get_vars ctx fn in
         Extctx (Suc ab, Snoc (ctx, Some x))
       else fatal (Invalid_variable x)
-  | App { fn; arg = Notn n; _ } when equal (notn n) underscore ->
+  | App { fn; arg = Placeholder; _ } ->
       let (Extctx (ab, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (ctx, None))
   | _ -> fatal Parse_error
@@ -545,7 +529,7 @@ let rec get_pattern :
         let c, Extctx (ab, ctx) = get_pattern ctx fn in
         (c, Extctx (Suc ab, Snoc (ctx, Some x)))
       else fatal (Invalid_variable x)
-  | App { fn; arg = Notn n; _ } when equal (notn n) underscore ->
+  | App { fn; arg = Placeholder; _ } ->
       let c, Extctx (ab, ctx) = get_pattern ctx fn in
       (c, Extctx (Suc ab, Snoc (ctx, None)))
   | _ -> fatal Parse_error
@@ -637,9 +621,7 @@ let builtins =
     (State.empty
     |> State.add parens
     |> State.add letin
-    (* |> State.add pi *)
     |> State.add asc
-    |> State.add underscore
     |> State.add abs
     |> State.add cubeabs
     |> State.add arrow

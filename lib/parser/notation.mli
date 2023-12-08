@@ -55,7 +55,7 @@ and ('left, 'tight) notation_entry =
   | Closed_entry : (No.plus_omega, No.strict) entry -> (closed, 'tight) notation_entry
 
 and ('left, 'tight, 'right) notation
-and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
+and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
 val empty_branch : ('left, 'tight) branch
 
@@ -100,8 +100,8 @@ val interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) Interval.t
 val interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.tt
 val tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry
 val set_tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry -> unit
-val compiler : ('left, 'tight, 'right) notation -> compiler
-val set_compiler : ('left, 'tight, 'right) notation -> compiler -> unit
+val processor : ('left, 'tight, 'right) notation -> processor
+val set_processor : ('left, 'tight, 'right) notation -> processor -> unit
 
 val print :
   ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) option

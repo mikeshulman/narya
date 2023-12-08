@@ -11,7 +11,7 @@ open Hctx
 
 let parse_term (tm : string) : N.zero check =
   let (Term tm) = Parse.term !Builtins.builtins tm in
-  Compile.compile Emp tm
+  Postprocess.process Emp tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 

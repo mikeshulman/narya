@@ -6,7 +6,7 @@ open Core
 open Reporter
 open Parser
 open Notation
-open Compile
+open Postprocess
 open Term
 
 let nn = Constant.make ()
@@ -26,14 +26,14 @@ let plusn = make "plus" (Infixl No.zero)
 
 let () =
   set_tree plusn (Open_entry (eop (Op "+") (done_open plusn)));
-  set_compiler plusn
+  set_processor plusn
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           | [ Term x; Term y ] ->
-              let x = compile ctx x in
-              let y = compile ctx y in
+              let x = process ctx x in
+              let y = process ctx y in
               Raw.Synth (App (App (Const plus, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     }
@@ -42,14 +42,14 @@ let timesn = make "times" (Infixl No.one)
 
 let () =
   set_tree timesn (Open_entry (eop (Op "*") (done_open timesn)));
-  set_compiler timesn
+  set_processor timesn
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           | [ Term x; Term y ] ->
-              let x = compile ctx x in
-              let y = compile ctx y in
+              let x = process ctx x in
+              let y = process ctx y in
               Raw.Synth (App (App (Const times, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     }

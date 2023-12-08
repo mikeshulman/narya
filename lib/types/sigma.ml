@@ -4,7 +4,7 @@ open Core
 open Reporter
 open Parser
 open Notation
-open Compile
+open Postprocess
 open Raw
 open Term
 
@@ -27,9 +27,9 @@ let () =
              (op Colon
                 (term RParen
                    (ops [ (Ident "×", Done_closed sigman); (Op "><", Done_closed sigman) ]))))));
-  set_compiler sigman
+  set_processor sigman
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           | [ Term x; Term tm; Term ty ] ->
@@ -38,8 +38,8 @@ let () =
                 | Ident x -> Some x
                 | Placeholder -> None
                 | _ -> fatal Parse_error in
-              let tm = compile ctx tm in
-              let ty = compile (Snoc (ctx, x)) ty in
+              let tm = process ctx tm in
+              let ty = process (Snoc (ctx, x)) ty in
               Synth (App (App (Const sigma, tm), Lam (`Normal, ty)))
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }
@@ -48,14 +48,14 @@ let prodn = make "prod" (Infixr No.one)
 
 let () =
   set_tree prodn (Open_entry (eops [ (Ident "×", done_open prodn); (Op "><", done_open prodn) ]));
-  set_compiler prodn
+  set_processor prodn
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           | [ Term tm; Term ty ] ->
-              let tm = compile ctx tm in
-              let ty = compile (Snoc (ctx, None)) ty in
+              let tm = process ctx tm in
+              let ty = process (Snoc (ctx, None)) ty in
               Synth (App (App (Const sigma, tm), Lam (`Normal, ty)))
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }
@@ -64,14 +64,14 @@ let comma = make "comma" (Infixr No.one)
 
 let () =
   set_tree comma (Open_entry (eop (Op ",") (done_open comma)));
-  set_compiler comma
+  set_processor comma
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           | [ Term x; Term y ] ->
-              let x = compile ctx x in
-              let y = compile ctx y in
+              let x = process ctx x in
+              let y = process ctx y in
               Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ])
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }

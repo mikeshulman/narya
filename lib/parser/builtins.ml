@@ -1,5 +1,5 @@
 open Util
-open Compile
+open Postprocess
 open Print
 open Format
 open Core
@@ -16,12 +16,12 @@ let parens = make "parens" Outfix
 
 let () =
   set_tree parens (Closed_entry (eop LParen (term RParen (Done_closed parens))));
-  set_compiler parens
+  set_processor parens
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
-          | [ Term body ] -> compile ctx body
+          | [ Term body ] -> process ctx body
           | _ -> fatal (Anomaly "invalid notation arguments for parens"));
     };
   set_print parens (fun ppf obs ->
@@ -52,20 +52,20 @@ let () =
                   (Coloneq, term In (Done_closed letin));
                   (Colon, term Coloneq (term In (Done_closed letin)));
                 ]))));
-  set_compiler letin
+  set_processor letin
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           | [ Term x; Term ty; Term tm; Term body ] -> (
-              let ty, tm = (compile ctx ty, compile ctx tm) in
-              match compile (Snoc (ctx, get_var x)) body with
+              let ty, tm = (process ctx ty, process ctx tm) in
+              match process (Snoc (ctx, get_var x)) body with
               | Synth body -> Synth (Let (Asc (tm, ty), body))
               | _ -> fatal (Nonsynthesizing "body of let"))
           | [ Term x; Term tm; Term body ] -> (
-              match compile ctx tm with
+              match process ctx tm with
               | Synth term -> (
-                  match compile (Snoc (ctx, get_var x)) body with
+                  match process (Snoc (ctx, get_var x)) body with
                   | Synth body -> Synth (Let (term, body))
                   | _ -> fatal (Nonsynthesizing "body of let"))
               | _ -> fatal (Nonsynthesizing "value of let"))
@@ -103,14 +103,14 @@ let asc = make "ascription" (Infix No.minus_omega)
 let () = set_tree asc (Open_entry (eop Colon (done_open asc)))
 
 let () =
-  set_compiler asc
+  set_processor asc
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           | [ Term tm; Term ty ] ->
-              let tm = compile ctx tm in
-              let ty = compile ctx ty in
+              let tm = process ctx tm in
+              let ty = process ctx ty in
               Synth (Asc (tm, ty))
           | _ -> fatal (Anomaly "invalid notation arguments for ascription"));
     };
@@ -184,8 +184,8 @@ let rec get_pi :
       (get_pi_args dom doms, cod)
   | _ -> fatal (Anomaly "invalid notation arguments for arrow")
 
-(* Given the variables with domains and the codomain of a pi-type, compile it into a raw term. *)
-let rec compile_pi :
+(* Given the variables with domains and the codomain of a pi-type, process it into a raw term. *)
+let rec process_pi :
     type n lt ls rt rs.
     (string option, n) Bwv.t ->
     (string option list option * observation) list ->
@@ -193,23 +193,23 @@ let rec compile_pi :
     n check =
  fun ctx doms cod ->
   match doms with
-  | [] -> compile ctx cod
-  | (Some [], _) :: doms -> compile_pi ctx doms cod
-  | (None, dom) :: doms -> compile_pi ctx ((Some (None :: []), dom) :: doms) cod
+  | [] -> process ctx cod
+  | (Some [], _) :: doms -> process_pi ctx doms cod
+  | (None, dom) :: doms -> process_pi ctx ((Some (None :: []), dom) :: doms) cod
   | (Some (x :: xs), Term dom) :: doms ->
-      let cdom = compile ctx dom in
+      let cdom = process ctx dom in
       let ctx = Bwv.Snoc (ctx, x) in
-      let cod = compile_pi ctx ((Some xs, Term dom) :: doms) cod in
+      let cod = process_pi ctx ((Some xs, Term dom) :: doms) cod in
       Synth (Pi (cdom, cod))
 
 let () =
   set_tree arrow (Open_entry (eop Arrow (done_open arrow)));
-  set_compiler arrow
+  set_processor arrow
     {
-      compile =
+      process =
         (fun ctx obs ->
           let doms, Term cod = get_pi obs in
-          compile_pi ctx doms cod);
+          process_pi ctx doms cod);
     }
 
 (* Pretty-print the domains of a right-associated iterated function-type *)
@@ -276,14 +276,14 @@ let rec get_vars :
       Extctx (Suc ab, Snoc (ctx, None))
   | _ -> fatal Parse_error
 
-let compile_abs cube =
+let process_abs cube =
   {
-    compile =
+    process =
       (fun ctx obs ->
         match obs with
         | [ Term vars; Term body ] ->
             let (Extctx (ab, ctx)) = get_vars ctx vars in
-            raw_lam cube ab (compile ctx body)
+            raw_lam cube ab (process ctx body)
         | _ -> fatal (Anomaly "invalid notation arguments for abstraction"));
   }
 
@@ -298,8 +298,8 @@ let pp_abs cube ppf obs =
   | _ -> fatal (Anomaly "invalid notation arguments for abstraction")
 
 let () =
-  set_compiler abs (compile_abs `Normal);
-  set_compiler cubeabs (compile_abs `Cube);
+  set_processor abs (process_abs `Normal);
+  set_processor cubeabs (process_abs `Cube);
   set_print abs (pp_abs `Normal);
   set_print cubeabs (pp_abs `Cube);
   set_print_as_case abs (pp_abs `Normal);
@@ -313,9 +313,9 @@ let universe = make "Type" Outfix
 
 let () =
   set_tree universe (Closed_entry (eop (Ident "Type") (Done_closed universe)));
-  set_compiler universe
+  set_processor universe
     {
-      compile =
+      process =
         (fun _ obs ->
           match obs with
           | [] -> Synth UU
@@ -335,9 +335,9 @@ let refl = make "refl" Outfix
 let () =
   set_tree refl
     (Closed_entry (eops [ (Ident "refl", Done_closed refl); (Ident "Id", Done_closed refl) ]));
-  set_compiler refl
+  set_processor refl
     {
-      compile =
+      process =
         (fun _ obs ->
           match obs with
           | [] -> Synth (Act ("refl", Dim.refl, None))
@@ -352,9 +352,9 @@ let sym = make "sym" Outfix
 
 let () =
   set_tree sym (Closed_entry (eop (Ident "sym") (Done_closed sym)));
-  set_compiler sym
+  set_processor sym
     {
-      compile =
+      process =
         (fun _ obs ->
           match obs with
           | [] -> Synth (Act ("sym", Dim.sym, None))
@@ -411,7 +411,7 @@ let () =
                          [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed struc) ]));
              })))
 
-let rec compile_struc :
+let rec process_struc :
     type n. n check list Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
  fun flds ctx obs ->
   match obs with
@@ -419,13 +419,13 @@ let rec compile_struc :
   | Term (Ident x) :: obs | Term (Field x) :: obs -> (
       match obs with
       | Term tm :: obs ->
-          let tm = compile ctx tm in
-          compile_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
+          let tm = process ctx tm in
+          process_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | Term Placeholder :: _ -> fatal Unnamed_field_in_struct
   | _ -> fatal (Anomaly "invalid notation arguments for struct")
 
-let () = set_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.empty ctx obs) }
+let () = set_processor struc { process = (fun ctx obs -> process_struc Field.Map.empty ctx obs) }
 
 let rec pp_fld :
     type a.
@@ -534,20 +534,20 @@ let rec get_pattern :
       (c, Extctx (Suc ab, Snoc (ctx, None)))
   | _ -> fatal Parse_error
 
-let rec compile_branches : type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list
+let rec process_branches : type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list
     =
  fun ctx obs ->
   match obs with
   | [] -> []
   | Term pat :: Term body :: obs ->
       let c, Extctx (ab, ectx) = get_pattern ctx pat in
-      Branch (c, ab, compile ectx body) :: compile_branches ctx obs
+      Branch (c, ab, process ectx body) :: process_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for match")
 
 let () =
-  set_compiler mtch
+  set_processor mtch
     {
-      compile =
+      process =
         (fun ctx obs ->
           match obs with
           (* If the first thing is an ident, then it's the match variable *)
@@ -563,11 +563,11 @@ let () =
                         | Some fa -> (Some fa, obs)
                         | None -> fatal Parse_error)
                     | _ -> (None, obs) in
-                  let branches = compile_branches ctx obs in
+                  let branches = process_branches ctx obs in
                   Match ((x, fa), branches))
           (* Otherwise, it's a matching lambda. *)
           | _ ->
-              let branches = compile_branches (Snoc (ctx, None)) obs in
+              let branches = process_branches (Snoc (ctx, None)) obs in
               Lam (`Normal, Match ((Top, None), branches)));
     }
 

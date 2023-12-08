@@ -9,7 +9,7 @@ module TIMap = Map.Make (Interval)
 
 (* Sometimes we want to parse only a single term, other times we want to parse and execute a sequence of commands.  Since these two processes return different results, they have to be based on different instances of Token_parser.Make.  But they share all the code of the combinators for parsing terms, so we make those instances of a functor as well. *)
 
-(* Parsing a term outputs a parse tree (which is then compiled in a context of local variables). *)
+(* Parsing a term outputs a parse tree (which is then postprocessed in a context of local variables). *)
 module ParseTree = struct
   type t = observation
 end

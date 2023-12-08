@@ -66,7 +66,7 @@ and ('t, 's) branch = {
 (* The entry point of a notation tree must begin with an operator symbol. *)
 and ('t, 's) entry = ('t, 's) tree TokMap.t
 
-(* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "compilation" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
+(* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "postprocessing" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
 and observation = Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
 (* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness, and may require witnesses that it is tight enough on the left and/or the right also depending on its openness. *)
@@ -91,7 +91,7 @@ and (_, _, _, _) tighter_than =
   | Open_ok : ('lt, 'ls, 'tight) No.lt -> ('lt, 'ls, 'tight, 'l opn) tighter_than
   | Closed_ok : ('lt, 'ls, 'tight, closed) tighter_than
 
-(* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "compilation" functions.  *)
+(* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "postprocessing" functions.  *)
 and (_, _, _, _) parse =
   | Notn : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('lt, 'ls, 'rt, 'rs) parse
   (* We treat application as a left-associative binary infix operator of tightness +ω.  Note that like any infix operator, its left argument must be in its left interval and its right argument must be in its right interval. *)
@@ -108,8 +108,8 @@ and (_, _, _, _) parse =
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse
 
-(* A compilation function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
-and compiler = { compile : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
+(* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
+and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
 and ('left, 'tight) notation_entry =
   | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry
@@ -127,7 +127,7 @@ and ('left, 'tight, 'right) notation = {
   right : 'right openness;
   (* The remaining fields are mutable because they have to be able to refer to the notation object itself, so we have a circular data structure.  They aren't expected to mutate further after being set once.  Thus we store them as options, to record whether they have been set. *)
   mutable tree : ('left, 'tight) notation_entry option;
-  mutable compiler : compiler option;
+  mutable processor : processor option;
   (* Some notations only make sense in terms, others only make sense in case trees, and some make sense in either.  Thus, a notation can supply either or both of these printing functions. *)
   mutable print : (Format.formatter -> observation list -> unit) option;
   mutable print_as_case : (Format.formatter -> observation list -> unit) option;
@@ -227,7 +227,7 @@ let interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.t
   let (Open s) = right n in
   (s, tightness n)
 
-(* For the mutable fields, we also have to provide setter functions.  Since these fields are only intended to be set once, the setters throw an exception if the value is already set (and the getters for tree and compiler throw an exception if it is not yet set).  *)
+(* For the mutable fields, we also have to provide setter functions.  Since these fields are only intended to be set once, the setters throw an exception if the value is already set (and the getters for tree and processor throw an exception if it is not yet set).  *)
 
 let tree n = Option.get n.tree
 
@@ -236,15 +236,15 @@ let set_tree n t =
   | Some _ -> raise (Invalid_argument "notation tree already set")
   | None -> n.tree <- Some t
 
-let compiler n =
-  match n.compiler with
+let processor n =
+  match n.processor with
   | Some c -> c
-  | None -> raise (Invalid_argument "notation has no compiler")
+  | None -> raise (Invalid_argument "notation has no processor")
 
-let set_compiler n c =
-  match n.compiler with
-  | Some _ -> raise (Invalid_argument "notation compiler already set")
-  | None -> n.compiler <- Some c
+let set_processor n c =
+  match n.processor with
+  | Some _ -> raise (Invalid_argument "notation processor already set")
+  | None -> n.processor <- Some c
 
 let print n = n.print
 let set_print n p = n.print <- Some p
@@ -269,7 +269,7 @@ let make :
     tree = None;
     print = None;
     print_as_case = None;
-    compiler = None;
+    processor = None;
   }
 
 (* Helper functions for constructing notation trees *)

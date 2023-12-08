@@ -11,7 +11,7 @@ module TIMap = Map.Make (Interval)
 
 (* Parsing a term outputs a parse tree (which is then compiled in a context of local variables). *)
 module ParseTree = struct
-  type t = wrapped_parse
+  type t = observation
 end
 
 (* We misuse Fmlib's "semantic" errors for a couple of special classes of errors that are really syntactic, but which we don't detect until after the relevant tokens have already been "successfully" parsed, and for which we want to report more structured error information than just an "expected" string. *)
@@ -277,7 +277,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   let term () =
     let* tm = lclosed Interval.entire TokMap.empty in
     match tm.get Interval.entire with
-    | Ok tm -> return (Wrap tm)
+    | Ok tm -> return (Term tm)
     | Error _ -> fatal (Anomaly "Outer term failed")
 end
 
@@ -296,7 +296,7 @@ module Lex_and_parse_term =
 
 open Lex_and_parse_term
 
-let term (state : State.t) (str : string) : wrapped_parse =
+let term (state : State.t) (str : string) : observation =
   Range.run ~env:str @@ fun () ->
   let p = run_on_string str (make Lexer.Parser.init (Parse_term.term state)) in
   if has_succeeded p then final p

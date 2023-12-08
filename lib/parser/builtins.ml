@@ -26,13 +26,12 @@ let () =
     };
   set_print parens (fun ppf obs ->
       match obs with
-      | [ Term body ] ->
-          fprintf ppf "@[<hov 1>%a%a%a@]" pp_tok LParen pp_term (Wrap body) pp_tok RParen
+      | [ body ] -> fprintf ppf "@[<hov 1>%a%a%a@]" pp_tok LParen pp_term body pp_tok RParen
       | _ -> fatal (Anomaly "invalid notation arguments for parens"));
   set_print_as_case parens (fun ppf obs ->
       match obs with
       (* Parentheses should never be required in a case tree, so we omit them during reformatting. *)
-      | [ Term body ] -> pp_term ppf (Wrap body)
+      | [ body ] -> pp_term ppf body
       | _ -> fatal (Anomaly "invalid notation arguments for parens"))
 
 (* ********************
@@ -76,24 +75,23 @@ let () =
       let rec pp_let : formatter -> observation list -> unit =
        fun ppf obs ->
         match obs with
-        | [ Term x; Term ty; Term tm; Term body ] ->
+        | [ x; ty; tm; body ] ->
             fprintf ppf
               (match style () with
               | Compact -> "@[<hov 2>@[<hv 2>%a %a@ %a %a@ %a %a@]@ %a@]@ %a"
               | Noncompact -> "@[<hv 2>%a %a@ %a %a@ %a %a@ %a@]@ %a")
-              pp_tok Let pp_term (Wrap x) pp_tok Colon pp_term (Wrap ty) pp_tok Coloneq pp_term
-              (Wrap tm) pp_tok In pp_let_body (Wrap body)
-        | [ Term x; Term tm; Term body ] ->
+              pp_tok Let pp_term x pp_tok Colon pp_term ty pp_tok Coloneq pp_term tm pp_tok In
+              pp_let_body body
+        | [ x; tm; body ] ->
             fprintf ppf
               (match style () with
               | Compact -> "@[<hov 2>%a %a %a@ %a@ %a@]@ %a"
               | Noncompact -> "@[<hv 2>%a %a %a@ %a@ %a@]@ %a")
-              pp_tok Let pp_term (Wrap x) pp_tok Coloneq pp_term (Wrap tm) pp_tok In pp_let_body
-              (Wrap body)
+              pp_tok Let pp_term x pp_tok Coloneq pp_term tm pp_tok In pp_let_body body
         | _ -> fatal (Anomaly "invalid notation arguments for let")
       and pp_let_body ppf tr =
         match tr with
-        | Wrap (Notn n) when equal (notn n) letin -> pp_let ppf (args n)
+        | Term (Notn n) when equal (notn n) letin -> pp_let ppf (args n)
         | _ -> pp_term ppf tr in
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
@@ -134,8 +132,7 @@ let () =
     };
   set_print asc @@ fun ppf obs ->
   match obs with
-  | [ Term tm; Term ty ] ->
-      fprintf ppf "@[<b 0>%a@ %a %a" pp_term (Wrap tm) pp_tok Colon pp_term (Wrap ty)
+  | [ tm; ty ] -> fprintf ppf "@[<b 0>%a@ %a %a" pp_term tm pp_tok Colon pp_term ty
   | _ -> fatal (Anomaly "invalid notation arguments for ascription")
 
 (* ****************************************
@@ -158,12 +155,12 @@ let rec get_pi_vars :
   | _ -> raise Not_a_pi_arg
 
 (* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables and the type. *)
-let get_pi_arg : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list * wrapped_parse =
+let get_pi_arg : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list * observation =
  fun arg ->
   match arg with
   | Notn n when equal (notn n) asc -> (
       match args n with
-      | [ Term xs; Term dom ] -> (get_pi_vars xs [], Wrap dom)
+      | [ Term xs; dom ] -> (get_pi_vars xs [], dom)
       | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
   | _ -> raise Not_a_pi_arg
 
@@ -171,8 +168,8 @@ let get_pi_arg : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list 
 let rec get_pi_args :
     type lt ls rt rs.
     (lt, ls, rt, rs) parse ->
-    (string option list option * wrapped_parse) list ->
-    (string option list option * wrapped_parse) list =
+    (string option list option * observation) list ->
+    (string option list option * observation) list =
  fun doms vars ->
   try
     match doms with
@@ -189,17 +186,17 @@ let rec get_pi_args :
             get_pi_args fn ((Some xs, tys) :: vars)
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | _ -> raise Not_a_pi_arg
-  with Not_a_pi_arg -> (None, Wrap doms) :: vars
+  with Not_a_pi_arg -> (None, Term doms) :: vars
 
 (* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
 let rec get_pi :
     type lt ls rt rs.
-    observation list -> (string option list option * wrapped_parse) list * wrapped_parse = function
+    observation list -> (string option list option * observation) list * observation = function
   | [ Term dom; Term cod ] ->
       let doms, cod =
         match cod with
         | Notn n when equal (notn n) arrow -> get_pi (args n)
-        | _ -> ([], Wrap cod) in
+        | _ -> ([], Term cod) in
       (get_pi_args dom doms, cod)
   | _ -> fatal (Anomaly "invalid notation arguments for arrow")
 
@@ -207,7 +204,7 @@ let rec get_pi :
 let rec compile_pi :
     type n lt ls rt rs.
     (string option, n) Bwv.t ->
-    (string option list option * wrapped_parse) list ->
+    (string option list option * observation) list ->
     (lt, ls, rt, rs) parse ->
     n check =
  fun ctx doms cod ->
@@ -215,10 +212,10 @@ let rec compile_pi :
   | [] -> compile ctx cod
   | (Some [], _) :: doms -> compile_pi ctx doms cod
   | (None, dom) :: doms -> compile_pi ctx ((Some (None :: []), dom) :: doms) cod
-  | (Some (x :: xs), Wrap dom) :: doms ->
+  | (Some (x :: xs), Term dom) :: doms ->
       let cdom = compile ctx dom in
       let ctx = Bwv.Snoc (ctx, x) in
-      let cod = compile_pi ctx ((Some xs, Wrap dom) :: doms) cod in
+      let cod = compile_pi ctx ((Some xs, Term dom) :: doms) cod in
       Synth (Pi (cdom, cod))
 
 let () =
@@ -227,7 +224,7 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let doms, Wrap cod = get_pi obs in
+          let doms, Term cod = get_pi obs in
           compile_pi ctx doms cod);
     }
 
@@ -235,7 +232,7 @@ let () =
 let rec pp_doms :
     [ `Start | `Dep | `Nondep ] ->
     formatter ->
-    (string option list option * wrapped_parse) list ->
+    (string option list option * observation) list ->
     unit =
  fun prev ppf doms ->
   match doms with
@@ -308,15 +305,12 @@ let compile_abs cube =
 
 let pp_abs cube ppf obs =
   match obs with
-  | [ Term vars; Term body ] ->
-      fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]"
-        (* It seems to work the same to just print the list of variables as if it were an application spine.  *)
-        (* (pp_print_list ~pp_sep:pp_print_space pp_var) *)
-        pp_term (Wrap vars) pp_tok
+  | [ vars; body ] ->
+      fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]" pp_term vars pp_tok
         (match cube with
         | `Normal -> Mapsto
         | `Cube -> DblMapsto)
-        pp_term (Wrap body)
+        pp_term body
   | _ -> fatal (Anomaly "invalid notation arguments for abstraction")
 
 let () =
@@ -451,13 +445,8 @@ let () = set_compiler struc { compile = (fun ctx obs -> compile_struc Field.Map.
 
 let rec pp_fld :
     type a.
-    formatter ->
-    (formatter -> a -> unit) ->
-    a ->
-    Token.t ->
-    wrapped_parse ->
-    observation list ->
-    unit =
+    formatter -> (formatter -> a -> unit) -> a -> Token.t -> observation -> observation list -> unit
+    =
  fun ppf pp x tok tm obs ->
   fprintf ppf "@[<hov 2>%a %a@ %a@]%a" pp x pp_tok tok pp_term tm
     (pp_print_option (fun ppf -> fprintf ppf " %a@ " pp_tok))
@@ -469,10 +458,10 @@ and pp_fields : formatter -> observation list -> unit =
   | [] -> ()
   | Term (Ident x) :: obs | Term (Field x) :: obs -> (
       match obs with
-      | Term tm :: obs ->
+      | tm :: obs ->
           (match state () with
-          | Term -> pp_fld ppf pp_var (Some x) Coloneq (Wrap tm) obs
-          | Case -> pp_fld ppf pp_field x Mapsto (Wrap tm) obs);
+          | Term -> pp_fld ppf pp_var (Some x) Coloneq tm obs
+          | Case -> pp_fld ppf pp_field x Mapsto tm obs);
           pp_fields ppf obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | Term Placeholder :: _ -> fatal Unnamed_field_in_struct
@@ -583,7 +572,7 @@ let () =
               | None -> fatal (Unbound_variable ident)
               | Some x ->
                   let fa, obs =
-                    (* If the next thing looks like a field, it might mean a face of a cube variable. *)
+                    (* If the next thing is a field, it must mean a face of a cube variable. *)
                     match obs with
                     | Term (Field fld) :: obs -> (
                         match Dim.sface_of_string fld with
@@ -601,29 +590,28 @@ let () =
 let rec pp_branches : bool -> formatter -> observation list -> unit =
  fun brk ppf obs ->
   match obs with
-  | Term pat :: Term body :: obs ->
+  | pat :: body :: obs ->
       let style = style () in
       if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match body with
-      | Notn n when equal (notn n) mtch && style = Compact ->
-          fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a@] %a@]" pp_tok (Op "|") pp_term (Wrap pat) pp_tok
-            Mapsto (pp_match false) (args n)
+      | Term (Notn n) when equal (notn n) mtch && style = Compact ->
+          fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a@] %a@]" pp_tok (Op "|") pp_term pat pp_tok Mapsto
+            (pp_match false) (args n)
       | _ ->
-          fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a@]%t%a@]" pp_tok (Op "|") pp_term (Wrap pat) pp_tok
-            Mapsto
+          fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a@]%t%a@]" pp_tok (Op "|") pp_term pat pp_tok Mapsto
             (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
-            pp_term (Wrap body));
+            pp_term body);
       pp_branches true ppf obs
   | [] -> ()
   | _ -> fatal (Anomaly "invalid notation arguments for match")
 
 and pp_match box ppf obs =
   match obs with
-  | Term (Ident ident) :: obs ->
+  | (Term (Ident _) as x) :: obs ->
       if box then pp_open_vbox ppf 0;
       pp_tok ppf LBracket;
       pp_print_string ppf " ";
-      pp_term ppf (Wrap (Ident ident));
+      pp_term ppf x;
       pp_branches true ppf obs;
       if style () = Compact then pp_print_string ppf " " else pp_print_cut ppf ();
       pp_tok ppf RBracket;

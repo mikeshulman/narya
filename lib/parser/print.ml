@@ -32,8 +32,8 @@ let pp_constr (ppf : formatter) (c : string) : unit = fprintf ppf "%a." pp_utf_8
 let pp_field (ppf : formatter) (c : string) : unit = fprintf ppf ".%a" pp_utf_8 c
 
 (* Print a parse tree. *)
-let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
-  let (Wrap tr) = wtr in
+let rec pp_term (ppf : formatter) (wtr : observation) : unit =
+  let (Term tr) = wtr in
   match state () with
   | Case -> (
       match tr with
@@ -51,7 +51,7 @@ let rec pp_term (ppf : formatter) (wtr : wrapped_parse) : unit =
 
 and pp_notn_case :
     type left tight right.
-    formatter -> (left, tight, right) notation -> observation list -> wrapped_parse -> unit =
+    formatter -> (left, tight, right) notation -> observation list -> observation -> unit =
  fun ppf n obs tr ->
   match print_as_case n with
   | Some pp -> pp ppf obs
@@ -64,9 +64,9 @@ and pp_notn :
   | Some pp -> pp ppf obs
   | None -> fatal (Anomaly "Unprintable term")
 
-and pp_spine (ppf : formatter) (tr : wrapped_parse) : unit =
+and pp_spine (ppf : formatter) (tr : observation) : unit =
   match tr with
-  | Wrap (App { fn; arg; _ }) -> fprintf ppf "%a@ %a" pp_spine (Wrap fn) pp_term (Wrap arg)
+  | Term (App { fn; arg; _ }) -> fprintf ppf "%a@ %a" pp_spine (Term fn) pp_term (Term arg)
   | _ -> pp_term ppf tr
 
 let pp_as_term style f = Reader.run ~env:(style, Term) f

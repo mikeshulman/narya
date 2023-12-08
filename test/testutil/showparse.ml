@@ -29,5 +29,5 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Numeral n -> Numeral n
 
 let parse state str =
-  let (Wrap tm) = Parse.term state str in
+  let (Term tm) = Parse.term state str in
   get_tree tm

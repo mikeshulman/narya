@@ -5,53 +5,6 @@ open Raw
 open Bwd
 open Reporter
 open Notation
-
-(* The individual notation implementations are passed a list of "observations" which are the idents and terms seen and recorded while parsing that notation.  They extract its pieces using these functions.  *)
-
-let get_ident (obs : observation list) =
-  match obs with
-  | [] -> fatal (Anomaly "Missing ident")
-  | Ident x :: rest -> (x, rest)
-  | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing ident")
-
-let rec get_idents (obs : observation list) =
-  match obs with
-  | [] | Constr _ :: _ | Field _ :: _ | Term _ :: _ -> ([], obs)
-  | Ident x :: rest ->
-      let idents, rest = get_idents rest in
-      (x :: idents, rest)
-
-let get_constr (obs : observation list) =
-  match obs with
-  | [] -> fatal (Anomaly "Missing constr")
-  | Constr x :: rest -> (x, rest)
-  | Ident _ :: _ | Field _ :: _ | Term _ :: _ -> fatal (Anomaly "Missing constr")
-
-let get_term (obs : observation list) : wrapped_parse * observation list =
-  match obs with
-  | [] -> fatal (Anomaly "Missing term")
-  | Constr _ :: _ | Field _ :: _ | Ident _ :: _ -> fatal (Anomaly "Missing term")
-  | Term x :: rest -> (Wrap x, rest)
-
-let get_next (obs : observation list) :
-    [ `Done
-    | `Constr of string * observation list
-    | `Field of string * observation list
-    | `Ident of string option * observation list
-    | `Term of wrapped_parse * observation list ] =
-  match obs with
-  | [] -> `Done
-  | Constr x :: rest -> `Constr (x, rest)
-  | Field x :: rest -> `Field (x, rest)
-  | Ident x :: rest -> `Ident (x, rest)
-  | Term x :: rest -> `Term (Wrap x, rest)
-
-(* Just a sanity check at the end that there's nothing left. *)
-let get_done (obs : observation list) =
-  match obs with
-  | [] -> ()
-  | _ :: _ -> fatal (Anomaly "Extra stuff")
-
 open Monad.Ops (Monad.Maybe)
 
 (* At present we only know how to compile natural number numerals. *)

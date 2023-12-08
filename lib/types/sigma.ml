@@ -1,6 +1,7 @@
 open Util
 open Dim
 open Core
+open Reporter
 open Parser
 open Notation
 open Compile
@@ -30,13 +31,12 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let x, obs = get_ident obs in
-          let Wrap tm, obs = get_term obs in
-          let Wrap ty, obs = get_term obs in
-          let () = get_done obs in
-          let tm = compile ctx tm in
-          let ty = compile (Snoc (ctx, x)) ty in
-          Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
+          match obs with
+          | [ Ident x; Term tm; Term ty ] ->
+              let tm = compile ctx tm in
+              let ty = compile (Snoc (ctx, x)) ty in
+              Synth (App (App (Const sigma, tm), Lam (`Normal, ty)))
+          | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }
 
 let prodn = make "prod" (Infixr No.one)
@@ -47,12 +47,12 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let Wrap tm, obs = get_term obs in
-          let Wrap ty, obs = get_term obs in
-          let () = get_done obs in
-          let tm = compile ctx tm in
-          let ty = compile (Snoc (ctx, None)) ty in
-          Synth (App (App (Const sigma, tm), Lam (`Normal, ty))));
+          match obs with
+          | [ Term tm; Term ty ] ->
+              let tm = compile ctx tm in
+              let ty = compile (Snoc (ctx, None)) ty in
+              Synth (App (App (Const sigma, tm), Lam (`Normal, ty)))
+          | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }
 
 let comma = make "comma" (Infixr No.one)
@@ -63,12 +63,12 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let Wrap x, obs = get_term obs in
-          let Wrap y, obs = get_term obs in
-          let () = get_done obs in
-          let x = compile ctx x in
-          let y = compile ctx y in
-          Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ]));
+          match obs with
+          | [ Term x; Term y ] ->
+              let x = compile ctx x in
+              let y = compile ctx y in
+              Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ])
+          | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }
 
 let installed = ref false

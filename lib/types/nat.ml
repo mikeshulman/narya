@@ -3,6 +3,7 @@ open Bwd.Infix
 open Util
 open Dim
 open Core
+open Reporter
 open Parser
 open Notation
 open Compile
@@ -29,12 +30,12 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let Wrap x, obs = get_term obs in
-          let Wrap y, obs = get_term obs in
-          let () = get_done obs in
-          let x = compile ctx x in
-          let y = compile ctx y in
-          Raw.Synth (App (App (Const plus, x), y)));
+          match obs with
+          | [ Term x; Term y ] ->
+              let x = compile ctx x in
+              let y = compile ctx y in
+              Raw.Synth (App (App (Const plus, x), y))
+          | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     }
 
 let timesn = make "times" (Infixl No.one)
@@ -45,12 +46,12 @@ let () =
     {
       compile =
         (fun ctx obs ->
-          let Wrap x, obs = get_term obs in
-          let Wrap y, obs = get_term obs in
-          let () = get_done obs in
-          let x = compile ctx x in
-          let y = compile ctx y in
-          Raw.Synth (App (App (Const times, x), y)));
+          match obs with
+          | [ Term x; Term y ] ->
+              let x = compile ctx x in
+              let y = compile ctx y in
+              Raw.Synth (App (App (Const times, x), y))
+          | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     }
 
 let installed = ref false

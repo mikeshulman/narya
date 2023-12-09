@@ -22,7 +22,7 @@ type pmt =
 (* Using a Bwv of variable names, to turn them into De Bruijn indices, we can parse such a term into a synth/checkable one. *)
 let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
  fun ctx -> function
-  | Lam (x, body) -> Lam (`Normal, parse_chk (Snoc (ctx, x)) body)
+  | Lam (x, body) -> Lam (Some x, `Normal, parse_chk (Snoc (ctx, x)) body)
   | Struct tms ->
       Struct
         (List.fold_left
@@ -47,7 +47,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       | None -> Reporter.fatal (Unbound_variable x))
   | UU -> UU
   | Field (x, fld) -> Field (parse_syn ctx x, Field.intern fld)
-  | Pi (x, dom, cod) -> Pi (parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
+  | Pi (x, dom, cod) -> Pi (Some x, parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
   | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)
   | Id (a, x, y) -> (
       match parse_chk ctx a with

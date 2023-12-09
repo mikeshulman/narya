@@ -13,23 +13,28 @@ let unequal_at tm1 tm2 ty =
   if Option.is_none (Equal.equal_at 0 tm1 tm2 ty) then () else raise (Failure "Equal")
 
 let uu = Synth UU
-let raw_nat = Pi (Synth (Pi (uu, uu)), Synth (Pi (uu, uu)))
+let raw_nat = Pi (None, Synth (Pi (None, uu, uu)), Synth (Pi (None, uu, uu)))
 let nat = ev (synth raw_nat)
-let zero = ev (check (Lam (`Normal, Lam (`Normal, Synth (Var (Top, None))))) nat)
+let zero = ev (check (Lam (None, `Normal, Lam (None, `Normal, Synth (Var (Top, None))))) nat)
 
 let one =
   ev
     (check
-       (Lam (`Normal, Lam (`Normal, Synth (App (Var (Pop Top, None), Synth (Var (Top, None)))))))
+       (Lam
+          ( None,
+            `Normal,
+            Lam (None, `Normal, Synth (App (Var (Pop Top, None), Synth (Var (Top, None))))) ))
        nat)
 
 let two =
   ev
     (check
        (Lam
-          ( `Normal,
+          ( None,
+            `Normal,
             Lam
-              ( `Normal,
+              ( None,
+                `Normal,
                 Synth
                   (App
                      ( Var (Pop Top, None),
@@ -40,9 +45,11 @@ let three =
   ev
     (check
        (Lam
-          ( `Normal,
+          ( None,
+            `Normal,
             Lam
-              ( `Normal,
+              ( None,
+                `Normal,
                 Synth
                   (App
                      ( Var (Pop Top, None),
@@ -57,18 +64,22 @@ let () = unequal_at zero one nat
 let () = equal_at one one nat
 let () = unequal_at one two nat
 let () = unequal_at zero two nat
-let binop = ev (synth (Pi (Synth raw_nat, Synth (Pi (Synth raw_nat, Synth raw_nat)))))
+let binop = ev (synth (Pi (None, Synth raw_nat, Synth (Pi (None, Synth raw_nat, Synth raw_nat)))))
 
 let plus =
   check
     (Lam
-       ( `Normal,
+       ( None,
+         `Normal,
          Lam
-           ( `Normal,
+           ( None,
+             `Normal,
              Lam
-               ( `Normal,
+               ( None,
+                 `Normal,
                  Lam
-                   ( `Normal,
+                   ( None,
+                     `Normal,
                      Synth
                        (App
                           ( App (Var (Pop (Pop (Pop Top)), None), Synth (Var (Pop Top, None))),

@@ -11,7 +11,7 @@ type _ synth =
   | Var : 'a index -> 'a synth
   | Const : Constant.t -> 'a synth
   | Field : 'a synth * Field.t -> 'a synth
-  | Pi : 'a check * 'a N.suc check -> 'a synth
+  | Pi : string option * 'a check * 'a N.suc check -> 'a synth
   | App : 'a synth * 'a check -> 'a synth
   | Asc : 'a check * 'a check -> 'a synth
   | Let : 'a synth * 'a N.suc synth -> 'a synth
@@ -21,15 +21,17 @@ type _ synth =
 
 and _ check =
   | Synth : 'a synth -> 'a check
-  | Lam : [ `Cube | `Normal ] * 'a N.suc check -> 'a check
+  | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check -> 'a check
   | Struct : 'a check list Field.Map.t -> 'a check
   | Constr : Constr.t * 'a check Bwd.t -> 'a check
   | Match : 'a index * 'a branch list -> 'a check
 
 and _ branch = Branch : Constr.t * ('a, 'b, 'ab) N.plus * 'ab check -> 'a branch
 
-let rec raw_lam : type a b ab. [ `Cube | `Normal ] -> (a, b, ab) N.plus -> ab check -> a check =
- fun cube ab tm ->
-  match ab with
-  | Zero -> tm
-  | Suc ab -> raw_lam cube ab (Lam (cube, tm))
+let rec raw_lam :
+    type a b ab.
+    (string option, ab) Bwv.t -> [ `Cube | `Normal ] -> (a, b, ab) N.plus -> ab check -> a check =
+ fun names cube ab tm ->
+  match (names, ab) with
+  | _, Zero -> tm
+  | Snoc (names, x), Suc ab -> raw_lam names cube ab (Lam (x, cube, tm))

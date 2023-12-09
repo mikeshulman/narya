@@ -21,8 +21,11 @@ open Reporter
 
 type (_, _) t =
   | Emp : (N.zero, emp) t
+  (* Add a cube of internal variables that are visible to the parser as a cube of variables. *)
   | Vis : ('a, 'b) t * ('n, level option * normal) CubeOf.t -> ('a N.suc, ('b, 'n) ext) t
+  (* Add a cube of internal variables that are not visible to the parser. *)
   | Invis : ('a, 'b) t * ('n, level option * normal) CubeOf.t -> ('a, ('b, 'n) ext) t
+  (* Add a cube of internal variables that are visible to the parser as a list of ordinary variables. *)
   | Split :
       ('a, 'b) t
       * ('n, 'f) count_faces

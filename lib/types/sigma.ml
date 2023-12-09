@@ -41,7 +41,7 @@ let () =
             | _ -> fatal (Anomaly "invalid notation arguments for sigma") in
           let a = process ctx a in
           let b = process (Snoc (ctx, x)) b in
-          Synth (App (App (Const sigma, a), Lam (`Normal, b))));
+          Synth (App (App (Const sigma, a), Lam (x, `Normal, b))));
     }
 
 let comma = make "comma" (Infixr No.one)

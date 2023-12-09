@@ -202,7 +202,7 @@ let rec process_pi :
       let cdom = process ctx dom in
       let ctx = Bwv.Snoc (ctx, x) in
       let cod = process_pi ctx ((Some xs, Term dom) :: doms) cod in
-      Synth (Pi (cdom, cod))
+      Synth (Pi (x, cdom, cod))
 
 let () =
   set_tree arrow (Open_entry (eop Arrow (done_open arrow)));
@@ -285,7 +285,7 @@ let process_abs cube =
         match obs with
         | [ Term vars; Term body ] ->
             let (Extctx (ab, ctx)) = get_vars ctx vars in
-            raw_lam cube ab (process ctx body)
+            raw_lam ctx cube ab (process ctx body)
         | _ -> fatal (Anomaly "invalid notation arguments for abstraction"));
   }
 
@@ -563,7 +563,7 @@ let () =
           (* Otherwise, it's a matching lambda. *)
           | _ ->
               let branches = process_branches (Snoc (ctx, None)) obs in
-              Lam (`Normal, Match ((Top, None), branches)));
+              Lam (None, `Normal, Match ((Top, None), branches)));
     }
 
 let rec pp_branches : bool -> formatter -> observation list -> unit =

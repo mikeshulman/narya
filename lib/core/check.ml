@@ -22,7 +22,7 @@ let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> ab check =
  fun ab tm ->
   match (ab, tm) with
   | Zero, _ -> tm
-  | Suc _, Lam (`Normal, body) -> lambdas (N.suc_plus'' ab) body
+  | Suc _, Lam (_, `Normal, body) -> lambdas (N.suc_plus'' ab) body
   (* Not enough lambdas.  TODO: We could eta-expand in this case, as long as we've picked up at least one lambda. *)
   | _ -> fatal (Not_enough_lambdas (N.to_int (N.plus_right ab)))
 
@@ -44,7 +44,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
       let sval, sty = synth ctx stm in
       let () = equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type in
       sval
-  | Lam (cube, body) -> (
+  | Lam (_, cube, body) -> (
       match uty with
       | Pi (doms, cods) -> (
           let m = CubeOf.dim doms in
@@ -198,7 +198,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       let newty = tyof_field ~severity:Asai.Diagnostic.Error etm sty fld in
       (Field (stm, fld), newty)
   | UU -> (Term.UU D.zero, universe D.zero)
-  | Pi (dom, cod) ->
+  | Pi (_, dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let cdom = check ctx dom (universe D.zero) in
       let edom = Ctx.eval ctx cdom in
@@ -418,7 +418,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
  fun ctx tm ty prev_tm tree ->
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "checking case tree" in
   match tm with
-  | Lam (cube, body) -> (
+  | Lam (_, cube, body) -> (
       match uty with
       | Pi (doms, cods) -> (
           (* Basically copied from Check.check.  Can they be unified? *)

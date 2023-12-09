@@ -1,6 +1,6 @@
 open Util
 
-(* An "upper tightness interval" is of the form (p,+∞] or [p,+∞] for some tightness p.  Ordinarily we would call these "open" and "closed" intervals, but due to the potential confusion with "closed" and "open" notations we call them instead "strict" and "nonstrict". *)
+(* An "upper tightness interval" is of the form (p,+ω] or [p,+ω] for some tightness p.  Ordinarily we would call these "open" and "closed" intervals, but due to the potential confusion with "closed" and "open" notations we call them instead "strict" and "nonstrict". *)
 
 type ('a, 's) tt = 's No.strictness * 'a No.t
 type t = Interval : ('s, 'a) tt -> t
@@ -43,5 +43,3 @@ let subset_contains :
   | Subset_strict lt2 -> No.lt_trans Strict_any lt2 lt1
   | Subset_eq -> lt1
   | Subset_nonstrict_strict -> No.lt_to_le lt1
-
-let compare : t -> t -> int = fun x y -> compare x y

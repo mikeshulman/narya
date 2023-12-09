@@ -38,7 +38,7 @@ let () =
    Let-binding
  ******************** *)
 
-(* Let-in doesn't need to be right-associative in order to chain, because it is left-closed.  Declaring it to be nonassociative means that "let x := y in z : A" doesn't parse without parentheses, which I think is best as it looks ambiguous.  *)
+(* Let-in doesn't need to be right-associative in order to chain, because it is left-closed, but we make it right-associative anyway for consistency.  *)
 
 let letin = make "let" (Prefixr No.minus_omega)
 
@@ -485,8 +485,6 @@ let () =
 
 let mtch = make "match" Outfix
 
-(* TODO: Have to parse each LHS as a *term* and then inspect it later as a pattern. *)
-
 let rec innermtch () =
   Inner
     {
@@ -551,7 +549,7 @@ let () =
       process =
         (fun ctx obs ->
           match obs with
-          (* If the first thing is an ident, then it's the match variable *)
+          (* If the first thing is an ident, then it's the match variable. *)
           | Term (Ident ident) :: obs -> (
               match Bwv.index (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)

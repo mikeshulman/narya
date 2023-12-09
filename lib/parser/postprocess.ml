@@ -7,6 +7,7 @@ open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
 
+(* Require the argument to be either a local variable name or an underscore, and return a corresponding 'string option'. *)
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option = function
   | Ident x -> if Token.variableable x then Some x else fatal (Invalid_variable x)
   | Placeholder -> None
@@ -20,7 +21,7 @@ let process_numeral (n : Q.t) =
     else Raw.Constr (Constr.intern "suc", Snoc (Emp, process_nat (Z.sub n Z.one))) in
   if n.den = Z.one && n.num >= Z.zero then process_nat n.num else fatal (Unsupported_numeral n)
 
-(* Now the master compilation function.  Note that this function calls the "process" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
+(* Now the master postprocessing function.  Note that this function calls the "process" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
 let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, rs) parse -> n check
     =

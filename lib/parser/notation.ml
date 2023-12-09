@@ -46,15 +46,18 @@ let fixprops :
 
 (* A "notation tree" (not to be confused with a "parse tree", which is the *result* of parsing) carries the information about how to parse one or more notations.  Each individual notation is defined by giving one tree, but multiple such trees can also be "merged" together.  This allows different notations that start out looking the same to be parsed with minimal backtracking, as we don't need to "decide" which notation we're parsing until we get to the point of the tree where they diverge.  Accordingly, although each notation is associated to a defining tree, a tree also stores pointers to notations at its leaves, since a merged tree could parse many different notations depending on which path through it is taken. *)
 
-(* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only store the operators, constructors, fields, identifiers, and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
+(* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only record the positions of the operators and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
+
+(* A notation tree is parametrized by an upper tightness interval and is guaranteed to produce only notations that lie in that interval from the left. *)
 type (_, _) tree =
   | Inner : ('t, 's) branch -> ('t, 's) tree
   | Done_open : ('t, 's, 'tight) No.lt * ('left opn, 'tight, 'right) notation -> ('t, 's) tree
+  (* However, left-closed notations can lie in any tightness interval on that side. *)
   | Done_closed : (closed, 'tight, 'right) notation -> ('t, 's) tree
   (* Trees associated to notations of arbitrary length are infinite, so we allow them to be computed lazily as needed. *)
   | Lazy : ('t, 's) tree Lazy.t -> ('t, 's) tree
 
-(* When there is a choice in parsing, we arrange it so that no backtracking is required.  We test all the possible next literal tokens, the possibility of a notation operator, field, or other term being done with this node.  Constructors and identifiers are considered special terms and extracted during postprocessing.  Operators and fields cannot also be other terms, so there is no need for backtracking. *)
+(* When there is a choice in parsing, we arrange it so that no backtracking is required (except for a single token of lookahead).  We test all the possible next literal tokens, considering the possibility of a notation operator, field, or other term.  (Constructors and identifiers are considered special terms, and extracted during postprocessing.)  Operators and fields cannot also be other terms, so there is no need for backtracking. *)
 and ('t, 's) branch = {
   ops : ('t, 's) tree TokMap.t;
   field : ('t, 's) tree option;
@@ -67,7 +70,7 @@ and ('t, 's) entry = ('t, 's) tree TokMap.t
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "postprocessing" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
 and observation = Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
-(* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness, and may require witnesses that it is tight enough on the left and/or the right also depending on its openness. *)
+(* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness.  It is parametrized by the openness and tightness of the notation, and also by upper tightness intervals from the left and right in which it is guaranteed to lie.  Thus, the first and last term (if any) can be guaranteed statically to be valid, and we may require witnesses that the notation is tight enough on the left and/or the right (also depending on its openness) to fit in the specified intervals. *)
 and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn = {
   notn : ('left, 'tight, 'right) notation;
   first : ('lt, 'ls, 'tight, 'left) first_arg;
@@ -89,7 +92,7 @@ and (_, _, _, _) tighter_than =
   | Open_ok : ('lt, 'ls, 'tight) No.lt -> ('lt, 'ls, 'tight, 'l opn) tighter_than
   | Closed_ok : ('lt, 'ls, 'tight, closed) tighter_than
 
-(* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "postprocessing" functions.  *)
+(* A "parse tree" is not to be confused with our "notation trees".  Note that these parse trees don't know anything about the *meanings* of notations either; those are stored by the "postprocessing" functions. *)
 and (_, _, _, _) parse =
   | Notn : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('lt, 'ls, 'rt, 'rs) parse
   (* We treat application as a left-associative binary infix operator of tightness +ω.  Note that like any infix operator, its left argument must be in its left interval and its right argument must be in its right interval. *)
@@ -109,13 +112,14 @@ and (_, _, _, _) parse =
 (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
 and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
+(* The entry point of the parse tree defining a particular notation must be parametrized either by the representable non-strict interval at that tightness, or by the empty interval in case of a left-closed notation. *)
 and ('left, 'tight) notation_entry =
   | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry
   | Closed_entry : (No.plus_omega, No.strict) entry -> (closed, 'tight) notation_entry
 
 (* A notation has a precedence, which we call "tightness" to make it obvious that higher numbers bind more tightly, and is a floating-point number.  Using a DAG for precedence, as in Danielsson-Norell, is a nice idea, but it seems to require a lot of backtracking: if when parsing the right-hand argument of a notation ∧ you encounter a notation * that isn't tighter than ∧, you can't know yet that it is forbidden; you have to keep parsing in case you encounter another notation like = that is tighter than ∧ and looser than *, or in fact multiple such notations forming some arbitrarily complicated path through the DAG.  This is incompatible with the minimal-backtracking approach we take, so we stick to numerical tightnesses.
 
-   Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side), so we give those a tightness of NaN.  User-defined notations that are open on at least one side have finite tightness, while +∞ and −∞ tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −∞, while +∞ is currently unused.  (Danielsson-Norell say that parentheses are tighter than everything, but in our setup they don't need a tightness at all since they are closed on both sides.) *)
+   Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side), so we give those a tightness of NaN.  User-defined notations that are open on at least one side have finite tightness, while +ω and −ω tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −ω, while all outfix notations such as parentheses (and also, morally, application) have tightness +ω. *)
 and ('left, 'tight, 'right) notation = {
   name : string;
   id : int; (* Autonumber primary key *)
@@ -194,21 +198,14 @@ let counter = ref 0
 let equal : type l1 t1 r1 l2 t2 r2. (l1, t1, r1) notation -> (l2, t2, r2) notation -> bool =
  fun x y -> x.id = y.id
 
-(* A "comparable" module that we can pass to functors like Map.Make. *)
-module Notation = struct
-  type t = Wrap : ('l, 't, 'r) notation -> t
-
-  let compare : t -> t -> int = fun (Wrap x) (Wrap y) -> compare x.id y.id
-end
-
-(* A partially-wrapped notation that can appear in a specified upper tightness interval. *)
+(* A partially-wrapped notation that can appear in a specified upper tightness interval on the left. *)
 type (_, _) notation_in_interval =
   | Open_in_interval :
       ('lt, 'ls, 'tight) No.lt * ('left opn, 'tight, 'right) notation
       -> ('lt, 'ls) notation_in_interval
   | Closed_in_interval : (closed, 'tight, 'right) notation -> ('lt, 'ls) notation_in_interval
 
-(* The definition of Notation.t is abstract outside this file, so that we can guarantee they are only created with "make" below and the primary key increments every time.  Thus, we have to provide getter functions for all the fields that should be visible outside this file. *)
+(* The definition of 'notation' is abstract outside this file, so that we can guarantee they are only created with "make" below and the primary key increments every time.  Thus, we have to provide getter functions for all the fields that should be visible outside this file. *)
 let name n = n.name
 let tightness n = n.tightness
 let left n = n.left

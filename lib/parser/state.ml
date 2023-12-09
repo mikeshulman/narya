@@ -2,7 +2,6 @@ open Util
 open Core.Reporter
 open Notation
 module TokMap = Map.Make (Token)
-module NSet = Set.Make (Notation)
 
 module EntryPair = struct
   type 'a t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
@@ -27,6 +26,7 @@ let empty : t =
     left_opens = TokMap.empty;
   }
 
+(* Add a new notation to the current state of available ones. *)
 let add : type left tight right. (left, tight, right) notation -> t -> t =
  fun n s ->
   (* First, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)

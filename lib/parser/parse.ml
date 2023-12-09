@@ -5,7 +5,6 @@ open Reporter
 open Fmlib_parse
 open Notation
 module TokMap = Map.Make (Token)
-module TIMap = Map.Make (Interval)
 
 (* Sometimes we want to parse only a single term, other times we want to parse and execute a sequence of commands.  Since these two processes return different results, they have to be based on different instances of Token_parser.Make.  But they share all the code of the combinators for parsing terms, so we make those instances of a functor as well. *)
 

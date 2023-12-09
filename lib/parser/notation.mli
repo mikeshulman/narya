@@ -116,12 +116,6 @@ val set_print_as_case :
 val make : string -> ('left, 'tight, 'right) fixity -> ('left, 'tight, 'right) notation
 val equal : ('l1, 't1, 'r1) notation -> ('l2, 't2, 'r2) notation -> bool
 
-module Notation : sig
-  type t = Wrap : ('left, 'tight, 'right) notation -> t
-
-  val compare : t -> t -> int
-end
-
 type (_, _) notation_in_interval =
   | Open_in_interval :
       ('lt, 'ls, 'tight) No.lt * ('left opn, 'tight, 'right) notation

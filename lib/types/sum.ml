@@ -7,7 +7,7 @@ let inr = Constr.intern "inr"
 
 let install () =
   let sum = Scope.define "sum" in
-  Hashtbl.add Global.types sum (pi (UU D.zero) (pi (UU D.zero) (UU D.zero)));
+  Hashtbl.add Global.types sum (pi None (UU D.zero) (pi None (UU D.zero) (UU D.zero)));
   Hashtbl.add Global.constants sum
     (Data
        {
@@ -17,7 +17,8 @@ let install () =
            Constr.Map.empty
            |> Constr.Map.add inl
                 (Global.Constr
-                   { args = Ext (Var (Pop (Top (id_sface D.zero))), Emp); indices = Emp })
+                   { args = Ext (None, Var (Pop (Top (id_sface D.zero))), Emp); indices = Emp })
            |> Constr.Map.add inr
-                (Global.Constr { args = Ext (Var (Top (id_sface D.zero)), Emp); indices = Emp });
+                (Global.Constr
+                   { args = Ext (None, Var (Top (id_sface D.zero)), Emp); indices = Emp });
        })

@@ -72,14 +72,14 @@ let install () =
   Scope.set "Σ" sigma;
   Scope.set "pair" pair;
   Hashtbl.add Global.types sigma
-    (pi (UU D.zero) (pi (pi (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
+    (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
   Hashtbl.add Global.types pair
-    (pi (UU D.zero)
-       (pi
-          (pi (Var (Top (id_sface D.zero))) (UU D.zero))
-          (pi
+    (pi None (UU D.zero)
+       (pi None
+          (pi None (Var (Top (id_sface D.zero))) (UU D.zero))
+          (pi None
              (Var (Pop (Top (id_sface D.zero))))
-             (pi
+             (pi None
                 (app (Var (Pop (Top (id_sface D.zero)))) (Var (Top (id_sface D.zero))))
                 (app
                    (app (Const sigma) (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))))

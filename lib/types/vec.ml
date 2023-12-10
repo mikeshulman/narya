@@ -13,7 +13,7 @@ let install () =
   let vec = Scope.define "Vec" in
   let concat = Scope.define "concat" in
   let ind = Scope.define "Vec_ind" in
-  Hashtbl.add Global.types vec (pi (UU D.zero) (pi (Const nn) (UU D.zero)));
+  Hashtbl.add Global.types vec (pi None (UU D.zero) (pi None (Const nn) (UU D.zero)));
   Hashtbl.add Global.constants vec
     (Data
        {
@@ -28,11 +28,14 @@ let install () =
                    {
                      args =
                        Ext
-                         ( Const nn,
+                         ( None,
+                           Const nn,
                            Ext
-                             ( Var (Pop (Top (id_sface D.zero))),
+                             ( None,
+                               Var (Pop (Top (id_sface D.zero))),
                                Ext
-                                 ( App
+                                 ( None,
+                                   App
                                      ( App
                                          ( Const vec,
                                            CubeOf.singleton
@@ -51,13 +54,13 @@ let install () =
                    });
        });
   Hashtbl.add Global.types concat
-    (pi (UU D.zero)
-       (pi (Const nn)
-          (pi (Const nn)
-             (pi
+    (pi None (UU D.zero)
+       (pi None (Const nn)
+          (pi None (Const nn)
+             (pi None
                 (apps (Const vec)
                    [ Var (Pop (Pop (Top (id_sface D.zero)))); Var (Pop (Top (id_sface D.zero))) ])
-                (pi
+                (pi None
                    (apps (Const vec)
                       [
                         Var (Pop (Pop (Pop (Top (id_sface D.zero)))));
@@ -73,26 +76,26 @@ let install () =
                           ];
                       ]))))));
   Hashtbl.add Global.types ind
-    (pi (UU D.zero)
-       (pi
-          (pi (Const nn)
-             (pi
+    (pi None (UU D.zero)
+       (pi None
+          (pi None (Const nn)
+             (pi None
                 (apps (Const vec)
                    [ Var (Pop (Top (id_sface D.zero))); Var (Top (id_sface D.zero)) ])
                 (UU D.zero)))
-          (pi
+          (pi None
              (apps (Var (Top (id_sface D.zero))) [ constr zero' Emp; constr nil Emp ])
-             (pi
-                (pi (Const nn)
-                   (pi
+             (pi None
+                (pi None (Const nn)
+                   (pi None
                       (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
-                      (pi
+                      (pi None
                          (apps (Const vec)
                             [
                               Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero))))));
                               Var (Pop (Top (id_sface D.zero)));
                             ])
-                         (pi
+                         (pi None
                             (apps
                                (Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero)))))))
                                [
@@ -109,8 +112,8 @@ let install () =
                                    <: Var (Pop (Pop (Top (id_sface D.zero))))
                                    <: Var (Pop (Top (id_sface D.zero))));
                                ])))))
-                (pi (Const nn)
-                   (pi
+                (pi None (Const nn)
+                   (pi None
                       (apps (Const vec)
                          [
                            Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero))))));

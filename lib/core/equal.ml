@@ -24,7 +24,7 @@ and equal_at : int -> value -> value -> value -> unit option =
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
   match uty with
   (* The only interesting thing here happens when the type is one with an eta-rule, such as a pi-type. *)
-  | Pi (doms, cods) -> (
+  | Pi (_, doms, cods) -> (
       let k = CubeOf.dim doms in
       (* The pi-type must be instantiated at the correct dimension. *)
       match compare (TubeOf.inst tyargs) k with
@@ -147,7 +147,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       let* () = equal_head lvl fn1 fn2 in
       (* Then we recursively check that all their arguments are equal. *)
       equal_args lvl args1 args2
-  | Pi (dom1s, cod1s), Pi (dom2s, cod2s) -> (
+  | Pi (_, dom1s, cod1s), Pi (_, dom2s, cod2s) -> (
       (* If two pi-types have the same dimension, equal domains, and equal codomains, they are equal and have the same type (an instantiation of the universe of that dimension at pi-types formed from the lower-dimensional domains and codomains). *)
       let k = CubeOf.dim dom1s in
       match compare (CubeOf.dim dom2s) k with
@@ -238,7 +238,7 @@ and equal_at_tel :
  fun ctx env xs ys tys tyargs ->
   match (xs, ys, tys) with
   | [], [], Emp -> Some ()
-  | x :: xs, y :: ys, Ext (ty, tys) ->
+  | x :: xs, y :: ys, Ext (_, ty, tys) ->
       let ety = eval env ty in
       (* Copied from check_tel; TODO: Factor it out *)
       let tyargtbl = Hashtbl.create 10 in

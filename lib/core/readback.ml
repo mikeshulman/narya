@@ -15,7 +15,7 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
  fun ctx tm ty ->
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
   match uty with
-  | Pi (doms, cods) -> (
+  | Pi (x, doms, cods) -> (
       let k = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) k with
       | Neq -> fatal (Dimension_mismatch ("reading back pi", TubeOf.inst tyargs, k))
@@ -23,7 +23,8 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
           let newctx = Ctx.vis ctx newnfs in
           let output = tyof_app cods tyargs args in
-          Lam (k, readback_at newctx (apply tm args) output))
+          (* TODO: Here we are always using the variable name associated to the *type*.  Can we use the one in the *term* instead, if the term is already an abstraction?  (Would then need to *store* variables in value abstractions, of course.) *)
+          Lam (k, `Cube x, readback_at newctx (apply tm args) output))
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
@@ -117,11 +118,12 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
  fun ctx x ->
   match x with
   | UU m -> UU m
-  | Pi (doms, cods) ->
+  | Pi (x, doms, cods) ->
       let k = CubeOf.dim doms in
       let args, newnfs = dom_vars (Ctx.length ctx) doms in
       Pi
-        ( CubeOf.mmap { map = (fun _ [ dom ] -> readback_val ctx dom) } [ doms ],
+        ( x,
+          CubeOf.mmap { map = (fun _ [ dom ] -> readback_val ctx dom) } [ doms ],
           CodCube.build k
             {
               build =
@@ -171,7 +173,7 @@ and readback_at_tel :
  fun ctx env xs tys tyargs ->
   match (xs, tys) with
   | [], Emp -> []
-  | x :: xs, Ext (ty, tys) ->
+  | x :: xs, Ext (_, ty, tys) ->
       let ety = eval env ty in
       (* Copied from check_tel; TODO: Factor it out *)
       let tyargtbl = Hashtbl.create 10 in

@@ -87,7 +87,7 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
   | UU nk ->
       let (Of fa) = deg_plus_to s nk ~on:"universe" in
       UU (dom_deg fa)
-  | Pi (doms, cods) ->
+  | Pi (x, doms, cods) ->
       let k = CubeOf.dim doms in
       let (Of fa) = deg_plus_to s k ~on:"pi-type" in
       let mi = dom_deg fa in
@@ -107,7 +107,7 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
                 let (Op (fc, fd)) = deg_sface fa fb in
                 act_binder (BindCube.find cods fc) fd);
           } in
-      Pi (doms', cods')
+      Pi (x, doms', cods')
   | Canonical (name, args, ins) ->
       (* Similar to act_apps, but without needing to thread through changes in the insertion, since the intermediate applications lie in 0-dimensional types and hence any degeneracy action can be pushed inside except possibly after the complete application (if the end result is a higher-dimensional type). *)
       let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in

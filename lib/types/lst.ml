@@ -10,7 +10,7 @@ let cons = Constr.intern "cons"
 let install () =
   let list = Scope.define "List" in
   let ind = Scope.define "List_ind" in
-  Hashtbl.add Global.types list (pi (UU D.zero) (UU D.zero));
+  Hashtbl.add Global.types list (pi None (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants list
     (Data
        {
@@ -24,23 +24,25 @@ let install () =
                    {
                      args =
                        Ext
-                         ( Var (Top (id_sface D.zero)),
-                           Ext (app (Const list) (Term.Var (Pop (Top (id_sface D.zero)))), Emp) );
+                         ( None,
+                           Var (Top (id_sface D.zero)),
+                           Ext (None, app (Const list) (Term.Var (Pop (Top (id_sface D.zero)))), Emp)
+                         );
                      indices = Emp;
                    });
        });
   Hashtbl.add Global.types ind
-    (pi (UU D.zero)
-       (pi
-          (pi (app (Const list) (Var (Top (id_sface D.zero)))) (UU D.zero))
-          (pi
+    (pi None (UU D.zero)
+       (pi None
+          (pi None (app (Const list) (Var (Top (id_sface D.zero)))) (UU D.zero))
+          (pi None
              (app (Var (Top (id_sface D.zero))) (constr nil Emp))
-             (pi
-                (pi
+             (pi None
+                (pi None
                    (Var (Pop (Pop (Top (id_sface D.zero)))))
-                   (pi
+                   (pi None
                       (app (Const list) (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))))
-                      (pi
+                      (pi None
                          (app
                             (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
                             (Var (Top (id_sface D.zero))))
@@ -50,7 +52,7 @@ let install () =
                                (Emp
                                <: Var (Pop (Pop (Top (id_sface D.zero))))
                                <: Var (Pop (Top (id_sface D.zero)))))))))
-                (pi
+                (pi None
                    (app (Const list) (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))))
                    (app
                       (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))

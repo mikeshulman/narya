@@ -8,7 +8,7 @@ let tail = Field.intern "tail"
 let install () =
   let stream = Scope.define "Stream" in
   let corec = Scope.define "corec" in
-  Hashtbl.add Global.types stream (pi (UU D.zero) (UU D.zero));
+  Hashtbl.add Global.types stream (pi None (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants stream
     (Record
        {
@@ -22,17 +22,17 @@ let install () =
            ];
        });
   Hashtbl.add Global.types corec
-    (pi ((* A : *) UU D.zero)
-       (pi ((* K : *) UU D.zero)
-          (pi
-             ((* h : *) pi
+    (pi None ((* A : *) UU D.zero)
+       (pi None ((* K : *) UU D.zero)
+          (pi None
+             ((* h : *) pi None
                 ((* k : K *) Var (Top (id_sface D.zero)))
                 ((*A*) Var (Pop (Pop (Top (id_sface D.zero))))))
-             (pi
-                ((* t : *) pi
+             (pi None
+                ((* t : *) pi None
                    ((* k : K *) Var (Pop (Top (id_sface D.zero))))
                    ((*K*) Var (Pop (Pop (Top (id_sface D.zero))))))
-                (pi
+                (pi None
                    ((* k : K *) Var (Pop (Pop (Top (id_sface D.zero)))))
                    (app (Const stream) ((*A*) Var (Pop (Pop (Pop (Pop (Top (id_sface D.zero)))))))))))));
   Hashtbl.add Global.constants corec

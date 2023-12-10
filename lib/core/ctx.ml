@@ -227,7 +227,7 @@ let ext_tel :
     | Emp, Zero, Zero ->
         let Zero, Zero = (ac, ec) in
         (ctx, env, vars)
-    | Ext (rty, rest), Suc _, Suc _ ->
+    | Ext (_, rty, rest), Suc _, Suc _ ->
         let newvars, newnfs =
           dom_vars (length ctx)
             (CubeOf.build (dim_env env)

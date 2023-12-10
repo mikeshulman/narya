@@ -35,7 +35,7 @@ module rec Value : sig
 
   and uninst =
     | UU : 'n D.t -> uninst
-    | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
+    | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     | Neu : head * app Bwd.t -> uninst
     | Canonical : Constant.t * ('n, normal) CubeOf.t Bwd.t * ('m, 'n, 'k) insertion -> uninst
 
@@ -96,7 +96,7 @@ end = struct
   and uninst =
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
-    | Pi : ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
+    | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
     | Neu : head * app Bwd.t -> uninst
     (* A canonical type has a name, a degenerated/substituted dimension, and a list of arguments all of that dimension, plus a possible outside insertion like an application.  It can be applied to fewer than the "correct" number of arguments that would be necessary to produce a type.  The dimension is stored implicitly and can be recovered from cod_left_ins.  Note that a canonical type can also have a nonzero "intrinsic" dimension (the main example are the Gel/Glue record types), which appears in the dimension 'k of the insertion; thus if the intrinsic dimension is zero, the insertion must be trivial. *)

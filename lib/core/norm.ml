@@ -110,7 +110,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
           inst newtm newargs)
-  | Lam (n, body) ->
+  | Lam (n, _, body) ->
       let (Plus mn) = D.plus n in
       Lam (eval_binder env mn body)
   | App (fn, args) ->
@@ -155,7 +155,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               })
           args in
       Constr (constr, mn, eargs)
-  | Pi (doms, cods) ->
+  | Pi (x, doms, cods) ->
       let n = CubeOf.dim doms in
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -198,7 +198,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                 Hashtbl.add tytbl (SFace_of fa) ntm;
                 ntm);
           } in
-      Uninst (Pi (doms, cods), lazy (inst (universe m) tys))
+      Uninst (Pi (x, doms, cods), lazy (inst (universe m) tys))
   | Let (v, body) ->
       let args =
         CubeOf.build (dim_env env) { build = (fun fa -> eval (Act (env, op_of_sface fa)) v) } in
@@ -226,7 +226,7 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
       (* ... we check that it is fully instantiated... *)
       let (Fullinst (ty, tyargs)) = full_inst ty "apply" in
       match ty with
-      | Pi (doms, cods) -> (
+      | Pi (_, doms, cods) -> (
           (* ... and that the pi-type and its instantiation have the correct dimension. *)
           let k = CubeOf.dim doms in
           match (compare (TubeOf.inst tyargs) k, compare (CubeOf.dim arg) k) with

@@ -75,11 +75,12 @@ let install () =
          constrs =
            Constr.Map.empty
            |> Constr.Map.add zero' (Global.Constr { args = Emp; indices = Emp })
-           |> Constr.Map.add suc' (Global.Constr { args = Ext (Const nn, Emp); indices = Emp });
+           |> Constr.Map.add suc'
+                (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
        });
   Hashtbl.add Global.types zero (Const nn);
   Hashtbl.add Global.constants zero (Defined (ref (Case.Leaf (Constr (zero', D.zero, Emp)))));
-  Hashtbl.add Global.types suc (pi (Const nn) (Const nn));
+  Hashtbl.add Global.types suc (pi None (Const nn) (Const nn));
   Hashtbl.add Global.constants suc
     (Defined
        (ref
@@ -89,8 +90,8 @@ let install () =
                  (Case.Leaf
                     (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var (Top (id_sface D.zero))))))
              ))));
-  Hashtbl.add Global.types plus (pi (Const nn) (pi (Const nn) (Const nn)));
-  Hashtbl.add Global.types times (pi (Const nn) (pi (Const nn) (Const nn)));
+  Hashtbl.add Global.types plus (pi None (Const nn) (pi None (Const nn) (Const nn)));
+  Hashtbl.add Global.types times (pi None (Const nn) (pi None (Const nn) (Const nn)));
   Hashtbl.add Global.constants plus
     (Defined
        (ref
@@ -165,14 +166,14 @@ let install () =
                                  );
                                ] )) )) ))));
   Hashtbl.add Global.types ind
-    (pi
-       ((* P : *) pi (Const nn) (UU D.zero))
-       (pi
+    (pi None
+       ((* P : *) pi None (Const nn) (UU D.zero))
+       (pi None
           ((* z : *) app (Var (Top (id_sface D.zero))) (Const zero))
-          (pi
+          (pi None
              ((* s : *)
-              pi ((* n : *) Const nn)
-                (pi
+              pi None ((* n : *) Const nn)
+                (pi None
                    ((* pn : *)
                     app
                       (Var (Pop (Pop (Top (id_sface D.zero)))))
@@ -180,7 +181,7 @@ let install () =
                    (app
                       (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
                       (app (Const suc) (Var (Pop (Top (id_sface D.zero))))))))
-             (pi ((* n : *) Const nn)
+             (pi None ((* n : *) Const nn)
                 (app (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))) (Var (Top (id_sface D.zero))))))));
   Hashtbl.add Global.constants ind
     (Defined

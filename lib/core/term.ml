@@ -31,7 +31,7 @@ module rec Term : sig
     | Struct : 'a term Field.Map.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
-    | Let : 'a term * ('a, D.zero) ext term -> 'a term
+    | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
 end = struct
   module CodFam = struct
     type ('k, 'a) t = ('a, 'k) ext Term.term
@@ -51,7 +51,7 @@ end = struct
     | Struct : 'a term Field.Map.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
-    | Let : 'a term * ('a, D.zero) ext term -> 'a term
+    | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
 end
 
 include Term

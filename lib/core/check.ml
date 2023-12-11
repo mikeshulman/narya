@@ -241,12 +241,12 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       let ety = Ctx.eval ctx cty in
       let ctm = check ctx tm ety in
       (ctm, ety)
-  | Let (v, body) ->
+  | Let (x, v, body) ->
       let sv, ty = synth ctx v in
       let tm = Ctx.eval ctx sv in
       let sbody, bodyty = synth (Ctx.ext_let ctx { tm; ty }) body in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value. *)
-      (Let (sv, sbody), bodyty)
+      (Let (x, sv, sbody), bodyty)
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
 and synth_apps : type a b. (a, b) Ctx.t -> b term -> value -> a check list -> b term * value =

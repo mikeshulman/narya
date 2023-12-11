@@ -60,14 +60,14 @@ let () =
               let x = get_var x in
               let ty, tm = (process ctx ty, process ctx tm) in
               match process (Snoc (ctx, x)) body with
-              | Synth body -> Synth (Let (Asc (tm, ty), body))
+              | Synth body -> Synth (Let (x, Asc (tm, ty), body))
               | _ -> fatal (Nonsynthesizing "body of let"))
           | [ Term x; Term tm; Term body ] -> (
               let x = get_var x in
               match process ctx tm with
               | Synth term -> (
                   match process (Snoc (ctx, x)) body with
-                  | Synth body -> Synth (Let (term, body))
+                  | Synth body -> Synth (Let (x, term, body))
                   | _ -> fatal (Nonsynthesizing "body of let"))
               | _ -> fatal (Nonsynthesizing "value of let"))
           | _ -> fatal (Anomaly "invalid notation arguments for let"));

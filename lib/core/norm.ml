@@ -199,7 +199,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                 ntm);
           } in
       Uninst (Pi (x, doms, cods), lazy (inst (universe m) tys))
-  | Let (v, body) ->
+  | Let (_, v, body) ->
       let args =
         CubeOf.build (dim_env env) { build = (fun fa -> eval (Act (env, op_of_sface fa)) v) } in
       eval (Ext (env, CubeOf.singleton args)) body

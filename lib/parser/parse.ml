@@ -147,7 +147,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                else
                  let open Monad.Ops (Monad.Maybe) in
                  let* (Interval ivl) = TokMap.find_opt tok state.left_opens in
-                 let (Wrap t) = Interval.endpoint tight in
+                 let t = tight.endpoint in
                  let* _ = Interval.contains ivl t in
                  return (first_arg, state)))
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
@@ -177,7 +177,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                     | _, None -> Error (name notn));
                               }))
                 | Closed_in_interval notn -> (
-                    match first_arg.get (Nonstrict, No.plus_omega) with
+                    match first_arg.get Interval.plus_omega_only with
                     | Error e -> fail (No_relative_precedence (rng, e, "application"))
                     | Ok fn -> (
                         match right notn with
@@ -234,7 +234,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                             | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
                             | Field x -> Some ({ get = (fun _ -> Ok (Field x)) }, state)
                             | _ -> None)) in
-                   match first_arg.get (Nonstrict, No.plus_omega) with
+                   match first_arg.get Interval.plus_omega_only with
                    | Error e -> fail (No_relative_precedence (rng, e, "application"))
                    | Ok fn ->
                        return

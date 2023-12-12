@@ -214,13 +214,13 @@ let right n = n.right
 (* A notation has associated upper tightness intervals on both the left and the right, which specify what tightnesses of other notations can appear in an open subterm on that side.  Thus, both of these intervals start at the tightness of the notation, with their open- or closed-ness determined by its associativity. *)
 let interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) Interval.tt =
  fun n ->
-  let (Open s) = left n in
-  (s, tightness n)
+  let (Open strictness) = left n in
+  { strictness; endpoint = tightness n }
 
 let interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.tt =
  fun n ->
-  let (Open s) = right n in
-  (s, tightness n)
+  let (Open strictness) = right n in
+  { strictness; endpoint = tightness n }
 
 (* For the mutable fields, we also have to provide setter functions.  Since these fields are only intended to be set once, the setters throw an exception if the value is already set (and the getters for tree and processor throw an exception if it is not yet set).  *)
 

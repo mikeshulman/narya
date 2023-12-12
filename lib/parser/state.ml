@@ -94,9 +94,9 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
 let left_closeds : t -> (No.plus_omega, No.strict) entry =
  fun s -> (Option.get (EntryMap.find s.tighters No.plus_omega)).strict
 
-let tighters : type strict tight. t -> strict No.strictness * tight No.t -> (tight, strict) entry =
- fun state (strict, tight) ->
-  let ep = Option.get (EntryMap.find state.tighters tight) in
-  match strict with
+let tighters : type strict tight. t -> (tight, strict) Interval.tt -> (tight, strict) entry =
+ fun state { strictness; endpoint } ->
+  let ep = Option.get (EntryMap.find state.tighters endpoint) in
+  match strictness with
   | Nonstrict -> ep.nonstrict
   | Strict -> ep.strict

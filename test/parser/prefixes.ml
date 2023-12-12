@@ -27,8 +27,12 @@ let () = assert (parse prefixes "@ f" = Notn ("at", [ Term (Ident "f") ]))
 (* Since function application is "left-associative" and @ has the same tightness, "@ f x"  is parsed as "(@ f) x".  Since @ is not right-associative, function application can't appear in *its* argument, so "@ (f x)" is not a possible parse. *)
 let () = assert (parse prefixes "@ f x" = App (Notn ("at", [ Term (Ident "f") ]), Ident "x"))
 
-(* Since @ is a prefix notation, it can appear anywhere as an argument, so "f @ x" is parsed as "f (@ x)". *)
+(* Since @ is a prefix notation, it can appear anywhere as an argument, so "f @ x" is parsed as "f (@ x)", and "f @ x y" is parsed as "f (@ x) y". *)
 let () = assert (parse prefixes "f @ x" = App (Ident "f", Notn ("at", [ Term (Ident "x") ])))
+
+let () =
+  assert (
+    parse prefixes "f @ x y" = App (App (Ident "f", Notn ("at", [ Term (Ident "x") ])), Ident "y"))
 
 (* For the same reasons, "@ f @ x" is parsed as "(@ f) (@ x)". *)
 let () =

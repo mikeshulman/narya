@@ -56,7 +56,7 @@ let () =
           | [ Term x; Term y ] ->
               let x = process ctx x in
               let y = process ctx y in
-              Raw.Struct (Field.Map.of_list [ (fst, [ x ]); (snd, [ y ]) ])
+              Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ])
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }
 

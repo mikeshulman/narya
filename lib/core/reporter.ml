@@ -117,6 +117,7 @@ module Code = struct
     | Invalid_constr _ -> "E0204"
     | Invalid_numeral _ -> "E0205"
     | No_relative_precedence _ -> "E0206"
+    | Duplicate_field_in_struct _ -> "E0207"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
@@ -144,7 +145,6 @@ module Code = struct
     | Checking_struct_at_degenerated_record _ -> "E0901"
     | Missing_field_in_struct _ -> "E0902"
     | Unnamed_field_in_struct -> "E0903"
-    | Duplicate_field_in_struct _ -> "E0904"
     (* Datatype constructors *)
     | No_such_constructor _ -> "E1000"
     | Wrong_number_of_arguments_to_constructor _ -> "E1001"

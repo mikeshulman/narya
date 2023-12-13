@@ -415,7 +415,7 @@ let () =
              })))
 
 let rec process_struc :
-    type n. n check list Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
+    type n. n check Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
  fun flds ctx obs ->
   match obs with
   | [] -> Raw.Struct flds
@@ -423,7 +423,14 @@ let rec process_struc :
       match obs with
       | Term tm :: obs ->
           let tm = process ctx tm in
-          process_struc (flds |> Field.Map.add_to_list (Field.intern x) tm) ctx obs
+          let fld = Field.intern x in
+          process_struc
+            (Field.Map.update fld
+               (function
+                 | None -> Some tm
+                 | Some _ -> fatal (Duplicate_field_in_struct fld))
+               flds)
+            ctx obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | Term Placeholder :: _ -> fatal Unnamed_field_in_struct
   | _ -> fatal (Anomaly "invalid notation arguments for struct")

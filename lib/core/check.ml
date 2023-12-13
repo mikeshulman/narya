@@ -111,11 +111,10 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                     let prev_etm = Value.Struct (etms, zero_ins dim) in
                     let ety = tyof_field prev_etm ty fld in
                     match Field.Map.find_opt fld tms with
-                    | Some [ tm ] ->
+                    | Some tm ->
                         let ctm = check ctx tm ety in
                         let etm = Ctx.eval ctx ctm in
                         M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms)
-                    | Some _ -> fatal (Duplicate_field_in_struct fld)
                     | None -> fatal (Missing_field_in_struct fld))
                   [ fields ]
                   (Field.Map.empty, Field.Map.empty) in
@@ -480,9 +479,8 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                   let ety = tyof_field prev_tm ty fld in
                   (* This enforces coverage checking.  If we want to allow delayed or disabled coverage checking, then a None result here should succeed and do nothing, leaving the corresponding cobranch as Case.Empty. *)
                   match Field.Map.find_opt fld tms with
-                  | Some [ tm ] ->
+                  | Some tm ->
                       check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields)
-                  | Some _ -> fatal (Duplicate_field_in_struct fld)
                   | None -> fatal (Missing_field_in_struct fld))
                 [ fields ]
           | _ -> fatal (Checking_struct_at_nonrecord (Some name)))

@@ -59,6 +59,10 @@ let () =
   let () = unsynth "(f x) y ↦ z" ~code:Parse_error in
   (* let _ = synth "_" in *)
   let () = unsynth "_" ~code:(Unimplemented "unification arguments") in
+  (* let _ = synth "a ↦ { fst ≔ a; fst ≔ a }" in *)
+  let () =
+    unsynth "a ↦ { fst ≔ a; fst ≔ a }" ~code:(Duplicate_field_in_struct (Core.Field.intern "fst"))
+  in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

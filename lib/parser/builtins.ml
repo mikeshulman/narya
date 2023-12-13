@@ -432,8 +432,7 @@ let rec process_struc :
                flds)
             ctx obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
-  | Term Placeholder :: _ -> fatal Unnamed_field_in_struct
-  | _ -> fatal (Anomaly "invalid notation arguments for struct")
+  | _ :: _ -> fatal Invalid_field_in_struct
 
 let () = set_processor struc { process = (fun ctx obs -> process_struc Field.Map.empty ctx obs) }
 
@@ -458,8 +457,7 @@ and pp_fields : formatter -> observation list -> unit =
           | Case -> pp_fld ppf pp_field x Mapsto tm obs);
           pp_fields ppf obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
-  | Term Placeholder :: _ -> fatal Unnamed_field_in_struct
-  | _ -> fatal (Anomaly "invalid notation arguments for struct")
+  | _ :: _ -> fatal Invalid_field_in_struct
 
 let pp_struc ppf obs =
   let style, state = (style (), state ()) in

@@ -20,7 +20,7 @@ module Code = struct
     | Unequal_synthesized_type : t
     | Checking_struct_at_degenerated_record : Constant.t -> t
     | Missing_field_in_struct : Field.t -> t
-    | Unnamed_field_in_struct : t
+    | Invalid_field_in_struct : t
     | Duplicate_field_in_struct : Field.t -> t
     | Missing_constructor_in_match : Constr.t -> t
     | Unnamed_variable_in_match : t
@@ -66,7 +66,7 @@ module Code = struct
     | Unequal_synthesized_type -> Error
     | Checking_struct_at_degenerated_record _ -> Error
     | Missing_field_in_struct _ -> Error
-    | Unnamed_field_in_struct -> Error
+    | Invalid_field_in_struct -> Error
     | Duplicate_field_in_struct _ -> Error
     | Missing_constructor_in_match _ -> Error
     | Unnamed_variable_in_match -> Error
@@ -118,6 +118,7 @@ module Code = struct
     | Invalid_numeral _ -> "E0205"
     | No_relative_precedence _ -> "E0206"
     | Duplicate_field_in_struct _ -> "E0207"
+    | Invalid_field_in_struct -> "E0208"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
@@ -144,7 +145,6 @@ module Code = struct
     | Checking_struct_at_nonrecord _ -> "E0900"
     | Checking_struct_at_degenerated_record _ -> "E0901"
     | Missing_field_in_struct _ -> "E0902"
-    | Unnamed_field_in_struct -> "E0903"
     (* Datatype constructors *)
     | No_such_constructor _ -> "E1000"
     | Wrong_number_of_arguments_to_constructor _ -> "E1001"
@@ -192,7 +192,7 @@ module Code = struct
         textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
           (name_of r)
     | Missing_field_in_struct f -> textf "record field %s missing in struct" (Field.to_string f)
-    | Unnamed_field_in_struct -> text "unnamed field in struct"
+    | Invalid_field_in_struct -> text "invalid field in struct"
     | Duplicate_field_in_struct f ->
         textf "record field %s appears more than once in struct" (Field.to_string f)
     | Missing_constructor_in_match c ->

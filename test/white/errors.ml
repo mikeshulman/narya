@@ -63,6 +63,10 @@ let () =
   let () =
     unsynth "a ↦ { fst ≔ a; fst ≔ a }" ~code:(Duplicate_field_in_struct (Core.Field.intern "fst"))
   in
+  let () = unsynth "{ _ ≔ a }" ~code:Invalid_field_in_struct in
+  let () = unsynth "{ (x) ≔ a }" ~code:Invalid_field_in_struct in
+  let () = unsynth "{ _ ↦ a }" ~code:Parse_error in
+  let () = unsynth "{ (x) ↦ a }" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in
@@ -74,7 +78,6 @@ let () =
   let () = uncheck "{ fst ≔ a }" aa ~code:(Checking_struct_at_nonrecord None) in
   let nat = check "N" uu in
   let () = uncheck "{ fst ≔ a }" nat ~code:(Checking_struct_at_nonrecord (Some Types.Nat.nn)) in
-  let () = uncheck "{ _ ≔ a }" sigab ~code:Unnamed_field_in_struct in
   let s = assume "s" sigab in
   let () =
     unsynth "s .third" ~code:(No_such_field (Some Types.Sigma.sigma, Core.Field.intern "third"))

@@ -556,12 +556,12 @@ let () =
           match obs with
           (* If the first thing is an ident, then it's the match variable. *)
           | Term (Ident ident) :: obs -> (
-              match Bwv.index (Some ident) ctx with
+              match Bwv.find (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)
               | Some x -> Match ((x, None), process_branches ctx obs))
           (* If the first thing is a field of an ident, it must mean a face of a cube variable. *)
           | Term (App { fn = Ident ident; arg = Field fld; _ }) :: obs -> (
-              match (Bwv.index (Some ident) ctx, Dim.sface_of_string fld) with
+              match (Bwv.find (Some ident) ctx, Dim.sface_of_string fld) with
               | Some x, Some fa -> Match ((x, Some fa), process_branches ctx obs)
               | None, _ -> fatal (Unbound_variable ident)
               | _ -> fatal Parse_error)

@@ -77,10 +77,10 @@ let of_list : type a mn. mn N.t -> a list -> ((a, mn) t * a list) option =
   of_list (N.zero_plus n) Emp ys
 
 (* Find the rightmost occurrence of an element in a vector, if any, and return its De Bruijn index. *)
-let rec index : type a n. a -> (a, n) t -> n N.index option =
+let rec find : type a n. a -> (a, n) t -> n N.index option =
  fun y -> function
   | Emp -> None
-  | Snoc (xs, x) -> if x = y then Some Top else Option.map (fun z -> N.Pop z) (index y xs)
+  | Snoc (xs, x) -> if x = y then Some Top else Option.map (fun z -> N.Pop z) (find y xs)
 
 (* Mapping and iterating over vectors.  We use the general framework of mmap for traversals, so we start with heterogeneous lists. *)
 

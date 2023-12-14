@@ -38,7 +38,7 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
 and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
  fun ctx -> function
   | Var x -> (
-      match Bwv.index x ctx with
+      match Bwv.find x ctx with
       | Some v -> Var (v, None)
       | None -> Reporter.fatal (Unbound_variable x))
   | Const x -> (

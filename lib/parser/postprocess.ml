@@ -56,7 +56,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
       | _ -> fatal (Nonsynthesizing "application head"))
   | Placeholder -> fatal (Unimplemented "unification arguments")
   | Ident x -> (
-      match Bwv.index (Some x) ctx with
+      match Bwv.find (Some x) ctx with
       | Some n -> Synth (Var (n, None))
       | None -> (
           match Scope.lookup x with

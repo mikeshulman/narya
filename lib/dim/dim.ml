@@ -105,6 +105,14 @@ type (_, _) deg =
   | Zero : 'a D.t -> ('a, D.zero) deg
   | Suc : ('a, 'b) deg * 'a D.suc D.index -> ('a D.suc, 'b D.suc) deg
 
+(* Another possible definition, "inductive on the other side", is:
+
+   type (_, _) deg =
+     | Zero : (D.zero, D.zero) deg
+     | Deg : ('a, 'b) deg -> ('a D.suc, 'b) deg
+     | Perm : ('a, 'b) deg * 'b D.suc D.index -> ('a D.suc, 'b D.suc) deg
+*)
+
 let rec dom_deg : type m n. (m, n) deg -> m D.t = function
   | Zero a -> a
   | Suc (s, _) -> D.suc (dom_deg s)
@@ -312,6 +320,47 @@ let any_of_deg_of_plus : type n. n deg_of_plus -> any_deg = function
 
 let is_id_any_deg : any_deg -> unit option = function
   | Any s -> is_id_deg s
+
+(* Converting to and from strings. *)
+let rec ints_of_deg : type a b. (a, b) deg -> (int, a) Bwv.t = function
+  | Zero a -> Bwv.init a (fun _ -> 0)
+  | Suc (s, k) -> Bwv.insert k (D.to_int (cod_deg s) + 1) (ints_of_deg s)
+
+let string_of_deg : type a b. (a, b) deg -> string =
+ fun s ->
+  String.concat
+    (if D.to_int (cod_deg s) > 9 then "_" else "")
+    (Bwv.to_list_map string_of_int (ints_of_deg s))
+
+type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
+
+let rec deg_of_ints : type n. (int, n) Bwv.t -> int -> n deg_to option =
+ fun xs i ->
+  if i <= 0 then
+    if Bwv.fold_right (fun x b -> x = 0 && b) xs true then Some (To (Zero (Bwv.length xs)))
+    else None
+  else
+    match xs with
+    | Emp -> None
+    | Snoc _ -> (
+        match Bwv.find_remove i xs with
+        | None -> None
+        | Some (xs, j) -> (
+            match deg_of_ints xs (i - 1) with
+            | None -> None
+            | Some (To s) -> Some (To (Suc (s, j)))))
+
+let deg_of_string : string -> any_deg option =
+ fun str ->
+  let (Wrap ints) =
+    if String.contains str '_' then Bwv.of_list_map int_of_string (String.split_on_char '_' str)
+    else
+      String.fold_left
+        (fun (Bwv.Wrap l) c -> Wrap (Snoc (l, int_of_string (String.make 1 c))))
+        (Wrap Emp) str in
+  match deg_of_ints ints (Bwv.fold_left (fun x y -> max x y) 0 ints) with
+  | None -> None
+  | Some (To s) -> Some (Any s)
 
 (* ********** Strict faces ********** *)
 

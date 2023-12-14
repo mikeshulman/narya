@@ -82,6 +82,37 @@ let rec find : type a n. a -> (a, n) t -> n N.index option =
   | Emp -> None
   | Snoc (xs, x) -> if x = y then Some Top else Option.map (fun z -> N.Pop z) (find y xs)
 
+(* Find the rightmost occurrence of an element and return its De Bruijn index, along with the vector with that element removed. *)
+let rec find_remove : type a n. a -> (a, n N.suc) t -> ((a, n) t * n N.suc N.index) option =
+ fun y (Snoc (xs, x)) ->
+  if x = y then Some (xs, Top)
+  else
+    match xs with
+    | Emp -> None
+    | Snoc _ -> (
+        match find_remove y xs with
+        | None -> None
+        | Some (ys, i) -> Some (Snoc (ys, x), Pop i))
+
+(* Insert an element at a specified index. *)
+let rec insert : type a n. n N.suc N.index -> a -> (a, n) t -> (a, n N.suc) t =
+ fun i x xs ->
+  match i with
+  | Top -> Snoc (xs, x)
+  | Pop i -> (
+      match xs with
+      | Emp -> (
+          match i with
+          | _ -> .)
+      | Snoc (xs, y) -> Snoc (insert i x xs, y))
+
+(* Fill a new vector with the return values of a function. *)
+let rec init : type a n. n N.t -> (n N.index -> a) -> (a, n) t =
+ fun n f ->
+  match n with
+  | Nat Zero -> Emp
+  | Nat (Suc n) -> Snoc (init (Nat n) (fun k -> f (Pop k)), f Top)
+
 (* Mapping and iterating over vectors.  We use the general framework of mmap for traversals, so we start with heterogeneous lists. *)
 
 module Heter = struct
@@ -393,3 +424,21 @@ let rec to_bwd_map : type a b n. (a -> b) -> (a, n) t -> b Bwd.t =
   | Snoc (xs, x) -> Snoc (to_bwd_map f xs, f x)
 
 let to_bwd : type a n. (a, n) t -> a Bwd.t = fun xs -> to_bwd_map (fun x -> x) xs
+
+let rec prepend_map : type a b n. (a -> b) -> (a, n) t -> b list -> b list =
+ fun f xs ys ->
+  match xs with
+  | Emp -> ys
+  | Snoc (xs, x) -> prepend_map f xs (f x :: ys)
+
+let to_list_map : type a b n. (a -> b) -> (a, n) t -> b list = fun f xs -> prepend_map f xs []
+
+type _ wrapped = Wrap : ('a, 'n) t -> 'a wrapped
+
+let rec append_list_map : type a b n. (a -> b) -> (b, n) t -> a list -> b wrapped =
+ fun f xs ys ->
+  match ys with
+  | [] -> Wrap xs
+  | y :: ys -> append_list_map f (Snoc (xs, f y)) ys
+
+let of_list_map : type a b n. (a -> b) -> a list -> b wrapped = fun f ys -> append_list_map f Emp ys

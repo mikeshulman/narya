@@ -192,10 +192,6 @@ let rec index_equiv : type m n. m index -> n index -> unit option =
   | Pop k, Pop l -> index_equiv k l
   | _, _ -> None
 
-let rec int_index : type n. n index -> int = function
-  | Top -> 0
-  | Pop n -> int_index n + 1
-
 (* ********** Comparison ********** *)
 
 (* We can compare two natural numbers, in such a way that equality identifies their types, and inequality is witnessed by addition. *)
@@ -264,6 +260,15 @@ let to_int : type n. n t -> int = fun (Nat n) -> int_of_plus n
 let rec int_of_index : type n. n index -> int = function
   | Top -> 0
   | Pop k -> 1 + int_of_index k
+
+let rec index_of_int : type n. n t -> int -> n index =
+ fun n x ->
+  match n with
+  | Nat Zero -> raise (Invalid_argument "index_of_int")
+  | Nat (Suc n) ->
+      if x < 0 then raise (Invalid_argument "index_of_int")
+      else if x = 0 then Top
+      else Pop (index_of_int (Nat n) (x - 1))
 
 (* ********** Multiplication ********** *)
 

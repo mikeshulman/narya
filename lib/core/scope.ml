@@ -12,7 +12,7 @@ end
 
 module S = Scope.Make (P)
 
-let lookup name = Option.map fst (S.resolve (String.split_on_char '.' name))
+let lookup name = Option.map fst (S.resolve name)
 
 let name_of c =
   match find_data (S.get_visible ()) c with

@@ -23,7 +23,7 @@ let check_term (rtm : N.zero check) (ety : value) : emp term =
 
 let assume (name : string) (ty : string) : unit =
   match Parser.Lexer.Parser.single name with
-  | Some (Ident name) ->
+  | Some (Ident [ name ]) ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then
         (* TODO: This should be an Asai message *)
@@ -39,7 +39,7 @@ let assume (name : string) (ty : string) : unit =
 
 let def (name : string) (ty : string) (tm : string) : unit =
   match Parser.Lexer.Parser.single name with
-  | Some (Ident name) ->
+  | Some (Ident [ name ]) ->
       Reporter.tracef "when defining %s" name @@ fun () ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then
@@ -65,7 +65,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
       raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
 
 let undef (name : string) : unit =
-  match Scope.lookup name with
+  match Scope.lookup [ name ] with
   | Some const ->
       Hashtbl.remove Global.types const;
       Hashtbl.remove Global.constants const

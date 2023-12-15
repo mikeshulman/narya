@@ -180,26 +180,23 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "..." -> return Ellipsis
   | "_" -> return Underscore
   | s -> (
-      let len = String.length s in
-      match (s.[0], s.[len - 1]) with
-      | '.', '.' -> fatal ~loc:(Range.convert rng) Parse_error
-      | '.', _ ->
-          let name = String.sub s 1 (len - 1) in
-          (* We allow as a "field name" anything starting with a period and not containing any other periods. *)
-          if Token.variableable name then return (Field name)
-          else fatal ~loc:(Range.convert rng) (Invalid_field name)
-      | _, '.' ->
-          let name = String.sub s 0 (len - 1) in
-          (* We allow as a "constructor name" anything ending with a period and not containing any other periods. *)
-          if Token.variableable name then return (Constr name)
-          else fatal ~loc:(Range.convert rng) (Invalid_constr name)
-      | '_', _ | _, '_' -> return (Internal s)
-      | _ ->
-          if is_numeral s then
-            try return (Numeral (Q.of_string s))
-            with _ -> fatal ~loc:(Range.convert rng) (Invalid_numeral s)
-            (* Anything else, not starting or ending with a period, and that doesn't consist entirely of digits and periods, is potentially a valid name.  The periods will be interpreted later as namespacing of constants (hence are disallowed in a local variable). *)
-          else return (Ident s))
+      match String.split_on_char '.' s with
+      | [] -> fatal (Anomaly "canonicalizing empty string")
+      | [ ""; "" ] -> return Dot (* Shouldn't happen, we already tested for dot *)
+      | [ ""; field ] -> return (Field field)
+      | [ constr; "" ] -> return (Constr constr)
+      | "" :: parts when List.nth parts (List.length parts - 1) = "" ->
+          fatal ~loc:(Range.convert rng) Parse_error
+      | "" :: _ -> fatal ~loc:(Range.convert rng) (Invalid_field s)
+      | parts when List.nth parts (List.length parts - 1) = "" ->
+          fatal ~loc:(Range.convert rng) (Invalid_constr s)
+      | parts when List.exists (fun p -> p = "") parts -> fatal ~loc:(Range.convert rng) Parse_error
+      | part :: rest as parts when ok_ident part && List.for_all ok_ident_or_digits rest ->
+          return (Ident parts)
+      | [ num ] when ok_digits num -> return (Numeral (Q.of_string num))
+      | [ integer; fraction ] when ok_digits integer && ok_digits fraction ->
+          return (Numeral (Q.of_string (integer ^ "." ^ fraction)))
+      | _ -> fatal ~loc:(Range.convert rng) Parse_error)
 
 (* Now to make a token, we consume as many such characters as possible, adding them one-by-one to a Buffer and then canonicalizing the resulting string. *)
 let other : Token.t t =

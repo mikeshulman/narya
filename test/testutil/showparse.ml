@@ -8,7 +8,7 @@ and parse_tree =
   | Notn of string * obs list
   | App of parse_tree * parse_tree
   | Placeholder
-  | Ident of string
+  | Ident of string list
   | Constr of string
   | Field of string
   | Numeral of Q.t

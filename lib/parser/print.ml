@@ -44,7 +44,7 @@ let rec pp_term (ppf : formatter) (wtr : observation) : unit =
       | Notn n -> pp_notn ppf (notn n) (args n)
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
       | Placeholder -> pp_tok ppf Underscore
-      | Ident x -> pp_utf_8 ppf x
+      | Ident x -> pp_utf_8 ppf (String.concat "." x)
       | Constr c -> pp_constr ppf c
       | Field f -> pp_field ppf f
       | Numeral n -> Q.pp_print ppf n)

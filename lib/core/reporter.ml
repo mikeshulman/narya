@@ -8,7 +8,7 @@ module Code = struct
     | Parse_error : t
     | Parsing_ambiguity : string -> t
     | No_relative_precedence : string * string -> t
-    | Invalid_variable : string -> t
+    | Invalid_variable : string list -> t
     | Invalid_numeral : string -> t
     | Invalid_constr : string -> t
     | Invalid_field : string -> t
@@ -168,7 +168,7 @@ module Code = struct
   let default_text : t -> text = function
     | Parse_error -> text "parse error"
     | Parsing_ambiguity str -> textf "potential parsing ambiguity: %s" str
-    | Invalid_variable str -> textf "invalid local variable name: %s" str
+    | Invalid_variable str -> textf "invalid local variable name: %s" (String.concat "." str)
     | Invalid_field str -> textf "invalid field name: %s" str
     | Invalid_constr str -> textf "invalid constructor name: %s" str
     | Invalid_numeral str -> textf "invalid numeral: %s" str

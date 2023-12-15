@@ -20,7 +20,8 @@ open Monad.Ops (Monad.Maybe)
 let prodn = make "prod" (Infixr No.one)
 
 let () =
-  set_tree prodn (Open_entry (eops [ (Ident "×", done_open prodn); (Op "><", done_open prodn) ]));
+  set_tree prodn
+    (Open_entry (eops [ (Ident [ "×" ], done_open prodn); (Op "><", done_open prodn) ]));
   set_processor prodn
     {
       process =
@@ -33,7 +34,7 @@ let () =
                     match args n with
                     | [ Term (Notn n) ] when equal (notn n) Builtins.asc -> (
                         match args n with
-                        | [ Term (Ident x); Term a ] -> (Some x, Term a, b)
+                        | [ Term (Ident [ x ]); Term a ] -> (Some x, Term a, b)
                         | [ Term Placeholder; Term a ] -> (None, Term a, b)
                         | _ -> (None, one, b))
                     | _ -> (None, one, b))

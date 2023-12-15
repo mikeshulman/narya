@@ -17,25 +17,36 @@ type t =
   | Dot (* . *)
   | Ellipsis (* ... and … *)
   | String of string (* Double-quoted *)
-  | Numeral of Q.t
+  | Numeral of Q.t (* A string of digits, or two strings of digits joined by a dot. *)
   | Underscore (* _ *)
   | Internal of string (* Starting or ending with _ *)
-  | Def
-  | Record
-  | Data
-  | Codata
-  | Section
-  | Let
-  | In
-  | Op of string (* Sequence of common ASCII symbols *)
-  (* Alphanumeric/unicode with dots and underscores occuring only internally.  We can't separate these out at lexing time into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
-  | Ident of string
+  | Def (* def *)
+  | Record (* record *)
+  | Data (* data *)
+  | Codata (* codata *)
+  | Section (* section *)
+  | Let (* let *)
+  | In (* in *)
+  | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
+  (* Alphanumeric/unicode other than common ASCII symbols and above single-token characters, with dots and underscores occuring only internally, and each dot-separated piece being nonempty and NOT consisting entirely of digits and underscores, nor beginning nor ending with an underscore.  Those not containing any dots could be local variable names.  We can't separate these out at lexing time into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
+  | Ident of string list
   | Eof
 
 let compare : t -> t -> int = compare
 
-(* Only "names" not containing internal periods are valid for local variable names, since internal periods are used for namespace qualification. *)
-let variableable s = not (String.exists (fun c -> c = '.') s)
+(* Whether a string is valid as a dot-separated piece of an identifier name, or equivalently as a local variable name.  We don't test for absence of the delimited symbols, since they will automatically be lexed separately; this is for testing validity after the lexer has split things into potential tokens.  We also don't test for absence of dots, since identifiers will be split on dots automatically. *)
+let ok_ident s =
+  let len = String.length s in
+  len > 0
+  && String.exists (fun c -> not (String.contains "0123456789_" c)) s
+  && s.[0] <> '_'
+  && s.[len - 1] <> '_'
+
+let ok_digits s = String.length s > 0 && String.for_all (String.contains "0123456789_") s
+
+let ok_ident_or_digits s =
+  let len = String.length s in
+  len > 0 && s.[0] <> '_' && s.[len - 1] <> '_'
 
 let to_string = function
   | Field s -> "." ^ s
@@ -67,7 +78,7 @@ let to_string = function
   | Let -> "let"
   | In -> "in"
   | Op s -> s
-  | Ident s -> s
+  | Ident s -> String.concat "." s
   | Eof -> "EOF"
 
 (* Given a token, create a constant pretty-printer that prints that token. *)

@@ -10,7 +10,8 @@ open Showparse
 let ifthen = make "ifthen" (Prefixr No.zero)
 
 let () =
-  set_tree ifthen (Closed_entry (eop (Ident "if") (term (Ident "then") (Done_closed ifthen))))
+  set_tree ifthen
+    (Closed_entry (eop (Ident [ "if" ]) (term (Ident [ "then" ]) (Done_closed ifthen))))
 
 let ifthen_only = State.empty |> State.add ifthen
 let ifthenelse = make "ifthenelse" (Prefixr No.zero)
@@ -18,7 +19,8 @@ let ifthenelse = make "ifthenelse" (Prefixr No.zero)
 let () =
   set_tree ifthenelse
     (Closed_entry
-       (eop (Ident "if") (term (Ident "then") (term (Ident "else") (Done_closed ifthenelse)))))
+       (eop (Ident [ "if" ])
+          (term (Ident [ "then" ]) (term (Ident [ "else" ]) (Done_closed ifthenelse)))))
 
 let ifthenelse_only = State.empty |> State.add ifthenelse
 let both = State.empty |> State.add ifthen |> State.add ifthenelse
@@ -30,10 +32,11 @@ let () =
       Terminal.display d;
       raise (Failure "Parse failure"))
   @@ fun () ->
-  assert (parse ifthen_only "if x then y" = Notn ("ifthen", [ Term (Ident "x"); Term (Ident "y") ]));
+  assert (
+    parse ifthen_only "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
   assert (
     parse ifthenelse_only "if x then y else z"
-    = Notn ("ifthenelse", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]))
+    = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))
 
 let () =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
@@ -45,7 +48,7 @@ let () =
         Terminal.display d;
         raise (Failure "Unexpected error code")))
   @@ fun () ->
-  assert (parse both "if x then y" = Notn ("ifthen", [ Term (Ident "x"); Term (Ident "y") ]))
+  assert (parse both "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
 
@@ -54,7 +57,8 @@ let ifthenelif = make "ifthenelif" (Prefixr No.zero)
 let () =
   set_tree ifthenelif
     (Closed_entry
-       (eop (Ident "if") (term (Ident "then") (term (Ident "elif") (Done_closed ifthenelif)))))
+       (eop (Ident [ "if" ])
+          (term (Ident [ "then" ]) (term (Ident [ "elif" ]) (Done_closed ifthenelif)))))
 
 let better_both = State.empty |> State.add ifthenelse |> State.add ifthenelif
 
@@ -65,7 +69,7 @@ let () =
   @@ fun () ->
   assert (
     parse better_both "if x then y else z"
-    = Notn ("ifthenelse", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]));
+    = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
   assert (
     parse better_both "if x then y elif z"
-    = Notn ("ifthenelif", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]))
+    = Notn ("ifthenelif", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))

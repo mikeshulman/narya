@@ -42,7 +42,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       | Some v -> Var (v, None)
       | None -> Reporter.fatal (Unbound_variable x))
   | Const x -> (
-      match Scope.lookup x with
+      match Scope.lookup [ x ] with
       | Some c -> Const c
       | None -> Reporter.fatal (Unbound_variable x))
   | UU -> UU

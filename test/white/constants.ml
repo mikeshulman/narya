@@ -31,7 +31,7 @@ let () =
   def "ab" "(x:A) × B x" "(a,b)";
   equal_at "ab .fst" "a" "A";
   equal_at "ab .snd" "b" "B a";
-  (match Hashtbl.find Global.constants (Option.get (Scope.lookup "ab")) with
+  (match Hashtbl.find Global.constants (Option.get (Scope.lookup [ "ab" ])) with
   | Defined _ -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));
   def "zero_zero'" "ℕ × ℕ" "{ .fst ↦ zero; .snd ↦ zero }";
@@ -110,7 +110,7 @@ let () =
   (* We also test cube variable abstraction syntax *)
   def "refl_abort_f_cube" "∅ → Id ((x:A)→B x) f f" "e x ⤇ [ e | ]";
   def "refl_nat_f_cube" "N → Id ((x:A)→B x) f f"
-    "n x ⤇ [ n | zero. ↦ refl f (x .0) (x .1) (x .2) | suc. _ ↦ refl f (x .0) (x .1) (x .2) ]";
+    "n x ⤇ [ n | zero. ↦ refl f x.0 x.1 x.2 | suc. _ ↦ refl f x.0 x.1 x.2 ]";
   (* These are actually *unequal* because definition by case trees is generative. *)
   unequal_at "refl_nat_f" "refl_nat_f_cube" "N → Id ((x:A)→B x) f f";
   (* But they become equal when evaluated at concrete numbers so that the case trees compute away. *)
@@ -118,7 +118,7 @@ let () =
 
   (* Higher-dimensional matches *)
   def "foo" "(x y : N) → Id N x y → N" "x y p ↦ [ p | zero. ↦ 0 | suc. n ↦ 1 ]";
-  def "bar" "(x y : N) → Id N x y → N" "x y ↦ [ zero. ↦ zero. | suc. p ↦ p .0 ]";
+  def "bar" "(x y : N) → Id N x y → N" "x y ↦ [ zero. ↦ zero. | suc. p ↦ p.0 ]";
   equal_at "bar 1 1 (refl (1:N))" "0" "N";
   equal_at "bar 2 2 (refl (2:N))" "1" "N";
   def "prec" "N → N" "[ zero. ↦ zero. | suc. n ↦ n ]";
@@ -134,7 +134,7 @@ let () =
   def "rcode" "(x:N) → code x x" "[ zero. ↦ {} | suc. n ↦ rcode n ]";
   def "encode" "(x y : N) → Id N x y → code x y"
     "x y ↦ [ zero. ↦ {}
-            | suc. p ↦ encode (p .0) (p .1) (p .2) ]";
+            | suc. p ↦ encode p.0 p.1 p.2 ]";
   def "decode" "(x y : N) → code x y → Id N x y"
     "[ zero. ↦ [ zero. ↦ _ ↦ zero.
                 | suc. _ ↦ [ ] ]
@@ -147,11 +147,11 @@ let () =
                  | suc. y ↦ c ↦ encode_decode x y c ] ]";
   def "decode_encode" "(x y : N) (p : Id N x y) → Id (Id N x y) (decode x y (encode x y p)) p"
     "x y ↦ [ zero. ↦ zero.
-            | suc. p ↦ suc. (decode_encode (p .0) (p .1) (p .2)) ]";
+            | suc. p ↦ suc. (decode_encode p.0 p.1 p.2) ]";
 
   (* Matching on a boundary of a cube variable *)
   def "mtchbd0" "(e:∅) (f : N → N) → Id (N → N) f f"
-    "e f n ⤇ [ n .0 | zero. ↦ [ e ] | suc. _ ↦ [ e ] ]";
+    "e f n ⤇ [ n.0 | zero. ↦ [ e ] | suc. _ ↦ [ e ] ]";
 
   (* TODO: Some bug happening here, to do with higher-dimensional matches I think *)
   (* def "mtchbd" "(e:∅) (f : N → N) → Id (N → N) f f"

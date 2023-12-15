@@ -104,7 +104,7 @@ and (_, _, _, _) parse =
     }
       -> ('lt, 'ls, 'rt, 'rs) parse
   | Placeholder : ('lt, 'ls, 'rt, 'rs) parse
-  | Ident : string -> ('lt, 'ls, 'rt, 'rs) parse
+  | Ident : string list -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse

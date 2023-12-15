@@ -7,9 +7,10 @@ open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
 
-(* Require the argument to be either a local variable name or an underscore, and return a corresponding 'string option'. *)
+(* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option = function
-  | Ident x -> if Token.variableable x then Some x else fatal (Invalid_variable x)
+  | Ident [ x ] -> Some x
+  | Ident xs -> fatal (Invalid_variable xs)
   | Placeholder -> None
   | _ -> fatal Parse_error
 
@@ -28,7 +29,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
  fun ctx res ->
   match res with
   | Notn n -> (processor (notn n)).process ctx (args n)
-  (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and symbols, and also field projections.  *)
+  (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
   | App { fn; arg; _ } -> (
       let fn = process ctx fn in
       match fn with
@@ -40,28 +41,29 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
               | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
           | _ -> (
               match arg with
-              | Field fld -> (
-                  match sface_of_string fld with
-                  | Some fa -> (
-                      match fn with
-                      | Var (v, None) -> Synth (Var (v, Some fa))
-                      | _ -> fatal Parse_error)
-                  | _ -> Synth (Field (fn, Field.intern fld)))
-              | _ ->
-                  let arg = process ctx arg in
-                  Synth (Raw.App (fn, arg))))
+              | Field fld -> Synth (Field (fn, Field.intern fld))
+              | _ -> Synth (Raw.App (fn, process ctx arg))))
       | Constr (head, args) ->
           let arg = process ctx arg in
           Raw.Constr (head, Snoc (args, arg))
       | _ -> fatal (Nonsynthesizing "application head"))
   | Placeholder -> fatal (Unimplemented "unification arguments")
-  | Ident x -> (
-      match Bwv.find (Some x) ctx with
-      | Some n -> Synth (Var (n, None))
+  | Ident parts -> (
+      let open Monad.Ops (Monad.Maybe) in
+      match
+        match parts with
+        | [ x ] -> Option.map (fun n -> Synth (Var (n, None))) (Bwv.find (Some x) ctx)
+        | [ x; face ] ->
+            let* v = Bwv.find (Some x) ctx in
+            let* fa = sface_of_string face in
+            return (Synth (Var (v, Some fa)))
+        | _ -> None
+      with
+      | Some tm -> tm
       | None -> (
-          match Scope.lookup x with
+          match Scope.lookup parts with
           | Some c -> Synth (Const c)
-          | None -> fatal (Unbound_variable x)))
+          | None -> fatal (Unbound_variable (String.concat "." parts))))
   | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> process_numeral n

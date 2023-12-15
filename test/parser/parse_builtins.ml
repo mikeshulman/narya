@@ -11,8 +11,9 @@ let () =
           [
             Term
               (Notn
-                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "y") ])) ]));
-            Term (Ident "z");
+                 ( "parens",
+                   [ Term (Notn ("ascription", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ])) ] ));
+            Term (Ident [ "z" ]);
           ] ))
 
 let () =
@@ -26,20 +27,22 @@ let () =
                  ( "parens",
                    [
                      Term
-                       (Notn ("ascription", [ Term (App (Ident "x", Ident "w")); Term (Ident "y") ]));
+                       (Notn
+                          ( "ascription",
+                            [ Term (App (Ident [ "x" ], Ident [ "w" ])); Term (Ident [ "y" ]) ] ));
                    ] ));
-            Term (Ident "z");
+            Term (Ident [ "z" ]);
           ] ))
 
 let () =
   assert (
     parse !builtins "x y |-> z"
-    = Notn ("abstraction", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]))
+    = Notn ("abstraction", [ Term (App (Ident [ "x" ], Ident [ "y" ])); Term (Ident [ "z" ]) ]))
 
 let () =
   assert (
     parse !builtins "x y |=> z"
-    = Notn ("cube_abstraction", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]))
+    = Notn ("cube_abstraction", [ Term (App (Ident [ "x" ], Ident [ "y" ])); Term (Ident [ "z" ]) ]))
 
 let () =
   assert (
@@ -47,10 +50,11 @@ let () =
     = Notn
         ( "abstraction",
           [
-            Term (App (Ident "x", Ident "y"));
+            Term (App (Ident [ "x" ], Ident [ "y" ]));
             Term
               (Notn
-                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "z"); Term (Ident "w") ])) ]));
+                 ( "parens",
+                   [ Term (Notn ("ascription", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ])) ] ));
           ] ))
 
 let () =
@@ -64,15 +68,17 @@ let () =
                  ( "parens",
                    [
                      Term
-                       (Notn ("abstraction", [ Term (App (Ident "x", Ident "y")); Term (Ident "z") ]));
+                       (Notn
+                          ( "abstraction",
+                            [ Term (App (Ident [ "x" ], Ident [ "y" ])); Term (Ident [ "z" ]) ] ));
                    ] ));
-            Term (Ident "w");
+            Term (Ident [ "w" ]);
           ] ))
 
 let () =
   assert (
     parse !builtins "let x := y in z"
-    = Notn ("let", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z") ]))
+    = Notn ("let", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))
 
 let () =
   assert (
@@ -80,15 +86,19 @@ let () =
     = Notn
         ( "let",
           [
-            Term (Ident "x");
-            Term (Ident "y");
-            Term (Notn ("let", [ Term (Ident "a"); Term (Ident "b"); Term (Ident "c") ]));
+            Term (Ident [ "x" ]);
+            Term (Ident [ "y" ]);
+            Term
+              (Notn ("let", [ Term (Ident [ "a" ]); Term (Ident [ "b" ]); Term (Ident [ "c" ]) ]));
           ] ))
 
 let () =
   assert (
     parse !builtins "let x : a := y in z"
-    = Notn ("let", [ Term (Ident "x"); Term (Ident "a"); Term (Ident "y"); Term (Ident "z") ]))
+    = Notn
+        ( "let",
+          [ Term (Ident [ "x" ]); Term (Ident [ "a" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]
+        ))
 
 (* let () =
      assert (
@@ -128,10 +138,12 @@ let () =
                      Term
                        (Notn
                           ( "parens",
-                            [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "A") ])) ]
-                          ));
+                            [
+                              Term
+                                (Notn ("ascription", [ Term (Ident [ "x" ]); Term (Ident [ "A" ]) ]));
+                            ] ));
                    ] ));
-            Term (Ident "B");
+            Term (Ident [ "B" ]);
           ] ))
 
 let () =
@@ -147,33 +159,42 @@ let () =
                      Term
                        (Notn
                           ( "ascription",
-                            [ Term (Notn ("parens", [ Term (Ident "x") ])); Term (Ident "A") ] ));
+                            [
+                              Term (Notn ("parens", [ Term (Ident [ "x" ]) ])); Term (Ident [ "A" ]);
+                            ] ));
                    ] ));
-            Term (Ident "B");
+            Term (Ident [ "B" ]);
           ] ))
 
 let () = assert (parse !builtins "{}" = Notn ("struc", []))
 
 let () =
-  assert (parse !builtins "{x := y}" = Notn ("struc", [ Term (Ident "x"); Term (Ident "y") ]))
+  assert (parse !builtins "{x := y}" = Notn ("struc", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 let () =
-  assert (parse !builtins "{.x |-> y}" = Notn ("struc", [ Term (Field "x"); Term (Ident "y") ]))
+  assert (parse !builtins "{.x |-> y}" = Notn ("struc", [ Term (Field "x"); Term (Ident [ "y" ]) ]))
 
 let () =
   assert (
     parse !builtins "{x := y ; z := w}"
-    = Notn ("struc", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z"); Term (Ident "w") ]))
+    = Notn
+        ( "struc",
+          [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]
+        ))
 
 let () =
   assert (
     parse !builtins "{.x ↦ y ; .z ↦ w}"
-    = Notn ("struc", [ Term (Field "x"); Term (Ident "y"); Term (Field "z"); Term (Ident "w") ]))
+    = Notn
+        ("struc", [ Term (Field "x"); Term (Ident [ "y" ]); Term (Field "z"); Term (Ident [ "w" ]) ]))
 
 let () =
   assert (
     parse !builtins "{x := y ; z := w;}"
-    = Notn ("struc", [ Term (Ident "x"); Term (Ident "y"); Term (Ident "z"); Term (Ident "w") ]))
+    = Notn
+        ( "struc",
+          [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]
+        ))
 
 let () =
   assert (
@@ -181,24 +202,29 @@ let () =
     = Notn
         ( "struc",
           [
-            Term (Ident "x");
-            Term (Ident "y");
-            Term (Ident "z");
-            Term (Ident "w");
-            Term (Ident "a");
-            Term (Ident "b");
+            Term (Ident [ "x" ]);
+            Term (Ident [ "y" ]);
+            Term (Ident [ "z" ]);
+            Term (Ident [ "w" ]);
+            Term (Ident [ "a" ]);
+            Term (Ident [ "b" ]);
           ] ))
 
 let () = Types.Sigma.install_notations ()
 
 (*  *)
-let () = assert (parse !builtins "A><B" = Notn ("prod", [ Term (Ident "A"); Term (Ident "B") ]))
+let () =
+  assert (parse !builtins "A><B" = Notn ("prod", [ Term (Ident [ "A" ]); Term (Ident [ "B" ]) ]))
 
 let () =
   assert (
     parse !builtins "A >< B >< C"
     = Notn
-        ("prod", [ Term (Ident "A"); Term (Notn ("prod", [ Term (Ident "B"); Term (Ident "C") ])) ]))
+        ( "prod",
+          [
+            Term (Ident [ "A" ]);
+            Term (Notn ("prod", [ Term (Ident [ "B" ]); Term (Ident [ "C" ]) ]));
+          ] ))
 
 let () =
   assert (
@@ -208,8 +234,9 @@ let () =
           [
             Term
               (Notn
-                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "A") ])) ]));
-            Term (App (Ident "B", Ident "x"));
+                 ( "parens",
+                   [ Term (Notn ("ascription", [ Term (Ident [ "x" ]); Term (Ident [ "A" ]) ])) ] ));
+            Term (App (Ident [ "B" ], Ident [ "x" ]));
           ] ))
 
 let () =
@@ -220,7 +247,8 @@ let () =
           [
             Term
               (Notn
-                 ("parens", [ Term (Notn ("ascription", [ Term (Ident "x"); Term (Ident "A") ])) ]));
+                 ( "parens",
+                   [ Term (Notn ("ascription", [ Term (Ident [ "x" ]); Term (Ident [ "A" ]) ])) ] ));
             Term
               (Notn
                  ( "prod",
@@ -232,8 +260,11 @@ let () =
                               Term
                                 (Notn
                                    ( "ascription",
-                                     [ Term (Ident "y"); Term (App (Ident "B", Ident "x")) ] ));
+                                     [
+                                       Term (Ident [ "y" ]);
+                                       Term (App (Ident [ "B" ], Ident [ "x" ]));
+                                     ] ));
                             ] ));
-                     Term (App (App (Ident "C", Ident "x"), Ident "y"));
+                     Term (App (App (Ident [ "C" ], Ident [ "x" ]), Ident [ "y" ]));
                    ] ));
           ] ))

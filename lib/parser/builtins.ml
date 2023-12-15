@@ -133,11 +133,11 @@ let rec get_pi_vars :
     type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list -> string option list =
  fun xs vars ->
   match xs with
-  | Ident x -> if Token.variableable x then Some x :: vars else fatal (Invalid_variable x)
+  | Ident [ x ] -> Some x :: vars
+  | Ident xs -> fatal (Invalid_variable xs)
   | Placeholder -> None :: vars
-  | App { fn; arg = Ident x; _ } ->
-      (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
-      if Token.variableable x then get_pi_vars fn (Some x :: vars) else fatal (Invalid_variable x)
+  | App { fn; arg = Ident [ x ]; _ } -> get_pi_vars fn (Some x :: vars)
+  (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
   | _ -> raise Not_a_pi_arg
 
 (* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables and the type. *)
@@ -263,16 +263,15 @@ let rec get_vars :
     =
  fun ctx vars ->
   match vars with
-  | Ident x ->
-      if Token.variableable x then Extctx (Suc Zero, Snoc (ctx, Some x))
-        (* TODO: Can we report the range for errors produced here? *)
-      else fatal (Invalid_variable x)
+  | Ident [ x ] ->
+      (* TODO: Can we report the range for errors produced here? *)
+      Extctx (Suc Zero, Snoc (ctx, Some x))
+  | Ident xs -> fatal (Invalid_variable xs)
   | Placeholder -> Extctx (Suc Zero, Snoc (ctx, None))
-  | App { fn; arg = Ident x; _ } ->
-      if Token.variableable x then
-        let (Extctx (ab, ctx)) = get_vars ctx fn in
-        Extctx (Suc ab, Snoc (ctx, Some x))
-      else fatal (Invalid_variable x)
+  | App { fn; arg = Ident [ x ]; _ } ->
+      let (Extctx (ab, ctx)) = get_vars ctx fn in
+      Extctx (Suc ab, Snoc (ctx, Some x))
+  | App { arg = Ident xs; _ } -> fatal (Invalid_variable xs)
   | App { fn; arg = Placeholder; _ } ->
       let (Extctx (ab, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (ctx, None))
@@ -314,7 +313,7 @@ let () =
 let universe = make "Type" Outfix
 
 let () =
-  set_tree universe (Closed_entry (eop (Ident "Type") (Done_closed universe)));
+  set_tree universe (Closed_entry (eop (Ident [ "Type" ]) (Done_closed universe)));
   set_processor universe
     {
       process =
@@ -336,7 +335,8 @@ let refl = make "refl" Outfix
 
 let () =
   set_tree refl
-    (Closed_entry (eops [ (Ident "refl", Done_closed refl); (Ident "Id", Done_closed refl) ]));
+    (Closed_entry
+       (eops [ (Ident [ "refl" ], Done_closed refl); (Ident [ "Id" ], Done_closed refl) ]));
   set_processor refl
     {
       process =
@@ -353,7 +353,7 @@ let () =
 let sym = make "sym" Outfix
 
 let () =
-  set_tree sym (Closed_entry (eop (Ident "sym") (Done_closed sym)));
+  set_tree sym (Closed_entry (eop (Ident [ "sym" ]) (Done_closed sym)));
   set_processor sym
     {
       process =
@@ -419,7 +419,7 @@ let rec process_struc :
  fun flds ctx obs ->
   match obs with
   | [] -> Raw.Struct flds
-  | Term (Ident x) :: obs | Term (Field x) :: obs -> (
+  | Term (Ident [ x ]) :: obs | Term (Field x) :: obs -> (
       match obs with
       | Term tm :: obs ->
           let tm = process ctx tm in
@@ -449,7 +449,7 @@ and pp_fields : formatter -> observation list -> unit =
  fun ppf obs ->
   match obs with
   | [] -> ()
-  | Term (Ident x) :: obs | Term (Field x) :: obs -> (
+  | Term (Ident [ x ]) :: obs | Term (Field x) :: obs -> (
       match obs with
       | tm :: obs ->
           (match state () with
@@ -528,11 +528,10 @@ let rec get_pattern :
  fun ctx pat ->
   match pat with
   | Constr c -> (Constr.intern c, Extctx (Zero, ctx))
-  | App { fn; arg = Ident x; _ } ->
-      if Token.variableable x then
-        let c, Extctx (ab, ctx) = get_pattern ctx fn in
-        (c, Extctx (Suc ab, Snoc (ctx, Some x)))
-      else fatal (Invalid_variable x)
+  | App { fn; arg = Ident [ x ]; _ } ->
+      let c, Extctx (ab, ctx) = get_pattern ctx fn in
+      (c, Extctx (Suc ab, Snoc (ctx, Some x)))
+  | App { arg = Ident xs; _ } -> fatal (Invalid_variable xs)
   | App { fn; arg = Placeholder; _ } ->
       let c, Extctx (ab, ctx) = get_pattern ctx fn in
       (c, Extctx (Suc ab, Snoc (ctx, None)))
@@ -554,13 +553,12 @@ let () =
       process =
         (fun ctx obs ->
           match obs with
-          (* If the first thing is an ident, then it's the match variable. *)
-          | Term (Ident ident) :: obs -> (
+          (* If the first thing is a valid local variable or cube variable, then it's the match variable. *)
+          | Term (Ident [ ident ]) :: obs -> (
               match Bwv.find (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)
               | Some x -> Match ((x, None), process_branches ctx obs))
-          (* If the first thing is a field of an ident, it must mean a face of a cube variable. *)
-          | Term (App { fn = Ident ident; arg = Field fld; _ }) :: obs -> (
+          | Term (Ident [ ident; fld ]) :: obs -> (
               match (Bwv.find (Some ident) ctx, Dim.sface_of_string fld) with
               | Some x, Some fa -> Match ((x, Some fa), process_branches ctx obs)
               | None, _ -> fatal (Unbound_variable ident)

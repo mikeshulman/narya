@@ -56,7 +56,7 @@ let () =
     synth "((x:X) (x':X) (x'':Id X x x') → Id Y (f x) (f' x')) → Id (X → Y) f f'" in
 
   let idff'_to_idff = check "k x x' x'' ↦ k x x' x''" idff'_to_idff_ty in
-  let idff'_to_idff_cube = check "k x ⤇ k (x .0) (x .1) (x .2)" idff'_to_idff_ty in
+  let idff'_to_idff_cube = check "k x ⤇ k x.0 x.1 x.2" idff'_to_idff_ty in
   equal_at idff'_to_idff idff'_to_idff_cube idff'_to_idff_ty;
 
   let p = assume "p" idff in

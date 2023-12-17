@@ -185,10 +185,10 @@ nest `}
   let thirty', _ = synth "3*10" in
   let () = equal_at thirty thirty' nat in
 
-  (* Identifiers can start with digits, but cannot consist entirely of digits. *)
+  (* Identifiers can contain or be digits.  In the latter case, they shadow numerals. *)
   let atoa, _ = synth "A → A" in
   let _ = check "0a ↦ 0a" atoa in
-  let () = unparse "0 ↦ 0" in
+  let _ = check "0 ↦ 0" atoa in
 
   (* Local variables, constructors, and fields can't contain periods *)
   let () = unparse "x.x ↦ x.x" in

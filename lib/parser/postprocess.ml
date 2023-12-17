@@ -63,7 +63,9 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
       | None -> (
           match Scope.lookup parts with
           | Some c -> Synth (Const c)
-          | None -> fatal (Unbound_variable (String.concat "." parts))))
+          | None -> (
+              try process_numeral (Q.of_string (String.concat "." parts))
+              with Invalid_argument _ -> fatal (Unbound_variable (String.concat "." parts)))))
   | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> process_numeral n

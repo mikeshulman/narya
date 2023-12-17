@@ -17,7 +17,7 @@ let () =
         LParen;
         Ident [ "ns24" ];
         Op "$#*";
-        Numeral (Q.of_float 430.);
+        Ident [ "430" ];
         Op "-";
         RBrace;
         Ident [ "aqo0" ];

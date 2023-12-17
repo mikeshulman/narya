@@ -116,11 +116,10 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                            | Ok last -> Ok (prefix ~notn ~inner ~last ~right_ok)
                            | Error e -> Error e));
                  }))
-      (* Otherwise, we parse a single ident, numeral, or constructor. *)
+      (* Otherwise, we parse a single ident or constructor. *)
       </> step (fun state _ tok ->
               match tok with
               | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
-              | Numeral n -> Some ({ get = (fun _ -> Ok (Numeral n)) }, state)
               (* Constructor names have already been validated by the lexer. *)
               | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
               | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
@@ -222,13 +221,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                     | _, None, _ -> Error (name notn)
                                     | _, _, None -> Error "application");
                               })))
-               (* If this fails, we can parse a single variable name, numeral, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
+               (* If this fails, we can parse a single variable name, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
                </> let* rng, arg =
                      located
                        (step (fun state _ tok ->
                             match tok with
                             | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
-                            | Numeral n -> Some ({ get = (fun _ -> Ok (Numeral n)) }, state)
                             (* Constructor and field names have already been validated by the lexer. *)
                             | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
                             | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)

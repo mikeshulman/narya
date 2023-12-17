@@ -448,3 +448,5 @@ val sym : (two, two) deg
 type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
 
 val suc_pos : 'n D.pos -> 'n is_suc
+val deg_of_name : string -> any_deg option
+val name_of_deg : ('a, 'b) deg -> string option

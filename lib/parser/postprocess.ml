@@ -31,9 +31,12 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
   | Notn n -> (processor (notn n)).process ctx (args n)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
   | App { fn; arg; _ } -> (
-      match fn with
-      | Ident [ "refl" ] | Ident [ "Id" ] -> process_deg ctx "refl" Dim.refl arg
-      | Ident [ "sym" ] -> process_deg ctx "sym" Dim.sym arg
+      match
+        match fn with
+        | Ident [ str ] -> process_deg ctx str arg
+        | _ -> None
+      with
+      | Some tm -> tm
       | _ -> (
           let fn = process ctx fn in
           match fn with
@@ -65,7 +68,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
               try process_numeral (Q.of_string (String.concat "." parts))
               with Invalid_argument _ -> (
                 match parts with
-                | [ ("refl" as str) ] | [ ("sym" as str) ] | [ ("Id" as str) ] ->
+                | [ str ] when Option.is_some (deg_of_name str) ->
                     fatal (Missing_argument_of_degeneracy str)
                 | _ -> fatal (Unbound_variable (String.concat "." parts))))))
   | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
@@ -73,9 +76,12 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
   | Numeral n -> process_numeral n
 
 and process_deg :
-    type n a b lt ls rt rs.
-    (string option, n) Bwv.t -> string -> (a, b) deg -> (lt, ls, rt, rs) parse -> n check =
- fun ctx str s arg ->
-  match process ctx arg with
-  | Synth arg -> Synth (Act (str, s, Some arg))
-  | _ -> fatal (Nonsynthesizing "argument of degeneracy")
+    type n lt ls rt rs.
+    (string option, n) Bwv.t -> string -> (lt, ls, rt, rs) parse -> n check option =
+ fun ctx str arg ->
+  match deg_of_name str with
+  | Some (Any s) -> (
+      match process ctx arg with
+      | Synth arg -> Some (Synth (Act (str, s, Some arg)))
+      | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
+  | None -> None

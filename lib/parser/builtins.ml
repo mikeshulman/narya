@@ -328,46 +328,6 @@ let () =
   | _ -> fatal (Anomaly "invalid notation arguments for Type")
 
 (* ********************
-   Degeneracies (refl and sym)
- ******************** *)
-
-let refl = make "refl" Outfix
-
-let () =
-  set_tree refl
-    (Closed_entry
-       (eops [ (Ident [ "refl" ], Done_closed refl); (Ident [ "Id" ], Done_closed refl) ]));
-  set_processor refl
-    {
-      process =
-        (fun _ obs ->
-          match obs with
-          | [] -> Synth (Act ("refl", Dim.refl, None))
-          | _ -> fatal (Anomaly "invalid notation arguments for refl"));
-    };
-  set_print refl @@ fun ppf obs ->
-  match obs with
-  | [] -> pp_print_string ppf "refl"
-  | _ -> fatal (Anomaly "invalid notation arguments for refl")
-
-let sym = make "sym" Outfix
-
-let () =
-  set_tree sym (Closed_entry (eop (Ident [ "sym" ]) (Done_closed sym)));
-  set_processor sym
-    {
-      process =
-        (fun _ obs ->
-          match obs with
-          | [] -> Synth (Act ("sym", Dim.sym, None))
-          | _ -> fatal (Anomaly "invalid notation arguments for sym"));
-    };
-  set_print sym @@ fun ppf obs ->
-  match obs with
-  | [] -> pp_print_string ppf "sym"
-  | _ -> fatal (Anomaly "invalid notation arguments for sym")
-
-(* ********************
    Anonymous structs and comatches
  ******************** *)
 
@@ -624,7 +584,5 @@ let builtins =
     |> State.add cubeabs
     |> State.add arrow
     |> State.add universe
-    |> State.add refl
-    |> State.add sym
     |> State.add struc
     |> State.add mtch)

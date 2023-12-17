@@ -31,22 +31,20 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
   | Notn n -> (processor (notn n)).process ctx (args n)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
   | App { fn; arg; _ } -> (
-      let fn = process ctx fn in
       match fn with
-      | Synth fn -> (
+      | Ident [ "refl" ] | Ident [ "Id" ] -> process_deg ctx "refl" Dim.refl arg
+      | Ident [ "sym" ] -> process_deg ctx "sym" Dim.sym arg
+      | _ -> (
+          let fn = process ctx fn in
           match fn with
-          | Act (str, s, None) -> (
-              match process ctx arg with
-              | Synth arg -> Synth (Act (str, s, Some arg))
-              | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
-          | _ -> (
+          | Synth fn -> (
               match arg with
               | Field fld -> Synth (Field (fn, Field.intern fld))
-              | _ -> Synth (Raw.App (fn, process ctx arg))))
-      | Constr (head, args) ->
-          let arg = process ctx arg in
-          Raw.Constr (head, Snoc (args, arg))
-      | _ -> fatal (Nonsynthesizing "application head"))
+              | _ -> Synth (Raw.App (fn, process ctx arg)))
+          | Constr (head, args) ->
+              let arg = process ctx arg in
+              Raw.Constr (head, Snoc (args, arg))
+          | _ -> fatal (Nonsynthesizing "application head")))
   | Placeholder -> fatal (Unimplemented "unification arguments")
   | Ident parts -> (
       let open Monad.Ops (Monad.Maybe) in
@@ -65,7 +63,19 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
           | Some c -> Synth (Const c)
           | None -> (
               try process_numeral (Q.of_string (String.concat "." parts))
-              with Invalid_argument _ -> fatal (Unbound_variable (String.concat "." parts)))))
+              with Invalid_argument _ -> (
+                match parts with
+                | [ ("refl" as str) ] | [ ("sym" as str) ] | [ ("Id" as str) ] ->
+                    fatal (Missing_argument_of_degeneracy str)
+                | _ -> fatal (Unbound_variable (String.concat "." parts))))))
   | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
   | Numeral n -> process_numeral n
+
+and process_deg :
+    type n a b lt ls rt rs.
+    (string option, n) Bwv.t -> string -> (a, b) deg -> (lt, ls, rt, rs) parse -> n check =
+ fun ctx str s arg ->
+  match process ctx arg with
+  | Synth arg -> Synth (Act (str, s, Some arg))
+  | _ -> fatal (Nonsynthesizing "argument of degeneracy")

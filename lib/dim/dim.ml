@@ -2000,15 +2000,12 @@ let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> n insf
 type one = D.one
 
 let one = D.one
-let pos_one : one D.pos = Pos D.zero
-let faces_one : (one, N.three) count_faces = Suc (Zero, N.one_times N.three)
 let refl : (one, D.zero) deg = Zero D.one
 let zero_sface_one : (D.zero, one) sface = End (Zero, Pop Top)
 let one_sface_one : (D.zero, one) sface = End (Zero, Top)
 
 type two = D.two
 
-let two = D.two
 let sym : (two, two) deg = Suc (Suc (Zero D.zero, Top), Pop Top)
 
 type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc

@@ -433,17 +433,12 @@ val insfact : ('ac, 'bc) deg -> ('b, 'c, 'bc) D.plus -> ('ac, 'b, 'c) insfact
 type _ insfact_comp = Insfact_comp : ('m, 'n) deg * ('ml, 'm, 'l) insertion -> 'n insfact_comp
 
 val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> 'n insfact_comp
+
+(*  *)
 val one : one D.t
-val pos_one : one D.pos
-val faces_one : (one, N.three) count_faces
 val refl : (one, D.zero) deg
 val zero_sface_one : (D.zero, one) sface
 val one_sface_one : (D.zero, one) sface
-
-type two
-
-val two : two D.t
-val sym : (two, two) deg
 
 type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
 

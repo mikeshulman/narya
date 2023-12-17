@@ -11,9 +11,7 @@ type pmt =
   | UU : pmt
   | Pi : string * pmt * pmt -> pmt
   | App : pmt * pmt -> pmt
-  | Id : pmt * pmt * pmt -> pmt
-  | Refl : pmt -> pmt
-  | Sym : pmt -> pmt
+  | Deg : pmt * string -> pmt
   | Asc : pmt * pmt -> pmt
   | Lam : string * pmt -> pmt
   | Struct : (string * pmt) list -> pmt
@@ -49,17 +47,12 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
   | Field (x, fld) -> Field (parse_syn ctx x, Field.intern fld)
   | Pi (x, dom, cod) -> Pi (Some x, parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
   | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)
-  | Id (a, x, y) -> (
-      match parse_chk ctx a with
-      | Synth ty -> App (App (Act ("refl", Dim.refl, Some ty), parse_chk ctx x), parse_chk ctx y)
-      | _ -> raise (Failure "Non-synthesizing"))
-  | Refl x -> (
+  | Deg (x, str) -> (
       match parse_chk ctx x with
-      | Synth x -> Act ("refl", Dim.refl, Some x)
-      | _ -> raise (Failure "Non-synthesizing"))
-  | Sym x -> (
-      match parse_chk ctx x with
-      | Synth x -> Act ("sym", Dim.sym, Some x)
+      | Synth x -> (
+          match Dim.deg_of_name str with
+          | Some (Any s) -> Act (str, s, Some x)
+          | None -> raise (Failure "unknown degeneracy"))
       | _ -> raise (Failure "Non-synthesizing"))
   | Asc (tm, ty) -> Asc (parse_chk ctx tm, parse_chk ctx ty)
   | _ -> raise (Failure "Non-synthesizing")
@@ -72,9 +65,9 @@ let ( !. ) x = Constr x
 (* let pi x dom cod = Pi (x, dom, cod) *)
 let ( @=> ) (x, dom) cod = Pi (x, dom, cod)
 let ( $ ) fn arg = App (fn, arg) (* Left-associative *)
-let id a x y = Id (a, x, y)
-let refl x = Refl x
-let sym x = Sym x
+let id a x y = App (App (Deg (a, "refl"), x), y)
+let refl x = Deg (x, "refl")
+let sym x = Deg (x, "sym")
 let ( <:> ) tm ty = Asc (tm, ty)
 let ( @-> ) x body = Lam (x, body) (* Right-associative *)
 let ( $. ) x fld = Field (x, fld)

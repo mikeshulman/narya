@@ -52,7 +52,10 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       | Synth x -> (
           match Dim.deg_of_name str with
           | Some (Any s) -> Act (str, s, x)
-          | None -> raise (Failure "unknown degeneracy"))
+          | None -> (
+              match Dim.deg_of_string str with
+              | Some (Any s) -> Act (str, s, x)
+              | None -> raise (Failure "unknown degeneracy")))
       | _ -> raise (Failure "Non-synthesizing"))
   | Asc (tm, ty) -> Asc (parse_chk ctx tm, parse_chk ctx ty)
   | _ -> raise (Failure "Non-synthesizing")
@@ -72,6 +75,7 @@ let ( <:> ) tm ty = Asc (tm, ty)
 let ( @-> ) x body = Lam (x, body) (* Right-associative *)
 let ( $. ) x fld = Field (x, fld)
 let struc tms = Struct tms
+let ( $^ ) x s = Deg (x, s)
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 

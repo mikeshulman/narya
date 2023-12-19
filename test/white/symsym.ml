@@ -309,6 +309,15 @@ let apsym_xx222', _ =
 
 let () = equal apsym_xx222 apsym_xx222'
 
+(* They both have alternative degeneracy notations. *)
+
+let sym_x222', sym_xx222' = synth (!!"x222" $^ "213")
+let () = equal sym_xx222 sym_xx222'
+let () = equal sym_x222 sym_x222'
+let apsym_x222', apsym_xx222' = synth (!!"x222" $^ "132")
+let () = equal apsym_xx222 apsym_xx222'
+let () = equal apsym_x222 apsym_x222'
+
 (* But the two sides of the braid equation are equal.  We build them up in stages, checking their types as we go.  First the left-hand side sym-apsym-sym. *)
 
 let apsym_sym_x222, apsym_sym_xx222 =
@@ -784,3 +793,8 @@ let () = equal apsym_sym_apsym_xx222 apsym_sym_apsym_xx222'
 
 let () = equal sym_apsym_sym_xx222 apsym_sym_apsym_xx222
 let () = equal sym_apsym_sym_x222 apsym_sym_apsym_x222
+
+(* And they have an alternative, much simpler, degeneracy notation *)
+let braid', braidty' = synth (!!"x222" $^ "321")
+let () = equal sym_apsym_sym_xx222 braidty'
+let () = equal sym_apsym_sym_x222 braid'

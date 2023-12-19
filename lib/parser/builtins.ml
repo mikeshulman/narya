@@ -1,4 +1,5 @@
 open Util
+open Dim
 open Postprocess
 open Print
 open Format
@@ -328,6 +329,37 @@ let () =
   | _ -> fatal (Anomaly "invalid notation arguments for Type")
 
 (* ********************
+   Degeneracies
+   ******************** *)
+
+let degen = make "degeneracy" (Postfixl No.plus_omega)
+
+let () =
+  set_tree degen (Open_entry (eop (Op "^") (op LBrace (term RBrace (done_open degen)))));
+  set_processor degen
+    {
+      process =
+        (fun ctx obs ->
+          match obs with
+          | [ Term tm; Term d ] -> (
+              match d with
+              | Ident [ str ] -> (
+                  match deg_of_string str with
+                  | Some (Any s) -> (
+                      match process ctx tm with
+                      | Synth x -> Synth (Act (str, s, x))
+                      | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
+                  | None -> fatal Parse_error)
+              | _ -> fatal Parse_error)
+          | _ -> fatal (Anomaly "invalid notation arguments for degeneracy"));
+    };
+  set_print degen @@ fun ppf obs ->
+  match obs with
+  | [ tm; Term (Ident [ str ]) ] ->
+      fprintf ppf "%a%a%a" pp_term tm pp_tok (Op "^") pp_print_string str
+  | _ -> fatal (Anomaly "invalid notation arguments for degeneracy")
+
+(* ********************
    Anonymous structs and comatches
  ******************** *)
 
@@ -584,5 +616,6 @@ let builtins =
     |> State.add cubeabs
     |> State.add arrow
     |> State.add universe
+    |> State.add degen
     |> State.add struc
     |> State.add mtch)

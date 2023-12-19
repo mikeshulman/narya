@@ -194,22 +194,31 @@ let pos_deg : type m n. n D.pos -> (m, n) deg -> m D.pos =
   match (n, s) with
   | Pos _, Suc (s, _) -> Pos (dom_deg s)
 
-(* We consider two degeneracies "equivalent" if they differ by an identity extension on the right (i.e. post-whiskering with an identity). *)
-let rec deg_equiv : type m n k l. (m, n) deg -> (k, l) deg -> unit option =
+(* Are two degeneracies exactly equal? *)
+let deg_equal : type m n k l. (m, n) deg -> (k, l) deg -> unit option =
  fun s1 s2 ->
-  let open Monad.Ops (Monad.Maybe) in
-  match (s1, s2) with
-  | Zero n1, Zero n2 -> (
-      match compare n1 n2 with
-      | Eq -> Some ()
-      | Neq -> None)
-  | Suc (p1, i1), Suc (p2, i2) ->
-      let* () = N.index_equiv i1 i2 in
-      deg_equiv p1 p2
-  | Zero _, Suc (p2, Top) -> deg_equiv s1 p2
-  | Zero _, Suc (_, Pop _) -> None
-  | Suc (p1, Top), Zero _ -> deg_equiv p1 s2
-  | Suc (_, Pop _), Zero _ -> None
+  match (N.compare (dom_deg s1) (dom_deg s2), N.compare (cod_deg s1) (cod_deg s2)) with
+  | Eq, Eq ->
+      (* Degeneracies with the same domain *and* codomain can be compared with simple structural equality. *)
+      if s1 = s2 then Some () else None
+  | _ -> None
+
+(* Is one degeneracy, with greater codomain, an identity extension of another? *)
+let rec deg_is_idext :
+    type n l nl m k. (n, l, nl) D.plus -> (m, n) deg -> (k, nl) deg -> unit option =
+ fun nl s1 s2 ->
+  match (nl, s2) with
+  | Zero, _ -> deg_equal s1 s2
+  | Suc nl, Suc (s2, Top) -> deg_is_idext nl s1 s2
+  | _ -> None
+
+(* We consider two degeneracies "equivalent" if they differ by an identity extension on the right (i.e. post-whiskering with an identity). *)
+let deg_equiv : type m n k l. (m, n) deg -> (k, l) deg -> unit option =
+ fun s1 s2 ->
+  match N.compare (cod_deg s1) (cod_deg s2) with
+  | Eq -> deg_equal s1 s2
+  | Lt nl -> deg_is_idext nl s1 s2
+  | Gt nl -> deg_is_idext nl s2 s1
 
 (* Every dimension is a degeneracy of zero. *)
 let deg_zero : type a. a D.t -> (a, D.zero) deg = fun a -> Zero a

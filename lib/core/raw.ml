@@ -16,8 +16,7 @@ type _ synth =
   | Asc : 'a check * 'a check -> 'a synth
   | Let : string option * 'a synth * 'a N.suc synth -> 'a synth
   | UU : 'a synth
-  (* The argument of a degeneracy action is optional so that we can parse the name of the degeneracy alone and then its argument as looking like an application of a function, even though it's not actually a function since (among other things) we require the argument to synthesize. *)
-  | Act : string * ('m, 'n) deg * 'a synth option -> 'a synth
+  | Act : string * ('m, 'n) deg * 'a synth -> 'a synth
 
 and _ check =
   | Synth : 'a synth -> 'a check

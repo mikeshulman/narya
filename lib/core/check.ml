@@ -228,13 +228,11 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       let fn, args = spine tm in
       let sfn, sty = synth ctx fn in
       synth_apps ctx sfn sty args
-  | Act (str, fa, Some x) ->
+  | Act (str, fa, x) ->
       let sx, ety = synth ctx x in
       let ex = Ctx.eval ctx sx in
       ( Act (sx, fa),
         act_ty ex ety fa ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa)) )
-  (* If a symbol isn't applied to enough arguments yet, it doesn't typecheck. *)
-  | Act (str, _, None) -> fatal (Missing_argument_of_degeneracy str)
   | Asc (tm, ty) ->
       let cty = check ctx ty (universe D.zero) in
       let ety = Ctx.eval ctx cty in

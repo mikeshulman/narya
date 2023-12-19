@@ -82,6 +82,6 @@ and process_deg :
   match deg_of_name str with
   | Some (Any s) -> (
       match process ctx arg with
-      | Synth arg -> Some (Synth (Act (str, s, Some arg)))
+      | Synth arg -> Some (Synth (Act (str, s, arg)))
       | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
   | None -> None

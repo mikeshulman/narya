@@ -51,7 +51,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       match parse_chk ctx x with
       | Synth x -> (
           match Dim.deg_of_name str with
-          | Some (Any s) -> Act (str, s, Some x)
+          | Some (Any s) -> Act (str, s, x)
           | None -> raise (Failure "unknown degeneracy"))
       | _ -> raise (Failure "Non-synthesizing"))
   | Asc (tm, ty) -> Asc (parse_chk ctx tm, parse_chk ctx ty)

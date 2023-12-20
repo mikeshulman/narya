@@ -21,7 +21,7 @@ let install () =
                         (Leaf
                            (Pi
                               ( (* TODO: Get the variable somehow from the second argument *)
-                                None,
+                                Some "x",
                                 CubeOf.singleton (Var (Pop (Top (id_sface D.zero)))),
                                 CodCube.singleton
                                   (App

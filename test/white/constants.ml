@@ -37,6 +37,15 @@ let () =
   def "zero_zero'" "ℕ × ℕ" "{ .fst ↦ zero; .snd ↦ zero }";
   equal_at "zero_zero" "zero_zero'" "ℕ × ℕ";
 
+  (* Pi-types *)
+  (* These are built in, of course, but we also have a named constant for them. *)
+  Types.Pi.install ();
+  equal_at "(x:A) → B x" "Π A B" "Type";
+
+  (* In particular, this gives a way for the user to write higher-dimensional Π-types. *)
+  equal_at "refl ((x:A) → B x)" "refl Π A A (refl A) B B (refl B)"
+    "Id Type ((x:A) → B x) ((x:A) → B x)";
+
   (* Coinductive streams *)
   Types.Stream.install ();
   def "zeros" "Stream ℕ" "{ head ≔ zero; tail ≔ zeros }";

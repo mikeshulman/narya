@@ -332,7 +332,7 @@ let () =
    Degeneracies
    ******************** *)
 
-let degen = make "degeneracy" (Postfixl No.plus_omega)
+let degen = make "degeneracy" (Postfix No.plus_omega)
 
 let () =
   set_tree degen (Open_entry (eop (Op "^") (op LBrace (term RBrace (done_open degen)))));

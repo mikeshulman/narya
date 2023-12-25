@@ -273,14 +273,16 @@ module Lex_and_parse_term =
 
 open Lex_and_parse_term
 
-let term (state : State.t) (content : string) : observation =
-  let env : Range.Data.t =
-    {
-      source = `String { title = Some "user-supplied string"; content };
-      length = Int64.of_int (String.length content);
-    } in
+let term (state : State.t) (source : Asai.Range.source) : observation =
+  let length, run =
+    match source with
+    | `String { content; _ } -> (Int64.of_int (String.length content), run_on_string content)
+    | `File name ->
+        let ic = In_channel.open_text name in
+        (In_channel.length ic, run_on_channel ic) in
+  let env : Range.Data.t = { source; length } in
   Range.run ~env @@ fun () ->
-  let p = run_on_string content (make Lexer.Parser.init (Parse_term.term state)) in
+  let p = run (make Lexer.Parser.init (Parse_term.term state)) in
   if has_succeeded p then final p
     (* Fmlib_parse has its own built-in error reporting with locations.  However, we instead use Asai's error reporting, so that we have a common "look" for parse errors and typechecking errors. *)
   else if has_failed_syntax p then

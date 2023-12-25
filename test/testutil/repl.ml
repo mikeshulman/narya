@@ -10,7 +10,9 @@ open Raw
 open Hctx
 
 let parse_term (tm : string) : N.zero check =
-  let (Term tm) = Parse.term !Builtins.builtins tm in
+  let (Term tm) =
+    Parse.term !Builtins.builtins (`String { title = Some "user-supplied term"; content = tm })
+  in
   Postprocess.process Emp tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)

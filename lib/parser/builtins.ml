@@ -79,15 +79,15 @@ let () =
         | [ x; ty; tm; body ] ->
             fprintf ppf
               (match style () with
-              | Compact -> "@[<hov 2>@[<hv 2>%a %a@ %a %a@ %a %a@]@ %a@]@ %a"
-              | Noncompact -> "@[<hv 2>%a %a@ %a %a@ %a %a@ %a@]@ %a")
+              | `Compact -> "@[<hov 2>@[<hv 2>%a %a@ %a %a@ %a %a@]@ %a@]@ %a"
+              | `Noncompact -> "@[<hv 2>%a %a@ %a %a@ %a %a@ %a@]@ %a")
               pp_tok Let pp_term x pp_tok Colon pp_term ty pp_tok Coloneq pp_term tm pp_tok In
               pp_let_body body
         | [ x; tm; body ] ->
             fprintf ppf
               (match style () with
-              | Compact -> "@[<hov 2>%a %a %a@ %a@ %a@]@ %a"
-              | Noncompact -> "@[<hv 2>%a %a %a@ %a@ %a@]@ %a")
+              | `Compact -> "@[<hov 2>%a %a %a@ %a@ %a@]@ %a"
+              | `Noncompact -> "@[<hv 2>%a %a %a@ %a@ %a@]@ %a")
               pp_tok Let pp_term x pp_tok Coloneq pp_term tm pp_tok In pp_let_body body
         | _ -> fatal (Anomaly "invalid notation arguments for let")
       and pp_let_body ppf tr =
@@ -413,8 +413,8 @@ and pp_fields : formatter -> observation list -> unit =
       match obs with
       | tm :: obs ->
           (match state () with
-          | Term -> pp_fld ppf pp_var (Some x) Coloneq tm obs
-          | Case -> pp_fld ppf pp_field x Mapsto tm obs);
+          | `Term -> pp_fld ppf pp_var (Some x) Coloneq tm obs
+          | `Case -> pp_fld ppf pp_field x Mapsto tm obs);
           pp_fields ppf obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | _ :: _ -> fatal Invalid_field_in_struct
@@ -422,20 +422,20 @@ and pp_fields : formatter -> observation list -> unit =
 let pp_struc ppf obs =
   let style, state = (style (), state ()) in
   (match state with
-  | Term ->
-      if style = Noncompact then pp_open_box ppf 0;
+  | `Term ->
+      if style = `Noncompact then pp_open_box ppf 0;
       pp_open_hvbox ppf 2
-  | Case -> pp_open_vbox ppf 2);
+  | `Case -> pp_open_vbox ppf 2);
   pp_tok ppf LBrace;
-  if style = Compact then pp_print_string ppf " " else pp_print_space ppf ();
+  if style = `Compact then pp_print_string ppf " " else pp_print_space ppf ();
   pp_fields ppf obs;
-  (if style = Compact then pp_print_string ppf " "
+  (if style = `Compact then pp_print_string ppf " "
    else
      match state with
-     | Term ->
+     | `Term ->
          pp_close_box ppf ();
          pp_print_custom_break ~fits:("", 1, "") ~breaks:(" ;", 0, "") ppf
-     | Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(" ;", -2, "") ppf);
+     | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(" ;", -2, "") ppf);
   pp_tok ppf RBrace;
   pp_close_box ppf ()
 
@@ -534,9 +534,9 @@ let rec pp_branches : bool -> formatter -> observation list -> unit =
   match obs with
   | pat :: body :: obs ->
       let style = style () in
-      if brk || style = Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
+      if brk || style = `Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match body with
-      | Term (Notn n) when equal (notn n) mtch && style = Compact ->
+      | Term (Notn n) when equal (notn n) mtch && style = `Compact ->
           fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a@] %a@]" pp_tok (Op "|") pp_term pat pp_tok Mapsto
             (pp_match false) (args n)
       | _ ->
@@ -555,17 +555,17 @@ and pp_match box ppf obs =
       pp_print_string ppf " ";
       pp_term ppf x;
       pp_branches true ppf obs;
-      if style () = Compact then pp_print_string ppf " " else pp_print_cut ppf ();
+      if style () = `Compact then pp_print_string ppf " " else pp_print_cut ppf ();
       pp_tok ppf RBracket;
       if box then pp_close_box ppf ()
   | _ ->
       let style = style () in
-      if box || style = Noncompact then pp_open_vbox ppf 0;
+      if box || style = `Noncompact then pp_open_vbox ppf 0;
       pp_tok ppf LBracket;
-      pp_branches ((not box) || style = Noncompact) ppf obs;
-      if style = Compact then pp_print_string ppf " " else pp_print_cut ppf ();
+      pp_branches ((not box) || style = `Noncompact) ppf obs;
+      if style = `Compact then pp_print_string ppf " " else pp_print_cut ppf ();
       pp_tok ppf RBracket;
-      if box || style = Noncompact then pp_close_box ppf ()
+      if box || style = `Noncompact then pp_close_box ppf ()
 
 (* Matches are only valid in case trees. *)
 let () = set_print_as_case mtch (pp_match true)

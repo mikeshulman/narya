@@ -19,6 +19,7 @@ type t =
   | String of string (* Double-quoted *)
   | Underscore (* _ *)
   | Internal of string (* Starting or ending with _ *)
+  | Axiom (* axiom *)
   | Def (* def *)
   | Record (* record *)
   | Data (* data *)
@@ -59,6 +60,7 @@ let to_string = function
   | String s -> "\"" ^ s ^ "\""
   | Underscore -> "_"
   | Internal s -> s
+  | Axiom -> "axiom"
   | Def -> "def"
   | Record -> "record"
   | Data -> "data"

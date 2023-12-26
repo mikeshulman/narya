@@ -1,7 +1,6 @@
 open Util
 open Bwd
-open Core
-open Reporter
+open Core.Reporter
 open Fmlib_parse
 open Notation
 module TokMap = Map.Make (Token)
@@ -251,44 +250,141 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
         </> succeed first_arg
 
   (* The master term-parsing combinator parses an lclosed of arbitrary tightness, with no ending tokens (so it must take up the entire input string). *)
-  let term () =
+  let term =
     let* tm = lclosed Interval.entire TokMap.empty in
     match tm.get Interval.entire with
     | Ok tm -> return (Term tm)
     | Error _ -> fatal (Anomaly "Outer term failed")
 end
 
-(* To parse single terms, we instantiate this to output a parse tree. *)
-module TermCombinators = Combinators (ParseTree)
+(* Sometimes we want to parse just one term, other times a sequence of commands.  But the parsing functor has to be instantiated differently depending on the goal type, and the error-wrapping around it is the same in both cases, so we make it into another functor. *)
 
-module Parse_term = struct
-  include TermCombinators.Basic.Parser
+module type Goal = sig
+  module Final : Fmlib_std.Interfaces.ANY
+  module C : module type of Combinators (Final)
 
-  let term (state : State.t) : t = TermCombinators.Basic.make state (TermCombinators.term ())
+  val final : Final.t C.Basic.t
 end
 
-(* Then we connect it up with the lexer. *)
-module Lex_and_parse_term =
-  Parse_with_lexer.Make (State) (Token) (ParseTree) (SemanticError) (Lexer.Parser) (Parse_term)
+module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final = Final) = struct
+  include G.C.Basic.Parser
 
-open Lex_and_parse_term
+  module Lex_and_parse =
+    Parse_with_lexer.Make (State) (Token) (Final) (SemanticError) (Lexer.Parser) (G.C.Basic.Parser)
 
-let term (state : State.t) (source : Asai.Range.source) : observation =
-  let length, run =
-    match source with
-    | `String { content; _ } -> (Int64.of_int (String.length content), run_on_string content)
-    | `File name ->
-        let ic = In_channel.open_text name in
-        (In_channel.length ic, run_on_channel ic) in
-  let env : Range.Data.t = { source; length } in
-  Range.run ~env @@ fun () ->
-  let p = run (make Lexer.Parser.init (Parse_term.term state)) in
-  if has_succeeded p then final p
+  open Lex_and_parse
+
+  type new_source = [ `String of string | `File of string ]
+  type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
+
+  (* Parse the given 'source', raising appropriate Asai errors as 'fatal'.  If this returns normally, then the parse succeeded, and the functions below can be used to extract the result.  The first argument says whether EOF is expected at the end, whether it can be restarted, or whether it is itself a restart of another parser. *)
+  let parse
+      (action :
+        [ `New of [ `Full | `Partial ] * State.t * new_source
+        | `Restart of State.t * Lex_and_parse.t * open_source ]) : Lex_and_parse.t * open_source =
+    let env, run =
+      match action with
+      | `New (partial, _, `String content) -> (
+          let (env : Range.Data.t) =
+            {
+              source = `String { content; title = Some "user-supplied string" };
+              length = Int64.of_int (String.length content);
+            } in
+          match partial with
+          | `Full -> (env, fun p -> (`String (0, content), run_on_string content p))
+          | `Partial ->
+              ( env,
+                fun p ->
+                  let n, p = run_on_string_at 0 content p in
+                  (`String (n, content), p) ))
+      | `New (_, _, `File name) ->
+          let ic = In_channel.open_text name in
+          ( { source = `File name; length = In_channel.length ic },
+            fun p -> (`File ic, run_on_channel ic p) )
+      | `Restart (_, _, (env, `String (n, content))) ->
+          ( env,
+            fun p ->
+              let n, p = run_on_string_at n content p in
+              (`String (n, content), p) )
+      | `Restart (_, _, (env, `File ic)) -> (env, fun p -> (`File ic, run_on_channel ic p)) in
+    let final =
+      match action with
+      | `New (`Full, _, _) -> G.final
+      | `New (`Partial, _, _) | `Restart _ ->
+          G.C.Basic.(
+            let* x = G.final in
+            expect_end x </> return x) in
+    let lex =
+      match action with
+      | `New _ -> Lexer.Parser.start
+      | `Restart (_, p, _) -> Lex_and_parse.lex p in
+    let token_make =
+      match action with
+      | `New (`Full, s, _) -> G.C.Basic.make s
+      | `New (`Partial, s, _) -> G.C.Basic.make_partial s
+      | `Restart (s, p, _) ->
+          fun c ->
+            G.C.Basic.make_partial s c
+            |> G.C.Basic.Parser.transfer_lookahead (Lex_and_parse.parse p) in
+    Range.run ~env @@ fun () ->
+    let p = Lex_and_parse.make lex (token_make final) in
+    let ic, p = run p in
     (* Fmlib_parse has its own built-in error reporting with locations.  However, we instead use Asai's error reporting, so that we have a common "look" for parse errors and typechecking errors. *)
-  else if has_failed_syntax p then
-    (* It should be possible to report more detailed error information from the parser than just the location.  Fmlib supplies "failed_expectations", but I haven't been able to figure out how to make that useful with this parsing algorithm. *)
-    fatal ~loc:(Range.convert (range p)) Parse_error
-  else
-    match failed_semantic p with
-    | No_relative_precedence (rng, n1, n2) ->
-        fatal ~loc:(Range.convert rng) (No_relative_precedence (n1, n2))
+    if has_failed_syntax p then
+      (* It should be possible to report more detailed error information from the parser than just the location.  Fmlib supplies "failed_expectations", but I haven't been able to figure out how to make that useful with this parsing algorithm. *)
+      fatal ~loc:(Range.convert (range p)) Parse_error
+    else if has_failed_semantic p then
+      match failed_semantic p with
+      | No_relative_precedence (rng, n1, n2) ->
+          fatal ~loc:(Range.convert rng) (No_relative_precedence (n1, n2))
+    else if has_succeeded p then (p, (env, ic))
+    else if needs_more p then fatal (Anomaly "parser needs more")
+    else fatal (Anomaly "what")
+
+  let final (p : Lex_and_parse.t) : Final.t = final p
+  let has_consumed_end (p : Lex_and_parse.t) : bool = has_consumed_end p
+end
+
+(* To parse single terms, we instantiate this to output a parse tree. *)
+module Term_goal = struct
+  module Final = ParseTree
+  module C = Combinators (Final)
+
+  let final : observation C.Basic.t = C.term
+end
+
+module Term = Parse_goal (ParseTree) (Term_goal)
+
+module Command_goal = struct
+  module Final = Command
+  module C = Combinators (Final)
+  open C.Basic
+
+  let token x = step "" (fun state _ tok -> if tok = x then Some ((), state) else None)
+
+  let ident =
+    step "" (fun state _ tok ->
+        match tok with
+        | Ident name -> Some (name, state)
+        | _ -> None)
+
+  let axiom =
+    let* () = token Axiom in
+    let* name = ident in
+    let* () = token Colon in
+    let* ty = C.term in
+    return (Command.Axiom (name, ty))
+
+  let def =
+    let* () = token Def in
+    let* name = ident in
+    let* () = token Colon in
+    let* ty = C.term in
+    let* () = token Coloneq in
+    let* tm = C.term in
+    return (Command.Def (name, ty, tm))
+
+  let final : Command.t C.Basic.t = axiom </> def
+end
+
+module Command = Parse_goal (Command) (Command_goal)

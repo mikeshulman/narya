@@ -1,0 +1,3 @@
+(executable
+	(libraries core parser)
+  (name narya))

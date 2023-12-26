@@ -195,8 +195,8 @@ module Parser = struct
   include Basic.Parser
 
   (* This is how we make the lexer to plug into the parser. *)
-  let init : t = make_partial () token
-  let restart (lex : t) : t = restart_partial token lex
+  let start : t = make_partial Position.start () token
+  let restart (lex : t) : t = make_partial (position lex) () token |> transfer_lookahead lex
 
   (* But occasionally we may also just want to parse a specific string into a single token. *)
   let single (str : string) : Token.t option =

@@ -17,3 +17,5 @@ let alt_char uni asc =
   match (Reader.read ()).chars with
   | `Unicode -> uni
   | `ASCII -> asc
+
+let run = Reader.run

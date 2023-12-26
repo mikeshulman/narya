@@ -6,8 +6,9 @@ open Core
 let margin = ref 80
 let set_margin n = margin := n
 
-let reformat content =
-  let tr = Parse.term !Builtins.builtins (`String { title = Some "user-supplied term"; content }) in
+let reformat tm =
+  let p, _ = Parse.Term.parse (`New (`Full, !Builtins.builtins, `String tm)) in
+  let tr = Parse.Term.final p in
   pp_set_margin std_formatter !margin;
   pp_set_max_indent std_formatter (max (!margin - 12) (!margin / 2));
   pp_open_hovbox std_formatter 0;

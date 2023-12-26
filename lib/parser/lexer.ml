@@ -5,27 +5,21 @@ open Reporter
 
 (* NB: The parsing combinator "string" just parses the characters in the string one by one.  This means that if it succeeds to parse the first character in the string, it consumes that character, and if it fails later in the string then parsing dies completely.  If that's not what you want, which it usually isn't, you need to wrap it in "backtrack".  *)
 
-(* The Fmlib parsers allow us to track a "state" through the parsing.  We use this to forbid block comments from appearing on a line before any tokens.  State "Indent" means we have seen only 0x20 spaces so far on this line, "Code" means we have seen valid tokens on this line, and "Blankline" means this line had a block comment before any tokens and hence cannot contain any tokens.  *)
-module Indent_state = struct
-  type t = Indent | Code | Blankline
-end
-
 module Located_token = struct
   type t = Position.range * Token.t
 end
 
 (* We define the lexer using a basic character parser from Fmlib.  Note that a "character" here really means a byte, so we have to be careful with Unicode. *)
-module Basic = Character.Make (Indent_state) (Located_token) (Unit)
+module Basic = Character.Make (Unit) (Located_token) (Unit)
 open Basic
 
-(* A line comment starts with a backquote and extends to the end of the line.  The next line, of course, starts with an Indent. *)
+(* A line comment starts with a backquote and extends to the end of the line.  *)
 let line_comment : unit t =
   let* _ = char '`' in
   let* _ = skip_zero_or_more (charp (fun c -> c <> '\n') "non-newline") in
-  let* () = set Indent in
   return ()
 
-(* A block comment starts with {` and ends with `}, and can be nested.  If it contains a newline, or it started in the Indent, then the line it ends on must be a blank one. *)
+(* A block comment starts with {` and ends with `}, and can be nested.  *)
 let block_comment : unit t =
   let rec rest nesting state =
     let* c = charp (fun _ -> true) "any character" in
@@ -34,34 +28,18 @@ let block_comment : unit t =
     | `None, '`' | `Backquote, '`' -> rest nesting `Backquote
     | `Backquote, '}' -> if nesting <= 0 then return () else rest (nesting - 1) `None
     | `LBrace, '`' -> rest (nesting + 1) `None
-    | _, '\n' | _, '\r' ->
-        let* () = set Blankline in
-        rest nesting `None
+    | _, '\n' | _, '\r' -> rest nesting `None
     | _ -> rest nesting `None in
   let* _ = backtrack (string "{`") "\"{`\"" in
-  let* () = rest 0 `None in
-  let* s = get in
-  if s = Indent then set Blankline else return ()
+  rest 0 `None
 
-let space : unit t =
-  let* _ = char ' ' in
+let space_tab_newline =
+  let* _ = one_of_chars " \t\n\r" "space, tab, or newline" in
   return ()
 
-let tab : unit t =
-  let* _ = char '\t' in
-  unexpected "tab character"
-
-(* A new line starts in the Indent. *)
-let newline : unit t =
-  let* _ = char '\n' </> char '\r' in
-  let* () = set Indent in
-  return ()
-
-(* Whitespace consists of spaces, newlines, and comments.  In particular, tab characters are forbidden. *)
+(* Whitespace consists of spaces, tabs, newlines, and comments. *)
 let whitespace : int t =
-  let* _ =
-    zero_or_more (space </> tab </> newline </> line_comment </> block_comment) |> no_expectations
-  in
+  let* _ = zero_or_more (space_tab_newline </> line_comment </> block_comment) |> no_expectations in
   return 0
 
 (* A quoted string starts and ends with double-quotes, and allows backslash-quoted double-quotes and backslashes inside. *)
@@ -209,28 +187,21 @@ let other : Token.t t =
          other_char) in
   canonicalize rng (Buffer.contents buf)
 
-(* Finally, a token cannot appear on a blank-only line, and is either a quoted string, a single-character operator, an operator of special ASCII symbols, or something else.  We remove whitespace first (which updates the state!). *)
+(* Finally, a token cannot appear on a blank-only line, and is either a quoted string, a single-character operator, an operator of special ASCII symbols, or something else.  We remove whitespace first. *)
 let token : Located_token.t t =
-  lexer whitespace Eof
-    (let* s = get in
-     match s with
-     | Blankline -> unexpected "token on line starting with a block comment"
-     | Code | Indent ->
-         let* tok = quoted_string </> onechar_op </> ascii_op </> other in
-         let* () = set Code in
-         return tok)
+  lexer whitespace Eof (quoted_string </> onechar_op </> ascii_op </> other)
 
 module Parser = struct
   include Basic.Parser
 
   (* This is how we make the lexer to plug into the parser. *)
-  let init : t = make_partial Indent token
+  let init : t = make_partial () token
   let restart (lex : t) : t = restart_partial token lex
 
   (* But occasionally we may also just want to parse a specific string into a single token. *)
   let single (str : string) : Token.t option =
     let p =
-      run_on_string str (make Code (located (quoted_string </> onechar_op </> ascii_op </> other)))
+      run_on_string str (make () (located (quoted_string </> onechar_op </> ascii_op </> other)))
     in
     if has_succeeded p then Some (snd (final p)) else None
 end

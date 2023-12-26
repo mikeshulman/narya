@@ -45,8 +45,6 @@ let () =
       "this is {` a block \n comment spanning \n multiple lines `} ` with a line comment\n and_more-code"
     = [ Ident [ "this" ]; Ident [ "is" ]; Ident [ "and_more" ]; Op "-"; Ident [ "code" ] ])
 
-let () = assert (nolex "No \t tabs allowed" = [ ("tab character", None) ])
-
 let () =
   assert (
     lex "block comments {` can contain ` line comments \n and {` nest `} arbitrarily `} \n see?"
@@ -62,17 +60,7 @@ let () =
     lex "block \"comments {` don't start in\" strings"
     = [ Ident [ "block" ]; String "comments {` don't start in"; Ident [ "strings" ] ])
 
-let () =
-  assert (
-    nolex "{` no block comments `} starting lines"
-    = [ ("token on line starting with a block comment", None); ("end of input", None) ])
-
 let () = assert (lex "  initial space" = [ Ident [ "initial" ]; Ident [ "space" ] ])
-
-let () =
-  assert (
-    nolex "No {` block comments \n starting lines `} with code"
-    = [ ("token on line starting with a block comment", None); ("end of input", None) ])
 
 let () =
   assert (lex "Block comments {` can end the file `}" = [ Ident [ "Block" ]; Ident [ "comments" ] ])

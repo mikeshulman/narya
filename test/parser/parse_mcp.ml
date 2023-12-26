@@ -144,13 +144,6 @@ lines `}
   let _ =
     unparse
       "(x : A) {` a block comment
- spanning multiple
-lines and ending on a code line `} →  B x"
-  in
-
-  let _ =
-    unparse
-      "(x : A) {` a block comment
  containing ` a line comment
  and showing that {` block comments
 nest `}

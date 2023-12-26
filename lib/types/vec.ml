@@ -10,9 +10,9 @@ let cons = Constr.intern "cons"
 
 let install () =
   Nat.install ();
-  let vec = Scope.define "Vec" in
-  let concat = Scope.define "concat" in
-  let ind = Scope.define "Vec_ind" in
+  let vec = Scope.define [ "Vec" ] in
+  let concat = Scope.define [ "concat" ] in
+  let ind = Scope.define [ "Vec_ind" ] in
   Hashtbl.add Global.types vec (pi None (UU D.zero) (pi None (Const nn) (UU D.zero)));
   Hashtbl.add Global.constants vec
     (Data

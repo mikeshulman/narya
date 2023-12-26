@@ -6,8 +6,8 @@ let head = Field.intern "head"
 let tail = Field.intern "tail"
 
 let install () =
-  let stream = Scope.define "Stream" in
-  let corec = Scope.define "corec" in
+  let stream = Scope.define [ "Stream" ] in
+  let corec = Scope.define [ "corec" ] in
   Hashtbl.add Global.types stream (pi None (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants stream
     (Record

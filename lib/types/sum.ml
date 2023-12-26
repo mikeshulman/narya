@@ -6,7 +6,7 @@ let inl = Constr.intern "inl"
 let inr = Constr.intern "inr"
 
 let install () =
-  let sum = Scope.define "sum" in
+  let sum = Scope.define [ "sum" ] in
   Hashtbl.add Global.types sum (pi None (UU D.zero) (pi None (UU D.zero) (UU D.zero)));
   Hashtbl.add Global.constants sum
     (Data

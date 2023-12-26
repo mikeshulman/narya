@@ -6,7 +6,7 @@ let ungel = Field.intern "ungel"
 let gel = Constant.make ()
 
 let install () =
-  Scope.set "Gel" gel;
+  Scope.set [ "Gel" ] gel;
   Hashtbl.add Global.types gel
     (pi None (UU D.zero)
        (pi None (UU D.zero)

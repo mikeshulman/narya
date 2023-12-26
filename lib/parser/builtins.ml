@@ -7,6 +7,7 @@ open Raw
 open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
+open Printconfig
 
 (* ********************
    Parentheses

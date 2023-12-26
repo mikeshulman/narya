@@ -1,3 +1,5 @@
+open Printconfig
+
 type t =
   | Field of string (* Starting with . *)
   | Constr of string (* Ending with . *)
@@ -48,15 +50,15 @@ let to_string = function
   | RBracket -> "]"
   | LBrace -> "{"
   | RBrace -> "}"
-  | Arrow -> "→"
-  | Mapsto -> "↦"
-  | DblMapsto -> "⤇"
+  | Arrow -> alt_char "→" "->"
+  | Mapsto -> alt_char "↦" "|->"
+  | DblMapsto -> alt_char "⤇" "|=>"
   | Colon -> ":"
-  | Coloneq -> "≔"
-  | DblColoneq -> "⩴"
-  | Pluseq -> "⩲"
+  | Coloneq -> alt_char "≔" ":="
+  | DblColoneq -> alt_char "⩴" "::="
+  | Pluseq -> alt_char "⩲" "+="
   | Dot -> "."
-  | Ellipsis -> "..."
+  | Ellipsis -> alt_char "…" "..."
   | String s -> "\"" ^ s ^ "\""
   | Underscore -> "_"
   | Internal s -> s

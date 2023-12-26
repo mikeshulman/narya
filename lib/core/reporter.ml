@@ -51,6 +51,10 @@ module Code = struct
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
     | No_such_level : level -> t
+    | Constant_already_defined : Trie.path -> t
+    | Invalid_constant_name : string -> t
+    | Constant_assumed : Trie.path -> t
+    | Constant_defined : Trie.path -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -100,6 +104,10 @@ module Code = struct
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
     | No_such_level _ -> Bug
+    | Constant_already_defined _ -> Error
+    | Invalid_constant_name _ -> Error
+    | Constant_assumed _ -> Info
+    | Constant_defined _ -> Info
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -164,6 +172,12 @@ module Code = struct
     | Duplicate_constructor_in_match _ -> "E1302"
     | Wrong_number_of_arguments_to_pattern _ -> "E1303"
     | Index_variable_in_index_value -> "E1304"
+    (* Commands *)
+    | Constant_already_defined _ -> "E1400"
+    | Invalid_constant_name _ -> "E1401"
+    (* Information *)
+    | Constant_assumed _ -> "I0000"
+    | Constant_defined _ -> "I0001"
 
   let default_text : t -> text = function
     | Parse_error -> text "parse error"
@@ -260,6 +274,11 @@ module Code = struct
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "no such level variable in context: (%d,%d)" (fst i) (snd i)
+    | Constant_already_defined parts ->
+        textf "constant already defined: %s" (String.concat "." parts)
+    | Invalid_constant_name str -> textf "invalid constant name: %s" str
+    | Constant_assumed name -> textf "Axiom %s assumed" (String.concat "." name)
+    | Constant_defined name -> textf "Constant %s defined" (String.concat "." name)
 end
 
 include Asai.StructuredReporter.Make (Code)

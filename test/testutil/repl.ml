@@ -1,6 +1,7 @@
 open Util
 open Dim
 open Core
+open Reporter
 open Parser
 open Norm
 open Check
@@ -27,26 +28,20 @@ let assume (name : string) (ty : string) : unit =
   match Parser.Lexer.Parser.single name with
   | Some (Ident name) ->
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then
-        (* TODO: This should be an Asai message *)
-        raise (Failure ("Constant " ^ name ^ " already defined"))
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
       else
         let rty = parse_term ty in
         let cty = check_type rty in
         Hashtbl.add Global.types const cty;
         Hashtbl.add Global.constants const Axiom
-  | _ ->
-      (* TODO: This should be an Asai message *)
-      raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
+  | _ -> fatal (Invalid_constant_name name)
 
 let def (name : string) (ty : string) (tm : string) : unit =
   match Parser.Lexer.Parser.single name with
   | Some (Ident name) ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then
-        (* TODO: This should be an Asai message *)
-        raise (Failure ("Constant " ^ name ^ " already defined"))
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
       else
         let rty = parse_term ty in
         let rtm = parse_term tm in
@@ -62,9 +57,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
             Reporter.fatal_diagnostic d)
         @@ fun () ->
         Reporter.trace "when checking case tree" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
-  | _ ->
-      (* TODO: This should be an Asai message *)
-      raise (Failure (Printf.sprintf "\"%s\" is not a valid constant name" name))
+  | _ -> fatal (Invalid_constant_name name)
 
 let undef (name : string) : unit =
   match Scope.lookup [ name ] with

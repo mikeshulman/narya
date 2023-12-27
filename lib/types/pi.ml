@@ -5,7 +5,7 @@ open Term
 let pisym = Constant.make ()
 
 let install () =
-  Scope.set "Π" pisym;
+  Scope.set [ "Π" ] pisym;
   Hashtbl.add Global.types pisym
     (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
   let open Case in

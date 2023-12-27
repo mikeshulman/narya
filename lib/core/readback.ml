@@ -42,10 +42,10 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
                       | Eq -> Lam (k, `Normal x, body)
                       | Neq ->
                           fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
-                  | None -> Lam (k, singleton_variables k x, body))
-              | _ -> Lam (k, singleton_variables k x, body))
-          (* Otherwise, we use the variable(s) from the type. *)
-          | _ -> Lam (k, singleton_variables k x, body)))
+                  (* Otherwise, we use the variable(s) from the type.  However, in this case we insist that the variable has a name, since we are (probably?) doing an eta-expansion and so the variable *will* appear in the body even if the pi-type is non-dependent. *)
+                  | None -> Lam (k, singleton_named_variables k x, body))
+              | _ -> Lam (k, singleton_named_variables k x, body))
+          | _ -> Lam (k, singleton_named_variables k x, body)))
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with

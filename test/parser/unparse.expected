@@ -3,3 +3,11 @@ f x ↦ f (f x)
 f x ↦ f (f (f (f (f x))))
 f x ↦ f x
 f x ↦ f (f (f (f (f (f x)))))
+(A → A) → A → A
+(X : Type) → X → X
+(X : Type) → X → X
+(x : A) (y : A) → A → (z : A) → A
+_ _ x ↦ x
+_ f x ↦ f x
+m n Y f x ↦ m (Y → Y) (x0 x1 ↦ n Y (x2 ↦ x0 x2) x1) (x0 ↦ f x0) x
+Y f x ↦ f (f (f (f (f (f (f (f (f x))))))))

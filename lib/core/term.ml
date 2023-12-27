@@ -11,6 +11,13 @@ let singleton_variables : type n. n D.t -> string option -> n variables =
   | Eq -> `Normal (CubeOf.singleton x)
   | Neq -> `Cube x
 
+let singleton_named_variables : type n. n D.t -> string option -> n variables =
+ fun n x ->
+  let x = Option.value x ~default:"x" in
+  match compare n D.zero with
+  | Eq -> `Normal (CubeOf.singleton (Some x))
+  | Neq -> `Cube (Some x)
+
 (* Typechecked, but unevaluated, terms.  Use De Bruijn indices that are intrinsically well-scoped by hctxs, but are no longer separated into synthesizing and checking; hence without type ascriptions.  Note that extending an hctx by a dimension 'k means adding a whole cube of new variables, which are indexed by the position of that dimension together with a strict face of it.  (At user-level, those variables may all be accessed as faces of one "cube variable", or they may have independent names, but internally there is no difference.)
 
    Incorporates information appropriate to the internal syntax that is constructed during typechecking, e.g. applications and abstractions are grouped by a dimension, since this can be inferred during typechecking, from the synthesized type of a function being applied and from the pi-type the lambda is being checked against, respectively.  Similarly, we have instantiations of higher-dimensional types obtained by applying them to a tube of boundary terms.

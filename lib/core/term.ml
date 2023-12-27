@@ -3,6 +3,7 @@ open Dim
 open Hctx
 
 type 'n variables = [ `Normal of ('n, string option) CubeOf.t | `Cube of string option ]
+type any_variables = Any : 'n variables -> any_variables
 
 let singleton_variables : type n. n D.t -> string option -> n variables =
  fun n x ->

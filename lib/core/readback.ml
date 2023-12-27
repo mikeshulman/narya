@@ -25,18 +25,27 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply tm args) output in
           (* If the term is already an abstraction, we pick up its variable(s). *)
-          (* TODO: Also if it is an application of a constant that has variables in its case tree.  Need to store variables in case trees... *)
           match tm with
           | Lam (`Cube x, _) -> Lam (k, `Cube x, body)
           | Lam (`Normal x, _) -> (
               match compare (CubeOf.dim x) k with
               | Eq -> Lam (k, `Normal x, body)
               | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
+          (* Also if it's a partial application of a constant that's defined as a case tree, we pick up variables from the case tree. *)
+          | Uninst (Neu (Const { name; _ }, args), _) -> (
+              match Hashtbl.find_opt Global.constants name with
+              | Some (Defined tree) -> (
+                  match Case.nth_var !tree args with
+                  | Some (Any (`Cube x)) -> Lam (k, `Cube x, body)
+                  | Some (Any (`Normal x)) -> (
+                      match compare (CubeOf.dim x) k with
+                      | Eq -> Lam (k, `Normal x, body)
+                      | Neq ->
+                          fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
+                  | None -> Lam (k, singleton_variables k x, body))
+              | _ -> Lam (k, singleton_variables k x, body))
           (* Otherwise, we use the variable(s) from the type. *)
-          | _ -> (
-              match compare k D.zero with
-              | Eq -> Lam (D.zero, `Normal (CubeOf.singleton x), body)
-              | Neq -> Lam (k, `Cube x, body))))
+          | _ -> Lam (k, singleton_variables k x, body)))
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with

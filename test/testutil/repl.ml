@@ -97,17 +97,17 @@ let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   | None -> ()
   | Some () -> raise (Failure "Equal terms")
 
-let print (tm : string) (ty : string) : unit =
-  let rty = parse_term ty in
+let print (tm : string) : unit =
   let rtm = parse_term tm in
-  let cty = check_type rty in
-  let ety = eval (Emp D.zero) cty in
-  let ctm = check_term rtm ety in
-  let etm = eval (Emp D.zero) ctm in
-  let btm = readback_at Ctx.empty etm ety in
-  let utm = unparse Variables.empty btm Interval.entire Interval.entire in
-  pp_term Format.std_formatter (Term utm);
-  Format.pp_print_newline Format.std_formatter ()
+  match rtm with
+  | Synth rtm ->
+      let ctm, ety = synth Ctx.empty rtm in
+      let etm = eval (Emp D.zero) ctm in
+      let btm = readback_at Ctx.empty etm ety in
+      let utm = unparse Variables.empty btm Interval.entire Interval.entire in
+      pp_term Format.std_formatter (Term utm);
+      Format.pp_print_newline Format.std_formatter ()
+  | _ -> fatal (Nonsynthesizing "argument of print")
 
 let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->

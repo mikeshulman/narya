@@ -9,6 +9,14 @@ open Reporter
 module StringMap = Map.Make (String)
 open Hctx
 
+let rec split_first = function
+  | Bwd.Emp -> None
+  | Snoc (Emp, x) -> Some (x, Bwd.Emp)
+  | Snoc (xs, x) -> (
+      match split_first xs with
+      | Some (y, ys) -> Some (y, Bwd.Snoc (ys, x))
+      | None -> None)
+
 module Variables : sig
   type 'n t
 
@@ -164,7 +172,7 @@ let rec unparse :
   | Inst (ty, tyargs) ->
       (* TODO: How can we allow special notations for some instantiations, like x=y for Id A x y? *)
       unparse_spine vars (`Term ty) (Bwd.map (make_unparser vars) (append_tube Emp tyargs)) li ri
-  | Pi _ -> unparse_pis vars None Emp tm li ri
+  | Pi _ -> unparse_pis vars Emp tm li ri
   | App _ -> (
       match get_spine tm with
       | `App (fn, args) -> unparse_spine vars (`Term fn) (Bwd.map (make_unparser vars) args) li ri
@@ -271,25 +279,9 @@ and unparse_lam :
  fun cube vars xs body li ri ->
   match (cube, body) with
   | `Cube _, Lam (_, `Cube x, inner) ->
-      let x =
-        match x with
-        | Some x -> Some x
-        (* TODO: Variable name *)
-        | None -> Some "x" in
       let x, vars = Variables.add_cube vars x in
       unparse_lam cube vars (Snoc (xs, x)) inner li ri
   | `Normal _, Lam (_, `Normal x, inner) ->
-      let x =
-        CubeOf.mmap
-          {
-            map =
-              (fun _ [ x ] ->
-                match x with
-                | Some x -> Some x
-                (* TODO: Variable name *)
-                | None -> Some "x");
-          }
-          [ x ] in
       let x, vars = Variables.add_normals vars x in
       unparse_lam cube vars (append_cube xs x) inner li ri
   | _ -> (
@@ -343,19 +335,18 @@ and unparse_act :
 and unparse_pis :
     type n lt ls rt rs.
     n Variables.t ->
-    unparser option ->
     unparser Bwd.t ->
     n term ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse =
- fun vars accum0 accum tm li ri ->
+ fun vars accum tm li ri ->
   match tm with
   | Pi (x, doms, cods) -> (
       match (x, compare (CubeOf.dim doms) D.zero) with
       | Some x, Eq ->
           let x, newvars = Variables.add_normals vars (CubeOf.singleton (Some x)) in
-          unparse_pis newvars accum0
+          unparse_pis newvars
             (Snoc
                ( accum,
                  {
@@ -367,9 +358,8 @@ and unparse_pis :
                  } ))
             (CodCube.find_top cods) li ri
       | None, Eq ->
-          (* TODO: Variable name *)
-          let _, newvars = Variables.add_normals vars (CubeOf.singleton (Some "x")) in
-          unparse_pis_final vars accum0 accum
+          let _, newvars = Variables.add_normals vars (CubeOf.singleton None) in
+          unparse_pis_final vars accum
             {
               unparse =
                 (fun li ri ->
@@ -382,7 +372,7 @@ and unparse_pis :
       | _, Neq ->
           fatal (Unimplemented "printing higher-dimensional Pi-type")
           (* unparse_pis_final vars accum0 accum (Sorry.e ()) li ri *))
-  | _ -> unparse_pis_final vars accum0 accum (make_unparser vars tm) li ri
+  | _ -> unparse_pis_final vars accum (make_unparser vars tm) li ri
 
 and unparse_arrow :
     type n lt ls rt rs.
@@ -403,16 +393,15 @@ and unparse_arrow :
 and unparse_pis_final :
     type n lt ls rt rs.
     n Variables.t ->
-    unparser option ->
     unparser Bwd.t ->
     unparser ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse =
- fun vars accum0 accum tm li ri ->
-  match accum0 with
-  | None -> fatal (Anomaly "empty list of domains in unparsing pi")
-  | Some dom0 ->
+ fun vars accum tm li ri ->
+  match split_first accum with
+  | None -> tm.unparse li ri
+  | Some (dom0, accum) ->
       unparse_arrow
         { unparse = (fun li ri -> unparse_spine vars (`Unparser dom0) accum li ri) }
         tm li ri

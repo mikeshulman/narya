@@ -14,4 +14,5 @@ let () =
   print "plus two three";
   def "times" "nat → nat → nat" "m n f x ↦ m (n f) x";
   print "times one one";
-  print "times two three"
+  print "times two three";
+  print "nat"

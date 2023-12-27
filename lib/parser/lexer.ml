@@ -171,6 +171,7 @@ let other_char : char t =
 let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "let" -> return Let
   | "in" -> return In
+  | "axiom" -> return Axiom
   | "def" -> return Def
   | "record" -> return Record
   | "data" -> return Data

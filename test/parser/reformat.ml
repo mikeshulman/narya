@@ -117,9 +117,14 @@ let test_compactness () =
 
 let () =
   run @@ fun () ->
-  Parser.Print.pp_as_case Compact @@ fun () ->
-  test_reformat ();
+  Parser.Printconfig.Reader.run
+    ~env:{ style = `Compact; state = `Case; chars = `Unicode }
+    test_reformat;
   Printf.printf "--------------------\nNoncompactly\n--------------------\n\n";
-  Parser.Print.noncompactly test_compactness;
+  Parser.Printconfig.Reader.run
+    ~env:{ style = `Noncompact; state = `Case; chars = `Unicode }
+    test_compactness;
   Printf.printf "\n--------------------\nCompactly\n--------------------\n\n";
-  Parser.Print.compactly test_compactness
+  Parser.Printconfig.Reader.run
+    ~env:{ style = `Compact; state = `Case; chars = `Unicode }
+    test_compactness

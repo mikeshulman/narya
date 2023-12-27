@@ -21,7 +21,7 @@ let name_of c =
   | None -> "_UNNAMED_CONSTANT"
 
 (* If we already have a Constant.t, set a name to refer to that constant.  (Used for whitebox testing.) *)
-let set name c = S.include_singleton (String.split_on_char '.' name, (c, ()))
+let set name c = S.include_singleton (name, (c, ()))
 
 (* Create a new Constant.t and define a name to equal it. *)
 let define name =

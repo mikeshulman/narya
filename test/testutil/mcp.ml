@@ -12,7 +12,9 @@ let context = ref ectx
 
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check =
  fun names tm ->
-  let (Term tm) = Parse.term !Builtins.builtins tm in
+  let (Term tm) =
+    Parse.term !Builtins.builtins (`String { title = Some "user-supplied term"; content = tm })
+  in
   Postprocess.process names tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)

@@ -64,7 +64,7 @@ let install_notations () =
 let install () =
   install_notations ();
   List.iter2 Scope.set
-    [ "N"; "O"; "S"; "plus"; "times"; "N_ind" ]
+    [ [ "N" ]; [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "N_ind" ] ]
     [ nn; zero; suc; plus; times; ind ];
   Hashtbl.add Global.types nn (UU D.zero);
   Hashtbl.add Global.constants nn

@@ -8,8 +8,8 @@ let nil = Constr.intern "nil"
 let cons = Constr.intern "cons"
 
 let install () =
-  let list = Scope.define "List" in
-  let ind = Scope.define "List_ind" in
+  let list = Scope.define [ "List" ] in
+  let ind = Scope.define [ "List_ind" ] in
   Hashtbl.add Global.types list (pi None (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants list
     (Data

@@ -1,5 +1,4 @@
 open Testutil.Mcp
-open Parser
 
 let () =
   run @@ fun () ->
@@ -68,7 +67,7 @@ let () =
   let fifty = check (cnat 50) churchnat in
 
   (* Doing 100 takes a noticeable fraction of a second, but only in the typechecking; the parsing is still near instantaneous. *)
-  let cien = Parse.term !Builtins.builtins (cnat 100) in
+  let cien = parse_term Emp (cnat 100) in
 
   (* Parsing church numerals starts to take a noticable fraction of a second around 2000. *)
   let () = Types.Sigma.install () in

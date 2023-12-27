@@ -2,9 +2,13 @@ open Fmlib_parse
 open Asai.Range
 open Core.Reporter
 
-module S = Algaeff.Reader.Make (struct
-  type t = string
-end)
+(* To convert Fmlib positions to Asai ranges, we need to know the string or file they're being run on.  We also store its length so that we can test for EOF. *)
+
+module Data = struct
+  type t = { source : source; length : int64 }
+end
+
+module S = Algaeff.Reader.Make (Data)
 
 let convert_pos (src : source) pos =
   let start_of_line = Position.byte_offset_bol pos in
@@ -15,12 +19,11 @@ let convert_pos (src : source) pos =
 
 let convert (pos1, pos2) =
   (* In case of a lexing or parsing error at end of input, Fmlib returns a 0-width range, which we convert into Asai's special "eof" position. *)
-  let str = S.read () in
-  let source = `String { title = Some "user-supplied term"; content = str } in
+  let src = S.read () in
   if pos1 = pos2 then
-    if Position.byte_offset pos2 = String.length str then eof (convert_pos source pos1)
+    if Int64.of_int (Position.byte_offset pos2) = src.length then eof (convert_pos src.source pos1)
       (* Fmlib also reports a 0-width range in mid-parse if we fail directly (i.e. with "fail" or "unexpected" rather than during a lookahead such as "step").  But our calls to "fail" all include an explicit range, and we never call "unexpected".  Thus I don't think this should happen, so we flag it as an Anomaly.  *)
     else fatal (Anomaly "Zero-width range during parse failure before EOF")
-  else make (convert_pos source pos1, convert_pos source pos2)
+  else make (convert_pos src.source pos1, convert_pos src.source pos2)
 
 let run = S.run

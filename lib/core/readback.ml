@@ -19,12 +19,15 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
       let k = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) k with
       | Neq -> fatal (Dimension_mismatch ("reading back pi", TubeOf.inst tyargs, k))
-      | Eq ->
+      | Eq -> (
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
           let newctx = Ctx.vis ctx newnfs in
           let output = tyof_app cods tyargs args in
           (* TODO: Here we are always using the variable name associated to the *type*.  Can we use the one in the *term* instead, if the term is already an abstraction?  (Would then need to *store* variables in value abstractions, of course.) *)
-          Lam (k, `Cube x, readback_at newctx (apply tm args) output))
+          match compare k D.zero with
+          | Eq ->
+              Lam (D.zero, `Normal (CubeOf.singleton x), readback_at newctx (apply tm args) output)
+          | Neq -> Lam (k, `Cube x, readback_at newctx (apply tm args) output)))
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with

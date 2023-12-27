@@ -1,5 +1,5 @@
 (tests
-  (names lexer parse_arith parse_builtins parse_mcp ambiguity prefixes reformat)
+  (names lexer parse_arith parse_builtins parse_mcp ambiguity prefixes reformat unparse)
 	(libraries parser testutil)
 	(instrumentation (backend landmarks --auto)))
 (env (_ (flags (:standard -w -37 -w -30 -w -32 -w -26 -w -27))))

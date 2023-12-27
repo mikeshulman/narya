@@ -1,0 +1,4 @@
+x x0 ↦ x (x x0)
+x x0 ↦ x (x (x (x (x x0))))
+x x0 ↦ x x0
+x x0 ↦ x (x (x (x (x (x x0)))))

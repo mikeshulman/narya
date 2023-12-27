@@ -1,8 +1,11 @@
 open Util
 open Dim
 open Core
+open Readback
 open Reporter
 open Parser
+open Unparse
+open Print
 open Norm
 open Check
 open Value
@@ -94,8 +97,22 @@ let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   | None -> ()
   | Some () -> raise (Failure "Equal terms")
 
+let print (tm : string) (ty : string) : unit =
+  let rty = parse_term ty in
+  let rtm = parse_term tm in
+  let cty = check_type rty in
+  let ety = eval (Emp D.zero) cty in
+  let ctm = check_term rtm ety in
+  let etm = eval (Emp D.zero) ctm in
+  let btm = readback_at Ctx.empty etm ety in
+  let utm = unparse Variables.empty btm Interval.entire Interval.entire in
+  pp_term Format.std_formatter (Term utm);
+  Format.pp_print_newline Format.std_formatter ()
+
 let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
-  @@ fun () -> Scope.run f
+  @@ fun () ->
+  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
+  Scope.run f

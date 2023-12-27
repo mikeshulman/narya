@@ -62,10 +62,12 @@ let () =
 
 let installed = ref false
 
+(* TODO: This really shouldn't go in "builtins". *)
 let install_notations () =
   if not !installed then (
     installed := true;
-    Builtins.builtins := !Builtins.builtins |> State.add plusn |> State.add timesn)
+    Builtins.builtins :=
+      !Builtins.builtins |> State.add_const plusn plus 2 |> State.add_const timesn times 2)
 
 let install () =
   install_notations ();

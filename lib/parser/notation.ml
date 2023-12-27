@@ -135,6 +135,10 @@ and ('left, 'tight, 'right) notation = {
   mutable print_as_case : (Format.formatter -> observation list -> unit) option;
 }
 
+module Notation = struct
+  type t = Wrap : ('left, 'tight, 'right) notation -> t
+end
+
 let empty_branch = { ops = TokMap.empty; field = None; term = None }
 
 let infix ~notn ~first ~inner ~last ~left_ok ~right_ok =

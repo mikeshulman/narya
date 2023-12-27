@@ -55,6 +55,10 @@ and ('left, 'tight) notation_entry =
 and ('left, 'tight, 'right) notation
 and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
 
+module Notation : sig
+  type t = Wrap : ('left, 'tight, 'right) notation -> t
+end
+
 val empty_branch : ('left, 'tight) branch
 
 val infix :

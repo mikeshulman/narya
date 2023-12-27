@@ -2,6 +2,7 @@ open Util
 open Core.Reporter
 open Notation
 module TokMap = Map.Make (Token)
+module ConstMap = Map.Make (Core.Constant)
 
 module EntryPair = struct
   type 'a t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
@@ -15,6 +16,8 @@ type t = {
   tighters : EntryMap.t;
   (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  If there is more than one left-open notation starting with the same token, we store the loosest such interval. *)
   left_opens : Interval.t TokMap.t;
+  (* For unparsing we also store a backwards map turning constants into notations. *)
+  print : (Notation.t * int) ConstMap.t;
 }
 
 let empty : t =
@@ -24,6 +27,7 @@ let empty : t =
       |> EntryMap.add No.plus_omega { strict = empty_entry; nonstrict = empty_entry }
       |> EntryMap.add No.minus_omega { strict = empty_entry; nonstrict = empty_entry };
     left_opens = TokMap.empty;
+    print = ConstMap.empty;
   }
 
 (* Add a new notation to the current state of available ones. *)
@@ -89,7 +93,14 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
               map)
           tr s.left_opens
     | Closed, _ -> s.left_opens in
-  { tighters; left_opens }
+  (* We don't update the printing map since this is used for builtins that are printed specially. *)
+  { s with tighters; left_opens }
+
+let add_const :
+    type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> t -> t =
+ fun notn const k state ->
+  let state = add notn state in
+  { state with print = state.print |> ConstMap.add const (Notation.Wrap notn, k) }
 
 let left_closeds : t -> (No.plus_omega, No.strict) entry =
  fun s -> (Option.get (EntryMap.find s.tighters No.plus_omega)).strict

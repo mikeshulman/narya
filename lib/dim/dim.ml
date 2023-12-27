@@ -184,7 +184,10 @@ let plus_deg :
 
 (* Check whether a degeneracy is an identity *)
 let rec is_id_deg : type m n. (m, n) deg -> unit option = function
-  | Zero _ -> Some ()
+  | Zero n -> (
+      match compare n D.zero with
+      | Eq -> Some ()
+      | Neq -> None)
   | Suc (p, Top) -> is_id_deg p
   | Suc (_, Pop _) -> None
 

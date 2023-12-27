@@ -207,6 +207,7 @@ let rec unparse :
                    Term (unparse vars tm Interval.entire Interval.entire) ))
              fields Emp)
   | Constr (c, _, args) ->
+      (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl 0" yields just "zero.". *)
       let args = Bwd.map CubeOf.find_top args in
       unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri
 
@@ -370,6 +371,7 @@ and unparse_pis :
             }
             li ri
       | _, Neq ->
+          (* TODO *)
           fatal (Unimplemented "printing higher-dimensional Pi-type")
           (* unparse_pis_final vars accum0 accum (Sorry.e ()) li ri *))
   | _ -> unparse_pis_final vars accum (make_unparser vars tm) li ri

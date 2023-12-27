@@ -9,5 +9,14 @@ f x ↦ f (f (f (f (f (f x)))))
 (x : A) (y : A) → A → (z : A) → A
 _ _ x ↦ x
 _ f x ↦ f x
-m n Y f x ↦ m (Y → Y) (x0 x1 ↦ n Y (x2 ↦ x0 x2) x1) (x0 ↦ f x0) x
-Y f x ↦ f (f (f (f (f (f (f (f (f x))))))))
+m n Y f x ↦ n (Y → Y) (x0 x1 ↦ m Y (x2 ↦ x0 x2) x1) (x0 ↦ f x0) x
+Y f x ↦ f (f (f (f (f (f (f (f x)))))))
+{ fst ≔ zero. ; snd ≔ zero. }
+{ fst ≔ x ↦ x ; snd ≔ suc. (suc. zero.) }
+s .fst (suc. (suc. (suc. zero.)))
+zero.
+refl b
+a ↦ refl a
+b^00
+b^000
+b

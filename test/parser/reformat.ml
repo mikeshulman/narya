@@ -53,6 +53,11 @@ let test_reformat () =
   reformat "A -> A -> A -> (x : blah blah blah blah blah blah blah blah) -> A -> A -> B";
   reformat
     "(x:A)(x:A)(x:blah blah blah blah blah blah blah blah)(x:A)(x:A)(x:A)(x:A)(x:A)(x:A) -> C";
+
+  (* Binary operators *)
+  Types.Nat.install ();
+  reformat "x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x";
+  reformat "x + x * x + x * x * x + x * x * x * x + x + x * x * x * x * x * x * x";
   ()
 
 let test_compactness () =

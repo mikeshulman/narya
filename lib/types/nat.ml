@@ -20,8 +20,6 @@ let suc' = Constr.intern "suc"
 
 open Monad.Ops (Monad.Maybe)
 
-(* TODO: printing these notations *)
-
 let plusn = make "plus" (Infixl No.zero)
 
 let () =
@@ -36,7 +34,11 @@ let () =
               let y = process ctx y in
               Raw.Synth (App (App (Const plus, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
-    }
+    };
+  set_print plusn (fun ppf obs ->
+      match obs with
+      | [ x; y ] -> Format.fprintf ppf "@[<hov 2>%a@ + %a@]" Print.pp_term x Print.pp_term y
+      | _ -> fatal (Anomaly "invalid notation arguments for plus"))
 
 let timesn = make "times" (Infixl No.one)
 
@@ -52,7 +54,11 @@ let () =
               let y = process ctx y in
               Raw.Synth (App (App (Const times, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
-    }
+    };
+  set_print timesn (fun ppf obs ->
+      match obs with
+      | [ x; y ] -> Format.fprintf ppf "@[<hov 2>%a@ * %a@]" Print.pp_term x Print.pp_term y
+      | _ -> fatal (Anomaly "invalid notation arguments for plus"))
 
 let installed = ref false
 

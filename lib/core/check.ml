@@ -435,7 +435,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
  fun ctx tm ty prev_tm tree ->
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "checking case tree" in
   match tm with
-  | Lam (_, cube, body) -> (
+  | Lam (x, cube, body) -> (
       match uty with
       | Pi (_, doms, cods) -> (
           (* Basically copied from Check.check.  Can they be unified? *)
@@ -448,7 +448,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
               let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
               let output = tyof_app cods tyargs newargs in
               let tbody = ref Case.Empty in
-              tree := Case.Lam (m, tbody);
+              tree := Case.Lam (m, singleton_variables m x, tbody);
               match cube with
               | `Normal ->
                   let (Faces dom_faces) = count_faces m in

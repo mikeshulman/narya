@@ -14,9 +14,11 @@ let install () =
        (ref
           (Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "A")),
                ref
                  (Lam
                     ( D.zero,
+                      `Normal (CubeOf.singleton (Some "B")),
                       ref
                         (Leaf
                            (Pi

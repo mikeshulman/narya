@@ -103,15 +103,19 @@ let install () =
        (ref
           (Case.Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "A")),
                ref
                  (Case.Lam
                     ( D.zero,
+                      `Normal (CubeOf.singleton (Some "B")),
                       ref
                         (Case.Lam
                            ( D.zero,
+                             `Normal (CubeOf.singleton (Some "a")),
                              ref
                                (Case.Lam
                                   ( D.zero,
+                                    `Normal (CubeOf.singleton (Some "b")),
                                     ref
                                       (Case.Leaf
                                          (Struct

@@ -62,18 +62,23 @@ let install () =
        (ref
           (Case.Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "A")),
                ref
                  (Case.Lam
                     ( D.zero,
+                      `Normal (CubeOf.singleton (Some "P")),
                       ref
                         (Case.Lam
                            ( D.zero,
+                             `Normal (CubeOf.singleton (Some "n")),
                              ref
                                (Case.Lam
                                   ( D.zero,
+                                    `Normal (CubeOf.singleton (Some "c")),
                                     ref
                                       (Case.Lam
                                          ( D.zero,
+                                           `Normal (CubeOf.singleton (Some "l")),
                                            ref
                                              (Case.Branches
                                                 ( Top (id_sface D.zero),

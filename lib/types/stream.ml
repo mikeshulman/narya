@@ -40,18 +40,23 @@ let install () =
        (ref
           (Case.Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "A")),
                ref
                  (Case.Lam
                     ( D.zero,
+                      `Normal (CubeOf.singleton (Some "K")),
                       ref
                         (Case.Lam
                            ( D.zero,
+                             `Normal (CubeOf.singleton (Some "h")),
                              ref
                                (Case.Lam
                                   ( D.zero,
+                                    `Normal (CubeOf.singleton (Some "t")),
                                     ref
                                       (Case.Lam
                                          ( D.zero,
+                                           `Normal (CubeOf.singleton (Some "k")),
                                            ref
                                              (Case.Cobranches
                                                 (Field.Map.of_list

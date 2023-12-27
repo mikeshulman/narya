@@ -48,7 +48,7 @@ module rec Value : sig
         tys : (D.zero, 'n, 'n, value) TubeOf.t;
       }
         -> value
-    | Lam : 'k binder -> value
+    | Lam : 'k variables * 'k binder -> value
     | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
     | Constr : Constr.t * 'n D.t * ('n, value) CubeOf.t Bwd.t -> value
 
@@ -118,7 +118,7 @@ end = struct
       }
         -> value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
-    | Lam : 'k binder -> value
+    | Lam : 'k variables * 'k binder -> value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application. *)
     | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
     (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)

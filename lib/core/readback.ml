@@ -23,11 +23,20 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
           let newctx = Ctx.vis ctx newnfs in
           let output = tyof_app cods tyargs args in
-          (* TODO: Here we are always using the variable name associated to the *type*.  Can we use the one in the *term* instead, if the term is already an abstraction?  (Would then need to *store* variables in value abstractions, of course.) *)
-          match compare k D.zero with
-          | Eq ->
-              Lam (D.zero, `Normal (CubeOf.singleton x), readback_at newctx (apply tm args) output)
-          | Neq -> Lam (k, `Cube x, readback_at newctx (apply tm args) output)))
+          let body = readback_at newctx (apply tm args) output in
+          (* If the term is already an abstraction, we pick up its variable(s). *)
+          (* TODO: Also if it is an application of a constant that has variables in its case tree.  Need to store variables in case trees... *)
+          match tm with
+          | Lam (`Cube x, _) -> Lam (k, `Cube x, body)
+          | Lam (`Normal x, _) -> (
+              match compare (CubeOf.dim x) k with
+              | Eq -> Lam (k, `Normal x, body)
+              | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
+          (* Otherwise, we use the variable(s) from the type. *)
+          | _ -> (
+              match compare k D.zero with
+              | Eq -> Lam (D.zero, `Normal (CubeOf.singleton x), body)
+              | Neq -> Lam (k, `Cube x, body))))
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with

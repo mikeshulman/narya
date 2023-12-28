@@ -7,15 +7,68 @@ open Notation
 open Builtins
 open Reporter
 module StringMap = Map.Make (String)
-open Hctx
 
+(* Split off the first element of a Bwd.t, if it is nonempty. *)
 let rec split_first = function
-  | Bwd.Emp -> None
-  | Snoc (Emp, x) -> Some (x, Bwd.Emp)
+  | Emp -> None
+  | Snoc (Emp, x) -> Some (x, Emp)
   | Snoc (xs, x) -> (
       match split_first xs with
-      | Some (y, ys) -> Some (y, Bwd.Snoc (ys, x))
+      | Some (y, ys) -> Some (y, Snoc (ys, x))
       | None -> None)
+
+(* Split a Bwd.t into its first k elements and the rest, if it has at least k. *)
+let bwd_take : type a. int -> a Bwd.t -> (a Bwd.t * a Bwd.t) option =
+ fun k args ->
+  let rec take_atmost k args =
+    match args with
+    | Emp -> if k > 0 then `Need_more k else `Found (Emp, Emp)
+    | Snoc (xs, x) -> (
+        match take_atmost k xs with
+        | `Need_more n -> if n = 1 then `Found (args, Emp) else `Need_more (n - 1)
+        | `Found (first, rest) -> `Found (first, Snoc (rest, x))) in
+  match take_atmost k args with
+  | `Need_more _ -> None
+  | `Found (first, rest) -> Some (first, rest)
+
+(* Append the elements of a cube, in order, to a given Bwd.t. *)
+let append_cube : type a n. a Bwd.t -> (n, a) CubeOf.t -> a Bwd.t =
+ fun start xs ->
+  let module S = struct
+    type t = a Bwd.t
+  end in
+  let module M = Monad.State (S) in
+  let open CubeOf.Monadic (M) in
+  let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
+  xs
+
+(* Append the elements of a tube, in order, to a given Bwd.t. *)
+let append_tube : type a m n mn. a Bwd.t -> (m, n, mn, a) TubeOf.t -> a Bwd.t =
+ fun start xs ->
+  let module S = struct
+    type t = a Bwd.t
+  end in
+  let module M = Monad.State (S) in
+  let open TubeOf.Monadic (M) in
+  let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
+  xs
+
+(* If the head of an application spine is a constant term, and that constant has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments, and the rest. *)
+let get_notation head args =
+  match head with
+  | `Term (Const c) -> (
+      match State.print_const c with
+      | Some (notn, k) -> (
+          match bwd_take k args with
+          | Some (first, rest) -> Some (notn, first, rest)
+          | None -> None)
+      | None -> None)
+  | _ -> None
+
+(* Put parentheses around a term. *)
+let parenthesize tm = outfix ~notn:parens ~inner:(Snoc (Emp, Term tm))
+
+open Hctx
 
 module Variables : sig
   type 'n t
@@ -92,6 +145,76 @@ end = struct
     (names, { ctx = Normals (ctx, names); used })
 end
 
+type unparser = {
+  unparse :
+    'lt 'ls 'rt 'rs. ('lt, 'ls) Interval.tt -> ('rt, 'rs) Interval.tt -> ('lt, 'ls, 'rt, 'rs) parse;
+}
+
+let unparse_notation :
+    type left tight right lt ls rt rs.
+    (left, tight, right) notation ->
+    unparser Bwd.t ->
+    (lt, ls) Interval.tt ->
+    (rt, rs) Interval.tt ->
+    (lt, ls, rt, rs) parse =
+ fun notn args li ri ->
+  let t = tightness notn in
+  match (left notn, right notn) with
+  | Open _, Open _ -> (
+      match split_first args with
+      | Some (first, Snoc (inner, last)) -> (
+          match (Interval.contains li t, Interval.contains ri t) with
+          | Some left_ok, Some right_ok ->
+              let first = first.unparse li (interval_left notn) in
+              let inner =
+                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
+              let last = last.unparse (interval_right notn) ri in
+              infix ~notn ~first ~inner ~last ~left_ok ~right_ok
+          | _ ->
+              let first = first.unparse Interval.entire (interval_left notn) in
+              let inner =
+                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
+              let last = last.unparse (interval_right notn) Interval.entire in
+              let left_ok = No.minusomega_le t in
+              let right_ok = No.minusomega_le t in
+              parenthesize (infix ~notn ~first ~inner ~last ~left_ok ~right_ok))
+      | _ -> fatal (Anomaly "missing arguments unparsing infix"))
+  | Closed, Open _ -> (
+      match args with
+      | Snoc (inner, last) -> (
+          match Interval.contains ri t with
+          | Some right_ok ->
+              let inner =
+                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
+              let last = last.unparse (interval_right notn) ri in
+              prefix ~notn ~inner ~last ~right_ok
+          | _ ->
+              let inner =
+                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
+              let last = last.unparse (interval_right notn) Interval.entire in
+              let right_ok = No.minusomega_le t in
+              parenthesize (prefix ~notn ~inner ~last ~right_ok))
+      | _ -> fatal (Anomaly "missing argument unparsing prefix"))
+  | Open _, Closed -> (
+      match split_first args with
+      | Some (first, inner) -> (
+          match Interval.contains li t with
+          | Some left_ok ->
+              let first = first.unparse li (interval_left notn) in
+              let inner =
+                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
+              postfix ~notn ~first ~inner ~left_ok
+          | _ ->
+              let first = first.unparse Interval.entire (interval_left notn) in
+              let inner =
+                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
+              let left_ok = No.minusomega_le t in
+              parenthesize (postfix ~notn ~first ~inner ~left_ok))
+      | _ -> fatal (Anomaly "missing argument unparsing postfix"))
+  | Closed, Closed ->
+      let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) args in
+      outfix ~notn ~inner
+
 let unparse_var : type lt ls rt rs. string option -> (lt, ls, rt, rs) parse = function
   | Some x -> Ident [ x ]
   | None -> Placeholder
@@ -113,31 +236,6 @@ let rec unparse_abs :
       let arg = unparse_var x in
       App { fn; arg; left_ok; right_ok }
 
-type unparser = {
-  unparse :
-    'lt 'ls 'rt 'rs. ('lt, 'ls) Interval.tt -> ('rt, 'rs) Interval.tt -> ('lt, 'ls, 'rt, 'rs) parse;
-}
-
-let append_cube : type a n. a Bwd.t -> (n, a) CubeOf.t -> a Bwd.t =
- fun start xs ->
-  let module S = struct
-    type t = a Bwd.t
-  end in
-  let module M = Monad.State (S) in
-  let open CubeOf.Monadic (M) in
-  let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
-  xs
-
-let append_tube : type a m n mn. a Bwd.t -> (m, n, mn, a) TubeOf.t -> a Bwd.t =
- fun start xs ->
-  let module S = struct
-    type t = a Bwd.t
-  end in
-  let module M = Monad.State (S) in
-  let open TubeOf.Monadic (M) in
-  let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
-  xs
-
 let rec get_spine :
     type b n. n term -> [ `App of n term * n term Bwd.t | `Field of n term * Field.t * n term Bwd.t ]
     = function
@@ -146,9 +244,11 @@ let rec get_spine :
       | `App (head, args) -> `App (head, append_cube args arg)
       | `Field (head, fld, args) -> `Field (head, fld, append_cube args arg))
   | Field (head, fld) -> `Field (head, fld, Emp)
+  | Act (tm, s) -> (
+      match is_id_deg s with
+      | Some () -> get_spine tm
+      | None -> `App (tm, Emp))
   | tm -> `App (tm, Emp)
-
-let parenthesize tm = outfix ~notn:parens ~inner:(Snoc (Emp, Term tm))
 
 let rec unparse :
     type n lt ls rt rs.
@@ -164,6 +264,7 @@ let rec unparse :
       | `Normal x -> Ident [ x ]
       | `Cube (x, fa) -> if fa = "" then Ident [ x ] else Ident [ x; fa ])
   | Const c -> Ident [ Scope.name_of c ]
+  (* TODO: Can we associate notations to fields, like to constants? *)
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
       unparse_act vars
@@ -198,6 +299,7 @@ let rec unparse :
                ~last:body ~right_ok))
   | Lam (_, cube, _) -> unparse_lam cube vars Emp tm li ri
   | Struct fields ->
+      (* TODO: Can we print certain structs specially, like commas for sigma-types? *)
       outfix ~notn:struc
         ~inner:
           (Field.Map.fold
@@ -206,6 +308,7 @@ let rec unparse :
                  ( Snoc (acc, Term (Ident [ Field.to_string fld ])),
                    Term (unparse vars tm Interval.entire Interval.entire) ))
              fields Emp)
+  (* TODO: Can we associate notations to constructors, like to constants? *)
   | Constr (c, _, args) ->
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl 0" yields just "zero.". *)
       let args = Bwd.map CubeOf.find_top args in
@@ -227,30 +330,41 @@ and unparse_spine :
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse =
  fun vars head args li ri ->
-  (* TODO: Check whether the head has an associated notation. *)
-  match args with
-  | Emp -> (
-      match head with
-      | `Term tm -> unparse vars tm li ri
-      | `Constr c -> Constr (Constr.to_string c)
-      | `Field (tm, fld) ->
-          unparse_field
-            { unparse = (fun li ri -> unparse vars tm li ri) }
-            (Field.to_string fld) li ri
-      | `Degen s -> Ident [ s ]
-      | `Unparser tm -> tm.unparse li ri)
-  | Snoc (args, arg) -> (
-      match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
-      | Some left_ok, Some right_ok ->
-          let fn = unparse_spine vars head args li Interval.plus_omega_only in
-          let arg = arg.unparse Interval.empty ri in
-          App { fn; arg; left_ok; right_ok }
-      | _ ->
-          let fn = unparse_spine vars head args Interval.plus_omega_only Interval.plus_omega_only in
-          let arg = arg.unparse Interval.empty Interval.plus_omega_only in
-          let left_ok = No.le_refl No.plus_omega in
-          let right_ok = No.le_refl No.plus_omega in
-          parenthesize (App { fn; arg; left_ok; right_ok }))
+  (* First we check whether the head has an associated notation, and if so whether it is applied to enough arguments to instantiate that notation. *)
+  match get_notation head args with
+  (* If it's applied to exactly the right number of arguments, we unparse it as that notation. *)
+  | Some (Wrap notn, args, Emp) -> unparse_notation notn args li ri
+  (* Otherwise, the unparsed notation has to be applied to the rest of the arguments as a spine. *)
+  | Some (Wrap notn, args, (Snoc _ as rest)) ->
+      unparse_spine vars
+        (`Unparser { unparse = (fun li ri -> unparse_notation notn args li ri) })
+        rest li ri
+  (* If not, we proceed to unparse it as an application spine. *)
+  | None -> (
+      match args with
+      | Emp -> (
+          match head with
+          | `Term tm -> unparse vars tm li ri
+          | `Constr c -> Constr (Constr.to_string c)
+          | `Field (tm, fld) ->
+              unparse_field
+                { unparse = (fun li ri -> unparse vars tm li ri) }
+                (Field.to_string fld) li ri
+          | `Degen s -> Ident [ s ]
+          | `Unparser tm -> tm.unparse li ri)
+      | Snoc (args, arg) -> (
+          match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
+          | Some left_ok, Some right_ok ->
+              let fn = unparse_spine vars head args li Interval.plus_omega_only in
+              let arg = arg.unparse Interval.empty ri in
+              App { fn; arg; left_ok; right_ok }
+          | _ ->
+              let fn =
+                unparse_spine vars head args Interval.plus_omega_only Interval.plus_omega_only in
+              let arg = arg.unparse Interval.empty Interval.plus_omega_only in
+              let left_ok = No.le_refl No.plus_omega in
+              let right_ok = No.le_refl No.plus_omega in
+              parenthesize (App { fn; arg; left_ok; right_ok })))
 
 and unparse_field :
     type n lt ls rt rs.

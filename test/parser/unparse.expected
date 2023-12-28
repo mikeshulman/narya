@@ -20,3 +20,8 @@ a ↦ refl a
 b^00
 b^000
 b
+m + n
+m + n * n
+m * (m + n * n)
+suc. (m + n)
+(m + n) * (m + n)

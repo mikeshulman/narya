@@ -54,4 +54,12 @@ let () =
   assume "a22" "Id ((x y ↦ Id A x y) : A → A → Type) a00 a01 a02 a10 a11 a12 a20 a21"
 *)
   (* Let-bindings always reduce away, disappearing after readback. *)
-  print "let x := b in b"
+  print "let x := b in b";
+  (* Binary operators *)
+  assume "m" "N";
+  assume "n" "N";
+  print "m+n";
+  print "m+n*n";
+  print "m*(m+n*n)";
+  print "m + suc. n";
+  print "(m+n)*(m+n)"

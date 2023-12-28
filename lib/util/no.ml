@@ -52,6 +52,11 @@ let le_plusomega : type a. a t -> (a, nonstrict, plus_omega) lt = function
   | Fin x -> Fin_plusomega x
   | Plus_omega -> Plusomega_plusomega
 
+let minusomega_le : type a. a t -> (minus_omega, nonstrict, a) lt = function
+  | Minus_omega -> Minusomega_minusomega
+  | Fin x -> Minusomega_fin x
+  | Plus_omega -> Minusomega_plusomega
+
 let minusomega_lt_plusomega : (minus_omega, strict, plus_omega) lt = Minusomega_plusomega
 let zero_lt_plusomega : type s. (zero, s, plus_omega) lt = Fin_plusomega Zero
 let minusomega_lt_zero : type s. (minus_omega, s, zero) lt = Minusomega_fin Zero

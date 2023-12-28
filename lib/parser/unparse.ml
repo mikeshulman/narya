@@ -25,16 +25,22 @@ let get_notation head args =
 (* Put parentheses around a term. *)
 let parenthesize tm = outfix ~notn:parens ~inner:(Snoc (Emp, Term tm))
 
+(* Track the used variable names, to generate fresh ones for bound variables if needed. *)
 module Variables : sig
   type 'n t
 
   val empty : emp t
+
+  (* Look up an index variable to find a name for it. *)
   val lookup : 'n t -> 'n index -> [ `Normal of string | `Cube of string * string ]
+
+  (* Add a new variable, generating a fresh version of its name if necessary to avoid conflicts. *)
   val add_cube : 'b t -> string option -> string option * ('b, 'n) ext t
 
   val add_normals :
     'b t -> ('n, string option) CubeOf.t -> ('n, string option) CubeOf.t * ('b, 'n) ext t
 end = struct
+  (* We store a parametrized list like a context, and also a map that counts how many like-named variables already exist, so that we can create a new one with an unused number. *)
   type 'b ctx =
     | Emp : emp ctx
     | Cube : 'b ctx * string option -> ('b, 'n) ext ctx
@@ -60,6 +66,8 @@ end = struct
           | None -> fatal (Anomaly "Reference to anonymous variable")) in
     lookup ctx x
 
+  (* Make a variable name unique, adding the new one to the list of used variables and returning it. *)
+
   let uniquify : string option -> int StringMap.t -> string option * int StringMap.t =
    fun name used ->
     match name with
@@ -68,6 +76,7 @@ end = struct
         match StringMap.find_opt name used with
         | None -> (Some name, used |> StringMap.add name 0)
         | Some n ->
+            (* The tentative new name is the original one suffixed by that number.  But the user might already have created a variable with that name, so we have to increment the number until we find an unused name.  *)
             let rec until_unique k =
               let namek = name ^ string_of_int k in
               match StringMap.find_opt namek used with
@@ -76,6 +85,7 @@ end = struct
             let namen, n = until_unique n in
             (Some namen, used |> StringMap.add namen 0 |> StringMap.add name (n + 1)))
 
+  (* Do the same thing to a whole cube of variable names. *)
   let uniquifies :
       type n.
       (n, string option) CubeOf.t ->
@@ -100,11 +110,13 @@ end = struct
     (names, { ctx = Normals (ctx, names); used })
 end
 
+(* A "delayed" result of unparsing that needs only to know the tightness intervals to produce a result. *)
 type unparser = {
   unparse :
     'lt 'ls 'rt 'rs. ('lt, 'ls) Interval.tt -> ('rt, 'rs) Interval.tt -> ('lt, 'ls, 'rt, 'rs) parse;
 }
 
+(* Unparse a notation together with all its arguments. *)
 let unparse_notation :
     type left tight right lt ls rt rs.
     (left, tight, right) notation ->
@@ -114,21 +126,19 @@ let unparse_notation :
     (lt, ls, rt, rs) parse =
  fun notn args li ri ->
   let t = tightness notn in
+  (* Based on the fixity of the notation, we have to extract the first and/or last argument to treat differently.  In each case except for outfix, we also have to test whether the notation fits in the given tightness interval, and if not, parenthesize it. *)
   match (left notn, right notn) with
   | Open _, Open _ -> (
       match split_first args with
       | Some (first, Snoc (inner, last)) -> (
+          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
           match (Interval.contains li t, Interval.contains ri t) with
           | Some left_ok, Some right_ok ->
               let first = first.unparse li (interval_left notn) in
-              let inner =
-                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
               let last = last.unparse (interval_right notn) ri in
               infix ~notn ~first ~inner ~last ~left_ok ~right_ok
           | _ ->
               let first = first.unparse Interval.entire (interval_left notn) in
-              let inner =
-                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
               let last = last.unparse (interval_right notn) Interval.entire in
               let left_ok = No.minusomega_le t in
               let right_ok = No.minusomega_le t in
@@ -137,15 +147,12 @@ let unparse_notation :
   | Closed, Open _ -> (
       match args with
       | Snoc (inner, last) -> (
+          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
           match Interval.contains ri t with
           | Some right_ok ->
-              let inner =
-                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
               let last = last.unparse (interval_right notn) ri in
               prefix ~notn ~inner ~last ~right_ok
           | _ ->
-              let inner =
-                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
               let last = last.unparse (interval_right notn) Interval.entire in
               let right_ok = No.minusomega_le t in
               parenthesize (prefix ~notn ~inner ~last ~right_ok))
@@ -153,16 +160,13 @@ let unparse_notation :
   | Open _, Closed -> (
       match split_first args with
       | Some (first, inner) -> (
+          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
           match Interval.contains li t with
           | Some left_ok ->
               let first = first.unparse li (interval_left notn) in
-              let inner =
-                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
               postfix ~notn ~first ~inner ~left_ok
           | _ ->
               let first = first.unparse Interval.entire (interval_left notn) in
-              let inner =
-                Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
               let left_ok = No.minusomega_le t in
               parenthesize (postfix ~notn ~first ~inner ~left_ok))
       | _ -> fatal (Anomaly "missing argument unparsing postfix"))
@@ -170,10 +174,12 @@ let unparse_notation :
       let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) args in
       outfix ~notn ~inner
 
+(* Unparse a variable name, possibly anonymous. *)
 let unparse_var : type lt ls rt rs. string option -> (lt, ls, rt, rs) parse = function
   | Some x -> Ident [ x ]
   | None -> Placeholder
 
+(* Unparse a Bwd of variables to occur in an iterated abstraction.  If there is more than one variable, the result is an "application spine".  Can occur in any tightness interval that contains +ω. *)
 let rec unparse_abs :
     type li ls ri rs.
     string option Bwd.t ->
@@ -191,6 +197,7 @@ let rec unparse_abs :
       let arg = unparse_var x in
       App { fn; arg; left_ok; right_ok }
 
+(* If a term is a natural number numeral (a bunch of 'suc' constructors applied to a 'zero' constructor), unparse it as that numeral; otherwise return None. *)
 let unparse_numeral : type n li ls ri rs. n term -> (li, ls, ri, rs) parse option =
  fun tm ->
   let rec getsucs tm k =
@@ -202,6 +209,7 @@ let unparse_numeral : type n li ls ri rs. n term -> (li, ls, ri, rs) parse optio
     | _ -> None in
   getsucs tm 0
 
+(* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
 let rec get_spine :
     type b n. n term -> [ `App of n term * n term Bwd.t | `Field of n term * Field.t * n term Bwd.t ]
     = function
@@ -210,12 +218,14 @@ let rec get_spine :
       | `App (head, args) -> `App (head, CubeOf.append_bwd args arg)
       | `Field (head, fld, args) -> `Field (head, fld, CubeOf.append_bwd args arg))
   | Field (head, fld) -> `Field (head, fld, Emp)
+  (* We have to look through degeneracies here. *)
   | Act (tm, s) -> (
       match is_id_deg s with
       | Some () -> get_spine tm
       | None -> `App (tm, Emp))
   | tm -> `App (tm, Emp)
 
+(* The primary unparsing function.  Given the variable names, unparse a term into given tightness intervals. *)
 let rec unparse :
     type n lt ls rt rs.
     n Variables.t ->
@@ -237,7 +247,8 @@ let rec unparse :
         { unparse = (fun _ _ -> outfix ~notn:universe ~inner:Emp) }
         (deg_zero n) li ri
   | Inst (ty, tyargs) ->
-      (* TODO: How can we allow special notations for some instantiations, like x=y for Id A x y? *)
+      (* We unparse instantiations like application spines, since that is how they are represented in user syntax.
+         TODO: How can we allow special notations for some instantiations, like x=y for Id A x y? *)
       unparse_spine vars (`Term ty)
         (Bwd.map (make_unparser vars) (TubeOf.append_bwd Emp tyargs))
         li ri
@@ -250,15 +261,15 @@ let rec unparse :
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
       let tm = unparse vars tm Interval.entire Interval.entire in
+      (* If a let-in doesn't fit in its interval, we have to parenthesize it. *)
+      let x, vars = Variables.add_cube vars x in
       match Interval.contains ri No.minus_omega with
       | Some right_ok ->
-          let x, vars = Variables.add_cube vars x in
           let body = unparse vars body Interval.entire ri in
           prefix ~notn:letin
             ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
             ~last:body ~right_ok
       | None ->
-          let x, vars = Variables.add_cube vars x in
           let body = unparse vars body Interval.entire Interval.entire in
           let right_ok = No.le_refl No.minus_omega in
           parenthesize
@@ -268,6 +279,7 @@ let rec unparse :
   | Lam (_, cube, _) -> unparse_lam cube vars Emp tm li ri
   | Struct fields -> (
       let flds = List.map (fun (key, _) -> Field.to_string key) (Field.Map.bindings fields) in
+      (* If the fields of a struct have an associated notation, we use that notation. *)
       match State.print_struct flds with
       | Some (Wrap notn) ->
           let vals =
@@ -293,9 +305,11 @@ let rec unparse :
           let args = Bwd.map CubeOf.find_top args in
           unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)
 
+(* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Variables.t -> n term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
 
+(* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
 and unparse_spine :
     type n lt ls rt rs.
     n Variables.t ->
@@ -309,7 +323,7 @@ and unparse_spine :
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse =
  fun vars head args li ri ->
-  (* First we check whether the head has an associated notation, and if so whether it is applied to enough arguments to instantiate that notation. *)
+  (* First we check whether the head is a term with an associated notation, and if so whether it is applied to enough arguments to instantiate that notation. *)
   match get_notation head args with
   (* If it's applied to exactly the right number of arguments, we unparse it as that notation. *)
   | Some (Wrap notn, args, Emp) -> unparse_notation notn args li ri
@@ -318,20 +332,18 @@ and unparse_spine :
       unparse_spine vars
         (`Unparser { unparse = (fun li ri -> unparse_notation notn args li ri) })
         rest li ri
-  (* If not, we proceed to unparse it as an application spine. *)
+  (* If not, we proceed to unparse it as an application spine, recursively. *)
   | None -> (
       match args with
       | Emp -> (
           match head with
           | `Term tm -> unparse vars tm li ri
           | `Constr c -> Constr (Constr.to_string c)
-          | `Field (tm, fld) ->
-              unparse_field
-                { unparse = (fun li ri -> unparse vars tm li ri) }
-                (Field.to_string fld) li ri
+          | `Field (tm, fld) -> unparse_field (make_unparser vars tm) (Field.to_string fld) li ri
           | `Degen s -> Ident [ s ]
           | `Unparser tm -> tm.unparse li ri)
       | Snoc (args, arg) -> (
+          (* As before, if the application doesn't fit in its tightness interval, we have to parenthesize it. *)
           match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
           | Some left_ok, Some right_ok ->
               let fn = unparse_spine vars head args li Interval.plus_omega_only in
@@ -361,6 +373,7 @@ and unparse_field :
       let right_ok = No.le_refl No.plus_omega in
       parenthesize (App { fn; arg; left_ok; right_ok })
 
+(* For unparsing an iterated abstraction, we group together the normal variables and cube variables, since they have different notations.  We recursively descend through the structure of the term, storing in 'cube' which kind of variable we are picking up and continuing until we find either a non-abstraction or an abstraction of the wrong type.  *)
 and unparse_lam :
     type m n lt ls rt rs.
     m variables ->
@@ -379,10 +392,12 @@ and unparse_lam :
       let x, vars = Variables.add_normals vars x in
       unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
   | _ -> (
+      (* We pick the appropriate notation to use for the abstraction, depending on the kind of variables.  Note that both are (un)parsed as binary operators whose left-hand argument is an "application spine" of variables, produced here by unparse_abs. *)
       let notn =
         match cube with
         | `Cube _ -> cubeabs
         | `Normal _ -> abs in
+      (* Of course, if we don't fit in the tightness interval, we have to parenthesize. *)
       match (Interval.contains li No.minus_omega, Interval.contains ri No.minus_omega) with
       | Some left_ok, Some right_ok ->
           let li_ok = No.lt_trans Any_strict left_ok No.minusomega_lt_plusomega in
@@ -426,6 +441,7 @@ and unparse_act :
                    ~inner:(Snoc (Emp, Term (Ident [ string_of_deg s ])))
                    ~left_ok:(No.le_plusomega No.minus_omega))))
 
+(* We group together all the 0-dimensional dependent pi-types in a notation, so we recursively descend through the term picking those up until we find a non-pi-type, a higher-dimensional pi-type, or a non-dependent pi-type, in which case we pass it off to unparse_pis_final. *)
 and unparse_pis :
     type n lt ls rt rs.
     n Variables.t ->
@@ -469,6 +485,7 @@ and unparse_pis :
           (* unparse_pis_final vars accum0 accum (Sorry.e ()) li ri *))
   | _ -> unparse_pis_final vars accum (make_unparser vars tm) li ri
 
+(* The arrow in both kinds of pi-type is (un)parsed as a binary operator.  In the dependent case, its left-hand argument looks like an "application spine" of ascribed variables.  Of course, it may have to be parenthesized. *)
 and unparse_arrow :
     type n lt ls rt rs.
     unparser -> unparser -> (lt, ls) Interval.tt -> (rt, rs) Interval.tt -> (lt, ls, rt, rs) parse =
@@ -501,6 +518,7 @@ and unparse_pis_final :
         { unparse = (fun li ri -> unparse_spine vars (`Unparser dom0) accum li ri) }
         tm li ri
 
+(* Unparse a single domain of a dependent pi-type. *)
 and unparse_pi_dom :
     type lt ls rt rs.
     string ->

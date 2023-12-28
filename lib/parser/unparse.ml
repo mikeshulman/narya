@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Bwd_extra
 open Dim
 open Core
 open Term
@@ -7,51 +8,7 @@ open Notation
 open Builtins
 open Reporter
 module StringMap = Map.Make (String)
-
-(* Split off the first element of a Bwd.t, if it is nonempty. *)
-let rec split_first = function
-  | Emp -> None
-  | Snoc (Emp, x) -> Some (x, Emp)
-  | Snoc (xs, x) -> (
-      match split_first xs with
-      | Some (y, ys) -> Some (y, Snoc (ys, x))
-      | None -> None)
-
-(* Split a Bwd.t into its first k elements and the rest, if it has at least k. *)
-let bwd_take : type a. int -> a Bwd.t -> (a Bwd.t * a Bwd.t) option =
- fun k args ->
-  let rec take_atmost k args =
-    match args with
-    | Emp -> if k > 0 then `Need_more k else `Found (Emp, Emp)
-    | Snoc (xs, x) -> (
-        match take_atmost k xs with
-        | `Need_more n -> if n = 1 then `Found (args, Emp) else `Need_more (n - 1)
-        | `Found (first, rest) -> `Found (first, Snoc (rest, x))) in
-  match take_atmost k args with
-  | `Need_more _ -> None
-  | `Found (first, rest) -> Some (first, rest)
-
-(* Append the elements of a cube, in order, to a given Bwd.t. *)
-let append_cube : type a n. a Bwd.t -> (n, a) CubeOf.t -> a Bwd.t =
- fun start xs ->
-  let module S = struct
-    type t = a Bwd.t
-  end in
-  let module M = Monad.State (S) in
-  let open CubeOf.Monadic (M) in
-  let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
-  xs
-
-(* Append the elements of a tube, in order, to a given Bwd.t. *)
-let append_tube : type a m n mn. a Bwd.t -> (m, n, mn, a) TubeOf.t -> a Bwd.t =
- fun start xs ->
-  let module S = struct
-    type t = a Bwd.t
-  end in
-  let module M = Monad.State (S) in
-  let open TubeOf.Monadic (M) in
-  let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
-  xs
+open Hctx
 
 (* If the head of an application spine is a constant term, and that constant has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments, and the rest. *)
 let get_notation head args =
@@ -67,8 +24,6 @@ let get_notation head args =
 
 (* Put parentheses around a term. *)
 let parenthesize tm = outfix ~notn:parens ~inner:(Snoc (Emp, Term tm))
-
-open Hctx
 
 module Variables : sig
   type 'n t
@@ -252,8 +207,8 @@ let rec get_spine :
     = function
   | App (fn, arg) -> (
       match get_spine fn with
-      | `App (head, args) -> `App (head, append_cube args arg)
-      | `Field (head, fld, args) -> `Field (head, fld, append_cube args arg))
+      | `App (head, args) -> `App (head, CubeOf.append_bwd args arg)
+      | `Field (head, fld, args) -> `Field (head, fld, CubeOf.append_bwd args arg))
   | Field (head, fld) -> `Field (head, fld, Emp)
   | Act (tm, s) -> (
       match is_id_deg s with
@@ -283,7 +238,9 @@ let rec unparse :
         (deg_zero n) li ri
   | Inst (ty, tyargs) ->
       (* TODO: How can we allow special notations for some instantiations, like x=y for Id A x y? *)
-      unparse_spine vars (`Term ty) (Bwd.map (make_unparser vars) (append_tube Emp tyargs)) li ri
+      unparse_spine vars (`Term ty)
+        (Bwd.map (make_unparser vars) (TubeOf.append_bwd Emp tyargs))
+        li ri
   | Pi _ -> unparse_pis vars Emp tm li ri
   | App _ -> (
       match get_spine tm with
@@ -420,7 +377,7 @@ and unparse_lam :
       unparse_lam cube vars (Snoc (xs, x)) inner li ri
   | `Normal _, Lam (_, `Normal x, inner) ->
       let x, vars = Variables.add_normals vars x in
-      unparse_lam cube vars (append_cube xs x) inner li ri
+      unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
   | _ -> (
       let notn =
         match cube with

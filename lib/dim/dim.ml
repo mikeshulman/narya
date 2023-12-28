@@ -1,3 +1,4 @@
+open Bwd
 open Util
 
 (* ********** Endpoints ********** *)
@@ -992,6 +993,17 @@ module CubeOf = struct
    fun tr mf ->
     let n = dim tr in
     gflatten_append (D.zero_plus n) (D.zero_plus n) Zero Emp tr mf (N.zero_plus (faces_out mf))
+
+  (* Or, more simply, to a Bwd. *)
+  let append_bwd : type a n. a Bwd.t -> (n, a) t -> a Bwd.t =
+   fun start xs ->
+    let module S = struct
+      type t = a Bwd.t
+    end in
+    let module M = Monad.State (S) in
+    let open Monadic (M) in
+    let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
+    xs
 end
 
 (* ********** Tube faces ********** *)
@@ -1818,6 +1830,18 @@ module TubeOf = struct
    fun mk kl tr ->
     let mk_l = D.plus_assocl mk kl (plus tr) in
     glower Zero mk_l (gmiddle mk kl tr)
+
+  (* Append the elements of a tube, in order, to a given Bwd.t. *)
+
+  let append_bwd : type a m n mn. a Bwd.t -> (m, n, mn, a) t -> a Bwd.t =
+   fun start xs ->
+    let module S = struct
+      type t = a Bwd.t
+    end in
+    let module M = Monad.State (S) in
+    let open Monadic (M) in
+    let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
+    xs
 end
 
 (* ********** Faces ********** *)

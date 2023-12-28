@@ -1,8 +1,9 @@
 open Bwd
 open Util
 open Reporter
-open Value
 open Term
+open Value
+open Inst
 open Raw
 open Dim
 open Act

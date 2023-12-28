@@ -1,5 +1,6 @@
 open Reporter
 open Dim
+open Term
 open Value
 open Bwd
 
@@ -19,7 +20,7 @@ let deg_plus_to : type m n nk. ?on:string -> ?err:Code.t -> (m, n) deg -> nk D.t
       let sk = deg_plus s nk mk in
       Of sk
 
-let act_variables : type m n. n Term.variables -> (m, n) deg -> m Term.variables =
+let act_variables : type m n. n variables -> (m, n) deg -> m variables =
  fun vars s ->
   match vars with
   | `Cube x -> `Cube x

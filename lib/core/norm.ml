@@ -1,9 +1,10 @@
 open Util
 open Reporter
 open Dim
-open Value
 open Act
 open Term
+open Value
+open Inst
 open Bwd
 open Monad.Ops (Monad.Maybe)
 open Hctx

@@ -4,6 +4,7 @@ open Util
 open Dim
 open Term
 open Value
+open Inst
 open Hctx
 open Reporter
 

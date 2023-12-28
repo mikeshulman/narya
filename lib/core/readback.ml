@@ -2,8 +2,9 @@ open Bwd
 open Util
 open Reporter
 open Dim
-open Value
 open Term
+open Value
+open Inst
 open Norm
 
 (* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
@@ -156,7 +157,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
   | Neu (fn, args) ->
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
-          Act
+          Term.Act
             ( (match arg with
               | Arg args ->
                   App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ args ])
@@ -167,7 +168,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
       Act
         ( Bwd.fold_left
             (fun fn arg ->
-              App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ arg ]))
+              Term.App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ arg ]))
             (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
             (Act (Const name, deg_zero (cod_left_ins ins)))
             args,

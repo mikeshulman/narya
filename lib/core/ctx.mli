@@ -1,7 +1,7 @@
 open Util
 open Dim
-open Value
 open Term
+open Value
 open Hctx
 
 type (_, _) t

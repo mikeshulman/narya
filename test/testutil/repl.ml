@@ -8,8 +8,9 @@ open Unparse
 open Print
 open Norm
 open Check
-open Value
 open Term
+open Value
+open Inst
 open Raw
 open Hctx
 

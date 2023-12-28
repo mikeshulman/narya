@@ -236,6 +236,17 @@ let rec unparse_abs :
       let arg = unparse_var x in
       App { fn; arg; left_ok; right_ok }
 
+let unparse_numeral : type n li ls ri rs. n term -> (li, ls, ri, rs) parse option =
+ fun tm ->
+  let rec getsucs tm k =
+    match tm with
+    (* As in parsing, it would be better not to hardcode the constructor names 'zero' and 'suc'. *)
+    | Term.Constr (c, _, Emp) when c = Constr.intern "zero" -> Some (Numeral (Q.of_int k))
+    | Constr (c, _, Snoc (Emp, arg)) when c = Constr.intern "suc" ->
+        getsucs (CubeOf.find_top arg) (k + 1)
+    | _ -> None in
+  getsucs tm 0
+
 let rec get_spine :
     type b n. n term -> [ `App of n term * n term Bwd.t | `Field of n term * Field.t * n term Bwd.t ]
     = function
@@ -309,10 +320,13 @@ let rec unparse :
                    Term (unparse vars tm Interval.entire Interval.entire) ))
              fields Emp)
   (* TODO: Can we associate notations to constructors, like to constants? *)
-  | Constr (c, _, args) ->
-      (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl 0" yields just "zero.". *)
-      let args = Bwd.map CubeOf.find_top args in
-      unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri
+  | Constr (c, _, args) -> (
+      (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
+      match unparse_numeral tm with
+      | Some tm -> tm
+      | None ->
+          let args = Bwd.map CubeOf.find_top args in
+          unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)
 
 and make_unparser : type n. n Variables.t -> n term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }

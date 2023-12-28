@@ -11,10 +11,13 @@ _ _ x ↦ x
 _ f x ↦ f x
 m n Y f x ↦ n (Y → Y) (x0 x1 ↦ m Y (x2 ↦ x0 x2) x1) (x0 ↦ f x0) x
 Y f x ↦ f (f (f (f (f (f (f (f x)))))))
-{ fst ≔ zero. ; snd ≔ zero. }
-{ fst ≔ x ↦ x ; snd ≔ suc. (suc. zero.) }
-s .fst (suc. (suc. (suc. zero.)))
-zero.
+{ fst ≔ 0 ; snd ≔ 0 }
+{ fst ≔ x ↦ x ; snd ≔ 2 }
+s .fst 3
+nil.
+cons. 2 nil.
+cons. 4 (cons. 2 nil.)
+0
 refl b
 a ↦ refl a
 b^00

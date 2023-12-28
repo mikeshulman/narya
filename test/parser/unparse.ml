@@ -35,6 +35,10 @@ let () =
   print "{fst := x |-> x; snd := 2} : (N -> N) >< N";
   assume "s" "(N → N) × N";
   print "s .fst 3";
+  Types.Lst.install ();
+  print "nil. : List N";
+  print "cons. 2 nil. : List N";
+  print "cons. 4 (cons. 2 nil.) : List N";
   print "refl (0:N)";
   assume "b" "A";
   print "refl b";

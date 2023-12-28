@@ -7,6 +7,7 @@ open Notation
 open Postprocess
 open Raw
 open Term
+open Print
 
 let sigma = Constant.make ()
 let fst = Field.intern "fst"
@@ -14,8 +15,6 @@ let snd = Field.intern "snd"
 let pair = Constant.make ()
 
 open Monad.Ops (Monad.Maybe)
-
-(* TODO: printing these notations *)
 
 let prodn = make "prod" (Infixr No.one)
 
@@ -43,7 +42,15 @@ let () =
           let a = process ctx a in
           let b = process (Snoc (ctx, x)) b in
           Synth (App (App (Const sigma, a), Lam (x, `Normal, b))));
-    }
+    };
+  set_print prodn (fun ppf obs ->
+      match obs with
+      | [ x; y ] ->
+          Format.fprintf ppf "@[<hov 2>%a@ %a %a@]" pp_term x Uuseg_string.pp_utf_8
+            (* TODO: Can we let the user define unicode/ascii equivalent pairs? *)
+            (Printconfig.alt_char "×" "><")
+            pp_term y
+      | _ -> fatal (Anomaly "invalid notation arguments for prod"))
 
 let comma = make "comma" (Infixr No.one)
 
@@ -59,11 +66,18 @@ let () =
               let y = process ctx y in
               Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ])
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
-    }
+    };
+  set_print comma (fun ppf obs ->
+      match obs with
+      | [ x; y ] ->
+          Format.fprintf ppf "@[<hov 2>%a%a %a@ %a%a@]" pp_tok LParen pp_term x pp_tok (Op ",")
+            pp_term y pp_tok RParen
+      | _ -> fatal (Anomaly "invalid notation arguments for comma"))
 
 let install_notations () =
+  (* TODO: How to unparse into a binding notation? *)
   State.add_bare prodn;
-  State.add_bare comma
+  State.add_struct comma [ "fst"; "snd" ]
 
 let install () =
   install_notations ();

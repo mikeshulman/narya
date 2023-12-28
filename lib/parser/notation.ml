@@ -1,7 +1,7 @@
 open Bwd
 open Util
 open Core
-open Raw
+open Term.Raw
 open Reporter
 module TokMap = Map.Make (Token)
 

@@ -5,6 +5,7 @@ open Reporter
 open Parser
 open Notation
 open Postprocess
+open Term
 open Raw
 open Term
 open Print

@@ -1,9 +1,9 @@
 open Bwd
 open Util
 open Reporter
-open Raw
 open Value
 open Term
+open Raw
 open Dim
 open Act
 open Norm

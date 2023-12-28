@@ -4,6 +4,7 @@ open Postprocess
 open Print
 open Format
 open Core
+open Term
 open Raw
 open Reporter
 open Notation

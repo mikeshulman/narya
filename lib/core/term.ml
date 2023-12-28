@@ -1,6 +1,46 @@
 open Bwd
+open Util
 open Dim
 open Hctx
+
+(* ******************** Raw (unchecked) terms ******************** *)
+
+module Raw = struct
+  (* Raw (unchecked) terms, using intrinsically well-scoped De Bruijn indices, and separated into synthesizing terms and checking terms.  These match the user-facing syntax rather than the internal syntax.  In particular, applications, abstractions, and pi-types are all unary, there is only one universe, and the only operator actions are refl (including Id) and sym. *)
+
+  (* A raw De Bruijn index is a well-scoped natural number together with a possible face.  During typechecking we will verify that the face, if given, is applicable to the variable as a "cube variable", and compile the combination into a more strongly well-scoped kind of index. *)
+  type 'a index = 'a N.index * any_sface option
+
+  type _ synth =
+    | Var : 'a index -> 'a synth
+    | Const : Constant.t -> 'a synth
+    | Field : 'a synth * Field.t -> 'a synth
+    | Pi : string option * 'a check * 'a N.suc check -> 'a synth
+    | App : 'a synth * 'a check -> 'a synth
+    | Asc : 'a check * 'a check -> 'a synth
+    | Let : string option * 'a synth * 'a N.suc synth -> 'a synth
+    | UU : 'a synth
+    | Act : string * ('m, 'n) deg * 'a synth -> 'a synth
+
+  and _ check =
+    | Synth : 'a synth -> 'a check
+    | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check -> 'a check
+    | Struct : 'a check Field.Map.t -> 'a check
+    | Constr : Constr.t * 'a check Bwd.t -> 'a check
+    | Match : 'a index * 'a branch list -> 'a check
+
+  and _ branch = Branch : Constr.t * ('a, 'b, 'ab) N.plus * 'ab check -> 'a branch
+
+  let rec raw_lam :
+      type a b ab.
+      (string option, ab) Bwv.t -> [ `Cube | `Normal ] -> (a, b, ab) N.plus -> ab check -> a check =
+   fun names cube ab tm ->
+    match (names, ab) with
+    | _, Zero -> tm
+    | Snoc (names, x), Suc ab -> raw_lam names cube ab (Lam (x, cube, tm))
+end
+
+(* ******************** Names ******************** *)
 
 type 'n variables = [ `Normal of ('n, string option) CubeOf.t | `Cube of string option ]
 type any_variables = Any : 'n variables -> any_variables
@@ -17,6 +57,8 @@ let singleton_named_variables : type n. n D.t -> string option -> n variables =
   match compare n D.zero with
   | Eq -> `Normal (CubeOf.singleton (Some x))
   | Neq -> `Cube (Some x)
+
+(* ******************** Typechecked terms ******************** *)
 
 (* Typechecked, but unevaluated, terms.  Use De Bruijn indices that are intrinsically well-scoped by hctxs, but are no longer separated into synthesizing and checking; hence without type ascriptions.  Note that extending an hctx by a dimension 'k means adding a whole cube of new variables, which are indexed by the position of that dimension together with a strict face of it.  (At user-level, those variables may all be accessed as faces of one "cube variable", or they may have independent names, but internally there is no difference.)
 

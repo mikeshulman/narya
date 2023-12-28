@@ -1,4 +1,5 @@
 open Core
+open Term
 open Raw
 
 let synth tm = fst (Check.synth Ctx.empty tm)

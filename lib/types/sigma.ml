@@ -61,12 +61,9 @@ let () =
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     }
 
-let installed = ref false
-
 let install_notations () =
-  if not !installed then (
-    installed := true;
-    Builtins.builtins := !Builtins.builtins |> State.add prodn |> State.add comma)
+  State.add_bare prodn;
+  State.add_bare comma
 
 let install () =
   install_notations ();

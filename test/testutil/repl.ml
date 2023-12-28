@@ -14,9 +14,7 @@ open Raw
 open Hctx
 
 let parse_term (tm : string) : N.zero check =
-  let (Term tm) =
-    Parse.term !Builtins.builtins (`String { title = Some "user-supplied term"; content = tm })
-  in
+  let (Term tm) = Parse.term (`String { title = Some "user-supplied term"; content = tm }) in
   Postprocess.process Emp tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
@@ -115,4 +113,4 @@ let run f =
       raise (Failure "Fatal error"))
   @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
-  Scope.run f
+  Builtins.run @@ fun () -> Scope.run f

@@ -22,7 +22,7 @@ end
 
 (* The functor that defines all the term-parsing combinators. *)
 module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
-  module Basic = Token_parser.Make (State) (Token) (Final) (SemanticError)
+  module Basic = Token_parser.Make (Unit) (Token) (Final) (SemanticError)
   open Basic
 
   (* We aren't using Fmlib's error reporting, so there's no point in supplying it nonempty "expect" strings. *)
@@ -93,9 +93,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       type lt ls rt rs.
       (lt, ls) Interval.tt -> (rt, rs) tree TokMap.t -> (lt, ls) right_wrapped_parse t =
    fun tight stop ->
-    let* state = get in
     let* res =
-      (let* inner, notn = entry (State.left_closeds state) in
+      (let* inner, notn = entry (State.left_closeds ()) in
        match notn with
        | Open_in_interval (lt, _) -> No.plusomega_nlt lt
        | Closed_in_interval notn -> (
@@ -145,14 +144,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                if TokMap.mem tok stop then Some (first_arg, state)
                else
                  let open Monad.Ops (Monad.Maybe) in
-                 let* (Interval ivl) = TokMap.find_opt tok state.left_opens in
+                 let* (Interval ivl) = State.left_opens tok in
                  let t = tight.endpoint in
                  let* _ = Interval.contains ivl t in
                  return (first_arg, state)))
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
-        </> (let* state = get in
-             let* res =
-               (let* rng, (inner, notn) = located (entry (State.tighters state tight)) in
+        </> (let* res =
+               (let* rng, (inner, notn) = located (entry (State.tighters tight)) in
                 match notn with
                 | Open_in_interval (left_ok, notn) -> (
                     match first_arg.get (interval_left notn) with
@@ -264,16 +262,16 @@ module TermCombinators = Combinators (ParseTree)
 module Parse_term = struct
   include TermCombinators.Basic.Parser
 
-  let term (state : State.t) : t = TermCombinators.Basic.make state (TermCombinators.term ())
+  let term : unit -> t = fun () -> TermCombinators.Basic.make () (TermCombinators.term ())
 end
 
 (* Then we connect it up with the lexer. *)
 module Lex_and_parse_term =
-  Parse_with_lexer.Make (State) (Token) (ParseTree) (SemanticError) (Lexer.Parser) (Parse_term)
+  Parse_with_lexer.Make (Unit) (Token) (ParseTree) (SemanticError) (Lexer.Parser) (Parse_term)
 
 open Lex_and_parse_term
 
-let term (state : State.t) (source : Asai.Range.source) : observation =
+let term (source : Asai.Range.source) : observation =
   let length, run =
     match source with
     | `String { content; _ } -> (Int64.of_int (String.length content), run_on_string content)
@@ -282,7 +280,7 @@ let term (state : State.t) (source : Asai.Range.source) : observation =
         (In_channel.length ic, run_on_channel ic) in
   let env : Range.Data.t = { source; length } in
   Range.run ~env @@ fun () ->
-  let p = run (make Lexer.Parser.init (Parse_term.term state)) in
+  let p = run (make Lexer.Parser.init (Parse_term.term ())) in
   if has_succeeded p then final p
     (* Fmlib_parse has its own built-in error reporting with locations.  However, we instead use Asai's error reporting, so that we have a common "look" for parse errors and typechecking errors. *)
   else if has_failed_syntax p then

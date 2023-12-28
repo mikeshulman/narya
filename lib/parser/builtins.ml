@@ -620,3 +620,5 @@ let builtins =
     |> State.add degen
     |> State.add struc
     |> State.add mtch)
+
+let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

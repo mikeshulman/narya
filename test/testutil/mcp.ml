@@ -12,9 +12,7 @@ let context = ref ectx
 
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check =
  fun names tm ->
-  let (Term tm) =
-    Parse.term !Builtins.builtins (`String { title = Some "user-supplied term"; content = tm })
-  in
+  let (Term tm) = Parse.term (`String { title = Some "user-supplied term"; content = tm }) in
   Postprocess.process names tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
@@ -131,4 +129,5 @@ let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
-  @@ fun () -> Scope.run f
+  @@ fun () ->
+  Builtins.run @@ fun () -> Scope.run f

@@ -162,4 +162,5 @@ let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
-  @@ fun () -> Scope.run f
+  @@ fun () ->
+  Scope.run @@ fun () -> Parser.Builtins.run f

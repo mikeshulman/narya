@@ -4,6 +4,7 @@ open Parser
 open Notation
 open Testutil
 open Showparse
+module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 (* We raise an error if one notation is a prefix of another, since parsing such combinations would require too much backtracking.  Here we test the generation of that error. *)
 
@@ -13,7 +14,6 @@ let () =
   set_tree ifthen
     (Closed_entry (eop (Ident [ "if" ]) (term (Ident [ "then" ]) (Done_closed ifthen))))
 
-let ifthen_only = State.empty |> State.add ifthen
 let ifthenelse = make "ifthenelse" (Prefixr No.zero)
 
 let () =
@@ -22,20 +22,24 @@ let () =
        (eop (Ident [ "if" ])
           (term (Ident [ "then" ]) (term (Ident [ "else" ]) (Done_closed ifthenelse)))))
 
-let ifthenelse_only = State.empty |> State.add ifthenelse
-let both = State.empty |> State.add ifthen |> State.add ifthenelse
-
-module Terminal = Asai.Tty.Make (Core.Reporter.Code)
+let () =
+  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
+      Terminal.display d;
+      raise (Failure "Parse failure"))
+  @@ fun () ->
+  State.run_on State.empty @@ fun () ->
+  State.add_bare ifthen;
+  assert (parse "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 let () =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Parse failure"))
   @@ fun () ->
+  State.run_on State.empty @@ fun () ->
+  State.add_bare ifthenelse;
   assert (
-    parse ifthen_only "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
-  assert (
-    parse ifthenelse_only "if x then y else z"
+    parse "if x then y else z"
     = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))
 
 let () =
@@ -48,7 +52,10 @@ let () =
         Terminal.display d;
         raise (Failure "Unexpected error code")))
   @@ fun () ->
-  assert (parse both "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
+  State.run_on State.empty @@ fun () ->
+  State.add_bare ifthen;
+  State.add_bare ifthenelse;
+  assert (parse "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
 
@@ -60,16 +67,17 @@ let () =
        (eop (Ident [ "if" ])
           (term (Ident [ "then" ]) (term (Ident [ "elif" ]) (Done_closed ifthenelif)))))
 
-let better_both = State.empty |> State.add ifthenelse |> State.add ifthenelif
-
 let () =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Parse failure"))
   @@ fun () ->
+  State.run_on State.empty @@ fun () ->
+  State.add_bare ifthenelse;
+  State.add_bare ifthenelif;
   assert (
-    parse better_both "if x then y else z"
+    parse "if x then y else z"
     = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
   assert (
-    parse better_both "if x then y elif z"
+    parse "if x then y elif z"
     = Notn ("ifthenelif", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))

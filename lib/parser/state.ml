@@ -96,18 +96,35 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   (* We don't update the printing map since this is used for builtins that are printed specially. *)
   { s with tighters; left_opens }
 
+module S = Algaeff.State.Make (struct
+  type nonrec t = t
+end)
+
+let add_bare : type left tight right. (left, tight, right) notation -> unit =
+ fun notn -> S.modify (add notn)
+
 let add_const :
-    type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> t -> t =
- fun notn const k state ->
-  let state = add notn state in
-  { state with print = state.print |> ConstMap.add const (Notation.Wrap notn, k) }
+    type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> unit =
+ fun notn const k ->
+  S.modify @@ fun state ->
+  if ConstMap.mem const state.print then state
+  else
+    let state = add notn state in
+    { state with print = state.print |> ConstMap.add const (Notation.Wrap notn, k) }
 
-let left_closeds : t -> (No.plus_omega, No.strict) entry =
- fun s -> (Option.get (EntryMap.find s.tighters No.plus_omega)).strict
+let left_closeds : unit -> (No.plus_omega, No.strict) entry =
+ fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
 
-let tighters : type strict tight. t -> (tight, strict) Interval.tt -> (tight, strict) entry =
- fun state { strictness; endpoint } ->
-  let ep = Option.get (EntryMap.find state.tighters endpoint) in
+let tighters : type strict tight. (tight, strict) Interval.tt -> (tight, strict) entry =
+ fun { strictness; endpoint } ->
+  let ep = Option.get (EntryMap.find (S.get ()).tighters endpoint) in
   match strictness with
   | Nonstrict -> ep.nonstrict
   | Strict -> ep.strict
+
+let left_opens : Token.t -> Interval.t option = fun tok -> TokMap.find_opt tok (S.get ()).left_opens
+
+let print : Core.Constant.t -> (Notation.t * int) option =
+ fun c -> ConstMap.find_opt c (S.get ()).print
+
+let run_on init f = S.run ~init f

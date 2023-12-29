@@ -3,6 +3,13 @@ open Scope
 open Hctx
 open Asai.Diagnostic
 
+type printable = ..
+
+let print : (Format.formatter -> printable -> unit) ref =
+  ref (fun _ _ -> raise (Failure "print not set"))
+
+let pp_printable ppf pr = !print ppf pr
+
 module Code = struct
   type t =
     | Parse_error : t

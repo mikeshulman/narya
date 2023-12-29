@@ -7,6 +7,7 @@ open Term
 open Notation
 open Builtins
 open Reporter
+open Printable
 module StringMap = Map.Make (String)
 
 (* If the head of an application spine is a constant term, and that constant has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments, and the rest. *)
@@ -442,3 +443,22 @@ and unparse_pi_dom :
            Term
              (infix ~notn:asc ~first:(Ident [ x ]) ~inner:Emp ~last:dom
                 ~left_ok:(No.le_refl No.minus_omega) ~right_ok:(No.le_refl No.minus_omega)) ))
+
+module Terminal = Asai.Tty.Make (Core.Reporter.Code)
+
+let () =
+  Reporter.print :=
+    fun ppf pr ->
+      Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
+          Terminal.display d;
+          raise (Failure "Fatal error"))
+      @@ fun () ->
+      match pr with
+      | PTerm (ctx, tm) ->
+          Print.pp_term ppf (Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
+      | PVal (ctx, tm) ->
+          Print.pp_term ppf
+            (Term
+               (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
+                  Interval.entire))
+      | _ -> raise (Failure "unknown printable")

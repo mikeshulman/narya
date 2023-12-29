@@ -79,3 +79,33 @@ let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) ext t =
   | `Normal name ->
       let name, vars = add_normals vars name in
       (`Normal name, vars)
+
+let pp_variables : type n. Format.formatter -> n variables -> unit =
+ fun ppf x ->
+  let open Format in
+  match x with
+  | `Cube x -> pp_print_string ppf (Option.value x ~default:"_")
+  | `Normal x ->
+      fprintf ppf "@[<hv 2>(";
+      CubeOf.miter
+        {
+          it =
+            (fun fa [ x ] ->
+              if Option.is_some (is_id_sface fa) then
+                pp_print_string ppf (Option.value x ~default:"_")
+              else fprintf ppf "%s,@ " (Option.value x ~default:"_"));
+        }
+        [ x ];
+      fprintf ppf ")@]"
+
+let pp_names : type b. Format.formatter -> b t -> unit =
+ fun ppf vars ->
+  let open Format in
+  let rec pp : type b. bool -> formatter -> b ctx -> unit =
+   fun comma ppf vars ->
+    match vars with
+    | Emp -> ()
+    | Snoc (vars, x) ->
+        fprintf ppf "%a%a" (pp true) vars pp_variables x;
+        if comma then fprintf ppf ",@ " in
+  fprintf ppf "@[<hv 2>(%a)@]" (pp false) vars.ctx

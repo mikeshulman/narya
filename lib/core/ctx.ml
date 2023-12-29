@@ -281,3 +281,60 @@ let rec names : type a b. (a, b) t -> b Names.t = function
   | Vis (ctx, name, _) -> snd (Names.add (names ctx) name)
   | Invis (ctx, _) -> snd (Names.add_cube (names ctx) None)
   | Split (ctx, _, _, name, _) -> snd (Names.add (names ctx) name)
+
+open Format
+
+let pp_lvlopt ppf = function
+  | Some (i, j) -> fprintf ppf "(%d,%d)" i j
+  | None -> fprintf ppf "-"
+
+let pp_variables :
+    type n. Format.formatter -> n variables * (n, level option * normal) CubeOf.t -> unit =
+ fun ppf (x, lvls) ->
+  match x with
+  | `Cube x ->
+      fprintf ppf "%s = @[<hv 2>%s" (Option.value x ~default:"_")
+        (match compare (CubeOf.dim lvls) D.zero with
+        | Eq -> ""
+        | Neq -> "(");
+      CubeOf.miter
+        {
+          it =
+            (fun fa [ i ] ->
+              if Option.is_some (is_id_sface fa) then pp_lvlopt ppf (fst i)
+              else fprintf ppf "%a,@ " pp_lvlopt (fst i));
+        }
+        [ lvls ];
+      (match compare (CubeOf.dim lvls) D.zero with
+      | Eq -> ()
+      | Neq -> pp_print_string ppf ")");
+      fprintf ppf "@]"
+  | `Normal x ->
+      fprintf ppf "@[<hv 2>(";
+      CubeOf.miter
+        {
+          it =
+            (fun fa [ x; i ] ->
+              if Option.is_some (is_id_sface fa) then
+                fprintf ppf "%s = %a" (Option.value x ~default:"_") pp_lvlopt (fst i)
+              else fprintf ppf "%s = %a,@ " (Option.value x ~default:"_") pp_lvlopt (fst i));
+        }
+        [ x; lvls ];
+      fprintf ppf ")@]"
+
+let pp_ctx : type a b. Format.formatter -> (a, b) t -> unit =
+ fun ppf ctx ->
+  let rec pp : type a b. bool -> formatter -> (a, b) t -> unit =
+   fun comma ppf ctx ->
+    match ctx with
+    | Emp -> ()
+    | Vis (ctx, x, lvls) ->
+        fprintf ppf "%a%a" (pp true) ctx pp_variables (x, lvls);
+        if comma then fprintf ppf ",@ "
+    | Invis (ctx, lvls) ->
+        fprintf ppf "%a%a" (pp true) ctx pp_variables (`Cube (Some "-"), lvls);
+        if comma then fprintf ppf ",@ "
+    | Split (ctx, _, _, x, lvls) ->
+        fprintf ppf "%a%a" (pp true) ctx pp_variables (x, lvls);
+        if comma then fprintf ppf ",@ " in
+  fprintf ppf "@[<hv 2>(%a)@]" (pp false) ctx

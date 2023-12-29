@@ -59,3 +59,4 @@ val ext_tel :
 
 val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t
 val names : ('a, 'b) t -> 'b Names.t
+val pp_ctx : Format.formatter -> ('a, 'b) t -> unit

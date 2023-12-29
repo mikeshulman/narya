@@ -1,6 +1,5 @@
 open Dim
 open Term
-open Reporter
 open Hctx
 
 type 'n t
@@ -17,3 +16,5 @@ val add_normals :
   'b t -> ('n, string option) CubeOf.t -> ('n, string option) CubeOf.t * ('b, 'n) ext t
 
 val add : 'b t -> 'n variables -> 'n variables * ('b, 'n) ext t
+val pp_variables : Format.formatter -> 'n variables -> unit
+val pp_names : Format.formatter -> 'b t -> unit

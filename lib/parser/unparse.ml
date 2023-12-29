@@ -461,4 +461,6 @@ let () =
             (Term
                (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
                   Interval.entire))
+      | PNames vars -> Core.Names.pp_names ppf vars
+      | PCtx ctx -> Core.Ctx.pp_ctx ppf ctx
       | _ -> raise (Failure "unknown printable")

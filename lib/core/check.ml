@@ -84,10 +84,11 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                                   return x);
                         }
                         names in
-                    (`Normal names, check (Ctx.split ctx dom_faces af newnfs) body output)
+                    ( `Normal names,
+                      check (Ctx.split ctx dom_faces af (`Normal names) newnfs) body output )
                 | `Cube ->
                     (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
-                    (`Cube x, check (Ctx.vis ctx newnfs) body output) in
+                    (`Cube x, check (Ctx.vis ctx (`Cube x) newnfs) body output) in
               Term.Lam (m, xs, cbody))
       | _ -> fatal Checking_lambda_at_nonfunction)
   | Struct tms -> (
@@ -222,7 +223,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let cdom = check ctx dom (universe D.zero) in
       let edom = Ctx.eval ctx cdom in
-      let ccod = check (Ctx.ext ctx edom) cod (universe D.zero) in
+      let ccod = check (Ctx.ext ctx x edom) cod (universe D.zero) in
       (pi x cdom ccod, universe D.zero)
   | App _ ->
       (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
@@ -242,7 +243,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
   | Let (x, v, body) ->
       let sv, ty = synth ctx v in
       let tm = Ctx.eval ctx sv in
-      let sbody, bodyty = synth (Ctx.ext_let ctx { tm; ty }) body in
+      let sbody, bodyty = synth (Ctx.ext_let ctx x { tm; ty }) body in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value. *)
       (Let (x, sv, sbody), bodyty)
 
@@ -455,11 +456,11 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                   let (Faces dom_faces) = count_faces m in
                   let f = faces_out dom_faces in
                   let (Plus af) = N.plus f in
-                  let ctx = Ctx.split ctx dom_faces af newnfs in
+                  let ctx = Ctx.split ctx dom_faces af (`Cube x) newnfs in
                   let _names, body = lambdas af tm in
                   check_tree ctx body output (apply prev_tm newargs) tbody
               | `Cube ->
-                  let ctx = Ctx.vis ctx newnfs in
+                  let ctx = Ctx.vis ctx (`Cube x) newnfs in
                   check_tree ctx body output (apply prev_tm newargs) tbody))
       | _ -> fatal Checking_lambda_at_nonfunction)
   | Struct tms -> (

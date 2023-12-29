@@ -101,7 +101,7 @@ let unparse (tm : string) : unit =
 
 let assume (x : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
-  context := Ctx (Ctx.ext ctx ty, Snoc (names, Some x));
+  context := Ctx (Ctx.ext ctx (Some x) ty, Snoc (names, Some x));
   fst (synth x)
 
 (* Check that two terms are, or aren't, equal, at a type or synthesizing *)

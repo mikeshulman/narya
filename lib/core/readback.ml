@@ -22,7 +22,7 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
       | Neq -> fatal (Dimension_mismatch ("reading back pi", TubeOf.inst tyargs, k))
       | Eq -> (
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
-          let newctx = Ctx.vis ctx newnfs in
+          let newctx = Ctx.vis ctx (`Cube x) newnfs in
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply tm args) output in
           (* If the term is already an abstraction, we pick up its variable(s). *)
@@ -150,7 +150,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
             {
               build =
                 (fun fa ->
-                  let sctx = Ctx.vis ctx (CubeOf.subcube fa newnfs) in
+                  let sctx = Ctx.vis ctx (`Cube x) (CubeOf.subcube fa newnfs) in
                   let sargs = CubeOf.subcube fa args in
                   readback_val sctx (apply_binder (BindCube.find cods fa) sargs));
             } )

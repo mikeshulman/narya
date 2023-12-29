@@ -45,7 +45,7 @@ module Code = struct
     | Applying_nonfunction_nontype : printable * printable -> t
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : t
-    | Invalid_match_index : t
+    | Invalid_match_index : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
     | No_such_constructor_in_match : Constant.t * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
@@ -100,7 +100,7 @@ module Code = struct
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy -> Error
-    | Invalid_match_index -> Error
+    | Invalid_match_index _ -> Error
     | Wrong_number_of_arguments_to_pattern _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
@@ -173,7 +173,7 @@ module Code = struct
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
     | Matching_datatype_has_degeneracy -> "E1201"
-    | Invalid_match_index -> "E1202"
+    | Invalid_match_index _ -> "E1202"
     (* - Match branches *)
     | Missing_constructor_in_match _ -> "E1300"
     | No_such_constructor_in_match _ -> "E1301"
@@ -261,8 +261,10 @@ module Code = struct
     | Unimplemented str -> textf "%s not yet implemented" str
     | Matching_datatype_has_degeneracy ->
         text "can't match on element of a datatype with degeneracy applied"
-    | Invalid_match_index ->
-        text "indices of a match variable must be distinct free variables without degeneracies"
+    | Invalid_match_index tm ->
+        textf
+          "@[<hv 0>match variable has invalid or duplicate index@;<1 2>%a@ match indices must be distinct free variables without degeneracies@]"
+          pp_printable tm
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
           textf "too many arguments to constructor %s in match pattern (%d extra)"

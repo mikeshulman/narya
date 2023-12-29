@@ -520,12 +520,13 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                           let is_fresh x =
                             match x.tm with
                             | Uninst (Neu (Var { level; deg }, Emp), _) ->
-                                let () = is_id_deg deg <|> Invalid_match_index in
-                                if Hashtbl.mem seen level then fatal Invalid_match_index
+                                let () = is_id_deg deg <|> Invalid_match_index (PVal (ctx, x.tm)) in
+                                if Hashtbl.mem seen level then
+                                  fatal (Invalid_match_index (PVal (ctx, x.tm)))
                                 else (
                                   Hashtbl.add seen level ();
                                   level)
-                            | _ -> fatal Invalid_match_index in
+                            | _ -> fatal (Invalid_match_index (PVal (ctx, x.tm))) in
                           let index_vars =
                             Bwv.map
                               (fun tm -> CubeOf.mmap { map = (fun _ [ x ] -> is_fresh x) } [ tm ])

@@ -24,11 +24,10 @@ let block_comment : unit t =
   let rec rest nesting state =
     let* c = charp (fun _ -> true) "any character" in
     match (state, c) with
-    | `None, '{' | `LBrace, '{' -> rest nesting `LBrace
-    | `None, '`' | `Backquote, '`' -> rest nesting `Backquote
-    | `Backquote, '}' -> if nesting <= 0 then return () else rest (nesting - 1) `None
+    | _, '{' -> rest nesting `LBrace
     | `LBrace, '`' -> rest (nesting + 1) `None
-    | _, '\n' | _, '\r' -> rest nesting `None
+    | _, '`' -> rest nesting `Backquote
+    | `Backquote, '}' -> if nesting <= 0 then return () else rest (nesting - 1) `None
     | _ -> rest nesting `None in
   let* _ = backtrack (string "{`") "\"{`\"" in
   rest 0 `None

@@ -52,6 +52,16 @@ let () =
 
 let () =
   assert (
+    lex "block comments {` nest `{` even after `} backquotes `} see?"
+    = [ Ident [ "block" ]; Ident [ "comments" ]; Ident [ "see" ]; Op "?" ])
+
+let () =
+  assert (
+    lex "block comments {`} can start with a lbrace `} see?"
+    = [ Ident [ "block" ]; Ident [ "comments" ]; Ident [ "see" ]; Op "?" ])
+
+let () =
+  assert (
     lex "block ` comments {` don't start in \n line comments"
     = [ Ident [ "block" ]; Ident [ "line" ]; Ident [ "comments" ] ])
 

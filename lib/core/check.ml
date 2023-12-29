@@ -196,7 +196,11 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                                     | Some () -> ()
                                     | None -> (
                                         match is_id_sface fa with
-                                        | Some () -> fatal Unequal_indices
+                                        | Some () ->
+                                            fatal
+                                              (Unequal_indices
+                                                 ( PNormal (ctx, { tm = t1; ty = t2.ty }),
+                                                   PNormal (ctx, t2) ))
                                         | None ->
                                             fatal
                                               (Anomaly "mismatching lower-dimensional constructors")

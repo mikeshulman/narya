@@ -453,6 +453,11 @@ let () =
             (Term
                (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
                   Interval.entire))
+      | PNormal (ctx, tm) ->
+          Print.pp_term ppf
+            (Term
+               (unparse (Ctx.names ctx) (Readback.readback_nf ctx tm) Interval.entire
+                  Interval.entire))
       | PUninst (ctx, tm) ->
           Print.pp_term ppf
             (Term

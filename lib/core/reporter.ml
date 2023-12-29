@@ -36,7 +36,7 @@ module Code = struct
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
     | No_such_field : Constant.t option * Field.t -> t
     | Missing_instantiation_constructor : Constr.t * Constr.t option -> t
-    | Unequal_indices : t
+    | Unequal_indices : printable * printable -> t
     | Unbound_variable : string -> t
     | Undefined_constant : Constant.t -> t
     | Nonsynthesizing : string -> t
@@ -85,7 +85,7 @@ module Code = struct
     | Checking_struct_at_nonrecord _ -> Error
     | No_such_constructor _ -> Error
     | Missing_instantiation_constructor _ -> Error
-    | Unequal_indices -> Error
+    | Unequal_indices _ -> Error
     | Unbound_variable _ -> Error
     | Undefined_constant _ -> Bug
     | No_such_field _ -> Error
@@ -165,7 +165,7 @@ module Code = struct
     | No_such_constructor _ -> "E1000"
     | Wrong_number_of_arguments_to_constructor _ -> "E1001"
     | Missing_instantiation_constructor _ -> "E1002"
-    | Unequal_indices -> "E1003"
+    | Unequal_indices _ -> "E1003"
     (* Matches *)
     (* - Match variable *)
     | Unnamed_variable_in_match -> "E1100"
@@ -246,8 +246,10 @@ module Code = struct
           (match got with
           | None -> "non-constructor"
           | Some c -> Constr.to_string c)
-    | Unequal_indices ->
-        text "indices of constructor application don't match those of datatype instance"
+    | Unequal_indices (t1, t2) ->
+        textf
+          "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
+          pp_printable t1 pp_printable t2
     | Unbound_variable c -> textf "unbound variable: %s" c
     | Undefined_constant c -> textf "undefined constant: %s" (name_of c)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos

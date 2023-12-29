@@ -2,12 +2,11 @@ open Dim
 open Scope
 open Hctx
 open Asai.Diagnostic
+open Format
 
 type printable = ..
 
-let print : (Format.formatter -> printable -> unit) ref =
-  ref (fun _ _ -> raise (Failure "print not set"))
-
+let print : (formatter -> printable -> unit) ref = ref (fun _ _ -> raise (Failure "print not set"))
 let pp_printable ppf pr = !print ppf pr
 
 module Code = struct
@@ -43,7 +42,7 @@ module Code = struct
     | Nonsynthesizing : string -> t
     | Low_dimensional_argument_of_degeneracy : (string * 'a D.t) -> t
     | Missing_argument_of_degeneracy : string -> t
-    | Applying_nonfunction_nontype : t
+    | Applying_nonfunction_nontype : printable * printable -> t
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : t
     | Invalid_match_index : t
@@ -97,7 +96,7 @@ module Code = struct
     | Instantiating_zero_dimensional_type -> Error
     | Invalid_variable_face _ -> Error
     | Not_enough_arguments_to_instantiation -> Error
-    | Applying_nonfunction_nontype -> Error
+    | Applying_nonfunction_nontype _ -> Error
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy -> Error
@@ -155,7 +154,7 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy _ -> "E0601"
     (* Function-types *)
     | Checking_lambda_at_nonfunction -> "E0700"
-    | Applying_nonfunction_nontype -> "E0701"
+    | Applying_nonfunction_nontype _ -> "E0701"
     (* Record fields *)
     | No_such_field _ -> "E0800"
     (* Structs *)
@@ -212,8 +211,8 @@ module Code = struct
     | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
     | Instantiating_zero_dimensional_type -> text "can't apply/instantiate a zero-dimensional type"
     | Unequal_synthesized_type (sty, cty) ->
-        textf "@[<hov 2>term synthesized@ %a@ but is being checked against@ %a@]" pp_printable sty
-          pp_printable cty
+        textf "@[<hv 0>term synthesized@;<1 2>%a@ but is being checked against@;<1 2>%a@]"
+          pp_printable sty pp_printable cty
     | Checking_struct_at_degenerated_record r ->
         textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
           (name_of r)
@@ -257,7 +256,10 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
         textf "argument of %s must be at least %d-dimensional" deg (to_int dim)
     | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
-    | Applying_nonfunction_nontype -> text "attempt to apply/instantiate a non-function non-type"
+    | Applying_nonfunction_nontype (tm, ty) ->
+        textf
+          "@[<hv 0>attempt to apply/instantiate@;<1 2>%a@ of type@;<1 2>%a@ which is not a function-type or universe@]"
+          pp_printable tm pp_printable ty
     | Unimplemented str -> textf "%s not yet implemented" str
     | Matching_datatype_has_degeneracy ->
         text "can't match on element of a datatype with degeneracy applied"

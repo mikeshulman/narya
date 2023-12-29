@@ -374,7 +374,7 @@ and synth_app :
               (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
               (Term.Inst (sfn, cargs), tyof_inst tyargs eargs, rest)))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
-  | _ -> fatal Applying_nonfunction_nontype
+  | _ -> fatal (Applying_nonfunction_nontype (PTerm (ctx, sfn), PUninst (ctx, fnty)))
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube. *)
 and check_tel :

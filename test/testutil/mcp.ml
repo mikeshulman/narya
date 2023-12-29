@@ -131,4 +131,5 @@ let run f =
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
+  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
   Builtins.run @@ fun () -> Scope.run f

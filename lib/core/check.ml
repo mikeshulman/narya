@@ -29,6 +29,27 @@ let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> string option lis
       (x :: names, body)
   | _ -> fatal (Not_enough_lambdas (N.to_int (N.plus_right ab)))
 
+let vars_of_list m names =
+  let module S = Monad.State (struct
+    type t = string option list
+  end) in
+  let open CubeOf.Monadic (S) in
+  let names, _ =
+    buildM m
+      {
+        build =
+          (fun _ ->
+            let open Monad.Ops (S) in
+            let* names = S.get in
+            match names with
+            | [] -> fatal (Anomaly "missing name")
+            | x :: xs ->
+                let* () = S.put xs in
+                return x);
+      }
+      names in
+  `Normal names
+
 (* Slurp up an entire application spine *)
 let spine : type a. a synth -> a synth * a check list =
  fun tm ->
@@ -69,26 +90,8 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                     let f = faces_out dom_faces in
                     let (Plus af) = N.plus f in
                     let names, body = lambdas af tm in
-                    let module S = Monad.State (struct
-                      type t = string option list
-                    end) in
-                    let open CubeOf.Monadic (S) in
-                    let names, _ =
-                      buildM m
-                        {
-                          build =
-                            (fun _ ->
-                              let open Monad.Ops (S) in
-                              let* names = S.get in
-                              match names with
-                              | [] -> fatal (Anomaly "missing name")
-                              | x :: xs ->
-                                  let* () = S.put xs in
-                                  return x);
-                        }
-                        names in
-                    ( `Normal names,
-                      check (Ctx.split ctx dom_faces af (`Normal names) newnfs) body output )
+                    let names = vars_of_list m names in
+                    (names, check (Ctx.split ctx dom_faces af names newnfs) body output)
                 | `Cube ->
                     (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
                     (`Cube x, check (Ctx.vis ctx (`Cube x) newnfs) body output) in
@@ -459,8 +462,9 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                   let (Faces dom_faces) = count_faces m in
                   let f = faces_out dom_faces in
                   let (Plus af) = N.plus f in
-                  let ctx = Ctx.split ctx dom_faces af (`Cube x) newnfs in
-                  let _names, body = lambdas af tm in
+                  let names, body = lambdas af tm in
+                  let names = vars_of_list m names in
+                  let ctx = Ctx.split ctx dom_faces af names newnfs in
                   check_tree ctx body output (apply prev_tm newargs) tbody
               | `Cube ->
                   let ctx = Ctx.vis ctx (`Cube x) newnfs in

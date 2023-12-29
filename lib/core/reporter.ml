@@ -22,7 +22,7 @@ module Code = struct
     | Not_enough_arguments_to_function : t
     | Not_enough_arguments_to_instantiation : t
     | Type_not_fully_instantiated : string -> t
-    | Instantiating_zero_dimensional_type : t
+    | Instantiating_zero_dimensional_type : printable -> t
     | Unequal_synthesized_type : printable * printable -> t
     | Checking_struct_at_degenerated_record : Constant.t -> t
     | Missing_field_in_struct : Field.t -> t
@@ -97,7 +97,7 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy _ -> Error
     | Missing_argument_of_degeneracy _ -> Error
     | Not_enough_arguments_to_function -> Error
-    | Instantiating_zero_dimensional_type -> Error
+    | Instantiating_zero_dimensional_type _ -> Error
     | Invalid_variable_face _ -> Error
     | Not_enough_arguments_to_instantiation -> Error
     | Applying_nonfunction_nontype _ -> Error
@@ -151,7 +151,7 @@ module Code = struct
     | Not_enough_arguments_to_function -> "E0502"
     | Not_enough_arguments_to_instantiation -> "E0503"
     | Type_not_fully_instantiated _ -> "E0504"
-    | Instantiating_zero_dimensional_type -> "E0505"
+    | Instantiating_zero_dimensional_type _ -> "E0505"
     | Invalid_variable_face _ -> "E0506"
     (* Degeneracies *)
     | Missing_argument_of_degeneracy _ -> "E0600"
@@ -213,7 +213,8 @@ module Code = struct
     | Not_enough_arguments_to_instantiation ->
         text "not enough arguments to instantiate a higher-dimensional type"
     | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
-    | Instantiating_zero_dimensional_type -> text "can't apply/instantiate a zero-dimensional type"
+    | Instantiating_zero_dimensional_type ty ->
+        textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printable ty
     | Unequal_synthesized_type (sty, cty) ->
         textf "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
           pp_printable sty pp_printable cty

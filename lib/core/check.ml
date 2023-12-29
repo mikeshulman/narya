@@ -334,7 +334,7 @@ and synth_app :
       | Neq -> fatal (Dimension_mismatch ("instantiating type", TubeOf.inst tyargs, n))
       | Eq -> (
           match D.compare_zero n with
-          | Zero -> fatal Instantiating_zero_dimensional_type
+          | Zero -> fatal (Instantiating_zero_dimensional_type (PTerm (ctx, sfn)))
           | Pos pn ->
               (* We take enough arguments to instatiate a type of dimension n by one. *)
               let (Is_suc (m, msuc)) = suc_pos pn in

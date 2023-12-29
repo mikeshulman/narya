@@ -24,7 +24,7 @@ module Code = struct
     | Not_enough_arguments_to_instantiation : t
     | Type_not_fully_instantiated : string -> t
     | Instantiating_zero_dimensional_type : t
-    | Unequal_synthesized_type : t
+    | Unequal_synthesized_type : printable * printable -> t
     | Checking_struct_at_degenerated_record : Constant.t -> t
     | Missing_field_in_struct : Field.t -> t
     | Invalid_field_in_struct : t
@@ -57,7 +57,7 @@ module Code = struct
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
-    | No_such_level : level -> t
+    | No_such_level : printable * level -> t
     | Constant_already_defined : Trie.path -> t
     | Invalid_constant_name : string -> t
     | Constant_assumed : Trie.path -> t
@@ -74,7 +74,7 @@ module Code = struct
     | Invalid_field _ -> Error
     | Not_enough_lambdas _ -> Error
     | Type_not_fully_instantiated _ -> Error
-    | Unequal_synthesized_type -> Error
+    | Unequal_synthesized_type _ -> Error
     | Checking_struct_at_degenerated_record _ -> Error
     | Missing_field_in_struct _ -> Error
     | Invalid_field_in_struct -> Error
@@ -139,7 +139,7 @@ module Code = struct
     | Undefined_constant _ -> "E0301"
     (* Bidirectional typechecking *)
     | Nonsynthesizing _ -> "E0400"
-    | Unequal_synthesized_type -> "E0401"
+    | Unequal_synthesized_type _ -> "E0401"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
@@ -207,8 +207,9 @@ module Code = struct
         text "not enough arguments to instantiate a higher-dimensional type"
     | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
     | Instantiating_zero_dimensional_type -> text "can't apply/instantiate a zero-dimensional type"
-    | Unequal_synthesized_type ->
-        text "term synthesized a different type than it's being checked against"
+    | Unequal_synthesized_type (sty, cty) ->
+        textf "@[<hov 2>term synthesized@ %a@ but is being checked against@ %a@]" pp_printable sty
+          pp_printable cty
     | Checking_struct_at_degenerated_record r ->
         textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
           (name_of r)
@@ -280,7 +281,9 @@ module Code = struct
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
-    | No_such_level i -> textf "no such level variable in context: (%d,%d)" (fst i) (snd i)
+    | No_such_level (names, i) ->
+        textf "@[<hov 2>no level variable@ (%d,%d)@ in context@ %a@]" (fst i) (snd i) pp_printable
+          names
     | Constant_already_defined parts ->
         textf "constant already defined: %s" (String.concat "." parts)
     | Invalid_constant_name str -> textf "invalid constant name: %s" str

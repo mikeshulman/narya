@@ -6,6 +6,7 @@ open Term
 open Value
 open Inst
 open Norm
+open Printable
 
 (* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
 
@@ -180,7 +181,7 @@ and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
   | Var { level; deg } -> (
       match Ctx.find_level ctx level with
       | Some x -> Act (Var x, deg)
-      | None -> fatal (No_such_level level))
+      | None -> fatal (No_such_level (PCtx ctx, level)))
   (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
   | Const { name; dim } -> Act (Const name, deg_zero dim)
 

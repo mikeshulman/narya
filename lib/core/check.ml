@@ -11,6 +11,7 @@ open Norm
 open Equal
 open Readback
 open Hctx
+open Printable
 
 let ( <|> ) : type a b. a option -> Code.t -> a =
  fun x e ->
@@ -44,7 +45,9 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
   match tm with
   | Synth stm ->
       let sval, sty = synth ctx stm in
-      let () = equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type in
+      let () =
+        equal_val (Ctx.length ctx) sty ty
+        <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty)) in
       sval
   | Lam (x, cube, body) -> (
       match uty with

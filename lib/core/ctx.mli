@@ -58,5 +58,6 @@ val ext_tel :
   ('ac, 'ec) t * ('n, 'bc) env * (('n, value) CubeOf.t, 'c) Bwv.t
 
 val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t
+val map : (normal -> normal) -> ('a, 'b) t -> ('a, 'b) t
 val names : ('a, 'b) t -> 'b Names.t
 val pp_ctx : Format.formatter -> ('a, 'b) t -> unit

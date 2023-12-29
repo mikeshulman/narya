@@ -645,8 +645,17 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                                             index_vars
                                             (Bwv.take_bwd (Bwv.length index_vals) ctyargs);
                                           (* Now we let-bind the match variable to the constructor applied to these new variables, the "index_vars" to the index values, and the inst_vars to the boundary constructor values. *)
-                                          let newctx =
+                                          let boundctx =
                                             Ctx.bind_some (Hashtbl.find_opt new_vals) newctx in
+                                          (* We have to substitute the values of these newly bound variables into all the other types and terms in the context, which we do by reading them back in the old context and then evaluating in the new one. *)
+                                          let thectx =
+                                            Ctx.map
+                                              (fun x ->
+                                                let e = Ctx.env boundctx in
+                                                let tm = eval e (readback_nf newctx x) in
+                                                let ty = eval e (readback_val newctx x.ty) in
+                                                { tm; ty })
+                                              boundctx in
                                           (* We readback the index and instantiation values into this context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)
                                           let _ =
                                             Reporter.try_with ~fatal:(fun d ->
@@ -657,14 +666,14 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                                             @@ fun () ->
                                             Hashtbl.iter
                                               (fun _ v ->
-                                                let _ = readback_nf newctx v in
+                                                let _ = readback_nf thectx v in
                                                 ())
                                               new_vals in
                                           (* We evaluate "rty" and "rprevtm" in this new context, to obtain the type at which the branch body will be checked, and the up-until-now term that will be in effect for that checking. *)
-                                          let newty = Ctx.eval newctx rty in
-                                          let new_prev_tm = Ctx.eval newctx rprevtm in
+                                          let newty = Ctx.eval thectx rty in
+                                          let new_prev_tm = Ctx.eval thectx rprevtm in
                                           (* Finally, recurse into the "body". *)
-                                          check_tree newctx body newty new_prev_tm br)
+                                          check_tree thectx body newty new_prev_tm br)
                                   | _ -> fatal (Anomaly "created datatype is not canonical?"))))
                         [ brs ];
                       (* Coverage check *)

@@ -276,6 +276,17 @@ let rec bind_some : type a e n. (level -> normal option) -> (a, e) t -> (a, e) t
   | Split (ctx, af, pf, name, xs) ->
       Split (bind_some binder ctx, af, pf, name, bind_some_cube binder xs)
 
+(* Apply a function to all the types and terms in a context. *)
+let rec map : type a b. (normal -> normal) -> (a, b) t -> (a, b) t =
+ fun f ctx ->
+  match ctx with
+  | Emp -> Emp
+  | Vis (ctx, name, xs) ->
+      Vis (map f ctx, name, CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
+  | Invis (ctx, xs) -> Invis (map f ctx, CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
+  | Split (ctx, af, pf, name, xs) ->
+      Split (map f ctx, af, pf, name, CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
+
 let rec names : type a b. (a, b) t -> b Names.t = function
   | Emp -> Names.empty
   | Vis (ctx, name, _) -> snd (Names.add (names ctx) name)

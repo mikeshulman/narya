@@ -8,7 +8,6 @@ open Notation
 open Builtins
 open Reporter
 module StringMap = Map.Make (String)
-open Hctx
 
 (* If the head of an application spine is a constant term, and that constant has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments, and the rest. *)
 let get_notation head args =
@@ -24,91 +23,6 @@ let get_notation head args =
 
 (* Put parentheses around a term. *)
 let parenthesize tm = outfix ~notn:parens ~inner:(Snoc (Emp, Term tm))
-
-(* Track the used variable names, to generate fresh ones for bound variables if needed. *)
-module Variables : sig
-  type 'n t
-
-  val empty : emp t
-
-  (* Look up an index variable to find a name for it. *)
-  val lookup : 'n t -> 'n index -> [ `Normal of string | `Cube of string * string ]
-
-  (* Add a new variable, generating a fresh version of its name if necessary to avoid conflicts. *)
-  val add_cube : 'b t -> string option -> string option * ('b, 'n) ext t
-
-  val add_normals :
-    'b t -> ('n, string option) CubeOf.t -> ('n, string option) CubeOf.t * ('b, 'n) ext t
-end = struct
-  (* We store a parametrized list like a context, and also a map that counts how many like-named variables already exist, so that we can create a new one with an unused number. *)
-  type 'b ctx =
-    | Emp : emp ctx
-    | Cube : 'b ctx * string option -> ('b, 'n) ext ctx
-    | Normals : 'b ctx * ('n, string option) CubeOf.t -> ('b, 'n) ext ctx
-
-  type 'b t = { ctx : 'b ctx; used : int StringMap.t }
-
-  let empty : emp t = { ctx = Emp; used = StringMap.empty }
-
-  let lookup : type n. n t -> n index -> [ `Normal of string | `Cube of string * string ] =
-   fun { ctx; used = _ } x ->
-    let rec lookup : type n. n ctx -> n index -> [ `Normal of string | `Cube of string * string ] =
-     fun ctx x ->
-      match (ctx, x) with
-      | Emp, _ -> .
-      | Cube (ctx, _), Pop x -> lookup ctx x
-      | Normals (ctx, _), Pop x -> lookup ctx x
-      | Cube (_, Some x), Top fa -> `Cube (x, string_of_sface fa)
-      | Cube (_, None), Top _ -> fatal (Anomaly "Reference to anonymous variable")
-      | Normals (_, xs), Top fa -> (
-          match CubeOf.find xs fa with
-          | Some x -> `Normal x
-          | None -> fatal (Anomaly "Reference to anonymous variable")) in
-    lookup ctx x
-
-  (* Make a variable name unique, adding the new one to the list of used variables and returning it. *)
-
-  let uniquify : string option -> int StringMap.t -> string option * int StringMap.t =
-   fun name used ->
-    match name with
-    | None -> (None, used)
-    | Some name -> (
-        match StringMap.find_opt name used with
-        | None -> (Some name, used |> StringMap.add name 0)
-        | Some n ->
-            (* The tentative new name is the original one suffixed by that number.  But the user might already have created a variable with that name, so we have to increment the number until we find an unused name.  *)
-            let rec until_unique k =
-              let namek = name ^ string_of_int k in
-              match StringMap.find_opt namek used with
-              | None -> (namek, k)
-              | Some _ -> until_unique (k + 1) in
-            let namen, n = until_unique n in
-            (Some namen, used |> StringMap.add namen 0 |> StringMap.add name (n + 1)))
-
-  (* Do the same thing to a whole cube of variable names. *)
-  let uniquifies :
-      type n.
-      (n, string option) CubeOf.t ->
-      int StringMap.t ->
-      (n, string option) CubeOf.t * int StringMap.t =
-   fun names used ->
-    let module M = Monad.State (struct
-      type t = int StringMap.t
-    end) in
-    let open CubeOf.Monadic (M) in
-    mmapM { map = (fun _ [ name ] used -> uniquify name used) } [ names ] used
-
-  let add_cube : 'b t -> string option -> string option * ('b, 'n) ext t =
-   fun { ctx; used } name ->
-    let name, used = uniquify name used in
-    (name, { ctx = Cube (ctx, name); used })
-
-  let add_normals :
-      'b t -> ('n, string option) CubeOf.t -> ('n, string option) CubeOf.t * ('b, 'n) ext t =
-   fun { ctx; used } names ->
-    let names, used = uniquifies names used in
-    (names, { ctx = Normals (ctx, names); used })
-end
 
 (* A "delayed" result of unparsing that needs only to know the tightness intervals to produce a result. *)
 type unparser = {
@@ -228,15 +142,11 @@ let rec get_spine :
 (* The primary unparsing function.  Given the variable names, unparse a term into given tightness intervals. *)
 let rec unparse :
     type n lt ls rt rs.
-    n Variables.t ->
-    n term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
-    (lt, ls, rt, rs) parse =
+    n Names.t -> n term -> (lt, ls) Interval.tt -> (rt, rs) Interval.tt -> (lt, ls, rt, rs) parse =
  fun vars tm li ri ->
   match tm with
   | Var x -> (
-      match Variables.lookup vars x with
+      match Names.lookup vars x with
       | `Normal x -> Ident [ x ]
       | `Cube (x, fa) -> if fa = "" then Ident [ x ] else Ident [ x; fa ])
   | Const c -> Ident [ Scope.name_of c ]
@@ -262,7 +172,7 @@ let rec unparse :
   | Let (x, tm, body) -> (
       let tm = unparse vars tm Interval.entire Interval.entire in
       (* If a let-in doesn't fit in its interval, we have to parenthesize it. *)
-      let x, vars = Variables.add_cube vars x in
+      let x, vars = Names.add_cube vars x in
       match Interval.contains ri No.minus_omega with
       | Some right_ok ->
           let body = unparse vars body Interval.entire ri in
@@ -306,13 +216,13 @@ let rec unparse :
           unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)
 
 (* The master unparsing function can easily be delayed. *)
-and make_unparser : type n. n Variables.t -> n term -> unparser =
+and make_unparser : type n. n Names.t -> n term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
 
 (* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
 and unparse_spine :
     type n lt ls rt rs.
-    n Variables.t ->
+    n Names.t ->
     [ `Term of n term
     | `Constr of Constr.t
     | `Field of n term * Field.t
@@ -377,7 +287,7 @@ and unparse_field :
 and unparse_lam :
     type m n lt ls rt rs.
     m variables ->
-    n Variables.t ->
+    n Names.t ->
     string option Bwd.t ->
     n term ->
     (lt, ls) Interval.tt ->
@@ -386,10 +296,10 @@ and unparse_lam :
  fun cube vars xs body li ri ->
   match (cube, body) with
   | `Cube _, Lam (_, `Cube x, inner) ->
-      let x, vars = Variables.add_cube vars x in
+      let x, vars = Names.add_cube vars x in
       unparse_lam cube vars (Snoc (xs, x)) inner li ri
   | `Normal _, Lam (_, `Normal x, inner) ->
-      let x, vars = Variables.add_normals vars x in
+      let x, vars = Names.add_normals vars x in
       unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
   | _ -> (
       (* We pick the appropriate notation to use for the abstraction, depending on the kind of variables.  Note that both are (un)parsed as binary operators whose left-hand argument is an "application spine" of variables, produced here by unparse_abs. *)
@@ -415,7 +325,7 @@ and unparse_lam :
 
 and unparse_act :
     type n lt ls rt rs a b.
-    n Variables.t ->
+    n Names.t ->
     unparser ->
     (a, b) deg ->
     (lt, ls) Interval.tt ->
@@ -444,7 +354,7 @@ and unparse_act :
 (* We group together all the 0-dimensional dependent pi-types in a notation, so we recursively descend through the term picking those up until we find a non-pi-type, a higher-dimensional pi-type, or a non-dependent pi-type, in which case we pass it off to unparse_pis_final. *)
 and unparse_pis :
     type n lt ls rt rs.
-    n Variables.t ->
+    n Names.t ->
     unparser Bwd.t ->
     n term ->
     (lt, ls) Interval.tt ->
@@ -455,7 +365,7 @@ and unparse_pis :
   | Pi (x, doms, cods) -> (
       match (x, compare (CubeOf.dim doms) D.zero) with
       | Some x, Eq ->
-          let x, newvars = Variables.add_normals vars (CubeOf.singleton (Some x)) in
+          let x, newvars = Names.add_normals vars (CubeOf.singleton (Some x)) in
           unparse_pis newvars
             (Snoc
                ( accum,
@@ -468,7 +378,7 @@ and unparse_pis :
                  } ))
             (CodCube.find_top cods) li ri
       | None, Eq ->
-          let _, newvars = Variables.add_normals vars (CubeOf.singleton None) in
+          let _, newvars = Names.add_normals vars (CubeOf.singleton None) in
           unparse_pis_final vars accum
             {
               unparse =
@@ -504,7 +414,7 @@ and unparse_arrow :
 
 and unparse_pis_final :
     type n lt ls rt rs.
-    n Variables.t ->
+    n Names.t ->
     unparser Bwd.t ->
     unparser ->
     (lt, ls) Interval.tt ->

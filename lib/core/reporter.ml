@@ -52,7 +52,7 @@ module Code = struct
     | Duplicate_constructor_in_match : Constr.t -> t
     | Index_variable_in_index_value : t
     | Matching_on_nondatatype : Constant.t option -> t
-    | Matching_on_let_bound_variable : t
+    | Matching_on_let_bound_variable : Trie.path -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
@@ -107,7 +107,7 @@ module Code = struct
     | Duplicate_constructor_in_match _ -> Error
     | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
-    | Matching_on_let_bound_variable -> Error
+    | Matching_on_let_bound_variable _ -> Error
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
@@ -170,7 +170,7 @@ module Code = struct
     (* Matches *)
     (* - Match variable *)
     | Unnamed_variable_in_match -> "E1100"
-    | Matching_on_let_bound_variable -> "E1101"
+    | Matching_on_let_bound_variable _ -> "E1101"
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
     | Matching_datatype_has_degeneracy -> "E1201"
@@ -280,7 +280,8 @@ module Code = struct
         match c with
         | Some c -> textf "can't match on variable belonging to non-datatype %s" (name_of c)
         | None -> text "can't match on variable belonging to non-datatype")
-    | Matching_on_let_bound_variable -> text "can't match on a let-bound variable"
+    | Matching_on_let_bound_variable name ->
+        textf "can't match on let-bound variable %s" (String.concat "." name)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n

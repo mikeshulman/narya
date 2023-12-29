@@ -147,10 +147,7 @@ let rec unparse :
     n Names.t -> n term -> (lt, ls) Interval.tt -> (rt, rs) Interval.tt -> (lt, ls, rt, rs) parse =
  fun vars tm li ri ->
   match tm with
-  | Var x -> (
-      match Names.lookup vars x with
-      | `Normal x -> Ident [ x ]
-      | `Cube (x, fa) -> if fa = "" then Ident [ x ] else Ident [ x; fa ])
+  | Var x -> Ident (Names.lookup vars x)
   | Const c -> Ident [ Scope.name_of c ]
   (* TODO: Can we associate notations to fields, like to constants? *)
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri

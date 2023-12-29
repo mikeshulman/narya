@@ -294,6 +294,9 @@ let rec names : type a b. (a, b) t -> b Names.t = function
   | Invis (ctx, _) -> snd (Names.add_cube (names ctx) None)
   | Split (ctx, _, _, name, _) -> snd (Names.add (names ctx) name)
 
+let lookup_name : type a b. (a, b) t -> b index -> string list =
+ fun ctx x -> Names.lookup (names ctx) x
+
 open Format
 
 let pp_lvlopt ppf = function

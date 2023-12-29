@@ -7,7 +7,7 @@ type 'n t
 val empty : emp t
 
 (* Look up an index variable to find a name for it. *)
-val lookup : 'n t -> 'n index -> [ `Normal of string | `Cube of string * string ]
+val lookup : 'n t -> 'n index -> string list
 
 (* Add a new variable, generating a fresh version of its name if necessary to avoid conflicts. *)
 val add_cube : 'b t -> string option -> string option * ('b, 'n) ext t

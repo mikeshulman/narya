@@ -13,18 +13,22 @@ type 'b t = { ctx : 'b ctx; used : int StringMap.t }
 
 let empty : emp t = { ctx = Emp; used = StringMap.empty }
 
-let lookup : type n. n t -> n index -> [ `Normal of string | `Cube of string * string ] =
+let cubevar x fa =
+  let fa = string_of_sface fa in
+  if fa = "" then [ x ] else [ x; fa ]
+
+let lookup : type n. n t -> n index -> string list =
  fun { ctx; used = _ } x ->
-  let rec lookup : type n. n ctx -> n index -> [ `Normal of string | `Cube of string * string ] =
+  let rec lookup : type n. n ctx -> n index -> string list =
    fun ctx x ->
     match (ctx, x) with
     | Emp, _ -> .
     | Snoc (ctx, _), Pop x -> lookup ctx x
-    | Snoc (_, `Cube (Some x)), Top fa -> `Cube (x, string_of_sface fa)
+    | Snoc (_, `Cube (Some x)), Top fa -> cubevar x fa
     | Snoc (_, `Cube None), Top _ -> fatal (Anomaly "Reference to anonymous variable")
     | Snoc (_, `Normal xs), Top fa -> (
         match CubeOf.find xs fa with
-        | Some x -> `Normal x
+        | Some x -> [ x ]
         | None -> fatal (Anomaly "Reference to anonymous variable")) in
   lookup ctx x
 

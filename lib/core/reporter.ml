@@ -62,6 +62,7 @@ module Code = struct
     | Invalid_constant_name : string -> t
     | Constant_assumed : Trie.path -> t
     | Constant_defined : Trie.path -> t
+    | Show : string * printable -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -115,6 +116,7 @@ module Code = struct
     | Invalid_constant_name _ -> Error
     | Constant_assumed _ -> Info
     | Constant_defined _ -> Info
+    | Show _ -> Info
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -185,6 +187,8 @@ module Code = struct
     (* Information *)
     | Constant_assumed _ -> "I0000"
     | Constant_defined _ -> "I0001"
+    (* Debugging *)
+    | Show _ -> "I9999"
 
   let default_text : t -> text = function
     | Parse_error -> text "parse error"
@@ -289,6 +293,7 @@ module Code = struct
     | Invalid_constant_name str -> textf "invalid constant name: %s" str
     | Constant_assumed name -> textf "Axiom %s assumed" (String.concat "." name)
     | Constant_defined name -> textf "Constant %s defined" (String.concat "." name)
+    | Show (str, x) -> textf "%s: %a" str pp_printable x
 end
 
 include Asai.StructuredReporter.Make (Code)

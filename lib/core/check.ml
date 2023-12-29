@@ -502,7 +502,9 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
           let (Fullinst (uvarty, inst_args)) = full_inst varty "check_tree (top)" in
           match uvarty with
           | Canonical (name, varty_args, ins) -> (
-              let () = is_id_perm (perm_of_ins ins) <|> Matching_datatype_has_degeneracy in
+              let () =
+                is_id_perm (perm_of_ins ins)
+                <|> Matching_datatype_has_degeneracy (PUninst (ctx, uvarty)) in
               let n = TubeOf.inst inst_args in
               (* That dimension n will now become the dimension of the match. *)
               match compare (cod_left_ins ins) n with

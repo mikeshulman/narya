@@ -442,15 +442,9 @@ and unparse_pi_dom :
              (infix ~notn:asc ~first:(Ident [ x ]) ~inner:Emp ~last:dom
                 ~left_ok:(No.le_refl No.minus_omega) ~right_ok:(No.le_refl No.minus_omega)) ))
 
-module Terminal = Asai.Tty.Make (Core.Reporter.Code)
-
 let () =
   Reporter.print :=
     fun ppf pr ->
-      Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-          Terminal.display d;
-          raise (Failure "Fatal error"))
-      @@ fun () ->
       match pr with
       | PTerm (ctx, tm) ->
           Print.pp_term ppf (Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
@@ -467,3 +461,6 @@ let () =
       | PNames vars -> Core.Names.pp_names ppf vars
       | PCtx ctx -> Core.Ctx.pp_ctx ppf ctx
       | _ -> raise (Failure "unknown printable")
+
+(* Hack to ensure the above code is executed. *)
+let install () = ()

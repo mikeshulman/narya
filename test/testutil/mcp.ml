@@ -40,10 +40,11 @@ let check (tm : string) (ty : Value.value) : Value.value =
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 
-let unsynth : ?code:Reporter.Code.t -> ?short:string -> string -> unit =
- fun ?code ?short tm ->
+let unsynth : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string -> unit =
+ fun ?print ?code ?short tm ->
   let (Ctx (ctx, names)) = !context in
   Reporter.try_with ~fatal:(fun d ->
+      if Option.is_some print then Terminal.display d;
       match code with
       | None -> (
           match short with
@@ -65,10 +66,12 @@ let unsynth : ?code:Reporter.Code.t -> ?short:string -> string -> unit =
       raise (Failure "Synthesis success")
   | _ -> Reporter.fatal (Nonsynthesizing "top-level unsynth")
 
-let uncheck : ?code:Reporter.Code.t -> ?short:string -> string -> Value.value -> unit =
- fun ?code ?short tm ty ->
+let uncheck : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string -> Value.value -> unit
+    =
+ fun ?print ?code ?short tm ty ->
   let (Ctx (ctx, names)) = !context in
   Reporter.try_with ~fatal:(fun d ->
+      if Option.is_some print then Terminal.display d;
       match code with
       | None -> (
           match short with
@@ -89,10 +92,11 @@ let uncheck : ?code:Reporter.Code.t -> ?short:string -> string -> Value.value ->
 
 (* Assert that a term doesn't parse *)
 
-let unparse (tm : string) : unit =
+let unparse : ?print:unit -> string -> unit =
+ fun ?print tm ->
   let (Ctx (_, names)) = !context in
   Reporter.try_with
-    ~fatal:(fun _ -> ())
+    ~fatal:(fun d -> if Option.is_some print then Terminal.display d)
     (fun () ->
       let _ = parse_term names tm in
       raise (Failure "Unexpected parse success"))

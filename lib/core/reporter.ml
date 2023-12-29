@@ -211,7 +211,7 @@ module Code = struct
     | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
     | Instantiating_zero_dimensional_type -> text "can't apply/instantiate a zero-dimensional type"
     | Unequal_synthesized_type (sty, cty) ->
-        textf "@[<hv 0>term synthesized@;<1 2>%a@ but is being checked against@;<1 2>%a@]"
+        textf "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
           pp_printable sty pp_printable cty
     | Checking_struct_at_degenerated_record r ->
         textf "can't check a struct against a record %s with a nonidentity degeneracy applied"

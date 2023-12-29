@@ -358,7 +358,8 @@ let () =
   set_print degen @@ fun ppf obs ->
   match obs with
   | [ tm; Term (Ident [ str ]) ] ->
-      fprintf ppf "%a%a%a" pp_term tm pp_tok (Op "^") pp_print_string str
+      fprintf ppf "%a%a%a%a%a" pp_term tm pp_tok (Op "^") pp_tok LBrace pp_print_string str pp_tok
+        RBrace
   | _ -> fatal (Anomaly "invalid notation arguments for degeneracy")
 
 (* ********************

@@ -20,8 +20,8 @@ cons. 4 (cons. 2 nil.)
 0
 refl b
 a ↦ refl a
-b^00
-b^000
+b^{00}
+b^{000}
 b
 m + n
 m + n * n

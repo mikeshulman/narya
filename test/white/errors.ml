@@ -73,12 +73,8 @@ let () =
   let () =
     unsynth ~print:() "s .third"
       ~code:(No_such_field (`Record Types.Sigma.sigma, Core.Field.intern "third")) in
-  let () =
-    uncheck ~print:() "zero." sigab
-      ~code:(No_such_constructor (Some Types.Sigma.sigma, Types.Nat.zero')) in
-  let () =
-    uncheck ~print:() "two." nat
-      ~code:(No_such_constructor (Some Types.Nat.nn, Core.Constr.intern "two")) in
+  let () = uncheck ~print:() "zero." sigab ~short:"E1000" in
+  let () = uncheck ~print:() "two." nat ~short:"E1000" in
   let () =
     uncheck ~print:() "zero. a" nat
       ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero', 1)) in

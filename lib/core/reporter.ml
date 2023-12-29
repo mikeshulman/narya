@@ -32,7 +32,9 @@ module Code = struct
     | Unnamed_variable_in_match : t
     | Checking_lambda_at_nonfunction : printable -> t
     | Checking_struct_at_nonrecord : printable -> t
-    | No_such_constructor : Constant.t option * Constr.t -> t
+    | No_such_constructor :
+        [ `Data of Constant.t | `Nondata of Constant.t | `Other of printable ] * Constr.t
+        -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
     | No_such_field : [ `Record of Constant.t | `Nonrecord of Constant.t | `Other ] * Field.t -> t
     | Missing_instantiation_constructor : Constr.t * Constr.t option -> t
@@ -229,9 +231,13 @@ module Code = struct
         textf "@[<hv 0>checking struct against non-record type@;<1 2>%a@]" pp_printable ty
     | No_such_constructor (d, c) -> (
         match d with
-        | Some d ->
-            textf "canonical type %s has no constructor named %s" (name_of d) (Constr.to_string c)
-        | None -> textf "non-datatype has no constructor named %s" (Constr.to_string c))
+        | `Data d ->
+            textf "datatype %s has no constructor named %s" (name_of d) (Constr.to_string c)
+        | `Nondata d ->
+            textf "non-datatype %s has no constructor named %s" (name_of d) (Constr.to_string c)
+        | `Other ty ->
+            textf "@[<hv 0>non-datatype@;<1 2>%a@ has no constructor named %s@]" pp_printable ty
+              (Constr.to_string c))
     | Wrong_number_of_arguments_to_constructor (c, n) ->
         if n > 0 then textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
         else

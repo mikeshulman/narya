@@ -120,10 +120,10 @@
  ￮ record type Σ has no field named third
 
  ￫ error[E1000]
- ￮ canonical type Σ has no constructor named zero
+ ￮ non-datatype Σ has no constructor named zero
 
  ￫ error[E1000]
- ￮ canonical type N has no constructor named two
+ ￮ datatype N has no constructor named two
 
  ￫ error[E1001]
  ￮ too many arguments to constructor zero (1 extra)

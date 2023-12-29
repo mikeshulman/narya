@@ -149,7 +149,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                       let (Constr { args = constr_arg_tys; indices = constr_indices }) =
                         match Constr.Map.find_opt constr constrs with
                         | Some c -> c
-                        | None -> fatal (No_such_constructor (Some name, constr)) in
+                        | None -> fatal (No_such_constructor (`Data name, constr)) in
                       (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
                       let env, ty_indices =
                         take_canonical_args (Emp dim) ty_params_indices params
@@ -209,9 +209,9 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                               [ t1s; t2s ])
                           [ constr_indices; ty_indices ] in
                       Constr (constr, dim, Bwd.of_list newargs))
-              | _ -> fatal (No_such_constructor (Some name, constr))))
+              | _ -> fatal (No_such_constructor (`Nondata name, constr))))
       (* TODO: If checking against a pi-type, we could automatically eta-expand. *)
-      | _ -> fatal (No_such_constructor (None, constr)))
+      | _ -> fatal (No_such_constructor (`Other (PUninst (ctx, uty)), constr)))
   | Match _ -> fatal (Unimplemented "Matching in terms (rather than case trees)")
 
 and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =

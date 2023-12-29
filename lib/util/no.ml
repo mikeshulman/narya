@@ -47,6 +47,20 @@ let rec le_refl : type a. a t -> (a, nonstrict, a) lt = function
 let plusomega_nlt : type a b. (plus_omega, strict, a) lt -> b = function
   | Fin_plusomega _ -> .
 
+let le_plusomega : type a. a t -> (a, nonstrict, plus_omega) lt = function
+  | Minus_omega -> Minusomega_plusomega
+  | Fin x -> Fin_plusomega x
+  | Plus_omega -> Plusomega_plusomega
+
+let minusomega_le : type a. a t -> (minus_omega, nonstrict, a) lt = function
+  | Minus_omega -> Minusomega_minusomega
+  | Fin x -> Minusomega_fin x
+  | Plus_omega -> Minusomega_plusomega
+
+let minusomega_lt_plusomega : (minus_omega, strict, plus_omega) lt = Minusomega_plusomega
+let zero_lt_plusomega : type s. (zero, s, plus_omega) lt = Fin_plusomega Zero
+let minusomega_lt_zero : type s. (minus_omega, s, zero) lt = Minusomega_fin Zero
+
 type (_, _, _) strict_trans =
   | Strict_any : (strict, 'a, 'b) strict_trans
   | Any_strict : ('a, strict, 'b) strict_trans

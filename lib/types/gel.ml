@@ -1,5 +1,6 @@
 open Dim
 open Core
+open Syntax
 open Term
 
 let ungel = Field.intern "ungel"

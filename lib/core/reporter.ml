@@ -2,6 +2,12 @@ open Dim
 open Scope
 open Hctx
 open Asai.Diagnostic
+open Format
+
+type printable = ..
+
+let print : (formatter -> printable -> unit) ref = ref (fun _ _ -> raise (Failure "print not set"))
+let pp_printable ppf pr = !print ppf pr
 
 module Code = struct
   type t =
@@ -16,45 +22,50 @@ module Code = struct
     | Not_enough_arguments_to_function : t
     | Not_enough_arguments_to_instantiation : t
     | Type_not_fully_instantiated : string -> t
-    | Instantiating_zero_dimensional_type : t
-    | Unequal_synthesized_type : t
+    | Instantiating_zero_dimensional_type : printable -> t
+    | Unequal_synthesized_type : printable * printable -> t
     | Checking_struct_at_degenerated_record : Constant.t -> t
     | Missing_field_in_struct : Field.t -> t
     | Invalid_field_in_struct : t
     | Duplicate_field_in_struct : Field.t -> t
     | Missing_constructor_in_match : Constr.t -> t
     | Unnamed_variable_in_match : t
-    | Checking_lambda_at_nonfunction : t
-    | Checking_struct_at_nonrecord : Constant.t option -> t
-    | No_such_constructor : Constant.t option * Constr.t -> t
+    | Checking_lambda_at_nonfunction : printable -> t
+    | Checking_struct_at_nonrecord : printable -> t
+    | No_such_constructor :
+        [ `Data of Constant.t | `Nondata of Constant.t | `Other of printable ] * Constr.t
+        -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
-    | No_such_field : Constant.t option * Field.t -> t
-    | Missing_instantiation_constructor : Constr.t * Constr.t option -> t
-    | Unequal_indices : t
+    | No_such_field : [ `Record of Constant.t | `Nonrecord of Constant.t | `Other ] * Field.t -> t
+    | Missing_instantiation_constructor :
+        Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
+        -> t
+    | Unequal_indices : printable * printable -> t
     | Unbound_variable : string -> t
     | Undefined_constant : Constant.t -> t
     | Nonsynthesizing : string -> t
     | Low_dimensional_argument_of_degeneracy : (string * 'a D.t) -> t
     | Missing_argument_of_degeneracy : string -> t
-    | Applying_nonfunction_nontype : t
+    | Applying_nonfunction_nontype : printable * printable -> t
     | Unimplemented : string -> t
-    | Matching_datatype_has_degeneracy : t
-    | Invalid_match_index : t
+    | Matching_datatype_has_degeneracy : printable -> t
+    | Invalid_match_index : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
     | No_such_constructor_in_match : Constant.t * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Index_variable_in_index_value : t
-    | Matching_on_nondatatype : Constant.t option -> t
-    | Matching_on_let_bound_variable : t
+    | Matching_on_nondatatype : [ `Canonical of Constant.t | `Other of printable ] -> t
+    | Matching_on_let_bound_variable : Trie.path -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
-    | No_such_level : level -> t
+    | No_such_level : printable * level -> t
     | Constant_already_defined : Trie.path -> t
     | Invalid_constant_name : string -> t
     | Constant_assumed : Trie.path -> t
     | Constant_defined : Trie.path -> t
+    | Show : string * printable -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -67,18 +78,18 @@ module Code = struct
     | Invalid_field _ -> Error
     | Not_enough_lambdas _ -> Error
     | Type_not_fully_instantiated _ -> Error
-    | Unequal_synthesized_type -> Error
+    | Unequal_synthesized_type _ -> Error
     | Checking_struct_at_degenerated_record _ -> Error
     | Missing_field_in_struct _ -> Error
     | Invalid_field_in_struct -> Error
     | Duplicate_field_in_struct _ -> Error
     | Missing_constructor_in_match _ -> Error
     | Unnamed_variable_in_match -> Error
-    | Checking_lambda_at_nonfunction -> Error
+    | Checking_lambda_at_nonfunction _ -> Error
     | Checking_struct_at_nonrecord _ -> Error
     | No_such_constructor _ -> Error
     | Missing_instantiation_constructor _ -> Error
-    | Unequal_indices -> Error
+    | Unequal_indices _ -> Error
     | Unbound_variable _ -> Error
     | Undefined_constant _ -> Bug
     | No_such_field _ -> Error
@@ -86,20 +97,20 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy _ -> Error
     | Missing_argument_of_degeneracy _ -> Error
     | Not_enough_arguments_to_function -> Error
-    | Instantiating_zero_dimensional_type -> Error
+    | Instantiating_zero_dimensional_type _ -> Error
     | Invalid_variable_face _ -> Error
     | Not_enough_arguments_to_instantiation -> Error
-    | Applying_nonfunction_nontype -> Error
+    | Applying_nonfunction_nontype _ -> Error
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
-    | Matching_datatype_has_degeneracy -> Error
-    | Invalid_match_index -> Error
+    | Matching_datatype_has_degeneracy _ -> Error
+    | Invalid_match_index _ -> Error
     | Wrong_number_of_arguments_to_pattern _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
     | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
-    | Matching_on_let_bound_variable -> Error
+    | Matching_on_let_bound_variable _ -> Error
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
@@ -108,6 +119,7 @@ module Code = struct
     | Invalid_constant_name _ -> Error
     | Constant_assumed _ -> Info
     | Constant_defined _ -> Info
+    | Show _ -> Info
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -132,21 +144,21 @@ module Code = struct
     | Undefined_constant _ -> "E0301"
     (* Bidirectional typechecking *)
     | Nonsynthesizing _ -> "E0400"
-    | Unequal_synthesized_type -> "E0401"
+    | Unequal_synthesized_type _ -> "E0401"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
     | Not_enough_arguments_to_function -> "E0502"
     | Not_enough_arguments_to_instantiation -> "E0503"
     | Type_not_fully_instantiated _ -> "E0504"
-    | Instantiating_zero_dimensional_type -> "E0505"
+    | Instantiating_zero_dimensional_type _ -> "E0505"
     | Invalid_variable_face _ -> "E0506"
     (* Degeneracies *)
     | Missing_argument_of_degeneracy _ -> "E0600"
     | Low_dimensional_argument_of_degeneracy _ -> "E0601"
     (* Function-types *)
-    | Checking_lambda_at_nonfunction -> "E0700"
-    | Applying_nonfunction_nontype -> "E0701"
+    | Checking_lambda_at_nonfunction _ -> "E0700"
+    | Applying_nonfunction_nontype _ -> "E0701"
     (* Record fields *)
     | No_such_field _ -> "E0800"
     (* Structs *)
@@ -157,15 +169,15 @@ module Code = struct
     | No_such_constructor _ -> "E1000"
     | Wrong_number_of_arguments_to_constructor _ -> "E1001"
     | Missing_instantiation_constructor _ -> "E1002"
-    | Unequal_indices -> "E1003"
+    | Unequal_indices _ -> "E1003"
     (* Matches *)
     (* - Match variable *)
     | Unnamed_variable_in_match -> "E1100"
-    | Matching_on_let_bound_variable -> "E1101"
+    | Matching_on_let_bound_variable _ -> "E1101"
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
-    | Matching_datatype_has_degeneracy -> "E1201"
-    | Invalid_match_index -> "E1202"
+    | Matching_datatype_has_degeneracy _ -> "E1201"
+    | Invalid_match_index _ -> "E1202"
     (* - Match branches *)
     | Missing_constructor_in_match _ -> "E1300"
     | No_such_constructor_in_match _ -> "E1301"
@@ -178,6 +190,8 @@ module Code = struct
     (* Information *)
     | Constant_assumed _ -> "I0000"
     | Constant_defined _ -> "I0001"
+    (* Debugging *)
+    | Show _ -> "I9999"
 
   let default_text : t -> text = function
     | Parse_error -> text "parse error"
@@ -199,9 +213,11 @@ module Code = struct
     | Not_enough_arguments_to_instantiation ->
         text "not enough arguments to instantiate a higher-dimensional type"
     | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
-    | Instantiating_zero_dimensional_type -> text "can't apply/instantiate a zero-dimensional type"
-    | Unequal_synthesized_type ->
-        text "term synthesized a different type than it's being checked against"
+    | Instantiating_zero_dimensional_type ty ->
+        textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printable ty
+    | Unequal_synthesized_type (sty, cty) ->
+        textf "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
+          pp_printable sty pp_printable cty
     | Checking_struct_at_degenerated_record r ->
         textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
           (name_of r)
@@ -212,45 +228,60 @@ module Code = struct
     | Missing_constructor_in_match c ->
         textf "missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "unnamed match variable"
-    | Checking_lambda_at_nonfunction -> text "checking abstraction against non-function type"
-    | Checking_struct_at_nonrecord c -> (
-        match c with
-        | Some c -> textf "checking struct against non-record type %s" (name_of c)
-        | None -> text "checking struct against non-record type")
+    | Checking_lambda_at_nonfunction ty ->
+        textf "@[<hv 0>checking abstraction against non-function type@;<1 2>%a@]" pp_printable ty
+    | Checking_struct_at_nonrecord ty ->
+        textf "@[<hv 0>checking struct against non-record type@;<1 2>%a@]" pp_printable ty
     | No_such_constructor (d, c) -> (
         match d with
-        | Some d ->
-            textf "canonical type %s has no constructor named %s" (name_of d) (Constr.to_string c)
-        | None -> textf "non-datatype has no constructor named %s" (Constr.to_string c))
+        | `Data d ->
+            textf "datatype %s has no constructor named %s" (name_of d) (Constr.to_string c)
+        | `Nondata d ->
+            textf "non-datatype %s has no constructor named %s" (name_of d) (Constr.to_string c)
+        | `Other ty ->
+            textf "@[<hv 0>non-datatype@;<1 2>%a@ has no constructor named %s@]" pp_printable ty
+              (Constr.to_string c))
     | Wrong_number_of_arguments_to_constructor (c, n) ->
         if n > 0 then textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
         else
           textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
     | No_such_field (d, f) -> (
         match d with
-        | Some d -> textf "record %s has no field named %s" (name_of d) (Field.to_string f)
-        | None -> textf "non-record type has no field named %s" (Field.to_string f))
+        | `Record d -> textf "record type %s has no field named %s" (name_of d) (Field.to_string f)
+        | `Nonrecord d ->
+            textf "non-record type %s has no field named %s" (name_of d) (Field.to_string f)
+        | `Other -> textf "term has no field named %s" (Field.to_string f))
     | Missing_instantiation_constructor (exp, got) ->
-        textf
-          "instantiation arguments of datatype must be matching constructors: expected %s got %s"
-          (Constr.to_string exp)
+        fun ppf ->
+          fprintf ppf
+            "@[<hv 0>instantiation arguments of datatype must be matching constructors:@ expected@;<1 2>%s@ but got@;<1 2>"
+            (Constr.to_string exp);
           (match got with
-          | None -> "non-constructor"
-          | Some c -> Constr.to_string c)
-    | Unequal_indices ->
-        text "indices of constructor application don't match those of datatype instance"
+          | `Nonconstr tm -> pp_printable ppf tm
+          | `Constr c -> pp_print_string ppf (Constr.to_string c));
+          pp_close_box ppf ()
+    | Unequal_indices (t1, t2) ->
+        textf
+          "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
+          pp_printable t1 pp_printable t2
     | Unbound_variable c -> textf "unbound variable: %s" c
     | Undefined_constant c -> textf "undefined constant: %s" (name_of c)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
         textf "argument of %s must be at least %d-dimensional" deg (to_int dim)
     | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
-    | Applying_nonfunction_nontype -> text "attempt to apply/instantiate a non-function non-type"
+    | Applying_nonfunction_nontype (tm, ty) ->
+        textf
+          "@[<hv 0>attempt to apply/instantiate@;<1 2>%a@ of type@;<1 2>%a@ which is not a function-type or universe@]"
+          pp_printable tm pp_printable ty
     | Unimplemented str -> textf "%s not yet implemented" str
-    | Matching_datatype_has_degeneracy ->
-        text "can't match on element of a datatype with degeneracy applied"
-    | Invalid_match_index ->
-        text "indices of a match variable must be distinct free variables without degeneracies"
+    | Matching_datatype_has_degeneracy ty ->
+        textf "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"
+          pp_printable ty
+    | Invalid_match_index tm ->
+        textf
+          "@[<hv 0>match variable has invalid or duplicate index@;<1 2>%a@ match indices must be distinct free variables without degeneracies@]"
+          pp_printable tm
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
           textf "too many arguments to constructor %s in match pattern (%d extra)"
@@ -266,19 +297,25 @@ module Code = struct
     | Index_variable_in_index_value -> text "free index variable occurs in inferred index value"
     | Matching_on_nondatatype c -> (
         match c with
-        | Some c -> textf "can't match on variable belonging to non-datatype %s" (name_of c)
-        | None -> text "can't match on variable belonging to non-datatype")
-    | Matching_on_let_bound_variable -> text "can't match on a let-bound variable"
+        | `Canonical c -> textf "can't match on variable belonging to non-datatype %s" (name_of c)
+        | `Other ty ->
+            textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]"
+              pp_printable ty)
+    | Matching_on_let_bound_variable name ->
+        textf "can't match on let-bound variable %s" (String.concat "." name)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
-    | No_such_level i -> textf "no such level variable in context: (%d,%d)" (fst i) (snd i)
+    | No_such_level (names, i) ->
+        textf "@[<hov 2>no level variable@ (%d,%d)@ in context@ %a@]" (fst i) (snd i) pp_printable
+          names
     | Constant_already_defined parts ->
         textf "constant already defined: %s" (String.concat "." parts)
     | Invalid_constant_name str -> textf "invalid constant name: %s" str
     | Constant_assumed name -> textf "Axiom %s assumed" (String.concat "." name)
     | Constant_defined name -> textf "Constant %s defined" (String.concat "." name)
+    | Show (str, x) -> textf "%s: %a" str pp_printable x
 end
 
 include Asai.StructuredReporter.Make (Code)

@@ -21,6 +21,11 @@ type (_, _, _) lt
 val le_refl : 'a t -> ('a, nonstrict, 'a) lt
 val plusomega_nlt : (plus_omega, strict, 'a) lt -> 'b
 val lt_to_le : ('a, strict, 'b) lt -> ('a, 's, 'b) lt
+val le_plusomega : 'a t -> ('a, nonstrict, plus_omega) lt
+val minusomega_le : 'a t -> (minus_omega, nonstrict, 'a) lt
+val minusomega_lt_plusomega : (minus_omega, strict, plus_omega) lt
+val zero_lt_plusomega : (zero, 's, plus_omega) lt
+val minusomega_lt_zero : (minus_omega, 's, zero) lt
 
 type (_, _, _) strict_trans =
   | Strict_any : (strict, 'a, 'b) strict_trans

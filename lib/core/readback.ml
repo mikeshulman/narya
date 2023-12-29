@@ -2,9 +2,12 @@ open Bwd
 open Util
 open Reporter
 open Dim
-open Value
+open Syntax
 open Term
+open Value
+open Inst
 open Norm
+open Printable
 
 (* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
 
@@ -19,12 +22,33 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
       let k = CubeOf.dim doms in
       match compare (TubeOf.inst tyargs) k with
       | Neq -> fatal (Dimension_mismatch ("reading back pi", TubeOf.inst tyargs, k))
-      | Eq ->
+      | Eq -> (
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
-          let newctx = Ctx.vis ctx newnfs in
+          let newctx = Ctx.vis ctx (`Cube x) newnfs in
           let output = tyof_app cods tyargs args in
-          (* TODO: Here we are always using the variable name associated to the *type*.  Can we use the one in the *term* instead, if the term is already an abstraction?  (Would then need to *store* variables in value abstractions, of course.) *)
-          Lam (k, `Cube x, readback_at newctx (apply tm args) output))
+          let body = readback_at newctx (apply tm args) output in
+          (* If the term is already an abstraction, we pick up its variable(s). *)
+          match tm with
+          | Lam (`Cube x, _) -> Lam (k, `Cube x, body)
+          | Lam (`Normal x, _) -> (
+              match compare (CubeOf.dim x) k with
+              | Eq -> Lam (k, `Normal x, body)
+              | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
+          (* Also if it's a partial application of a constant that's defined as a case tree, we pick up variables from the case tree. *)
+          | Uninst (Neu (Const { name; _ }, args), _) -> (
+              match Hashtbl.find_opt Global.constants name with
+              | Some (Defined tree) -> (
+                  match Case.nth_var !tree args with
+                  | Some (Any (`Cube x)) -> Lam (k, `Cube x, body)
+                  | Some (Any (`Normal x)) -> (
+                      match compare (CubeOf.dim x) k with
+                      | Eq -> Lam (k, `Normal x, body)
+                      | Neq ->
+                          fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
+                  (* Otherwise, we use the variable(s) from the type.  However, in this case we insist that the variable has a name, since we are (probably?) doing an eta-expansion and so the variable *will* appear in the body even if the pi-type is non-dependent. *)
+                  | None -> Lam (k, singleton_named_variables k x, body))
+              | _ -> Lam (k, singleton_named_variables k x, body))
+          | _ -> Lam (k, singleton_named_variables k x, body)))
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
@@ -128,14 +152,14 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
             {
               build =
                 (fun fa ->
-                  let sctx = Ctx.vis ctx (CubeOf.subcube fa newnfs) in
+                  let sctx = Ctx.vis ctx (`Cube x) (CubeOf.subcube fa newnfs) in
                   let sargs = CubeOf.subcube fa args in
                   readback_val sctx (apply_binder (BindCube.find cods fa) sargs));
             } )
   | Neu (fn, args) ->
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
-          Act
+          Term.Act
             ( (match arg with
               | Arg args ->
                   App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ args ])
@@ -146,7 +170,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
       Act
         ( Bwd.fold_left
             (fun fn arg ->
-              App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ arg ]))
+              Term.App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ arg ]))
             (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
             (Act (Const name, deg_zero (cod_left_ins ins)))
             args,
@@ -158,7 +182,7 @@ and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
   | Var { level; deg } -> (
       match Ctx.find_level ctx level with
       | Some x -> Act (Var x, deg)
-      | None -> fatal (No_such_level level))
+      | None -> fatal (No_such_level (PCtx ctx, level)))
   (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
   | Const { name; dim } -> Act (Const name, deg_zero dim)
 

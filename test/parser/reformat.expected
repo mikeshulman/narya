@@ -157,6 +157,14 @@ A → A → A
   (x : A) (x : A) (x : A)
   → C
 
+x + x + x + x + x + x + x + x
+  + x + x + x + x + x + x + x
+  + x + x + x
+
+x + x * x + x * x * x
+  + x * x * x * x + x
+  + x * x * x * x * x * x * x
+
 --------------------
 Noncompactly
 --------------------

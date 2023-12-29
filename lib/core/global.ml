@@ -2,6 +2,7 @@
 
 open Util
 open Reporter
+open Syntax
 open Term
 open Dim
 open Hctx
@@ -55,5 +56,5 @@ let find_record_field ?severity (name : Constant.t) (fld : Field.t) : field =
   | Record { eta = _; params; dim; fields } -> (
       match List.find_opt (fun (f, _) -> f = fld) fields with
       | Some (_, ty) -> Field { params; dim; ty }
-      | None -> fatal ?severity (No_such_field (Some name, fld)))
-  | _ -> fatal ?severity (No_such_field (None, fld))
+      | None -> fatal ?severity (No_such_field (`Record name, fld)))
+  | _ -> fatal ?severity (No_such_field (`Nonrecord name, fld))

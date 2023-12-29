@@ -11,6 +11,9 @@ let () =
   let idx01, _ = synth "Id X x0 x1" in
   let idx01', _ = synth "refl X x0 x1" in
   equal idx01 idx01';
+  (* We also have a standard degeneracy notation *)
+  let idx01'', _ = synth "X^{0} x0 x1" in
+  equal idx01 idx01'';
   let x2 = assume "x2" idx01 in
   let xtox, _ = synth "X → X" in
 
@@ -93,10 +96,16 @@ let () =
 
   equal reflg_reflf_x2 refl_gof_x2;
 
-  (* The two degenerate squares associated to an identification have unequal types. *)
+  (* The two degenerate squares associated to an identification have unequal types, although each has a standard degeneracy notation. *)
   let r1x2, r1x2ty = synth "refl x2" in
+  let r1x2', r1x2ty' = synth "x2^{01}" in
+  let () = equal r1x2ty r1x2ty' in
+  let () = equal r1x2 r1x2' in
 
   let r2x2, r2x2ty = synth "refl ((x ↦ refl x) : (x:X) → Id X x x) x0 x1 x2" in
+  let r2x2', r2x2ty' = synth "x2^{10}" in
+  let () = equal r2x2ty r2x2ty' in
+  let () = equal r2x2 r2x2' in
 
   unequal r1x2ty r2x2ty;
 
@@ -105,6 +114,10 @@ let () =
   equal sr1x2ty r2x2ty;
   equal sr1x2 r2x2;
 
+  let sr1x2', sr1x2ty' = synth "x2^{0}^{21}" in
+  equal sr1x2ty sr1x2ty';
+  equal sr1x2 sr1x2';
+
   (* But the two degenerate squares associated to a reflexivity *are* equal. *)
   let r1reflx0, r1reflx0ty = synth "refl (refl x0)" in
 
@@ -112,6 +125,10 @@ let () =
 
   equal r1reflx0ty r2reflx0ty;
   equal r1reflx0 r2reflx0;
+
+  let r1reflx0', r1reflx0ty' = synth "x0^{00}" in
+  equal r1reflx0ty r1reflx0ty';
+  equal r1reflx0 r1reflx0';
 
   (* Doubly-degenerate squares are also fixed by symmetry *)
   let sr1reflx0, _ = synth "sym (refl (refl x0))" in

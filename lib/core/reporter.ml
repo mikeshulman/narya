@@ -31,7 +31,7 @@ module Code = struct
     | Missing_constructor_in_match : Constr.t -> t
     | Unnamed_variable_in_match : t
     | Checking_lambda_at_nonfunction : t
-    | Checking_struct_at_nonrecord : Constant.t option -> t
+    | Checking_struct_at_nonrecord : printable -> t
     | No_such_constructor : Constant.t option * Constr.t -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
     | No_such_field : Constant.t option * Field.t -> t
@@ -224,10 +224,8 @@ module Code = struct
         textf "missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "unnamed match variable"
     | Checking_lambda_at_nonfunction -> text "checking abstraction against non-function type"
-    | Checking_struct_at_nonrecord c -> (
-        match c with
-        | Some c -> textf "checking struct against non-record type %s" (name_of c)
-        | None -> text "checking struct against non-record type")
+    | Checking_struct_at_nonrecord ty ->
+        textf "@[<hov 2>checking struct against non-record type@ %a@]" pp_printable ty
     | No_such_constructor (d, c) -> (
         match d with
         | Some d ->

@@ -111,7 +111,7 @@
  ￮ record field snd missing in struct
 
  ￫ error[E0900]
- ￮ checking struct against non-record type
+ ￮ checking struct against non-record type A
 
  ￫ error[E0900]
  ￮ checking struct against non-record type N

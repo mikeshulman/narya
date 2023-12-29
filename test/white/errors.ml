@@ -68,11 +68,9 @@ let () =
   let () =
     uncheck ~print:() "{ fst ≔ a }" sigab ~code:(Missing_field_in_struct (Core.Field.intern "snd"))
   in
-  let () = uncheck ~print:() "{ fst ≔ a }" aa ~code:(Checking_struct_at_nonrecord None) in
+  let () = uncheck ~print:() "{ fst ≔ a }" aa ~short:"E0900" in
   let nat = check "N" uu in
-  let () =
-    uncheck ~print:() "{ fst ≔ a }" nat ~code:(Checking_struct_at_nonrecord (Some Types.Nat.nn))
-  in
+  let () = uncheck ~print:() "{ fst ≔ a }" nat ~short:"E0900" in
   let s = assume "s" sigab in
   let () =
     unsynth ~print:() "s .third"

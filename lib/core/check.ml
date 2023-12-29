@@ -128,8 +128,8 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                   [ fields ]
                   (Field.Map.empty, Field.Map.empty) in
               Term.Struct ctms
-          | _ -> fatal (Checking_struct_at_nonrecord (Some name)))
-      | _ -> fatal (Checking_struct_at_nonrecord None))
+          | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
+      | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
   | Constr (constr, args) -> (
       match uty with
       | Canonical (name, ty_params_indices, ins) -> (
@@ -491,8 +491,8 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                       check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields)
                   | None -> fatal (Missing_field_in_struct fld))
                 [ fields ]
-          | _ -> fatal (Checking_struct_at_nonrecord (Some name)))
-      | _ -> fatal (Checking_struct_at_nonrecord None))
+          | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
+      | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
   | Match (ix, brs) -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
       match Ctx.lookup ctx ix with

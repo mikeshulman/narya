@@ -701,8 +701,8 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                             (fun c (Case.Branch (_, b)) ->
                               if !b = Case.Empty then fatal (Missing_constructor_in_match c))
                             tbranches)
-                  | _ -> fatal (Matching_on_nondatatype (Some name))))
-          | _ -> fatal (Matching_on_nondatatype None)))
+                  | _ -> fatal (Matching_on_nondatatype (`Canonical name))))
+          | _ -> fatal (Matching_on_nondatatype (`Other (PUninst (ctx, uvarty))))))
   | _ ->
       let leaf = check ctx tm ty in
       tree := Case.Leaf leaf

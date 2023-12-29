@@ -54,7 +54,7 @@ module Code = struct
     | No_such_constructor_in_match : Constant.t * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Index_variable_in_index_value : t
-    | Matching_on_nondatatype : Constant.t option -> t
+    | Matching_on_nondatatype : [ `Canonical of Constant.t | `Other of printable ] -> t
     | Matching_on_let_bound_variable : Trie.path -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
@@ -297,8 +297,10 @@ module Code = struct
     | Index_variable_in_index_value -> text "free index variable occurs in inferred index value"
     | Matching_on_nondatatype c -> (
         match c with
-        | Some c -> textf "can't match on variable belonging to non-datatype %s" (name_of c)
-        | None -> text "can't match on variable belonging to non-datatype")
+        | `Canonical c -> textf "can't match on variable belonging to non-datatype %s" (name_of c)
+        | `Other ty ->
+            textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]"
+              pp_printable ty)
     | Matching_on_let_bound_variable name ->
         textf "can't match on let-bound variable %s" (String.concat "." name)
     | Dimension_mismatch (op, a, b) ->

@@ -37,7 +37,9 @@ module Code = struct
         -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
     | No_such_field : [ `Record of Constant.t | `Nonrecord of Constant.t | `Other ] * Field.t -> t
-    | Missing_instantiation_constructor : Constr.t * Constr.t option -> t
+    | Missing_instantiation_constructor :
+        Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
+        -> t
     | Unequal_indices : printable * printable -> t
     | Unbound_variable : string -> t
     | Undefined_constant : Constant.t -> t
@@ -249,12 +251,14 @@ module Code = struct
             textf "non-record type %s has no field named %s" (name_of d) (Field.to_string f)
         | `Other -> textf "term has no field named %s" (Field.to_string f))
     | Missing_instantiation_constructor (exp, got) ->
-        textf
-          "instantiation arguments of datatype must be matching constructors: expected %s got %s"
-          (Constr.to_string exp)
+        fun ppf ->
+          fprintf ppf
+            "@[<hv 0>instantiation arguments of datatype must be matching constructors:@ expected@;<1 2>%s@ but got@;<1 2>"
+            (Constr.to_string exp);
           (match got with
-          | None -> "non-constructor"
-          | Some c -> Constr.to_string c)
+          | `Nonconstr tm -> pp_printable ppf tm
+          | `Constr c -> pp_print_string ppf (Constr.to_string c));
+          pp_close_box ppf ()
     | Unequal_indices (t1, t2) ->
         textf
           "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"

@@ -164,14 +164,17 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                                 | Constr (tmname, n, tmargs) ->
                                     if tmname <> constr then
                                       fatal
-                                        (Missing_instantiation_constructor (constr, Some tmname))
+                                        (Missing_instantiation_constructor (constr, `Constr tmname))
                                     else
                                       (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
                                       let _ = compare n (dom_tface fa) in
                                       Bwd.fold_right
                                         (fun a args -> CubeOf.find_top a :: args)
                                         tmargs []
-                                | _ -> fatal (Missing_instantiation_constructor (constr, None)));
+                                | _ ->
+                                    fatal
+                                      (Missing_instantiation_constructor
+                                         (constr, `Nonconstr (PNormal (ctx, tm)))));
                           }
                           [ tyargs ] in
                       (* Now we evaluate each argument *type* of the constructor at the parameters and the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)

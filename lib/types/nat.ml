@@ -7,6 +7,7 @@ open Reporter
 open Parser
 open Notation
 open Postprocess
+open Syntax
 open Term
 
 let nn = Constant.make ()

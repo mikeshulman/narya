@@ -1,6 +1,6 @@
 open Util
 open Core
-open Term
+open Syntax
 
 (* Poor man's parser, reusing the OCaml parser to make a vaguely usable syntax *)
 

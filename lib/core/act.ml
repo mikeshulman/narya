@@ -1,6 +1,6 @@
 open Reporter
 open Dim
-open Term
+open Syntax
 open Value
 open Bwd
 

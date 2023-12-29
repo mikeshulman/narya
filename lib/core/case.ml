@@ -1,5 +1,6 @@
 open Bwd
 open Dim
+open Syntax
 open Term
 open Hctx
 

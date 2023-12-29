@@ -2,6 +2,7 @@ open Bwd
 open Bwd.Infix
 open Dim
 open Core
+open Syntax
 open Term
 
 let nil = Constr.intern "nil"

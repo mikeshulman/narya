@@ -1,7 +1,7 @@
 open Util
 open Dim
 open Core
-open Term
+open Syntax
 open Raw
 open Bwd
 open Reporter

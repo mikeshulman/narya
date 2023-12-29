@@ -1,6 +1,6 @@
 open Util
 open Dim
-open Term
+open Syntax
 open Value
 open Hctx
 
@@ -34,7 +34,7 @@ val lookup_face :
 val lookup_invis : ('a, 'b) t -> 'b index -> level option * normal
 val find_level : ('a, 'b) t -> level -> 'b index option
 val env : ('a, 'b) t -> (D.zero, 'b) env
-val eval : ('a, 'b) t -> 'b term -> value
+val eval : ('a, 'b) t -> 'b Term.term -> value
 val ext : ('a, 'b) t -> string option -> value -> ('a N.suc, ('b, D.zero) ext) t
 val ext_let : ('a, 'b) t -> string option -> normal -> ('a N.suc, ('b, D.zero) ext) t
 

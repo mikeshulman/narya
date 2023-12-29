@@ -1,3 +1,4 @@
+open Syntax
 open Term
 open Value
 open Reporter

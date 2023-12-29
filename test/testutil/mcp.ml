@@ -1,7 +1,7 @@
 open Util
 open Core
 open Parser
-open Term
+open Syntax
 
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx

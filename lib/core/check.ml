@@ -1,6 +1,7 @@
 open Bwd
 open Util
 open Reporter
+open Syntax
 open Term
 open Value
 open Inst

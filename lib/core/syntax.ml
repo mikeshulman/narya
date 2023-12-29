@@ -110,7 +110,7 @@ end = struct
     | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
 end
 
-include Term
+open Term
 
 let pi x dom cod = Pi (x, CubeOf.singleton dom, CodCube.singleton cod)
 let app fn arg = App (fn, CubeOf.singleton arg)

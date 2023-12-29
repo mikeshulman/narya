@@ -2,6 +2,7 @@ open Util
 open Reporter
 open Dim
 open Act
+open Syntax
 open Term
 open Value
 open Inst

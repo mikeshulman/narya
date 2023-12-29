@@ -1,6 +1,6 @@
 open Util
 open Dim
-open Term
+open Syntax
 open Reporter
 module StringMap = Map.Make (String)
 open Hctx

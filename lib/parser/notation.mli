@@ -1,6 +1,6 @@
 open Bwd
 open Util
-open Core.Term.Raw
+open Core.Syntax.Raw
 module TokMap : module type of Map.Make (Token)
 
 type closed = Dummy_closed

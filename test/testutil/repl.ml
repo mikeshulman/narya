@@ -8,6 +8,7 @@ open Unparse
 open Print
 open Norm
 open Check
+open Syntax
 open Term
 open Value
 open Inst

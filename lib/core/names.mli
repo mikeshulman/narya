@@ -1,5 +1,5 @@
 open Dim
-open Term
+open Syntax
 open Hctx
 
 type 'n t

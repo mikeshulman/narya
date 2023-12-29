@@ -1,6 +1,6 @@
 open Dim
 open Core
-open Term
+open Syntax
 
 let inl = Constr.intern "inl"
 let inr = Constr.intern "inr"

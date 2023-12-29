@@ -1,7 +1,7 @@
 open Util
 open Reporter
 open Dim
-open Term
+open Syntax
 open Value
 open Inst
 open Norm

@@ -2,6 +2,7 @@
 
 open Util
 open Reporter
+open Syntax
 open Term
 open Dim
 open Hctx

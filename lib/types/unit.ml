@@ -1,6 +1,5 @@
 open Dim
 open Core
-open Term
 
 let install () =
   let top = Scope.define [ "⊤" ] in

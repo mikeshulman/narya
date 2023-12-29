@@ -2,6 +2,7 @@ open Bwd
 open Bwd.Infix
 open Dim
 open Core
+open Syntax
 open Term
 open Nat
 

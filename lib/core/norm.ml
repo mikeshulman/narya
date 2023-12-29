@@ -394,7 +394,7 @@ and field : value -> Field.t -> value =
       let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
       apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
-  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (None, fld))
+  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
 and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
@@ -441,7 +441,7 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
                      { tm; ty });
                }
                [ TubeOf.middle (D.zero_plus m) mn tyargs ]))
-  | _ -> fatal ?severity (No_such_field (None, fld))
+  | _ -> fatal ?severity (No_such_field (`Other, fld))
 
 and eval_binder :
     type m n mn b. (m, b) env -> (m, n, mn) D.plus -> (b, n) ext term -> mn Value.binder =

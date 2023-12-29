@@ -117,7 +117,7 @@
  ￮ checking struct against non-record type N
 
  ￫ error[E0800]
- ￮ record Σ has no field named third
+ ￮ record type Σ has no field named third
 
  ￫ error[E1000]
  ￮ canonical type Σ has no constructor named zero

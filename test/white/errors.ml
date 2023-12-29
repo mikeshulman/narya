@@ -74,7 +74,7 @@ let () =
   let s = assume "s" sigab in
   let () =
     unsynth ~print:() "s .third"
-      ~code:(No_such_field (Some Types.Sigma.sigma, Core.Field.intern "third")) in
+      ~code:(No_such_field (`Record Types.Sigma.sigma, Core.Field.intern "third")) in
   let () =
     uncheck ~print:() "zero." sigab
       ~code:(No_such_constructor (Some Types.Sigma.sigma, Types.Nat.zero')) in

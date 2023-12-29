@@ -34,7 +34,7 @@ module Code = struct
     | Checking_struct_at_nonrecord : printable -> t
     | No_such_constructor : Constant.t option * Constr.t -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
-    | No_such_field : Constant.t option * Field.t -> t
+    | No_such_field : [ `Record of Constant.t | `Nonrecord of Constant.t | `Other ] * Field.t -> t
     | Missing_instantiation_constructor : Constr.t * Constr.t option -> t
     | Unequal_indices : printable * printable -> t
     | Unbound_variable : string -> t
@@ -237,8 +237,10 @@ module Code = struct
           textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
     | No_such_field (d, f) -> (
         match d with
-        | Some d -> textf "record %s has no field named %s" (name_of d) (Field.to_string f)
-        | None -> textf "non-record type has no field named %s" (Field.to_string f))
+        | `Record d -> textf "record type %s has no field named %s" (name_of d) (Field.to_string f)
+        | `Nonrecord d ->
+            textf "non-record type %s has no field named %s" (name_of d) (Field.to_string f)
+        | `Other -> textf "term has no field named %s" (Field.to_string f))
     | Missing_instantiation_constructor (exp, got) ->
         textf
           "instantiation arguments of datatype must be matching constructors: expected %s got %s"

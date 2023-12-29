@@ -97,7 +97,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                     (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
                     (`Cube x, check (Ctx.vis ctx (`Cube x) newnfs) body output) in
               Term.Lam (m, xs, cbody))
-      | _ -> fatal Checking_lambda_at_nonfunction)
+      | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
   | Struct tms -> (
       match uty with
       | Canonical (name, _, ins) -> (
@@ -474,7 +474,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
               | `Cube ->
                   let ctx = Ctx.vis ctx (`Cube x) newnfs in
                   check_tree ctx body output (apply prev_tm newargs) tbody))
-      | _ -> fatal Checking_lambda_at_nonfunction)
+      | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
   | Struct tms -> (
       match uty with
       | Canonical (name, _, ins) -> (

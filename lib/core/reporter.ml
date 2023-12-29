@@ -30,7 +30,7 @@ module Code = struct
     | Duplicate_field_in_struct : Field.t -> t
     | Missing_constructor_in_match : Constr.t -> t
     | Unnamed_variable_in_match : t
-    | Checking_lambda_at_nonfunction : t
+    | Checking_lambda_at_nonfunction : printable -> t
     | Checking_struct_at_nonrecord : printable -> t
     | No_such_constructor : Constant.t option * Constr.t -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
@@ -81,7 +81,7 @@ module Code = struct
     | Duplicate_field_in_struct _ -> Error
     | Missing_constructor_in_match _ -> Error
     | Unnamed_variable_in_match -> Error
-    | Checking_lambda_at_nonfunction -> Error
+    | Checking_lambda_at_nonfunction _ -> Error
     | Checking_struct_at_nonrecord _ -> Error
     | No_such_constructor _ -> Error
     | Missing_instantiation_constructor _ -> Error
@@ -153,7 +153,7 @@ module Code = struct
     | Missing_argument_of_degeneracy _ -> "E0600"
     | Low_dimensional_argument_of_degeneracy _ -> "E0601"
     (* Function-types *)
-    | Checking_lambda_at_nonfunction -> "E0700"
+    | Checking_lambda_at_nonfunction _ -> "E0700"
     | Applying_nonfunction_nontype _ -> "E0701"
     (* Record fields *)
     | No_such_field _ -> "E0800"
@@ -223,9 +223,10 @@ module Code = struct
     | Missing_constructor_in_match c ->
         textf "missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "unnamed match variable"
-    | Checking_lambda_at_nonfunction -> text "checking abstraction against non-function type"
+    | Checking_lambda_at_nonfunction ty ->
+        textf "@[<hv 0>checking abstraction against non-function type@;<1 2>%a@]" pp_printable ty
     | Checking_struct_at_nonrecord ty ->
-        textf "@[<hov 2>checking struct against non-record type@ %a@]" pp_printable ty
+        textf "@[<hv 0>checking struct against non-record type@;<1 2>%a@]" pp_printable ty
     | No_such_constructor (d, c) -> (
         match d with
         | Some d ->

@@ -20,9 +20,7 @@ let () =
   let () = uncheck ~print:() "x ↦ x" idff ~code:(Not_enough_lambdas 2) in
   let () = uncheck ~print:() "x y ↦ x" idff ~code:(Not_enough_lambdas 1) in
   let _ = check "x0 x1 x2 ↦ refl f x0 x1 x2" idff in
-  let () =
-    uncheck ~print:() "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~code:Checking_lambda_at_nonfunction
-  in
+  let () = uncheck ~print:() "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~short:"E0700" in
   let () = unsynth ~print:() "refl (x ↦ x)" ~code:(Nonsynthesizing "argument of degeneracy") in
   let () = unsynth ~print:() "refl" ~code:(Missing_argument_of_degeneracy "refl") in
   let () = unsynth ~print:() "sym f" ~short:"E0601" in

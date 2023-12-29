@@ -17,7 +17,7 @@
  ￮ not enough non-cube variables for higher-dimensional abstraction: need 1 more
 
  ￫ error[E0700]
- ￮ checking abstraction against non-function type
+ ￮ checking abstraction against non-function type refl A
 
  ￫ error[E0400]
  ￮ non-synthesizing term in synthesizing position (argument of degeneracy)

@@ -16,6 +16,33 @@ let pp_var : formatter -> string option -> unit =
 let pp_constr (ppf : formatter) (c : string) : unit = fprintf ppf "%a." pp_utf_8 c
 let pp_field (ppf : formatter) (c : string) : unit = fprintf ppf ".%a" pp_utf_8 c
 
+(* Print the comments and newlines following a token. *)
+let pp_ws (ppf : formatter) (ws : Whitespace.t list) : unit =
+  let pp_newlines ppf n =
+    for _ = 1 to n do
+      pp_force_newline ppf ()
+    done in
+  let rec pp (ppf : formatter) (ws : Whitespace.t list) : unit =
+    match ws with
+    | [] -> fatal (Anomaly "empty list in pp_ws")
+    | [ `Newlines n ] -> fprintf ppf "@]%a" pp_newlines n
+    | [ `Line str ] -> fprintf ppf "`%s@]@\n" str
+    | [ `Block str ] -> fprintf ppf "{`%s`}@]@\n" str
+    | `Newlines n :: ws ->
+        for _ = 1 to n do
+          pp_print_cut ppf ()
+        done;
+        pp ppf ws
+    | `Line str :: ws -> fprintf ppf "`%s@,%a" str pp ws
+    | `Block str :: (`Line _ :: _ as ws) | `Block str :: (`Block _ :: _ as ws) ->
+        fprintf ppf "{`%s`}@ %a" str pp ws
+    | `Block str :: (`Newlines _ :: _ as ws) -> fprintf ppf "{`%s`}%a" str pp ws in
+  match ws with
+  | [] -> ()
+  | [ `Newlines n ] -> if n >= 2 then pp_newlines ppf n else ()
+  | `Newlines n :: ws -> fprintf ppf "%a@[<v 0>%a" pp_newlines n pp ws
+  | _ -> fprintf ppf "@ @[<v 0>%a" pp ws
+
 (* Print a parse tree. *)
 let rec pp_term (ppf : formatter) (wtr : observation) : unit =
   let (Term tr) = wtr in
@@ -28,10 +55,18 @@ let rec pp_term (ppf : formatter) (wtr : observation) : unit =
       match tr with
       | Notn n -> pp_notn ppf (notn n) (args n)
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
-      | Placeholder _w -> pp_tok ppf Underscore
-      | Ident (x, _w) -> pp_utf_8 ppf (String.concat "." x)
-      | Constr (c, _w) -> pp_constr ppf c
-      | Field (f, _w) -> pp_field ppf f)
+      | Placeholder w ->
+          pp_tok ppf Underscore;
+          pp_ws ppf w
+      | Ident (x, w) ->
+          pp_utf_8 ppf (String.concat "." x);
+          pp_ws ppf w
+      | Constr (c, w) ->
+          pp_constr ppf c;
+          pp_ws ppf w
+      | Field (f, w) ->
+          pp_field ppf f;
+          pp_ws ppf w)
 
 and pp_notn_case :
     type left tight right.
@@ -50,5 +85,8 @@ and pp_notn :
 
 and pp_spine (ppf : formatter) (tr : observation) : unit =
   match tr with
-  | Term (App { fn; arg; _ }) -> fprintf ppf "%a@ %a" pp_spine (Term fn) pp_term (Term arg)
+  | Term (App { fn; arg; _ }) ->
+      pp_spine ppf (Term fn);
+      pp_print_space ppf ();
+      pp_term ppf (Term arg)
   | _ -> pp_term ppf tr

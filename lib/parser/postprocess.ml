@@ -10,9 +10,9 @@ open Monad.Ops (Monad.Maybe)
 
 (* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option = function
-  | Ident [ x ] -> Some x
-  | Ident xs -> fatal (Invalid_variable xs)
-  | Placeholder -> None
+  | Ident ([ x ], _) -> Some x
+  | Ident (xs, _) -> fatal (Invalid_variable xs)
+  | Placeholder _ -> None
   | _ -> fatal Parse_error
 
 (* At present we only know how to postprocess natural number numerals. *)
@@ -34,7 +34,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
   | App { fn; arg; _ } -> (
       match
         match fn with
-        | Ident [ str ] -> process_deg ctx str arg
+        | Ident ([ str ], _) -> process_deg ctx str arg
         | _ -> None
       with
       | Some tm -> tm
@@ -43,14 +43,14 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
           match fn with
           | Synth fn -> (
               match arg with
-              | Field fld -> Synth (Field (fn, Field.intern fld))
+              | Field (fld, _) -> Synth (Field (fn, Field.intern fld))
               | _ -> Synth (Raw.App (fn, process ctx arg)))
           | Constr (head, args) ->
               let arg = process ctx arg in
               Raw.Constr (head, Snoc (args, arg))
           | _ -> fatal (Nonsynthesizing "application head")))
-  | Placeholder -> fatal (Unimplemented "unification arguments")
-  | Ident parts -> (
+  | Placeholder _ -> fatal (Unimplemented "unification arguments")
+  | Ident (parts, _) -> (
       let open Monad.Ops (Monad.Maybe) in
       match
         match parts with
@@ -72,7 +72,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
                 | [ str ] when Option.is_some (deg_of_name str) ->
                     fatal (Missing_argument_of_degeneracy str)
                 | _ -> fatal (Unbound_variable (String.concat "." parts))))))
-  | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
+  | Constr (ident, _) -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
 
 and process_deg :

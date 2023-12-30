@@ -1,5 +1,6 @@
 open Util
 open Bwd
+open Bwd.Infix
 open Core
 open Reporter
 open Fmlib_parse
@@ -33,60 +34,63 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       type tight strict.
       (tight, strict) tree ->
       observation Bwd.t ->
-      (observation Bwd.t * (tight, strict) notation_in_interval) t =
-   fun t obs ->
+      Whitespace.t list Bwd.t ->
+      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+   fun t obs ws ->
     match t with
     | Inner ({ term; _ } as br) -> (
         match term with
         | Some e -> (
-            inner_nonterm br obs
+            inner_nonterm br obs ws
             </>
             (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
             let* subterm = lclosed Interval.entire e in
             match subterm.get Interval.entire with
-            | Ok tm -> tree_op e (Snoc (obs, Term tm))
+            | Ok tm -> tree_op e (Snoc (obs, Term tm)) ws
             | Error n -> fatal (Anomaly (Printf.sprintf "Interior term failed on notation %s" n)))
-        | None -> inner_nonterm br obs)
-    | Done_open (lt, n) -> return (obs, Open_in_interval (lt, n))
-    | Done_closed n -> return (obs, Closed_in_interval n)
-    | Lazy (lazy t) -> tree t obs
+        | None -> inner_nonterm br obs ws)
+    | Done_open (lt, n) -> return (obs, ws, Open_in_interval (lt, n))
+    | Done_closed n -> return (obs, ws, Closed_in_interval n)
+    | Lazy (lazy t) -> tree t obs ws
 
   (* Parse an inner branch of a tree except for the possibility of a term. *)
   and inner_nonterm :
       type tight strict.
       (tight, strict) branch ->
       observation Bwd.t ->
-      (observation Bwd.t * (tight, strict) notation_in_interval) t =
-   fun { ops; field; term = _ } obs ->
-    let* br, x =
-      step (fun state _ (tok, _) ->
+      Whitespace.t list Bwd.t ->
+      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+   fun { ops; field; term = _ } obs ws ->
+    let* br, w, x =
+      step (fun state _ (tok, w) ->
           match TokMap.find_opt tok ops with
-          | Some br -> Some ((br, ([] : observation list)), state)
+          | Some br -> Some ((br, [ w ], ([] : observation list)), state)
           | None -> (
               (* Field names have already been validated by the lexer. *)
               match (field, tok) with
-              | Some br, Field x -> Some ((br, [ Term (Field x) ]), state)
+              | Some br, Field x -> Some ((br, [], [ Term (Field (x, w)) ]), state)
               | _ -> None)) in
-    tree br (Bwd.append obs x)
+    tree br (Bwd.append obs x) (Bwd.append ws w)
 
   and tree_op :
       type tight strict.
       (tight, strict) tree TokMap.t ->
       observation Bwd.t ->
-      (observation Bwd.t * (tight, strict) notation_in_interval) t =
-   fun ops obs ->
-    let* optree =
-      step (fun state _ (tok, _) ->
+      Whitespace.t list Bwd.t ->
+      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+   fun ops obs ws ->
+    let* optree, w =
+      step (fun state _ (tok, w) ->
           match TokMap.find_opt tok ops with
-          | Some br -> Some (br, state)
+          | Some br -> Some ((br, w), state)
           | None -> None) in
-    tree optree obs
+    tree optree obs (ws <: w)
 
   and entry :
       type tight strict.
-      (tight, strict) tree TokMap.t -> (observation Bwd.t * (tight, strict) notation_in_interval) t
-      =
-   fun e -> tree_op e Emp
+      (tight, strict) tree TokMap.t ->
+      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+   fun e -> tree_op e Emp Emp
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
   and lclosed :
@@ -94,12 +98,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (lt, ls) Interval.tt -> (rt, rs) tree TokMap.t -> (lt, ls) right_wrapped_parse t =
    fun tight stop ->
     let* res =
-      (let* inner, notn = entry (State.left_closeds ()) in
+      (let* inner, ws, notn = entry (State.left_closeds ()) in
+       let ws = Bwd.to_list ws in
        match notn with
        | Open_in_interval (lt, _) -> No.plusomega_nlt lt
        | Closed_in_interval notn -> (
            match right notn with
-           | Closed -> return { get = (fun _ -> Ok (outfix ~notn ~inner)) }
+           | Closed -> return { get = (fun _ -> Ok (outfix ~notn ~ws ~inner)) }
            | Open _ ->
                (* If the parse ended right-open, we call "lclosed" again, with the right-side upper tightness interval of the just-parsed notation, to pick up the open argument.  Since the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
                let* last_arg = lclosed (interval_right notn) stop in
@@ -112,16 +117,16 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                        | None -> Error (name notn)
                        | Some right_ok -> (
                            match last_arg.get ivl with
-                           | Ok last -> Ok (prefix ~notn ~inner ~last ~right_ok)
+                           | Ok last -> Ok (prefix ~notn ~ws ~inner ~last ~right_ok)
                            | Error e -> Error e));
                  }))
       (* Otherwise, we parse a single ident or constructor. *)
-      </> step (fun state _ (tok, _) ->
+      </> step (fun state _ (tok, w) ->
               match tok with
-              | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
+              | Ident x -> Some ({ get = (fun _ -> Ok (Ident (x, w))) }, state)
               (* Constructor names have already been validated by the lexer. *)
-              | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
-              | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
+              | Constr x -> Some ({ get = (fun _ -> Ok (Constr (x, w))) }, state)
+              | Underscore -> Some ({ get = (fun _ -> Ok (Placeholder w)) }, state)
               | _ -> None) in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
     lopen tight stop res
@@ -150,7 +155,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                  return (first_arg, state)))
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
         </> (let* res =
-               (let* rng, (inner, notn) = located (entry (State.tighters tight)) in
+               (let* rng, (inner, ws, notn) = located (entry (State.tighters tight)) in
+                let ws = Bwd.to_list ws in
                 match notn with
                 | Open_in_interval (left_ok, notn) -> (
                     match first_arg.get (interval_left notn) with
@@ -158,7 +164,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                     | Ok first -> (
                         match right notn with
                         | Closed ->
-                            return { get = (fun _ -> Ok (postfix ~notn ~first ~inner ~left_ok)) }
+                            return
+                              { get = (fun _ -> Ok (postfix ~notn ~ws ~first ~inner ~left_ok)) }
                         | Open _ ->
                             let* last_arg = lclosed (interval_right notn) stop in
                             return
@@ -169,7 +176,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                       (last_arg.get ivl, Interval.contains ivl (tightness notn))
                                     with
                                     | Ok last, Some right_ok ->
-                                        Ok (infix ~notn ~first ~inner ~last ~left_ok ~right_ok)
+                                        Ok (infix ~notn ~ws ~first ~inner ~last ~left_ok ~right_ok)
                                     | Error e, _ -> Error e
                                     | _, None -> Error (name notn));
                               }))
@@ -190,7 +197,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                           (App
                                              {
                                                fn;
-                                               arg = outfix ~notn ~inner;
+                                               arg = outfix ~notn ~ws ~inner;
                                                left_ok = nontrivial;
                                                right_ok;
                                              }));
@@ -211,7 +218,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                           (App
                                              {
                                                fn;
-                                               arg = prefix ~notn ~inner ~last ~right_ok;
+                                               arg = prefix ~notn ~ws ~inner ~last ~right_ok;
                                                left_ok = nontrivial;
                                                right_ok = right_app;
                                              })
@@ -222,13 +229,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                (* If this fails, we can parse a single variable name, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
                </> let* rng, arg =
                      located
-                       (step (fun state _ (tok, _) ->
+                       (step (fun state _ (tok, w) ->
                             match tok with
-                            | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
+                            | Ident x -> Some ({ get = (fun _ -> Ok (Ident (x, w))) }, state)
                             (* Constructor and field names have already been validated by the lexer. *)
-                            | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
-                            | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
-                            | Field x -> Some ({ get = (fun _ -> Ok (Field x)) }, state)
+                            | Constr x -> Some ({ get = (fun _ -> Ok (Constr (x, w))) }, state)
+                            | Underscore -> Some ({ get = (fun _ -> Ok (Placeholder w)) }, state)
+                            | Field x -> Some ({ get = (fun _ -> Ok (Field (x, w))) }, state)
                             | _ -> None)) in
                    match first_arg.get Interval.plus_omega_only with
                    | Error e -> fail (No_relative_precedence (rng, e, "application"))

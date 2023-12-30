@@ -42,10 +42,10 @@ and (_, _, _, _) parse =
       right_ok : ('rt, 'rs, No.plus_omega) No.lt;
     }
       -> ('lt, 'ls, 'rt, 'rs) parse
-  | Placeholder : ('lt, 'ls, 'rt, 'rs) parse
-  | Ident : string list -> ('lt, 'ls, 'rt, 'rs) parse
-  | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
-  | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
+  | Placeholder : Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Ident : string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Constr : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Field : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
 
 and ('left, 'tight) notation_entry =
   | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry
@@ -62,6 +62,7 @@ val empty_branch : ('left, 'tight) branch
 
 val infix :
   notn:('a opn, 'b, 'c opn) notation ->
+  ws:Whitespace.t list list ->
   first:('d, 'e, 'b, 'a) parse ->
   inner:observation Bwd.t ->
   last:('b, 'c, 'f, 'g) parse ->
@@ -71,6 +72,7 @@ val infix :
 
 val prefix :
   notn:(closed, 'a, 'b opn) notation ->
+  ws:Whitespace.t list list ->
   inner:observation Bwd.t ->
   last:('a, 'b, 'c, 'd) parse ->
   right_ok:('c, 'd, 'a) Util.No.lt ->
@@ -78,12 +80,18 @@ val prefix :
 
 val postfix :
   notn:('a opn, 'b, closed) notation ->
+  ws:Whitespace.t list list ->
   first:('c, 'd, 'b, 'a) parse ->
   inner:observation Bwd.t ->
   left_ok:('c, 'd, 'b) Util.No.lt ->
   ('c, 'd, 'e, 'f) parse
 
-val outfix : notn:(closed, 'a, closed) notation -> inner:observation Bwd.t -> ('b, 'c, 'd, 'e) parse
+val outfix :
+  notn:(closed, 'a, closed) notation ->
+  ws:Whitespace.t list list ->
+  inner:observation Bwd.t ->
+  ('b, 'c, 'd, 'e) parse
+
 val args : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> observation list
 
 val notn :

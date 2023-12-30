@@ -34,8 +34,8 @@ let () =
                     match args n with
                     | [ Term (Notn n) ] when equal (notn n) Builtins.asc -> (
                         match args n with
-                        | [ Term (Ident [ x ]); Term a ] -> (Some x, Term a, b)
-                        | [ Term Placeholder; Term a ] -> (None, Term a, b)
+                        | [ Term (Ident ([ x ], _)); Term a ] -> (Some x, Term a, b)
+                        | [ Term (Placeholder _); Term a ] -> (None, Term a, b)
                         | _ -> (None, one, b))
                     | _ -> (None, one, b))
                 | _ -> (None, one, b))

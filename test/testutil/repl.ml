@@ -29,7 +29,7 @@ let check_term (rtm : N.zero check) (ety : value) : emp term =
 
 let assume (name : string) (ty : string) : unit =
   match Parse.term (`String { title = Some "constant name"; content = name }) with
-  | Term (Ident name) ->
+  | Term (Ident (name, [])) ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
       else
@@ -41,7 +41,7 @@ let assume (name : string) (ty : string) : unit =
 
 let def (name : string) (ty : string) (tm : string) : unit =
   match Parse.term (`String { title = Some "constant name"; content = name }) with
-  | Term (Ident name) ->
+  | Term (Ident (name, [])) ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)

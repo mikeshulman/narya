@@ -21,10 +21,10 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   match r with
   | Notn n -> Notn (Notation.name (Notation.notn n), List.map get_obs (Notation.args n))
   | App a -> App (get_tree a.fn, get_tree a.arg)
-  | Placeholder -> Placeholder
-  | Ident x -> Ident x
-  | Constr x -> Constr x
-  | Field x -> Field x
+  | Placeholder _ -> Placeholder
+  | Ident (x, _) -> Ident x
+  | Constr (x, _) -> Constr x
+  | Field (x, _) -> Field x
 
 let parse content =
   let (Term tm) = Parse.term (`String { title = Some "user-supplied term"; content }) in

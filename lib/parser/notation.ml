@@ -70,10 +70,11 @@ and ('t, 's) entry = ('t, 's) tree TokMap.t
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "postprocessing" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
 and observation = Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
 
-(* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness.  It is parametrized by the openness and tightness of the notation, and also by upper tightness intervals from the left and right in which it is guaranteed to lie.  Thus, the first and last term (if any) can be guaranteed statically to be valid, and we may require witnesses that the notation is tight enough on the left and/or the right (also depending on its openness) to fit in the specified intervals. *)
+(* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness.  It is parametrized by the openness and tightness of the notation, and also by upper tightness intervals from the left and right in which it is guaranteed to lie.  Thus, the first and last term (if any) can be guaranteed statically to be valid, and we may require witnesses that the notation is tight enough on the left and/or the right (also depending on its openness) to fit in the specified intervals.  The whitespace argument stores the comments and whitespace attached after each operator token. *)
 and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
   | Infix : {
       notn : ('left opn, 'tight, 'right opn) notation;
+      ws : Whitespace.t list list;
       first : ('lt, 'ls, 'tight, 'left) parse;
       inner : observation Bwd.t;
       last : ('tight, 'right, 'rt, 'rs) parse;
@@ -83,6 +84,7 @@ and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
       -> ('left opn, 'tight, 'right opn, 'lt, 'ls, 'rt, 'rs) parsed_notn
   | Prefix : {
       notn : (closed, 'tight, 'right opn) notation;
+      ws : Whitespace.t list list;
       inner : observation Bwd.t;
       last : ('tight, 'right, 'rt, 'rs) parse;
       right_ok : ('rt, 'rs, 'tight) No.lt;
@@ -90,6 +92,7 @@ and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
       -> (closed, 'tight, 'right opn, 'lt, 'ls, 'rt, 'rs) parsed_notn
   | Postfix : {
       notn : ('left opn, 'tight, closed) notation;
+      ws : Whitespace.t list list;
       first : ('lt, 'ls, 'tight, 'left) parse;
       inner : observation Bwd.t;
       left_ok : ('lt, 'ls, 'tight) No.lt;
@@ -97,6 +100,7 @@ and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
       -> ('left opn, 'tight, closed, 'lt, 'ls, 'rt, 'rs) parsed_notn
   | Outfix : {
       notn : (closed, 'tight, closed) notation;
+      ws : Whitespace.t list list;
       inner : observation Bwd.t;
     }
       -> (closed, 'tight, closed, 'lt, 'ls, 'rt, 'rs) parsed_notn
@@ -112,10 +116,11 @@ and (_, _, _, _) parse =
       right_ok : ('rt, 'rs, No.plus_omega) No.lt;
     }
       -> ('lt, 'ls, 'rt, 'rs) parse
-  | Placeholder : ('lt, 'ls, 'rt, 'rs) parse
-  | Ident : string list -> ('lt, 'ls, 'rt, 'rs) parse
-  | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
-  | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
+  (* These all store the whitespace occurring after them. *)
+  | Placeholder : Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Ident : string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Constr : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Field : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
 and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
@@ -149,12 +154,12 @@ end
 
 let empty_branch = { ops = TokMap.empty; field = None; term = None }
 
-let infix ~notn ~first ~inner ~last ~left_ok ~right_ok =
-  Notn (Infix { notn; first; inner; last; left_ok; right_ok })
+let infix ~notn ~ws ~first ~inner ~last ~left_ok ~right_ok =
+  Notn (Infix { notn; ws; first; inner; last; left_ok; right_ok })
 
-let prefix ~notn ~inner ~last ~right_ok = Notn (Prefix { notn; inner; last; right_ok })
-let postfix ~notn ~first ~inner ~left_ok = Notn (Postfix { notn; first; inner; left_ok })
-let outfix ~notn ~inner = Notn (Outfix { notn; inner })
+let prefix ~notn ~ws ~inner ~last ~right_ok = Notn (Prefix { notn; ws; inner; last; right_ok })
+let postfix ~notn ~ws ~first ~inner ~left_ok = Notn (Postfix { notn; ws; first; inner; left_ok })
+let outfix ~notn ~ws ~inner = Notn (Outfix { notn; ws; inner })
 
 let args :
     type left tight right lt ls rt rs.

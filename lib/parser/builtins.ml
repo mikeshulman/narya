@@ -136,10 +136,10 @@ let rec get_pi_vars :
     type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list -> string option list =
  fun xs vars ->
   match xs with
-  | Ident [ x ] -> Some x :: vars
-  | Ident xs -> fatal (Invalid_variable xs)
-  | Placeholder -> None :: vars
-  | App { fn; arg = Ident [ x ]; _ } -> get_pi_vars fn (Some x :: vars)
+  | Ident ([ x ], _) -> Some x :: vars
+  | Ident (xs, _) -> fatal (Invalid_variable xs)
+  | Placeholder _ -> None :: vars
+  | App { fn; arg = Ident ([ x ], _); _ } -> get_pi_vars fn (Some x :: vars)
   (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
   | _ -> raise Not_a_pi_arg
 
@@ -266,16 +266,16 @@ let rec get_vars :
     =
  fun ctx vars ->
   match vars with
-  | Ident [ x ] ->
+  | Ident ([ x ], _) ->
       (* TODO: Can we report the range for errors produced here? *)
       Extctx (Suc Zero, Snoc (ctx, Some x))
-  | Ident xs -> fatal (Invalid_variable xs)
-  | Placeholder -> Extctx (Suc Zero, Snoc (ctx, None))
-  | App { fn; arg = Ident [ x ]; _ } ->
+  | Ident (xs, _) -> fatal (Invalid_variable xs)
+  | Placeholder _ -> Extctx (Suc Zero, Snoc (ctx, None))
+  | App { fn; arg = Ident ([ x ], _); _ } ->
       let (Extctx (ab, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (ctx, Some x))
-  | App { arg = Ident xs; _ } -> fatal (Invalid_variable xs)
-  | App { fn; arg = Placeholder; _ } ->
+  | App { arg = Ident (xs, _); _ } -> fatal (Invalid_variable xs)
+  | App { fn; arg = Placeholder _; _ } ->
       let (Extctx (ab, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (ctx, None))
   | _ -> fatal Parse_error
@@ -345,7 +345,7 @@ let () =
           match obs with
           | [ Term tm; Term d ] -> (
               match d with
-              | Ident [ str ] -> (
+              | Ident ([ str ], _) -> (
                   match deg_of_string str with
                   | Some (Any s) -> (
                       match process ctx tm with
@@ -357,7 +357,7 @@ let () =
     };
   set_print degen @@ fun ppf obs ->
   match obs with
-  | [ tm; Term (Ident [ str ]) ] ->
+  | [ tm; Term (Ident ([ str ], _w)) ] ->
       fprintf ppf "%a%a%a%a%a" pp_term tm pp_tok (Op "^") pp_tok LBrace pp_print_string str pp_tok
         RBrace
   | _ -> fatal (Anomaly "invalid notation arguments for degeneracy")
@@ -414,7 +414,7 @@ let rec process_struc :
  fun flds ctx obs ->
   match obs with
   | [] -> Raw.Struct flds
-  | Term (Ident [ x ]) :: obs | Term (Field x) :: obs -> (
+  | Term (Ident ([ x ], _)) :: obs | Term (Field (x, _)) :: obs -> (
       match obs with
       | Term tm :: obs ->
           let tm = process ctx tm in
@@ -444,7 +444,7 @@ and pp_fields : formatter -> observation list -> unit =
  fun ppf obs ->
   match obs with
   | [] -> ()
-  | Term (Ident [ x ]) :: obs | Term (Field x) :: obs -> (
+  | Term (Ident ([ x ], _)) :: obs | Term (Field (x, _)) :: obs -> (
       match obs with
       | tm :: obs ->
           (match state () with
@@ -522,12 +522,12 @@ let rec get_pattern :
     (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse -> Constr.t * n extended_ctx =
  fun ctx pat ->
   match pat with
-  | Constr c -> (Constr.intern c, Extctx (Zero, ctx))
-  | App { fn; arg = Ident [ x ]; _ } ->
+  | Constr (c, _) -> (Constr.intern c, Extctx (Zero, ctx))
+  | App { fn; arg = Ident ([ x ], _); _ } ->
       let c, Extctx (ab, ctx) = get_pattern ctx fn in
       (c, Extctx (Suc ab, Snoc (ctx, Some x)))
-  | App { arg = Ident xs; _ } -> fatal (Invalid_variable xs)
-  | App { fn; arg = Placeholder; _ } ->
+  | App { arg = Ident (xs, _); _ } -> fatal (Invalid_variable xs)
+  | App { fn; arg = Placeholder _; _ } ->
       let c, Extctx (ab, ctx) = get_pattern ctx fn in
       (c, Extctx (Suc ab, Snoc (ctx, None)))
   | _ -> fatal Parse_error
@@ -549,11 +549,11 @@ let () =
         (fun ctx obs ->
           match obs with
           (* If the first thing is a valid local variable or cube variable, then it's the match variable. *)
-          | Term (Ident [ ident ]) :: obs -> (
+          | Term (Ident ([ ident ], _)) :: obs -> (
               match Bwv.find (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)
               | Some x -> Match ((x, None), process_branches ctx obs))
-          | Term (Ident [ ident; fld ]) :: obs -> (
+          | Term (Ident ([ ident; fld ], _)) :: obs -> (
               match (Bwv.find (Some ident) ctx, Dim.sface_of_string fld) with
               | Some x, Some fa -> Match ((x, Some fa), process_branches ctx obs)
               | None, _ -> fatal (Unbound_variable ident)

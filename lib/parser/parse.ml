@@ -22,7 +22,7 @@ end
 
 (* The functor that defines all the term-parsing combinators. *)
 module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
-  module Basic = Token_parser.Make (Unit) (Token) (Final) (SemanticError)
+  module Basic = Token_parser.Make (Unit) (Lexer.Token_whitespace) (Final) (SemanticError)
   open Basic
 
   (* We aren't using Fmlib's error reporting, so there's no point in supplying it nonempty "expect" strings. *)
@@ -59,7 +59,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (observation Bwd.t * (tight, strict) notation_in_interval) t =
    fun { ops; field; term = _ } obs ->
     let* br, x =
-      step (fun state _ tok ->
+      step (fun state _ (tok, _) ->
           match TokMap.find_opt tok ops with
           | Some br -> Some ((br, ([] : observation list)), state)
           | None -> (
@@ -76,7 +76,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (observation Bwd.t * (tight, strict) notation_in_interval) t =
    fun ops obs ->
     let* optree =
-      step (fun state _ tok ->
+      step (fun state _ (tok, _) ->
           match TokMap.find_opt tok ops with
           | Some br -> Some (br, state)
           | None -> None) in
@@ -116,7 +116,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                            | Error e -> Error e));
                  }))
       (* Otherwise, we parse a single ident or constructor. *)
-      </> step (fun state _ tok ->
+      </> step (fun state _ (tok, _) ->
               match tok with
               | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
               (* Constructor names have already been validated by the lexer. *)
@@ -140,7 +140,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | Some nontrivial ->
         (* Now we start by looking ahead one token.  If we see one of the specified ending ops, or the initial op of a left-open tree with looser tightness than the lower endpoint of the current interval (with strictness determined by the tree in question), we return the result argument without parsing any more.  Note that the order matters, in case the next token could have more than one role.  Ending ops are tested first, which means that if a certain operator could end an "inner term" in an outer containing notation, it always does, even if it could also be interpreted as some infix notation inside that inner term.  If a certain token could be the initial op of more than one left-open, we stop here if *any* of those is looser; we don't backtrack and try other possibilities.  So the rule is that if multiple notations start with the same token, the looser one is used preferentially in cases when it matters.  (In cases where it doesn't matter, i.e. they would both be allowed at the same grouping relative to other notations, we can proceed to parse a merged tree containing both of them and decide later which one it is.)  *)
         followed_by
-          (step (fun state _ tok ->
+          (step (fun state _ (tok, _) ->
                if TokMap.mem tok stop then Some (first_arg, state)
                else
                  let open Monad.Ops (Monad.Maybe) in
@@ -222,7 +222,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                (* If this fails, we can parse a single variable name, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
                </> let* rng, arg =
                      located
-                       (step (fun state _ tok ->
+                       (step (fun state _ (tok, _) ->
                             match tok with
                             | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
                             (* Constructor and field names have already been validated by the lexer. *)
@@ -254,6 +254,11 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     match tm.get Interval.entire with
     | Ok tm -> return (Term tm)
     | Error _ -> fatal (Anomaly "Outer term failed")
+
+  (* We have to strip off the initial Eof token attached to initial comments and whitespace. *)
+  let wsterm () =
+    let* () = step (fun state _ (tok, _) -> if tok = Eof then Some (state, ()) else None) in
+    term ()
 end
 
 (* To parse single terms, we instantiate this to output a parse tree. *)
@@ -262,12 +267,13 @@ module TermCombinators = Combinators (ParseTree)
 module Parse_term = struct
   include TermCombinators.Basic.Parser
 
-  let term : unit -> t = fun () -> TermCombinators.Basic.make () (TermCombinators.term ())
+  let term : unit -> t = fun () -> TermCombinators.Basic.make () (TermCombinators.wsterm ())
 end
 
 (* Then we connect it up with the lexer. *)
 module Lex_and_parse_term =
-  Parse_with_lexer.Make (Unit) (Token) (ParseTree) (SemanticError) (Lexer.Parser) (Parse_term)
+  Parse_with_lexer.Make (Unit) (Lexer.Token_whitespace) (ParseTree) (SemanticError) (Lexer.Parser)
+    (Parse_term)
 
 open Lex_and_parse_term
 

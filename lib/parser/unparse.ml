@@ -119,7 +119,8 @@ let unparse_numeral : type n li ls ri rs. n term -> (li, ls, ri, rs) parse optio
   let rec getsucs tm k =
     match tm with
     (* As in parsing, it would be better not to hardcode the constructor names 'zero' and 'suc'. *)
-    | Term.Constr (c, _, Emp) when c = Constr.intern "zero" -> Some (Numeral (Q.of_int k))
+    | Term.Constr (c, _, Emp) when c = Constr.intern "zero" ->
+        Some (Ident (String.split_on_char '.' (Q.to_string (Q.of_int k)), []))
     | Constr (c, _, Snoc (Emp, arg)) when c = Constr.intern "suc" ->
         getsucs (CubeOf.find_top arg) (k + 1)
     | _ -> None in

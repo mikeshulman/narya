@@ -74,7 +74,6 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
                 | _ -> fatal (Unbound_variable (String.concat "." parts))))))
   | Constr ident -> Raw.Constr (Constr.intern ident, Emp)
   | Field _ -> fatal (Anomaly "Field is head")
-  | Numeral n -> process_numeral n
 
 and process_deg :
     type n lt ls rt rs.

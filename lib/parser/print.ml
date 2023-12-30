@@ -31,8 +31,7 @@ let rec pp_term (ppf : formatter) (wtr : observation) : unit =
       | Placeholder -> pp_tok ppf Underscore
       | Ident x -> pp_utf_8 ppf (String.concat "." x)
       | Constr c -> pp_constr ppf c
-      | Field f -> pp_field ppf f
-      | Numeral n -> Q.pp_print ppf n)
+      | Field f -> pp_field ppf f)
 
 and pp_notn_case :
     type left tight right.

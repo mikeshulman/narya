@@ -9,6 +9,8 @@ open Notation
 open Postprocess
 open Syntax
 open Term
+open Print
+open Format
 
 let nn = Constant.make ()
 let zero = Constant.make ()
@@ -28,7 +30,7 @@ let () =
   set_processor plusn
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _ ->
           match obs with
           | [ Term x; Term y ] ->
               let x = process ctx x in
@@ -36,9 +38,18 @@ let () =
               Raw.Synth (App (App (Const plus, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     };
-  set_print plusn (fun ppf obs ->
+  set_print plusn (fun space ppf obs ws ->
       match obs with
-      | [ x; y ] -> Format.fprintf ppf "@[<hov 2>%a@ + %a@]" Print.pp_term x Print.pp_term y
+      | [ x; y ] ->
+          let wsplus, _ = take ws in
+          pp_open_hovbox ppf 2;
+          if true then (
+            pp_term `Break ppf x;
+            pp_tok ppf (Op "+");
+            pp_ws `Nobreak ppf wsplus;
+            pp_term `None ppf y);
+          pp_close_box ppf ();
+          pp_space ppf space
       | _ -> fatal (Anomaly "invalid notation arguments for plus"))
 
 let timesn = make "times" (Infixl No.one)
@@ -48,7 +59,7 @@ let () =
   set_processor timesn
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _ ->
           match obs with
           | [ Term x; Term y ] ->
               let x = process ctx x in
@@ -56,10 +67,19 @@ let () =
               Raw.Synth (App (App (Const times, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     };
-  set_print timesn (fun ppf obs ->
+  set_print timesn (fun space ppf obs ws ->
       match obs with
-      | [ x; y ] -> Format.fprintf ppf "@[<hov 2>%a@ * %a@]" Print.pp_term x Print.pp_term y
-      | _ -> fatal (Anomaly "invalid notation arguments for plus"))
+      | [ x; y ] ->
+          let wstimes, _ = take ws in
+          pp_open_hovbox ppf 2;
+          if true then (
+            pp_term `Break ppf x;
+            pp_tok ppf (Op "*");
+            pp_ws `Nobreak ppf wstimes;
+            pp_term `None ppf y);
+          pp_close_box ppf ();
+          pp_space ppf space
+      | _ -> fatal (Anomaly "invalid notation arguments for times"))
 
 let installed = ref false
 

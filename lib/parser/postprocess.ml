@@ -29,7 +29,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
     =
  fun ctx res ->
   match res with
-  | Notn n -> (processor (notn n)).process ctx (args n)
+  | Notn n -> (processor (notn n)).process ctx (args n) (whitespace n)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
   | App { fn; arg; _ } -> (
       match

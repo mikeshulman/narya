@@ -116,8 +116,6 @@ let test_compactness () =
   reformat
     "[ con. a b |-> [ foo. x |-> ba ba ba | bar. y z |-> y ] | str. u v |-> [ baz. |-> bluh bluh ] ]";
   reformat "([x| poo. |-> bah])";
-  reformat "([x| poo. |-> (bah boo)])";
-  reformat "([x| poo. |-> bah (boo boo)])";
   ()
 
 let () =

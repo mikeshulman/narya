@@ -22,20 +22,30 @@ let () =
   set_processor parens
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _ ->
           match obs with
           | [ Term body ] -> process ctx body
           | _ -> fatal (Anomaly "invalid notation arguments for parens"));
-    };
-  set_print parens (fun ppf obs ->
-      match obs with
-      | [ body ] -> fprintf ppf "@[<hov 1>%a%a%a@]" pp_tok LParen pp_term body pp_tok RParen
-      | _ -> fatal (Anomaly "invalid notation arguments for parens"));
-  set_print_as_case parens (fun ppf obs ->
-      match obs with
-      (* Parentheses should never be required in a case tree, so we omit them during reformatting. *)
-      | [ body ] -> pp_term ppf body
-      | _ -> fatal (Anomaly "invalid notation arguments for parens"))
+    }
+
+let pp_parens space ppf obs ws =
+  match obs with
+  | [ body ] ->
+      let wslparen, ws = take ws in
+      let wsrparen, _ = take ws in
+      pp_open_hovbox ppf 1;
+      if true then (
+        pp_tok ppf LParen;
+        pp_ws `None ppf wslparen;
+        pp_term `None ppf body;
+        pp_tok ppf RParen);
+      pp_close_box ppf ();
+      pp_ws space ppf wsrparen
+  | _ -> fatal (Anomaly "invalid notation arguments for parens")
+
+let () =
+  set_print parens pp_parens;
+  set_print_as_case parens pp_parens
 
 (* ********************
    Let-binding
@@ -57,7 +67,7 @@ let () =
   set_processor letin
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _ ->
           match obs with
           | [ Term x; Term ty; Term tm; Term body ] -> (
               let x = get_var x in
@@ -75,29 +85,57 @@ let () =
               | _ -> fatal (Nonsynthesizing "value of let"))
           | _ -> fatal (Anomaly "invalid notation arguments for let"));
     };
-  set_print letin (fun ppf obs ->
-      let rec pp_let : formatter -> observation list -> unit =
-       fun ppf obs ->
+  set_print letin (fun space ppf obs ws ->
+      let rec pp_let space ppf obs ws =
+        let style = style () in
         match obs with
         | [ x; ty; tm; body ] ->
-            fprintf ppf
-              (match style () with
-              | `Compact -> "@[<hov 2>@[<hv 2>%a %a@ %a %a@ %a %a@]@ %a@]@ %a"
-              | `Noncompact -> "@[<hv 2>%a %a@ %a %a@ %a %a@ %a@]@ %a")
-              pp_tok Let pp_term x pp_tok Colon pp_term ty pp_tok Coloneq pp_term tm pp_tok In
-              pp_let_body body
+            let wslet, ws = take ws in
+            let wscolon, ws = take ws in
+            let wscoloneq, ws = take ws in
+            let wsin, _ = take ws in
+            if style = `Compact then pp_open_hovbox ppf 2;
+            if true then (
+              pp_open_hvbox ppf 2;
+              if true then (
+                pp_tok ppf Let;
+                pp_ws `Nobreak ppf wslet;
+                pp_term `Break ppf x;
+                pp_tok ppf Colon;
+                pp_ws `Nobreak ppf wscolon;
+                pp_term `Break ppf ty;
+                pp_tok ppf Coloneq;
+                pp_ws `Nobreak ppf wscoloneq;
+                pp_term (if style = `Compact then `Nobreak else `Break) ppf tm);
+              if style = `Compact then pp_close_box ppf ();
+              pp_tok ppf In);
+            pp_close_box ppf ();
+            pp_ws `Break ppf wsin;
+            pp_let_body space ppf body
         | [ x; tm; body ] ->
-            fprintf ppf
-              (match style () with
-              | `Compact -> "@[<hov 2>%a %a %a@ %a@ %a@]@ %a"
-              | `Noncompact -> "@[<hv 2>%a %a %a@ %a@ %a@]@ %a")
-              pp_tok Let pp_term x pp_tok Coloneq pp_term tm pp_tok In pp_let_body body
+            let wslet, ws = take ws in
+            let wscoloneq, ws = take ws in
+            let wsin, _ = take ws in
+            if style = `Compact then pp_open_hovbox ppf 2 else pp_open_hvbox ppf 2;
+            if true then (
+              pp_tok ppf Let;
+              pp_ws `Nobreak ppf wslet;
+              pp_term `Break ppf x;
+              pp_tok ppf Coloneq;
+              pp_ws `Nobreak ppf wscoloneq;
+              pp_term (if style = `Compact then `Nobreak else `Break) ppf tm;
+              pp_tok ppf In);
+            pp_close_box ppf ();
+            pp_ws `Break ppf wsin;
+            pp_let_body space ppf body
         | _ -> fatal (Anomaly "invalid notation arguments for let")
-      and pp_let_body ppf tr =
+      and pp_let_body space ppf tr =
         match tr with
-        | Term (Notn n) when equal (notn n) letin -> pp_let ppf (args n)
-        | _ -> pp_term ppf tr in
-      fprintf ppf "@[<hv 0>%a@]" pp_let obs)
+        | Term (Notn n) when equal (notn n) letin -> pp_let space ppf (args n) (whitespace n)
+        | _ -> pp_term space ppf tr in
+      pp_open_hvbox ppf 0;
+      pp_let space ppf obs ws;
+      pp_close_box ppf ())
 
 (* ********************
    Ascription
@@ -110,7 +148,7 @@ let () =
   set_processor asc
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _ ->
           match obs with
           | [ Term tm; Term ty ] ->
               let tm = process ctx tm in
@@ -118,9 +156,17 @@ let () =
               Synth (Asc (tm, ty))
           | _ -> fatal (Anomaly "invalid notation arguments for ascription"));
     };
-  set_print asc @@ fun ppf obs ->
+  set_print asc @@ fun space ppf obs ws ->
   match obs with
-  | [ tm; ty ] -> fprintf ppf "@[<b 0>%a@ %a %a" pp_term tm pp_tok Colon pp_term ty
+  | [ tm; ty ] ->
+      let ws, _ = take ws in
+      pp_open_box ppf 0;
+      if true then (
+        pp_term `Break ppf tm;
+        pp_tok ppf Colon;
+        pp_ws `Nobreak ppf ws;
+        pp_term space ppf ty);
+      pp_close_box ppf ()
   | _ -> fatal (Anomaly "invalid notation arguments for ascription")
 
 (* ****************************************
@@ -131,121 +177,184 @@ let arrow = make "arrow" (Infixr No.zero)
 
 exception Not_a_pi_arg
 
-(* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument. *)
+type arrow_opt = [ `Arrow of Whitespace.t list | `Noarrow | `First ]
+
+type pi_dom =
+  | Dep of {
+      wsarrow : arrow_opt;
+      vars : (string option * Whitespace.t list) list;
+      ty : observation;
+      wslparen : Whitespace.t list;
+      wscolon : Whitespace.t list;
+      wsrparen : Whitespace.t list;
+    }
+  | Nondep of { wsarrow : arrow_opt; ty : observation }
+
+(* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument 'vars'. *)
 let rec get_pi_vars :
-    type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list -> string option list =
+    type lt ls rt rs.
+    (lt, ls, rt, rs) parse ->
+    (string option * Whitespace.t list) list ->
+    (string option * Whitespace.t list) list =
  fun xs vars ->
   match xs with
-  | Ident ([ x ], _) -> Some x :: vars
-  | Ident (xs, _) -> fatal (Invalid_variable xs)
-  | Placeholder _ -> None :: vars
-  | App { fn; arg = Ident ([ x ], _); _ } -> get_pi_vars fn (Some x :: vars)
+  | Ident ([ x ], w) -> (Some x, w) :: vars
+  | Placeholder w -> (None, w) :: vars
+  | App { fn; arg = Ident ([ x ], w); _ } -> get_pi_vars fn ((Some x, w) :: vars)
+  | App { fn; arg = Placeholder w; _ } -> get_pi_vars fn ((None, w) :: vars)
   (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
+  | Ident (xs, _) -> fatal (Invalid_variable xs)
+  | App { arg = Ident (xs, _); _ } -> fatal (Invalid_variable xs)
   | _ -> raise Not_a_pi_arg
 
 (* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables and the type. *)
-let get_pi_arg : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list * observation =
- fun arg ->
+let get_pi_arg :
+    type lt ls rt rs.
+    wsarrow:arrow_opt ->
+    (lt, ls, rt, rs) parse ->
+    wslparen:Whitespace.t list ->
+    wsrparen:Whitespace.t list ->
+    pi_dom =
+ fun ~wsarrow arg ~wslparen ~wsrparen ->
   match arg with
   | Notn n when equal (notn n) asc -> (
       match args n with
-      | [ Term xs; dom ] -> (get_pi_vars xs [], dom)
+      | [ Term xs; dom ] ->
+          let wscolon, _ = take (whitespace n) in
+          let vars = get_pi_vars xs [] in
+          Dep { wsarrow; vars; ty = dom; wslparen; wscolon; wsrparen }
       | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
   | _ -> raise Not_a_pi_arg
 
-(* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of variables with types, prepending that list onto the front of the given accumulation list.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type and cons it onto the list. *)
+(* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of variables with types, prepending that list onto the front of the given accumulation list, with the first one having an arrow attached (before it front) if 'wsarrow' is given.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type and cons it onto the list. *)
 let rec get_pi_args :
-    type lt ls rt rs.
-    (lt, ls, rt, rs) parse ->
-    (string option list option * observation) list ->
-    (string option list option * observation) list =
- fun doms vars ->
+    type lt ls rt rs. arrow_opt -> (lt, ls, rt, rs) parse -> pi_dom list -> pi_dom list =
+ fun wsarrow doms vars ->
   try
     match doms with
     | Notn n when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let xs, tys = get_pi_arg body in
-            (Some xs, tys) :: vars
+            let wslparen, ws = take (whitespace n) in
+            let wsrparen, _ = take ws in
+            get_pi_arg ~wsarrow body ~wslparen ~wsrparen :: vars
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | App { fn; arg = Notn n; _ } when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let xs, tys = get_pi_arg body in
-            get_pi_args fn ((Some xs, tys) :: vars)
+            let wslparen, ws = take (whitespace n) in
+            let wsrparen, _ = take ws in
+            get_pi_args wsarrow fn (get_pi_arg ~wsarrow:`Noarrow body ~wslparen ~wsrparen :: vars)
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | _ -> raise Not_a_pi_arg
-  with Not_a_pi_arg -> (None, Term doms) :: vars
+  with Not_a_pi_arg -> Nondep { wsarrow; ty = Term doms } :: vars
 
 (* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
 let rec get_pi :
     type lt ls rt rs.
-    observation list -> (string option list option * observation) list * observation = function
-  | [ Term dom; Term cod ] ->
-      let doms, cod =
+    arrow_opt ->
+    observation list ->
+    Whitespace.t list list ->
+    pi_dom list * Whitespace.t list * observation =
+ fun prev_arr obs ws ->
+  match obs with
+  | [ Term doms; Term cod ] ->
+      let wsarrow, _ = take ws in
+      let vars, ws, cod =
         match cod with
-        | Notn n when equal (notn n) arrow -> get_pi (args n)
-        | _ -> ([], Term cod) in
-      (get_pi_args dom doms, cod)
+        | Notn n when equal (notn n) arrow -> get_pi (`Arrow wsarrow) (args n) (whitespace n)
+        | _ -> ([], wsarrow, Term cod) in
+      (get_pi_args prev_arr doms vars, ws, cod)
   | _ -> fatal (Anomaly "invalid notation arguments for arrow")
 
 (* Given the variables with domains and the codomain of a pi-type, process it into a raw term. *)
 let rec process_pi :
-    type n lt ls rt rs.
-    (string option, n) Bwv.t ->
-    (string option list option * observation) list ->
-    (lt, ls, rt, rs) parse ->
-    n check =
+    type n lt ls rt rs. (string option, n) Bwv.t -> pi_dom list -> (lt, ls, rt, rs) parse -> n check
+    =
  fun ctx doms cod ->
   match doms with
   | [] -> process ctx cod
-  | (Some [], _) :: doms -> process_pi ctx doms cod
-  | (None, dom) :: doms -> process_pi ctx ((Some (None :: []), dom) :: doms) cod
-  | (Some (x :: xs), Term dom) :: doms ->
+  | Nondep { ty = Term dom; _ } :: doms ->
+      let cdom = process ctx dom in
+      let ctx = Bwv.Snoc (ctx, None) in
+      let cod = process_pi ctx doms cod in
+      Synth (Pi (None, cdom, cod))
+  | Dep ({ vars = (x, _) :: xs; ty = Term dom; _ } as data) :: doms ->
       let cdom = process ctx dom in
       let ctx = Bwv.Snoc (ctx, x) in
-      let cod = process_pi ctx ((Some xs, Term dom) :: doms) cod in
+      let cod = process_pi ctx (Dep { data with vars = xs } :: doms) cod in
       Synth (Pi (x, cdom, cod))
+  | Dep { vars = []; _ } :: doms -> process_pi ctx doms cod
 
 let () =
   set_tree arrow (Open_entry (eop Arrow (done_open arrow)));
   set_processor arrow
     {
       process =
-        (fun ctx obs ->
-          let doms, Term cod = get_pi obs in
+        (fun ctx obs ws ->
+          let doms, _, Term cod = get_pi `First obs ws in
           process_pi ctx doms cod);
     }
 
 (* Pretty-print the domains of a right-associated iterated function-type *)
-let rec pp_doms :
-    [ `Start | `Dep | `Nondep ] ->
-    formatter ->
-    (string option list option * observation) list ->
-    unit =
- fun prev ppf doms ->
+let rec pp_doms : formatter -> pi_dom list -> unit =
+ fun ppf doms ->
   match doms with
   | [] -> ()
-  | (vars, dom) :: doms -> (
-      match vars with
-      | None ->
-          if prev = `Dep || prev = `Nondep then fprintf ppf "@ %a " pp_tok Arrow;
-          fprintf ppf "%a" pp_term dom;
-          pp_doms `Nondep ppf doms
-      | Some xs ->
-          if prev = `Nondep then fprintf ppf "@ %a " pp_tok Arrow;
-          if prev = `Dep then pp_print_space ppf ();
-          fprintf ppf "%a%a %a %a%a" pp_tok LParen
-            (pp_print_list ~pp_sep:pp_print_space pp_var)
-            xs pp_tok Colon pp_term dom pp_tok RParen;
-          pp_doms `Dep ppf doms)
+  | Dep { wsarrow; vars; ty; wslparen; wscolon; wsrparen } :: doms ->
+      (match wsarrow with
+      | `Arrow _ | `Noarrow -> pp_print_space ppf ()
+      | `First -> ());
+      pp_open_hbox ppf ();
+      if true then (
+        (match wsarrow with
+        | `Arrow wsarrow ->
+            pp_tok ppf Arrow;
+            pp_ws `Nobreak ppf wsarrow
+        | `Noarrow | `First -> ());
+        pp_open_hovbox ppf 1;
+        if true then (
+          pp_tok ppf LParen;
+          pp_ws `None ppf wslparen;
+          List.iter
+            (fun (x, w) ->
+              pp_var ppf x;
+              pp_ws `Break ppf w)
+            vars;
+          pp_tok ppf Colon;
+          pp_ws `Nobreak ppf wscolon;
+          pp_term `None ppf ty;
+          pp_tok ppf RParen);
+        pp_close_box ppf ());
+      pp_close_box ppf ();
+      pp_ws `None ppf wsrparen;
+      pp_doms ppf doms
+  | Nondep { wsarrow; ty } :: doms ->
+      (match wsarrow with
+      | `Arrow wsarrow ->
+          pp_print_space ppf ();
+          pp_tok ppf Arrow;
+          pp_ws `Nobreak ppf wsarrow
+      | `Noarrow -> pp_print_space ppf ()
+      | `First -> ());
+      pp_term `None ppf ty;
+      pp_doms ppf doms
 
 let () =
-  set_print arrow @@ fun ppf obs ->
-  let doms, cod = get_pi obs in
-  fprintf ppf "@[<b 1>@[<hov 2>%a@]%t%a %a@]" (pp_doms `Start) doms
-    (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
-    pp_tok Arrow pp_term cod
+  set_print arrow @@ fun space ppf obs ws ->
+  let doms, wsarrow, cod = get_pi `First obs ws in
+  pp_open_box ppf 1;
+  if true then (
+    (*  *)
+    pp_open_hovbox ppf 2;
+    pp_doms ppf doms;
+    pp_close_box ppf ();
+    (*  *)
+    pp_print_custom_break ppf ~fits:("", 1, "") ~breaks:("", 0, " ");
+    pp_tok ppf Arrow;
+    pp_ws `Nobreak ppf wsarrow;
+    pp_term space ppf cod);
+  pp_close_box ppf ()
 
 (* ********************
    Abstraction
@@ -283,7 +392,7 @@ let rec get_vars :
 let process_abs cube =
   {
     process =
-      (fun ctx obs ->
+      (fun ctx obs _ ->
         match obs with
         | [ Term vars; Term body ] ->
             let (Extctx (ab, ctx)) = get_vars ctx vars in
@@ -291,14 +400,23 @@ let process_abs cube =
         | _ -> fatal (Anomaly "invalid notation arguments for abstraction"));
   }
 
-let pp_abs cube ppf obs =
+let pp_abs cube space ppf obs ws =
   match obs with
   | [ vars; body ] ->
-      fprintf ppf "@[<b 0>@[<hov 2>%a %a@]@ %a@]" pp_term vars pp_tok
-        (match cube with
-        | `Normal -> Mapsto
-        | `Cube -> DblMapsto)
-        pp_term body
+      let wsmapsto, _ = take ws in
+      pp_open_box ppf 0;
+      if true then (
+        pp_open_hovbox ppf 2;
+        if true then (
+          pp_term `Nobreak ppf vars;
+          pp_tok ppf
+            (match cube with
+            | `Normal -> Mapsto
+            | `Cube -> DblMapsto));
+        pp_close_box ppf ();
+        pp_ws `Break ppf wsmapsto;
+        pp_term space ppf body);
+      pp_close_box ppf ()
   | _ -> fatal (Anomaly "invalid notation arguments for abstraction")
 
 let () =
@@ -320,15 +438,18 @@ let () =
   set_processor universe
     {
       process =
-        (fun _ obs ->
+        (fun _ obs _ ->
           match obs with
           | [] -> Synth UU
           | _ -> fatal (Anomaly "invalid notation arguments for Type"));
     };
-  set_print universe @@ fun ppf obs ->
+  set_print universe @@ fun space ppf obs ws ->
   match obs with
-  | [] -> pp_print_string ppf "Type"
-  | _ -> fatal (Anomaly "invalid notation arguments for Type")
+  | [] ->
+      let ws, _ = take ws in
+      pp_print_string ppf "Type";
+      pp_ws space ppf ws
+  | _ -> fatal (Anomaly (Printf.sprintf "invalid notation arguments for Type: %d" (List.length ws)))
 
 (* ********************
    Degeneracies
@@ -341,7 +462,7 @@ let () =
   set_processor degen
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _ ->
           match obs with
           | [ Term tm; Term d ] -> (
               match d with
@@ -355,11 +476,21 @@ let () =
               | _ -> fatal Parse_error)
           | _ -> fatal (Anomaly "invalid notation arguments for degeneracy"));
     };
-  set_print degen @@ fun ppf obs ->
+  set_print degen @@ fun space ppf obs ws ->
   match obs with
-  | [ tm; Term (Ident ([ str ], _w)) ] ->
-      fprintf ppf "%a%a%a%a%a" pp_term tm pp_tok (Op "^") pp_tok LBrace pp_print_string str pp_tok
-        RBrace
+  | [ tm; Term (Ident ([ str ], w)) ] ->
+      let wscaret, ws = take ws in
+      let wslbrace, ws = take ws in
+      let wsrbrace, _ = take ws in
+      pp_term `None ppf tm;
+      pp_tok ppf (Op "^");
+      pp_ws `None ppf wscaret;
+      pp_tok ppf LBrace;
+      pp_ws `None ppf wslbrace;
+      pp_print_string ppf str;
+      pp_ws `None ppf w;
+      pp_tok ppf RBrace;
+      pp_ws space ppf wsrbrace
   | _ -> fatal (Anomaly "invalid notation arguments for degeneracy")
 
 (* ********************
@@ -429,32 +560,56 @@ let rec process_struc :
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | _ :: _ -> fatal Invalid_field_in_struct
 
-let () = set_processor struc { process = (fun ctx obs -> process_struc Field.Map.empty ctx obs) }
+let () = set_processor struc { process = (fun ctx obs _ -> process_struc Field.Map.empty ctx obs) }
 
 let rec pp_fld :
     type a.
-    formatter -> (formatter -> a -> unit) -> a -> Token.t -> observation -> observation list -> unit
-    =
- fun ppf pp x tok tm obs ->
-  fprintf ppf "@[<hov 2>%a %a@ %a@]%a" pp x pp_tok tok pp_term tm
-    (pp_print_option (fun ppf -> fprintf ppf " %a@ " pp_tok))
-    (if obs = [] then None else Some (Op ";"))
-
-and pp_fields : formatter -> observation list -> unit =
- fun ppf obs ->
+    formatter ->
+    (formatter -> a -> unit) ->
+    a ->
+    Whitespace.t list ->
+    Token.t ->
+    Whitespace.t list ->
+    observation ->
+    observation list ->
+    Whitespace.t list list ->
+    Whitespace.t list list =
+ fun ppf pp x w tok wstok tm obs ws ->
+  pp_open_hovbox ppf 2;
+  if true then (
+    pp ppf x;
+    pp_ws `Nobreak ppf w;
+    pp_tok ppf tok;
+    pp_ws `Break ppf wstok;
+    pp_term (if List.is_empty obs then `None else `Nobreak) ppf tm);
+  pp_close_box ppf ();
   match obs with
-  | [] -> ()
-  | Term (Ident ([ x ], _)) :: obs | Term (Field (x, _)) :: obs -> (
+  | [] -> ws
+  | _ ->
+      let wssemi, ws = take ws in
+      pp_tok ppf (Op ";");
+      pp_ws `Break ppf wssemi;
+      ws
+
+and pp_fields : formatter -> observation list -> Whitespace.t list list -> Whitespace.t list =
+ fun ppf obs ws ->
+  match obs with
+  | [] ->
+      let wsrbrace, _ = take ws in
+      wsrbrace
+  | Term (Ident ([ x ], w)) :: obs | Term (Field (x, w)) :: obs -> (
+      let wstok, ws = take ws in
       match obs with
       | tm :: obs ->
-          (match state () with
-          | `Term -> pp_fld ppf pp_var (Some x) Coloneq tm obs
-          | `Case -> pp_fld ppf pp_field x Mapsto tm obs);
-          pp_fields ppf obs
+          let ws =
+            match state () with
+            | `Term -> pp_fld ppf pp_var (Some x) w Coloneq wstok tm obs ws
+            | `Case -> pp_fld ppf pp_field x w Mapsto wstok tm obs ws in
+          pp_fields ppf obs ws
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | _ :: _ -> fatal Invalid_field_in_struct
 
-let pp_struc ppf obs =
+let pp_struc space ppf obs ws =
   let style, state = (style (), state ()) in
   (match state with
   | `Term ->
@@ -463,7 +618,7 @@ let pp_struc ppf obs =
   | `Case -> pp_open_vbox ppf 2);
   pp_tok ppf LBrace;
   if style = `Compact then pp_print_string ppf " " else pp_print_space ppf ();
-  pp_fields ppf obs;
+  let wsrbrace = pp_fields ppf obs ws in
   (if style = `Compact then pp_print_string ppf " "
    else
      match state with
@@ -472,7 +627,8 @@ let pp_struc ppf obs =
          pp_print_custom_break ~fits:("", 1, "") ~breaks:(" ;", 0, "") ppf
      | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(" ;", -2, "") ppf);
   pp_tok ppf RBrace;
-  pp_close_box ppf ()
+  pp_close_box ppf ();
+  pp_ws space ppf wsrbrace
 
 (* In standard formatting, structures in case trees are written as copattern-matches with field dots and ↦, while those in terms are written without dots and with ≔. *)
 let () =
@@ -546,7 +702,7 @@ let () =
   set_processor mtch
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _ ->
           match obs with
           (* If the first thing is a valid local variable or cube variable, then it's the match variable. *)
           | Term (Ident ([ ident ], _)) :: obs -> (
@@ -564,42 +720,73 @@ let () =
               Lam (None, `Normal, Match ((Top, None), branches)));
     }
 
-let rec pp_branches : bool -> formatter -> observation list -> unit =
- fun brk ppf obs ->
+let rec pp_branches :
+    bool -> formatter -> observation list -> Whitespace.t list list -> Whitespace.t list =
+ fun brk ppf obs ws ->
   match obs with
   | pat :: body :: obs ->
+      let wsbar, ws = take ws in
+      let wsmapsto, ws = take ws in
       let style = style () in
       if brk || style = `Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match body with
       | Term (Notn n) when equal (notn n) mtch && style = `Compact ->
-          fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a@] %a@]" pp_tok (Op "|") pp_term pat pp_tok Mapsto
-            (pp_match false) (args n)
+          pp_open_hovbox ppf 0;
+          if true then (
+            pp_open_hovbox ppf 4;
+            if true then (
+              pp_tok ppf (Op "|");
+              pp_ws `Nobreak ppf wsbar;
+              pp_term `Break ppf pat;
+              pp_tok ppf Mapsto);
+            pp_close_box ppf ();
+            pp_ws `Nobreak ppf wsmapsto;
+            pp_match false `None ppf (args n) (whitespace n));
+          pp_close_box ppf ()
       | _ ->
-          fprintf ppf "@[<b 1>@[<hov 4>%a %a@ %a@]%t%a@]" pp_tok (Op "|") pp_term pat pp_tok Mapsto
-            (pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, " "))
-            pp_term body);
-      pp_branches true ppf obs
-  | [] -> ()
+          pp_open_box ppf 1;
+          if true then (
+            pp_open_hovbox ppf 4;
+            if true then (
+              pp_tok ppf (Op "|");
+              pp_ws `Nobreak ppf wsbar;
+              pp_term `Break ppf pat;
+              pp_tok ppf Mapsto);
+            pp_close_box ppf ();
+            pp_ws `None ppf wsmapsto;
+            pp_print_custom_break ppf ~fits:("", 1, "") ~breaks:("", 0, " ");
+            pp_term `None ppf body);
+          pp_close_box ppf ());
+      pp_branches true ppf obs ws
+  | [] ->
+      let wsrbrack, _ = take ws in
+      wsrbrack
   | _ -> fatal (Anomaly "invalid notation arguments for match")
 
-and pp_match box ppf obs =
+and pp_match box space ppf obs ws =
+  let wslbrack, ws = take ws in
+  let style = style () in
   match obs with
   | (Term (Ident _) as x) :: obs ->
       if box then pp_open_vbox ppf 0;
-      pp_tok ppf LBracket;
-      pp_print_string ppf " ";
-      pp_term ppf x;
-      pp_branches true ppf obs;
-      if style () = `Compact then pp_print_string ppf " " else pp_print_cut ppf ();
-      pp_tok ppf RBracket;
+      if true then (
+        pp_tok ppf LBracket;
+        pp_ws `Nobreak ppf wslbrack;
+        pp_term `None ppf x;
+        let wsrbrack = pp_branches true ppf obs ws in
+        if style = `Noncompact then pp_print_cut ppf () else pp_print_char ppf ' ';
+        pp_tok ppf RBracket;
+        pp_ws space ppf wsrbrack);
       if box then pp_close_box ppf ()
   | _ ->
-      let style = style () in
       if box || style = `Noncompact then pp_open_vbox ppf 0;
-      pp_tok ppf LBracket;
-      pp_branches ((not box) || style = `Noncompact) ppf obs;
-      if style = `Compact then pp_print_string ppf " " else pp_print_cut ppf ();
-      pp_tok ppf RBracket;
+      if true then (
+        pp_tok ppf LBracket;
+        pp_ws `None ppf wslbrack;
+        let wsrbrack = pp_branches ((not box) || style = `Noncompact) ppf obs ws in
+        if style = `Noncompact then pp_print_cut ppf () else pp_print_char ppf ' ';
+        pp_tok ppf RBracket;
+        pp_ws space ppf wsrbrack);
       if box || style = `Noncompact then pp_close_box ppf ()
 
 (* Matches are only valid in case trees. *)

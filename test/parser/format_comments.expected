@@ -20,3 +20,20 @@ f x y z
 f x
   
   y z
+
+(x ` variable
+ : A) ` first arg
+   → B `second arg
+   → C
+
+(x : A) ` first arg
+   → B `second arg
+   → C
+
+(x : A) → B `second arg
+   → C
+
+(x : A) → B `second arg
+   → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C
+  → C
+

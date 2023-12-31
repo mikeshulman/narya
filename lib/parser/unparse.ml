@@ -450,19 +450,20 @@ let () =
     fun ppf pr ->
       match pr with
       | PTerm (ctx, tm) ->
-          Print.pp_term ppf (Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
+          Print.pp_term `None ppf
+            (Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
       | PVal (ctx, tm) ->
-          Print.pp_term ppf
+          Print.pp_term `None ppf
             (Term
                (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
                   Interval.entire))
       | PNormal (ctx, tm) ->
-          Print.pp_term ppf
+          Print.pp_term `None ppf
             (Term
                (unparse (Ctx.names ctx) (Readback.readback_nf ctx tm) Interval.entire
                   Interval.entire))
       | PUninst (ctx, tm) ->
-          Print.pp_term ppf
+          Print.pp_term `None ppf
             (Term
                (unparse (Ctx.names ctx) (Readback.readback_uninst ctx tm) Interval.entire
                   Interval.entire))

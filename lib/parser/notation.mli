@@ -17,6 +17,8 @@ type (_, _, _) fixity =
   | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
   | Outfix : (closed, No.plus_omega, closed) fixity
 
+type space = [ `None | `Break | `Nobreak ]
+
 type (_, _) tree =
   | Inner : ('t, 's) branch -> ('t, 's) tree
   | Done_open : ('t, 's, 'tight) No.lt * ('left opn, 'tight, 'right) notation -> ('t, 's) tree
@@ -52,7 +54,12 @@ and ('left, 'tight) notation_entry =
   | Closed_entry : (No.plus_omega, No.strict) entry -> (closed, 'tight) notation_entry
 
 and ('left, 'tight, 'right) notation
-and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
+
+and processor = {
+  process : 'n. (string option, 'n) Bwv.t -> observation list -> Whitespace.t list list -> 'n check;
+}
+
+and printer = space -> Format.formatter -> observation list -> Whitespace.t list list -> unit
 
 module Notation : sig
   type t = Wrap : ('left, 'tight, 'right) notation -> t
@@ -93,6 +100,7 @@ val outfix :
   ('b, 'c, 'd, 'e) parse
 
 val args : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> observation list
+val whitespace : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> Whitespace.t list list
 
 val notn :
   ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('left, 'tight, 'right) notation
@@ -111,19 +119,10 @@ val tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry
 val set_tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry -> unit
 val processor : ('left, 'tight, 'right) notation -> processor
 val set_processor : ('left, 'tight, 'right) notation -> processor -> unit
-
-val print :
-  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) option
-
-val set_print :
-  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) -> unit
-
-val print_as_case :
-  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) option
-
-val set_print_as_case :
-  ('left, 'tight, 'right) notation -> (Format.formatter -> observation list -> unit) -> unit
-
+val print : ('left, 'tight, 'right) notation -> printer option
+val set_print : ('left, 'tight, 'right) notation -> printer -> unit
+val print_as_case : ('left, 'tight, 'right) notation -> printer option
+val set_print_as_case : ('left, 'tight, 'right) notation -> printer -> unit
 val make : string -> ('left, 'tight, 'right) fixity -> ('left, 'tight, 'right) notation
 val equal : ('l1, 't1, 'r1) notation -> ('l2, 't2, 'r2) notation -> bool
 

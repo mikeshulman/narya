@@ -31,7 +31,10 @@ let () =
   print "exp utwo uthree";
   Types.Nat.install ();
   Types.Sigma.install ();
+  (* TODO: Can we specify that comma tuples should be unparsed with parentheses around them even when not necessary? *)
   print "{fst := 0; snd := 0} : N >< N";
+  print "(0,0,0) : N × N × N";
+  print "((0,0),0) : (N × N) × N";
   print "{fst := x |-> x; snd := 2} : (N -> N) >< N";
   assume "s" "(N → N) × N";
   print "s .fst 3";

@@ -94,12 +94,14 @@ blah blah blah blah
       blah blah blah blah
       blah blah
 
-(x : A) (x : A) (x : A) (x : A) (x : A) → C
+(x : A) → (x : A) → (x : A) → (x : A) → (x : A) → C
 
-(x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) → C
+(x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A)
+  → (x : A)
+  → C
 
-(x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A)
-  (x : A) (x : A) (x : A)
+(x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A)
+  → (x : A) → (x : A) → (x : A) → (x : A)
   → C
 
 A → B
@@ -135,8 +137,8 @@ A → A → A → A → A → A → A → A
   → C
 
 (x : A) (x : A) (x : A) → A
-  → (x : A) (_ : A) (x : A)
-  (x : A) (x : A)
+  → (x : A) (_ : A) 
+  (x : A) (x : A) → (x : A)
   → C
 
 A → A → A
@@ -145,14 +147,16 @@ A → A → A
   → B
 
 A → A → A
-  → (x : blah blah blah blah
-           blah blah blah
-           blah) → A → A
+  → (x
+     : blah blah blah blah
+         blah blah blah blah)
+  → A → A
   → B
 
 (x : A) (x : A)
-  (x : blah blah blah blah
-         blah blah blah blah)
+  (x
+   : blah blah blah blah blah
+       blah blah blah)
   (x : A) (x : A) (x : A)
   (x : A) (x : A) (x : A)
   → C
@@ -181,16 +185,16 @@ u
 
 let x ≔ y in let z ≔ w in u
 
-let x ≔
-  blah blah blah
-    blah blah
+let x
+  ≔ blah blah blah
+      blah blah
   in
 blah blah blah blah
   blah blah
 
-let x ≔
-  blah blah blah
-    blah blah
+let x
+  ≔ blah blah blah
+      blah blah
   in
 x
 
@@ -412,17 +416,9 @@ f
     ]
 ]
 
-[ x
-  | poo. ↦ bah
-]
-
-[ x
-  | poo. ↦ bah boo
-]
-
-[ x
-  | poo. ↦ bah (boo boo)
-]
+([ x
+   | poo. ↦ bah
+ ])
 
 
 --------------------
@@ -441,15 +437,15 @@ u
 
 let x ≔ y in let z ≔ w in u
 
-let x ≔
-  blah blah blah
-    blah blah in
+let x
+  ≔ blah blah blah
+      blah blah in
 blah blah blah blah
   blah blah
 
-let x ≔
-  blah blah blah
-    blah blah in
+let x
+  ≔ blah blah blah
+      blah blah in
 x
 
 let x : w ≔ y in
@@ -615,12 +611,6 @@ f
   | str. u v ↦ [
     | baz. ↦ bluh bluh ] ]
 
-[ x
-  | poo. ↦ bah ]
-
-[ x
-  | poo. ↦ bah boo ]
-
-[ x
-  | poo. ↦ bah (boo boo) ]
+([ x
+   | poo. ↦ bah ])
 

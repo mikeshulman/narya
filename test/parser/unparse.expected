@@ -11,8 +11,10 @@ _ _ x ↦ x
 _ f x ↦ f x
 m n Y f x ↦ n (Y → Y) (x0 x1 ↦ m Y (x2 ↦ x0 x2) x1) (x0 ↦ f x0) x
 Y f x ↦ f (f (f (f (f (f (f (f x)))))))
-(0 , 0)
-((x ↦ x) , 2)
+0 , 0
+0 , 0 , 0
+(0 , 0) , 0
+(x ↦ x) , 2
 s .fst 3
 nil.
 cons. 2 nil.

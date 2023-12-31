@@ -5,19 +5,38 @@ open Reporter
 open Notation
 open Printconfig
 
+(* Given a list of lists, either take the first element and return the rest, or if the list is empty, return an empty list and an empty list.  In other words, treat a list of lists as an infinite stream of lists that's filled out with empty lists at the end.  This is used for destructing 'Whitespace.t list list's because the parse trees produced by parsing have actual data there, while those produced by unparsing have nothing. *)
+let take = function
+  | [] -> ([], [])
+  | x :: xs -> (x, xs)
+
 (* Print a token, with arguments swapped so that it takes the token as an argument. *)
 let pp_tok (ppf : formatter) (tok : Token.t) : unit = Token.pp tok ppf ()
 
 (* Print a variable, with underscore for unnamed variables. *)
 let pp_var : formatter -> string option -> unit =
-  pp_print_option ~none:(Token.pp Underscore) pp_utf_8
+ fun ppf x ->
+  match x with
+  | Some x -> pp_utf_8 ppf x
+  | None -> Token.pp Underscore ppf ()
 
 (* Print constructors and fields *)
-let pp_constr (ppf : formatter) (c : string) : unit = fprintf ppf "%a." pp_utf_8 c
-let pp_field (ppf : formatter) (c : string) : unit = fprintf ppf ".%a" pp_utf_8 c
+let pp_constr (ppf : formatter) (c : string) : unit =
+  pp_utf_8 ppf c;
+  pp_print_char ppf '.'
+
+let pp_field (ppf : formatter) (c : string) : unit =
+  pp_print_char ppf '.';
+  pp_utf_8 ppf c
+
+let pp_space ppf space =
+  match space with
+  | `None -> ()
+  | `Break -> pp_print_space ppf ()
+  | `Nobreak -> pp_print_char ppf ' '
 
 (* Print the comments and newlines following a token. *)
-let pp_ws (ppf : formatter) (ws : Whitespace.t list) : unit =
+let pp_ws (space : space) (ppf : formatter) (ws : Whitespace.t list) : unit =
   let pp_newlines ppf n =
     for _ = 1 to n do
       pp_force_newline ppf ()
@@ -25,68 +44,111 @@ let pp_ws (ppf : formatter) (ws : Whitespace.t list) : unit =
   let rec pp (ppf : formatter) (ws : Whitespace.t list) : unit =
     match ws with
     | [] -> fatal (Anomaly "empty list in pp_ws")
-    | [ `Newlines n ] -> fprintf ppf "@]%a" pp_newlines n
-    | [ `Line str ] -> fprintf ppf "`%s@]@\n" str
-    | [ `Block str ] -> fprintf ppf "{`%s`}@]@\n" str
+    | [ `Newlines n ] ->
+        pp_close_box ppf ();
+        pp_newlines ppf n
+    | [ `Line str ] ->
+        pp_print_char ppf '`';
+        pp_print_string ppf str;
+        pp_close_box ppf ();
+        pp_force_newline ppf ()
+    | [ `Block str ] ->
+        pp_print_string ppf "{`";
+        pp_print_string ppf str;
+        pp_print_string ppf "`}";
+        pp_close_box ppf ();
+        pp_force_newline ppf ()
     | `Newlines n :: ws ->
         for _ = 1 to n do
           pp_print_cut ppf ()
         done;
         pp ppf ws
-    | `Line str :: ws -> fprintf ppf "`%s@,%a" str pp ws
+    | `Line str :: ws ->
+        pp_print_char ppf '`';
+        pp_print_string ppf str;
+        pp_print_cut ppf ();
+        pp ppf ws
     | `Block str :: (`Line _ :: _ as ws) | `Block str :: (`Block _ :: _ as ws) ->
-        fprintf ppf "{`%s`}@ %a" str pp ws
-    | `Block str :: (`Newlines _ :: _ as ws) -> fprintf ppf "{`%s`}%a" str pp ws in
+        pp_print_string ppf "{`";
+        pp_print_string ppf str;
+        pp_print_string ppf "`}";
+        pp_print_space ppf ();
+        pp ppf ws
+    | `Block str :: (`Newlines _ :: _ as ws) ->
+        pp_print_string ppf "{`";
+        pp_print_string ppf str;
+        pp_print_string ppf "`}";
+        pp ppf ws in
   match ws with
-  | [] -> ()
-  | [ `Newlines n ] -> if n >= 2 then pp_newlines ppf n else ()
-  | `Newlines n :: ws -> fprintf ppf "%a@[<v 0>%a" pp_newlines n pp ws
-  | _ -> fprintf ppf "@ @[<v 0>%a" pp ws
+  | [] -> pp_space ppf space
+  | [ `Newlines n ] -> if n >= 2 then pp_newlines ppf n else pp_space ppf space
+  | `Newlines n :: ws ->
+      pp_newlines ppf n;
+      pp_open_vbox ppf 0;
+      pp ppf ws
+  | _ ->
+      pp_print_space ppf ();
+      pp_open_vbox ppf 0;
+      pp ppf ws
 
 (* Print a parse tree. *)
-let rec pp_term (ppf : formatter) (wtr : observation) : unit =
+let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
   let (Term tr) = wtr in
   match state () with
   | `Case -> (
       match tr with
-      | Notn n -> pp_notn_case ppf (notn n) (args n) wtr
-      | _ -> as_term @@ fun () -> pp_term ppf wtr)
+      | Notn n -> pp_notn_case space ppf (notn n) (args n) (whitespace n)
+      | _ -> as_term @@ fun () -> pp_term space ppf wtr)
   | `Term -> (
       match tr with
-      | Notn n -> pp_notn ppf (notn n) (args n)
-      | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
+      | Notn n -> pp_notn space ppf (notn n) (args n) (whitespace n)
+      | App _ ->
+          pp_open_hovbox ppf 2;
+          pp_spine `None ppf wtr;
+          pp_close_box ppf ();
+          pp_space ppf space
       | Placeholder w ->
           pp_tok ppf Underscore;
-          pp_ws ppf w
+          pp_ws space ppf w
       | Ident (x, w) ->
           pp_utf_8 ppf (String.concat "." x);
-          pp_ws ppf w
+          pp_ws space ppf w
       | Constr (c, w) ->
           pp_constr ppf c;
-          pp_ws ppf w
+          pp_ws space ppf w
       | Field (f, w) ->
           pp_field ppf f;
-          pp_ws ppf w)
+          pp_ws space ppf w)
 
 and pp_notn_case :
     type left tight right.
-    formatter -> (left, tight, right) notation -> observation list -> observation -> unit =
- fun ppf n obs tr ->
+    space ->
+    formatter ->
+    (left, tight, right) notation ->
+    observation list ->
+    Whitespace.t list list ->
+    unit =
+ fun space ppf n obs ws ->
   match print_as_case n with
-  | Some pp -> pp ppf obs
-  | None -> as_term @@ fun () -> pp_term ppf tr
+  | Some pp -> pp space ppf obs ws
+  | None -> as_term @@ fun () -> pp_notn space ppf n obs ws
 
 and pp_notn :
-    type left tight right. formatter -> (left, tight, right) notation -> observation list -> unit =
- fun ppf n obs ->
+    type left tight right.
+    space ->
+    formatter ->
+    (left, tight, right) notation ->
+    observation list ->
+    Whitespace.t list list ->
+    unit =
+ fun space ppf n obs ws ->
   match print n with
-  | Some pp -> pp ppf obs
-  | None -> fatal (Anomaly "Unprintable term")
+  | Some pp -> pp space ppf obs ws
+  | None -> fatal (Anomaly "unprintable term")
 
-and pp_spine (ppf : formatter) (tr : observation) : unit =
+and pp_spine (space : space) (ppf : formatter) (tr : observation) : unit =
   match tr with
   | Term (App { fn; arg; _ }) ->
-      pp_spine ppf (Term fn);
-      pp_print_space ppf ();
-      pp_term ppf (Term arg)
-  | _ -> pp_term ppf tr
+      pp_spine `Break ppf (Term fn);
+      pp_term space ppf (Term arg)
+  | _ -> pp_term space ppf tr

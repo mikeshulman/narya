@@ -1,3 +1,5 @@
+open Bwd
+open Bwd.Infix
 open Dim
 open Core
 open Syntax
@@ -17,10 +19,9 @@ let install () =
          params = Suc Zero;
          dim = D.zero;
          fields =
-           [
-             (head, Var (Pop (Top (id_sface D.zero))));
-             (tail, App (Const stream, CubeOf.singleton (Var (Pop (Top (id_sface D.zero))))));
-           ];
+           Emp
+           <: (head, Var (Pop (Top (id_sface D.zero))))
+           <: (tail, App (Const stream, CubeOf.singleton (Var (Pop (Top (id_sface D.zero))))));
        });
   Hashtbl.add Global.types corec
     (pi None ((* A : *) UU D.zero)
@@ -60,46 +61,49 @@ let install () =
                                            `Normal (CubeOf.singleton (Some "k")),
                                            ref
                                              (Case.Cobranches
-                                                (Field.Map.of_list
-                                                   [
-                                                     ( head,
-                                                       ref
-                                                         (Case.Leaf
-                                                            (app
-                                                               (Var
-                                                                  (Pop (Pop (Top (id_sface D.zero)))))
-                                                               (Var (Top (id_sface D.zero))))) );
-                                                     ( tail,
-                                                       ref
-                                                         (Case.Leaf
-                                                            (app
-                                                               (app
-                                                                  (app
-                                                                     (app
-                                                                        (app (Const corec)
-                                                                           (Var
-                                                                              (Pop
-                                                                                 (Pop
-                                                                                    (Pop
-                                                                                       (Pop
-                                                                                          (Top
-                                                                                             (id_sface
-                                                                                                D
-                                                                                                .zero))))))))
-                                                                        (Var
-                                                                           (Pop
-                                                                              (Pop
-                                                                                 (Pop
-                                                                                    (Top
-                                                                                       (id_sface
-                                                                                          D.zero)))))))
-                                                                     (Var
-                                                                        (Pop
-                                                                           (Pop
-                                                                              (Top (id_sface D.zero))))))
-                                                                  (Var (Pop (Top (id_sface D.zero)))))
-                                                               (app
-                                                                  (Var (Pop (Top (id_sface D.zero))))
-                                                                  (Var (Top (id_sface D.zero))))))
-                                                     );
-                                                   ])) )) )) )) )) ))))
+                                                (Field.Map.of_abwd
+                                                   (Emp
+                                                   <: ( head,
+                                                        ref
+                                                          (Case.Leaf
+                                                             (app
+                                                                (Var
+                                                                   (Pop
+                                                                      (Pop (Top (id_sface D.zero)))))
+                                                                (Var (Top (id_sface D.zero))))) )
+                                                   <: ( tail,
+                                                        ref
+                                                          (Case.Leaf
+                                                             (app
+                                                                (app
+                                                                   (app
+                                                                      (app
+                                                                         (app (Const corec)
+                                                                            (Var
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Pop
+                                                                                        (Pop
+                                                                                           (Top
+                                                                                              (id_sface
+                                                                                                 D
+                                                                                                 .zero))))))))
+                                                                         (Var
+                                                                            (Pop
+                                                                               (Pop
+                                                                                  (Pop
+                                                                                     (Top
+                                                                                        (id_sface
+                                                                                           D.zero)))))))
+                                                                      (Var
+                                                                         (Pop
+                                                                            (Pop
+                                                                               (Top
+                                                                                  (id_sface D.zero))))))
+                                                                   (Var
+                                                                      (Pop (Top (id_sface D.zero)))))
+                                                                (app
+                                                                   (Var
+                                                                      (Pop (Top (id_sface D.zero))))
+                                                                   (Var (Top (id_sface D.zero))))))
+                                                      )))) )) )) )) )) ))))

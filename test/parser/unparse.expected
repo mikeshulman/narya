@@ -16,6 +16,8 @@ Y f x ↦ f (f (f (f (f (f (f (f x)))))))
 (0 , 0) , 0
 (x ↦ x) , 2
 s .fst 3
+{ head ≔ 0 ; tail ≔ zz }
+{ tail ≔ zz ; head ≔ 0 }
 nil.
 cons. 2 nil.
 cons. 4 (cons. 2 nil.)

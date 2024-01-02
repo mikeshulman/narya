@@ -1,5 +1,6 @@
 (* This module should not be opened, but used qualified. *)
 
+open Bwd
 open Util
 open Reporter
 open Syntax
@@ -23,7 +24,7 @@ type definition =
       (* The dimension of the record type itself, as a type.  In nearly all cases this will be zero; the main exception is Gel/Corr. *)
       dim : 'n D.t;
       (* The fields are listed in order, so that each can depend on the previous ones.  Each field has a type that depends on the parameters of the record type, along with an element of that type and its boundaries if any. *)
-      fields : (Field.t * ('pc, 'n) ext term) list;
+      fields : (Field.t * ('pc, 'n) ext term) Bwd.t;
     }
       -> definition
   | Data : {
@@ -54,7 +55,7 @@ type field =
 let find_record_field ?severity (name : Constant.t) (fld : Field.t) : field =
   match Hashtbl.find constants name with
   | Record { eta = _; params; dim; fields } -> (
-      match List.find_opt (fun (f, _) -> f = fld) fields with
+      match Bwd.find_opt (fun (f, _) -> f = fld) fields with
       | Some (_, ty) -> Field { params; dim; ty }
       | None -> fatal ?severity (No_such_field (`Record name, fld)))
   | _ -> fatal ?severity (No_such_field (`Nonrecord name, fld))

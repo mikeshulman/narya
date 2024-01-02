@@ -11,6 +11,8 @@ open Printable
 
 (* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
 
+(* TODO: Do we really want readback to eta-expand?  Equality-testing does eta-expanding already, so it shouldn't be necessary here, and in practice the user will probably prefer things to not get eta-expanded unnecessarily. *)
+
 let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> a term =
  fun n x -> readback_at n x.tm x.ty
 
@@ -52,36 +54,24 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
   | Canonical (name, canonical_args, ins) -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
-      | Record { eta; fields; _ } -> (
-          let module M = Monad.State (struct
-            type t = a term Field.Map.t
-          end) in
-          let open Monad.Ops (M) in
-          let open Mlist.Monadic (M) in
-          if eta then
-            let _, fields =
-              miterM
-                (fun [ (fld, _) ] ->
-                  let* fields = M.get in
-                  M.put
-                    (fields
-                    |> Field.Map.add fld (readback_at ctx (field tm fld) (tyof_field tm ty fld))))
-                [ fields ] Field.Map.empty in
-            Struct fields
-          else
-            match tm with
-            | Struct (tmflds, tmins) ->
-                let _, fields =
-                  miterM
-                    (fun [ (fld, _) ] ->
-                      let* fields = M.get in
-                      M.put
-                        (fields
-                        |> Field.Map.add fld
-                             (readback_at ctx (Field.Map.find fld tmflds) (tyof_field tm ty fld))))
-                    [ fields ] Field.Map.empty in
-                Act (Struct fields, perm_of_ins tmins)
-            | _ -> readback_val ctx tm)
+      | Record { eta = _eta; fields = _fields; _ } -> (
+          match tm with
+          | Struct (tmflds, tmins) ->
+              let fields =
+                Field.Map.mapi
+                  (fun fld fldtm -> readback_at ctx fldtm (tyof_field tm ty fld))
+                  tmflds in
+              Act (Struct fields, perm_of_ins tmins)
+          | _ ->
+              (* Eta-expanding readback should really do this, but it probably isn't what the user wants to see when printing terms, and in practice that's what we use readback for (equality-testing is a separate thing). *)
+              (* if eta then
+                   let fields =
+                     Field.Map.mapi
+                       (fun fld _ -> readback_at ctx (field tm fld) (tyof_field tm ty fld))
+                       (Field.Map.of_abwd fields) in
+                   Struct fields
+                 else *)
+              readback_val ctx tm)
       | Data { constrs; params; indices } -> (
           match compare (TubeOf.inst tyargs) k with
           | Neq -> fatal (Dimension_mismatch ("reading back canonical", TubeOf.inst tyargs, k))

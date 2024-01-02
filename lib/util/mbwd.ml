@@ -1,3 +1,5 @@
+(* Here we instantiate the general traversal technique of Mlist to act on Bwds.  This is more or less a direct transcription.  Note, though, that in contrast to the supplied traversals such as Bwd.map and Bwd.iter, here we traverse a Bwd from LEFT TO RIGHT, following the TEXTUAL ORDER rather than the direction for adding and removing elements. *)
+
 open Bwd
 open Hlist
 

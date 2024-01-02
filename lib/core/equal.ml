@@ -51,7 +51,7 @@ and equal_at : int -> value -> value -> value -> unit option =
           | Eq -> (
               if eta then
                 (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-                ListM.miterM
+                BwdM.miterM
                   (fun [ (fld, _) ] ->
                     equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
                   [ fields ]
@@ -60,7 +60,7 @@ and equal_at : int -> value -> value -> value -> unit option =
                 match (x, y) with
                 | Struct (xfld, xins), Struct (yfld, yins) ->
                     let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
-                    ListM.miterM
+                    BwdM.miterM
                       (fun [ (fld, _) ] ->
                         equal_at ctx (Field.Map.find fld xfld) (Field.Map.find fld yfld)
                           (tyof_field x ty fld))

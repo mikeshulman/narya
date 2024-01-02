@@ -106,28 +106,28 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
           | Record { fields; _ } ->
               let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
               let dim = cod_left_ins ins in
-              (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
-              let module M = Monad.State (struct
-                type t = b term Field.Map.t * value Field.Map.t
-              end) in
-              let open Monad.Ops (M) in
-              let open Mlist.Monadic (M) in
-              (* We have to accumulate the evaluated terms for use as we go in typechecking, but we throw them away at the end.  (As usual, that seems wasteful.) *)
-              let (), (ctms, _) =
-                miterM
-                  (fun [ (fld, _) ] ->
-                    let* ctms, etms = M.get in
-                    let prev_etm = Value.Struct (etms, zero_ins dim) in
+              (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
+              let etms = ref Field.Map.empty in
+              let ctms =
+                Field.Map.mapi
+                  (fun fld _ ->
+                    let prev_etm = Value.Struct (!etms, zero_ins dim) in
                     let ety = tyof_field prev_etm ty fld in
                     match Field.Map.find_opt fld tms with
                     | Some tm ->
                         let ctm = check ctx tm ety in
-                        let etm = Ctx.eval ctx ctm in
-                        M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms)
+                        etms := Field.Map.add fld (Ctx.eval ctx ctm) !etms;
+                        ctm
                     | None -> fatal (Missing_field_in_struct fld))
-                  [ fields ]
-                  (Field.Map.empty, Field.Map.empty) in
-              Term.Struct ctms
+                  (Field.Map.of_abwd fields) in
+              (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
+              Term.Struct
+                (Field.Map.mapi
+                   (fun fld _ ->
+                     match Field.Map.find_opt fld ctms with
+                     | Some tm -> tm
+                     | None -> fatal (Extra_field_in_struct fld))
+                   tms)
           | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
       | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
   | Constr (constr, args) -> (
@@ -484,12 +484,9 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
           match Hashtbl.find Global.constants name with
           | Record { fields; _ } ->
               let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
-              let tfields =
-                List.fold_left
-                  (fun m (x, _) -> Field.Map.add x (ref Case.Empty) m)
-                  Field.Map.empty fields in
+              let tfields = Field.Map.map (fun _ -> ref Case.Empty) (Field.Map.of_abwd fields) in
               tree := Case.Cobranches tfields;
-              Mlist.miter
+              Mbwd.miter
                 (fun [ (fld, _) ] ->
                   let ety = tyof_field prev_tm ty fld in
                   (* This enforces coverage checking.  If we want to allow delayed or disabled coverage checking, then a None result here should succeed and do nothing, leaving the corresponding cobranch as Case.Empty. *)

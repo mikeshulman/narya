@@ -541,8 +541,9 @@ let () =
              })))
 
 let rec process_struc :
-    type n. n check Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
- fun flds ctx obs ->
+    type n.
+    n check Field.Map.t * Field.Set.t -> (string option, n) Bwv.t -> observation list -> n check =
+ fun (flds, found) ctx obs ->
   match obs with
   | [] -> Raw.Struct flds
   | Term (Ident ([ x ], _)) :: obs | Term (Field (x, _)) :: obs -> (
@@ -550,17 +551,14 @@ let rec process_struc :
       | Term tm :: obs ->
           let tm = process ctx tm in
           let fld = Field.intern x in
-          process_struc
-            (Field.Map.update fld
-               (function
-                 | None -> Some tm
-                 | Some _ -> fatal (Duplicate_field_in_struct fld))
-               flds)
-            ctx obs
+          if Field.Set.mem fld found then fatal (Duplicate_field_in_struct fld)
+          else process_struc (Field.Map.add fld tm flds, Field.Set.add fld found) ctx obs
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | _ :: _ -> fatal Invalid_field_in_struct
 
-let () = set_processor struc { process = (fun ctx obs _ -> process_struc Field.Map.empty ctx obs) }
+let () =
+  set_processor struc
+    { process = (fun ctx obs _ -> process_struc (Field.Map.empty, Field.Set.empty) ctx obs) }
 
 let rec pp_fld :
     type a.

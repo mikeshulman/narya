@@ -26,6 +26,7 @@ module Code = struct
     | Unequal_synthesized_type : printable * printable -> t
     | Checking_struct_at_degenerated_record : Constant.t -> t
     | Missing_field_in_struct : Field.t -> t
+    | Extra_field_in_struct : Field.t -> t
     | Invalid_field_in_struct : t
     | Duplicate_field_in_struct : Field.t -> t
     | Missing_constructor_in_match : Constr.t -> t
@@ -81,6 +82,7 @@ module Code = struct
     | Unequal_synthesized_type _ -> Error
     | Checking_struct_at_degenerated_record _ -> Error
     | Missing_field_in_struct _ -> Error
+    | Extra_field_in_struct _ -> Error
     | Invalid_field_in_struct -> Error
     | Duplicate_field_in_struct _ -> Error
     | Missing_constructor_in_match _ -> Error
@@ -165,6 +167,7 @@ module Code = struct
     | Checking_struct_at_nonrecord _ -> "E0900"
     | Checking_struct_at_degenerated_record _ -> "E0901"
     | Missing_field_in_struct _ -> "E0902"
+    | Extra_field_in_struct _ -> "E0903"
     (* Datatype constructors *)
     | No_such_constructor _ -> "E1000"
     | Wrong_number_of_arguments_to_constructor _ -> "E1001"
@@ -222,6 +225,8 @@ module Code = struct
         textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
           (name_of r)
     | Missing_field_in_struct f -> textf "record field %s missing in struct" (Field.to_string f)
+    | Extra_field_in_struct f ->
+        textf "field %s in struct doesn't occur in record type" (Field.to_string f)
     | Invalid_field_in_struct -> text "invalid field in struct"
     | Duplicate_field_in_struct f ->
         textf "record field %s appears more than once in struct" (Field.to_string f)

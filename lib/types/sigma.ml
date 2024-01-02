@@ -1,3 +1,5 @@
+open Bwd
+open Bwd.Infix
 open Util
 open Dim
 open Core
@@ -71,7 +73,7 @@ let () =
           | [ Term x; Term y ] ->
               let x = process ctx x in
               let y = process ctx y in
-              Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ])
+              Raw.Struct (Field.Map.of_abwd (Emp <: (fst, x) <: (snd, y)))
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     };
   set_print comma (fun space ppf obs ws ->
@@ -116,11 +118,11 @@ let install () =
          params = Suc (Suc Zero);
          dim = D.zero;
          fields =
-           [
-             (fst, Var (Pop (Pop (Top (id_sface D.zero)))));
-             ( snd,
-               app (Var (Pop (Top (id_sface D.zero)))) (Field (Var (Top (id_sface D.zero)), fst)) );
-           ];
+           Emp
+           <: (fst, Var (Pop (Pop (Top (id_sface D.zero)))))
+           <: ( snd,
+                app (Var (Pop (Top (id_sface D.zero)))) (Field (Var (Top (id_sface D.zero)), fst))
+              );
        });
   Hashtbl.add Global.constants pair
     (Defined

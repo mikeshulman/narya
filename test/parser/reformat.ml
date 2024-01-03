@@ -1,5 +1,7 @@
 open Testutil.Print
 
+(* TODO: Some of the pretty-printing routines yield blank spaces at the end of lines, though they otherwise look nice.  It would be nice if we could tweak them to not do that, or failing that do some postprocessing to remove the extra spaces. *)
+
 let test_reformat () =
   (* Application spines, with field projections *)
   set_margin 20;
@@ -80,26 +82,28 @@ let test_compactness () =
   reformat "let x : a := blah blah blah blah blah in blah blah blah blah blah blah";
   reformat "let x : a := blah blah blah blah blah in x";
 
-  (* Structs *)
+  (* Tuples *)
   set_margin 30;
-  reformat "{fst := M; snd := N}";
-  reformat "f {fst := M; snd := N}";
-  reformat "{fst := blah blah blah blah blah blah; snd := blah blah blah blah blah blah blah blah}";
-  reformat "{fst := blah blah blah blah blah blah; snd := blah}";
+  reformat "(fst := M, snd := N)";
+  reformat "f (fst := M, snd := N)";
+  reformat "(fst := blah blah blah blah blah blah, snd := blah blah blah blah blah blah blah blah)";
+  reformat "(fst := blah blah blah blah blah blah, snd := blah)";
   reformat
-    "f {fst := blah blah blah blah blah blah; snd := blah blah blah blah blah blah blah blah}";
-  reformat "f {fst := blah blah blah blah blah blah; snd := blah}";
-  reformat
-    "{.fst |-> blah blah blah blah blah blah; .snd |-> blah blah blah blah blah blah blah blah}";
-  reformat
-    "f {.fst |-> blah blah blah blah blah blah; .snd |-> blah blah blah blah blah blah blah blah}";
+    "f (fst := blah blah blah blah blah blah, snd := blah blah blah blah blah blah blah blah)";
+  reformat "f (fst := blah blah blah blah blah blah, snd := blah)";
   set_margin 40;
-  reformat "{fst := M; snd := {foo := N; bar := P}}";
-  reformat "f {fst := M; snd := {foo := N; bar := P}}";
+  reformat "(fst := M, snd := (foo := N, bar := P))";
+  reformat "f (fst := M, snd := (foo := N, bar := P))";
+
+  (* Comatches *)
+  set_margin 30;
+  reformat
+    "[.fst |-> blah blah blah blah blah blah | .snd |-> blah blah blah blah blah blah blah blah]";
   set_margin 80;
-  reformat "{.fst |-> {.foo |-> bar ; .baz |-> qux }; .snd |-> { .poo |-> { .bah |-> bum } } }";
+  reformat "[.fst |-> [.foo |-> bar  | .baz |-> qux ] | .snd |-> [ .poo |-> [ .bah |-> bum ] ] ]";
 
   (* Matches *)
+  reformat "[fst. |-> [foo. |-> bar  | baz. |-> qux ] | snd. |-> [ poo. |-> [ bah. |-> bum ] ] ]";
   set_margin 30;
   reformat "[x| con. a b |-> blah blah | str. u v |-> bluh bluh ]";
   reformat
@@ -112,7 +116,7 @@ let test_compactness () =
   reformat
     "[x| con. a b |-> [ y | foo. |-> ba ba baa ba baa baba ba ba baaba babba ba | bar. u v w z w |-> z ] | str. u v |-> bluh bluh ]";
   reformat
-    "[x| con. a b |-> { foo := ba ba baa ba baa baba ba ba baaba babba ba ; bar := z } | str. u v |-> { .flab |-> boo boo; .flub |-> zoo zo zoo zo zzo zo } ]";
+    "[x| con. a b |-> [ .foo |-> ba ba baa ba baa baba ba ba baaba babba ba | .bar |-> z ] | str. u v |-> [ .flab |-> boo boo | .flub |-> zoo zo zoo zo zzo zo ] ]";
   reformat
     "[ con. a b |-> [ foo. x |-> ba ba ba | bar. y z |-> y ] | str. u v |-> [ baz. |-> bluh bluh ] ]";
   reformat "([x| poo. |-> bah])";

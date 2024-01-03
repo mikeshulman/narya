@@ -80,14 +80,15 @@ let () =
   let () = equal s2ty s2ty' in
   let ba0, _ = synth "B a₀" in
   let b0 = assume "b₀" ba0 in
-  let ab0 = check "{ fst ≔ a₀; snd := b₀ }" sigab in
-  let () = uncheck "{ fst ≔ a₁; snd := b₀ }" sigab in
-  let a0', _ = synth "({ fst ≔ a₀; snd ≔ b₀ } : (x:A) × B x) .fst" in
+  let ab0 = check "( fst ≔ a₀, snd := b₀ )" sigab in
+  let () = uncheck "( fst ≔ a₁, snd := b₀ )" sigab in
+  let a0', _ = synth "(( fst ≔ a₀, snd ≔ b₀ ) : (x:A) × B x) .fst" in
   let () = equal a0 a0' in
-  let b0', _ = synth "({ fst ≔ a₀; snd ≔ b₀ } : (x:A) × B x) .snd" in
+  let b0', _ = synth "((fst ≔ a₀, snd ≔ b₀ ) : (x:A) × B x) .snd" in
   let () = equal b0 b0' in
-  let ab0' = check "a₀ , b₀" sigab in
-  let a0'', _ = synth "((a₀ , b₀) : (x:A) × B x) .fst" in
+  (* TODO *)
+  let ab0' = check "(fst ≔ a₀ , snd ≔ b₀)" sigab in
+  let a0'', _ = synth "((fst ≔ a₀ , snd ≔ b₀) : (x:A) × B x) .fst" in
   let () = equal a0 a0'' in
 
   (* Right-associativity of prod and comma *)
@@ -101,8 +102,11 @@ let () =
   let aaddee'', _ = synth "(A × D) × E" in
   let () = equal aaddee aaddee' in
   let () = unequal aaddee aaddee'' in
+
+  (*
   let ade = check "a , d , e" aaddee in
   let () = uncheck "a , d , e" aaddee'' in
+*)
 
   (* Interaction of prod and arrow *)
   let t, _ = synth "(x:A) → (y:D) × E" in
@@ -115,7 +119,7 @@ let () =
   let _ = check "x a .fst" dd in
   let t, _ = synth "(u:A) × D → E" in
   let x = assume "x" t in
-  let _ = check "x (a,d)" ee in
+  let _ = check "x (fst≔a,snd≔d)" ee in
   let t, _ = synth "A → (y:D) × E" in
   let x = assume "x" t in
   let _ = check "x a .fst" dd in
@@ -125,7 +129,7 @@ let () =
   let _ = check "x a .fst" dd in
   let t, _ = synth "A × D → E" in
   let x = assume "x" t in
-  let _ = check "x (a,d)" ee in
+  let _ = check "x (fst ≔ a,snd ≔d)" ee in
 
   (* Sigmas could also have an ambiguity bug. *)
   let _ = synth "(A:Type) × (A:Type) × A" in

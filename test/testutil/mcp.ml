@@ -130,8 +130,9 @@ let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
   if Option.is_none (Equal.equal_val (Ctx.length ctx) tm1 tm2) then ()
   else raise (Failure "Equal terms")
 
-let run f =
+let rec run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
+      run @@ fun () ->
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->

@@ -146,7 +146,8 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   | Field (tm, fld) ->
       let etm = eval env tm in
       field etm fld
-  | Struct fields -> Struct (Field.Map.map (fun tm -> eval env tm) fields, zero_ins (dim_env env))
+  | Struct (_, fields) ->
+      Struct (Field.Map.map (fun tm -> eval env tm) fields, zero_ins (dim_env env))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in

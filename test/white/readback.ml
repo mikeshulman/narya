@@ -28,7 +28,7 @@ let () =
   (* And some pairs *)
   Types.Sigma.install ();
   let swapty, _ = synth "(A B : Type) → Σ A (_ ↦ B) → Σ B (_ ↦ A)" in
-  let swap = check "A B x ↦ (x .snd , x .fst)" swapty in
+  let swap = check "A B x ↦ (fst ≔ x .snd , snd ≔ x .fst)" swapty in
   roundtrip_ok swap swapty;
 
   let assocty, _ =
@@ -36,7 +36,8 @@ let () =
       "(A:Type) (B:A→Type) (C:(x:A)→B x→Type) → Σ A (a ↦ Σ (B a) (C a)) → Σ (Σ A B) (x ↦ C (x .fst) (x .snd))"
   in
 
-  let assoc = check "A B C w ↦ ((w .fst , w .snd .fst) , w .snd .snd)" assocty in
+  let assoc =
+    check "A B C w ↦ (fst ≔ (fst ≔ w .fst , snd ≔ w .snd .fst) , snd ≔ w .snd .snd)" assocty in
   roundtrip_ok assoc assocty;
 
   (* And some reflexivity *)

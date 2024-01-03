@@ -24,9 +24,10 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
   | Lam (x, body) -> Lam (Some x, `Normal, parse_chk (Snoc (ctx, x)) body)
   | Struct tms ->
       Struct
-        (List.fold_left
-           (fun acc (fld, tm) -> Field.Map.add (Field.intern fld) (parse_chk ctx tm) acc)
-           Field.Map.empty tms)
+        ( `Eta,
+          List.fold_left
+            (fun acc (fld, tm) -> Field.Map.add (Field.intern fld) (parse_chk ctx tm) acc)
+            Field.Map.empty tms )
   | Constr c -> Constr (Constr.intern c, Emp)
   | App (fn, arg) as tm -> (
       match parse_chk ctx fn with

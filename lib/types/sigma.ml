@@ -61,38 +61,9 @@ let () =
           pp_close_box ppf ()
       | _ -> fatal (Anomaly "invalid notation arguments for prod"))
 
-let comma = make "comma" (Infixr No.one)
-
-let () =
-  set_tree comma (Open_entry (eop (Op ",") (done_open comma)));
-  set_processor comma
-    {
-      process =
-        (fun ctx obs _ ->
-          match obs with
-          | [ Term x; Term y ] ->
-              let x = process ctx x in
-              let y = process ctx y in
-              Raw.Struct (Field.Map.of_abwd (Emp <: (fst, x) <: (snd, y)))
-          | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
-    };
-  set_print comma (fun space ppf obs ws ->
-      match obs with
-      | [ x; y ] ->
-          let wscomma, _ = take ws in
-          pp_open_hovbox ppf 2;
-          if true then (
-            pp_term `Break ppf x;
-            pp_tok ppf (Op ",");
-            pp_ws `Nobreak ppf wscomma;
-            pp_term space ppf y);
-          pp_close_box ppf ()
-      | _ -> fatal (Anomaly "invalid notation arguments for comma"))
-
 let install_notations () =
   (* TODO: How to unparse into a binding notation? *)
-  State.add_bare prodn;
-  State.add_struct comma [ "fst"; "snd" ]
+  State.add_bare prodn
 
 let install () =
   install_notations ();
@@ -145,7 +116,9 @@ let install () =
                                     ref
                                       (Case.Leaf
                                          (Struct
-                                            (Field.Map.empty
-                                            |> Field.Map.add fst (Var (Pop (Top (id_sface D.zero))))
-                                            |> Field.Map.add snd (Var (Top (id_sface D.zero)))))) ))
-                           )) )) ))))
+                                            ( `Eta,
+                                              Field.Map.empty
+                                              |> Field.Map.add fst
+                                                   (Var (Pop (Top (id_sface D.zero))))
+                                              |> Field.Map.add snd (Var (Top (id_sface D.zero))) )))
+                                  )) )) )) ))))

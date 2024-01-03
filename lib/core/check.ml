@@ -98,13 +98,13 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                     (`Cube x, check (Ctx.vis ctx (`Cube x) newnfs) body output) in
               Term.Lam (m, xs, cbody))
       | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
-  | Struct tms -> (
+  | Struct (`Eta, tms) -> (
       match uty with
       | Canonical (name, _, ins) -> (
           (* We don't need to name the arguments of Canonical here because tyof_field, called below, uses them. *)
           match Hashtbl.find Global.constants name with
-          | Record { fields; _ } ->
-              let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
+          | Record { eta = `Eta; fields; _ } ->
+              let () = is_id_perm (perm_of_ins ins) <|> Checking_tuple_at_degenerated_record name in
               let dim = cod_left_ins ins in
               (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
               let etms = ref Field.Map.empty in
@@ -118,18 +118,19 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                         let ctm = check ctx tm ety in
                         etms := Field.Map.add fld (Ctx.eval ctx ctm) !etms;
                         ctm
-                    | None -> fatal (Missing_field_in_struct fld))
+                    | None -> fatal (Missing_field_in_tuple fld))
                   (Field.Map.of_abwd fields) in
               (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
               Term.Struct
-                (Field.Map.mapi
-                   (fun fld _ ->
-                     match Field.Map.find_opt fld ctms with
-                     | Some tm -> tm
-                     | None -> fatal (Extra_field_in_struct fld))
-                   tms)
-          | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
-      | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
+                ( `Eta,
+                  Field.Map.mapi
+                    (fun fld _ ->
+                      match Field.Map.find_opt fld ctms with
+                      | Some tm -> tm
+                      | None -> fatal (Extra_field_in_tuple fld))
+                    tms )
+          | _ -> fatal (Checking_tuple_at_nonrecord (PUninst (ctx, uty))))
+      | _ -> fatal (Checking_tuple_at_nonrecord (PUninst (ctx, uty))))
   | Constr (constr, args) -> (
       match uty with
       | Canonical (name, ty_params_indices, ins) -> (
@@ -216,6 +217,8 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
       (* TODO: If checking against a pi-type, we could automatically eta-expand. *)
       | _ -> fatal (No_such_constructor (`Other (PUninst (ctx, uty)), constr)))
   | Match _ -> fatal (Unimplemented "Matching in terms (rather than case trees)")
+  | Struct _ -> fatal (Unimplemented "Comatching in terms (rather than case trees)")
+  | Empty_co_match -> fatal (Unimplemented "(Co)matching in terms (rather than case trees)")
 
 and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
  fun ctx tm ->
@@ -478,12 +481,13 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                   let ctx = Ctx.vis ctx (`Cube x) newnfs in
                   check_tree ctx body output (apply prev_tm newargs) tbody))
       | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
-  | Struct tms -> (
+  | Struct (tmeta, tms) -> (
+      Reporter.trace "when checking comatch" @@ fun () ->
       match uty with
       | Canonical (name, _, ins) -> (
           match Hashtbl.find Global.constants name with
-          | Record { fields; _ } ->
-              let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
+          | Record { eta; fields; _ } when eta = tmeta ->
+              let () = is_id_perm (perm_of_ins ins) <|> struct_at_degenerated_type tmeta name in
               let tfields = Field.Map.map (fun _ -> ref Case.Empty) (Field.Map.of_abwd fields) in
               tree := Case.Cobranches tfields;
               Mbwd.miter
@@ -493,10 +497,12 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                   match Field.Map.find_opt fld tms with
                   | Some tm ->
                       check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields)
-                  | None -> fatal (Missing_field_in_struct fld))
+                  | None -> fatal (missing_field_in_struct eta fld))
                 [ fields ]
-          | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
-      | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
+          | _ -> fatal (struct_at_nonrecord tmeta (PUninst (ctx, uty))))
+      | _ ->
+          Reporter.trace "fatal" @@ fun () -> fatal (struct_at_nonrecord tmeta (PUninst (ctx, uty)))
+      )
   | Match (ix, brs) -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
       match Ctx.lookup ctx ix with
@@ -700,6 +706,10 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                             tbranches)
                   | _ -> fatal (Matching_on_nondatatype (`Canonical name))))
           | _ -> fatal (Matching_on_nondatatype (`Other (PUninst (ctx, uvarty))))))
+  | Empty_co_match -> (
+      match uty with
+      | Pi _ -> check_tree ctx (Raw.Lam (None, `Normal, Match ((Top, None), []))) ty prev_tm tree
+      | _ -> check_tree ctx (Struct (`Noeta, Field.Map.empty)) ty prev_tm tree)
   | _ ->
       let leaf = check ctx tm ty in
       tree := Case.Leaf leaf

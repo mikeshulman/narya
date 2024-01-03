@@ -187,7 +187,7 @@ let rec unparse :
                ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
                ~last:body ~right_ok))
   | Lam (_, cube, _) -> unparse_lam cube vars Emp tm li ri
-  | Struct fields -> (
+  | Struct (eta, fields) -> (
       let flds = List.map (fun (key, _) -> Field.to_string key) (Field.Map.bindings fields) in
       (* If the fields of a struct have an associated notation, we use that notation. *)
       match State.print_struct flds with
@@ -198,12 +198,20 @@ let rec unparse :
               Emp (Field.Map.bindings fields) in
           unparse_notation notn vals li ri
       | None ->
-          outfix ~notn:struc ~ws:[]
+          let notn =
+            match eta with
+            | `Eta -> tuple
+            | `Noeta -> comatch in
+          let term_of_field fld =
+            match eta with
+            | `Eta -> Ident ([ Field.to_string fld ], [])
+            | `Noeta -> Field (Field.to_string fld, []) in
+          outfix ~notn ~ws:[]
             ~inner:
               (Field.Map.fold
                  (fun fld tm acc ->
                    Snoc
-                     ( Snoc (acc, Term (Ident ([ Field.to_string fld ], []))),
+                     ( Snoc (acc, Term (term_of_field fld)),
                        Term (unparse vars tm Interval.entire Interval.entire) ))
                  fields Emp))
   (* TODO: Can we associate notations to constructors, like to constants? *)

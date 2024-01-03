@@ -50,12 +50,12 @@ let () =
   let () = unsynth ~print:() "(f x) y ↦ z" ~code:Parse_error in
   let () = unsynth ~print:() "_" ~code:(Unimplemented "unification arguments") in
   let () =
-    unsynth ~print:() "a ↦ { fst ≔ a; fst ≔ a }"
-      ~code:(Duplicate_field_in_struct (Core.Field.intern "fst")) in
-  let () = unsynth ~print:() "{ _ ≔ a }" ~code:Invalid_field_in_struct in
-  let () = unsynth ~print:() "{ (x) ≔ a }" ~code:Invalid_field_in_struct in
-  let () = unsynth ~print:() "{ _ ↦ a }" ~code:Parse_error in
-  let () = unsynth ~print:() "{ (x) ↦ a }" ~code:Parse_error in
+    unsynth ~print:() "a ↦ ( fst ≔ a, fst ≔ a )"
+      ~code:(Duplicate_field_in_tuple (Core.Field.intern "fst")) in
+  let () = unsynth ~print:() "( _ ≔ a )" ~code:Invalid_field_in_tuple in
+  let () = unsynth ~print:() "( (x) ≔ a )" ~code:Invalid_field_in_tuple in
+  let () = unsynth ~print:() "[ _ ↦ a ]" ~code:Parse_error in
+  let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in
@@ -64,11 +64,11 @@ let () =
   let bb = assume "B" atou in
   let sigab = check "(x:A)× B x" uu in
   let () =
-    uncheck ~print:() "{ fst ≔ a }" sigab ~code:(Missing_field_in_struct (Core.Field.intern "snd"))
+    uncheck ~print:() "( fst ≔ a )" sigab ~code:(Missing_field_in_tuple (Core.Field.intern "snd"))
   in
-  let () = uncheck ~print:() "{ fst ≔ a }" aa ~short:"E0900" in
+  let () = uncheck ~print:() "( fst ≔ a )" aa ~short:"E0900" in
   let nat = check "N" uu in
-  let () = uncheck ~print:() "{ fst ≔ a }" nat ~short:"E0900" in
+  let () = uncheck ~print:() "( fst ≔ a )" nat ~short:"E0900" in
   let s = assume "s" sigab in
   let () =
     unsynth ~print:() "s .third"
@@ -115,17 +115,17 @@ let () =
   let r2 = assume "r2" (fst (synth "R2 a0 a1 a2 b0 b1 b2 r0 r1")) in
 
   let r2ty, _ =
-    synth "refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2 a0 a1 a2 b0 b1 b2 { ungel ≔ r0} { ungel ≔ r1 }" in
+    synth "refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2 a0 a1 a2 b0 b1 b2 (ungel ≔ r0) (ungel ≔ r1)" in
 
-  let r2' = check "{ ungel ≔ r2 }" r2ty in
+  let r2' = check "(ungel ≔ r2)" r2ty in
 
   let symr2ty, _ =
-    synth "sym (refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2) a0 b0 { ungel ≔ r0} a1 b1 { ungel ≔ r1 } a2 b2"
+    synth "sym (refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2) a0 b0 (ungel ≔ r0) a1 b1 (ungel ≔ r1) a2 b2"
   in
 
   let () =
-    uncheck ~print:() "{ ungel ≔ r2 }" symr2ty
-      ~code:(Checking_struct_at_degenerated_record Types.Gel.gel) in
+    uncheck ~print:() "(ungel ≔ r2)" symr2ty
+      ~code:(Checking_tuple_at_degenerated_record Types.Gel.gel) in
 
   (* Cube variables *)
   let () = uncheck ~print:() "x ↦ x.0" atoa ~code:(Invalid_variable_face (D.zero, zero_sface_one)) in

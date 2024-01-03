@@ -27,9 +27,12 @@ module Raw = struct
   and _ check =
     | Synth : 'a synth -> 'a check
     | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check -> 'a check
-    | Struct : 'a check Field.Map.t -> 'a check
+    (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches. *)
+    | Struct : eta * 'a check Field.Map.t -> 'a check
     | Constr : Constr.t * 'a check Bwd.t -> 'a check
     | Match : 'a index * 'a branch list -> 'a check
+    | Empty_co_match (* "[]" or "[|]", which could be either an empty match or an empty comatch *)
+        : 'a check
 
   and _ branch = Branch : Constr.t * ('a, 'b, 'ab) N.plus * 'ab check -> 'a branch
 
@@ -86,7 +89,7 @@ module rec Term : sig
     | Pi : string option * ('n, 'a term) CubeOf.t * ('n, 'a) CodCube.t -> 'a term
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : 'n D.t * 'n variables * ('a, 'n) ext Term.term -> 'a term
-    | Struct : 'a term Field.Map.t -> 'a term
+    | Struct : eta * 'a term Field.Map.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
@@ -106,7 +109,7 @@ end = struct
     | Pi : string option * ('n, 'a term) CubeOf.t * ('n, 'a) CodCube.t -> 'a term
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : 'n D.t * 'n variables * ('a, 'n) ext Term.term -> 'a term
-    | Struct : 'a term Field.Map.t -> 'a term
+    | Struct : eta * 'a term Field.Map.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term

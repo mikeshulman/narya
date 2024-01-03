@@ -88,33 +88,29 @@
  ￫ error[E0100]
  ￮ unification arguments not yet implemented
 
- ￫ error[E0207]
- ￮ record field fst appears more than once in struct
+ ￫ error[E0904]
+ ￮ record field fst appears more than once in tuple
 
- ￫ error[E0208]
- ￮ invalid field in struct
+ ￫ error[E0905]
+ ￮ invalid field in tuple
 
- ￫ error[E0208]
- ￮ invalid field in struct
-
- ￫ error[E0200]
- ￭ user-supplied term
- 1 | { _ ↦ a }
-   ^ parse error
+ ￫ error[E0905]
+ ￮ invalid field in tuple
 
  ￫ error[E0200]
- ￭ user-supplied term
- 1 | { (x) ↦ a }
-   ^ parse error
+ ￮ parse error
+
+ ￫ error[E0200]
+ ￮ parse error
 
  ￫ error[E0902]
- ￮ record field snd missing in struct
+ ￮ record field snd missing in tuple
 
  ￫ error[E0900]
- ￮ checking struct against non-record type A
+ ￮ checking tuple against non-record type A
 
  ￫ error[E0900]
- ￮ checking struct against non-record type N
+ ￮ checking tuple against non-record type N
 
  ￫ error[E0800]
  ￮ record type Σ has no field named third
@@ -135,7 +131,7 @@
  ￮ unsupported numeral: 21/5
 
  ￫ error[E0901]
- ￮ can't check a struct against a record Gel with a nonidentity degeneracy applied
+ ￮ can't check a tuple against a record Gel with a nonidentity degeneracy applied
 
  ￫ error[E0506]
  ￮ invalid face: 0-dimensional variable has no face 0

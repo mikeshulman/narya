@@ -156,35 +156,36 @@ let () =
             Term (Ident [ "B" ]);
           ] ));
 
-  assert (parse "{}" = Notn ("struc", []));
+  assert (parse "()" = Notn ("tuple", []));
 
-  assert (parse "{x := y}" = Notn ("struc", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+  assert (parse "(x := y)" = Notn ("tuple", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
 
-  assert (parse "{.x |-> y}" = Notn ("struc", [ Term (Field "x"); Term (Ident [ "y" ]) ]));
+  assert (parse "[.x |-> y]" = Notn ("comatch", [ Term (Field "x"); Term (Ident [ "y" ]) ]));
 
   assert (
-    parse "{x := y ; z := w}"
+    parse "(x := y , z := w)"
     = Notn
-        ( "struc",
+        ( "tuple",
           [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]
         ));
 
   assert (
-    parse "{.x ↦ y ; .z ↦ w}"
+    parse "[.x ↦ y | .z ↦ w]"
     = Notn
-        ("struc", [ Term (Field "x"); Term (Ident [ "y" ]); Term (Field "z"); Term (Ident [ "w" ]) ]));
+        ( "comatch",
+          [ Term (Field "x"); Term (Ident [ "y" ]); Term (Field "z"); Term (Ident [ "w" ]) ] ));
 
   assert (
-    parse "{x := y ; z := w;}"
+    parse "(x := y , z := w,)"
     = Notn
-        ( "struc",
+        ( "tuple",
           [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]
         ));
 
   assert (
-    parse "{x := y ; z := w; a ≔ b}"
+    parse "(x := y , z := w, a ≔ b)"
     = Notn
-        ( "struc",
+        ( "tuple",
           [
             Term (Ident [ "x" ]);
             Term (Ident [ "y" ]);

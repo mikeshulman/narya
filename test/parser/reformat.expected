@@ -253,111 +253,102 @@ let x
   in
 x
 
-{
-  .fst ↦ M ;
-  .snd ↦ N ;
-}
+( fst ≔ M, snd ≔ N )
 
-f { fst ≔ M ; snd ≔ N }
+f ( fst ≔ M, snd ≔ N )
 
-{
-  .fst ↦
+(
+  fst ≔
     blah blah blah blah blah
-      blah ;
-  .snd ↦
+      blah,
+  snd ≔
     blah blah blah blah blah
-      blah blah blah ;
-}
+      blah blah blah,
+)
 
-{
-  .fst ↦
+(
+  fst ≔
     blah blah blah blah blah
-      blah ;
-  .snd ↦ blah ;
-}
+      blah,
+  snd ≔ blah,
+)
 
 f
-  {
+  (
     fst ≔
       blah blah blah blah
-        blah blah ;
+        blah blah,
     snd ≔
       blah blah blah blah
-        blah blah blah blah ;
-  }
+        blah blah blah blah,
+  )
 
 f
-  {
+  (
     fst ≔
       blah blah blah blah
-        blah blah ;
-    snd ≔ blah ;
-  }
+        blah blah,
+    snd ≔ blah,
+  )
 
-{
-  .fst ↦
-    blah blah blah blah blah
-      blah ;
-  .snd ↦
-    blah blah blah blah blah
-      blah blah blah ;
-}
+( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
 
 f
-  {
-    fst ≔
-      blah blah blah blah
-        blah blah ;
-    snd ≔
-      blah blah blah blah
-        blah blah blah blah ;
-  }
+  ( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ),
+  )
 
-{
-  .fst ↦ M ;
-  .snd ↦ {
-           .foo ↦ N ;
-           .bar ↦ P ;
-         } ;
-}
+[
+  | .fst ↦
+    blah blah blah blah blah
+      blah 
+  | .snd ↦
+    blah blah blah blah blah
+      blah blah blah 
+]
 
-f
-  {
-    fst ≔ M ;
-    snd ≔ { foo ≔ N ; bar ≔ P } ;
-  }
+[
+  | .fst ↦ [
+             | .foo ↦ bar 
+             | .baz ↦ qux 
+           ] 
+  | .snd ↦ [
+             | .poo ↦ [
+                        | .bah ↦ bum 
+                      ] 
+           ] 
+]
 
-{
-  .fst ↦ {
-           .foo ↦ bar ;
-           .baz ↦ qux ;
-         } ;
-  .snd ↦ {
-           .poo ↦ {
-                    .bah ↦ bum ;
-                  } ;
-         } ;
-}
+[
+  | fst. ↦ [
+             | foo. ↦ bar 
+             | baz. ↦ qux 
+           ] 
+  | snd. ↦ [
+             | poo. ↦ [
+                        | bah. ↦ bum 
+                      ] 
+           ] 
+]
 
 [ x
-  | con. a b ↦ blah blah
-  | str. u v ↦ bluh bluh
+  | con. a b ↦ blah blah 
+  | str. u v ↦ bluh bluh 
 ]
 
 [ x
   | con. a b ↦
     blah blah blah blah blah
       blah blah blah blah
-      blah
-  | str. u v ↦ bluh bluh
+      blah 
+  | str. u v ↦ bluh bluh 
 ]
 
 [ x
   | con. a a a a a a a a a a
       a a a a a a a a a a a a
       a ↦
-    blah blah
-  | str. u v ↦ bluh bluh
+    blah blah 
+  | str. u v ↦ bluh bluh 
 ]
 
 [ x
@@ -366,13 +357,13 @@ f
       a ↦
     blah blah blah blah blah
       blah blah blah blah
-      blah blah
-  | str. u v ↦ bluh bluh
+      blah blah 
+  | str. u v ↦ bluh bluh 
 ]
 
 [
-  | con. a b ↦ blah blah
-  | str. u v ↦ bluh bluh
+  | con. a b ↦ blah blah 
+  | str. u v ↦ bluh bluh 
 ]
 
 [ x
@@ -381,43 +372,43 @@ f
       | foo. ↦
         ba ba baa ba baa baba
           ba ba baaba babba
-          ba
-      | bar. u v w z w ↦ z
-    ]
-  | str. u v ↦ bluh bluh
+          ba 
+      | bar. u v w z w ↦ z 
+    ] 
+  | str. u v ↦ bluh bluh 
 ]
 
 [ x
   | con. a b ↦
-    {
-      .foo ↦
+    [
+      | .foo ↦
         ba ba baa ba baa baba
           ba ba baaba babba
-          ba ;
-      .bar ↦ z ;
-    }
+          ba 
+      | .bar ↦ z 
+    ] 
   | str. u v ↦
-    {
-      .flab ↦ boo boo ;
-      .flub ↦
-        zoo zo zoo zo zzo zo ;
-    }
+    [
+      | .flab ↦ boo boo 
+      | .flub ↦
+        zoo zo zoo zo zzo zo 
+    ] 
 ]
 
 [
   | con. a b ↦
     [
-      | foo. x ↦ ba ba ba
-      | bar. y z ↦ y
-    ]
+      | foo. x ↦ ba ba ba 
+      | bar. y z ↦ y 
+    ] 
   | str. u v ↦
     [
-      | baz. ↦ bluh bluh
-    ]
+      | baz. ↦ bluh bluh 
+    ] 
 ]
 
 ([ x
-   | poo. ↦ bah
+   | poo. ↦ bah 
  ])
 
 
@@ -497,80 +488,71 @@ let x
       blah blah in
 x
 
-{ .fst ↦ M ;
-  .snd ↦ N }
+( fst ≔ M, snd ≔ N )
 
-f { fst ≔ M ; snd ≔ N }
+f ( fst ≔ M, snd ≔ N )
 
-{ .fst ↦
+( fst ≔
     blah blah blah blah blah
-      blah ;
-  .snd ↦
+      blah,
+  snd ≔
     blah blah blah blah blah
-      blah blah blah }
+      blah blah blah )
 
-{ .fst ↦
+( fst ≔
     blah blah blah blah blah
-      blah ;
-  .snd ↦ blah }
+      blah,
+  snd ≔ blah )
 
 f
-  { fst ≔
+  ( fst ≔
       blah blah blah blah
-        blah blah ;
+        blah blah,
     snd ≔
       blah blah blah blah
-        blah blah blah blah }
+        blah blah blah blah )
 
 f
-  { fst ≔
+  ( fst ≔
       blah blah blah blah
-        blah blah ;
-    snd ≔ blah }
+        blah blah,
+    snd ≔ blah )
 
-{ .fst ↦
+( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
+
+f
+  ( fst ≔ M,
+    snd ≔ ( foo ≔ N, bar ≔ P ) )
+
+[ | .fst ↦
     blah blah blah blah blah
-      blah ;
-  .snd ↦
+      blah 
+  | .snd ↦
     blah blah blah blah blah
-      blah blah blah }
+      blah blah blah ]
 
-f
-  { fst ≔
-      blah blah blah blah
-        blah blah ;
-    snd ≔
-      blah blah blah blah
-        blah blah blah blah }
+[ | .fst ↦ [ | .foo ↦ bar | .baz ↦ qux ] 
+  | .snd ↦ [ | .poo ↦ [ | .bah ↦ bum ] ] ]
 
-{ .fst ↦ M ;
-  .snd ↦ { .foo ↦ N ;
-           .bar ↦ P } }
-
-f
-  { fst ≔ M ;
-    snd ≔ { foo ≔ N ; bar ≔ P } }
-
-{ .fst ↦ { .foo ↦ bar ;
-           .baz ↦ qux } ;
-  .snd ↦ { .poo ↦ { .bah ↦ bum } } }
+[ | fst. ↦ [ | foo. ↦ bar | baz. ↦ qux ] 
+  | snd. ↦ [ | poo. ↦ [ | bah. ↦ bum ] ] ]
 
 [ x
-  | con. a b ↦ blah blah
+  | con. a b ↦ blah blah 
   | str. u v ↦ bluh bluh ]
 
 [ x
   | con. a b ↦
     blah blah blah blah blah
       blah blah blah blah
-      blah
+      blah 
   | str. u v ↦ bluh bluh ]
 
 [ x
   | con. a a a a a a a a a a
       a a a a a a a a a a a a
       a ↦
-    blah blah
+    blah blah 
   | str. u v ↦ bluh bluh ]
 
 [ x
@@ -579,36 +561,35 @@ f
       a ↦
     blah blah blah blah blah
       blah blah blah blah
-      blah blah
+      blah blah 
   | str. u v ↦ bluh bluh ]
 
-[ | con. a b ↦ blah blah
+[ | con. a b ↦ blah blah 
   | str. u v ↦ bluh bluh ]
 
 [ x
   | con. a b ↦ [ y
     | foo. ↦
       ba ba baa ba baa baba
-        ba ba baaba babba ba
-    | bar. u v w z w ↦ z ]
+        ba ba baaba babba ba 
+    | bar. u v w z w ↦ z ] 
   | str. u v ↦ bluh bluh ]
 
 [ x
-  | con. a b ↦
-    { .foo ↦
-        ba ba baa ba baa baba
-          ba ba baaba babba
-          ba ;
-      .bar ↦ z }
-  | str. u v ↦
-    { .flab ↦ boo boo ;
-      .flub ↦
-        zoo zo zoo zo zzo zo } ]
+  | con. a b ↦ [ 
+    | .foo ↦
+      ba ba baa ba baa baba
+        ba ba baaba babba ba 
+    | .bar ↦ z ] 
+  | str. u v ↦ [ 
+    | .flab ↦ boo boo 
+    | .flub ↦
+      zoo zo zoo zo zzo zo ] ]
 
-[ | con. a b ↦ [
-    | foo. x ↦ ba ba ba
-    | bar. y z ↦ y ]
-  | str. u v ↦ [
+[ | con. a b ↦ [ 
+    | foo. x ↦ ba ba ba 
+    | bar. y z ↦ y ] 
+  | str. u v ↦ [ 
     | baz. ↦ bluh bluh ] ]
 
 ([ x

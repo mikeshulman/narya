@@ -24,15 +24,21 @@ module Code = struct
     | Type_not_fully_instantiated : string -> t
     | Instantiating_zero_dimensional_type : printable -> t
     | Unequal_synthesized_type : printable * printable -> t
-    | Checking_struct_at_degenerated_record : Constant.t -> t
-    | Missing_field_in_struct : Field.t -> t
-    | Extra_field_in_struct : Field.t -> t
-    | Invalid_field_in_struct : t
-    | Duplicate_field_in_struct : Field.t -> t
+    | Checking_tuple_at_degenerated_record : Constant.t -> t
+    | Missing_field_in_tuple : Field.t -> t
+    | Missing_method_in_comatch : Field.t -> t
+    | Extra_field_in_tuple : Field.t -> t
+    | Extra_method_in_comatch : Field.t -> t
+    | Invalid_field_in_tuple : t
+    | Duplicate_field_in_tuple : Field.t -> t
+    | Invalid_method_in_comatch : t
+    | Duplicate_method_in_comatch : Field.t -> t
     | Missing_constructor_in_match : Constr.t -> t
     | Unnamed_variable_in_match : t
     | Checking_lambda_at_nonfunction : printable -> t
-    | Checking_struct_at_nonrecord : printable -> t
+    | Checking_tuple_at_nonrecord : printable -> t
+    | Comatching_at_noncodata : printable -> t
+    | Comatching_at_degenerated_codata : Constant.t -> t
     | No_such_constructor :
         [ `Data of Constant.t | `Nondata of Constant.t | `Other of printable ] * Constr.t
         -> t
@@ -80,15 +86,21 @@ module Code = struct
     | Not_enough_lambdas _ -> Error
     | Type_not_fully_instantiated _ -> Error
     | Unequal_synthesized_type _ -> Error
-    | Checking_struct_at_degenerated_record _ -> Error
-    | Missing_field_in_struct _ -> Error
-    | Extra_field_in_struct _ -> Error
-    | Invalid_field_in_struct -> Error
-    | Duplicate_field_in_struct _ -> Error
+    | Checking_tuple_at_degenerated_record _ -> Error
+    | Missing_field_in_tuple _ -> Error
+    | Missing_method_in_comatch _ -> Error
+    | Extra_field_in_tuple _ -> Error
+    | Extra_method_in_comatch _ -> Error
+    | Invalid_field_in_tuple -> Error
+    | Duplicate_field_in_tuple _ -> Error
+    | Invalid_method_in_comatch -> Error
+    | Duplicate_method_in_comatch _ -> Error
     | Missing_constructor_in_match _ -> Error
     | Unnamed_variable_in_match -> Error
     | Checking_lambda_at_nonfunction _ -> Error
-    | Checking_struct_at_nonrecord _ -> Error
+    | Checking_tuple_at_nonrecord _ -> Error
+    | Comatching_at_noncodata _ -> Error
+    | Comatching_at_degenerated_codata _ -> Error
     | No_such_constructor _ -> Error
     | Missing_instantiation_constructor _ -> Error
     | Unequal_indices _ -> Error
@@ -139,8 +151,6 @@ module Code = struct
     | Invalid_constr _ -> "E0204"
     | Invalid_numeral _ -> "E0205"
     | No_relative_precedence _ -> "E0206"
-    | Duplicate_field_in_struct _ -> "E0207"
-    | Invalid_field_in_struct -> "E0208"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
@@ -163,11 +173,13 @@ module Code = struct
     | Applying_nonfunction_nontype _ -> "E0701"
     (* Record fields *)
     | No_such_field _ -> "E0800"
-    (* Structs *)
-    | Checking_struct_at_nonrecord _ -> "E0900"
-    | Checking_struct_at_degenerated_record _ -> "E0901"
-    | Missing_field_in_struct _ -> "E0902"
-    | Extra_field_in_struct _ -> "E0903"
+    (* Tuples *)
+    | Checking_tuple_at_nonrecord _ -> "E0900"
+    | Checking_tuple_at_degenerated_record _ -> "E0901"
+    | Missing_field_in_tuple _ -> "E0902"
+    | Extra_field_in_tuple _ -> "E0903"
+    | Duplicate_field_in_tuple _ -> "E0904"
+    | Invalid_field_in_tuple -> "E0905"
     (* Datatype constructors *)
     | No_such_constructor _ -> "E1000"
     | Wrong_number_of_arguments_to_constructor _ -> "E1001"
@@ -187,9 +199,16 @@ module Code = struct
     | Duplicate_constructor_in_match _ -> "E1302"
     | Wrong_number_of_arguments_to_pattern _ -> "E1303"
     | Index_variable_in_index_value -> "E1304"
+    (* Comatches *)
+    | Comatching_at_noncodata _ -> "E1400"
+    | Comatching_at_degenerated_codata _ -> "E1401"
+    | Missing_method_in_comatch _ -> "E1402"
+    | Extra_method_in_comatch _ -> "E1403"
+    | Duplicate_method_in_comatch _ -> "E1404"
+    | Invalid_method_in_comatch -> "E1405"
     (* Commands *)
-    | Constant_already_defined _ -> "E1400"
-    | Invalid_constant_name _ -> "E1401"
+    | Constant_already_defined _ -> "E2000"
+    | Invalid_constant_name _ -> "E2001"
     (* Information *)
     | Constant_assumed _ -> "I0000"
     | Constant_defined _ -> "I0001"
@@ -221,22 +240,33 @@ module Code = struct
     | Unequal_synthesized_type (sty, cty) ->
         textf "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
           pp_printable sty pp_printable cty
-    | Checking_struct_at_degenerated_record r ->
-        textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
+    | Checking_tuple_at_degenerated_record r ->
+        textf "can't check a tuple against a record %s with a nonidentity degeneracy applied"
           (name_of r)
-    | Missing_field_in_struct f -> textf "record field %s missing in struct" (Field.to_string f)
-    | Extra_field_in_struct f ->
-        textf "field %s in struct doesn't occur in record type" (Field.to_string f)
-    | Invalid_field_in_struct -> text "invalid field in struct"
-    | Duplicate_field_in_struct f ->
-        textf "record field %s appears more than once in struct" (Field.to_string f)
+    | Comatching_at_degenerated_codata r ->
+        textf "can't comatch against a codatatype %s with a nonidentity degeneracy applied"
+          (name_of r)
+    | Missing_field_in_tuple f -> textf "record field %s missing in tuple" (Field.to_string f)
+    | Missing_method_in_comatch f -> textf "codata method %s missing in comatch" (Field.to_string f)
+    | Extra_field_in_tuple f ->
+        textf "field %s in tuple doesn't occur in record type" (Field.to_string f)
+    | Extra_method_in_comatch f ->
+        textf "method %s in comatch doesn't occur in codata type" (Field.to_string f)
+    | Invalid_field_in_tuple -> text "invalid field in tuple"
+    | Invalid_method_in_comatch -> text "invalid method in comatch"
+    | Duplicate_field_in_tuple f ->
+        textf "record field %s appears more than once in tuple" (Field.to_string f)
+    | Duplicate_method_in_comatch f ->
+        textf "method %s appears more than once in comatch" (Field.to_string f)
     | Missing_constructor_in_match c ->
         textf "missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "unnamed match variable"
     | Checking_lambda_at_nonfunction ty ->
         textf "@[<hv 0>checking abstraction against non-function type@;<1 2>%a@]" pp_printable ty
-    | Checking_struct_at_nonrecord ty ->
-        textf "@[<hv 0>checking struct against non-record type@;<1 2>%a@]" pp_printable ty
+    | Checking_tuple_at_nonrecord ty ->
+        textf "@[<hv 0>checking tuple against non-record type@;<1 2>%a@]" pp_printable ty
+    | Comatching_at_noncodata ty ->
+        textf "@[<hv 0>checking comatch against non-codata type@;<1 2>%a@]" pp_printable ty
     | No_such_constructor (d, c) -> (
         match d with
         | `Data d ->
@@ -324,3 +354,24 @@ module Code = struct
 end
 
 include Asai.StructuredReporter.Make (Code)
+open Code
+
+let struct_at_degenerated_type eta name =
+  match eta with
+  | `Eta -> Checking_tuple_at_degenerated_record name
+  | `Noeta -> Comatching_at_degenerated_codata name
+
+let missing_field_in_struct eta fld =
+  match eta with
+  | `Eta -> Missing_field_in_tuple fld
+  | `Noeta -> Missing_method_in_comatch fld
+
+let struct_at_nonrecord eta p =
+  match eta with
+  | `Eta -> Checking_tuple_at_nonrecord p
+  | `Noeta -> Comatching_at_noncodata p
+
+let duplicate_field eta fld =
+  match eta with
+  | `Eta -> Duplicate_field_in_tuple fld
+  | `Noeta -> Duplicate_method_in_comatch fld

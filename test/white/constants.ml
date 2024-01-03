@@ -21,20 +21,20 @@ let () =
 
   (* Sigma-types *)
   Types.Sigma.install ();
-  def "zero_zero" "ℕ × ℕ" "{ fst ≔ zero; snd ≔ zero }";
+  def "zero_zero" "ℕ × ℕ" "( fst ≔ zero, snd ≔ zero )";
   equal_at "zero_zero .fst" "zero" "ℕ";
   equal_at "zero_zero .snd" "zero" "ℕ";
   assume "A" "Type";
   assume "B" "A → Type";
   assume "a" "A";
   assume "b" "B a";
-  def "ab" "(x:A) × B x" "(a,b)";
+  def "ab" "(x:A) × B x" "(fst ≔ a, snd ≔ b)";
   equal_at "ab .fst" "a" "A";
   equal_at "ab .snd" "b" "B a";
   (match Hashtbl.find Global.constants (Option.get (Scope.lookup [ "ab" ])) with
   | Defined _ -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));
-  def "zero_zero'" "ℕ × ℕ" "{ .fst ↦ zero; .snd ↦ zero }";
+  def "zero_zero'" "ℕ × ℕ" "( fst ≔ zero , snd ≔ zero )";
   equal_at "zero_zero" "zero_zero'" "ℕ × ℕ";
 
   (* Pi-types *)
@@ -48,20 +48,20 @@ let () =
 
   (* Coinductive streams *)
   Types.Stream.install ();
-  def "zeros" "Stream ℕ" "{ head ≔ zero; tail ≔ zeros }";
+  def "zeros" "Stream ℕ" "[ .head ↦ zero | .tail ↦ zeros ]";
   equal_at "zeros .head" "zero" "ℕ";
   equal_at "zeros .tail .head" "zero" "ℕ";
   equal_at "zeros .tail .tail .head" "zero" "ℕ";
   equal_at "zeros .tail .tail .tail .head" "zero" "ℕ";
-  def "nats" "ℕ → Stream ℕ" "n ↦ { head ≔ n; tail ≔ nats (plus n one) }";
+  def "nats" "ℕ → Stream ℕ" "n ↦ [ .head ↦ n | .tail ↦ nats (plus n one) ]";
   equal_at "nats zero .tail .tail .head" "two" "ℕ";
   equal_at "nats zero .tail .tail .tail .tail .head" "four" "ℕ";
 
   (* Bisimulation *)
-  def "∞eta" "Stream A → Stream A" "s ↦ { head ≔ s .head; tail ≔ ∞eta (s .tail) }";
+  def "∞eta" "Stream A → Stream A" "s ↦ [ .head ↦ s .head | .tail ↦ ∞eta (s .tail) ]";
   unequal_at "s ↦ s" "s ↦ ∞eta s" "Stream A → Stream A";
   def "∞eta_bisim" "(s:Stream A) → Id (Stream A) s (∞eta s)"
-    "s ↦ { head ≔ refl (s .head); tail ≔ ∞eta_bisim (s .tail) }";
+    "s ↦ [ .head ↦ refl (s .head) | .tail ↦ ∞eta_bisim (s .tail) ]";
 
   (* Natural numbers *)
   Types.Nat.install ();
@@ -140,9 +140,9 @@ let () =
                 | suc. _ ↦ ∅ ]
      | suc. m ↦ [ zero. ↦ ∅
                  | suc. n ↦ code m n ] ]";
-  def "rcode" "(x:N) → code x x" "[ zero. ↦ {} | suc. n ↦ rcode n ]";
+  def "rcode" "(x:N) → code x x" "[ zero. ↦ () | suc. n ↦ rcode n ]";
   def "encode" "(x y : N) → Id N x y → code x y"
-    "x y ↦ [ zero. ↦ {}
+    "x y ↦ [ zero. ↦ ()
             | suc. p ↦ encode p.0 p.1 p.2 ]";
   def "decode" "(x y : N) → code x y → Id N x y"
     "[ zero. ↦ [ zero. ↦ _ ↦ zero.
@@ -150,7 +150,7 @@ let () =
      | suc. x ↦ [ zero. ↦ [ ]
                  | suc. y ↦ c ↦ suc. (decode x y c) ] ]";
   def "encode_decode" "(x y : N) (c : code x y) → Id (code x y) (encode x y (decode x y c)) c"
-    "[ zero. ↦ [ zero. ↦ _ ↦ {}
+    "[ zero. ↦ [ zero. ↦ _ ↦ ()
                 | suc. _ ↦ [ ] ]
      | suc. x ↦ [ zero. ↦ [ ]
                  | suc. y ↦ c ↦ encode_decode x y c ] ]";

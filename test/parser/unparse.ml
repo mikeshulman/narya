@@ -31,18 +31,21 @@ let () =
   print "exp utwo uthree";
   Types.Nat.install ();
   Types.Sigma.install ();
-  (* TODO: Can we specify that comma tuples should be unparsed with parentheses around them even when not necessary? *)
-  print "{fst := 0; snd := 0} : N >< N";
-  print "(0,0,0) : N × N × N";
-  print "((0,0),0) : (N × N) × N";
-  print "{fst := x |-> x; snd := 2} : (N -> N) >< N";
+  print "(fst := 0, snd := 0) : N >< N";
+  (* TODO *)
+  (* print "(0,0,0) : N × N × N";
+     print "((0,0),0) : (N × N) × N"; *)
+  print "(fst := x |-> x , snd := 2) : (N -> N) >< N";
   assume "s" "(N → N) × N";
   print "s .fst 3";
+  (* TODO: Needs unparsing of case trees *)
+  (*
   Types.Stream.install ();
   assume "zz" "Stream N";
-  print "{head := 0; tail := zz} : Stream N";
+  print "[ .head |-> 0 | .tail |-> zz] : Stream N";
   (* Evaluation and readback reorders fields to the order they appear in the record type definition. *)
-  print "{tail := zz; head := 0 } : Stream N";
+  print "[ .tail |-> zz | .head |-> 0 ] : Stream N";
+*)
   Types.Lst.install ();
   print "nil. : List N";
   print "cons. 2 nil. : List N";

@@ -32,9 +32,10 @@ let () =
   Types.Nat.install ();
   Types.Sigma.install ();
   print "(fst := 0, snd := 0) : N >< N";
-  (* TODO *)
-  (* print "(0,0,0) : N × N × N";
-     print "((0,0),0) : (N × N) × N"; *)
+  (* TODO: Print unlabeled components without labels. *)
+  print "(0,0) : N >< N";
+  print "(0,(0,0)) : N × N × N";
+  print "((0,0),0) : (N × N) × N";
   print "(fst := x |-> x , snd := 2) : (N -> N) >< N";
   assume "s" "(N → N) × N";
   print "s .fst 3";

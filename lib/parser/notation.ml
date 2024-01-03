@@ -240,7 +240,7 @@ let set_tree n t =
 let processor n =
   match n.processor with
   | Some c -> c
-  | None -> raise (Invalid_argument "notation has no processor")
+  | None -> raise (Invalid_argument (Printf.sprintf "notation %s has no processor" n.name))
 
 let set_processor n c =
   match n.processor with

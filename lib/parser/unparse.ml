@@ -187,33 +187,30 @@ let rec unparse :
                ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
                ~last:body ~right_ok))
   | Lam (_, cube, _) -> unparse_lam cube vars Emp tm li ri
-  | Struct (eta, fields) -> (
-      let flds = List.map (fun (key, _) -> Field.to_string key) (Field.Map.bindings fields) in
-      (* If the fields of a struct have an associated notation, we use that notation. *)
-      match State.print_struct flds with
-      | Some (Wrap notn) ->
-          let vals =
-            List.fold_left
-              (fun args (_, v) -> Snoc (args, make_unparser vars v))
-              Emp (Field.Map.bindings fields) in
-          unparse_notation notn vals li ri
-      | None ->
-          let notn =
-            match eta with
-            | `Eta -> tuple
-            | `Noeta -> comatch in
-          let term_of_field fld =
-            match eta with
-            | `Eta -> Ident ([ Field.to_string fld ], [])
-            | `Noeta -> Field (Field.to_string fld, []) in
-          outfix ~notn ~ws:[]
-            ~inner:
-              (Field.Map.fold
-                 (fun fld tm acc ->
-                   Snoc
-                     ( Snoc (acc, Term (term_of_field fld)),
-                       Term (unparse vars tm Interval.entire Interval.entire) ))
-                 fields Emp))
+  | Struct (`Eta, fields) ->
+      outfix ~notn:parens ~ws:[]
+        ~inner:
+          (Field.Map.fold
+             (fun fld tm acc ->
+               Snoc
+                 ( acc,
+                   Term
+                     (infix ~notn:coloneq ~ws:[]
+                        ~first:(Ident ([ Field.to_string fld ], []))
+                        ~inner:Emp
+                        ~last:(unparse vars tm Interval.entire Interval.entire)
+                        ~left_ok:(No.le_refl No.minus_omega) ~right_ok:(No.le_refl No.minus_omega))
+                 ))
+             fields Emp)
+  | Struct (`Noeta, fields) ->
+      outfix ~notn:comatch ~ws:[]
+        ~inner:
+          (Field.Map.fold
+             (fun fld tm acc ->
+               Snoc
+                 ( Snoc (acc, Term (Field (Field.to_string fld, []))),
+                   Term (unparse vars tm Interval.entire Interval.entire) ))
+             fields Emp)
   (* TODO: Can we associate notations to constructors, like to constants? *)
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)

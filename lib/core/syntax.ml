@@ -28,7 +28,7 @@ module Raw = struct
     | Synth : 'a synth -> 'a check
     | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check -> 'a check
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches. *)
-    | Struct : eta * 'a check Field.Map.t -> 'a check
+    | Struct : eta * 'a check Field.Map.t * 'a check list -> 'a check
     | Constr : Constr.t * 'a check Bwd.t -> 'a check
     | Match : 'a index * 'a branch list -> 'a check
     | Empty_co_match (* "[]" or "[|]", which could be either an empty match or an empty comatch *)

@@ -156,18 +156,24 @@ let () =
             Term (Ident [ "B" ]);
           ] ));
 
-  assert (parse "()" = Notn ("tuple", []));
+  assert (parse "()" = Notn ("parens", []));
 
-  assert (parse "(x := y)" = Notn ("tuple", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+  assert (
+    parse "(x := y)"
+    = Notn ("parens", [ Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ])) ]));
 
   assert (parse "[.x |-> y]" = Notn ("comatch", [ Term (Field "x"); Term (Ident [ "y" ]) ]));
 
   assert (
     parse "(x := y , z := w)"
     = Notn
-        ( "tuple",
-          [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]
-        ));
+        ( "parens",
+          [
+            Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
+          ] ));
+
+  assert (parse "(x , y)" = Notn ("parens", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
 
   assert (
     parse "[.x ↦ y | .z ↦ w]"
@@ -178,21 +184,20 @@ let () =
   assert (
     parse "(x := y , z := w,)"
     = Notn
-        ( "tuple",
-          [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]
-        ));
+        ( "parens",
+          [
+            Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
+          ] ));
 
   assert (
     parse "(x := y , z := w, a ≔ b)"
     = Notn
-        ( "tuple",
+        ( "parens",
           [
-            Term (Ident [ "x" ]);
-            Term (Ident [ "y" ]);
-            Term (Ident [ "z" ]);
-            Term (Ident [ "w" ]);
-            Term (Ident [ "a" ]);
-            Term (Ident [ "b" ]);
+            Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "a" ]); Term (Ident [ "b" ]) ]));
           ] ));
 
   Types.Sigma.install_notations () (*  *);

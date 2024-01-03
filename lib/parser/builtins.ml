@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Dim
 open Postprocess
@@ -17,36 +18,7 @@ open Printconfig
 
 let parens = make "parens" Outfix
 
-let () =
-  set_tree parens (Closed_entry (eop LParen (term RParen (Done_closed parens))));
-  set_processor parens
-    {
-      process =
-        (fun ctx obs _ ->
-          match obs with
-          | [ Term body ] -> process ctx body
-          | _ -> fatal (Anomaly "invalid notation arguments for parens"));
-    }
-
-let pp_parens space ppf obs ws =
-  match obs with
-  | [ body ] ->
-      let wslparen, ws = take LParen ws in
-      let wsrparen, ws = take RParen ws in
-      taken_last ws;
-      pp_open_hovbox ppf 1;
-      if true then (
-        pp_tok ppf LParen;
-        pp_ws `None ppf wslparen;
-        pp_term `None ppf body;
-        pp_tok ppf RParen);
-      pp_close_box ppf ();
-      pp_ws space ppf wsrparen
-  | _ -> fatal (Anomaly "invalid notation arguments for parens")
-
-let () =
-  set_print parens pp_parens;
-  set_print_as_case parens pp_parens
+(* Parentheses are parsed, processed, and printed along with tuples, since their notation overlaps.  *)
 
 (* ********************
    Let-binding
@@ -508,131 +480,142 @@ let () =
    Anonymous tuples
  ******************** *)
 
-let tuple = make "tuple" Outfix
+let coloneq = make "coloneq" (Infixr No.minus_omega)
+let () = set_tree coloneq (Open_entry (eop Coloneq (done_open coloneq)))
 
-(* The notation for tuples is "( x ≔ M, y ≔ N, z ≔ P )".  The parentheses don't conflict with ordinary parentheses, since ≔ and , are not term-forming operators all by themselves.  The 0-ary tuple "()" is included, and also doesn't conflict since ordinary parentheses must contain a term. *)
+(* The notation for tuples is "( x ≔ M, y ≔ N, z ≔ P )".  The parentheses don't conflict with ordinary parentheses, since ≔ and , are not term-forming operators all by themselves.  The 0-ary tuple "()" is included, and also doesn't conflict since ordinary parentheses must contain a term.  We also allow some of the components of the tuple to be unlabeled, as in "(M, N, P)"; these are assigned to the fields that don't have a corresponding labeled component in the order they appear in the record type.  The only thing that's not allowed is an unlabeled 1-tuple "(M)" since that would conflict with ordinary parentheses.  (TODO: We could essentially allow that by making the tupling and projection of a 1-ary record type implicit coercions.) *)
 
 let rec tuple_fields () =
   Inner
     {
       empty_branch with
-      ops = TokMap.singleton RParen (Done_closed tuple);
+      ops = TokMap.singleton RParen (Done_closed parens);
       term =
         Some
-          (TokMap.singleton Coloneq
-             (terms [ (Op ",", Lazy (lazy (tuple_fields ()))); (RParen, Done_closed tuple) ]));
+          (TokMap.of_list [ (Op ",", Lazy (lazy (tuple_fields ()))); (RParen, Done_closed parens) ]);
     }
 
-let () = set_tree tuple (Closed_entry (eop LParen (tuple_fields ())))
+let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
 
-(* We define the processor to allow both variables and fields, with eta as a parameter, so that we can re-use it for processing comatches. *)
-
-let rec process_struct :
+let rec process_tuple :
     type n.
-    eta ->
-    n check Field.Map.t * Field.Set.t ->
+    bool ->
+    n check Field.Map.t ->
+    Field.Set.t ->
+    n check Bwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
     n check =
- fun eta (flds, found) ctx obs ->
+ fun first lbl_flds found unlbl_flds ctx obs ->
   match obs with
-  | [] -> Raw.Struct (eta, flds)
-  | Term (Ident ([ x ], _)) :: obs | Term (Field (x, _)) :: obs -> (
-      match obs with
-      | Term tm :: obs ->
+  | [] -> Raw.Struct (`Eta, lbl_flds, Bwd.to_list unlbl_flds)
+  | Term (Notn n) :: obs when equal (notn n) coloneq -> (
+      match args n with
+      | [ Term (Ident ([ x ], _)); Term tm ] ->
           let tm = process ctx tm in
           let fld = Field.intern x in
-          if Field.Set.mem fld found then fatal (duplicate_field eta fld)
-          else process_struct eta (Field.Map.add fld tm flds, Field.Set.add fld found) ctx obs
-      | _ -> fatal (Anomaly "invalid notation arguments for tuple/comatch"))
-  | _ :: _ ->
-      (* I think it's impossible to get here in the case of a comatch, since in that case we explicitly parsed a Field. *)
-      fatal Invalid_field_in_tuple
+          if Field.Set.mem fld found then fatal (Duplicate_field_in_tuple fld)
+          else
+            process_tuple false (Field.Map.add fld tm lbl_flds) (Field.Set.add fld found) unlbl_flds
+              ctx obs
+      | _ :: _ -> fatal Invalid_field_in_tuple
+      | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
+  | [ Term body ] when first -> process ctx body
+  | Term tm :: obs -> process_tuple false lbl_flds found (Snoc (unlbl_flds, process ctx tm)) ctx obs
 
 let () =
-  set_processor tuple
-    { process = (fun ctx obs _ -> process_struct `Eta (Field.Map.empty, Field.Set.empty) ctx obs) }
+  set_processor parens
+    { process = (fun ctx obs _ -> process_tuple true Field.Map.empty Field.Set.empty Emp ctx obs) }
 
-(* We define the pretty-printing functions parametrically over symbols so we can re-use them for printing comatches. *)
-
-let rec pp_fld :
-    type a.
-    formatter ->
-    (formatter -> a -> unit) ->
-    a ->
-    Whitespace.t list ->
-    Whitespace.t list ->
-    observation ->
-    observation list ->
-    Whitespace.alist ->
-    Whitespace.alist =
- fun ppf pp x w wscoloneq tm obs ws ->
-  pp_open_hovbox ppf 2;
-  if true then (
-    pp ppf x;
-    pp_ws `Nobreak ppf w;
-    pp_tok ppf Coloneq;
-    pp_ws `Break ppf wscoloneq;
-    pp_term `None ppf tm);
-  pp_close_box ppf ();
+let pp_coloneq space ppf obs ws =
+  let wscoloneq, ws = take Coloneq ws in
+  taken_last ws;
   match obs with
-  | [] -> ws
-  | _ ->
-      let wscomma, ws = take (Op ",") ws in
-      pp_tok ppf (Op ",");
-      pp_ws `Break ppf wscomma;
-      ws
+  | [ x; body ] ->
+      pp_open_hovbox ppf 2;
+      if true then (
+        pp_term `Nobreak ppf x;
+        pp_tok ppf Coloneq;
+        pp_ws `Break ppf wscoloneq;
+        pp_term space ppf body);
+      pp_close_box ppf ()
+  | _ -> fatal (Anomaly "invalid notation arguments for tuple")
 
-and pp_fields : formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
+let () = set_print coloneq pp_coloneq
+
+let rec pp_fields : formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
  fun ppf obs ws ->
   match obs with
   | [] -> ws
-  | Term (Ident ([ x ], w)) :: obs -> (
-      let wscoloneq, ws = take Coloneq ws in
+  | tm :: obs -> (
+      pp_term `None ppf tm;
       match obs with
-      | tm :: obs ->
-          let ws = pp_fld ppf pp_var (Some x) w wscoloneq tm obs ws in
-          pp_fields ppf obs ws
-      | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
-  | _ :: _ -> fatal (Anomaly "invalid notation arguments for tuple")
+      | [] -> ws
+      | _ ->
+          let wscomma, ws = take (Op ",") ws in
+          pp_tok ppf (Op ",");
+          pp_ws `Break ppf wscomma;
+          pp_fields ppf obs ws)
 
 let pp_tuple space ppf obs ws =
-  let style, state = (style (), state ()) in
-  (match state with
-  | `Term ->
-      if style = `Noncompact then pp_open_box ppf 0;
-      pp_open_hvbox ppf 2
-  | `Case -> pp_open_vbox ppf 2);
-  pp_tok ppf LParen;
-  let wslparen, ws = take LParen ws in
-  pp_ws (if style = `Compact then `Nobreak else `Break) ppf wslparen;
-  let ws = pp_fields ppf obs ws in
-  (if style = `Compact then pp_print_string ppf " "
-   else
-     match state with
-     | `Term ->
-         pp_close_box ppf ();
-         pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
-     | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
-  let ws =
-    match take_opt (Op ",") ws with
-    | Some (wscomma, ws) ->
-        pp_ws `None ppf wscomma;
-        ws
-    | None -> ws in
-  pp_tok ppf RParen;
-  let wsrparen, ws = take RParen ws in
-  taken_last ws;
-  pp_ws space ppf wsrparen;
-  pp_close_box ppf ()
+  match obs with
+  | [] ->
+      let wslparen, ws = take LParen ws in
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      pp_tok ppf LParen;
+      pp_ws `None ppf wslparen;
+      pp_tok ppf RParen;
+      pp_ws `None ppf wsrparen
+  | [ body ] ->
+      let wslparen, ws = take LParen ws in
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      pp_open_hovbox ppf 1;
+      if true then (
+        pp_tok ppf LParen;
+        pp_ws `None ppf wslparen;
+        pp_term `None ppf body;
+        pp_tok ppf RParen);
+      pp_close_box ppf ();
+      pp_ws space ppf wsrparen
+  | _ :: _ ->
+      let style, state = (style (), state ()) in
+      (match state with
+      | `Term ->
+          if style = `Noncompact then pp_open_box ppf 0;
+          pp_open_hvbox ppf 2
+      | `Case -> pp_open_vbox ppf 2);
+      pp_tok ppf LParen;
+      let wslparen, ws = take LParen ws in
+      pp_ws (if style = `Compact then `Nobreak else `Break) ppf wslparen;
+      let ws = pp_fields ppf obs ws in
+      (if style = `Compact then pp_print_string ppf " "
+       else
+         match state with
+         | `Term ->
+             pp_close_box ppf ();
+             pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
+         | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
+      let ws =
+        match take_opt (Op ",") ws with
+        | Some (wscomma, ws) ->
+            pp_ws `None ppf wscomma;
+            ws
+        | None -> ws in
+      pp_tok ppf RParen;
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      pp_ws space ppf wsrparen;
+      pp_close_box ppf ()
 
-let () = set_print tuple pp_tuple
+let () =
+  set_print parens pp_tuple;
+  set_print_as_case parens pp_tuple
 
 (* ********************
    Comatches
    ******************** *)
-
-(* Comatches are a lot like tuples, but with different symbols and with fields instead of variables.  We parse them differently, but once parsed we can reuse the processor function because we defined it parametrically.  *)
 
 (* The notations for matches and comatches are very similar.  The differences are (1) comatches label each branch by a field, while matches label it by a constructor applied to pattern variables, and (2) matches can begin with a variable to match against (if not, it is a matching lambda).  This means in particular that a comatch and a matching lambda with no branches are both denoted "[]".  This is okay because both are checking, not synthesizing, so the ambiguity is resolved by whether we are checking against a function or a codatatype.  But it means we have to be careful parsing them to avoid collisions.  We define the basic notation trees for both of them to exclude the empty case, and then give a separate notation for the empty one that parses into Empty_co_match that's disambiguated later.  *)
 
@@ -656,13 +639,24 @@ let rec comatch_fields end_ok =
 
 let () = set_tree comatch (Closed_entry (eop LBracket (comatch_fields false)))
 
+let rec process_comatch :
+    type n.
+    n check Field.Map.t * Field.Set.t -> (string option, n) Bwv.t -> observation list -> n check =
+ fun (flds, found) ctx obs ->
+  match obs with
+  | [] -> Raw.Struct (`Noeta, flds, [])
+  | Term (Field (x, _)) :: Term tm :: obs ->
+      let tm = process ctx tm in
+      let fld = Field.intern x in
+      if Field.Set.mem fld found then fatal (Duplicate_method_in_comatch fld)
+      else process_comatch (Field.Map.add fld tm flds, Field.Set.add fld found) ctx obs
+  | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
+
 let () =
   set_processor comatch
-    {
-      process = (fun ctx obs _ -> process_struct `Noeta (Field.Map.empty, Field.Set.empty) ctx obs);
-    }
+    { process = (fun ctx obs _ -> process_comatch (Field.Map.empty, Field.Set.empty) ctx obs) }
 
-(* Comatches will be printed using the same functions that print matches (not tuples), since their "|" is treated the same as there rather than like the "," of a tuple. *)
+(* Comatches will be printed with a different instantiation of the functions that print matches. *)
 
 let empty_co_match = make "empty_co_match" Outfix
 
@@ -860,7 +854,7 @@ let builtins =
     |> State.add arrow
     |> State.add universe
     |> State.add degen
-    |> State.add tuple
+    |> State.add coloneq
     |> State.add comatch
     |> State.add mtch
     |> State.add empty_co_match)

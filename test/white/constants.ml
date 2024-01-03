@@ -21,7 +21,7 @@ let () =
 
   (* Sigma-types *)
   Types.Sigma.install ();
-  def "zero_zero" "ℕ × ℕ" "( fst ≔ zero, snd ≔ zero )";
+  def "zero_zero" "ℕ × ℕ" "( zero, zero )";
   equal_at "zero_zero .fst" "zero" "ℕ";
   equal_at "zero_zero .snd" "zero" "ℕ";
   assume "A" "Type";

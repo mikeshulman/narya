@@ -33,6 +33,18 @@ module Map = struct
 
   let of_abwd (alist : (Field.t * 'a) Bwd.t) : 'a t = alist
   let bindings (map : 'a t) = Bwd.to_list map
+
+  module Monadic (M : Monad.Plain) = struct
+    open Mbwd.Monadic (M)
+    open Monad.Ops (M)
+
+    let mapiM (f : Field.t -> 'a -> 'b M.t) (map : 'a t) : 'b t M.t =
+      mmapM
+        (fun [ (x, a) ] ->
+          let* fxa = f x a in
+          return (x, fxa))
+        [ map ]
+  end
 end
 
 module Set = Set.Make (Field)

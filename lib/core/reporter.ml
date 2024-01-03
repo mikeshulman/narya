@@ -6,7 +6,9 @@ open Format
 
 type printable = ..
 
-let print : (formatter -> printable -> unit) ref = ref (fun _ _ -> raise (Failure "print not set"))
+let print : (formatter -> printable -> unit) ref =
+  ref (fun _ _ -> raise (Failure "print not set (hint: Parser.Unparse must be loaded)"))
+
 let pp_printable ppf pr = !print ppf pr
 
 module Code = struct
@@ -27,7 +29,7 @@ module Code = struct
     | Checking_tuple_at_degenerated_record : Constant.t -> t
     | Missing_field_in_tuple : Field.t -> t
     | Missing_method_in_comatch : Field.t -> t
-    | Extra_field_in_tuple : Field.t -> t
+    | Extra_field_in_tuple : Field.t option -> t
     | Extra_method_in_comatch : Field.t -> t
     | Invalid_field_in_tuple : t
     | Duplicate_field_in_tuple : Field.t -> t
@@ -248,8 +250,10 @@ module Code = struct
           (name_of r)
     | Missing_field_in_tuple f -> textf "record field %s missing in tuple" (Field.to_string f)
     | Missing_method_in_comatch f -> textf "codata method %s missing in comatch" (Field.to_string f)
-    | Extra_field_in_tuple f ->
-        textf "field %s in tuple doesn't occur in record type" (Field.to_string f)
+    | Extra_field_in_tuple f -> (
+        match f with
+        | Some f -> textf "field %s in tuple doesn't occur in record type" (Field.to_string f)
+        | None -> text "too many un-labeled fields in tuple")
     | Extra_method_in_comatch f ->
         textf "method %s in comatch doesn't occur in codata type" (Field.to_string f)
     | Invalid_field_in_tuple -> text "invalid field in tuple"

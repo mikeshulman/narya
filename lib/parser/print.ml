@@ -163,7 +163,7 @@ and pp_notn :
  fun space ppf n obs ws ->
   match print n with
   | Some pp -> pp space ppf obs ws
-  | None -> fatal (Anomaly "unprintable term")
+  | None -> fatal (Anomaly (Printf.sprintf "unprintable notation: %s" (name n)))
 
 and pp_spine (space : space) (ppf : formatter) (tr : observation) : unit =
   match tr with

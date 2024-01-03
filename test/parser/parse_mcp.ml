@@ -1,6 +1,7 @@
 open Testutil.Mcp
 
 let () =
+  Parser.Unparse.install ();
   run @@ fun () ->
   let uu, _ = synth "Type" in
   let aa = assume "A" uu in
@@ -86,9 +87,8 @@ let () =
   let () = equal a0 a0' in
   let b0', _ = synth "((fst ≔ a₀, snd ≔ b₀ ) : (x:A) × B x) .snd" in
   let () = equal b0 b0' in
-  (* TODO *)
-  let ab0' = check "(fst ≔ a₀ , snd ≔ b₀)" sigab in
-  let a0'', _ = synth "((fst ≔ a₀ , snd ≔ b₀) : (x:A) × B x) .fst" in
+  let ab0' = check "(a₀ , b₀)" sigab in
+  let a0'', _ = synth "((a₀ , b₀) : (x:A) × B x) .fst" in
   let () = equal a0 a0'' in
 
   (* Right-associativity of prod and comma *)
@@ -102,11 +102,9 @@ let () =
   let aaddee'', _ = synth "(A × D) × E" in
   let () = equal aaddee aaddee' in
   let () = unequal aaddee aaddee'' in
-
-  (*
-  let ade = check "a , d , e" aaddee in
-  let () = uncheck "a , d , e" aaddee'' in
-*)
+  (* TODO: Can we recover a sort of associativity for comma? *)
+  let ade = check "(a , (d , e))" aaddee in
+  let () = uncheck "(a , (d , e))" aaddee'' in
 
   (* Interaction of prod and arrow *)
   let t, _ = synth "(x:A) → (y:D) × E" in

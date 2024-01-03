@@ -390,6 +390,7 @@ and tyof_app :
 and field : value -> Field.t -> value =
  fun tm fld ->
   match tm with
+  (* TODO: Is it okay to ignore the insertion here? *)
   | Struct (fields, _) -> Field.Map.find fld fields
   | Uninst (Neu (fn, args), (lazy ty)) ->
       let newty = lazy (tyof_field tm ty fld) in

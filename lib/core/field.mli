@@ -1,4 +1,5 @@
 open Bwd
+open Util
 
 module Field : sig
   type t
@@ -22,6 +23,10 @@ module Map : sig
   val fold : (Field.t -> 'a -> 'acc -> 'acc) -> 'a t -> 'acc -> 'acc
   val of_abwd : (Field.t * 'a) Bwd.t -> 'a t
   val bindings : 'a t -> (Field.t * 'a) list
+
+  module Monadic (M : Monad.Plain) : sig
+    val mapiM : (Field.t -> 'a -> 'b M.t) -> 'a t -> 'b t M.t
+  end
 end
 
 module Set : module type of Set.Make (Field)

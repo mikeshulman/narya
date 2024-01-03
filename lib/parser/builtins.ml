@@ -31,8 +31,9 @@ let () =
 let pp_parens space ppf obs ws =
   match obs with
   | [ body ] ->
-      let wslparen, ws = take ws in
-      let wsrparen, _ = take ws in
+      let wslparen, ws = take LParen ws in
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
       pp_open_hovbox ppf 1;
       if true then (
         pp_tok ppf LParen;
@@ -90,10 +91,11 @@ let () =
         let style = style () in
         match obs with
         | [ x; ty; tm; body ] ->
-            let wslet, ws = take ws in
-            let wscolon, ws = take ws in
-            let wscoloneq, ws = take ws in
-            let wsin, _ = take ws in
+            let wslet, ws = take Let ws in
+            let wscolon, ws = take Colon ws in
+            let wscoloneq, ws = take Coloneq ws in
+            let wsin, ws = take In ws in
+            taken_last ws;
             if style = `Compact then pp_open_hovbox ppf 2;
             if true then (
               pp_open_hvbox ppf 2;
@@ -113,9 +115,10 @@ let () =
             pp_ws `Break ppf wsin;
             pp_let_body space ppf body
         | [ x; tm; body ] ->
-            let wslet, ws = take ws in
-            let wscoloneq, ws = take ws in
-            let wsin, _ = take ws in
+            let wslet, ws = take Let ws in
+            let wscoloneq, ws = take Coloneq ws in
+            let wsin, ws = take In ws in
+            taken_last ws;
             if style = `Compact then pp_open_hovbox ppf 2 else pp_open_hvbox ppf 2;
             if true then (
               pp_tok ppf Let;
@@ -159,12 +162,13 @@ let () =
   set_print asc @@ fun space ppf obs ws ->
   match obs with
   | [ tm; ty ] ->
-      let ws, _ = take ws in
+      let w, ws = take Colon ws in
+      taken_last ws;
       pp_open_box ppf 0;
       if true then (
         pp_term `Break ppf tm;
         pp_tok ppf Colon;
-        pp_ws `Nobreak ppf ws;
+        pp_ws `Nobreak ppf w;
         pp_term space ppf ty);
       pp_close_box ppf ()
   | _ -> fatal (Anomaly "invalid notation arguments for ascription")
@@ -220,7 +224,8 @@ let get_pi_arg :
   | Notn n when equal (notn n) asc -> (
       match args n with
       | [ Term xs; dom ] ->
-          let wscolon, _ = take (whitespace n) in
+          let wscolon, ws = take Colon (whitespace n) in
+          taken_last ws;
           let vars = get_pi_vars xs [] in
           Dep { wsarrow; vars; ty = dom; wslparen; wscolon; wsrparen }
       | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
@@ -235,15 +240,17 @@ let rec get_pi_args :
     | Notn n when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let wslparen, ws = take (whitespace n) in
-            let wsrparen, _ = take ws in
+            let wslparen, ws = take LParen (whitespace n) in
+            let wsrparen, ws = take RParen ws in
+            taken_last ws;
             get_pi_arg ~wsarrow body ~wslparen ~wsrparen :: vars
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | App { fn; arg = Notn n; _ } when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let wslparen, ws = take (whitespace n) in
-            let wsrparen, _ = take ws in
+            let wslparen, ws = take LParen (whitespace n) in
+            let wsrparen, ws = take RParen ws in
+            taken_last ws;
             get_pi_args wsarrow fn (get_pi_arg ~wsarrow:`Noarrow body ~wslparen ~wsrparen :: vars)
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | _ -> raise Not_a_pi_arg
@@ -254,12 +261,13 @@ let rec get_pi :
     type lt ls rt rs.
     arrow_opt ->
     observation list ->
-    Whitespace.t list list ->
+    Whitespace.alist ->
     pi_dom list * Whitespace.t list * observation =
  fun prev_arr obs ws ->
   match obs with
   | [ Term doms; Term cod ] ->
-      let wsarrow, _ = take ws in
+      let wsarrow, ws = take Arrow ws in
+      taken_last ws;
       let vars, ws, cod =
         match cod with
         | Notn n when equal (notn n) arrow -> get_pi (`Arrow wsarrow) (args n) (whitespace n)
@@ -403,7 +411,8 @@ let process_abs cube =
 let pp_abs cube space ppf obs ws =
   match obs with
   | [ vars; body ] ->
-      let wsmapsto, _ = take ws in
+      let wsmapsto, ws = take Mapsto ws in
+      taken_last ws;
       pp_open_box ppf 0;
       if true then (
         pp_open_hovbox ppf 2;
@@ -446,9 +455,10 @@ let () =
   set_print universe @@ fun space ppf obs ws ->
   match obs with
   | [] ->
-      let ws, _ = take ws in
+      let wstype, ws = take (Ident [ "Type" ]) ws in
+      taken_last ws;
       pp_print_string ppf "Type";
-      pp_ws space ppf ws
+      pp_ws space ppf wstype
   | _ -> fatal (Anomaly (Printf.sprintf "invalid notation arguments for Type: %d" (List.length ws)))
 
 (* ********************
@@ -479,9 +489,10 @@ let () =
   set_print degen @@ fun space ppf obs ws ->
   match obs with
   | [ tm; Term (Ident ([ str ], w)) ] ->
-      let wscaret, ws = take ws in
-      let wslbrace, ws = take ws in
-      let wsrbrace, _ = take ws in
+      let wscaret, ws = take (Op "^") ws in
+      let wslbrace, ws = take LBrace ws in
+      let wsrbrace, ws = take RBrace ws in
+      taken_last ws;
       pp_term `None ppf tm;
       pp_tok ppf (Op "^");
       pp_ws `None ppf wscaret;
@@ -544,7 +555,6 @@ let () =
 
 (* We define the pretty-printing functions parametrically over symbols so we can re-use them for printing comatches. *)
 
-(* TODO: Sometimes we add, or maybe even remove, a "," after the last field in a tuple.  Deal with the associated whitespace. *)
 let rec pp_fld :
     type a.
     formatter ->
@@ -554,8 +564,8 @@ let rec pp_fld :
     Whitespace.t list ->
     observation ->
     observation list ->
-    Whitespace.t list list ->
-    Whitespace.t list list =
+    Whitespace.alist ->
+    Whitespace.alist =
  fun ppf pp x w wscoloneq tm obs ws ->
   pp_open_hovbox ppf 2;
   if true then (
@@ -568,19 +578,17 @@ let rec pp_fld :
   match obs with
   | [] -> ws
   | _ ->
-      let wscomma, ws = take ws in
+      let wscomma, ws = take (Op ",") ws in
       pp_tok ppf (Op ",");
       pp_ws `Break ppf wscomma;
       ws
 
-and pp_fields : formatter -> observation list -> Whitespace.t list list -> Whitespace.t list =
+and pp_fields : formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
  fun ppf obs ws ->
   match obs with
-  | [] ->
-      let wsrbrace, _ = take ws in
-      wsrbrace
+  | [] -> ws
   | Term (Ident ([ x ], w)) :: obs -> (
-      let wscoloneq, ws = take ws in
+      let wscoloneq, ws = take Coloneq ws in
       match obs with
       | tm :: obs ->
           let ws = pp_fld ppf pp_var (Some x) w wscoloneq tm obs ws in
@@ -596,8 +604,9 @@ let pp_tuple space ppf obs ws =
       pp_open_hvbox ppf 2
   | `Case -> pp_open_vbox ppf 2);
   pp_tok ppf LParen;
-  if style = `Compact then pp_print_string ppf " " else pp_print_space ppf ();
-  let wsrdelim = pp_fields ppf obs ws in
+  let wslparen, ws = take LParen ws in
+  pp_ws (if style = `Compact then `Nobreak else `Break) ppf wslparen;
+  let ws = pp_fields ppf obs ws in
   (if style = `Compact then pp_print_string ppf " "
    else
      match state with
@@ -605,9 +614,17 @@ let pp_tuple space ppf obs ws =
          pp_close_box ppf ();
          pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
      | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
+  let ws =
+    match take_opt (Op ",") ws with
+    | Some (wscomma, ws) ->
+        pp_ws `None ppf wscomma;
+        ws
+    | None -> ws in
   pp_tok ppf RParen;
-  pp_close_box ppf ();
-  pp_ws space ppf wsrdelim
+  let wsrparen, ws = take RParen ws in
+  taken_last ws;
+  pp_ws space ppf wsrparen;
+  pp_close_box ppf ()
 
 let () = set_print tuple pp_tuple
 
@@ -747,14 +764,13 @@ let () =
               Lam (None, `Normal, Match ((Top, None), branches)));
     }
 
-(* TODO: Sometimes we add, or maybe even remove, a "|" before the first branch of a comatch or a pattern-matching lambda.  Deal with the associated whitespace. *)
-let rec pp_branches :
-    bool -> formatter -> observation list -> Whitespace.t list list -> Whitespace.t list =
+let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist -> Whitespace.t list
+    =
  fun brk ppf obs ws ->
   match obs with
   | pat :: body :: obs ->
-      let wsbar, ws = take ws in
-      let wsmapsto, ws = take ws in
+      let wsbar, ws = take (Op "|") ws in
+      let wsmapsto, ws = take Mapsto ws in
       let style = style () in
       if brk || style = `Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match body with
@@ -787,12 +803,13 @@ let rec pp_branches :
           pp_close_box ppf ());
       pp_branches true ppf obs ws
   | [] ->
-      let wsrbrack, _ = take ws in
+      let wsrbrack, ws = take RBracket ws in
+      taken_last ws;
       wsrbrack
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
 
 and pp_match box space ppf obs ws =
-  let wslbrack, ws = take ws in
+  let wslbrack, ws = take LBracket ws in
   let style = style () in
   match obs with
   | (Term (Ident _) as x) :: obs ->
@@ -812,6 +829,10 @@ and pp_match box space ppf obs ws =
       if true then (
         pp_tok ppf LBracket;
         pp_ws (if box then `None else `Nobreak) ppf wslbrack;
+        let ws =
+          match take_opt (Op "|") ws with
+          | Some _ -> ws
+          | None -> (Op "|", []) :: ws in
         let wsrbrack = pp_branches ((not box) || style = `Noncompact) ppf obs ws in
         if style = `Noncompact then pp_print_cut ppf ();
         pp_tok ppf RBracket;

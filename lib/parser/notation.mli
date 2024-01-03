@@ -56,10 +56,10 @@ and ('left, 'tight) notation_entry =
 and ('left, 'tight, 'right) notation
 
 and processor = {
-  process : 'n. (string option, 'n) Bwv.t -> observation list -> Whitespace.t list list -> 'n check;
+  process : 'n. (string option, 'n) Bwv.t -> observation list -> Whitespace.alist -> 'n check;
 }
 
-and printer = space -> Format.formatter -> observation list -> Whitespace.t list list -> unit
+and printer = space -> Format.formatter -> observation list -> Whitespace.alist -> unit
 
 module Notation : sig
   type t = Wrap : ('left, 'tight, 'right) notation -> t
@@ -69,7 +69,7 @@ val empty_branch : ('left, 'tight) branch
 
 val infix :
   notn:('a opn, 'b, 'c opn) notation ->
-  ws:Whitespace.t list list ->
+  ws:Whitespace.alist ->
   first:('d, 'e, 'b, 'a) parse ->
   inner:observation Bwd.t ->
   last:('b, 'c, 'f, 'g) parse ->
@@ -79,7 +79,7 @@ val infix :
 
 val prefix :
   notn:(closed, 'a, 'b opn) notation ->
-  ws:Whitespace.t list list ->
+  ws:Whitespace.alist ->
   inner:observation Bwd.t ->
   last:('a, 'b, 'c, 'd) parse ->
   right_ok:('c, 'd, 'a) Util.No.lt ->
@@ -87,7 +87,7 @@ val prefix :
 
 val postfix :
   notn:('a opn, 'b, closed) notation ->
-  ws:Whitespace.t list list ->
+  ws:Whitespace.alist ->
   first:('c, 'd, 'b, 'a) parse ->
   inner:observation Bwd.t ->
   left_ok:('c, 'd, 'b) Util.No.lt ->
@@ -95,12 +95,12 @@ val postfix :
 
 val outfix :
   notn:(closed, 'a, closed) notation ->
-  ws:Whitespace.t list list ->
+  ws:Whitespace.alist ->
   inner:observation Bwd.t ->
   ('b, 'c, 'd, 'e) parse
 
 val args : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> observation list
-val whitespace : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> Whitespace.t list list
+val whitespace : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> Whitespace.alist
 
 val notn :
   ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('left, 'tight, 'right) notation

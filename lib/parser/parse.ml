@@ -34,8 +34,11 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       type tight strict.
       (tight, strict) tree ->
       observation Bwd.t ->
-      Whitespace.t list Bwd.t ->
-      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+      (Token.t * Whitespace.t list) Bwd.t ->
+      (observation Bwd.t
+      * (Token.t * Whitespace.t list) Bwd.t
+      * (tight, strict) notation_in_interval)
+      t =
    fun t obs ws ->
     match t with
     | Inner ({ term; _ } as br) -> (
@@ -58,13 +61,16 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       type tight strict.
       (tight, strict) branch ->
       observation Bwd.t ->
-      Whitespace.t list Bwd.t ->
-      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+      (Token.t * Whitespace.t list) Bwd.t ->
+      (observation Bwd.t
+      * (Token.t * Whitespace.t list) Bwd.t
+      * (tight, strict) notation_in_interval)
+      t =
    fun { ops; field; term = _ } obs ws ->
     let* br, x, w =
       step (fun state _ (tok, w) ->
           match TokMap.find_opt tok ops with
-          | Some br -> Some ((br, ([] : observation list), [ w ]), state)
+          | Some br -> Some ((br, ([] : observation list), [ (tok, w) ]), state)
           | None -> (
               (* Field names have already been validated by the lexer. *)
               match (field, tok) with
@@ -76,20 +82,26 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       type tight strict.
       (tight, strict) tree TokMap.t ->
       observation Bwd.t ->
-      Whitespace.t list Bwd.t ->
-      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+      (Token.t * Whitespace.t list) Bwd.t ->
+      (observation Bwd.t
+      * (Token.t * Whitespace.t list) Bwd.t
+      * (tight, strict) notation_in_interval)
+      t =
    fun ops obs ws ->
     let* optree, w =
       step (fun state _ (tok, w) ->
           match TokMap.find_opt tok ops with
-          | Some br -> Some ((br, w), state)
+          | Some br -> Some ((br, (tok, w)), state)
           | None -> None) in
     tree optree obs (ws <: w)
 
   and entry :
       type tight strict.
       (tight, strict) tree TokMap.t ->
-      (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
+      (observation Bwd.t
+      * (Token.t * Whitespace.t list) Bwd.t
+      * (tight, strict) notation_in_interval)
+      t =
    fun e -> tree_op e Emp Emp
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)

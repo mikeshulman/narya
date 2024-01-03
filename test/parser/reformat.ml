@@ -93,6 +93,7 @@ let test_compactness () =
   reformat "f (fst := blah blah blah blah blah blah, snd := blah)";
   set_margin 40;
   reformat "(fst := M, snd := (foo := N, bar := P))";
+  reformat "(fst := M, snd := (foo := N, bar := P),)";
   reformat "f (fst := M, snd := (foo := N, bar := P))";
 
   (* Comatches *)

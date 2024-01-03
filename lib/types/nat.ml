@@ -41,7 +41,8 @@ let () =
   set_print plusn (fun space ppf obs ws ->
       match obs with
       | [ x; y ] ->
-          let wsplus, _ = take ws in
+          let wsplus, ws = take (Op "+") ws in
+          taken_last ws;
           pp_open_hovbox ppf 2;
           if true then (
             pp_term `Break ppf x;
@@ -70,7 +71,8 @@ let () =
   set_print timesn (fun space ppf obs ws ->
       match obs with
       | [ x; y ] ->
-          let wstimes, _ = take ws in
+          let wstimes, ws = take (Op "*") ws in
+          taken_last ws;
           pp_open_hovbox ppf 2;
           if true then (
             pp_term `Break ppf x;

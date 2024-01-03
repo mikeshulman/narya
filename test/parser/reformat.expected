@@ -293,6 +293,8 @@ f
 
 ( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
 
+( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
+
 f
   ( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ),
   )
@@ -517,6 +519,8 @@ f
       blah blah blah blah
         blah blah,
     snd ≔ blah )
+
+( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
 
 ( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
 

@@ -50,7 +50,8 @@ let () =
   set_print prodn (fun space ppf obs ws ->
       match obs with
       | [ x; y ] ->
-          let wsprod, _ = take ws in
+          let wsprod, ws = Option.value (take_opt (Ident [ "×" ]) ws) ~default:(take (Op "><") ws) in
+          taken_last ws;
           pp_open_hovbox ppf 2;
           if true then (
             pp_term `Break ppf x;

@@ -3,6 +3,8 @@ open Util
 open Dim
 open Hctx
 
+type eta = [ `Eta | `Noeta ]
+
 (* ******************** Raw (unchecked) terms ******************** *)
 
 module Raw = struct

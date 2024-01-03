@@ -18,7 +18,7 @@ type definition =
   | Defined : emp Case.tree ref -> definition
   | Record : {
       (* Whether the record type supports eta-conversion *)
-      eta : bool;
+      eta : eta;
       (* The number of parameters of an instance of the record type, which must also be the number of Pis in its type (which is where the types *of* the parameters are recorded). *)
       params : (emp, 'p, 'pc, D.zero) exts;
       (* The dimension of the record type itself, as a type.  In nearly all cases this will be zero; the main exception is Gel/Corr. *)

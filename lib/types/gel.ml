@@ -25,7 +25,7 @@ let install () =
   Hashtbl.add Global.constants gel
     (Record
        {
-         eta = true;
+         eta = `Eta;
          params = Suc (Suc (Suc Zero));
          dim = one;
          fields =

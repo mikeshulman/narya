@@ -114,7 +114,7 @@ let install () =
   Hashtbl.add Global.constants sigma
     (Record
        {
-         eta = true;
+         eta = `Eta;
          params = Suc (Suc Zero);
          dim = D.zero;
          fields =

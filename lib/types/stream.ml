@@ -15,7 +15,7 @@ let install () =
   Hashtbl.add Global.constants stream
     (Record
        {
-         eta = false;
+         eta = `Noeta;
          params = Suc Zero;
          dim = D.zero;
          fields =

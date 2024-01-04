@@ -118,8 +118,6 @@ let install () =
                                       (Case.Leaf
                                          (Struct
                                             ( `Eta,
-                                              Field.Map.empty
-                                              |> Field.Map.add fst
-                                                   (Var (Pop (Top (id_sface D.zero))))
-                                              |> Field.Map.add snd (Var (Top (id_sface D.zero))) )))
-                                  )) )) )) ))))
+                                              Emp
+                                              <: (fst, Var (Pop (Top (id_sface D.zero))))
+                                              <: (snd, Var (Top (id_sface D.zero))) ))) )) )) )) ))))

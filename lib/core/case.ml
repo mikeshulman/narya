@@ -1,4 +1,5 @@
 open Bwd
+open Util
 open Dim
 open Syntax
 open Term
@@ -9,7 +10,7 @@ type _ tree =
   | Lam : 'n D.t * 'n variables * ('a, 'n) ext tree ref -> 'a tree
   | Leaf : 'a term -> 'a tree
   | Branches : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> 'a tree
-  | Cobranches : 'a tree ref Field.Map.t -> 'a tree
+  | Cobranches : (Field.t, 'a tree ref) Abwd.t -> 'a tree
   | Empty : 'a tree
 
 (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)

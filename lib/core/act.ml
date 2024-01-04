@@ -1,8 +1,9 @@
-open Reporter
+open Bwd
+open Util
 open Dim
+open Reporter
 open Syntax
 open Value
-open Bwd
 
 (* Operator actions on values.  Unlike substitution, operator actions take a *value* as input (and produces another value). *)
 
@@ -78,7 +79,7 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
       Lam (act_variables x fa, act_binder body fa)
   | Struct (fields, ins) ->
       let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
-      Struct (Field.Map.map (fun tm -> act_value tm fa) fields, new_ins)
+      Struct (Abwd.map (fun tm -> act_value tm fa) fields, new_ins)
   | Constr (name, dim, args) ->
       let (Of fa) = deg_plus_to s dim ~on:"constr" in
       Constr

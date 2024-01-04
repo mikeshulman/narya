@@ -107,21 +107,21 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
               let () = is_id_perm (perm_of_ins ins) <|> Checking_tuple_at_degenerated_record name in
               let dim = cod_left_ins ins in
               (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
-              let etms = ref Field.Map.empty in
+              let etms = ref Abwd.empty in
               let module M = Monad.State (struct
                 type t = Field.t Bwd.t * a check list
               end) in
-              let open Field.Map.Monadic (M) in
+              let open Abwd.Monadic (M) in
               let ctms, (unlbl_flds, unused_unlbl_tms) =
                 mapiM
                   (fun fld _ ->
                     let open Monad.Ops (M) in
                     let prev_etm = Value.Struct (!etms, zero_ins dim) in
                     let ety = tyof_field prev_etm ty fld in
-                    match Field.Map.find_opt fld lbl_tms with
+                    match Abwd.find_opt fld lbl_tms with
                     | Some tm ->
                         let ctm = check ctx tm ety in
-                        etms := Field.Map.add fld (Ctx.eval ctx ctm) !etms;
+                        etms := Abwd.add fld (Ctx.eval ctx ctm) !etms;
                         return ctm
                     | None -> (
                         let* uflds, utms = M.get in
@@ -129,20 +129,20 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                         | tm :: utms ->
                             let* () = M.put (Snoc (uflds, fld), utms) in
                             let ctm = check ctx tm ety in
-                            etms := Field.Map.add fld (Ctx.eval ctx ctm) !etms;
+                            etms := Abwd.add fld (Ctx.eval ctx ctm) !etms;
                             return ctm
                         | [] -> fatal (Missing_field_in_tuple fld)))
-                  (Field.Map.of_abwd fields) (Emp, unlbl_tms) in
+                  fields (Emp, unlbl_tms) in
               if not (List.is_empty unused_unlbl_tms) then fatal (Extra_field_in_tuple None);
               (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
               Term.Struct
                 (* TODO: Here we put all the labeled terms before the unlabeled ones.  Can we maintain the user order more precisely than that? *)
                 ( `Eta,
                   Bwd.fold_left
-                    (fun map fld -> Field.Map.add fld (Field.Map.find fld ctms) map)
-                    (Field.Map.mapi
+                    (fun map fld -> Abwd.add fld (Abwd.find fld ctms) map)
+                    (Abwd.mapi
                        (fun fld _ ->
-                         match Field.Map.find_opt fld ctms with
+                         match Abwd.find_opt fld ctms with
                          | Some tm -> tm
                          | None -> fatal (Extra_field_in_tuple (Some fld)))
                        lbl_tms)
@@ -506,7 +506,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
           match Hashtbl.find Global.constants name with
           | Record { eta; fields; _ } when eta = tmeta ->
               let () = is_id_perm (perm_of_ins ins) <|> struct_at_degenerated_type tmeta name in
-              let tfields = Field.Map.map (fun _ -> ref Case.Empty) (Field.Map.of_abwd fields) in
+              let tfields = Abwd.map (fun _ -> ref Case.Empty) fields in
               tree := Case.Cobranches tfields;
               let module M = Monad.State (struct
                 type t = a check list
@@ -518,18 +518,16 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                     let open Monad.Ops (M) in
                     let ety = tyof_field prev_tm ty fld in
                     (* This enforces coverage checking.  If we want to allow delayed or disabled coverage checking, then a None result here should succeed and do nothing, leaving the corresponding cobranch as Case.Empty. *)
-                    match Field.Map.find_opt fld lbl_tms with
+                    match Abwd.find_opt fld lbl_tms with
                     | Some tm ->
-                        return
-                          (check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields))
+                        return (check_tree ctx tm ety (field prev_tm fld) (Abwd.find fld tfields))
                     | None -> (
                         let* utms = M.get in
                         match utms with
                         | tm :: utms ->
                             let* () = M.put utms in
                             return
-                              (check_tree ctx tm ety (field prev_tm fld)
-                                 (Field.Map.find fld tfields))
+                              (check_tree ctx tm ety (field prev_tm fld) (Abwd.find fld tfields))
                         | [] -> fatal (missing_field_in_struct eta fld)))
                   [ fields ] unlbl_tms in
               if not (List.is_empty unused_unlbl_tms) then fatal (Extra_field_in_tuple None)
@@ -743,7 +741,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
   | Empty_co_match -> (
       match uty with
       | Pi _ -> check_tree ctx (Raw.Lam (None, `Normal, Match ((Top, None), []))) ty prev_tm tree
-      | _ -> check_tree ctx (Struct (`Noeta, Field.Map.empty, [])) ty prev_tm tree)
+      | _ -> check_tree ctx (Struct (`Noeta, Abwd.empty, [])) ty prev_tm tree)
   | _ ->
       let leaf = check ctx tm ty in
       tree := Case.Leaf leaf

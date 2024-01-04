@@ -61,49 +61,43 @@ let install () =
                                            `Normal (CubeOf.singleton (Some "k")),
                                            ref
                                              (Case.Cobranches
-                                                (Field.Map.of_abwd
-                                                   (Emp
-                                                   <: ( head,
-                                                        ref
-                                                          (Case.Leaf
-                                                             (app
-                                                                (Var
-                                                                   (Pop
-                                                                      (Pop (Top (id_sface D.zero)))))
-                                                                (Var (Top (id_sface D.zero))))) )
-                                                   <: ( tail,
-                                                        ref
-                                                          (Case.Leaf
+                                                (Emp
+                                                <: ( head,
+                                                     ref
+                                                       (Case.Leaf
+                                                          (app
+                                                             (Var
+                                                                (Pop (Pop (Top (id_sface D.zero)))))
+                                                             (Var (Top (id_sface D.zero))))) )
+                                                <: ( tail,
+                                                     ref
+                                                       (Case.Leaf
+                                                          (app
                                                              (app
                                                                 (app
                                                                    (app
-                                                                      (app
-                                                                         (app (Const corec)
-                                                                            (Var
-                                                                               (Pop
-                                                                                  (Pop
-                                                                                     (Pop
-                                                                                        (Pop
-                                                                                           (Top
-                                                                                              (id_sface
-                                                                                                 D
-                                                                                                 .zero))))))))
+                                                                      (app (Const corec)
                                                                          (Var
                                                                             (Pop
                                                                                (Pop
                                                                                   (Pop
-                                                                                     (Top
-                                                                                        (id_sface
-                                                                                           D.zero)))))))
+                                                                                     (Pop
+                                                                                        (Top
+                                                                                           (id_sface
+                                                                                              D.zero))))))))
                                                                       (Var
                                                                          (Pop
                                                                             (Pop
-                                                                               (Top
-                                                                                  (id_sface D.zero))))))
+                                                                               (Pop
+                                                                                  (Top
+                                                                                     (id_sface
+                                                                                        D.zero)))))))
                                                                    (Var
-                                                                      (Pop (Top (id_sface D.zero)))))
-                                                                (app
-                                                                   (Var
-                                                                      (Pop (Top (id_sface D.zero))))
-                                                                   (Var (Top (id_sface D.zero))))))
-                                                      )))) )) )) )) )) ))))
+                                                                      (Pop
+                                                                         (Pop
+                                                                            (Top (id_sface D.zero))))))
+                                                                (Var (Pop (Top (id_sface D.zero)))))
+                                                             (app
+                                                                (Var (Pop (Top (id_sface D.zero))))
+                                                                (Var (Top (id_sface D.zero)))))) )))
+                                         )) )) )) )) ))))

@@ -500,7 +500,7 @@ let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
 let rec process_tuple :
     type n.
     bool ->
-    n check Field.Map.t ->
+    (Field.t, n check) Abwd.t ->
     Field.Set.t ->
     n check Bwd.t ->
     (string option, n) Bwv.t ->
@@ -516,8 +516,8 @@ let rec process_tuple :
           let fld = Field.intern x in
           if Field.Set.mem fld found then fatal (Duplicate_field_in_tuple fld)
           else
-            process_tuple false (Field.Map.add fld tm lbl_flds) (Field.Set.add fld found) unlbl_flds
-              ctx obs
+            process_tuple false (Abwd.add fld tm lbl_flds) (Field.Set.add fld found) unlbl_flds ctx
+              obs
       | _ :: _ -> fatal Invalid_field_in_tuple
       | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
   | [ Term body ] when first -> process ctx body
@@ -525,7 +525,7 @@ let rec process_tuple :
 
 let () =
   set_processor parens
-    { process = (fun ctx obs _ -> process_tuple true Field.Map.empty Field.Set.empty Emp ctx obs) }
+    { process = (fun ctx obs _ -> process_tuple true Abwd.empty Field.Set.empty Emp ctx obs) }
 
 let pp_coloneq space ppf obs ws =
   let wscoloneq, ws = take Coloneq ws in
@@ -641,7 +641,10 @@ let () = set_tree comatch (Closed_entry (eop LBracket (comatch_fields false)))
 
 let rec process_comatch :
     type n.
-    n check Field.Map.t * Field.Set.t -> (string option, n) Bwv.t -> observation list -> n check =
+    (Field.t, n check) Abwd.t * Field.Set.t ->
+    (string option, n) Bwv.t ->
+    observation list ->
+    n check =
  fun (flds, found) ctx obs ->
   match obs with
   | [] -> Raw.Struct (`Noeta, flds, [])
@@ -649,12 +652,12 @@ let rec process_comatch :
       let tm = process ctx tm in
       let fld = Field.intern x in
       if Field.Set.mem fld found then fatal (Duplicate_method_in_comatch fld)
-      else process_comatch (Field.Map.add fld tm flds, Field.Set.add fld found) ctx obs
+      else process_comatch (Abwd.add fld tm flds, Field.Set.add fld found) ctx obs
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
 
 let () =
   set_processor comatch
-    { process = (fun ctx obs _ -> process_comatch (Field.Map.empty, Field.Set.empty) ctx obs) }
+    { process = (fun ctx obs _ -> process_comatch (Abwd.empty, Field.Set.empty) ctx obs) }
 
 (* Comatches will be printed with a different instantiation of the functions that print matches. *)
 

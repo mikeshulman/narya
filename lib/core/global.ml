@@ -24,7 +24,7 @@ type definition =
       (* The dimension of the record type itself, as a type.  In nearly all cases this will be zero; the main exception is Gel/Corr. *)
       dim : 'n D.t;
       (* The fields are listed in order, so that each can depend on the previous ones.  Each field has a type that depends on the parameters of the record type, along with an element of that type and its boundaries if any. *)
-      fields : (Field.t * ('pc, 'n) ext term) Bwd.t;
+      fields : (Field.t, ('pc, 'n) ext term) Abwd.t;
     }
       -> definition
   | Data : {

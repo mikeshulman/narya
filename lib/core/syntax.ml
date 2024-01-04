@@ -28,7 +28,7 @@ module Raw = struct
     | Synth : 'a synth -> 'a check
     | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check -> 'a check
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches. *)
-    | Struct : eta * 'a check Field.Map.t * 'a check list -> 'a check
+    | Struct : eta * (Field.t, 'a check) Abwd.t * 'a check list -> 'a check
     | Constr : Constr.t * 'a check Bwd.t -> 'a check
     | Match : 'a index * 'a branch list -> 'a check
     | Empty_co_match (* "[]" or "[|]", which could be either an empty match or an empty comatch *)
@@ -89,7 +89,7 @@ module rec Term : sig
     | Pi : string option * ('n, 'a term) CubeOf.t * ('n, 'a) CodCube.t -> 'a term
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : 'n D.t * 'n variables * ('a, 'n) ext Term.term -> 'a term
-    | Struct : eta * 'a term Field.Map.t -> 'a term
+    | Struct : eta * (Field.t, 'a term) Abwd.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
@@ -109,7 +109,7 @@ end = struct
     | Pi : string option * ('n, 'a term) CubeOf.t * ('n, 'a) CodCube.t -> 'a term
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : 'n D.t * 'n variables * ('a, 'n) ext Term.term -> 'a term
-    | Struct : eta * 'a term Field.Map.t -> 'a term
+    | Struct : eta * (Field.t, 'a term) Abwd.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
@@ -168,7 +168,7 @@ module rec Value : sig
       }
         -> value
     | Lam : 'k variables * 'k binder -> value
-    | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
+    | Struct : (Field.t, value) Abwd.t * ('m, 'n, 'k) insertion -> value
     | Constr : Constr.t * 'n D.t * ('n, value) CubeOf.t Bwd.t -> value
 
   and normal = { tm : value; ty : value }
@@ -239,7 +239,7 @@ end = struct
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * 'k binder -> value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application. *)
-    | Struct : value Field.Map.t * ('m, 'n, 'k) insertion -> value
+    | Struct : (Field.t, value) Abwd.t * ('m, 'n, 'k) insertion -> value
     (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)
     | Constr : Constr.t * 'n D.t * ('n, value) CubeOf.t Bwd.t -> value
 

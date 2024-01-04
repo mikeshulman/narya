@@ -190,7 +190,7 @@ let rec unparse :
   | Struct (`Eta, fields) ->
       outfix ~notn:parens ~ws:[]
         ~inner:
-          (Field.Map.fold
+          (Abwd.fold
              (fun fld tm acc ->
                Snoc
                  ( acc,
@@ -205,7 +205,7 @@ let rec unparse :
   | Struct (`Noeta, fields) ->
       outfix ~notn:comatch ~ws:[]
         ~inner:
-          (Field.Map.fold
+          (Abwd.fold
              (fun fld tm acc ->
                Snoc
                  ( Snoc (acc, Term (Field (Field.to_string fld, []))),

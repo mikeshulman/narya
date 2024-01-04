@@ -60,8 +60,7 @@ and equal_at : int -> value -> value -> value -> unit option =
                   let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
                   BwdM.miterM
                     (fun [ (fld, _) ] ->
-                      equal_at ctx (Field.Map.find fld xfld) (Field.Map.find fld yfld)
-                        (tyof_field x ty fld))
+                      equal_at ctx (Abwd.find fld xfld) (Abwd.find fld yfld) (tyof_field x ty fld))
                     [ fields ]
               | Struct _, _ | _, Struct _ -> fail
               | _ -> equal_val ctx x y))

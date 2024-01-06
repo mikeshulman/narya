@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Dim
 open Postprocess
@@ -500,32 +499,31 @@ let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
 let rec process_tuple :
     type n.
     bool ->
-    (Field.t, n check) Abwd.t ->
+    (Field.t option, n check) Abwd.t ->
     Field.Set.t ->
-    n check Bwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
     n check =
- fun first lbl_flds found unlbl_flds ctx obs ->
+ fun first flds found ctx obs ->
   match obs with
-  | [] -> Raw.Struct (`Eta, lbl_flds, Bwd.to_list unlbl_flds)
+  | [] -> Raw.Struct (`Eta, flds)
   | Term (Notn n) :: obs when equal (notn n) coloneq -> (
       match args n with
       | [ Term (Ident ([ x ], _)); Term tm ] ->
           let tm = process ctx tm in
           let fld = Field.intern x in
           if Field.Set.mem fld found then fatal (Duplicate_field_in_tuple fld)
-          else
-            process_tuple false (Abwd.add fld tm lbl_flds) (Field.Set.add fld found) unlbl_flds ctx
-              obs
+          else process_tuple false (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs
       | _ :: _ -> fatal Invalid_field_in_tuple
       | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
   | [ Term body ] when first -> process ctx body
-  | Term tm :: obs -> process_tuple false lbl_flds found (Snoc (unlbl_flds, process ctx tm)) ctx obs
+  | Term tm :: obs ->
+      let tm = process ctx tm in
+      process_tuple false (Abwd.add None tm flds) found ctx obs
 
 let () =
   set_processor parens
-    { process = (fun ctx obs _ -> process_tuple true Abwd.empty Field.Set.empty Emp ctx obs) }
+    { process = (fun ctx obs _ -> process_tuple true Abwd.empty Field.Set.empty ctx obs) }
 
 let pp_coloneq space ppf obs ws =
   let wscoloneq, ws = take Coloneq ws in
@@ -641,18 +639,19 @@ let () = set_tree comatch (Closed_entry (eop LBracket (comatch_fields false)))
 
 let rec process_comatch :
     type n.
-    (Field.t, n check) Abwd.t * Field.Set.t ->
+    (Field.t option, n check) Abwd.t * Field.Set.t ->
     (string option, n) Bwv.t ->
     observation list ->
     n check =
  fun (flds, found) ctx obs ->
   match obs with
-  | [] -> Raw.Struct (`Noeta, flds, [])
+  | [] -> Raw.Struct (`Noeta, flds)
   | Term (Field (x, _)) :: Term tm :: obs ->
       let tm = process ctx tm in
       let fld = Field.intern x in
       if Field.Set.mem fld found then fatal (Duplicate_method_in_comatch fld)
-      else process_comatch (Abwd.add fld tm flds, Field.Set.add fld found) ctx obs
+        (* Comatches can't have unlabeled fields *)
+      else process_comatch (Abwd.add (Some fld) tm flds, Field.Set.add fld found) ctx obs
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
 
 let () =

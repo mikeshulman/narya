@@ -58,8 +58,9 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
           match tm with
           | Struct (tmflds, tmins) ->
               let fields =
-                Abwd.mapi (fun fld fldtm -> readback_at ctx fldtm (tyof_field tm ty fld)) tmflds
-              in
+                Abwd.mapi
+                  (fun fld (fldtm, l) -> (readback_at ctx fldtm (tyof_field tm ty fld), l))
+                  tmflds in
               Act (Struct (eta, fields), perm_of_ins tmins)
           | _ ->
               (* Eta-expanding readback should really do this, but it probably isn't what the user wants to see when printing terms, and in practice that's what we use readback for (equality-testing is a separate thing). *)

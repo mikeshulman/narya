@@ -12,9 +12,11 @@ _ f x ↦ f x
 m n Y f x ↦ n (Y → Y) (x0 x1 ↦ m Y (x2 ↦ x0 x2) x1) (x0 ↦ f x0) x
 Y f x ↦ f (f (f (f (f (f (f (f x)))))))
 ( fst ≔ 0, snd ≔ 0 )
-( fst ≔ 0, snd ≔ 0 )
-( fst ≔ 0, snd ≔ ( fst ≔ 0, snd ≔ 0 ) )
-( fst ≔ ( fst ≔ 0, snd ≔ 0 ), snd ≔ 0 )
+( 0, 0 )
+( fst ≔ 1, 2 )
+( snd ≔ 1, 2 )
+( 0, ( 0, 0 ) )
+( ( 0, 0 ), 0 )
 ( fst ≔ x ↦ x, snd ≔ 2 )
 s .fst 3
 nil.

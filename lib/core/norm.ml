@@ -146,7 +146,8 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   | Field (tm, fld) ->
       let etm = eval env tm in
       field etm fld
-  | Struct (_, fields) -> Struct (Abwd.map (fun tm -> eval env tm) fields, zero_ins (dim_env env))
+  | Struct (_, fields) ->
+      Struct (Abwd.map (fun (tm, l) -> (eval env tm, l)) fields, zero_ins (dim_env env))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -390,7 +391,7 @@ and field : value -> Field.t -> value =
  fun tm fld ->
   match tm with
   (* TODO: Is it okay to ignore the insertion here? *)
-  | Struct (fields, _) -> Abwd.find fld fields
+  | Struct (fields, _) -> fst (Abwd.find fld fields)
   | Uninst (Neu (fn, args), (lazy ty)) ->
       let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)

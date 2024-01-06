@@ -119,5 +119,8 @@ let install () =
                                          (Struct
                                             ( `Eta,
                                               Emp
-                                              <: (fst, Var (Pop (Top (id_sface D.zero))))
-                                              <: (snd, Var (Top (id_sface D.zero))) ))) )) )) )) ))))
+                                              <: ( fst,
+                                                   (Var (Pop (Top (id_sface D.zero))), `Unlabeled)
+                                                 )
+                                              <: (snd, (Var (Top (id_sface D.zero)), `Unlabeled)) )))
+                                  )) )) )) ))))

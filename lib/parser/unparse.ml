@@ -191,22 +191,25 @@ let rec unparse :
       outfix ~notn:parens ~ws:[]
         ~inner:
           (Abwd.fold
-             (fun fld tm acc ->
+             (fun fld (tm, l) acc ->
+               let tm = unparse vars tm Interval.entire Interval.entire in
                Snoc
                  ( acc,
                    Term
-                     (infix ~notn:coloneq ~ws:[]
-                        ~first:(Ident ([ Field.to_string fld ], []))
-                        ~inner:Emp
-                        ~last:(unparse vars tm Interval.entire Interval.entire)
-                        ~left_ok:(No.le_refl No.minus_omega) ~right_ok:(No.le_refl No.minus_omega))
-                 ))
+                     (match l with
+                     | `Labeled ->
+                         infix ~notn:coloneq ~ws:[]
+                           ~first:(Ident ([ Field.to_string fld ], []))
+                           ~inner:Emp ~last:tm ~left_ok:(No.le_refl No.minus_omega)
+                           ~right_ok:(No.le_refl No.minus_omega)
+                     | `Unlabeled -> tm) ))
              fields Emp)
   | Struct (`Noeta, fields) ->
       outfix ~notn:comatch ~ws:[]
         ~inner:
           (Abwd.fold
-             (fun fld tm acc ->
+             (* Comatches can't have unlabeled fields *)
+               (fun fld (tm, _) acc ->
                Snoc
                  ( Snoc (acc, Term (Field (Field.to_string fld, []))),
                    Term (unparse vars tm Interval.entire Interval.entire) ))

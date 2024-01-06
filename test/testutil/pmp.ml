@@ -26,9 +26,8 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
       Struct
         ( `Eta,
           List.fold_left
-            (fun acc (fld, tm) -> Abwd.add (Field.intern fld) (parse_chk ctx tm) acc)
-            Abwd.empty tms,
-          [] )
+            (fun acc (fld, tm) -> Abwd.add (Some (Field.intern fld)) (parse_chk ctx tm) acc)
+            Abwd.empty tms )
   | Constr c -> Constr (Constr.intern c, Emp)
   | App (fn, arg) as tm -> (
       match parse_chk ctx fn with

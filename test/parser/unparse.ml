@@ -30,6 +30,7 @@ let () =
   print "exp";
   print "exp utwo uthree";
   Types.Nat.install ();
+  Types.Nat.install_ops ();
   Types.Sigma.install ();
   print "{fst := 0; snd := 0} : ℕ >< ℕ";
   print "{fst := x |-> x; snd := 2} : (ℕ -> ℕ) >< ℕ";

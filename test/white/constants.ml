@@ -65,6 +65,7 @@ let () =
 
   (* Natural numbers *)
   Types.Nat.install ();
+  Types.Nat.install_ops ();
 
   (* Lists *)
   Types.Lst.install ();

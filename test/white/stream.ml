@@ -47,6 +47,7 @@ let () =
 
   (* We construct a stream of natural numbers and check its first few elements *)
   let () = Types.Nat.install () in
+  let () = Types.Nat.install_ops () in
   let nat, _ = synth !~"ℕ" in
   let rnats = !~"corec" $ !~"ℕ" $ !~"ℕ" $ "x" @-> !!"x" $ "x" @-> (!~"S" $ !!"x") $ !~"O" in
   let nats, _ = synth rnats in

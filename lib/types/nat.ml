@@ -22,6 +22,24 @@ let suc' = Constant.make ()
 
 open Monad.Ops (Monad.Maybe)
 
+let install () =
+  Scope.set [ "ℕ" ] nn;
+  Scope.set [ "N" ] nnn;
+  Hashtbl.add Global.types nn (UU D.zero);
+  Hashtbl.add Global.constants nn
+    (Data
+       {
+         params = Zero;
+         indices = Zero;
+         constrs =
+           Constr.Map.empty
+           |> Constr.Map.add zero (Global.Constr { args = Emp; indices = Emp })
+           |> Constr.Map.add suc (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
+       });
+  Hashtbl.add Global.types nnn (UU D.zero);
+  Hashtbl.add Global.constants nnn (Defined (ref (Case.Leaf (Const nn))));
+  ()
+
 let plusn = make "plus" (Infixl No.zero)
 
 let () =
@@ -62,30 +80,12 @@ let () =
       | [ x; y ] -> Format.fprintf ppf "@[<hov 2>%a@ * %a@]" Print.pp_term x Print.pp_term y
       | _ -> fatal (Anomaly "invalid notation arguments for plus"))
 
-let installed = ref false
-
-let install_notations () =
-  State.add_const plusn plus 2;
-  State.add_const timesn times 2
-
-let install () =
-  install_notations ();
+let install_ops () =
   List.iter2 Scope.set
-    [ [ "ℕ" ]; [ "N" ]; [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
-    [ nn; nnn; zero'; suc'; plus; times; ind ];
-  Hashtbl.add Global.types nn (UU D.zero);
-  Hashtbl.add Global.constants nn
-    (Data
-       {
-         params = Zero;
-         indices = Zero;
-         constrs =
-           Constr.Map.empty
-           |> Constr.Map.add zero (Global.Constr { args = Emp; indices = Emp })
-           |> Constr.Map.add suc (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
-       });
-  Hashtbl.add Global.types nnn (UU D.zero);
-  Hashtbl.add Global.constants nnn (Defined (ref (Case.Leaf (Const nn))));
+    [ [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
+    [ zero'; suc'; plus; times; ind ];
+  State.add_const plusn plus 2;
+  State.add_const timesn times 2;
   Hashtbl.add Global.types zero' (Const nn);
   Hashtbl.add Global.constants zero' (Defined (ref (Case.Leaf (Constr (zero, D.zero, Emp)))));
   Hashtbl.add Global.types suc' (pi None (Const nn) (Const nn));

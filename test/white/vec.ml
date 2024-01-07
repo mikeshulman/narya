@@ -3,6 +3,7 @@ open Testutil.Mcp
 let () =
   run @@ fun () ->
   Types.Vec.install ();
+  Types.Nat.install_ops ();
   let uu, _ = synth "Type" in
   let aa = assume "A" uu in
   let a = assume "a" aa in

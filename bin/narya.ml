@@ -80,6 +80,15 @@ let () =
         chars = (if !unicode then `Unicode else `ASCII);
       }
   @@ fun () ->
+  Types.Nat.install ();
+  Types.Sigma.install ();
+  Types.Empty.install ();
+  Types.Sum.install ();
+  Types.Lst.install ();
+  Types.Stream.install ();
+  Types.Unit.install ();
+  Types.Vec.install ();
+  Types.Gel.install ();
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
   Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
   (if !use_stdin then

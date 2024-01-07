@@ -12,6 +12,7 @@ type t =
   | Axiom of Scope.Trie.path * observation
   | Def of Scope.Trie.path * observation * observation
   | Echo of observation
+  | Eof
 
 let execute : t -> unit = function
   | Axiom (name, Term ty) -> Core.Command.execute (Axiom (name, process Emp ty))
@@ -28,6 +29,7 @@ let execute : t -> unit = function
           pp_term Format.std_formatter (Term utm);
           Format.pp_print_newline Format.std_formatter ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
+  | Eof -> fatal (Anomaly "EOF cannot be executed")
 
 let pp_command : formatter -> t -> unit =
  fun ppf cmd ->
@@ -39,3 +41,4 @@ let pp_command : formatter -> t -> unit =
       fprintf ppf "@[<hv 2>%a %a@ %a %a@ %a %a@]" pp_tok Def pp_utf_8 (String.concat "." name)
         pp_tok Colon pp_term ty pp_tok Coloneq pp_term tm
   | Echo tm -> fprintf ppf "@[<hv 2>%a %a@]" pp_tok Echo pp_term tm
+  | Eof -> ()

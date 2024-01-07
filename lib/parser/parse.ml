@@ -262,6 +262,7 @@ module type Goal = sig
   module C : module type of Combinators (Final)
 
   val final : unit -> Final.t C.Basic.t
+  val eof : unit -> Final.t
 end
 
 module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final = Final) = struct
@@ -306,9 +307,10 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
       | `New (`Full, _) -> G.final ()
       | `New (`Partial, _) | `Restart _ ->
           G.C.Basic.(
-            let* x = G.final () in
-            expect_end x </> return x) in
-    let lex =
+            G.final ()
+            </> let* () = expect_end () in
+                return (G.eof ())) in
+    let lexer =
       match action with
       | `New _ -> Lexer.Parser.start
       | `Restart (p, _) -> Lex_and_parse.lex p in
@@ -321,7 +323,7 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
             G.C.Basic.make_partial () c
             |> G.C.Basic.Parser.transfer_lookahead (Lex_and_parse.parse p) in
     Range.run ~env @@ fun () ->
-    let p = Lex_and_parse.make lex (token_make final) in
+    let p = Lex_and_parse.make lexer (token_make final) in
     let ic, p = run p in
     (* Fmlib_parse has its own built-in error reporting with locations.  However, we instead use Asai's error reporting, so that we have a common "look" for parse errors and typechecking errors. *)
     if has_failed_syntax p then
@@ -345,6 +347,9 @@ module Term_goal = struct
   module C = Combinators (Final)
 
   let final : unit -> observation C.Basic.t = C.term
+
+  let eof : unit -> observation =
+   fun () -> fatal (Anomaly "partial parsing of individual terms not allowed")
 end
 
 module Term = Parse_goal (ParseTree) (Term_goal)
@@ -384,6 +389,7 @@ module Command_goal = struct
     return (Command.Echo tm)
 
   let final : unit -> Command.t C.Basic.t = fun () -> axiom </> def </> echo
+  let eof : unit -> Command.t = fun () -> Eof
 end
 
 module Command = Parse_goal (Command) (Command_goal)

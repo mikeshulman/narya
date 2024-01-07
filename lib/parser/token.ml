@@ -23,6 +23,7 @@ type t =
   | Internal of string (* Starting or ending with _ *)
   | Axiom (* axiom *)
   | Def (* def *)
+  | Echo (* echo *)
   | Record (* record *)
   | Data (* data *)
   | Codata (* codata *)
@@ -64,6 +65,7 @@ let to_string = function
   | Internal s -> s
   | Axiom -> "axiom"
   | Def -> "def"
+  | Echo -> "echo"
   | Record -> "record"
   | Data -> "data"
   | Codata -> "codata"

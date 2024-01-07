@@ -151,6 +151,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "in" -> return In
   | "axiom" -> return Axiom
   | "def" -> return Def
+  | "echo" -> return Echo
   | "record" -> return Record
   | "data" -> return Data
   | "codata" -> return Codata

@@ -378,7 +378,12 @@ module Command_goal = struct
     let* tm = C.term () in
     return (Command.Def (name, ty, tm))
 
-  let final : unit -> Command.t C.Basic.t = fun () -> axiom </> def
+  let echo =
+    let* () = token Echo in
+    let* tm = C.term () in
+    return (Command.Echo tm)
+
+  let final : unit -> Command.t C.Basic.t = fun () -> axiom </> def </> echo
 end
 
 module Command = Parse_goal (Command) (Command_goal)

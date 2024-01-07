@@ -17,19 +17,21 @@ let use_stdin = ref false
 
 let speclist =
   [
-    ( "--exec",
+    ( "-exec",
       Arg.String (fun str -> input_strings := Snoc (!input_strings, str)),
-      "Execute a string after all files" );
-    ("--verbose", Arg.Set verbose, "Show verbose messages");
-    ("--no-check", Arg.Clear typecheck, "Don't typecheck code (only parse it)");
-    ("--reformat", Arg.Set reformat, "Display reformatted code on stdout");
-    ("--noncompact", Arg.Clear compact, "Reformat code noncompactly (default)");
-    ("--compact", Arg.Set compact, "Reformat code compactly");
-    ("--unicode", Arg.Set unicode, "Reformat code using Unicode (default)");
-    ( "--ascii",
+      "Execute a string, after all files loaded (also -e)" );
+    ("-e", Arg.String (fun str -> input_strings := Snoc (!input_strings, str)), "");
+    ("-verbose", Arg.Set verbose, "Show verbose messages (also -v)");
+    ("-v", Arg.Set verbose, "");
+    ("-no-check", Arg.Clear typecheck, "Don't typecheck and execute code (only parse it)");
+    ("-reformat", Arg.Set reformat, "Display reformatted code on stdout");
+    ("-noncompact", Arg.Clear compact, "Reformat code noncompactly (default)");
+    ("-compact", Arg.Set compact, "Reformat code compactly");
+    ("-unicode", Arg.Set unicode, "Reformat code using Unicode (default)");
+    ( "-ascii",
       Arg.Clear unicode,
       "Reformat code using ASCII for built-ins (user-defined constants are unaffected)" );
-    ("-help", Arg.Unit (fun () -> ()), "");
+    ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Set use_stdin, "");
   ]
 

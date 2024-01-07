@@ -58,7 +58,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       match Hashtbl.find_opt Global.constants name with
       | Some (Record _) | Some (Data _) -> Uninst (Canonical (name, Emp, zero_ins (dim_env env)), ty)
       | Some Axiom | Some (Defined _) -> apply_spine (Const { name; dim }) Emp ty
-      | None -> fatal (Undefined_constant name))
+      | None -> fatal (Undefined_constant (PConstant name)))
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -270,7 +270,7 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
         match Hashtbl.find_opt Global.constants name with
         | Some (Defined tree) -> apply_tree (Emp dim) !tree (Any (id_deg dim)) (Bwd.prepend args [])
         | Some _ -> None
-        | None -> fatal (Undefined_constant name))
+        | None -> fatal (Undefined_constant (PConstant name)))
     | _ -> None)
     (* If it has no case tree, or is not a constant, we just add the argument to the neutral application spine and return. *)
     ~default:(Uninst (Neu (fn, args), ty))

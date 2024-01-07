@@ -1,5 +1,4 @@
 open Dim
-open Scope
 open Hctx
 open Asai.Diagnostic
 open Format
@@ -8,6 +7,8 @@ type printable = ..
 
 let print : (formatter -> printable -> unit) ref = ref (fun _ _ -> raise (Failure "print not set"))
 let pp_printable ppf pr = !print ppf pr
+
+type printable += PConstant of Constant.t
 
 module Code = struct
   type t =
@@ -24,7 +25,7 @@ module Code = struct
     | Type_not_fully_instantiated : string -> t
     | Instantiating_zero_dimensional_type : printable -> t
     | Unequal_synthesized_type : printable * printable -> t
-    | Checking_struct_at_degenerated_record : Constant.t -> t
+    | Checking_struct_at_degenerated_record : printable -> t
     | Missing_field_in_struct : Field.t -> t
     | Invalid_field_in_struct : t
     | Duplicate_field_in_struct : Field.t -> t
@@ -33,16 +34,16 @@ module Code = struct
     | Checking_lambda_at_nonfunction : printable -> t
     | Checking_struct_at_nonrecord : printable -> t
     | No_such_constructor :
-        [ `Data of Constant.t | `Nondata of Constant.t | `Other of printable ] * Constr.t
+        [ `Data of printable | `Nondata of printable | `Other of printable ] * Constr.t
         -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
-    | No_such_field : [ `Record of Constant.t | `Nonrecord of Constant.t | `Other ] * Field.t -> t
+    | No_such_field : [ `Record of printable | `Nonrecord of printable | `Other ] * Field.t -> t
     | Missing_instantiation_constructor :
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
         -> t
     | Unequal_indices : printable * printable -> t
     | Unbound_variable : string -> t
-    | Undefined_constant : Constant.t -> t
+    | Undefined_constant : printable -> t
     | Nonsynthesizing : string -> t
     | Low_dimensional_argument_of_degeneracy : (string * 'a D.t) -> t
     | Missing_argument_of_degeneracy : string -> t
@@ -51,20 +52,20 @@ module Code = struct
     | Matching_datatype_has_degeneracy : printable -> t
     | Invalid_match_index : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
-    | No_such_constructor_in_match : Constant.t * Constr.t -> t
+    | No_such_constructor_in_match : printable * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Index_variable_in_index_value : t
-    | Matching_on_nondatatype : [ `Canonical of Constant.t | `Other of printable ] -> t
-    | Matching_on_let_bound_variable : Trie.path -> t
+    | Matching_on_nondatatype : [ `Canonical of printable | `Other of printable ] -> t
+    | Matching_on_let_bound_variable : printable -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
     | No_such_level : printable * level -> t
-    | Constant_already_defined : Trie.path -> t
+    | Constant_already_defined : printable -> t
     | Invalid_constant_name : string -> t
-    | Constant_assumed : Trie.path -> t
-    | Constant_defined : Trie.path -> t
+    | Constant_assumed : printable -> t
+    | Constant_defined : printable -> t
     | Show : string * printable -> t
 
   (** The default severity of messages with a particular message code. *)
@@ -219,8 +220,8 @@ module Code = struct
         textf "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
           pp_printable sty pp_printable cty
     | Checking_struct_at_degenerated_record r ->
-        textf "can't check a struct against a record %s with a nonidentity degeneracy applied"
-          (name_of r)
+        textf "can't check a struct against a record %a with a nonidentity degeneracy applied"
+          pp_printable r
     | Missing_field_in_struct f -> textf "record field %s missing in struct" (Field.to_string f)
     | Invalid_field_in_struct -> text "invalid field in struct"
     | Duplicate_field_in_struct f ->
@@ -235,9 +236,9 @@ module Code = struct
     | No_such_constructor (d, c) -> (
         match d with
         | `Data d ->
-            textf "datatype %s has no constructor named %s" (name_of d) (Constr.to_string c)
+            textf "datatype %a has no constructor named %s" pp_printable d (Constr.to_string c)
         | `Nondata d ->
-            textf "non-datatype %s has no constructor named %s" (name_of d) (Constr.to_string c)
+            textf "non-datatype %a has no constructor named %s" pp_printable d (Constr.to_string c)
         | `Other ty ->
             textf "@[<hv 0>non-datatype@;<1 2>%a@ has no constructor named %s@]" pp_printable ty
               (Constr.to_string c))
@@ -247,9 +248,10 @@ module Code = struct
           textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
     | No_such_field (d, f) -> (
         match d with
-        | `Record d -> textf "record type %s has no field named %s" (name_of d) (Field.to_string f)
+        | `Record d ->
+            textf "record type %a has no field named %s" pp_printable d (Field.to_string f)
         | `Nonrecord d ->
-            textf "non-record type %s has no field named %s" (name_of d) (Field.to_string f)
+            textf "non-record type %a has no field named %s" pp_printable d (Field.to_string f)
         | `Other -> textf "term has no field named %s" (Field.to_string f))
     | Missing_instantiation_constructor (exp, got) ->
         fun ppf ->
@@ -265,7 +267,7 @@ module Code = struct
           "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
           pp_printable t1 pp_printable t2
     | Unbound_variable c -> textf "unbound variable: %s" c
-    | Undefined_constant c -> textf "undefined constant: %s" (name_of c)
+    | Undefined_constant c -> textf "undefined constant: %a" pp_printable c
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
         textf "argument of %s must be at least %d-dimensional" deg (to_int dim)
@@ -290,19 +292,20 @@ module Code = struct
           textf "not enough arguments to constructor %s in match pattern (need %d more)"
             (Constr.to_string c) (abs n)
     | No_such_constructor_in_match (d, c) ->
-        textf "datatype %s being matched against has no constructor %s" (name_of d)
+        textf "datatype %a being matched against has no constructor %s" pp_printable d
           (Constr.to_string c)
     | Duplicate_constructor_in_match c ->
         textf "constructor %s appears twice in match" (Constr.to_string c)
     | Index_variable_in_index_value -> text "free index variable occurs in inferred index value"
     | Matching_on_nondatatype c -> (
         match c with
-        | `Canonical c -> textf "can't match on variable belonging to non-datatype %s" (name_of c)
+        | `Canonical c ->
+            textf "can't match on variable belonging to non-datatype %a" pp_printable c
         | `Other ty ->
             textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]"
               pp_printable ty)
     | Matching_on_let_bound_variable name ->
-        textf "can't match on let-bound variable %s" (String.concat "." name)
+        textf "can't match on let-bound variable %a" pp_printable name
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
@@ -310,11 +313,10 @@ module Code = struct
     | No_such_level (names, i) ->
         textf "@[<hov 2>no level variable@ (%d,%d)@ in context@ %a@]" (fst i) (snd i) pp_printable
           names
-    | Constant_already_defined parts ->
-        textf "constant already defined: %s" (String.concat "." parts)
+    | Constant_already_defined name -> textf "constant already defined: %a" pp_printable name
     | Invalid_constant_name str -> textf "invalid constant name: %s" str
-    | Constant_assumed name -> textf "Axiom %s assumed" (String.concat "." name)
-    | Constant_defined name -> textf "Constant %s defined" (String.concat "." name)
+    | Constant_assumed name -> textf "Axiom %a assumed" pp_printable name
+    | Constant_defined name -> textf "Constant %a defined" pp_printable name
     | Show (str, x) -> textf "%s: %a" str pp_printable x
 end
 

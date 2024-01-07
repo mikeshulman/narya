@@ -1,5 +1,6 @@
 open Dim
 open Core
+open Parser
 
 let install () =
   let top = Scope.define [ "⊤" ] in

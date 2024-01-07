@@ -4,6 +4,7 @@ open Dim
 open Core
 open Syntax
 open Term
+open Parser
 
 let nil = Constr.intern "nil"
 let cons = Constr.intern "cons"

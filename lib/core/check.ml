@@ -104,7 +104,9 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
           (* We don't need to name the arguments of Canonical here because tyof_field, called below, uses them. *)
           match Hashtbl.find Global.constants name with
           | Record { fields; _ } ->
-              let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
+              let () =
+                is_id_perm (perm_of_ins ins)
+                <|> Checking_struct_at_degenerated_record (PConstant name) in
               let dim = cod_left_ins ins in
               (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
               let module M = Monad.State (struct
@@ -149,7 +151,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                       let (Constr { args = constr_arg_tys; indices = constr_indices }) =
                         match Constr.Map.find_opt constr constrs with
                         | Some c -> c
-                        | None -> fatal (No_such_constructor (`Data name, constr)) in
+                        | None -> fatal (No_such_constructor (`Data (PConstant name), constr)) in
                       (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
                       let env, ty_indices =
                         take_canonical_args (Emp dim) ty_params_indices params
@@ -212,7 +214,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                               [ t1s; t2s ])
                           [ constr_indices; ty_indices ] in
                       Constr (constr, dim, Bwd.of_list newargs))
-              | _ -> fatal (No_such_constructor (`Nondata name, constr))))
+              | _ -> fatal (No_such_constructor (`Nondata (PConstant name), constr))))
       (* TODO: If checking against a pi-type, we could automatically eta-expand. *)
       | _ -> fatal (No_such_constructor (`Other (PUninst (ctx, uty)), constr)))
   | Match _ -> fatal (Unimplemented "Matching in terms (rather than case trees)")
@@ -224,7 +226,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       let _, x, v = Ctx.lookup ctx i in
       (Term.Var v, x.ty)
   | Const name ->
-      let ty = Hashtbl.find_opt Global.types name <|> Undefined_constant name in
+      let ty = Hashtbl.find_opt Global.types name <|> Undefined_constant (PConstant name) in
       (Const name, eval (Emp D.zero) ty)
   | Field (tm, fld) ->
       let stm, sty = synth ctx tm in
@@ -483,7 +485,9 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
       | Canonical (name, _, ins) -> (
           match Hashtbl.find Global.constants name with
           | Record { fields; _ } ->
-              let () = is_id_perm (perm_of_ins ins) <|> Checking_struct_at_degenerated_record name in
+              let () =
+                is_id_perm (perm_of_ins ins)
+                <|> Checking_struct_at_degenerated_record (PConstant name) in
               let tfields =
                 List.fold_left
                   (fun m (x, _) -> Field.Map.add x (ref Case.Empty) m)
@@ -503,7 +507,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
   | Match (ix, brs) -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
       match Ctx.lookup ctx ix with
-      | None, _, ix -> fatal (Matching_on_let_bound_variable (Ctx.lookup_name ctx ix))
+      | None, _, ix -> fatal (Matching_on_let_bound_variable (PTerm (ctx, Var ix)))
       | Some lvl, { tm = _; ty = varty }, ix -> (
           (* The type of the variable must be a datatype, without any degeneracy applied outside, and at the same dimension as its instantiation. *)
           let (Fullinst (uvarty, inst_args)) = full_inst varty "check_tree (top)" in
@@ -562,7 +566,9 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                               let (Global.Constr { args = argtys; indices = index_terms }) =
                                 match Constr.Map.find_opt constr constrs with
                                 | Some c -> c
-                                | None -> fatal (No_such_constructor_in_match (name, constr)) in
+                                | None ->
+                                    fatal (No_such_constructor_in_match (PConstant name, constr))
+                              in
                               (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
                               let c = Telescope.length argtys in
                               match N.compare (exts_right efc) c with
@@ -701,7 +707,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                             (fun c (Case.Branch (_, b)) ->
                               if !b = Case.Empty then fatal (Missing_constructor_in_match c))
                             tbranches)
-                  | _ -> fatal (Matching_on_nondatatype (`Canonical name))))
+                  | _ -> fatal (Matching_on_nondatatype (`Canonical (PConstant name)))))
           | _ -> fatal (Matching_on_nondatatype (`Other (PUninst (ctx, uvarty))))))
   | _ ->
       let leaf = check ctx tm ty in

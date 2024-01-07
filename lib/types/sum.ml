@@ -1,6 +1,7 @@
 open Dim
 open Core
 open Syntax
+open Parser
 
 let inl = Constr.intern "inl"
 let inr = Constr.intern "inr"

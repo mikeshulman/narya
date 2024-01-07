@@ -17,14 +17,14 @@ type t =
 let execute : t -> unit = function
   | Axiom (name, Term ty) ->
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
       else Core.Command.execute (Axiom (const, process Emp ty));
-      emit (Constant_assumed name)
+      emit (Constant_assumed (PConstant const))
   | Def (name, Term ty, Term tm) ->
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
       else Core.Command.execute (Def (const, process Emp ty, process Emp tm));
-      emit (Constant_defined name)
+      emit (Constant_defined (PConstant const))
   | Echo (Term tm) -> (
       let rtm = process Emp tm in
       match rtm with

@@ -2,6 +2,7 @@ open Dim
 open Core
 open Syntax
 open Term
+open Parser
 
 let head = Field.intern "head"
 let tail = Field.intern "tail"

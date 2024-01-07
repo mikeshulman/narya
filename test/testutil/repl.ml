@@ -34,7 +34,7 @@ let assume (name : string) (ty : string) : unit =
   match Parser.Lexer.Parser.single name with
   | Some (Ident name) ->
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
       else
         let rty = parse_term ty in
         let cty = check_type rty in
@@ -47,7 +47,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
   | Some (Ident name) ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
       else
         let rty = parse_term ty in
         let rtm = parse_term tm in

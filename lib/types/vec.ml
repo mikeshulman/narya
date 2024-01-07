@@ -5,6 +5,7 @@ open Core
 open Syntax
 open Term
 open Nat
+open Parser
 
 let nil = Constr.intern "nil"
 let cons = Constr.intern "cons"

@@ -1,6 +1,7 @@
 open Util
 open Core
 open Syntax
+open Parser
 
 (* Poor man's parser, reusing the OCaml parser to make a vaguely usable syntax *)
 

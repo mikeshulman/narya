@@ -31,7 +31,7 @@ let () =
   def "ab" "(x:A) × B x" "(a,b)";
   equal_at "ab .fst" "a" "A";
   equal_at "ab .snd" "b" "B a";
-  (match Hashtbl.find Global.constants (Option.get (Scope.lookup [ "ab" ])) with
+  (match Hashtbl.find Global.constants (Option.get (Parser.Scope.lookup [ "ab" ])) with
   | Defined _ -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));
   def "zero_zero'" "CN × CN" "{ .fst ↦ zero; .snd ↦ zero }";

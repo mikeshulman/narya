@@ -2,6 +2,7 @@ open Dim
 open Core
 open Syntax
 open Term
+open Parser
 
 let ungel = Field.intern "ungel"
 let gel = Constant.make ()

@@ -1,5 +1,6 @@
 open Dim
 open Core
+open Parser
 
 let install () =
   let empty = Scope.define [ "∅" ] in

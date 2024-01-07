@@ -1,3 +1,4 @@
+open Core
 include Yuujinchou
 
 let find_data trie x =

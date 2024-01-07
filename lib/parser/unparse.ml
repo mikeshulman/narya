@@ -465,6 +465,7 @@ let () =
                   Interval.entire))
       | PNames vars -> Core.Names.pp_names ppf vars
       | PCtx ctx -> Core.Ctx.pp_ctx ppf ctx
+      | PConstant name -> Uuseg_string.pp_utf_8 ppf (Scope.name_of name)
       | _ -> raise (Failure "unknown printable")
 
 (* Hack to ensure the above code is executed. *)

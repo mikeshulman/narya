@@ -72,7 +72,9 @@ let () =
   let s = assume "s" sigab in
   let () =
     unsynth ~print:() "s .third"
-      ~code:(No_such_field (`Record Types.Sigma.sigma, Core.Field.intern "third")) in
+      ~code:
+        (No_such_field
+           (`Record (Core.Reporter.PConstant Types.Sigma.sigma), Core.Field.intern "third")) in
   let () = uncheck ~print:() "zero." sigab ~short:"E1000" in
   let () = uncheck ~print:() "two." nat ~short:"E1000" in
   let () =
@@ -125,7 +127,7 @@ let () =
 
   let () =
     uncheck ~print:() "{ ungel ≔ r2 }" symr2ty
-      ~code:(Checking_struct_at_degenerated_record Types.Gel.gel) in
+      ~code:(Checking_struct_at_degenerated_record (Core.Reporter.PConstant Types.Gel.gel)) in
 
   (* Cube variables *)
   let () = uncheck ~print:() "x ↦ x.0" atoa ~code:(Invalid_variable_face (D.zero, zero_sface_one)) in

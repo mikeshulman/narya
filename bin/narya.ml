@@ -44,7 +44,7 @@ let () =
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let rec repl first p src =
+let rec batch first p src =
   let cmd = Parse.Command.final p in
   if cmd <> Eof then (
     if !typecheck then Parser.Command.execute cmd;
@@ -53,14 +53,13 @@ let rec repl first p src =
       Parser.Command.pp_command std_formatter cmd;
       Format.print_cut ());
     if not (Parse.Command.has_consumed_end p) then
-      (* TODO: Once the notation state is changeable, carry it through. *)
       let p, src = Parse.Command.parse (`Restart (p, src)) in
-      repl false p src)
+      batch false p src)
 
 let execute source =
   if !reformat then Format.open_vbox 0;
   let p, src = Parse.Command.parse (`New (`Partial, source)) in
-  repl true p src;
+  batch true p src;
   if !reformat then Format.close_box ()
 
 let () =

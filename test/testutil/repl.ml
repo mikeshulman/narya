@@ -16,7 +16,9 @@ open Raw
 open Hctx
 
 let parse_term (tm : string) : N.zero check =
-  let p, _ = Parse.Term.parse (`New (`Full, `String tm)) in
+  let p, _ =
+    Parse.Term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
+  in
   let (Term tm) = Parse.Term.final p in
   Postprocess.process Emp tm
 

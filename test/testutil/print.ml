@@ -7,7 +7,9 @@ let margin = ref 80
 let set_margin n = margin := n
 
 let reformat tm =
-  let p, _ = Parse.Term.parse (`New (`Full, `String tm)) in
+  let p, _ =
+    Parse.Term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
+  in
   let tr = Parse.Term.final p in
   pp_set_margin std_formatter !margin;
   pp_set_max_indent std_formatter (max (!margin - 12) (!margin / 2));

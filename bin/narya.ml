@@ -78,6 +78,7 @@ let () =
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
   Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
   (if !use_stdin then
-     let str = In_channel.input_all stdin in
-     execute (`String str));
-  if !input_string <> "" then execute (`String !input_string)
+     let content = In_channel.input_all stdin in
+     execute (`String { content; title = Some "stdin" }));
+  if !input_string <> "" then
+    execute (`String { content = !input_string; title = Some "command line" })

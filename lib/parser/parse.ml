@@ -272,29 +272,25 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
 
   open Lex_and_parse
 
-  type new_source = [ `String of string | `File of string ]
   type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
 
   (* Parse the given 'source', raising appropriate Asai errors as 'fatal'.  If this returns normally, then the parse succeeded, and the functions below can be used to extract the result.  The first argument says whether EOF is expected at the end, whether it can be restarted, or whether it is itself a restart of another parser. *)
   let parse
       (action :
-        [ `New of [ `Full | `Partial ] * new_source | `Restart of Lex_and_parse.t * open_source ]) :
-      Lex_and_parse.t * open_source =
+        [ `New of [ `Full | `Partial ] * Asai.Range.source
+        | `Restart of Lex_and_parse.t * open_source ]) : Lex_and_parse.t * open_source =
     let env, run =
       match action with
-      | `New (partial, `String content) -> (
+      | `New (partial, `String src) -> (
           let (env : Range.Data.t) =
-            {
-              source = `String { content; title = Some "user-supplied term" };
-              length = Int64.of_int (String.length content);
-            } in
+            { source = `String src; length = Int64.of_int (String.length src.content) } in
           match partial with
-          | `Full -> (env, fun p -> (`String (0, content), run_on_string content p))
+          | `Full -> (env, fun p -> (`String (0, src.content), run_on_string src.content p))
           | `Partial ->
               ( env,
                 fun p ->
-                  let n, p = run_on_string_at 0 content p in
-                  (`String (n, content), p) ))
+                  let n, p = run_on_string_at 0 src.content p in
+                  (`String (n, src.content), p) ))
       | `New (_, `File name) ->
           let ic = In_channel.open_text name in
           ( { source = `File name; length = In_channel.length ic },

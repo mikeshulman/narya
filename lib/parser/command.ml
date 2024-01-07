@@ -41,11 +41,35 @@ let execute : t -> unit = function
 let pp_command : formatter -> t -> unit =
  fun ppf cmd ->
   match cmd with
+  (* TODO: Incorporate whitespace/comments *)
   | Axiom (name, ty) ->
-      fprintf ppf "@[<hv 2>%a %a@ %a %a@]" pp_tok Axiom pp_utf_8 (String.concat "." name) pp_tok
-        Colon pp_term ty
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Axiom;
+      pp_print_string ppf " ";
+      pp_utf_8 ppf (String.concat "." name);
+      pp_print_space ppf ();
+      pp_tok ppf Colon;
+      pp_print_string ppf " ";
+      pp_term ppf ty;
+      pp_close_box ppf ()
   | Def (name, ty, tm) ->
-      fprintf ppf "@[<hv 2>%a %a@ %a %a@ %a %a@]" pp_tok Def pp_utf_8 (String.concat "." name)
-        pp_tok Colon pp_term ty pp_tok Coloneq pp_term tm
-  | Echo tm -> fprintf ppf "@[<hv 2>%a %a@]" pp_tok Echo pp_term tm
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Def;
+      pp_print_string ppf " ";
+      pp_utf_8 ppf (String.concat "." name);
+      pp_print_space ppf ();
+      pp_tok ppf Colon;
+      pp_print_string ppf " ";
+      pp_term ppf ty;
+      pp_print_space ppf ();
+      pp_tok ppf Coloneq;
+      pp_print_string ppf " ";
+      pp_term ppf tm;
+      pp_close_box ppf ()
+  | Echo tm ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Echo;
+      pp_print_string ppf " ";
+      pp_term ppf tm;
+      pp_close_box ppf ()
   | Eof -> ()

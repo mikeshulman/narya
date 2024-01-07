@@ -15,9 +15,16 @@ type t =
   | Eof
 
 let execute : t -> unit = function
-  | Axiom (name, Term ty) -> Core.Command.execute (Axiom (name, process Emp ty))
+  | Axiom (name, Term ty) ->
+      let const = Scope.define name in
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
+      else Core.Command.execute (Axiom (const, process Emp ty));
+      emit (Constant_assumed name)
   | Def (name, Term ty, Term tm) ->
-      Core.Command.execute (Def (name, process Emp ty, process Emp tm))
+      let const = Scope.define name in
+      if Hashtbl.mem Global.types const then fatal (Constant_already_defined name)
+      else Core.Command.execute (Def (const, process Emp ty, process Emp tm));
+      emit (Constant_defined name)
   | Echo (Term tm) -> (
       let rtm = process Emp tm in
       match rtm with

@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Monoid
 module D : MonoidPos
@@ -233,6 +234,7 @@ module CubeOf : sig
     ('b, 'lenf) Bwv.t
 
   val flatten : ('n, 'b) t -> ('n, 'f) count_faces -> ('b, 'f) Bwv.t
+  val append_bwd : 'a Bwd.t -> ('n, 'a) t -> 'a Bwd.t
 end
 
 type (_, _, _, _) tface
@@ -380,6 +382,8 @@ module TubeOf : sig
 
   val middle :
     ('m, 'k, 'mk) D.plus -> ('k, 'l, 'kl) D.plus -> ('m, 'kl, 'mkl, 'b) t -> ('m, 'k, 'mk, 'b) t
+
+  val append_bwd : 'a Bwd.t -> ('m, 'n, 'mn, 'a) t -> 'a Bwd.t
 end
 
 type (_, _) face = Face : ('m, 'n) sface * 'm perm -> ('m, 'n) face

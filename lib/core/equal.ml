@@ -1,7 +1,9 @@
 open Util
 open Reporter
 open Dim
+open Syntax
 open Value
+open Inst
 open Norm
 open Monoid
 open Monad.ZeroOps (Monad.Maybe)

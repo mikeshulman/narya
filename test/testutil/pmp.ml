@@ -1,5 +1,6 @@
 open Util
 open Core
+open Syntax
 
 (* Poor man's parser, reusing the OCaml parser to make a vaguely usable syntax *)
 
@@ -52,7 +53,10 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
       | Synth x -> (
           match Dim.deg_of_name str with
           | Some (Any s) -> Act (str, s, x)
-          | None -> raise (Failure "unknown degeneracy"))
+          | None -> (
+              match Dim.deg_of_string str with
+              | Some (Any s) -> Act (str, s, x)
+              | None -> raise (Failure "unknown degeneracy")))
       | _ -> raise (Failure "Non-synthesizing"))
   | Asc (tm, ty) -> Asc (parse_chk ctx tm, parse_chk ctx ty)
   | _ -> raise (Failure "Non-synthesizing")
@@ -72,6 +76,7 @@ let ( <:> ) tm ty = Asc (tm, ty)
 let ( @-> ) x body = Lam (x, body) (* Right-associative *)
 let ( $. ) x fld = Field (x, fld)
 let struc tms = Struct tms
+let ( $^ ) x s = Deg (x, s)
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
@@ -124,7 +129,7 @@ let uncheck (tm : pmt) (ty : Value.value) : unit =
 
 let assume (x : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
-  context := Ctx (Ctx.ext ctx ty, Snoc (names, x));
+  context := Ctx (Ctx.ext ctx (Some x) ty, Snoc (names, x));
   fst (synth !!x)
 
 (* Check that two terms are, or aren't, equal, at a type or synthesizing *)
@@ -158,4 +163,5 @@ let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
-  @@ fun () -> Scope.run f
+  @@ fun () ->
+  Scope.run @@ fun () -> Parser.Builtins.run f

@@ -1,8 +1,10 @@
 open Util
 open Dim
-open Value
 open Norm
+open Syntax
 open Raw
+open Value
+open Inst
 open Check
 open Reporter
 

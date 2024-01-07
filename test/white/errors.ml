@@ -3,70 +3,59 @@ open Mcp
 open Dim
 
 let () =
+  Parser.Unparse.install ();
   run @@ fun () ->
   let uu, _ = synth "Type" in
   let aa = assume "A" uu in
   let atoa = check "A→A" uu in
   let f = assume "f" atoa in
   let a = assume "a" aa in
-  let () = uncheck "a" uu ~code:Unequal_synthesized_type in
-  let () = unsynth "refl f a" ~code:Not_enough_arguments_to_function in
-  let () = unsynth "refl f a a" ~code:Not_enough_arguments_to_function in
+  let () = uncheck ~print:() "a" uu ~short:"E0401" in
+  let () = unsynth ~print:() "refl f a" ~code:Not_enough_arguments_to_function in
+  let () = unsynth ~print:() "refl f a a" ~code:Not_enough_arguments_to_function in
   let _ = synth "refl f a a (refl a)" in
-  let _ = unsynth "refl f a a (refl a) a" ~code:Applying_nonfunction_nontype in
-  let () = unsynth "Id A a" ~code:Not_enough_arguments_to_instantiation in
+  let _ = unsynth "refl f a a (refl a) a" ~short:"E0701" in
+  let () = unsynth ~print:() "Id A a" ~code:Not_enough_arguments_to_instantiation in
   let idff = check "Id (A→A) f f" uu in
-  let () = uncheck "x ↦ x" idff ~code:(Not_enough_lambdas 2) in
-  let () = uncheck "x y ↦ x" idff ~code:(Not_enough_lambdas 1) in
+  let () = uncheck ~print:() "x ↦ x" idff ~code:(Not_enough_lambdas 2) in
+  let () = uncheck ~print:() "x y ↦ x" idff ~code:(Not_enough_lambdas 1) in
   let _ = check "x0 x1 x2 ↦ refl f x0 x1 x2" idff in
-  let () = uncheck "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~code:Checking_lambda_at_nonfunction in
-  let () = unsynth "refl (x ↦ x)" ~code:(Nonsynthesizing "argument of degeneracy") in
-  let () = unsynth "refl" ~code:(Missing_argument_of_degeneracy "refl") in
-  let () = unsynth "sym f" ~short:"E0601" in
+  let () = uncheck ~print:() "x0 x1 x2 x3 ↦ refl f x0 x1 x2" idff ~short:"E0700" in
+  let () = unsynth ~print:() "refl (x ↦ x)" ~code:(Nonsynthesizing "argument of degeneracy") in
+  let () = unsynth ~print:() "refl" ~code:(Missing_argument_of_degeneracy "refl") in
+  let () = unsynth ~print:() "sym f" ~short:"E0601" in
   let a0 = assume "a0" aa in
   let a1 = assume "a1" aa in
   let idaa, _ = synth "Id A a0 a1" in
   let a2 = assume "a2" idaa in
-  let () = unsynth "sym a2" ~short:"E0601" in
-  let () = unsynth "g" ~code:(Unbound_variable "g") in
+  let () = unsynth ~print:() "sym a2" ~short:"E0601" in
+  let () = unsynth ~print:() "g" ~code:(Unbound_variable "g") in
   let ida, _ = synth "Id A" in
-  let () = uncheck "a" ida ~code:(Type_not_fully_instantiated "typechecking") in
+  let () = uncheck ~print:() "a" ida ~code:(Type_not_fully_instantiated "typechecking") in
   let idida, _ = synth "Id (Id A) a a (refl a) a a (refl a)" in
-  let () = uncheck "a" idida ~code:(Type_not_fully_instantiated "typechecking") in
+  let () = uncheck ~print:() "a" idida ~code:(Type_not_fully_instantiated "typechecking") in
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
-  (* Parse errors.  Uncomment the "let _" lines and run this file directly with "dune exec" to see the error messages shown as they appear to the user. *)
-  (* let _ = synth "x y {` unterminated block comment" in *)
-  let () = unsynth "x y {` unterminated block comment" ~code:Parse_error in
-  (* let _ = synth "f (x" in *)
-  let () = unsynth "f (x" ~code:Parse_error in
-  (* let _ = synth ".fst x" in *)
-  let () = unsynth ".fst x" ~code:Parse_error in
-  (* let _ = synth "x .fs.t y" in *)
-  let () = unsynth "x .fs.t y" ~code:(Invalid_field ".fs.t") in
-  (* let _ = synth "f (con.str. x)" in *)
-  let () = unsynth "f (con.str. x)" ~code:(Invalid_constr "con.str.") in
-  (* let _ = synth "x |-> f 0.1.2 x" in *)
-  let () = unsynth "x |-> f 0.1.2 x" ~code:(Unbound_variable "0.1.2") in
-  (* let _ = synth "let x.y ≔ z in w" in *)
-  let () = unsynth "let x.y ≔ z in w" ~code:(Invalid_variable [ "x"; "y" ]) in
-  (* let _ = synth "x.y ↦ z" in *)
-  let () = unsynth "x.y ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in
-  let () = unsynth "a x.y b ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in
-  (* let _ = synth "↦ x" in *)
-  let () = unsynth "↦ x" ~code:Parse_error in
-  (* let _ = synth "(f x) y ↦ z" in *)
-  let () = unsynth "(f x) y ↦ z" ~code:Parse_error in
-  (* let _ = synth "_" in *)
-  let () = unsynth "_" ~code:(Unimplemented "unification arguments") in
-  (* let _ = synth "a ↦ { fst ≔ a; fst ≔ a }" in *)
+  (* Parse errors. *)
+  let () = unsynth ~print:() "x y {` unterminated block comment" ~code:Parse_error in
+  let () = unsynth ~print:() "f (x" ~code:Parse_error in
+  let () = unsynth ~print:() ".fst x" ~code:Parse_error in
+  let () = unsynth ~print:() "x .fs.t y" ~code:(Invalid_field ".fs.t") in
+  let () = unsynth ~print:() "f (con.str. x)" ~code:(Invalid_constr "con.str.") in
+  let () = unsynth ~print:() "x |-> f 0.1.2 x" ~code:(Unbound_variable "0.1.2") in
+  let () = unsynth ~print:() "let x.y ≔ z in w" ~code:(Invalid_variable [ "x"; "y" ]) in
+  let () = unsynth ~print:() "x.y ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in
+  let () = unsynth ~print:() "a x.y b ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in
+  let () = unsynth ~print:() "↦ x" ~code:Parse_error in
+  let () = unsynth ~print:() "(f x) y ↦ z" ~code:Parse_error in
+  let () = unsynth ~print:() "_" ~code:(Unimplemented "unification arguments") in
   let () =
-    unsynth "a ↦ { fst ≔ a; fst ≔ a }" ~code:(Duplicate_field_in_struct (Core.Field.intern "fst"))
-  in
-  let () = unsynth "{ _ ≔ a }" ~code:Invalid_field_in_struct in
-  let () = unsynth "{ (x) ≔ a }" ~code:Invalid_field_in_struct in
-  let () = unsynth "{ _ ↦ a }" ~code:Parse_error in
-  let () = unsynth "{ (x) ↦ a }" ~code:Parse_error in
+    unsynth ~print:() "a ↦ { fst ≔ a; fst ≔ a }"
+      ~code:(Duplicate_field_in_struct (Core.Field.intern "fst")) in
+  let () = unsynth ~print:() "{ _ ≔ a }" ~code:Invalid_field_in_struct in
+  let () = unsynth ~print:() "{ (x) ≔ a }" ~code:Invalid_field_in_struct in
+  let () = unsynth ~print:() "{ _ ↦ a }" ~code:Parse_error in
+  let () = unsynth ~print:() "{ (x) ↦ a }" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in
@@ -74,26 +63,27 @@ let () =
   let atou = check "A→Type" uu in
   let bb = assume "B" atou in
   let sigab = check "(x:A)× B x" uu in
-  let () = uncheck "{ fst ≔ a }" sigab ~code:(Missing_field_in_struct (Core.Field.intern "snd")) in
-  let () = uncheck "{ fst ≔ a }" aa ~code:(Checking_struct_at_nonrecord None) in
+  let () =
+    uncheck ~print:() "{ fst ≔ a }" sigab ~code:(Missing_field_in_struct (Core.Field.intern "snd"))
+  in
+  let () = uncheck ~print:() "{ fst ≔ a }" aa ~short:"E0900" in
   let nat = check "N" uu in
-  let () = uncheck "{ fst ≔ a }" nat ~code:(Checking_struct_at_nonrecord (Some Types.Nat.nn)) in
+  let () = uncheck ~print:() "{ fst ≔ a }" nat ~short:"E0900" in
   let s = assume "s" sigab in
   let () =
-    unsynth "s .third" ~code:(No_such_field (Some Types.Sigma.sigma, Core.Field.intern "third"))
-  in
+    unsynth ~print:() "s .third"
+      ~code:(No_such_field (`Record Types.Sigma.sigma, Core.Field.intern "third")) in
+  let () = uncheck ~print:() "zero." sigab ~short:"E1000" in
+  let () = uncheck ~print:() "two." nat ~short:"E1000" in
   let () =
-    uncheck "zero." sigab ~code:(No_such_constructor (Some Types.Sigma.sigma, Types.Nat.zero'))
-  in
+    uncheck ~print:() "zero. a" nat
+      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero', 1)) in
   let () =
-    uncheck "two." nat ~code:(No_such_constructor (Some Types.Nat.nn, Core.Constr.intern "two"))
-  in
+    uncheck ~print:() "suc." nat
+      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc', -1)) in
   let () =
-    uncheck "zero. a" nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero', 1))
+    uncheck ~print:() "4.2" nat ~code:(Unsupported_numeral (Q.make (Z.of_int 21) (Z.of_int 5)))
   in
-  let () =
-    uncheck "suc." nat ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc', -1)) in
-  let () = uncheck "4.2" nat ~code:(Unsupported_numeral (Q.make (Z.of_int 21) (Z.of_int 5))) in
 
   (* To test degeneracies on records we have to set up a bunch of stuff, since the simplest case this happens is with Id Gel and squares in the universe. *)
   let () = Types.Gel.install () in
@@ -134,9 +124,9 @@ let () =
   in
 
   let () =
-    uncheck "{ ungel ≔ r2 }" symr2ty ~code:(Checking_struct_at_degenerated_record Types.Gel.gel)
-  in
+    uncheck ~print:() "{ ungel ≔ r2 }" symr2ty
+      ~code:(Checking_struct_at_degenerated_record Types.Gel.gel) in
 
   (* Cube variables *)
-  let () = uncheck "x ↦ x.0" atoa ~code:(Invalid_variable_face (D.zero, zero_sface_one)) in
+  let () = uncheck ~print:() "x ↦ x.0" atoa ~code:(Invalid_variable_face (D.zero, zero_sface_one)) in
   ()

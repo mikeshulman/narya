@@ -1,9 +1,11 @@
 open Util
 open Reporter
 open Dim
-open Value
 open Act
+open Syntax
 open Term
+open Value
+open Inst
 open Bwd
 open Monad.Ops (Monad.Maybe)
 open Hctx
@@ -110,9 +112,15 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
           inst newtm newargs)
-  | Lam (n, _, body) ->
-      let (Plus mn) = D.plus n in
-      Lam (eval_binder env mn body)
+  | Lam (n, x, body) -> (
+      match compare (dim_env env) D.zero with
+      | Eq -> Lam (x, eval_binder env (D.zero_plus n) body)
+      | Neq -> (
+          let (Plus mn) = D.plus n in
+          match x with
+          | `Cube x -> Lam (`Cube x, eval_binder env mn body)
+          (* TODO: Ideally this could be a "partially-cube" variable. *)
+          | `Normal x -> Lam (`Cube (CubeOf.find_top x), eval_binder env mn body)))
   | App (fn, args) ->
       (* First we evaluate the function. *)
       let efn = eval env fn in
@@ -216,7 +224,7 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
  fun fn arg ->
   match fn with
   (* If the function is a lambda-abstraction, we check that it has the correct dimension and then beta-reduce, adding the arguments to the environment. *)
-  | Lam body -> (
+  | Lam (_, body) -> (
       let m = CubeOf.dim arg in
       match compare (dim_binder body) m with
       | Neq -> fatal (Dimension_mismatch ("applying a lambda", dim_binder body, m))
@@ -271,7 +279,7 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
 and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
  fun env tree ins args ->
   match tree with
-  | Lam (n, body) -> (
+  | Lam (n, _, body) -> (
       (* We fail unless the current insertion is the identity.  TODO: Actually should we allow degeneracies for higher lambdas and behave like degeneracy actions on lambdas?  *)
       let* () = is_id_any_deg ins in
       (* Pick up another argument. *)
@@ -386,7 +394,7 @@ and field : value -> Field.t -> value =
       let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
       apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
-  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (None, fld))
+  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
 and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
@@ -433,7 +441,7 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
                      { tm; ty });
                }
                [ TubeOf.middle (D.zero_plus m) mn tyargs ]))
-  | _ -> fatal ?severity (No_such_field (None, fld))
+  | _ -> fatal ?severity (No_such_field (`Other, fld))
 
 and eval_binder :
     type m n mn b. (m, b) env -> (m, n, mn) D.plus -> (b, n) ext term -> mn Value.binder =

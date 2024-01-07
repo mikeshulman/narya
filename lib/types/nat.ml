@@ -7,6 +7,7 @@ open Reporter
 open Parser
 open Notation
 open Postprocess
+open Syntax
 open Term
 
 let nn = Constant.make ()
@@ -19,8 +20,6 @@ let zero' = Constr.intern "zero"
 let suc' = Constr.intern "suc"
 
 open Monad.Ops (Monad.Maybe)
-
-(* TODO: printing these notations *)
 
 let plusn = make "plus" (Infixl No.zero)
 
@@ -36,7 +35,11 @@ let () =
               let y = process ctx y in
               Raw.Synth (App (App (Const plus, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
-    }
+    };
+  set_print plusn (fun ppf obs ->
+      match obs with
+      | [ x; y ] -> Format.fprintf ppf "@[<hov 2>%a@ + %a@]" Print.pp_term x Print.pp_term y
+      | _ -> fatal (Anomaly "invalid notation arguments for plus"))
 
 let timesn = make "times" (Infixl No.one)
 
@@ -52,14 +55,17 @@ let () =
               let y = process ctx y in
               Raw.Synth (App (App (Const times, x), y))
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
-    }
+    };
+  set_print timesn (fun ppf obs ->
+      match obs with
+      | [ x; y ] -> Format.fprintf ppf "@[<hov 2>%a@ * %a@]" Print.pp_term x Print.pp_term y
+      | _ -> fatal (Anomaly "invalid notation arguments for plus"))
 
 let installed = ref false
 
 let install_notations () =
-  if not !installed then (
-    installed := true;
-    Builtins.builtins := !Builtins.builtins |> State.add plusn |> State.add timesn)
+  State.add_const plusn plus 2;
+  State.add_const timesn times 2
 
 let install () =
   install_notations ();
@@ -86,6 +92,7 @@ let install () =
        (ref
           (Case.Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "n")),
                ref
                  (Case.Leaf
                     (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var (Top (id_sface D.zero))))))
@@ -97,9 +104,11 @@ let install () =
        (ref
           (Case.Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "x")),
                ref
                  (Case.Lam
                     ( D.zero,
+                      `Normal (CubeOf.singleton (Some "y")),
                       ref
                         (Case.Branches
                            ( Top (id_sface D.zero),
@@ -132,9 +141,11 @@ let install () =
        (ref
           (Case.Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "x")),
                ref
                  (Case.Lam
                     ( D.zero,
+                      `Normal (CubeOf.singleton (Some "y")),
                       ref
                         (Case.Branches
                            ( Top (id_sface D.zero),
@@ -188,15 +199,19 @@ let install () =
        (ref
           (Case.Lam
              ( D.zero,
+               `Normal (CubeOf.singleton (Some "P")),
                ref
                  (Case.Lam
                     ( D.zero,
+                      `Normal (CubeOf.singleton (Some "z")),
                       ref
                         (Case.Lam
                            ( D.zero,
+                             `Normal (CubeOf.singleton (Some "s")),
                              ref
                                (Case.Lam
                                   ( D.zero,
+                                    `Normal (CubeOf.singleton (Some "pn")),
                                     ref
                                       (Case.Branches
                                          ( Top (id_sface D.zero),

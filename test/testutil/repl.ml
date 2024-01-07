@@ -1,17 +1,22 @@
 open Util
 open Dim
 open Core
+open Readback
 open Reporter
 open Parser
+open Unparse
+open Print
 open Norm
 open Check
-open Value
+open Syntax
 open Term
+open Value
+open Inst
 open Raw
 open Hctx
 
 let parse_term (tm : string) : N.zero check =
-  let p, _ = Parse.Term.parse (`New (`Full, !Builtins.builtins, `String tm)) in
+  let p, _ = Parse.Term.parse (`New (`Full, `String tm)) in
   let (Term tm) = Parse.Term.final p in
   Postprocess.process Emp tm
 
@@ -93,8 +98,22 @@ let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   | None -> ()
   | Some () -> raise (Failure "Equal terms")
 
+let print (tm : string) : unit =
+  let rtm = parse_term tm in
+  match rtm with
+  | Synth rtm ->
+      let ctm, ety = synth Ctx.empty rtm in
+      let etm = eval (Emp D.zero) ctm in
+      let btm = readback_at Ctx.empty etm ety in
+      let utm = unparse Names.empty btm Interval.entire Interval.entire in
+      pp_term Format.std_formatter (Term utm);
+      Format.pp_print_newline Format.std_formatter ()
+  | _ -> fatal (Nonsynthesizing "argument of print")
+
 let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
-  @@ fun () -> Scope.run f
+  @@ fun () ->
+  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
+  Builtins.run @@ fun () -> Scope.run f

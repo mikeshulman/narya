@@ -1,5 +1,6 @@
 open Reporter
 open Dim
+open Syntax
 open Value
 open Bwd
 
@@ -18,6 +19,24 @@ let deg_plus_to : type m n nk. ?on:string -> ?err:Code.t -> (m, n) deg -> nk D.t
       let (Plus mk) = D.plus (D.plus_right nk) in
       let sk = deg_plus s nk mk in
       Of sk
+
+let act_variables : type m n. n variables -> (m, n) deg -> m variables =
+ fun vars s ->
+  match vars with
+  | `Cube x -> `Cube x
+  | `Normal x -> (
+      match compare (dom_deg s) (cod_deg s) with
+      | Eq ->
+          `Normal
+            (CubeOf.build (dom_deg s)
+               {
+                 build =
+                   (fun fa ->
+                     let (Op (fb, _)) = deg_sface s fa in
+                     CubeOf.find x fb);
+               })
+      (* TODO: Ideally this could be a "partially-cube" variable. *)
+      | Neq -> `Cube (CubeOf.find_top x))
 
 (* Since a value is either instantiated or uninstantiated, this function just deals with instantiations and lambda-abstractions and passes everything else off to act_uninst. *)
 let rec act_value : type m n. value -> (m, n) deg -> value =
@@ -54,9 +73,9 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
                 act_value (CubeOf.find tys' fd) fc);
           } in
       Inst { tm = act_uninst tm fa; dim; args; tys }
-  | Lam body ->
+  | Lam (x, body) ->
       let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
-      Lam (act_binder body fa)
+      Lam (act_variables x fa, act_binder body fa)
   | Struct (fields, ins) ->
       let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
       Struct (Field.Map.map (fun tm -> act_value tm fa) fields, new_ins)

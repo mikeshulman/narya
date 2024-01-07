@@ -28,7 +28,7 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Field x -> Field x
   | Numeral n -> Numeral n
 
-let parse state tm =
-  let p, _ = Parse.Term.parse (`New (`Full, state, `String tm)) in
+let parse tm =
+  let p, _ = Parse.Term.parse (`New (`Full, `String tm)) in
   let (Term tm) = Parse.Term.final p in
   get_tree tm

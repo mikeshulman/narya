@@ -37,6 +37,15 @@ let () =
   def "zero_zero'" "ℕ × ℕ" "{ .fst ↦ zero; .snd ↦ zero }";
   equal_at "zero_zero" "zero_zero'" "ℕ × ℕ";
 
+  (* Pi-types *)
+  (* These are built in, of course, but we also have a named constant for them. *)
+  Types.Pi.install ();
+  equal_at "(x:A) → B x" "Π A B" "Type";
+
+  (* In particular, this gives a way for the user to write higher-dimensional Π-types. *)
+  equal_at "refl ((x:A) → B x)" "refl Π A A (refl A) B B (refl B)"
+    "Id Type ((x:A) → B x) ((x:A) → B x)";
+
   (* Coinductive streams *)
   Types.Stream.install ();
   def "zeros" "Stream ℕ" "{ head ≔ zero; tail ≔ zeros }";
@@ -149,11 +158,13 @@ let () =
     "x y ↦ [ zero. ↦ zero.
             | suc. p ↦ suc. (decode_encode p.0 p.1 p.2) ]";
 
-  (* Matching on a boundary of a cube variable *)
+  (* Matching on a boundary of a cube variable. *)
   def "mtchbd0" "(e:∅) (f : N → N) → Id (N → N) f f"
     "e f n ⤇ [ n.0 | zero. ↦ [ e ] | suc. _ ↦ [ e ] ]";
 
-  (* TODO: Some bug happening here, to do with higher-dimensional matches I think *)
-  (* def "mtchbd" "(e:∅) (f : N → N) → Id (N → N) f f"
-     "e f n0 n1 n2 ↦ [ n0 | zero. ↦ [e] | suc. _ ↦ refl f n0 n1 n2 ]"; *)
+  def "mtchbd0'" "(e:∅) (f : N → N) → Id (N → N) f f"
+    "e f n ⤇ [ n.0 | zero. ↦ [ e ] | suc. _ ↦ refl f n.0 n.1 n.2 ]";
+
+  def "mtchbd0''" "(e:∅) (f : N → N) → Id (N → N) f f"
+    "e f n0 n1 n2 ↦ [ n0 | zero. ↦ [e] | suc. _ ↦ refl f n0 n1 n2 ]";
   ()

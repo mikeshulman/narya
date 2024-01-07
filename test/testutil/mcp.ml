@@ -1,6 +1,7 @@
 open Util
 open Core
 open Parser
+open Syntax
 
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx
@@ -12,7 +13,7 @@ let context = ref ectx
 
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check =
  fun names tm ->
-  let p, _ = Parse.Term.parse (`New (`Full, !Builtins.builtins, `String tm)) in
+  let p, _ = Parse.Term.parse (`New (`Full, `String tm)) in
   let (Term tm) = Parse.Term.final p in
   Postprocess.process names tm
 
@@ -40,10 +41,11 @@ let check (tm : string) (ty : Value.value) : Value.value =
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 
-let unsynth : ?code:Reporter.Code.t -> ?short:string -> string -> unit =
- fun ?code ?short tm ->
+let unsynth : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string -> unit =
+ fun ?print ?code ?short tm ->
   let (Ctx (ctx, names)) = !context in
   Reporter.try_with ~fatal:(fun d ->
+      if Option.is_some print then Terminal.display d;
       match code with
       | None -> (
           match short with
@@ -65,10 +67,12 @@ let unsynth : ?code:Reporter.Code.t -> ?short:string -> string -> unit =
       raise (Failure "Synthesis success")
   | _ -> Reporter.fatal (Nonsynthesizing "top-level unsynth")
 
-let uncheck : ?code:Reporter.Code.t -> ?short:string -> string -> Value.value -> unit =
- fun ?code ?short tm ty ->
+let uncheck : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string -> Value.value -> unit
+    =
+ fun ?print ?code ?short tm ty ->
   let (Ctx (ctx, names)) = !context in
   Reporter.try_with ~fatal:(fun d ->
+      if Option.is_some print then Terminal.display d;
       match code with
       | None -> (
           match short with
@@ -89,10 +93,11 @@ let uncheck : ?code:Reporter.Code.t -> ?short:string -> string -> Value.value ->
 
 (* Assert that a term doesn't parse *)
 
-let unparse (tm : string) : unit =
+let unparse : ?print:unit -> string -> unit =
+ fun ?print tm ->
   let (Ctx (_, names)) = !context in
   Reporter.try_with
-    ~fatal:(fun _ -> ())
+    ~fatal:(fun d -> if Option.is_some print then Terminal.display d)
     (fun () ->
       let _ = parse_term names tm in
       raise (Failure "Unexpected parse success"))
@@ -101,7 +106,7 @@ let unparse (tm : string) : unit =
 
 let assume (x : string) (ty : Value.value) : Value.value =
   let (Ctx (ctx, names)) = !context in
-  context := Ctx (Ctx.ext ctx ty, Snoc (names, Some x));
+  context := Ctx (Ctx.ext ctx (Some x) ty, Snoc (names, Some x));
   fst (synth x)
 
 (* Check that two terms are, or aren't, equal, at a type or synthesizing *)
@@ -130,4 +135,6 @@ let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
-  @@ fun () -> Scope.run f
+  @@ fun () ->
+  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
+  Builtins.run @@ fun () -> Scope.run f

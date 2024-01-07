@@ -21,7 +21,7 @@ end
 
 (* The functor that defines all the term-parsing combinators. *)
 module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
-  module Basic = Token_parser.Make (State) (Token) (Final) (SemanticError)
+  module Basic = Token_parser.Make (Unit) (Token) (Final) (SemanticError)
   open Basic
 
   (* We aren't using Fmlib's error reporting, so there's no point in supplying it nonempty "expect" strings. *)
@@ -92,9 +92,8 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       type lt ls rt rs.
       (lt, ls) Interval.tt -> (rt, rs) tree TokMap.t -> (lt, ls) right_wrapped_parse t =
    fun tight stop ->
-    let* state = get in
     let* res =
-      (let* inner, notn = entry (State.left_closeds state) in
+      (let* inner, notn = entry (State.left_closeds ()) in
        match notn with
        | Open_in_interval (lt, _) -> No.plusomega_nlt lt
        | Closed_in_interval notn -> (
@@ -144,14 +143,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                if TokMap.mem tok stop then Some (first_arg, state)
                else
                  let open Monad.Ops (Monad.Maybe) in
-                 let* (Interval ivl) = TokMap.find_opt tok state.left_opens in
+                 let* (Interval ivl) = State.left_opens tok in
                  let t = tight.endpoint in
                  let* _ = Interval.contains ivl t in
                  return (first_arg, state)))
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
-        </> (let* state = get in
-             let* res =
-               (let* rng, (inner, notn) = located (entry (State.tighters state tight)) in
+        </> (let* res =
+               (let* rng, (inner, notn) = located (entry (State.tighters tight)) in
                 match notn with
                 | Open_in_interval (left_ok, notn) -> (
                     match first_arg.get (interval_left notn) with
@@ -250,7 +248,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
         </> succeed first_arg
 
   (* The master term-parsing combinator parses an lclosed of arbitrary tightness, with no ending tokens (so it must take up the entire input string). *)
-  let term =
+  let term () =
     let* tm = lclosed Interval.entire TokMap.empty in
     match tm.get Interval.entire with
     | Ok tm -> return (Term tm)
@@ -263,14 +261,14 @@ module type Goal = sig
   module Final : Fmlib_std.Interfaces.ANY
   module C : module type of Combinators (Final)
 
-  val final : Final.t C.Basic.t
+  val final : unit -> Final.t C.Basic.t
 end
 
 module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final = Final) = struct
   include G.C.Basic.Parser
 
   module Lex_and_parse =
-    Parse_with_lexer.Make (State) (Token) (Final) (SemanticError) (Lexer.Parser) (G.C.Basic.Parser)
+    Parse_with_lexer.Make (Unit) (Token) (Final) (SemanticError) (Lexer.Parser) (G.C.Basic.Parser)
 
   open Lex_and_parse
 
@@ -280,14 +278,14 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
   (* Parse the given 'source', raising appropriate Asai errors as 'fatal'.  If this returns normally, then the parse succeeded, and the functions below can be used to extract the result.  The first argument says whether EOF is expected at the end, whether it can be restarted, or whether it is itself a restart of another parser. *)
   let parse
       (action :
-        [ `New of [ `Full | `Partial ] * State.t * new_source
-        | `Restart of State.t * Lex_and_parse.t * open_source ]) : Lex_and_parse.t * open_source =
+        [ `New of [ `Full | `Partial ] * new_source | `Restart of Lex_and_parse.t * open_source ]) :
+      Lex_and_parse.t * open_source =
     let env, run =
       match action with
-      | `New (partial, _, `String content) -> (
+      | `New (partial, `String content) -> (
           let (env : Range.Data.t) =
             {
-              source = `String { content; title = Some "user-supplied string" };
+              source = `String { content; title = Some "user-supplied term" };
               length = Int64.of_int (String.length content);
             } in
           match partial with
@@ -297,34 +295,34 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
                 fun p ->
                   let n, p = run_on_string_at 0 content p in
                   (`String (n, content), p) ))
-      | `New (_, _, `File name) ->
+      | `New (_, `File name) ->
           let ic = In_channel.open_text name in
           ( { source = `File name; length = In_channel.length ic },
             fun p -> (`File ic, run_on_channel ic p) )
-      | `Restart (_, _, (env, `String (n, content))) ->
+      | `Restart (_, (env, `String (n, content))) ->
           ( env,
             fun p ->
               let n, p = run_on_string_at n content p in
               (`String (n, content), p) )
-      | `Restart (_, _, (env, `File ic)) -> (env, fun p -> (`File ic, run_on_channel ic p)) in
+      | `Restart (_, (env, `File ic)) -> (env, fun p -> (`File ic, run_on_channel ic p)) in
     let final =
       match action with
-      | `New (`Full, _, _) -> G.final
-      | `New (`Partial, _, _) | `Restart _ ->
+      | `New (`Full, _) -> G.final ()
+      | `New (`Partial, _) | `Restart _ ->
           G.C.Basic.(
-            let* x = G.final in
+            let* x = G.final () in
             expect_end x </> return x) in
     let lex =
       match action with
       | `New _ -> Lexer.Parser.start
-      | `Restart (_, p, _) -> Lex_and_parse.lex p in
+      | `Restart (p, _) -> Lex_and_parse.lex p in
     let token_make =
       match action with
-      | `New (`Full, s, _) -> G.C.Basic.make s
-      | `New (`Partial, s, _) -> G.C.Basic.make_partial s
-      | `Restart (s, p, _) ->
+      | `New (`Full, _) -> G.C.Basic.make ()
+      | `New (`Partial, _) -> G.C.Basic.make_partial ()
+      | `Restart (p, _) ->
           fun c ->
-            G.C.Basic.make_partial s c
+            G.C.Basic.make_partial () c
             |> G.C.Basic.Parser.transfer_lookahead (Lex_and_parse.parse p) in
     Range.run ~env @@ fun () ->
     let p = Lex_and_parse.make lex (token_make final) in
@@ -350,7 +348,7 @@ module Term_goal = struct
   module Final = ParseTree
   module C = Combinators (Final)
 
-  let final : observation C.Basic.t = C.term
+  let final : unit -> observation C.Basic.t = C.term
 end
 
 module Term = Parse_goal (ParseTree) (Term_goal)
@@ -372,19 +370,19 @@ module Command_goal = struct
     let* () = token Axiom in
     let* name = ident in
     let* () = token Colon in
-    let* ty = C.term in
+    let* ty = C.term () in
     return (Command.Axiom (name, ty))
 
   let def =
     let* () = token Def in
     let* name = ident in
     let* () = token Colon in
-    let* ty = C.term in
+    let* ty = C.term () in
     let* () = token Coloneq in
-    let* tm = C.term in
+    let* tm = C.term () in
     return (Command.Def (name, ty, tm))
 
-  let final : Command.t C.Basic.t = axiom </> def
+  let final : unit -> Command.t C.Basic.t = fun () -> axiom </> def
 end
 
 module Command = Parse_goal (Command) (Command_goal)

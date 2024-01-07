@@ -49,12 +49,12 @@ let rec repl first p src =
     Format.print_cut ());
   if not (Parse.Command.has_consumed_end p) then
     (* TODO: Once the notation state is changeable, carry it through. *)
-    let p, src = Parse.Command.parse (`Restart (!Builtins.builtins, p, src)) in
+    let p, src = Parse.Command.parse (`Restart (p, src)) in
     repl false p src
 
 let execute source =
   if !reformat then Format.open_vbox 0;
-  let p, src = Parse.Command.parse (`New (`Partial, !Builtins.builtins, source)) in
+  let p, src = Parse.Command.parse (`New (`Partial, source)) in
   repl true p src;
   if !reformat then Format.close_box ()
 
@@ -66,6 +66,7 @@ let () =
       raise (Failure "Fatal error"))
   @@ fun () ->
   Scope.run @@ fun () ->
+  Builtins.run @@ fun () ->
   Printconfig.run
     ~env:
       {

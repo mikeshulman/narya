@@ -7,7 +7,7 @@ let margin = ref 80
 let set_margin n = margin := n
 
 let reformat tm =
-  let p, _ = Parse.Term.parse (`New (`Full, !Builtins.builtins, `String tm)) in
+  let p, _ = Parse.Term.parse (`New (`Full, `String tm)) in
   let tr = Parse.Term.final p in
   pp_set_margin std_formatter !margin;
   pp_set_max_indent std_formatter (max (!margin - 12) (!margin / 2));
@@ -23,4 +23,5 @@ let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
-  @@ fun () -> Scope.run f
+  @@ fun () ->
+  Scope.run @@ fun () -> Builtins.run f

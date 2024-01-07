@@ -77,10 +77,10 @@ let () =
   let () = uncheck ~print:() "two." nat ~short:"E1000" in
   let () =
     uncheck ~print:() "zero. a" nat
-      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero', 1)) in
+      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero, 1)) in
   let () =
     uncheck ~print:() "suc." nat
-      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc', -1)) in
+      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc, -1)) in
   let () =
     uncheck ~print:() "4.2" nat ~code:(Unsupported_numeral (Q.make (Z.of_int 21) (Z.of_int 5)))
   in

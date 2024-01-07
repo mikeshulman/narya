@@ -12,13 +12,13 @@ open Term
 
 let nn = Constant.make ()
 let nnn = Constant.make ()
-let zero = Constant.make ()
-let suc = Constant.make ()
+let zero = Constr.intern "zero"
+let suc = Constr.intern "suc"
 let plus = Constant.make ()
 let times = Constant.make ()
 let ind = Constant.make ()
-let zero' = Constr.intern "zero"
-let suc' = Constr.intern "suc"
+let zero' = Constant.make ()
+let suc' = Constant.make ()
 
 open Monad.Ops (Monad.Maybe)
 
@@ -72,7 +72,7 @@ let install () =
   install_notations ();
   List.iter2 Scope.set
     [ [ "ℕ" ]; [ "N" ]; [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
-    [ nn; nnn; zero; suc; plus; times; ind ];
+    [ nn; nnn; zero'; suc'; plus; times; ind ];
   Hashtbl.add Global.types nn (UU D.zero);
   Hashtbl.add Global.constants nn
     (Data
@@ -81,16 +81,15 @@ let install () =
          indices = Zero;
          constrs =
            Constr.Map.empty
-           |> Constr.Map.add zero' (Global.Constr { args = Emp; indices = Emp })
-           |> Constr.Map.add suc'
-                (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
+           |> Constr.Map.add zero (Global.Constr { args = Emp; indices = Emp })
+           |> Constr.Map.add suc (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
        });
   Hashtbl.add Global.types nnn (UU D.zero);
   Hashtbl.add Global.constants nnn (Defined (ref (Case.Leaf (Const nn))));
-  Hashtbl.add Global.types zero (Const nn);
-  Hashtbl.add Global.constants zero (Defined (ref (Case.Leaf (Constr (zero', D.zero, Emp)))));
-  Hashtbl.add Global.types suc (pi None (Const nn) (Const nn));
-  Hashtbl.add Global.constants suc
+  Hashtbl.add Global.types zero' (Const nn);
+  Hashtbl.add Global.constants zero' (Defined (ref (Case.Leaf (Constr (zero, D.zero, Emp)))));
+  Hashtbl.add Global.types suc' (pi None (Const nn) (Const nn));
+  Hashtbl.add Global.constants suc'
     (Defined
        (ref
           (Case.Lam
@@ -98,7 +97,7 @@ let install () =
                `Normal (CubeOf.singleton (Some "n")),
                ref
                  (Case.Leaf
-                    (Constr (suc', D.zero, Emp <: CubeOf.singleton (Var (Top (id_sface D.zero))))))
+                    (Constr (suc, D.zero, Emp <: CubeOf.singleton (Var (Top (id_sface D.zero))))))
              ))));
   Hashtbl.add Global.types plus (pi None (Const nn) (pi None (Const nn) (Const nn)));
   Hashtbl.add Global.types times (pi None (Const nn) (pi None (Const nn) (Const nn)));
@@ -118,26 +117,31 @@ let install () =
                              D.zero,
                              Constr.Map.of_list
                                [
-                                 ( zero',
+                                 ( zero,
                                    Case.Branch
                                      (Zero, ref (Case.Leaf (Var (Pop (Top (id_sface D.zero)))))) );
-                                 ( suc',
+                                 ( suc,
                                    Branch
                                      ( Suc Zero,
                                        ref
                                          (Case.Leaf
-                                            (App
-                                               ( Const suc,
-                                                 CubeOf.singleton
-                                                   (App
-                                                      ( App
-                                                          ( Const plus,
+                                            (Constr
+                                               ( suc,
+                                                 D.zero,
+                                                 Snoc
+                                                   ( Emp,
+                                                     CubeOf.singleton
+                                                       (App
+                                                          ( App
+                                                              ( Const plus,
+                                                                CubeOf.singleton
+                                                                  (Var
+                                                                     (Pop
+                                                                        (Pop (Top (id_sface D.zero)))))
+                                                              ),
                                                             CubeOf.singleton
-                                                              (Var
-                                                                 (Pop (Pop (Top (id_sface D.zero)))))
-                                                          ),
-                                                        CubeOf.singleton
-                                                          (Var (Top (id_sface D.zero))) )) ))) ) );
+                                                              (Var (Top (id_sface D.zero))) )) ) )))
+                                     ) );
                                ] )) )) ))));
   Hashtbl.add Global.constants times
     (Defined
@@ -155,8 +159,10 @@ let install () =
                              D.zero,
                              Constr.Map.of_list
                                [
-                                 (zero', Case.Branch (Zero, ref (Case.Leaf (Const zero))));
-                                 ( suc',
+                                 ( zero,
+                                   Case.Branch (Zero, ref (Case.Leaf (Constr (zero, D.zero, Emp))))
+                                 );
+                                 ( suc,
                                    Branch
                                      ( Suc Zero,
                                        ref
@@ -183,7 +189,7 @@ let install () =
     (pi None
        ((* P : *) pi None (Const nn) (UU D.zero))
        (pi None
-          ((* z : *) app (Var (Top (id_sface D.zero))) (Const zero))
+          ((* z : *) app (Var (Top (id_sface D.zero))) (Constr (zero, D.zero, Emp)))
           (pi None
              ((* s : *)
               pi None ((* n : *) Const nn)
@@ -194,7 +200,10 @@ let install () =
                       (Var (Top (id_sface D.zero))))
                    (app
                       (Var (Pop (Pop (Pop (Top (id_sface D.zero))))))
-                      (app (Const suc) (Var (Pop (Top (id_sface D.zero))))))))
+                      (Constr
+                         ( suc,
+                           D.zero,
+                           Snoc (Emp, CubeOf.singleton (Var (Pop (Top (id_sface D.zero))))) )))))
              (pi None ((* n : *) Const nn)
                 (app (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))) (Var (Top (id_sface D.zero))))))));
   Hashtbl.add Global.constants ind
@@ -221,14 +230,14 @@ let install () =
                                            D.zero,
                                            Constr.Map.of_list
                                              [
-                                               ( zero',
+                                               ( zero,
                                                  Case.Branch
                                                    ( Zero,
                                                      ref
                                                        (Case.Leaf
                                                           (Var (Pop (Pop (Top (id_sface D.zero))))))
                                                    ) );
-                                               ( suc',
+                                               ( suc,
                                                  Branch
                                                    ( Suc Zero,
                                                      ref

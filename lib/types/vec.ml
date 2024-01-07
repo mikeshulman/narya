@@ -23,7 +23,7 @@ let install () =
          constrs =
            Constr.Map.empty
            |> Constr.Map.add nil
-                (Global.Constr { args = Emp; indices = Snoc (Emp, Constr (zero', D.zero, Emp)) })
+                (Global.Constr { args = Emp; indices = Snoc (Emp, Constr (zero, D.zero, Emp)) })
            |> Constr.Map.add cons
                 (Global.Constr
                    {
@@ -47,7 +47,7 @@ let install () =
                        Snoc
                          ( Emp,
                            Constr
-                             ( suc',
+                             ( suc,
                                D.zero,
                                Emp
                                <: CubeOf.singleton (Term.Var (Pop (Pop (Top (id_sface D.zero))))) )
@@ -85,7 +85,7 @@ let install () =
                    [ Var (Pop (Top (id_sface D.zero))); Var (Top (id_sface D.zero)) ])
                 (UU D.zero)))
           (pi None
-             (apps (Var (Top (id_sface D.zero))) [ constr zero' Emp; constr nil Emp ])
+             (apps (Var (Top (id_sface D.zero))) [ constr zero Emp; constr nil Emp ])
              (pi None
                 (pi None (Const nn)
                    (pi None
@@ -106,7 +106,7 @@ let install () =
                             (apps
                                (Var (Pop (Pop (Pop (Pop (Pop (Top (id_sface D.zero))))))))
                                [
-                                 constr suc' (Emp <: Var (Pop (Pop (Pop (Top (id_sface D.zero))))));
+                                 constr suc (Emp <: Var (Pop (Pop (Pop (Top (id_sface D.zero))))));
                                  constr cons
                                    (Emp
                                    <: Var (Pop (Pop (Pop (Top (id_sface D.zero)))))

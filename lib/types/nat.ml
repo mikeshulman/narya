@@ -11,6 +11,7 @@ open Syntax
 open Term
 
 let nn = Constant.make ()
+let nnn = Constant.make ()
 let zero = Constant.make ()
 let suc = Constant.make ()
 let plus = Constant.make ()
@@ -70,8 +71,8 @@ let install_notations () =
 let install () =
   install_notations ();
   List.iter2 Scope.set
-    [ [ "N" ]; [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "N_ind" ] ]
-    [ nn; zero; suc; plus; times; ind ];
+    [ [ "ℕ" ]; [ "N" ]; [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
+    [ nn; nnn; zero; suc; plus; times; ind ];
   Hashtbl.add Global.types nn (UU D.zero);
   Hashtbl.add Global.constants nn
     (Data
@@ -84,6 +85,8 @@ let install () =
            |> Constr.Map.add suc'
                 (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
        });
+  Hashtbl.add Global.types nnn (UU D.zero);
+  Hashtbl.add Global.constants nnn (Defined (ref (Case.Leaf (Const nn))));
   Hashtbl.add Global.types zero (Const nn);
   Hashtbl.add Global.constants zero (Defined (ref (Case.Leaf (Constr (zero', D.zero, Emp)))));
   Hashtbl.add Global.types suc (pi None (Const nn) (Const nn));

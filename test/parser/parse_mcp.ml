@@ -161,7 +161,7 @@ nest `}
 
   (* Precedence and associativity *)
   let () = Types.Nat.install () in
-  let nat, _ = synth "N" in
+  let nat, _ = synth "ℕ" in
   let onetwothree, _ = synth "S O + S (S O) + S (S (S O))" in
   let six, _ = synth "S (S (S (S (S (S O)))))" in
   let () = equal_at onetwothree six nat in

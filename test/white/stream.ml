@@ -47,8 +47,8 @@ let () =
 
   (* We construct a stream of natural numbers and check its first few elements *)
   let () = Types.Nat.install () in
-  let nat, _ = synth !~"N" in
-  let rnats = !~"corec" $ !~"N" $ !~"N" $ "x" @-> !!"x" $ "x" @-> (!~"S" $ !!"x") $ !~"O" in
+  let nat, _ = synth !~"ℕ" in
+  let rnats = !~"corec" $ !~"ℕ" $ !~"ℕ" $ "x" @-> !!"x" $ "x" @-> (!~"S" $ !!"x") $ !~"O" in
   let nats, _ = synth rnats in
   let zero, _ = synth !~"O" in
   let zero', _ = synth (rnats $. "head") in
@@ -67,8 +67,8 @@ let () =
   (* Now we construct the stream of fibonacci numbers and check the first few of its elements *)
   let rfib =
     !~"corec"
-    $ !~"N"
-    $ (!~"Σ" $ !~"N" $ "" @-> !~"N")
+    $ !~"ℕ"
+    $ (!~"Σ" $ !~"ℕ" $ "" @-> !~"ℕ")
     $ "x" @-> (!!"x" $. "fst")
     $ "x"
       @-> struc [ ("fst", !!"x" $. "snd"); ("snd", !~"plus" $ (!!"x" $. "fst") $ (!!"x" $. "snd")) ]

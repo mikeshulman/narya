@@ -31,15 +31,15 @@ let () =
   print "exp utwo uthree";
   Types.Nat.install ();
   Types.Sigma.install ();
-  print "{fst := 0; snd := 0} : N >< N";
-  print "{fst := x |-> x; snd := 2} : (N -> N) >< N";
-  assume "s" "(N → N) × N";
+  print "{fst := 0; snd := 0} : ℕ >< ℕ";
+  print "{fst := x |-> x; snd := 2} : (ℕ -> ℕ) >< ℕ";
+  assume "s" "(ℕ → ℕ) × ℕ";
   print "s .fst 3";
   Types.Lst.install ();
-  print "nil. : List N";
-  print "cons. 2 nil. : List N";
-  print "cons. 4 (cons. 2 nil.) : List N";
-  print "refl (0:N)";
+  print "nil. : List ℕ";
+  print "cons. 2 nil. : List ℕ";
+  print "cons. 4 (cons. 2 nil.) : List ℕ";
+  print "refl (0:ℕ)";
   assume "b" "A";
   print "refl b";
   print "(a ↦ refl a) : (a:A) → Id A a a";
@@ -60,8 +60,8 @@ let () =
   (* Let-bindings always reduce away, disappearing after readback. *)
   print "let x := b in b";
   (* Binary operators *)
-  assume "m" "N";
-  assume "n" "N";
+  assume "m" "ℕ";
+  assume "n" "ℕ";
   print "m+n";
   print "m+n*n";
   print "m*(m+n*n)";

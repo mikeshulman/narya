@@ -114,7 +114,7 @@
  ￮ checking struct against non-record type A
 
  ￫ error[E0900]
- ￮ checking struct against non-record type N
+ ￮ checking struct against non-record type ℕ
 
  ￫ error[E0800]
  ￮ record type Σ has no field named third
@@ -123,7 +123,7 @@
  ￮ non-datatype Σ has no constructor named zero
 
  ￫ error[E1000]
- ￮ datatype N has no constructor named two
+ ￮ datatype ℕ has no constructor named two
 
  ￫ error[E1001]
  ￮ too many arguments to constructor zero (1 extra)

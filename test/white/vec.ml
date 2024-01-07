@@ -21,49 +21,49 @@ let () =
   let id11, _ = synth "Id (Vec A 1) (cons. 0 a nil.) (cons. 0 a nil.)" in
 
   (* Since numerals check rather than synthesizing, we have to ascribe them to apply refl. *)
-  let eq11 = check "cons. (refl (0:N)) (refl a) nil." id11 in
+  let eq11 = check "cons. (refl (0:ℕ)) (refl a) nil." id11 in
   let id22, _ = synth "Id (Vec A 2) (cons. 1 a (cons. 0 a nil.)) (cons. 1 a (cons. 0 a nil.))" in
-  let eq22 = check "cons. (refl (1:N)) (refl a) (cons. (refl (0:N)) (refl a) nil.)" id22 in
+  let eq22 = check "cons. (refl (1:ℕ)) (refl a) (cons. (refl (0:ℕ)) (refl a) nil.)" id22 in
 
   (* Check that the induction principle has the right type *)
   let _, indty = synth "Vec_ind" in
 
   let indty', _ =
     synth
-      "(A:Type) (C : (n:N) (xs : Vec A n) → Type) → C 0 nil. → ((n:N) (x:A) (xs: Vec A n) → C n xs → C (suc. n) (cons. n x xs)) → (n:N) (xs : Vec A n) → C n xs"
+      "(A:Type) (C : (n:ℕ) (xs : Vec A n) → Type) → C 0 nil. → ((n:ℕ) (x:A) (xs: Vec A n) → C n xs → C (suc. n) (cons. n x xs)) → (n:ℕ) (xs : Vec A n) → C n xs"
   in
 
   let () = equal indty indty' in
 
   (* We can define concatenation by induction.  But it works better with a left-recursive version of nat addition. *)
-  let rntonton = "N → N → N" in
+  let rntonton = "ℕ → ℕ → ℕ" in
   let ntonton, _ = synth rntonton in
-  let rlplus = "m n ↦ N_ind (_ ↦ N) n (_ IH ↦ suc. IH) m" in
+  let rlplus = "m n ↦ ℕ_ind (_ ↦ ℕ) n (_ IH ↦ suc. IH) m" in
   let lplus = check rlplus ntonton in
   let lp = Printf.sprintf "((%s) : %s)" rlplus rntonton in
 
   (* And we prove that addition is associative *)
   let rlpassoc_ty =
-    Printf.sprintf "(m n k : N) → Id N (%s (%s m n) k) (%s m (%s n k))" lp lp lp lp in
+    Printf.sprintf "(m n k : ℕ) → Id ℕ (%s (%s m n) k) (%s m (%s n k))" lp lp lp lp in
   let lpassoc_ty = check rlpassoc_ty uu in
 
   let rlpassoc =
     Printf.sprintf
-      "m n k ↦ N_ind (m ↦ Id N (%s (%s m n) k) (%s m (%s n k))) (refl (%s n k)) (_ IH ↦ suc. IH) m"
+      "m n k ↦ ℕ_ind (m ↦ Id ℕ (%s (%s m n) k) (%s m (%s n k))) (refl (%s n k)) (_ IH ↦ suc. IH) m"
       lp lp lp lp lp in
 
   let lpassoc = check rlpassoc lpassoc_ty in
   let lpa = Printf.sprintf "((%s) : %s)" rlpassoc rlpassoc_ty in
 
   (* And right unital *)
-  let rlpru_ty = Printf.sprintf "(m:N) → Id N (%s m 0) m" lp in
+  let rlpru_ty = Printf.sprintf "(m:ℕ) → Id ℕ (%s m 0) m" lp in
   let lpru_ty = check rlpru_ty uu in
-  let rlpru = Printf.sprintf "m ↦ N_ind (m ↦ Id N (%s m 0) m) (refl (0:N)) (_ IH ↦ suc. IH) m" lp in
+  let rlpru = Printf.sprintf "m ↦ ℕ_ind (m ↦ Id ℕ (%s m 0) m) (refl (0:ℕ)) (_ IH ↦ suc. IH) m" lp in
   let lpru = check rlpru lpru_ty in
   let lpr = Printf.sprintf "((%s) : %s)" rlpru rlpru_ty in
 
   (* Now we can define concatenation *)
-  let rconcat_ty = Printf.sprintf "(A:Type) (m n : N) → Vec A m → Vec A n → Vec A (%s m n)" lp in
+  let rconcat_ty = Printf.sprintf "(A:Type) (m n : ℕ) → Vec A m → Vec A n → Vec A (%s m n)" lp in
   let concat_ty, _ = synth rconcat_ty in
 
   let rconcat =
@@ -94,7 +94,7 @@ let () =
 
   let rconcatassoc_ty =
     Printf.sprintf
-      "(A:Type) (m n k : N) (xs : Vec A m) (ys : Vec A n) (zs : Vec A k) → Id (Vec A) (%s (%s m n) k) (%s m (%s n k)) (%s m n k) (%s A (%s m n) k (%s A m n xs ys) zs) (%s A m (%s n k) xs (%s A n k ys zs))"
+      "(A:Type) (m n k : ℕ) (xs : Vec A m) (ys : Vec A n) (zs : Vec A k) → Id (Vec A) (%s (%s m n) k) (%s m (%s n k)) (%s m n k) (%s A (%s m n) k (%s A m n xs ys) zs) (%s A m (%s n k) xs (%s A n k ys zs))"
       lp lp lp lp lpa cc lp cc cc lp cc in
 
   let concatassoc_ty = check rconcatassoc_ty uu in
@@ -108,7 +108,7 @@ let () =
 
   let rconcatru_ty =
     Printf.sprintf
-      "(A:Type) (m:N) (xs : Vec A m) → Id (Vec A) (%s m 0) m (%s m) (%s A m 0 xs nil.) xs" lp lpr cc
+      "(A:Type) (m:ℕ) (xs : Vec A m) → Id (Vec A) (%s m 0) m (%s m) (%s A m 0 xs nil.) xs" lp lpr cc
   in
 
   let concatru_ty = check rconcatru_ty uu in

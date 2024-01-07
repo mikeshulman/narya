@@ -67,7 +67,7 @@ let () =
     uncheck ~print:() "{ fst ≔ a }" sigab ~code:(Missing_field_in_struct (Core.Field.intern "snd"))
   in
   let () = uncheck ~print:() "{ fst ≔ a }" aa ~short:"E0900" in
-  let nat = check "N" uu in
+  let nat = check "ℕ" uu in
   let () = uncheck ~print:() "{ fst ≔ a }" nat ~short:"E0900" in
   let s = assume "s" sigab in
   let () =

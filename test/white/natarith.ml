@@ -3,7 +3,7 @@ open Testutil.Pmp
 let () =
   run @@ fun () ->
   Types.Nat.install ();
-  let nat, _ = synth !~"N" in
+  let nat, _ = synth !~"ℕ" in
   let raw0 = !."zero" in
   let zero = check raw0 nat in
   let raw1 = !."suc" $ raw0 in
@@ -16,34 +16,34 @@ let () =
   let four = check raw4 nat in
 
   (* Identity types *)
-  let id00, _ = synth (id !~"N" !."zero" !."zero") in
+  let id00, _ = synth (id !~"ℕ" !."zero" !."zero") in
   let eq00 = check !."zero" id00 in
-  let id01, _ = synth (id !~"N" !."zero" (!."suc" $ !."zero")) in
+  let id01, _ = synth (id !~"ℕ" !."zero" (!."suc" $ !."zero")) in
   let () = uncheck !."zero" id01 in
-  let id11, _ = synth (id !~"N" raw1 raw1) in
+  let id11, _ = synth (id !~"ℕ" raw1 raw1) in
   let eq11 = check (!."suc" $ !."zero") id11 in
 
   let congsuc_ty, _ =
     synth
-      (("x", !~"N")
-      @=> ("y", !~"N")
-      @=> ("", id !~"N" !!"x" !!"y")
-      @=> id !~"N" (!."suc" $ !!"x") (!."suc" $ !!"y")) in
+      (("x", !~"ℕ")
+      @=> ("y", !~"ℕ")
+      @=> ("", id !~"ℕ" !!"x" !!"y")
+      @=> id !~"ℕ" (!."suc" $ !!"x") (!."suc" $ !!"y")) in
 
   let congsuc = check ("x" @-> "y" @-> "p" @-> (!."suc" $ !!"p")) congsuc_ty in
 
   let cong2suc_ty, _ =
     synth
-      (("x00", !~"N")
-      @=> ("x01", !~"N")
-      @=> ("x02", id !~"N" !!"x00" !!"x01")
-      @=> ("x10", !~"N")
-      @=> ("x11", !~"N")
-      @=> ("x12", id !~"N" !!"x10" !!"x11")
-      @=> ("x20", id !~"N" !!"x00" !!"x10")
-      @=> ("x21", id !~"N" !!"x01" !!"x11")
+      (("x00", !~"ℕ")
+      @=> ("x01", !~"ℕ")
+      @=> ("x02", id !~"ℕ" !!"x00" !!"x01")
+      @=> ("x10", !~"ℕ")
+      @=> ("x11", !~"ℕ")
+      @=> ("x12", id !~"ℕ" !!"x10" !!"x11")
+      @=> ("x20", id !~"ℕ" !!"x00" !!"x10")
+      @=> ("x21", id !~"ℕ" !!"x01" !!"x11")
       @=> ( "x22",
-            refl (refl !~"N")
+            refl (refl !~"ℕ")
             $ !!"x00"
             $ !!"x01"
             $ !!"x02"
@@ -52,7 +52,7 @@ let () =
             $ !!"x12"
             $ !!"x20"
             $ !!"x21" )
-      @=> (refl (refl !~"N")
+      @=> (refl (refl !~"ℕ")
           $ (!."suc" $ !!"x00")
           $ (!."suc" $ !!"x01")
           $ (!."suc" $ !!"x02")
@@ -95,28 +95,28 @@ let () =
 
   (* Refl of a constant still computes *)
   let refl_zero_plus_zero, _ =
-    synth (refl !~"plus" $ raw0 $ raw0 $ refl (raw0 <:> !~"N") $ raw0 $ raw0 $ refl (raw0 <:> !~"N"))
+    synth (refl !~"plus" $ raw0 $ raw0 $ refl (raw0 <:> !~"ℕ") $ raw0 $ raw0 $ refl (raw0 <:> !~"ℕ"))
   in
 
-  let refl_zero, _ = synth (refl (raw0 <:> !~"N")) in
-  let id_zero_zero, _ = synth (id !~"N" !."zero" !."zero") in
+  let refl_zero, _ = synth (refl (raw0 <:> !~"ℕ")) in
+  let id_zero_zero, _ = synth (id !~"ℕ" !."zero" !."zero") in
   let () = equal_at refl_zero_plus_zero refl_zero id_zero_zero in
 
   let refl_one_plus_one, _ =
-    synth (refl !~"plus" $ raw1 $ raw1 $ refl (raw1 <:> !~"N") $ raw1 $ raw1 $ refl (raw1 <:> !~"N"))
+    synth (refl !~"plus" $ raw1 $ raw1 $ refl (raw1 <:> !~"ℕ") $ raw1 $ raw1 $ refl (raw1 <:> !~"ℕ"))
   in
 
-  let refl_one, _ = synth (refl (raw1 <:> !~"N")) in
-  let refl_two, _ = synth (refl (raw2 <:> !~"N")) in
+  let refl_one, _ = synth (refl (raw1 <:> !~"ℕ")) in
+  let refl_two, _ = synth (refl (raw2 <:> !~"ℕ")) in
   let id_two_two, _ =
-    synth (id !~"N" (!."suc" $ (!."suc" $ !."zero")) (!."suc" $ (!."suc" $ !."zero"))) in
+    synth (id !~"ℕ" (!."suc" $ (!."suc" $ !."zero")) (!."suc" $ (!."suc" $ !."zero"))) in
   let () = equal_at refl_one_plus_one refl_two id_two_two in
 
   (* We can also define addition with the general recursor/inductor  *)
-  let rop = ("", !~"N") @=> ("", !~"N") @=> !~"N" in
+  let rop = ("", !~"ℕ") @=> ("", !~"ℕ") @=> !~"ℕ" in
 
   let rplus =
-    "x" @-> "y" @-> (!~"N_ind" $ "" @-> !~"N" $ !!"x" $ "" @-> "x+y" @-> (!~"S" $ !!"x+y") $ !!"y")
+    "x" @-> "y" @-> (!~"ℕ_ind" $ "" @-> !~"ℕ" $ !!"x" $ "" @-> "x+y" @-> (!~"S" $ !!"x+y") $ !!"y")
     <:> rop in
 
   let plus, _ = synth rplus in
@@ -139,15 +139,15 @@ let () =
   (* And prove by induction that it equals the other one.  Note that this uses ap on suc. *)
   let plus_is_plus_ty, _ =
     synth
-      (("x", !~"N") @=> ("y", !~"N") @=> id !~"N" (!~"plus" $ !!"x" $ !!"y") (rplus $ !!"x" $ !!"y"))
+      (("x", !~"ℕ") @=> ("y", !~"ℕ") @=> id !~"ℕ" (!~"plus" $ !!"x" $ !!"y") (rplus $ !!"x" $ !!"y"))
   in
 
   let plus_is_plus =
     check
       ("x"
       @-> "y"
-      @-> (!~"N_ind"
-          $ "u" @-> id !~"N" (!~"plus" $ !!"x" $ !!"u") (rplus $ !!"x" $ !!"u")
+      @-> (!~"ℕ_ind"
+          $ "u" @-> id !~"ℕ" (!~"plus" $ !!"x" $ !!"u") (rplus $ !!"x" $ !!"u")
           $ refl !!"x"
           $ "u"
             @-> "equ"

@@ -12,12 +12,14 @@ let verbose = ref false
 let compact = ref false
 let unicode = ref true
 let typecheck = ref true
-let input_string = ref ""
+let input_strings = ref Emp
 let use_stdin = ref false
 
 let speclist =
   [
-    ("--exec", Arg.Set_string input_string, "Execute a string after all files");
+    ( "--exec",
+      Arg.String (fun str -> input_strings := Snoc (!input_strings, str)),
+      "Execute a string after all files" );
     ("--verbose", Arg.Set verbose, "Show verbose messages");
     ("--no-check", Arg.Clear typecheck, "Don't typecheck code (only parse it)");
     ("--reformat", Arg.Set reformat, "Display reformatted code on stdout");
@@ -33,7 +35,7 @@ let speclist =
 
 let () =
   Arg.parse speclist anon_arg usage_msg;
-  if Bwd.is_empty !input_files && (not !use_stdin) && !input_string = "" then (
+  if Bwd.is_empty !input_files && (not !use_stdin) && Bwd.is_empty !input_strings then (
     Printf.fprintf stderr "No input files specified\n";
     Arg.usage speclist usage_msg;
     exit 1)
@@ -80,5 +82,6 @@ let () =
   (if !use_stdin then
      let content = In_channel.input_all stdin in
      execute (`String { content; title = Some "stdin" }));
-  if !input_string <> "" then
-    execute (`String { content = !input_string; title = Some "command line" })
+  Mbwd.miter
+    (fun [ content ] -> execute (`String { content; title = Some "command-line exec string" }))
+    [ !input_strings ]

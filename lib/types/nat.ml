@@ -24,7 +24,7 @@ open Monad.Ops (Monad.Maybe)
 
 let install () =
   Scope.set [ "ℕ" ] nn;
-  Scope.set [ "N" ] nnn;
+  Scope.set [ "Nat" ] nnn;
   Hashtbl.add Global.types nn (UU D.zero);
   Hashtbl.add Global.constants nn
     (Data

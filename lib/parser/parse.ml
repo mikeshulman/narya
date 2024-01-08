@@ -352,7 +352,7 @@ module Term_goal = struct
    fun () -> fatal (Anomaly "partial parsing of individual terms not allowed")
 end
 
-module Term = Parse_goal (ParseTree) (Term_goal)
+module Parse_term = Parse_goal (ParseTree) (Term_goal)
 
 module Command_goal = struct
   module Final = Command
@@ -392,4 +392,20 @@ module Command_goal = struct
   let eof : unit -> Command.t = fun () -> Eof
 end
 
-module Command = Parse_goal (Command) (Command_goal)
+module Parse_command = Parse_goal (Command) (Command_goal)
+
+module Command_or_echo_goal = struct
+  module Final = Command
+  module C = Command_goal.C
+  open C.Basic
+
+  let final : unit -> Final.t C.Basic.t =
+   fun () ->
+    Command_goal.final ()
+    </> let* tm = C.term () in
+        return (Command.Echo tm)
+
+  let eof () = Command_goal.eof ()
+end
+
+module Parse_command_or_echo = Parse_goal (Command) (Command_or_echo_goal)

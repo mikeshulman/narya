@@ -14,12 +14,13 @@ open Value
 open Inst
 open Raw
 open Hctx
+open Parse
 
 let parse_term (tm : string) : N.zero check =
   let p, _ =
-    Parse.Term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
+    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
   in
-  let (Term tm) = Parse.Term.final p in
+  let (Term tm) = Parse_term.final p in
   Postprocess.process Emp tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)

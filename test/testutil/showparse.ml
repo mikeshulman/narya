@@ -1,4 +1,5 @@
 open Parser
+open Parse
 
 (* Translate a parse observation into something that shows the names of notations rather than their internal abstract representations, for easier inspection and testing.  Note that since we intercept the parse tree before the "compilation" step, there is no name resolution, so this doesn't need to be run inside a Yuujinchou handler and can use unbound variables. *)
 
@@ -30,7 +31,7 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
 
 let parse tm =
   let p, _ =
-    Parse.Term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
+    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
   in
-  let (Term tm) = Parse.Term.final p in
+  let (Term tm) = Parse_term.final p in
   get_tree tm

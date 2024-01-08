@@ -2,6 +2,7 @@ open Util
 open Core
 open Parser
 open Syntax
+open Parse
 
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx
@@ -14,9 +15,9 @@ let context = ref ectx
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check =
  fun names tm ->
   let p, _ =
-    Parse.Term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
+    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
   in
-  let (Term tm) = Parse.Term.final p in
+  let (Term tm) = Parse_term.final p in
   Postprocess.process names tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)

@@ -2,15 +2,16 @@ open Format
 open Parser
 open Print
 open Core
+open Parse
 
 let margin = ref 80
 let set_margin n = margin := n
 
 let reformat tm =
   let p, _ =
-    Parse.Term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
+    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
   in
-  let tr = Parse.Term.final p in
+  let tr = Parse_term.final p in
   pp_set_margin std_formatter !margin;
   pp_set_max_indent std_formatter (max (!margin - 12) (!margin / 2));
   pp_open_hovbox std_formatter 0;

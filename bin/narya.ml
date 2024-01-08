@@ -6,6 +6,7 @@ open Format
 open React
 open Lwt
 open LTerm_text
+open Parse
 
 let usage_msg = "narya [options] <file1> [<file2> ...]"
 let input_files = ref Emp
@@ -53,20 +54,20 @@ let () =
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let rec batch first p src =
-  let cmd = Parse.Command.final p in
+  let cmd = Parse_command.final p in
   if cmd <> Eof then (
     if !typecheck then Parser.Command.execute cmd;
     if !reformat then (
       if not first then Format.print_cut ();
       Parser.Command.pp_command std_formatter cmd;
       Format.print_cut ());
-    if not (Parse.Command.has_consumed_end p) then
-      let p, src = Parse.Command.parse (`Restart (p, src)) in
+    if not (Parse_command.has_consumed_end p) then
+      let p, src = Parse_command.parse (`Restart (p, src)) in
       batch false p src)
 
-let execute source =
+let execute parse source =
   if !reformat then Format.open_vbox 0;
-  let p, src = Parse.Command.parse (`New (`Partial, source)) in
+  let p, src = parse (`New (`Partial, source)) in
   batch true p src;
   if !reformat then Format.close_box ()
 
@@ -102,7 +103,9 @@ let rec repl terminal history buf =
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d -> Terminal.display ~output:stdout d)
-          (fun () -> execute (`String { content; title = Some "interactive input" }));
+          (fun () ->
+            execute Parse_command_or_echo.parse
+              (`String { content; title = Some "interactive input" }));
         LTerm_history.add history (Zed_string.of_utf8 content);
         repl terminal history None)
       else (
@@ -156,11 +159,12 @@ let () =
   Types.Vec.install ();
   Types.Gel.install ();
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
-  Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
+  Mbwd.miter (fun [ filename ] -> execute Parse_command.parse (`File filename)) [ !input_files ];
   (if !use_stdin then
      let content = In_channel.input_all stdin in
-     execute (`String { content; title = Some "stdin" }));
+     execute Parse_command.parse (`String { content; title = Some "stdin" }));
   Mbwd.miter
-    (fun [ content ] -> execute (`String { content; title = Some "command-line exec string" }))
+    (fun [ content ] ->
+      execute Parse_command.parse (`String { content; title = Some "command-line exec string" }))
     [ !input_strings ];
   if !interactive then Lwt_main.run (interact ())

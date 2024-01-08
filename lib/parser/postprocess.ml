@@ -37,7 +37,7 @@ let rec process :
  fun ctx res ->
   let loc = res.loc in
   match res.value with
-  | Notn n -> (processor (notn n)).process ctx (args n) loc
+  | Notn n -> (processor (notn n)).process ctx (args n) loc (whitespace n)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
   | App { fn; arg; _ } -> (
       match

@@ -15,13 +15,13 @@ module Located_token = struct
 end
 
 (* We define the lexer using a basic character parser from Fmlib.  Note that a "character" here really means a byte, so we have to be careful with Unicode. *)
-module Basic = Character.Make (Unit) (Located_token) (Unit)
+module Basic = Character.Make (Bool) (Located_token) (Unit)
 open Basic
 
 (* A line comment starts with a backquote and extends to the end of the line.  *)
 let line_comment : Whitespace.t t =
   let* c = word (fun c -> c = '`') (fun c -> c <> '\n') "line comment" in
-  let* _ = char '\n' in
+  let* () = set true in
   return (`Line (String.sub c 1 (String.length c - 1)))
 
 (* A block comment starts with {` and ends with `}, and can be nested.  *)
@@ -41,6 +41,7 @@ let block_comment : Whitespace.t t =
     | _, '`' -> rest buf nesting `Backquote
     | _ -> rest (buf ^ String.make 1 c) nesting (state_of c) in
   let* _ = backtrack (string "{`") "\"{`\"" in
+  let* () = set false in
   rest "" 0 `None
 
 let newlines : Whitespace.t t =
@@ -49,10 +50,13 @@ let newlines : Whitespace.t t =
       (fun c -> return (if c = '\n' then 1 else 0))
       (fun n c -> return (if c = '\n' then n + 1 else n))
       (one_of_chars " \t\n\r" "space, tab, or newline") in
-  return (`Newlines n)
+  let* line = get in
+  let* () = set false in
+  return (`Newlines (if line then n - 1 else n))
 
 (* Whitespace.T consists of spaces, tabs, newlines, and comments. *)
 let whitespace : Whitespace.t list t =
+  let* () = set false in
   let* ws =
     zero_or_more_fold_left Emp
       (fun ws w -> if w = `Newlines 0 then return ws else return (Snoc (ws, w)))
@@ -223,6 +227,6 @@ module Parser = struct
   include Basic.Parser
 
   (* This is how we make the lexer to plug into the parser. *)
-  let start : t = make_partial Position.start () wstoken
-  let restart (lex : t) : t = make_partial (position lex) () token |> transfer_lookahead lex
+  let start : t = make_partial Position.start false wstoken
+  let restart (lex : t) : t = make_partial (position lex) false token |> transfer_lookahead lex
 end

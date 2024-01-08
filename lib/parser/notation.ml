@@ -45,6 +45,9 @@ let fixprops :
   | Postfixl t -> (Open Nonstrict, t, Closed)
   | Outfix -> (Closed, No.plus_omega, Closed)
 
+(* Notation printers are informed what sort of space to end with, if there is not specified whitespace (multiple newlines and/or comments).  These are the options. *)
+type space = [ `None | `Break | `Nobreak ]
+
 (* A "notation tree" (not to be confused with a "parse tree", which is the *result* of parsing) carries the information about how to parse one or more notations.  Each individual notation is defined by giving one tree, but multiple such trees can also be "merged" together.  This allows different notations that start out looking the same to be parsed with minimal backtracking, as we don't need to "decide" which notation we're parsing until we get to the point of the tree where they diverge.  Accordingly, although each notation is associated to a defining tree, a tree also stores pointers to notations at its leaves, since a merged tree could parse many different notations depending on which path through it is taken. *)
 
 (* The trees corresponding to notations that are open on one side or the other do *not* record the existence of the leftmost or rightmost subterm: they only record the positions of the operators and fully delimited "inner" subterms.  Thus, a notation tree does not fully characterize the behavior of a notation until paired with the information of its openness on each side. *)
@@ -123,11 +126,19 @@ and (_, _, _, _) parse =
   | Constr : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
 
-(* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
+(* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object).  The whitespace argument should be ignored, but we include it so that complicated notation processing functions can be shared between the processor and the printer. *)
 and processor = {
   process :
-    'n. (string option, 'n) Bwv.t -> observation list -> Asai.Range.t option -> 'n check located;
+    'n.
+    (string option, 'n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    Whitespace.t list list ->
+    'n check located;
 }
+
+(* A printing function for a notation is told what sort of space (if any) to end with, and is given the formatter, the list of arguments of the notation, and the list of whitespaces attached after all the operator parts of the notation. *)
+and printer = space -> Format.formatter -> observation list -> Whitespace.t list list -> unit
 
 (* The entry point of the parse tree defining a particular notation must be parametrized either by the representable non-strict interval at that tightness, or by the empty interval in case of a left-closed notation. *)
 and ('left, 'tight) notation_entry =
@@ -148,8 +159,8 @@ and ('left, 'tight, 'right) notation = {
   mutable tree : ('left, 'tight) notation_entry option;
   mutable processor : processor option;
   (* Some notations only make sense in terms, others only make sense in case trees, and some make sense in either.  Thus, a notation can supply either or both of these printing functions. *)
-  mutable print : (Format.formatter -> observation list -> unit) option;
-  mutable print_as_case : (Format.formatter -> observation list -> unit) option;
+  mutable print : printer option;
+  mutable print_as_case : printer option;
 }
 
 module Notation = struct
@@ -172,6 +183,14 @@ let args :
   | Prefix { inner; last; _ } -> Bwd.to_list (Snoc (inner, Term last))
   | Postfix { first; inner; _ } -> Term first :: Bwd.to_list inner
   | Outfix { inner; _ } -> Bwd.to_list inner
+
+let whitespace :
+    type left tight right lt ls rt rs.
+    (left, tight, right, lt, ls, rt, rs) parsed_notn -> Whitespace.t list list = function
+  | Infix { ws; _ } -> ws
+  | Prefix { ws; _ } -> ws
+  | Postfix { ws; _ } -> ws
+  | Outfix { ws; _ } -> ws
 
 let notn :
     type left tight right lt ls rt rs.

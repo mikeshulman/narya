@@ -1,3 +1,4 @@
+open Uuseg_string
 open Printconfig
 
 type t =
@@ -77,4 +78,4 @@ let to_string = function
   | Eof -> "EOF"
 
 (* Given a token, create a constant pretty-printer that prints that token. *)
-let pp tok ppf () = Uuseg_string.pp_utf_8 ppf (to_string tok)
+let pp tok ppf () = pp_utf_8 ppf (to_string tok)

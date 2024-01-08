@@ -33,6 +33,8 @@ let () =
   Types.Nat.install_ops ();
   Types.Sigma.install ();
   print "{fst := 0; snd := 0} : ℕ >< ℕ";
+  print "(0,0,0) : ℕ × ℕ × ℕ";
+  print "((0,0),0) : (ℕ × ℕ) × ℕ";
   print "{fst := x |-> x; snd := 2} : (ℕ -> ℕ) >< ℕ";
   assume "s" "(ℕ → ℕ) × ℕ";
   print "s .fst 3";

@@ -33,7 +33,7 @@ let execute : t -> unit = function
           let etm = Norm.eval (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
-          pp_term Format.std_formatter (Term utm);
+          pp_term `None Format.std_formatter (Term utm);
           Format.pp_print_newline Format.std_formatter ();
           Format.pp_print_newline Format.std_formatter ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
@@ -51,7 +51,7 @@ let pp_command : formatter -> t -> unit =
       pp_print_space ppf ();
       pp_tok ppf Colon;
       pp_print_string ppf " ";
-      pp_term ppf ty;
+      pp_term `None ppf ty;
       pp_close_box ppf ()
   | Def (name, ty, tm) ->
       pp_open_hvbox ppf 2;
@@ -61,16 +61,15 @@ let pp_command : formatter -> t -> unit =
       pp_print_space ppf ();
       pp_tok ppf Colon;
       pp_print_string ppf " ";
-      pp_term ppf ty;
-      pp_print_space ppf ();
+      pp_term `Break ppf ty;
       pp_tok ppf Coloneq;
       pp_print_string ppf " ";
-      pp_term ppf tm;
+      pp_term `None ppf tm;
       pp_close_box ppf ()
   | Echo tm ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Echo;
       pp_print_string ppf " ";
-      pp_term ppf tm;
+      pp_term `None ppf tm;
       pp_close_box ppf ()
   | Eof -> ()

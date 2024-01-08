@@ -66,15 +66,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       Whitespace.t list Bwd.t ->
       (observation Bwd.t * Whitespace.t list Bwd.t * (tight, strict) notation_in_interval) t =
    fun { ops; field; term = _ } obs ws ->
-    let* loc, (br, w, x) =
+    let* loc, (br, x, w) =
       located
         (step (fun state _ (tok, w) ->
              match TokMap.find_opt tok ops with
-             | Some br -> Some ((br, [ w ], None), state)
+             | Some br -> Some ((br, None, [ w ]), state)
              | None -> (
                  (* Field names have already been validated by the lexer. *)
                  match (field, tok) with
-                 | Some br, Field x -> Some ((br, [], Some (Field (x, w))), state)
+                 | Some br, Field x -> Some ((br, Some (Field (x, w)), []), state)
                  | _ -> None))) in
     let x =
       match x with
@@ -430,6 +430,7 @@ module Command_goal = struct
   module C = Combinators (Final)
   open C.Basic
 
+  (* TODO: Save the whitespace! *)
   let token x = step "" (fun state _ (tok, _) -> if tok = x then Some ((), state) else None)
 
   let ident =

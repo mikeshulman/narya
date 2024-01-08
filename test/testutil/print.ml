@@ -7,15 +7,13 @@ open Parse
 let margin = ref 80
 let set_margin n = margin := n
 
-let reformat tm =
+let reformat content =
   let p, _ =
-    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
-  in
+    Parse_term.parse (`New (`Full, `String { content; title = Some "user-supplied term" })) in
   let tr = Parse_term.final p in
-  pp_set_margin std_formatter !margin;
-  pp_set_max_indent std_formatter (max (!margin - 12) (!margin / 2));
+  pp_set_geometry std_formatter ~margin:!margin ~max_indent:(max (!margin - 12) (!margin / 2));
   pp_open_hovbox std_formatter 0;
-  pp_term std_formatter tr;
+  pp_term `None std_formatter tr;
   pp_close_box std_formatter ();
   pp_print_newline std_formatter ();
   pp_print_newline std_formatter ()

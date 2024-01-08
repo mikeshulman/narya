@@ -11,6 +11,8 @@ open Notation
 open Monad.Ops (Monad.Maybe)
 open Printconfig
 
+type 'a located = 'a Asai.Range.located
+
 (* ********************
    Parentheses
  ******************** *)
@@ -60,13 +62,13 @@ let () =
         (fun ctx obs ->
           match obs with
           | [ Term x; Term ty; Term tm; Term body ] -> (
-              let x = get_var x in
+              let x = get_var x.value in
               let ty, tm = (process ctx ty, process ctx tm) in
               match process (Snoc (ctx, x)) body with
               | Synth body -> Synth (Let (x, Asc (tm, ty), body))
               | _ -> fatal (Nonsynthesizing "body of let"))
           | [ Term x; Term tm; Term body ] -> (
-              let x = get_var x in
+              let x = get_var x.value in
               match process ctx tm with
               | Synth term -> (
                   match process (Snoc (ctx, x)) body with
@@ -95,7 +97,7 @@ let () =
         | _ -> fatal (Anomaly "invalid notation arguments for let")
       and pp_let_body ppf tr =
         match tr with
-        | Term (Notn n) when equal (notn n) letin -> pp_let ppf (args n)
+        | Term { value = Notn n; _ } when equal (notn n) letin -> pp_let ppf (args n)
         | _ -> pp_term ppf tr in
       fprintf ppf "@[<hv 0>%a@]" pp_let obs)
 
@@ -139,7 +141,7 @@ let rec get_pi_vars :
   | Ident [ x ] -> Some x :: vars
   | Ident xs -> fatal (Invalid_variable xs)
   | Placeholder -> None :: vars
-  | App { fn; arg = Ident [ x ]; _ } -> get_pi_vars fn (Some x :: vars)
+  | App { fn; arg = { value = Ident [ x ]; _ }; _ } -> get_pi_vars fn.value (Some x :: vars)
   (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
   | _ -> raise Not_a_pi_arg
 
@@ -149,29 +151,29 @@ let get_pi_arg : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option list 
   match arg with
   | Notn n when equal (notn n) asc -> (
       match args n with
-      | [ Term xs; dom ] -> (get_pi_vars xs [], dom)
+      | [ Term xs; dom ] -> (get_pi_vars xs.value [], dom)
       | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
   | _ -> raise Not_a_pi_arg
 
 (* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of variables with types, prepending that list onto the front of the given accumulation list.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type and cons it onto the list. *)
 let rec get_pi_args :
     type lt ls rt rs.
-    (lt, ls, rt, rs) parse ->
+    (lt, ls, rt, rs) parse located ->
     (string option list option * observation) list ->
     (string option list option * observation) list =
  fun doms vars ->
   try
-    match doms with
+    match doms.value with
     | Notn n when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let xs, tys = get_pi_arg body in
+            let xs, tys = get_pi_arg body.value in
             (Some xs, tys) :: vars
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
-    | App { fn; arg = Notn n; _ } when equal (notn n) parens -> (
+    | App { fn; arg = { value = Notn n; _ }; _ } when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let xs, tys = get_pi_arg body in
+            let xs, tys = get_pi_arg body.value in
             get_pi_args fn ((Some xs, tys) :: vars)
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | _ -> raise Not_a_pi_arg
@@ -183,7 +185,7 @@ let rec get_pi :
     observation list -> (string option list option * observation) list * observation = function
   | [ Term dom; Term cod ] ->
       let doms, cod =
-        match cod with
+        match cod.value with
         | Notn n when equal (notn n) arrow -> get_pi (args n)
         | _ -> ([], Term cod) in
       (get_pi_args dom doms, cod)
@@ -194,7 +196,7 @@ let rec process_pi :
     type n lt ls rt rs.
     (string option, n) Bwv.t ->
     (string option list option * observation) list ->
-    (lt, ls, rt, rs) parse ->
+    (lt, ls, rt, rs) parse located ->
     n check =
  fun ctx doms cod ->
   match doms with
@@ -262,20 +264,20 @@ type _ extended_ctx =
   | Extctx : ('n, 'm, 'nm) N.plus * (string option, 'nm) Bwv.t -> 'n extended_ctx
 
 let rec get_vars :
-    type n lt1 ls1 rt1 rs1. (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse -> n extended_ctx
-    =
+    type n lt1 ls1 rt1 rs1.
+    (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse located -> n extended_ctx =
  fun ctx vars ->
-  match vars with
+  match vars.value with
   | Ident [ x ] ->
       (* TODO: Can we report the range for errors produced here? *)
       Extctx (Suc Zero, Snoc (ctx, Some x))
   | Ident xs -> fatal (Invalid_variable xs)
   | Placeholder -> Extctx (Suc Zero, Snoc (ctx, None))
-  | App { fn; arg = Ident [ x ]; _ } ->
+  | App { fn; arg = { value = Ident [ x ]; _ }; _ } ->
       let (Extctx (ab, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (ctx, Some x))
-  | App { arg = Ident xs; _ } -> fatal (Invalid_variable xs)
-  | App { fn; arg = Placeholder; _ } ->
+  | App { arg = { value = Ident xs; _ }; _ } -> fatal (Invalid_variable xs)
+  | App { fn; arg = { value = Placeholder; _ }; _ } ->
       let (Extctx (ab, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (ctx, None))
   | _ -> fatal Parse_error
@@ -344,7 +346,7 @@ let () =
         (fun ctx obs ->
           match obs with
           | [ Term tm; Term d ] -> (
-              match d with
+              match d.value with
               | Ident [ str ] -> (
                   match deg_of_string str with
                   | Some (Any s) -> (
@@ -357,7 +359,7 @@ let () =
     };
   set_print degen @@ fun ppf obs ->
   match obs with
-  | [ tm; Term (Ident [ str ]) ] ->
+  | [ tm; Term { value = Ident [ str ]; _ } ] ->
       fprintf ppf "%a%a%a%a%a" pp_term tm pp_tok (Op "^") pp_tok LBrace pp_print_string str pp_tok
         RBrace
   | _ -> fatal (Anomaly "invalid notation arguments for degeneracy")
@@ -414,7 +416,7 @@ let rec process_struc :
  fun flds ctx obs ->
   match obs with
   | [] -> Raw.Struct flds
-  | Term (Ident [ x ]) :: obs | Term (Field x) :: obs -> (
+  | Term { value = Ident [ x ]; _ } :: obs | Term { value = Field x; _ } :: obs -> (
       match obs with
       | Term tm :: obs ->
           let tm = process ctx tm in
@@ -444,7 +446,7 @@ and pp_fields : formatter -> observation list -> unit =
  fun ppf obs ->
   match obs with
   | [] -> ()
-  | Term (Ident [ x ]) :: obs | Term (Field x) :: obs -> (
+  | Term { value = Ident [ x ]; _ } :: obs | Term { value = Field x; _ } :: obs -> (
       match obs with
       | tm :: obs ->
           (match state () with
@@ -523,12 +525,12 @@ let rec get_pattern :
  fun ctx pat ->
   match pat with
   | Constr c -> (Constr.intern c, Extctx (Zero, ctx))
-  | App { fn; arg = Ident [ x ]; _ } ->
-      let c, Extctx (ab, ctx) = get_pattern ctx fn in
+  | App { fn; arg = { value = Ident [ x ]; _ }; _ } ->
+      let c, Extctx (ab, ctx) = get_pattern ctx fn.value in
       (c, Extctx (Suc ab, Snoc (ctx, Some x)))
-  | App { arg = Ident xs; _ } -> fatal (Invalid_variable xs)
-  | App { fn; arg = Placeholder; _ } ->
-      let c, Extctx (ab, ctx) = get_pattern ctx fn in
+  | App { arg = { value = Ident xs; _ }; _ } -> fatal (Invalid_variable xs)
+  | App { fn; arg = { value = Placeholder; _ }; _ } ->
+      let c, Extctx (ab, ctx) = get_pattern ctx fn.value in
       (c, Extctx (Suc ab, Snoc (ctx, None)))
   | _ -> fatal Parse_error
 
@@ -538,7 +540,7 @@ let rec process_branches : type n. (string option, n) Bwv.t -> observation list 
   match obs with
   | [] -> []
   | Term pat :: Term body :: obs ->
-      let c, Extctx (ab, ectx) = get_pattern ctx pat in
+      let c, Extctx (ab, ectx) = get_pattern ctx pat.value in
       Branch (c, ab, process ectx body) :: process_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for match")
 
@@ -549,11 +551,11 @@ let () =
         (fun ctx obs ->
           match obs with
           (* If the first thing is a valid local variable or cube variable, then it's the match variable. *)
-          | Term (Ident [ ident ]) :: obs -> (
+          | Term { value = Ident [ ident ]; _ } :: obs -> (
               match Bwv.find (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)
               | Some x -> Match ((x, None), process_branches ctx obs))
-          | Term (Ident [ ident; fld ]) :: obs -> (
+          | Term { value = Ident [ ident; fld ]; _ } :: obs -> (
               match (Bwv.find (Some ident) ctx, Dim.sface_of_string fld) with
               | Some x, Some fa -> Match ((x, Some fa), process_branches ctx obs)
               | None, _ -> fatal (Unbound_variable ident)
@@ -571,7 +573,7 @@ let rec pp_branches : bool -> formatter -> observation list -> unit =
       let style = style () in
       if brk || style = `Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match body with
-      | Term (Notn n) when equal (notn n) mtch && style = `Compact ->
+      | Term { value = Notn n; _ } when equal (notn n) mtch && style = `Compact ->
           fprintf ppf "@[<hov 0>@[<hov 4>%a %a@ %a@] %a@]" pp_tok (Op "|") pp_term pat pp_tok Mapsto
             (pp_match false) (args n)
       | _ ->
@@ -584,7 +586,7 @@ let rec pp_branches : bool -> formatter -> observation list -> unit =
 
 and pp_match box ppf obs =
   match obs with
-  | (Term (Ident _) as x) :: obs ->
+  | (Term { value = Ident _; _ } as x) :: obs ->
       if box then pp_open_vbox ppf 0;
       pp_tok ppf LBracket;
       pp_print_string ppf " ";

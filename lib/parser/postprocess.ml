@@ -6,6 +6,7 @@ open Raw
 open Bwd
 open Reporter
 open Notation
+open Asai.Range
 open Monad.Ops (Monad.Maybe)
 
 (* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
@@ -25,15 +26,15 @@ let process_numeral (n : Q.t) =
 
 (* Now the master postprocessing function.  Note that this function calls the "process" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
-let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, rs) parse -> n check
-    =
+let rec process :
+    type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, rs) parse located -> n check =
  fun ctx res ->
-  match res with
+  match res.value with
   | Notn n -> (processor (notn n)).process ctx (args n)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
   | App { fn; arg; _ } -> (
       match
-        match fn with
+        match fn.value with
         | Ident [ str ] -> process_deg ctx str arg
         | _ -> None
       with
@@ -42,7 +43,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
           let fn = process ctx fn in
           match fn with
           | Synth fn -> (
-              match arg with
+              match arg.value with
               | Field fld -> Synth (Field (fn, Field.intern fld))
               | _ -> Synth (Raw.App (fn, process ctx arg)))
           | Constr (head, args) ->
@@ -78,7 +79,7 @@ let rec process : type n lt ls rt rs. (string option, n) Bwv.t -> (lt, ls, rt, r
 
 and process_deg :
     type n lt ls rt rs.
-    (string option, n) Bwv.t -> string -> (lt, ls, rt, rs) parse -> n check option =
+    (string option, n) Bwv.t -> string -> (lt, ls, rt, rs) parse located -> n check option =
  fun ctx str arg ->
   match deg_of_name str with
   | Some (Any s) -> (

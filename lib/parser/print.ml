@@ -21,11 +21,11 @@ let rec pp_term (ppf : formatter) (wtr : observation) : unit =
   let (Term tr) = wtr in
   match state () with
   | `Case -> (
-      match tr with
+      match tr.value with
       | Notn n -> pp_notn_case ppf (notn n) (args n) wtr
       | _ -> as_term @@ fun () -> pp_term ppf wtr)
   | `Term -> (
-      match tr with
+      match tr.value with
       | Notn n -> pp_notn ppf (notn n) (args n)
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
       | Placeholder -> pp_tok ppf Underscore
@@ -51,5 +51,6 @@ and pp_notn :
 
 and pp_spine (ppf : formatter) (tr : observation) : unit =
   match tr with
-  | Term (App { fn; arg; _ }) -> fprintf ppf "%a@ %a" pp_spine (Term fn) pp_term (Term arg)
+  | Term { value = App { fn; arg; _ }; _ } ->
+      fprintf ppf "%a@ %a" pp_spine (Term fn) pp_term (Term arg)
   | _ -> pp_term ppf tr

@@ -1,6 +1,7 @@
 open Bwd
 open Util
 open Core.Syntax.Raw
+open Asai.Range
 module TokMap : module type of Map.Make (Token)
 
 type closed = Dummy_closed
@@ -30,14 +31,14 @@ and ('t, 's) branch = {
 }
 
 and ('t, 's) entry = ('t, 's) tree TokMap.t
-and observation = Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
+and observation = Term : ('lt, 'ls, 'rt, 'rs) parse located -> observation
 and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn
 
 and (_, _, _, _) parse =
   | Notn : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('lt, 'ls, 'rt, 'rs) parse
   | App : {
-      fn : ('lt, 'ls, No.plus_omega, No.nonstrict) parse;
-      arg : (No.plus_omega, No.strict, 'rt, 'rs) parse;
+      fn : ('lt, 'ls, No.plus_omega, No.nonstrict) parse located;
+      arg : (No.plus_omega, No.strict, 'rt, 'rs) parse located;
       left_ok : ('lt, 'ls, No.plus_omega) No.lt;
       right_ok : ('rt, 'rs, No.plus_omega) No.lt;
     }
@@ -63,9 +64,9 @@ val empty_branch : ('left, 'tight) branch
 
 val infix :
   notn:('a opn, 'b, 'c opn) notation ->
-  first:('d, 'e, 'b, 'a) parse ->
+  first:('d, 'e, 'b, 'a) parse located ->
   inner:observation Bwd.t ->
-  last:('b, 'c, 'f, 'g) parse ->
+  last:('b, 'c, 'f, 'g) parse located ->
   left_ok:('d, 'e, 'b) Util.No.lt ->
   right_ok:('f, 'g, 'b) Util.No.lt ->
   ('d, 'e, 'f, 'g) parse
@@ -73,13 +74,13 @@ val infix :
 val prefix :
   notn:(closed, 'a, 'b opn) notation ->
   inner:observation Bwd.t ->
-  last:('a, 'b, 'c, 'd) parse ->
+  last:('a, 'b, 'c, 'd) parse located ->
   right_ok:('c, 'd, 'a) Util.No.lt ->
   ('e, 'f, 'c, 'd) parse
 
 val postfix :
   notn:('a opn, 'b, closed) notation ->
-  first:('c, 'd, 'b, 'a) parse ->
+  first:('c, 'd, 'b, 'a) parse located ->
   inner:observation Bwd.t ->
   left_ok:('c, 'd, 'b) Util.No.lt ->
   ('c, 'd, 'e, 'f) parse
@@ -91,7 +92,7 @@ val notn :
   ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('left, 'tight, 'right) notation
 
 type ('lt, 'ls) right_wrapped_parse = {
-  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse, string) Result.t;
+  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
 }
 
 val name : ('left, 'tight, 'right) notation -> string

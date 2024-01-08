@@ -26,4 +26,18 @@ let convert (pos1, pos2) =
     else fatal (Anomaly "Zero-width range during parse failure before EOF")
   else make (convert_pos src.source pos1, convert_pos src.source pos2)
 
+let merge loc1 loc2 =
+  match (view loc1, view loc2) with
+  | `Range (p1, _), `Range (_, p2) -> make (p1, p2)
+  | _, `End_of_file p -> eof p
+  | `End_of_file p, _ -> eof p
+
+let merge_opt loc1 loc2 =
+  match (loc1, loc2) with
+  | Some loc1, Some loc2 -> Some (merge loc1 loc2)
+  | Some loc1, None -> Some loc1
+  | None, Some loc2 -> Some loc2
+  | None, None -> None
+
+let merge_opt3 loc1 loc2 loc3 = merge_opt (merge_opt loc1 loc2) loc3
 let run = S.run

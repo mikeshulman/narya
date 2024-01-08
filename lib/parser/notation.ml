@@ -4,6 +4,7 @@ open Core
 open Syntax.Raw
 open Reporter
 module TokMap = Map.Make (Token)
+open Asai.Range
 
 (* A notation is either open or closed, on both sides.  We call these two properties combined its "fixity", since they are equivalent to the traditional classification as infix, prefix, postfix, or "outfix".
 
@@ -68,15 +69,15 @@ and ('t, 's) branch = {
 and ('t, 's) entry = ('t, 's) tree TokMap.t
 
 (* If we weren't using intrinsically well-scoped De Bruijn indices, then the typechecking context and the type of raw terms would be simply ordinary types, and we could use the one as the parsing State and the other as the parsing Result.  However, the Fmlib parser isn't set up to allow a parametrized family of state types, with the output of a parsing combinator depending on the state (and it would be tricky to do that correctly anyway).  So instead we record the result of parsing as a syntax tree with idents, and have a separate step of "postprocessing" that makes it into a raw term.  This has the additional advantage that by parsing and pretty-printing we can reformat code even if it is not well-scoped. *)
-and observation = Term : ('lt, 'ls, 'rt, 'rs) parse -> observation
+and observation = Term : ('lt, 'ls, 'rt, 'rs) parse located -> observation
 
 (* A parsed notation, with its own tightness and openness, and lying in specified left and right tightness intervals, has a Bwd of observations in its inner holes, plus possibly a first and/or last term depending on its openness.  It is parametrized by the openness and tightness of the notation, and also by upper tightness intervals from the left and right in which it is guaranteed to lie.  Thus, the first and last term (if any) can be guaranteed statically to be valid, and we may require witnesses that the notation is tight enough on the left and/or the right (also depending on its openness) to fit in the specified intervals. *)
 and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
   | Infix : {
       notn : ('left opn, 'tight, 'right opn) notation;
-      first : ('lt, 'ls, 'tight, 'left) parse;
+      first : ('lt, 'ls, 'tight, 'left) parse located;
       inner : observation Bwd.t;
-      last : ('tight, 'right, 'rt, 'rs) parse;
+      last : ('tight, 'right, 'rt, 'rs) parse located;
       left_ok : ('lt, 'ls, 'tight) No.lt;
       right_ok : ('rt, 'rs, 'tight) No.lt;
     }
@@ -84,13 +85,13 @@ and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
   | Prefix : {
       notn : (closed, 'tight, 'right opn) notation;
       inner : observation Bwd.t;
-      last : ('tight, 'right, 'rt, 'rs) parse;
+      last : ('tight, 'right, 'rt, 'rs) parse located;
       right_ok : ('rt, 'rs, 'tight) No.lt;
     }
       -> (closed, 'tight, 'right opn, 'lt, 'ls, 'rt, 'rs) parsed_notn
   | Postfix : {
       notn : ('left opn, 'tight, closed) notation;
-      first : ('lt, 'ls, 'tight, 'left) parse;
+      first : ('lt, 'ls, 'tight, 'left) parse located;
       inner : observation Bwd.t;
       left_ok : ('lt, 'ls, 'tight) No.lt;
     }
@@ -106,8 +107,8 @@ and (_, _, _, _) parse =
   | Notn : ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('lt, 'ls, 'rt, 'rs) parse
   (* We treat application as a left-associative binary infix operator of tightness +ω.  Note that like any infix operator, its left argument must be in its left interval and its right argument must be in its right interval. *)
   | App : {
-      fn : ('lt, 'ls, No.plus_omega, No.nonstrict) parse;
-      arg : (No.plus_omega, No.strict, 'rt, 'rs) parse;
+      fn : ('lt, 'ls, No.plus_omega, No.nonstrict) parse located;
+      arg : (No.plus_omega, No.strict, 'rt, 'rs) parse located;
       left_ok : ('lt, 'ls, No.plus_omega) No.lt;
       right_ok : ('rt, 'rs, No.plus_omega) No.lt;
     }
@@ -175,7 +176,7 @@ let notn :
 
 (* When parsing from left to right, we have to return a partial parse tree without knowing yet what tightness interval it will have to be in from the right.  So we return it as a callback that takes that interval as an argument and can fail, returning the name of the offending notation if it fails.  One could argue that instead the allowable tightness intervals should be returned along with the partial parse tree and used to restrict the allowable notations parsed afterwards.  But that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Doing it this way also makes it easier to trap it and issue a more informative error message. *)
 type ('lt, 'ls) right_wrapped_parse = {
-  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse, string) Result.t;
+  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
 }
 
 (* The primary key is used to compare notations. *)

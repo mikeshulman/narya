@@ -30,12 +30,12 @@ let () =
             match obs with
             | [ one; b ] -> (
                 match one with
-                | Term (Notn n) when equal (notn n) Builtins.parens -> (
+                | Term { value = Notn n; _ } when equal (notn n) Builtins.parens -> (
                     match args n with
-                    | [ Term (Notn n) ] when equal (notn n) Builtins.asc -> (
+                    | [ Term { value = Notn n; _ } ] when equal (notn n) Builtins.asc -> (
                         match args n with
-                        | [ Term (Ident [ x ]); Term a ] -> (Some x, Term a, b)
-                        | [ Term Placeholder; Term a ] -> (None, Term a, b)
+                        | [ Term { value = Ident [ x ]; _ }; Term a ] -> (Some x, Term a, b)
+                        | [ Term { value = Placeholder; _ }; Term a ] -> (None, Term a, b)
                         | _ -> (None, one, b))
                     | _ -> (None, one, b))
                 | _ -> (None, one, b))

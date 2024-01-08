@@ -16,7 +16,7 @@ end
 module SemanticError = struct
   type t =
     (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because applications are implemented specially in the parser and not as an actual Notation. *)
-    | No_relative_precedence of Position.range * string * string
+    | No_relative_precedence of Asai.Range.t * string * string
 end
 
 (* The functor that defines all the term-parsing combinators. *)
@@ -27,6 +27,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   (* We aren't using Fmlib's error reporting, so there's no point in supplying it nonempty "expect" strings. *)
   let step f = step "" f
   let followed_by f = followed_by f ""
+
+  (* Similarly, we want locations reported using Asai ranges rather than Fmlib ones. *)
+  let located c =
+    let* rng, x = located c in
+    return (Range.convert rng, x)
+
+  let locate (loc : Asai.Range.t) (value : 'a) : 'a Asai.Range.located = { value; loc = Some loc }
 
   let rec tree :
       type tight strict.
@@ -57,15 +64,20 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       observation Bwd.t ->
       (observation Bwd.t * (tight, strict) notation_in_interval) t =
    fun { ops; field; term = _ } obs ->
-    let* br, x =
-      step (fun state _ tok ->
-          match TokMap.find_opt tok ops with
-          | Some br -> Some ((br, ([] : observation list)), state)
-          | None -> (
-              (* Field names have already been validated by the lexer. *)
-              match (field, tok) with
-              | Some br, Field x -> Some ((br, [ Term (Field x) ]), state)
-              | _ -> None)) in
+    let* loc, (br, x) =
+      located
+        (step (fun state _ tok ->
+             match TokMap.find_opt tok ops with
+             | Some br -> Some ((br, None), state)
+             | None -> (
+                 (* Field names have already been validated by the lexer. *)
+                 match (field, tok) with
+                 | Some br, Field x -> Some ((br, Some (Field x)), state)
+                 | _ -> None))) in
+    let x =
+      match x with
+      | None -> []
+      | Some x -> [ Term (locate loc x) ] in
     tree br (Bwd.append obs x)
 
   and tree_op :
@@ -93,12 +105,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (lt, ls) Interval.tt -> (rt, rs) tree TokMap.t -> (lt, ls) right_wrapped_parse t =
    fun tight stop ->
     let* res =
-      (let* inner, notn = entry (State.left_closeds ()) in
+      (let* inner_loc, (inner, notn) = located (entry (State.left_closeds ())) in
        match notn with
        | Open_in_interval (lt, _) -> No.plusomega_nlt lt
        | Closed_in_interval notn -> (
            match right notn with
-           | Closed -> return { get = (fun _ -> Ok (outfix ~notn ~inner)) }
+           | Closed -> return { get = (fun _ -> Ok (locate inner_loc (outfix ~notn ~inner))) }
            | Open _ ->
                (* If the parse ended right-open, we call "lclosed" again, with the right-side upper tightness interval of the just-parsed notation, to pick up the open argument.  Since the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
                let* last_arg = lclosed (interval_right notn) stop in
@@ -111,17 +123,35 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                        | None -> Error (name notn)
                        | Some right_ok -> (
                            match last_arg.get ivl with
-                           | Ok last -> Ok (prefix ~notn ~inner ~last ~right_ok)
+                           | Ok last ->
+                               Ok
+                                 {
+                                   value = prefix ~notn ~inner ~last ~right_ok;
+                                   loc = Range.merge_opt (Some inner_loc) last.loc;
+                                 }
                            | Error e -> Error e));
                  }))
       (* Otherwise, we parse a single ident or constructor. *)
-      </> step (fun state _ tok ->
-              match tok with
-              | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
-              (* Constructor names have already been validated by the lexer. *)
-              | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
-              | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
-              | _ -> None) in
+      </> let* loc, tm =
+            located
+              (step (fun state _ tok ->
+                   match tok with
+                   | Ident x -> Some (`Ident x, state)
+                   (* Constructor names have already been validated by the lexer. *)
+                   | Constr x -> Some (`Constr x, state)
+                   | Underscore -> Some (`Placeholder, state)
+                   | _ -> None)) in
+          return
+            {
+              get =
+                (fun _ ->
+                  Ok
+                    (locate loc
+                       (match tm with
+                       | `Ident x -> Ident x
+                       | `Constr x -> Constr x
+                       | `Placeholder -> Placeholder)));
+            } in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
     lopen tight stop res
 
@@ -149,98 +179,128 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                  return (first_arg, state)))
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
         </> (let* res =
-               (let* rng, (inner, notn) = located (entry (State.tighters tight)) in
+               (let* inner_loc, (inner, notn) = located (entry (State.tighters tight)) in
                 match notn with
                 | Open_in_interval (left_ok, notn) -> (
-                    match first_arg.get (interval_left notn) with
-                    | Error e -> fail (No_relative_precedence (rng, e, name notn))
-                    | Ok first -> (
-                        match right notn with
-                        | Closed ->
-                            return { get = (fun _ -> Ok (postfix ~notn ~first ~inner ~left_ok)) }
-                        | Open _ ->
-                            let* last_arg = lclosed (interval_right notn) stop in
-                            return
-                              {
-                                get =
-                                  (fun ivl ->
-                                    match
-                                      (last_arg.get ivl, Interval.contains ivl (tightness notn))
-                                    with
-                                    | Ok last, Some right_ok ->
-                                        Ok (infix ~notn ~first ~inner ~last ~left_ok ~right_ok)
-                                    | Error e, _ -> Error e
-                                    | _, None -> Error (name notn));
-                              }))
+                    match (first_arg.get (interval_left notn), right notn) with
+                    | Error e, _ -> fail (No_relative_precedence (inner_loc, e, name notn))
+                    | Ok first, Closed ->
+                        return
+                          {
+                            get =
+                              (fun _ ->
+                                Ok
+                                  {
+                                    value = postfix ~notn ~first ~inner ~left_ok;
+                                    loc = Range.merge_opt first.loc (Some inner_loc);
+                                  });
+                          }
+                    | Ok first, Open _ ->
+                        let* last_arg = lclosed (interval_right notn) stop in
+                        return
+                          {
+                            get =
+                              (fun ivl ->
+                                match
+                                  (last_arg.get ivl, Interval.contains ivl (tightness notn))
+                                with
+                                | Ok last, Some right_ok ->
+                                    Ok
+                                      {
+                                        value = infix ~notn ~first ~inner ~last ~left_ok ~right_ok;
+                                        loc = Range.merge_opt3 first.loc (Some inner_loc) last.loc;
+                                      }
+                                | Error e, _ -> Error e
+                                | _, None -> Error (name notn));
+                          })
                 | Closed_in_interval notn -> (
-                    match first_arg.get Interval.plus_omega_only with
-                    | Error e -> fail (No_relative_precedence (rng, e, "application"))
-                    | Ok fn -> (
-                        match right notn with
-                        | Closed ->
-                            return
-                              {
-                                get =
-                                  (fun ivl ->
-                                    match Interval.contains ivl No.plus_omega with
-                                    | None -> Error "application"
-                                    | Some right_ok ->
-                                        Ok
-                                          (App
-                                             {
-                                               fn;
-                                               arg = outfix ~notn ~inner;
-                                               left_ok = nontrivial;
-                                               right_ok;
-                                             }));
-                              }
-                        | Open _ ->
-                            let* last_arg = lclosed (interval_right notn) stop in
-                            return
-                              {
-                                get =
-                                  (fun ivl ->
-                                    match
-                                      ( last_arg.get ivl,
-                                        Interval.contains ivl (tightness notn),
-                                        Interval.contains ivl No.plus_omega )
-                                    with
-                                    | Ok last, Some right_ok, Some right_app ->
-                                        Ok
-                                          (App
-                                             {
-                                               fn;
-                                               arg = prefix ~notn ~inner ~last ~right_ok;
-                                               left_ok = nontrivial;
-                                               right_ok = right_app;
-                                             })
-                                    | Error e, _, _ -> Error e
-                                    | _, None, _ -> Error (name notn)
-                                    | _, _, None -> Error "application");
-                              })))
+                    match (first_arg.get Interval.plus_omega_only, right notn) with
+                    | Error e, _ -> fail (No_relative_precedence (inner_loc, e, "application"))
+                    | Ok fn, Closed ->
+                        return
+                          {
+                            get =
+                              (fun ivl ->
+                                match Interval.contains ivl No.plus_omega with
+                                | None -> Error "application"
+                                | Some right_ok ->
+                                    let value =
+                                      App
+                                        {
+                                          fn;
+                                          arg = locate inner_loc (outfix ~notn ~inner);
+                                          left_ok = nontrivial;
+                                          right_ok;
+                                        } in
+                                    let loc = Range.merge_opt fn.loc (Some inner_loc) in
+                                    Ok { value; loc });
+                          }
+                    | Ok fn, Open _ ->
+                        let* last_arg = lclosed (interval_right notn) stop in
+                        return
+                          {
+                            get =
+                              (fun ivl ->
+                                match
+                                  ( last_arg.get ivl,
+                                    Interval.contains ivl (tightness notn),
+                                    Interval.contains ivl No.plus_omega )
+                                with
+                                | Ok last, Some right_ok, Some right_app ->
+                                    let arg_loc = Range.merge_opt (Some inner_loc) last.loc in
+                                    Ok
+                                      {
+                                        value =
+                                          App
+                                            {
+                                              fn;
+                                              arg =
+                                                {
+                                                  value = prefix ~notn ~inner ~last ~right_ok;
+                                                  loc = arg_loc;
+                                                };
+                                              left_ok = nontrivial;
+                                              right_ok = right_app;
+                                            };
+                                        loc = Range.merge_opt fn.loc arg_loc;
+                                      }
+                                | Error e, _, _ -> Error e
+                                | _, None, _ -> Error (name notn)
+                                | _, _, None -> Error "application");
+                          }))
                (* If this fails, we can parse a single variable name, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
-               </> let* rng, arg =
+               </> let* arg_loc, arg =
                      located
                        (step (fun state _ tok ->
                             match tok with
-                            | Ident x -> Some ({ get = (fun _ -> Ok (Ident x)) }, state)
+                            | Ident x -> Some (`Ident x, state)
                             (* Constructor and field names have already been validated by the lexer. *)
-                            | Constr x -> Some ({ get = (fun _ -> Ok (Constr x)) }, state)
-                            | Underscore -> Some ({ get = (fun _ -> Ok Placeholder) }, state)
-                            | Field x -> Some ({ get = (fun _ -> Ok (Field x)) }, state)
+                            | Constr x -> Some (`Constr x, state)
+                            | Underscore -> Some (`Placeholder, state)
+                            | Field x -> Some (`Field x, state)
                             | _ -> None)) in
                    match first_arg.get Interval.plus_omega_only with
-                   | Error e -> fail (No_relative_precedence (rng, e, "application"))
+                   | Error e -> fail (No_relative_precedence (arg_loc, e, "application"))
                    | Ok fn ->
                        return
                          {
                            get =
                              (fun ivl ->
-                               match (arg.get ivl, Interval.contains ivl No.plus_omega) with
-                               | Ok arg, Some right_ok ->
-                                   Ok (App { fn; arg; left_ok = nontrivial; right_ok })
-                               | Error e, _ -> Error e
-                               | _, None -> Error "application");
+                               match Interval.contains ivl No.plus_omega with
+                               | Some right_ok ->
+                                   let arg =
+                                     locate arg_loc
+                                       (match arg with
+                                       | `Ident x -> Ident x
+                                       | `Constr x -> Constr x
+                                       | `Placeholder -> Placeholder
+                                       | `Field x -> Field x) in
+                                   Ok
+                                     {
+                                       value = App { fn; arg; left_ok = nontrivial; right_ok };
+                                       loc = Range.merge_opt fn.loc (Some arg_loc);
+                                     }
+                               | None -> Error "application");
                          } in
              (* Same comment here about carrying over "tight" as in lclosed. *)
              lopen tight stop res)
@@ -331,8 +391,7 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
       fatal ~loc:(Range.convert (range p)) Parse_error
     else if has_failed_semantic p then
       match failed_semantic p with
-      | No_relative_precedence (rng, n1, n2) ->
-          fatal ~loc:(Range.convert rng) (No_relative_precedence (n1, n2))
+      | No_relative_precedence (loc, n1, n2) -> fatal ~loc (No_relative_precedence (n1, n2))
     else if has_succeeded p then (p, (env, ic))
     else if needs_more p then fatal (Anomaly "parser needs more")
     else fatal (Anomaly "what")

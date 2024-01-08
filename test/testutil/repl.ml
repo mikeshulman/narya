@@ -33,8 +33,10 @@ let check_term (rtm : N.zero check located) (ety : value) : emp term =
   Reporter.trace "when checking term" @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
-  match Parser.Lexer.Parser.single name with
-  | Some (Ident name) ->
+  let p, _ =
+    Parse_term.parse (`New (`Full, `String { title = Some "constant name"; content = name })) in
+  match Parse_term.final p with
+  | Term { value = Ident name; _ } ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
       else
@@ -45,8 +47,10 @@ let assume (name : string) (ty : string) : unit =
   | _ -> fatal (Invalid_constant_name name)
 
 let def (name : string) (ty : string) (tm : string) : unit =
-  match Parser.Lexer.Parser.single name with
-  | Some (Ident name) ->
+  let p, _ =
+    Parse_term.parse (`New (`Full, `String { title = Some "constant name"; content = name })) in
+  match Parse_term.final p with
+  | Term { value = Ident name; _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))

@@ -189,8 +189,8 @@ module Code = struct
     | Constant_already_defined _ -> "E1400"
     | Invalid_constant_name _ -> "E1401"
     (* Information *)
-    | Constant_assumed _ -> "I0000"
-    | Constant_defined _ -> "I0001"
+    | Constant_defined _ -> "I0000"
+    | Constant_assumed _ -> "I0001"
     (* Debugging *)
     | Show _ -> "I9999"
 

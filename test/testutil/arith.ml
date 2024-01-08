@@ -37,7 +37,7 @@ let rec pow x y =
   else x * pow x (y - 1)
 
 let rec eval : type lt ls rt rs. (lt, ls, rt, rs) parse -> int = function
-  | Ident n ->
+  | Ident (n, _) ->
       let n = Q.of_string (String.concat "." n) in
       if n.den = Z.one then Z.to_int n.num else raise Syntax_error
   | App { fn; arg; _ } ->

@@ -28,10 +28,10 @@ let rec pp_term (ppf : formatter) (wtr : observation) : unit =
       match tr.value with
       | Notn n -> pp_notn ppf (notn n) (args n)
       | App _ -> fprintf ppf "@[<hov 2>%a@]" pp_spine wtr
-      | Placeholder -> pp_tok ppf Underscore
-      | Ident x -> pp_utf_8 ppf (String.concat "." x)
-      | Constr c -> pp_constr ppf c
-      | Field f -> pp_field ppf f)
+      | Placeholder _w -> pp_tok ppf Underscore
+      | Ident (x, _w) -> pp_utf_8 ppf (String.concat "." x)
+      | Constr (c, _w) -> pp_constr ppf c
+      | Field (f, _w) -> pp_field ppf f)
 
 and pp_notn_case :
     type left tight right.

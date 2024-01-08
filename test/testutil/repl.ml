@@ -36,7 +36,7 @@ let assume (name : string) (ty : string) : unit =
   let p, _ =
     Parse_term.parse (`New (`Full, `String { title = Some "constant name"; content = name })) in
   match Parse_term.final p with
-  | Term { value = Ident name; _ } ->
+  | Term { value = Ident (name, _); _ } ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
       else
@@ -50,7 +50,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
   let p, _ =
     Parse_term.parse (`New (`Full, `String { title = Some "constant name"; content = name })) in
   match Parse_term.final p with
-  | Term { value = Ident name; _ } ->
+  | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       let const = Scope.define name in
       if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))

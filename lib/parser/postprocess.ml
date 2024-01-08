@@ -11,9 +11,9 @@ open Monad.Ops (Monad.Maybe)
 
 (* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option = function
-  | Ident [ x ] -> Some x
-  | Ident xs -> fatal (Invalid_variable xs)
-  | Placeholder -> None
+  | Ident ([ x ], _) -> Some x
+  | Ident (xs, _) -> fatal (Invalid_variable xs)
+  | Placeholder _ -> None
   | _ -> fatal Parse_error
 
 (* At present we only know how to postprocess natural number numerals. *)
@@ -42,7 +42,7 @@ let rec process :
   | App { fn; arg; _ } -> (
       match
         match fn.value with
-        | Ident [ str ] -> process_deg ctx str arg
+        | Ident ([ str ], _) -> process_deg ctx str arg
         | _ -> None
       with
       | Some tm -> { value = tm; loc }
@@ -52,14 +52,14 @@ let rec process :
           | Synth vfn -> (
               let fn = { value = vfn; loc = fn.loc } in
               match arg.value with
-              | Field fld -> { value = Synth (Field (fn, Field.intern fld)); loc }
+              | Field (fld, _) -> { value = Synth (Field (fn, Field.intern fld)); loc }
               | _ -> { value = Synth (Raw.App (fn, process ctx arg)); loc })
           | Constr (head, args) ->
               let arg = process ctx arg in
               { value = Raw.Constr (head, Snoc (args, arg)); loc }
           | _ -> fatal (Nonsynthesizing "application head")))
-  | Placeholder -> fatal (Unimplemented "unification arguments")
-  | Ident parts -> (
+  | Placeholder _ -> fatal (Unimplemented "unification arguments")
+  | Ident (parts, _) -> (
       let open Monad.Ops (Monad.Maybe) in
       match
         match parts with
@@ -81,7 +81,7 @@ let rec process :
                 | [ str ] when Option.is_some (deg_of_name str) ->
                     fatal (Missing_argument_of_degeneracy str)
                 | _ -> fatal (Unbound_variable (String.concat "." parts))))))
-  | Constr ident -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, Emp); loc }
+  | Constr (ident, _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, Emp); loc }
   | Field _ -> fatal (Anomaly "Field is head")
 
 and process_deg :

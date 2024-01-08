@@ -430,35 +430,34 @@ module Command_goal = struct
   module C = Combinators (Final)
   open C.Basic
 
-  (* TODO: Save the whitespace! *)
-  let token x = step "" (fun state _ (tok, _) -> if tok = x then Some ((), state) else None)
+  let token x = step "" (fun state _ (tok, w) -> if tok = x then Some (w, state) else None)
 
   let ident =
-    step "" (fun state _ (tok, _) ->
+    step "" (fun state _ (tok, w) ->
         match tok with
-        | Ident name -> Some (name, state)
+        | Ident name -> Some ((name, w), state)
         | _ -> None)
 
   let axiom =
-    let* () = token Axiom in
-    let* name = ident in
-    let* () = token Colon in
+    let* wsaxiom = token Axiom in
+    let* name, wsname = ident in
+    let* wscolon = token Colon in
     let* ty = C.term () in
-    return (Command.Axiom (name, ty))
+    return (Command.Axiom { wsaxiom; name; wsname; wscolon; ty })
 
   let def =
-    let* () = token Def in
-    let* name = ident in
-    let* () = token Colon in
+    let* wsdef = token Def in
+    let* name, wsname = ident in
+    let* wscolon = token Colon in
     let* ty = C.term () in
-    let* () = token Coloneq in
+    let* wscoloneq = token Coloneq in
     let* tm = C.term () in
-    return (Command.Def (name, ty, tm))
+    return (Command.Def { wsdef; name; wsname; wscolon; ty; wscoloneq; tm })
 
   let echo =
-    let* () = token Echo in
+    let* wsecho = token Echo in
     let* tm = C.term () in
-    return (Command.Echo tm)
+    return (Command.Echo { wsecho; tm })
 
   let final : unit -> Command.t C.Basic.t = fun () -> axiom </> def </> echo
   let eof : unit -> Command.t = fun () -> Eof
@@ -475,7 +474,7 @@ module Command_or_echo_goal = struct
    fun () ->
     Command_goal.final ()
     </> let* tm = C.term () in
-        return (Command.Echo tm)
+        return (Command.Echo { wsecho = []; tm })
 
   let eof () = Command_goal.eof ()
 end

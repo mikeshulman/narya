@@ -7,17 +7,25 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Zarith](https://antoinemine.github.io/Zarith/doc/latest/index.html), [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html), [Bwd](https://github.com/redprl/ocaml-bwd), [Algaeff](https://redprl.org/algaeff/algaeff/Algaeff/index.html), [Asai](https://redprl.org/asai/asai/), and [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/).
+Narya requires OCaml version 5.1.0 and the libraries [Zarith](https://antoinemine.github.io/Zarith/doc/latest/index.html), [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html), [Bwd](https://github.com/redprl/ocaml-bwd), [Algaeff](https://redprl.org/algaeff/algaeff/Algaeff/index.html), [Asai](https://redprl.org/asai/asai/), and [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/).  Currently it requires a pre-release version of fmlib.
 
 ```
 opam switch create 5.1.0
-opam install zarith fmlib_parse bwd algaeff asai yuujinchou
-cd narya
+opam install zarith bwd algaeff asai yuujinchou
+
+git clone git@github.com:hbr/fmlib.git
+cd fmlib
+git checkout parse
+dune build
+dune install
+
+cd ../narya
 dune build
 dune runtest
+dune exec bin/narya.exe
 ```
 
-There is no main executable yet, but you can load the library in a new OCaml executable and interact with it using the `Repl` commands mentioned below.  An example can be found in [constants.ml](test/white/constants.ml).
+To pass arguments to the executable when run with `dune exec`, put them after a `--`.  For instance, `dune exec bin/narya.exe -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
 
 ## Parsing
@@ -51,7 +59,7 @@ Abstraction, ascription, and let-bindings have tightness −ω, so they bind mor
 
 The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: `(x : A) → B` could be a dependent function type, but it could also be a *non-dependent* function type whose domain `x` is ascribed to type `A`.  Narya resolves this in favor of the dependent function type, which is nearly always what is intended; if you really mean the other you can write it as `((x : A)) → B` or `((x) : A) → B`.
 
-There is also a syntax for comments, although these are not so useful yet when writing only single terms.  A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments can be nested.  However, if (part of) a block comment appears on a line before any code, then no code may appear on that line at all.  In other words, the only whitespace that can appear on a line before code is 0x20 SPACE (tab characters are not allowed anywhere).  (This may change.)
+A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments can be nested.
 
 As in Agda, mixfix notations can involve arbitrary Unicode characters, but must usually be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, in Narya this has the following exceptions:
 
@@ -66,22 +74,23 @@ As in Agda, mixfix notations can involve arbitrary Unicode characters, but must 
 
 Numerals are strings consisting of digits and periods, not starting or ending with a period.  Identifiers (variables and constant names) can be any string consisting of non-whitespace characters other than the above two groups that does *not* consist entirely of digits and periods, and does not start or end with a period.  (In particular, identifiers may start with a digit as long as they do not consist entirely of digits and periods.)  Field names, which must be identifiers, are prefixed a period when accessed, and likewise constructor names are postfixed a period when applied.  Identifiers prefixed with one or more underscores are reserved for internal use.  Internal periods in identifiers are reserved to denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names.
 
-## REPL
+## Files and commands
 
-Narya cannot read and parse an entire file yet, so one has to interact with it as an OCaml library.  Currently the easiest way to do this is with the following functions defined in `Testutil.Repl`.  They must be called inside a wrapper of `run @@ fun () ->` which supplies a namespace for definitions, with each call to `run` using a fresh namespace.
+A Narya file is a sequence of commands.  Conventionally each command begins on a new line, but this is not necessary for parsing.  Indentation is not significant.  So far, the available commands are:
 
-- `def NAME TYPE TERM` – Define a global constant called `NAME` having type `TYPE` and value `TERM`.  The arguments `NAME`, `TYPE`, and `TERM` must all be (double-quoted) OCaml strings.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).
+1. `def NAME : TYPE ≔ TERM` – Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).
 
-- `assume NAME TYPE` – Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).
+2. `axiom NAME : TYPE` – Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).
 
-- `undef NAME` – Remove the global constant `NAME` from the environment.
+3. `echo TERM` – Normalize `TERM` and print its value to standard output.  Note that `TERM` must synthesize a type; if it is a checking term you must ascribe it. 
 
-- `equal_at M N T` – Check that the terms `M` and `N` both belong to the type `T` and are equal.
+When the Narya executable is run, it executes all the files given on its command line, in order.  As usual, the special filename `-` refers to standard input.  It then executes any strings supplied on the command line with `-e`.  Finally, if `-i` was given, it enters interactive mode.
 
-- `unequal_at M N T` – Check that the terms `M` and `N` both belong to the type `T` but are *not* equal.
+## Interactive mode
 
-For an example of how to use these functions, see the file [constants.ml](test/white/constants.ml).
+In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  The result of the commands is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.
 
+In addition, in interactive mode the user can enter a term instead of a command, and Narya will assume you mean to `echo` it.
 
 ## Constants, records, datatypes, and case trees
 

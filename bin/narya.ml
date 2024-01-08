@@ -78,14 +78,14 @@ class read_line terminal history prompt =
     inherit LTerm_read_line.read_line ~history ()
     inherit [Zed_string.t] LTerm_read_line.term terminal
     method! show_box = false
-    initializer self#set_prompt (S.const (eval [ S prompt ]))
+    initializer self#set_prompt (S.const (eval [ B_underline true; S prompt; B_underline false ]))
   end
 
 let rec repl terminal history buf =
   let buf, prompt =
     match buf with
-    | Some buf -> (buf, "  ...: ")
-    | None -> (Buffer.create 70, "narya: ") in
+    | Some buf -> (buf, "")
+    | None -> (Buffer.create 70, "narya\n") in
   let* command =
     Lwt.catch
       (fun () ->
@@ -106,7 +106,7 @@ let rec repl terminal history buf =
           (fun () ->
             execute Parse_command_or_echo.parse
               (`String { content; title = Some "interactive input" }));
-        LTerm_history.add history (Zed_string.of_utf8 content);
+        LTerm_history.add history (Zed_string.of_utf8 (String.trim content));
         repl terminal history None)
       else (
         Buffer.add_string buf str;

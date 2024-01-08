@@ -13,6 +13,7 @@ open Equal
 open Readback
 open Hctx
 open Printable
+open Asai.Range
 
 let ( <|> ) : type a b. a option -> Code.t -> a =
  fun x e ->
@@ -21,9 +22,10 @@ let ( <|> ) : type a b. a option -> Code.t -> a =
   | None -> fatal e
 
 (* Look through a specified number of lambdas to find an inner body. *)
-let rec lambdas : type a b ab. (a, b, ab) N.plus -> a check -> string option list * ab check =
+let rec lambdas :
+    type a b ab. (a, b, ab) N.plus -> a check located -> string option list * ab check located =
  fun ab tm ->
-  match (ab, tm) with
+  match (ab, tm.value) with
   | Zero, _ -> ([], tm)
   | Suc _, Lam (x, `Normal, body) ->
       let names, body = lambdas (N.suc_plus'' ab) body in
@@ -51,22 +53,24 @@ let vars_of_list m names =
       names in
   `Normal names
 
-(* Slurp up an entire application spine *)
-let spine : type a. a synth -> a synth * a check list =
+(* Slurp up an entire application spine.  Returns the function, the locations of all the applications (e.g. in "f x y" returns the locations of "f x" and "f x y") and all the arguments. *)
+let spine :
+    type a. a synth located -> a synth located * Asai.Range.t option list * a check located list =
  fun tm ->
-  let rec spine tm args =
-    match tm with
-    | Raw.App (fn, arg) -> spine fn (arg :: args)
-    | _ -> (tm, args) in
-  spine tm []
+  let rec spine tm locs args =
+    match tm.value with
+    | Raw.App (fn, arg) -> spine fn (tm.loc :: locs) (arg :: args)
+    | _ -> (tm, locs, args) in
+  spine tm [] []
 
-let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
+let rec check : type a b. (a, b) Ctx.t -> a check located -> value -> b term =
  fun ctx tm ty ->
+  with_loc tm.loc @@ fun () ->
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
-  match tm with
+  match tm.value with
   | Synth stm ->
-      let sval, sty = synth ctx stm in
+      let sval, sty = synth ctx { value = stm; loc = tm.loc } in
       let () =
         equal_val (Ctx.length ctx) sty ty
         <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty)) in
@@ -132,7 +136,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
               Term.Struct ctms
           | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
       | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
-  | Constr (constr, args) -> (
+  | Constr ({ value = constr; loc = constr_loc }, args) -> (
       match uty with
       | Canonical (name, ty_params_indices, ins) -> (
           (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
@@ -151,7 +155,10 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                       let (Constr { args = constr_arg_tys; indices = constr_indices }) =
                         match Constr.Map.find_opt constr constrs with
                         | Some c -> c
-                        | None -> fatal (No_such_constructor (`Data (PConstant name), constr)) in
+                        | None ->
+                            (* *************************** *)
+                            with_loc constr_loc @@ fun () ->
+                            fatal (No_such_constructor (`Data (PConstant name), constr)) in
                       (* We split the values of the parameters and the indices, putting the parameters into the environment, and keeping the indices for later comparison. *)
                       let env, ty_indices =
                         take_canonical_args (Emp dim) ty_params_indices params
@@ -214,14 +221,19 @@ let rec check : type a b. (a, b) Ctx.t -> a check -> value -> b term =
                               [ t1s; t2s ])
                           [ constr_indices; ty_indices ] in
                       Constr (constr, dim, Bwd.of_list newargs))
-              | _ -> fatal (No_such_constructor (`Nondata (PConstant name), constr))))
+              | _ ->
+                  with_loc constr_loc @@ fun () ->
+                  fatal (No_such_constructor (`Nondata (PConstant name), constr))))
       (* TODO: If checking against a pi-type, we could automatically eta-expand. *)
-      | _ -> fatal (No_such_constructor (`Other (PUninst (ctx, uty)), constr)))
+      | _ ->
+          with_loc constr_loc @@ fun () ->
+          fatal (No_such_constructor (`Other (PUninst (ctx, uty)), constr)))
   | Match _ -> fatal (Unimplemented "Matching in terms (rather than case trees)")
 
-and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
+and synth : type a b. (a, b) Ctx.t -> a synth located -> b term * value =
  fun ctx tm ->
-  match tm with
+  with_loc tm.loc @@ fun () ->
+  match tm.value with
   | Var i ->
       let _, x, v = Ctx.lookup ctx i in
       (Term.Var v, x.ty)
@@ -243,9 +255,9 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       (pi x cdom ccod, universe D.zero)
   | App _ ->
       (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
-      let fn, args = spine tm in
+      let fn, locs, args = spine tm in
       let sfn, sty = synth ctx fn in
-      synth_apps ctx sfn sty args
+      synth_apps ctx { value = sfn; loc = fn.loc } sty locs args
   | Act (str, fa, x) ->
       let sx, ety = synth ctx x in
       let ex = Ctx.eval ctx sx in
@@ -264,27 +276,35 @@ and synth : type a b. (a, b) Ctx.t -> a synth -> b term * value =
       (Let (x, sv, sbody), bodyty)
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
-and synth_apps : type a b. (a, b) Ctx.t -> b term -> value -> a check list -> b term * value =
- fun ctx sfn sty args ->
+and synth_apps :
+    type a b.
+    (a, b) Ctx.t ->
+    b term located ->
+    value ->
+    Asai.Range.t option list ->
+    a check located list ->
+    b term * value =
+ fun ctx sfn sty locs args ->
   (* Failure of full_inst here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
   let (Fullinst (fnty, tyargs)) = full_inst sty "synth_apps" in
-  let afn, aty, aargs = synth_app ctx sfn fnty tyargs args in
+  let afn, aty, alocs, aargs = synth_app ctx sfn fnty tyargs locs args in
   (* synth_app fails if there aren't enough arguments.  If it used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
   match aargs with
-  | [] -> (afn, aty)
-  | _ :: _ -> synth_apps ctx afn aty aargs
+  | [] -> (afn.value, aty)
+  | _ :: _ -> synth_apps ctx afn aty alocs aargs
 
 and synth_app :
     type a b n.
     (a, b) Ctx.t ->
-    b term ->
+    b term located ->
     uninst ->
     (D.zero, n, n, normal) TubeOf.t ->
-    a check list ->
-    b term * value * a check list =
- fun ctx sfn fnty tyargs args ->
+    Asai.Range.t option list ->
+    a check located list ->
+    b term located * value * Asai.Range.t option list * a check located list =
+ fun ctx sfn fnty tyargs locs args ->
   let module M = Monad.State (struct
-    type t = a check list
+    type t = Asai.Range.t option * Asai.Range.t option list * a check located list
   end) in
   (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied. *)
   match fnty with
@@ -296,7 +316,7 @@ and synth_app :
       | Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
           let eargtbl = Hashtbl.create 10 in
-          let [ cargs; eargs ], rest =
+          let [ cargs; eargs ], (newloc, rlocs, rest) =
             let open CubeOf.Monadic (M) in
             let open CubeOf.Infix in
             pmapM
@@ -304,12 +324,13 @@ and synth_app :
                 map =
                   (fun fa [ dom ] ->
                     let open Monad.Ops (M) in
-                    let* ts = M.get in
+                    let* loc, ls, ts = M.get in
                     let* tm =
-                      match ts with
-                      | [] -> fatal Not_enough_arguments_to_function
-                      | t :: ts ->
-                          let* () = M.put ts in
+                      match (ls, ts) with
+                      | _, [] | [], _ ->
+                          with_loc loc @@ fun () -> fatal Not_enough_arguments_to_function
+                      | l :: ls, t :: ts ->
+                          let* () = M.put (l, ls, ts) in
                           return t in
                     let ty =
                       inst dom
@@ -325,10 +346,10 @@ and synth_app :
                     Hashtbl.add eargtbl (SFace_of fa) { tm; ty };
                     return (ctm @: [ tm ]));
               }
-              [ doms ] (Hlist.Cons (Cons Nil)) args in
+              [ doms ] (Hlist.Cons (Cons Nil)) (sfn.loc, locs, args) in
           (* Evaluate cod at these evaluated arguments and instantiate it at the appropriate values of tyargs. *)
           let output = tyof_app cods tyargs eargs in
-          (Term.App (sfn, cargs), output, rest))
+          ({ value = Term.App (sfn.value, cargs); loc = newloc }, output, rlocs, rest))
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (
       (* Ensure that the universe is (fully) instantiated at the right dimension. *)
@@ -336,7 +357,7 @@ and synth_app :
       | Neq -> fatal (Dimension_mismatch ("instantiating type", TubeOf.inst tyargs, n))
       | Eq -> (
           match D.compare_zero n with
-          | Zero -> fatal (Instantiating_zero_dimensional_type (PTerm (ctx, sfn)))
+          | Zero -> fatal (Instantiating_zero_dimensional_type (PTerm (ctx, sfn.value)))
           | Pos pn ->
               (* We take enough arguments to instatiate a type of dimension n by one. *)
               let (Is_suc (m, msuc)) = suc_pos pn in
@@ -346,19 +367,20 @@ and synth_app :
               let eargtbl = Hashtbl.create 10 in
               let tyargs1 = TubeOf.pboundary (D.zero_plus m) msuc tyargs in
               (* What we really want, however, are two tubes of checked arguments *and* evaluated arguments. *)
-              let [ cargs; eargs ], rest =
+              let [ cargs; eargs ], (newloc, rlocs, rest) =
                 pmapM
                   {
                     map =
                       (fun fa [ tyarg ] ->
                         (* We iterate monadically with the list of available arguments in a state/maybe monad, taking one more argument every time we need it as long as there is one. *)
                         let open Monad.Ops (M) in
-                        let* ts = M.get in
+                        let* loc, ls, ts = M.get in
                         let* tm =
-                          match ts with
-                          | [] -> fatal Not_enough_arguments_to_instantiation
-                          | t :: ts ->
-                              let* () = M.put ts in
+                          match (ls, ts) with
+                          | [], _ | _, [] ->
+                              with_loc loc @@ fun () -> fatal Not_enough_arguments_to_instantiation
+                          | l :: ls, t :: ts ->
+                              let* () = M.put (l, ls, ts) in
                               return t in
                         (* We check each such argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments. *)
                         let fa = sface_of_tface fa in
@@ -379,11 +401,16 @@ and synth_app :
                         let () = Hashtbl.add eargtbl (SFace_of fa) ntm in
                         return (ctm @: [ ntm ]));
                   }
-                  [ tyargs1 ] (Cons (Cons Nil)) args in
+                  [ tyargs1 ] (Cons (Cons Nil)) (sfn.loc, locs, args) in
               (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
-              (Term.Inst (sfn, cargs), tyof_inst tyargs eargs, rest)))
+              ( { value = Term.Inst (sfn.value, cargs); loc = newloc },
+                tyof_inst tyargs eargs,
+                rlocs,
+                rest )))
   (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
-  | _ -> fatal (Applying_nonfunction_nontype (PTerm (ctx, sfn), PUninst (ctx, fnty)))
+  | _ ->
+      with_loc sfn.loc @@ fun () ->
+      fatal (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PUninst (ctx, fnty)))
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube. *)
 and check_tel :
@@ -391,7 +418,7 @@ and check_tel :
     Constr.t ->
     (a, e) Ctx.t ->
     (n, b) env ->
-    a check list ->
+    a check located list ->
     (b, c, bc) Telescope.t ->
     (D.zero, n, n, value list) TubeOf.t ->
     (n, bc) env * (n, e term) CubeOf.t list =
@@ -448,11 +475,12 @@ and check_tel :
 (* Check a case tree.  Unlike the other typechecking functions, this one is imperative: rather than returning a checked case tree, it takes a reference to a case tree as an argument and stores its result into that reference.  The reason for this is that a function defined by a case tree can be recursive, calling itself, and the type-correctness of later (co)branches can depend on the values of previous ones.  Thus, the caller of this function first defines the function with an empty case tree and passes it a reference to that tree, and then as the case tree is checked, its actual definition at the call site is updated.
 
    This function also needs to be passed a value representing the partially-applied function whose case tree we are currently checking, e.g. since the types of cobranches can depend on that value.  This also will be altered as we proceed, using readback and eval to substitute pattern-matched variables with constructor applications. *)
-let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Case.tree ref -> unit
-    =
+let rec check_tree :
+    type a b. (a, b) Ctx.t -> a check located -> value -> value -> b Case.tree ref -> unit =
  fun ctx tm ty prev_tm tree ->
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "checking case tree" in
-  match tm with
+  with_loc tm.loc @@ fun () ->
+  match tm.value with
   | Lam (x, cube, body) -> (
       match uty with
       | Pi (_, doms, cods) -> (
@@ -559,35 +587,47 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                           Mlist.miter
                             (fun [ Branch (constr, user_args, body) ] ->
                               (* Make sure this isn't a duplicate of some other branch already inspected. *)
-                              let (Case.Branch (efc, br)) = Constr.Map.find constr tbranches in
-                              if !br <> Case.Empty then
-                                fatal (Duplicate_constructor_in_match constr);
+                              let (Case.Branch (efc, br)) =
+                                match Constr.Map.find_opt constr.value tbranches with
+                                | Some b -> b
+                                | None ->
+                                    with_loc constr.loc @@ fun () ->
+                                    fatal
+                                      (No_such_constructor_in_match (PConstant name, constr.value))
+                              in
+                              (if !br <> Case.Empty then
+                                 with_loc constr.loc @@ fun () ->
+                                 fatal (Duplicate_constructor_in_match constr.value));
                               (* Get the argument types and index terms for the constructor of this branch. *)
                               let (Global.Constr { args = argtys; indices = index_terms }) =
-                                match Constr.Map.find_opt constr constrs with
+                                match Constr.Map.find_opt constr.value constrs with
                                 | Some c -> c
                                 | None ->
-                                    fatal (No_such_constructor_in_match (PConstant name, constr))
+                                    with_loc constr.loc @@ fun () ->
+                                    fatal
+                                      (No_such_constructor_in_match (PConstant name, constr.value))
                               in
                               (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
                               let c = Telescope.length argtys in
                               match N.compare (exts_right efc) c with
                               | Gt _ | Lt _ -> fatal (Anomaly "length mismatch in check_tree")
                               | Eq -> (
-                                  match N.compare (N.plus_right user_args) c with
+                                  match N.compare (N.plus_right user_args.value) c with
                                   | Gt diff ->
+                                      with_loc user_args.loc @@ fun () ->
                                       fatal
                                         (Wrong_number_of_arguments_to_pattern
-                                           (constr, N.to_int (Nat diff)))
+                                           (constr.value, N.to_int (Nat diff)))
                                   | Lt diff ->
+                                      with_loc user_args.loc @@ fun () ->
                                       fatal
                                         (Wrong_number_of_arguments_to_pattern
-                                           (constr, -N.to_int (Nat diff)))
+                                           (constr.value, -N.to_int (Nat diff)))
                                   | Eq -> (
                                       (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the values of the parameters ("params") and the previous new variables.  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
                                       let newctx, newenv, newvars =
                                         Ctx.ext_tel ctx (env_of_bwv n params nparams) argtys
-                                          user_args efc in
+                                          user_args.value efc in
                                       (* The type of the match must be specialized in the branches by substituting different constructors for the match variable, as well as the index values for the index variables, and lower-dimensional versions of each constructor for the instantiation variables.  Thus, we readback the type into this extended context, so we can re-evaluate it with those variables bound to values. *)
                                       let rty = readback_val newctx ty in
                                       (* And similarly for the up-until-now term. *)
@@ -613,7 +653,7 @@ let rec check_tree : type a b. (a, b) Ctx.t -> a check -> value -> value -> b Ca
                                                 let k = dom_sface fa in
                                                 let tm =
                                                   Value.Constr
-                                                    ( constr,
+                                                    ( constr.value,
                                                       dom_sface fa,
                                                       Bwv.to_bwd_map (CubeOf.subcube fa) newvars )
                                                 in

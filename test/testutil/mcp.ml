@@ -3,6 +3,7 @@ open Core
 open Parser
 open Syntax
 open Parse
+open Asai.Range
 
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx
@@ -12,7 +13,7 @@ let context = ref ectx
 
 (* Functions to synth and check terms *)
 
-let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check =
+let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check located =
  fun names tm ->
   let p, _ =
     Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
@@ -29,8 +30,8 @@ let synth (tm : string) : Value.value * Value.value =
       raise (Failure "Failed to synthesize"))
   @@ fun () ->
   match parse_term names tm with
-  | Synth raw ->
-      let syn, ty = Check.synth ctx raw in
+  | { value = Synth raw; loc } ->
+      let syn, ty = Check.synth ctx { value = raw; loc } in
       let esyn = Ctx.eval ctx syn in
       (esyn, ty)
   | _ -> Reporter.fatal (Nonsynthesizing "toplevel synth")
@@ -65,8 +66,8 @@ let unsynth : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string ->
             raise (Failure "Unexpected error code")))
   @@ fun () ->
   match parse_term names tm with
-  | Synth raw ->
-      let _ = Check.synth ctx raw in
+  | { value = Synth raw; loc } ->
+      let _ = Check.synth ctx { value = raw; loc } in
       raise (Failure "Synthesis success")
   | _ -> Reporter.fatal (Nonsynthesizing "top-level unsynth")
 

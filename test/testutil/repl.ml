@@ -15,8 +15,9 @@ open Inst
 open Raw
 open Hctx
 open Parse
+open Asai.Range
 
-let parse_term (tm : string) : N.zero check =
+let parse_term (tm : string) : N.zero check located =
   let p, _ =
     Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
   in
@@ -25,10 +26,10 @@ let parse_term (tm : string) : N.zero check =
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let check_type (rty : N.zero check) : emp term =
+let check_type (rty : N.zero check located) : emp term =
   Reporter.trace "when checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
 
-let check_term (rtm : N.zero check) (ety : value) : emp term =
+let check_term (rtm : N.zero check located) (ety : value) : emp term =
   Reporter.trace "when checking term" @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
@@ -104,8 +105,8 @@ let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
 let print (tm : string) : unit =
   let rtm = parse_term tm in
   match rtm with
-  | Synth rtm ->
-      let ctm, ety = synth Ctx.empty rtm in
+  | { value = Synth rtm; loc } ->
+      let ctm, ety = synth Ctx.empty { value = rtm; loc } in
       let etm = eval (Emp D.zero) ctm in
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in

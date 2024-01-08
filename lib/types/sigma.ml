@@ -25,7 +25,7 @@ let () =
   set_processor prodn
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           let x, Term a, Term b =
             match obs with
             | [ one; b ] -> (
@@ -42,7 +42,14 @@ let () =
             | _ -> fatal (Anomaly "invalid notation arguments for sigma") in
           let a = process ctx a in
           let b = process (Snoc (ctx, x)) b in
-          Synth (App (App (Const sigma, a), Lam (x, `Normal, b))));
+          {
+            value =
+              Synth
+                (App
+                   ( { value = App ({ value = Const sigma; loc }, a); loc },
+                     { value = Lam (x, `Normal, b); loc } ));
+            loc;
+          });
     };
   set_print prodn (fun ppf obs ->
       match obs with
@@ -60,12 +67,12 @@ let () =
   set_processor comma
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           match obs with
           | [ Term x; Term y ] ->
               let x = process ctx x in
               let y = process ctx y in
-              Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ])
+              { value = Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ]); loc }
           | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
     };
   set_print comma (fun ppf obs ->

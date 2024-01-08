@@ -24,7 +24,8 @@ let () =
   set_processor parens
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _loc ->
+          (* The location of the parentheses can be ignored. *)
           match obs with
           | [ Term body ] -> process ctx body
           | _ -> fatal (Anomaly "invalid notation arguments for parens"));
@@ -59,20 +60,38 @@ let () =
   set_processor letin
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           match obs with
           | [ Term x; Term ty; Term tm; Term body ] -> (
               let x = get_var x.value in
               let ty, tm = (process ctx ty, process ctx tm) in
               match process (Snoc (ctx, x)) body with
-              | Synth body -> Synth (Let (x, Asc (tm, ty), body))
+              | { value = Synth body; loc = body_loc } ->
+                  {
+                    value =
+                      Synth
+                        (Let
+                           ( x,
+                             { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc },
+                             { value = body; loc = body_loc } ));
+                    loc;
+                  }
               | _ -> fatal (Nonsynthesizing "body of let"))
           | [ Term x; Term tm; Term body ] -> (
               let x = get_var x.value in
               match process ctx tm with
-              | Synth term -> (
+              | { value = Synth term; loc = term_loc } -> (
                   match process (Snoc (ctx, x)) body with
-                  | Synth body -> Synth (Let (x, term, body))
+                  | { value = Synth body; loc = body_loc } ->
+                      {
+                        value =
+                          Synth
+                            (Let
+                               ( x,
+                                 { value = term; loc = term_loc },
+                                 { value = body; loc = body_loc } ));
+                        loc;
+                      }
                   | _ -> fatal (Nonsynthesizing "body of let"))
               | _ -> fatal (Nonsynthesizing "value of let"))
           | _ -> fatal (Anomaly "invalid notation arguments for let"));
@@ -112,12 +131,12 @@ let () =
   set_processor asc
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           match obs with
           | [ Term tm; Term ty ] ->
               let tm = process ctx tm in
               let ty = process ctx ty in
-              Synth (Asc (tm, ty))
+              { value = Synth (Asc (tm, ty)); loc }
           | _ -> fatal (Anomaly "invalid notation arguments for ascription"));
     };
   set_print asc @@ fun ppf obs ->
@@ -197,7 +216,7 @@ let rec process_pi :
     (string option, n) Bwv.t ->
     (string option list option * observation) list ->
     (lt, ls, rt, rs) parse located ->
-    n check =
+    n check located =
  fun ctx doms cod ->
   match doms with
   | [] -> process ctx cod
@@ -207,14 +226,16 @@ let rec process_pi :
       let cdom = process ctx dom in
       let ctx = Bwv.Snoc (ctx, x) in
       let cod = process_pi ctx ((Some xs, Term dom) :: doms) cod in
-      Synth (Pi (x, cdom, cod))
+      let loc = Range.merge_opt cdom.loc cod.loc in
+      { value = Synth (Pi (x, cdom, cod)); loc }
 
 let () =
   set_tree arrow (Open_entry (eop Arrow (done_open arrow)));
   set_processor arrow
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs _loc ->
+          (* We don't need the loc parameter here, since we can reconstruct the location of each pi-type from its arguments. *)
           let doms, Term cod = get_pi obs in
           process_pi ctx doms cod);
     }
@@ -261,35 +282,50 @@ let cubeabs = make "cube_abstraction" (Infixr No.minus_omega)
 let () = set_tree cubeabs (Open_entry (eop DblMapsto (done_open cubeabs)))
 
 type _ extended_ctx =
-  | Extctx : ('n, 'm, 'nm) N.plus * (string option, 'nm) Bwv.t -> 'n extended_ctx
+  | Extctx :
+      ('n, 'm, 'nm) N.plus * (Asai.Range.t option, 'm) Bwv.t * (string option, 'nm) Bwv.t
+      -> 'n extended_ctx
 
 let rec get_vars :
     type n lt1 ls1 rt1 rs1.
     (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse located -> n extended_ctx =
  fun ctx vars ->
   match vars.value with
-  | Ident [ x ] ->
-      (* TODO: Can we report the range for errors produced here? *)
-      Extctx (Suc Zero, Snoc (ctx, Some x))
+  | Ident [ x ] -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Snoc (ctx, Some x))
   | Ident xs -> fatal (Invalid_variable xs)
-  | Placeholder -> Extctx (Suc Zero, Snoc (ctx, None))
+  | Placeholder -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Snoc (ctx, None))
   | App { fn; arg = { value = Ident [ x ]; _ }; _ } ->
-      let (Extctx (ab, ctx)) = get_vars ctx fn in
-      Extctx (Suc ab, Snoc (ctx, Some x))
+      let (Extctx (ab, locs, ctx)) = get_vars ctx fn in
+      Extctx (Suc ab, Snoc (locs, vars.loc), Snoc (ctx, Some x))
   | App { arg = { value = Ident xs; _ }; _ } -> fatal (Invalid_variable xs)
   | App { fn; arg = { value = Placeholder; _ }; _ } ->
-      let (Extctx (ab, ctx)) = get_vars ctx fn in
-      Extctx (Suc ab, Snoc (ctx, None))
+      let (Extctx (ab, locs, ctx)) = get_vars ctx fn in
+      Extctx (Suc ab, Snoc (locs, vars.loc), Snoc (ctx, None))
   | _ -> fatal Parse_error
+
+let rec raw_lam :
+    type a b ab.
+    (string option, ab) Bwv.t ->
+    [ `Cube | `Normal ] ->
+    (a, b, ab) N.plus ->
+    (Asai.Range.t option, b) Bwv.t ->
+    ab check located ->
+    a check located =
+ fun names cube ab locs tm ->
+  match (names, ab, locs) with
+  | _, Zero, Emp -> tm
+  | Snoc (names, x), Suc ab, Snoc (locs, loc) ->
+      raw_lam names cube ab locs { value = Lam (x, cube, tm); loc = Range.merge_opt loc tm.loc }
 
 let process_abs cube =
   {
     process =
-      (fun ctx obs ->
+      (fun ctx obs _loc ->
+        (* The loc argument isn't used here since we can deduce the locations of each lambda by merging its variables with its body. *)
         match obs with
         | [ Term vars; Term body ] ->
-            let (Extctx (ab, ctx)) = get_vars ctx vars in
-            raw_lam ctx cube ab (process ctx body)
+            let (Extctx (ab, locs, ctx)) = get_vars ctx vars in
+            raw_lam ctx cube ab locs (process ctx body)
         | _ -> fatal (Anomaly "invalid notation arguments for abstraction"));
   }
 
@@ -322,9 +358,9 @@ let () =
   set_processor universe
     {
       process =
-        (fun _ obs ->
+        (fun _ obs loc ->
           match obs with
-          | [] -> Synth UU
+          | [] -> { value = Synth UU; loc }
           | _ -> fatal (Anomaly "invalid notation arguments for Type"));
     };
   set_print universe @@ fun ppf obs ->
@@ -343,7 +379,7 @@ let () =
   set_processor degen
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           match obs with
           | [ Term tm; Term d ] -> (
               match d.value with
@@ -351,7 +387,8 @@ let () =
                   match deg_of_string str with
                   | Some (Any s) -> (
                       match process ctx tm with
-                      | Synth x -> Synth (Act (str, s, x))
+                      | { value = Synth x; loc = x_loc } ->
+                          { value = Synth (Act (str, s, { value = x; loc = x_loc })); loc }
                       | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
                   | None -> fatal Parse_error)
               | _ -> fatal Parse_error)
@@ -412,10 +449,15 @@ let () =
              })))
 
 let rec process_struc :
-    type n. n check Field.Map.t -> (string option, n) Bwv.t -> observation list -> n check =
- fun flds ctx obs ->
+    type n.
+    n check located Field.Map.t ->
+    (string option, n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    n check located =
+ fun flds ctx obs loc ->
   match obs with
-  | [] -> Raw.Struct flds
+  | [] -> { value = Raw.Struct flds; loc }
   | Term { value = Ident [ x ]; _ } :: obs | Term { value = Field x; _ } :: obs -> (
       match obs with
       | Term tm :: obs ->
@@ -427,11 +469,12 @@ let rec process_struc :
                  | None -> Some tm
                  | Some _ -> fatal (Duplicate_field_in_struct fld))
                flds)
-            ctx obs
+            ctx obs loc
       | _ -> fatal (Anomaly "invalid notation arguments for struct"))
   | _ :: _ -> fatal Invalid_field_in_struct
 
-let () = set_processor struc { process = (fun ctx obs -> process_struc Field.Map.empty ctx obs) }
+let () =
+  set_processor struc { process = (fun ctx obs loc -> process_struc Field.Map.empty ctx obs loc) }
 
 let rec pp_fld :
     type a.
@@ -521,17 +564,19 @@ let () =
 
 let rec get_pattern :
     type n lt1 ls1 rt1 rs1.
-    (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse -> Constr.t * n extended_ctx =
+    (string option, n) Bwv.t ->
+    (lt1, ls1, rt1, rs1) parse located ->
+    Constr.t located * n extended_ctx =
  fun ctx pat ->
-  match pat with
-  | Constr c -> (Constr.intern c, Extctx (Zero, ctx))
-  | App { fn; arg = { value = Ident [ x ]; _ }; _ } ->
-      let c, Extctx (ab, ctx) = get_pattern ctx fn.value in
-      (c, Extctx (Suc ab, Snoc (ctx, Some x)))
+  match pat.value with
+  | Constr c -> ({ value = Constr.intern c; loc = pat.loc }, Extctx (Zero, Emp, ctx))
+  | App { fn; arg = { value = Ident [ x ]; loc }; _ } ->
+      let c, Extctx (ab, locs, ctx) = get_pattern ctx fn in
+      (c, Extctx (Suc ab, Snoc (locs, loc), Snoc (ctx, Some x)))
   | App { arg = { value = Ident xs; _ }; _ } -> fatal (Invalid_variable xs)
-  | App { fn; arg = { value = Placeholder; _ }; _ } ->
-      let c, Extctx (ab, ctx) = get_pattern ctx fn.value in
-      (c, Extctx (Suc ab, Snoc (ctx, None)))
+  | App { fn; arg = { value = Placeholder; loc }; _ } ->
+      let c, Extctx (ab, locs, ctx) = get_pattern ctx fn in
+      (c, Extctx (Suc ab, Snoc (locs, loc), Snoc (ctx, None)))
   | _ -> fatal Parse_error
 
 let rec process_branches : type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list
@@ -540,30 +585,30 @@ let rec process_branches : type n. (string option, n) Bwv.t -> observation list 
   match obs with
   | [] -> []
   | Term pat :: Term body :: obs ->
-      let c, Extctx (ab, ectx) = get_pattern ctx pat.value in
-      Branch (c, ab, process ectx body) :: process_branches ctx obs
+      let c, Extctx (ab, _locs, ectx) = get_pattern ctx pat in
+      Branch (c, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for match")
 
 let () =
   set_processor mtch
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           match obs with
           (* If the first thing is a valid local variable or cube variable, then it's the match variable. *)
           | Term { value = Ident [ ident ]; _ } :: obs -> (
               match Bwv.find (Some ident) ctx with
               | None -> fatal (Unbound_variable ident)
-              | Some x -> Match ((x, None), process_branches ctx obs))
+              | Some x -> { value = Match ((x, None), process_branches ctx obs); loc })
           | Term { value = Ident [ ident; fld ]; _ } :: obs -> (
               match (Bwv.find (Some ident) ctx, Dim.sface_of_string fld) with
-              | Some x, Some fa -> Match ((x, Some fa), process_branches ctx obs)
+              | Some x, Some fa -> { value = Match ((x, Some fa), process_branches ctx obs); loc }
               | None, _ -> fatal (Unbound_variable ident)
               | _ -> fatal Parse_error)
           (* Otherwise, it's a matching lambda. *)
           | _ ->
               let branches = process_branches (Snoc (ctx, None)) obs in
-              Lam (None, `Normal, Match ((Top, None), branches)));
+              { value = Lam (None, `Normal, { value = Match ((Top, None), branches); loc }); loc });
     }
 
 let rec pp_branches : bool -> formatter -> observation list -> unit =

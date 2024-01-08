@@ -120,7 +120,10 @@ and (_, _, _, _) parse =
   | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
-and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
+and processor = {
+  process :
+    'n. (string option, 'n) Bwv.t -> observation list -> Asai.Range.t option -> 'n check located;
+}
 
 (* The entry point of the parse tree defining a particular notation must be parametrized either by the representable non-strict interval at that tightness, or by the empty interval in case of a left-closed notation. *)
 and ('left, 'tight) notation_entry =

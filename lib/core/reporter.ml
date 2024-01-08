@@ -222,10 +222,10 @@ module Code = struct
     | Checking_struct_at_degenerated_record r ->
         textf "can't check a struct against a record %a with a nonidentity degeneracy applied"
           pp_printable r
-    | Missing_field_in_struct f -> textf "record field %s missing in struct" (Field.to_string f)
+    | Missing_field_in_struct f -> textf "record field '%s' missing in struct" (Field.to_string f)
     | Invalid_field_in_struct -> text "invalid field in struct"
     | Duplicate_field_in_struct f ->
-        textf "record field %s appears more than once in struct" (Field.to_string f)
+        textf "record field '%s' appears more than once in struct" (Field.to_string f)
     | Missing_constructor_in_match c ->
         textf "missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "unnamed match variable"

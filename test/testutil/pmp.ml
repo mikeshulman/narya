@@ -2,6 +2,9 @@ open Util
 open Core
 open Syntax
 open Parser
+open Asai.Range
+
+let unlocated (value : 'a) : 'a located = { value; loc = None }
 
 (* Poor man's parser, reusing the OCaml parser to make a vaguely usable syntax *)
 
@@ -20,46 +23,48 @@ type pmt =
   | Constr : string -> pmt
 
 (* Using a Bwv of variable names, to turn them into De Bruijn indices, we can parse such a term into a synth/checkable one. *)
-let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check =
+let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
  fun ctx -> function
-  | Lam (x, body) -> Lam (Some x, `Normal, parse_chk (Snoc (ctx, x)) body)
+  | Lam (x, body) -> unlocated (Raw.Lam (Some x, `Normal, parse_chk (Snoc (ctx, x)) body))
   | Struct tms ->
-      Struct
-        (List.fold_left
-           (fun acc (fld, tm) -> Field.Map.add (Field.intern fld) (parse_chk ctx tm) acc)
-           Field.Map.empty tms)
-  | Constr c -> Constr (Constr.intern c, Emp)
+      unlocated
+        (Raw.Struct
+           (List.fold_left
+              (fun acc (fld, tm) -> Field.Map.add (Field.intern fld) (parse_chk ctx tm) acc)
+              Field.Map.empty tms))
+  | Constr c -> unlocated (Raw.Constr (unlocated (Constr.intern c), Emp))
   | App (fn, arg) as tm -> (
-      match parse_chk ctx fn with
-      | Constr (c, args) -> Constr (c, Snoc (args, parse_chk ctx arg))
-      | _ -> Synth (parse_syn ctx tm))
-  | tm -> Synth (parse_syn ctx tm)
+      match (parse_chk ctx fn).value with
+      | Constr (c, args) -> unlocated (Raw.Constr (c, Snoc (args, parse_chk ctx arg)))
+      | _ -> unlocated (Raw.Synth (parse_syn ctx tm).value))
+  | tm -> unlocated (Raw.Synth (parse_syn ctx tm).value)
 
-and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth =
+and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth located =
  fun ctx -> function
   | Var x -> (
       match Bwv.find x ctx with
-      | Some v -> Var (v, None)
+      | Some v -> unlocated (Raw.Var (v, None))
       | None -> Reporter.fatal (Unbound_variable x))
   | Const x -> (
       match Scope.lookup [ x ] with
-      | Some c -> Const c
+      | Some c -> unlocated (Raw.Const c)
       | None -> Reporter.fatal (Unbound_variable x))
-  | UU -> UU
-  | Field (x, fld) -> Field (parse_syn ctx x, Field.intern fld)
-  | Pi (x, dom, cod) -> Pi (Some x, parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod)
-  | App (fn, arg) -> App (parse_syn ctx fn, parse_chk ctx arg)
+  | UU -> unlocated Raw.UU
+  | Field (x, fld) -> unlocated (Raw.Field (parse_syn ctx x, Field.intern fld))
+  | Pi (x, dom, cod) ->
+      unlocated (Raw.Pi (Some x, parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod))
+  | App (fn, arg) -> unlocated (Raw.App (parse_syn ctx fn, parse_chk ctx arg))
   | Deg (x, str) -> (
-      match parse_chk ctx x with
+      match (parse_chk ctx x).value with
       | Synth x -> (
           match Dim.deg_of_name str with
-          | Some (Any s) -> Act (str, s, x)
+          | Some (Any s) -> unlocated (Raw.Act (str, s, unlocated x))
           | None -> (
               match Dim.deg_of_string str with
-              | Some (Any s) -> Act (str, s, x)
+              | Some (Any s) -> unlocated (Raw.Act (str, s, unlocated x))
               | None -> raise (Failure "unknown degeneracy")))
       | _ -> raise (Failure "Non-synthesizing"))
-  | Asc (tm, ty) -> Asc (parse_chk ctx tm, parse_chk ctx ty)
+  | Asc (tm, ty) -> unlocated (Raw.Asc (parse_chk ctx tm, parse_chk ctx ty))
   | _ -> raise (Failure "Non-synthesizing")
 
 (* Nicer syntax, with a prefix operator for using a variable by name, and infix operators for abstraction, application, and ascription. *)

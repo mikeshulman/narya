@@ -2,6 +2,7 @@ open Bwd
 open Util
 open Dim
 open Hctx
+open Asai.Range
 
 (* ******************** Raw (unchecked) terms ******************** *)
 
@@ -14,30 +15,24 @@ module Raw = struct
   type _ synth =
     | Var : 'a index -> 'a synth
     | Const : Constant.t -> 'a synth
-    | Field : 'a synth * Field.t -> 'a synth
-    | Pi : string option * 'a check * 'a N.suc check -> 'a synth
-    | App : 'a synth * 'a check -> 'a synth
-    | Asc : 'a check * 'a check -> 'a synth
-    | Let : string option * 'a synth * 'a N.suc synth -> 'a synth
+    | Field : 'a synth located * Field.t -> 'a synth
+    | Pi : string option * 'a check located * 'a N.suc check located -> 'a synth
+    | App : 'a synth located * 'a check located -> 'a synth
+    | Asc : 'a check located * 'a check located -> 'a synth
+    | Let : string option * 'a synth located * 'a N.suc synth located -> 'a synth
     | UU : 'a synth
-    | Act : string * ('m, 'n) deg * 'a synth -> 'a synth
+    | Act : string * ('m, 'n) deg * 'a synth located -> 'a synth
 
   and _ check =
     | Synth : 'a synth -> 'a check
-    | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check -> 'a check
-    | Struct : 'a check Field.Map.t -> 'a check
-    | Constr : Constr.t * 'a check Bwd.t -> 'a check
+    | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check located -> 'a check
+    | Struct : 'a check located Field.Map.t -> 'a check
+    | Constr : Constr.t located * 'a check located Bwd.t -> 'a check
     | Match : 'a index * 'a branch list -> 'a check
 
-  and _ branch = Branch : Constr.t * ('a, 'b, 'ab) N.plus * 'ab check -> 'a branch
-
-  let rec raw_lam :
-      type a b ab.
-      (string option, ab) Bwv.t -> [ `Cube | `Normal ] -> (a, b, ab) N.plus -> ab check -> a check =
-   fun names cube ab tm ->
-    match (names, ab) with
-    | _, Zero -> tm
-    | Snoc (names, x), Suc ab -> raw_lam names cube ab (Lam (x, cube, tm))
+  and _ branch =
+    (* The location of the second argument is that of the entire pattern. *)
+    | Branch : Constr.t located * ('a, 'b, 'ab) N.plus located * 'ab check located -> 'a branch
 end
 
 (* ******************** Names ******************** *)

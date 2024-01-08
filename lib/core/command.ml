@@ -6,8 +6,11 @@ open Raw
 open Value
 open Inst
 open Check
+open Asai.Range
 
-type t = Axiom of Constant.t * N.zero check | Def of Constant.t * N.zero check * N.zero check
+type t =
+  | Axiom of Constant.t * N.zero check located
+  | Def of Constant.t * N.zero check located * N.zero check located
 
 let execute : t -> unit = function
   | Axiom (const, ty) ->

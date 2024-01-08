@@ -27,9 +27,9 @@ let execute : t -> unit = function
       emit (Constant_defined (PConstant const))
   | Echo (Term tm) -> (
       let rtm = process Emp tm in
-      match rtm with
-      | Synth rtm ->
-          let ctm, ety = Check.synth Ctx.empty rtm in
+      match rtm.value with
+      | Synth stm ->
+          let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in

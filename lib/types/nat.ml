@@ -47,12 +47,15 @@ let () =
   set_processor plusn
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           match obs with
           | [ Term x; Term y ] ->
               let x = process ctx x in
               let y = process ctx y in
-              Raw.Synth (App (App (Const plus, x), y))
+              {
+                value = Raw.Synth (App ({ value = App ({ value = Const plus; loc }, x); loc }, y));
+                loc;
+              }
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     };
   set_print plusn (fun ppf obs ->
@@ -67,12 +70,15 @@ let () =
   set_processor timesn
     {
       process =
-        (fun ctx obs ->
+        (fun ctx obs loc ->
           match obs with
           | [ Term x; Term y ] ->
               let x = process ctx x in
               let y = process ctx y in
-              Raw.Synth (App (App (Const times, x), y))
+              {
+                value = Raw.Synth (App ({ value = App ({ value = Const times; loc }, x); loc }, y));
+                loc;
+              }
           | _ -> fatal (Anomaly "invalid notation arguments for plus"));
     };
   set_print timesn (fun ppf obs ->

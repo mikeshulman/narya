@@ -54,7 +54,11 @@ and ('left, 'tight) notation_entry =
   | Closed_entry : (No.plus_omega, No.strict) entry -> (closed, 'tight) notation_entry
 
 and ('left, 'tight, 'right) notation
-and processor = { process : 'n. (string option, 'n) Bwv.t -> observation list -> 'n check }
+
+and processor = {
+  process :
+    'n. (string option, 'n) Bwv.t -> observation list -> Asai.Range.t option -> 'n check located;
+}
 
 module Notation : sig
   type t = Wrap : ('left, 'tight, 'right) notation -> t

@@ -1,23 +1,37 @@
  ￫ error[E0401]
- ￮ term synthesized type A but is being checked against type Type
+ ￭ user-supplied term
+ 1 | a
+   ^ term synthesized type A but is being checked against type Type
 
  ￫ error[E0502]
- ￮ not enough arguments for a higher-dimensional function application
+ ￭ user-supplied term
+ 1 | refl f a
+   ^ not enough arguments for a higher-dimensional function application
 
  ￫ error[E0502]
- ￮ not enough arguments for a higher-dimensional function application
+ ￭ user-supplied term
+ 1 | refl f a a
+   ^ not enough arguments for a higher-dimensional function application
 
  ￫ error[E0503]
- ￮ not enough arguments to instantiate a higher-dimensional type
+ ￭ user-supplied term
+ 1 | Id A a
+   ^ not enough arguments to instantiate a higher-dimensional type
 
  ￫ error[E0501]
- ￮ not enough non-cube variables for higher-dimensional abstraction: need 2 more
+ ￭ user-supplied term
+ 1 | x ↦ x
+   ^ not enough non-cube variables for higher-dimensional abstraction: need 2 more
 
  ￫ error[E0501]
- ￮ not enough non-cube variables for higher-dimensional abstraction: need 1 more
+ ￭ user-supplied term
+ 1 | x y ↦ x
+   ^ not enough non-cube variables for higher-dimensional abstraction: need 1 more
 
  ￫ error[E0700]
- ￮ checking abstraction against non-function type refl A
+ ￭ user-supplied term
+ 1 | x0 x1 x2 x3 ↦ refl f x0 x1 x2
+   ^ checking abstraction against non-function type refl A
 
  ￫ error[E0400]
  ￮ non-synthesizing term in synthesizing position (argument of degeneracy)
@@ -26,19 +40,27 @@
  ￮ missing argument for degeneracy refl
 
  ￫ error[E0601]
- ￮ argument of sym must be at least 2-dimensional
+ ￭ user-supplied term
+ 1 | sym f
+   ^ argument of sym must be at least 2-dimensional
 
  ￫ error[E0601]
- ￮ argument of sym must be at least 2-dimensional
+ ￭ user-supplied term
+ 1 | sym a2
+   ^ argument of sym must be at least 2-dimensional
 
  ￫ error[E0300]
  ￮ unbound variable: g
 
  ￫ error[E0504]
- ￮ type not fully instantiated in typechecking
+ ￭ user-supplied term
+ 1 | a
+   ^ type not fully instantiated in typechecking
 
  ￫ error[E0504]
- ￮ type not fully instantiated in typechecking
+ ￭ user-supplied term
+ 1 | a
+   ^ type not fully instantiated in typechecking
 
  ￫ error[E0200]
  ￭ user-supplied term
@@ -89,7 +111,7 @@
  ￮ unification arguments not yet implemented
 
  ￫ error[E0207]
- ￮ record field fst appears more than once in struct
+ ￮ record field 'fst' appears more than once in struct
 
  ￫ error[E0208]
  ￮ invalid field in struct
@@ -108,35 +130,55 @@
    ^ parse error
 
  ￫ error[E0902]
- ￮ record field snd missing in struct
+ ￭ user-supplied term
+ 1 | { fst ≔ a }
+   ^ record field 'snd' missing in struct
 
  ￫ error[E0900]
- ￮ checking struct against non-record type A
+ ￭ user-supplied term
+ 1 | { fst ≔ a }
+   ^ checking struct against non-record type A
 
  ￫ error[E0900]
- ￮ checking struct against non-record type ℕ
+ ￭ user-supplied term
+ 1 | { fst ≔ a }
+   ^ checking struct against non-record type ℕ
 
  ￫ error[E0800]
- ￮ record type Σ has no field named third
+ ￭ user-supplied term
+ 1 | s .third
+   ^ record type Σ has no field named third
 
  ￫ error[E1000]
- ￮ non-datatype Σ has no constructor named zero
+ ￭ user-supplied term
+ 1 | zero.
+   ^ non-datatype Σ has no constructor named zero
 
  ￫ error[E1000]
- ￮ datatype ℕ has no constructor named two
+ ￭ user-supplied term
+ 1 | two.
+   ^ datatype ℕ has no constructor named two
 
  ￫ error[E1001]
- ￮ too many arguments to constructor zero (1 extra)
+ ￭ user-supplied term
+ 1 | zero. a
+   ^ too many arguments to constructor zero (1 extra)
 
  ￫ error[E1001]
- ￮ not enough arguments to constructor suc (need 1 more)
+ ￭ user-supplied term
+ 1 | suc.
+   ^ not enough arguments to constructor suc (need 1 more)
 
  ￫ error[E0101]
  ￮ unsupported numeral: 21/5
 
  ￫ error[E0901]
- ￮ can't check a struct against a record Gel with a nonidentity degeneracy applied
+ ￭ user-supplied term
+ 1 | { ungel ≔ r2 }
+   ^ can't check a struct against a record Gel with a nonidentity degeneracy applied
 
  ￫ error[E0506]
- ￮ invalid face: 0-dimensional variable has no face 0
+ ￭ user-supplied term
+ 1 | x ↦ x.0
+   ^ invalid face: 0-dimensional variable has no face 0
 

@@ -1,3 +1,5 @@
+open Bwd
+open Bwd.Infix
 open Util
 open Dim
 open Core
@@ -55,7 +57,8 @@ let () =
   set_print prodn (fun space ppf obs ws ->
       match obs with
       | [ x; y ] ->
-          let wsprod, _ = take ws in
+          let wsprod, ws = Option.value (take_opt (Ident [ "×" ]) ws) ~default:(take (Op "><") ws) in
+          taken_last ws;
           pp_open_hovbox ppf 2;
           if true then (
             pp_term `Break ppf x;
@@ -66,38 +69,9 @@ let () =
           pp_close_box ppf ()
       | _ -> fatal (Anomaly "invalid notation arguments for prod"))
 
-let comma = make "comma" (Infixr No.one)
-
-let () =
-  set_tree comma (Open_entry (eop (Op ",") (done_open comma)));
-  set_processor comma
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [ Term x; Term y ] ->
-              let x = process ctx x in
-              let y = process ctx y in
-              { value = Raw.Struct (Field.Map.of_list [ (fst, x); (snd, y) ]); loc }
-          | _ -> fatal (Anomaly "invalid notation arguments for sigma"));
-    };
-  set_print comma (fun space ppf obs ws ->
-      match obs with
-      | [ x; y ] ->
-          let wscomma, _ = take ws in
-          pp_open_hovbox ppf 2;
-          if true then (
-            pp_term `Break ppf x;
-            pp_tok ppf (Op ",");
-            pp_ws `Nobreak ppf wscomma;
-            pp_term space ppf y);
-          pp_close_box ppf ()
-      | _ -> fatal (Anomaly "invalid notation arguments for comma"))
-
 let install_notations () =
   (* TODO: How to unparse into a binding notation? *)
-  State.add_bare prodn;
-  State.add_struct comma [ "fst"; "snd" ]
+  State.add_bare prodn
 
 let install () =
   install_notations ();
@@ -119,15 +93,15 @@ let install () =
   Hashtbl.add Global.constants sigma
     (Record
        {
-         eta = true;
+         eta = `Eta;
          params = Suc (Suc Zero);
          dim = D.zero;
          fields =
-           [
-             (fst, Var (Pop (Pop (Top (id_sface D.zero)))));
-             ( snd,
-               app (Var (Pop (Top (id_sface D.zero)))) (Field (Var (Top (id_sface D.zero)), fst)) );
-           ];
+           Emp
+           <: (fst, Var (Pop (Pop (Top (id_sface D.zero)))))
+           <: ( snd,
+                app (Var (Pop (Top (id_sface D.zero)))) (Field (Var (Top (id_sface D.zero)), fst))
+              );
        });
   Hashtbl.add Global.constants pair
     (Defined
@@ -150,7 +124,10 @@ let install () =
                                     ref
                                       (Case.Leaf
                                          (Struct
-                                            (Field.Map.empty
-                                            |> Field.Map.add fst (Var (Pop (Top (id_sface D.zero))))
-                                            |> Field.Map.add snd (Var (Top (id_sface D.zero)))))) ))
-                           )) )) ))))
+                                            ( `Eta,
+                                              Emp
+                                              <: ( fst,
+                                                   (Var (Pop (Top (id_sface D.zero))), `Unlabeled)
+                                                 )
+                                              <: (snd, (Var (Top (id_sface D.zero)), `Unlabeled)) )))
+                                  )) )) )) ))))

@@ -24,7 +24,6 @@ type t = {
   left_opens : Interval.t TokMap.t;
   (* For unparsing we also store backwards maps turning constants and structs into notations. *)
   print_const : (Notation.t * int) ConstMap.t;
-  print_struct : Notation.t StringListMap.t;
 }
 
 let empty : t =
@@ -35,7 +34,6 @@ let empty : t =
       |> EntryMap.add No.minus_omega { strict = empty_entry; nonstrict = empty_entry };
     left_opens = TokMap.empty;
     print_const = ConstMap.empty;
-    print_struct = StringListMap.empty;
   }
 
 (* Add a new notation to the current state of available ones. *)
@@ -120,18 +118,6 @@ let add_const :
     let state = add notn state in
     { state with print_const = state.print_const |> ConstMap.add const (Notation.Wrap notn, k) }
 
-let add_struct : type left tight right. (left, tight, right) notation -> string list -> unit =
- fun notn flds ->
-  S.modify @@ fun state ->
-  if StringListMap.mem flds state.print_struct then state
-  else
-    let state = add notn state in
-    {
-      state with
-      print_struct =
-        state.print_struct |> StringListMap.add (List.sort String.compare flds) (Notation.Wrap notn);
-    }
-
 let left_closeds : unit -> (No.plus_omega, No.strict) entry =
  fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
 
@@ -146,8 +132,5 @@ let left_opens : Token.t -> Interval.t option = fun tok -> TokMap.find_opt tok (
 
 let print_const : Core.Constant.t -> (Notation.t * int) option =
  fun c -> ConstMap.find_opt c (S.get ()).print_const
-
-let print_struct : string list -> Notation.t option =
- fun flds -> StringListMap.find_opt flds (S.get ()).print_struct
 
 let run_on init f = S.run ~init f

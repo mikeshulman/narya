@@ -110,39 +110,35 @@
  ￫ error[E0100]
  ￮ unification arguments not yet implemented
 
- ￫ error[E0207]
- ￮ record field 'fst' appears more than once in struct
+ ￫ error[E0904]
+ ￮ record field 'fst' appears more than once in tuple
 
- ￫ error[E0208]
- ￮ invalid field in struct
+ ￫ error[E0905]
+ ￮ invalid field in tuple
 
- ￫ error[E0208]
- ￮ invalid field in struct
-
- ￫ error[E0200]
- ￭ user-supplied term
- 1 | { _ ↦ a }
-   ^ parse error
+ ￫ error[E0905]
+ ￮ invalid field in tuple
 
  ￫ error[E0200]
- ￭ user-supplied term
- 1 | { (x) ↦ a }
-   ^ parse error
+ ￮ parse error
+
+ ￫ error[E0200]
+ ￮ parse error
 
  ￫ error[E0902]
  ￭ user-supplied term
- 1 | { fst ≔ a }
-   ^ record field 'snd' missing in struct
+ 1 | ( fst ≔ a )
+   ^ record field 'snd' missing in tuple
 
  ￫ error[E0900]
  ￭ user-supplied term
- 1 | { fst ≔ a }
-   ^ checking struct against non-record type A
+ 1 | ( fst ≔ a )
+   ^ checking tuple against non-record type A
 
  ￫ error[E0900]
  ￭ user-supplied term
- 1 | { fst ≔ a }
-   ^ checking struct against non-record type ℕ
+ 1 | ( fst ≔ a )
+   ^ checking tuple against non-record type ℕ
 
  ￫ error[E0800]
  ￭ user-supplied term
@@ -174,8 +170,8 @@
 
  ￫ error[E0901]
  ￭ user-supplied term
- 1 | { ungel ≔ r2 }
-   ^ can't check a struct against a record Gel with a nonidentity degeneracy applied
+ 1 | (ungel ≔ r2)
+   ^ can't check a tuple against a record Gel with a nonidentity degeneracy applied
 
  ￫ error[E0506]
  ￭ user-supplied term

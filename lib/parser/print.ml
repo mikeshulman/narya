@@ -5,10 +5,29 @@ open Reporter
 open Notation
 open Printconfig
 
-(* Given a list of lists, either take the first element and return the rest, or if the list is empty, return an empty list and an empty list.  In other words, treat a list of lists as an infinite stream of lists that's filled out with empty lists at the end.  This is used for destructing 'Whitespace.t list list's because the parse trees produced by parsing have actual data there, while those produced by unparsing have nothing. *)
-let take = function
+(* Given an alist of lists, if it's not empty enforce that the first element has an expected key and return its value and the rest of the alist, or if it is empty return an empty list and an empty alist.  In other words, treat an alist as an infinite stream that's filled out with empty lists at the end.  This is used for destructing 'Whitespace.alist's because the parse trees produced by parsing have actual data there, while those produced by unparsing have nothing. *)
+let take (tok : Token.t) (ws : Whitespace.alist) =
+  match ws with
   | [] -> ([], [])
-  | x :: xs -> (x, xs)
+  | (t, x) :: xs ->
+      if tok = t then (x, xs)
+      else
+        fatal
+          (Anomaly
+             (Printf.sprintf "unexpectedly labeled whitespace/comments: expected %s got %s"
+                (Token.to_string tok) (Token.to_string t)))
+
+let take_opt (tok : Token.t) (ws : Whitespace.alist) =
+  match ws with
+  | [] -> Some ([], [])
+  | (t, x) :: xs -> if tok = t then Some (x, xs) else None
+
+(* Ensure that we took all the elements. *)
+let taken_last (ws : Whitespace.alist) =
+  match ws with
+  | [] -> ()
+  | (tok, _) :: _ ->
+      fatal (Anomaly ("unexpected whitespace/comments: token label " ^ Token.to_string tok))
 
 (* Print a token, with arguments swapped so that it takes the token as an argument. *)
 let pp_tok (ppf : formatter) (tok : Token.t) : unit = Token.pp tok ppf ()
@@ -126,7 +145,7 @@ and pp_notn_case :
     formatter ->
     (left, tight, right) notation ->
     observation list ->
-    Whitespace.t list list ->
+    Whitespace.alist ->
     unit =
  fun space ppf n obs ws ->
   match print_as_case n with
@@ -139,12 +158,12 @@ and pp_notn :
     formatter ->
     (left, tight, right) notation ->
     observation list ->
-    Whitespace.t list list ->
+    Whitespace.alist ->
     unit =
  fun space ppf n obs ws ->
   match print n with
   | Some pp -> pp space ppf obs ws
-  | None -> fatal (Anomaly "unprintable term")
+  | None -> fatal (Anomaly (Printf.sprintf "unprintable notation: %s" (name n)))
 
 and pp_spine (space : space) (ppf : formatter) (tr : observation) : unit =
   match tr with

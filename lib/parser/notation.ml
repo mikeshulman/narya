@@ -78,7 +78,7 @@ and observation = Term : ('lt, 'ls, 'rt, 'rs) parse located -> observation
 and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
   | Infix : {
       notn : ('left opn, 'tight, 'right opn) notation;
-      ws : Whitespace.t list list;
+      ws : Whitespace.alist;
       first : ('lt, 'ls, 'tight, 'left) parse located;
       inner : observation Bwd.t;
       last : ('tight, 'right, 'rt, 'rs) parse located;
@@ -88,7 +88,7 @@ and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
       -> ('left opn, 'tight, 'right opn, 'lt, 'ls, 'rt, 'rs) parsed_notn
   | Prefix : {
       notn : (closed, 'tight, 'right opn) notation;
-      ws : Whitespace.t list list;
+      ws : Whitespace.alist;
       inner : observation Bwd.t;
       last : ('tight, 'right, 'rt, 'rs) parse located;
       right_ok : ('rt, 'rs, 'tight) No.lt;
@@ -96,7 +96,7 @@ and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
       -> (closed, 'tight, 'right opn, 'lt, 'ls, 'rt, 'rs) parsed_notn
   | Postfix : {
       notn : ('left opn, 'tight, closed) notation;
-      ws : Whitespace.t list list;
+      ws : Whitespace.alist;
       first : ('lt, 'ls, 'tight, 'left) parse located;
       inner : observation Bwd.t;
       left_ok : ('lt, 'ls, 'tight) No.lt;
@@ -104,7 +104,7 @@ and ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn =
       -> ('left opn, 'tight, closed, 'lt, 'ls, 'rt, 'rs) parsed_notn
   | Outfix : {
       notn : (closed, 'tight, closed) notation;
-      ws : Whitespace.t list list;
+      ws : Whitespace.alist;
       inner : observation Bwd.t;
     }
       -> (closed, 'tight, closed, 'lt, 'ls, 'rt, 'rs) parsed_notn
@@ -133,12 +133,12 @@ and processor = {
     (string option, 'n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
-    Whitespace.t list list ->
+    Whitespace.alist ->
     'n check located;
 }
 
 (* A printing function for a notation is told what sort of space (if any) to end with, and is given the formatter, the list of arguments of the notation, and the list of whitespaces attached after all the operator parts of the notation. *)
-and printer = space -> Format.formatter -> observation list -> Whitespace.t list list -> unit
+and printer = space -> Format.formatter -> observation list -> Whitespace.alist -> unit
 
 (* The entry point of the parse tree defining a particular notation must be parametrized either by the representable non-strict interval at that tightness, or by the empty interval in case of a left-closed notation. *)
 and ('left, 'tight) notation_entry =
@@ -186,7 +186,7 @@ let args :
 
 let whitespace :
     type left tight right lt ls rt rs.
-    (left, tight, right, lt, ls, rt, rs) parsed_notn -> Whitespace.t list list = function
+    (left, tight, right, lt, ls, rt, rs) parsed_notn -> Whitespace.alist = function
   | Infix { ws; _ } -> ws
   | Prefix { ws; _ } -> ws
   | Postfix { ws; _ } -> ws
@@ -247,7 +247,7 @@ let set_tree n t =
 let processor n =
   match n.processor with
   | Some c -> c
-  | None -> raise (Invalid_argument "notation has no processor")
+  | None -> raise (Invalid_argument (Printf.sprintf "notation %s has no processor" n.name))
 
 let set_processor n c =
   match n.processor with

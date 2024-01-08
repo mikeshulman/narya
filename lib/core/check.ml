@@ -102,40 +102,49 @@ let rec check : type a b. (a, b) Ctx.t -> a check located -> value -> b term =
                     (`Cube x, check (Ctx.vis ctx (`Cube x) newnfs) body output) in
               Term.Lam (m, xs, cbody))
       | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
-  | Struct tms -> (
+  | Struct (`Eta, tms) -> (
       match uty with
       | Canonical (name, _, ins) -> (
           (* We don't need to name the arguments of Canonical here because tyof_field, called below, uses them. *)
           match Hashtbl.find Global.constants name with
-          | Record { fields; _ } ->
+          | Record { eta = `Eta; fields; _ } ->
               let () =
                 is_id_perm (perm_of_ins ins)
-                <|> Checking_struct_at_degenerated_record (PConstant name) in
+                <|> Checking_tuple_at_degenerated_record (PConstant name) in
               let dim = cod_left_ins ins in
-              (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in order) using a state monad as well that accumulates the previously typechecked and evaluated fields. *)
-              let module M = Monad.State (struct
-                type t = b term Field.Map.t * value Field.Map.t
-              end) in
-              let open Monad.Ops (M) in
-              let open Mlist.Monadic (M) in
-              (* We have to accumulate the evaluated terms for use as we go in typechecking, but we throw them away at the end.  (As usual, that seems wasteful.) *)
-              let (), (ctms, _) =
-                miterM
-                  (fun [ (fld, _) ] ->
-                    let* ctms, etms = M.get in
-                    let prev_etm = Value.Struct (etms, zero_ins dim) in
+              (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
+              let etms = ref Abwd.empty in
+              let labeled_tms = ref tms in
+              let ctms =
+                Abwd.mapi
+                  (fun fld _ ->
+                    let prev_etm = Value.Struct (!etms, zero_ins dim) in
                     let ety = tyof_field prev_etm ty fld in
-                    match Field.Map.find_opt fld tms with
+                    match Abwd.find_opt (Some fld) tms with
                     | Some tm ->
                         let ctm = check ctx tm ety in
-                        let etm = Ctx.eval ctx ctm in
-                        M.put (Field.Map.add fld ctm ctms, Field.Map.add fld etm etms)
-                    | None -> fatal (Missing_field_in_struct fld))
-                  [ fields ]
-                  (Field.Map.empty, Field.Map.empty) in
-              Term.Struct ctms
-          | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
-      | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
+                        etms := Abwd.add fld (Ctx.eval ctx ctm, `Labeled) !etms;
+                        (ctm, `Labeled)
+                    | None -> (
+                        match Abwd.find_opt_and_update_key None (Some fld) !labeled_tms with
+                        | Some (tm, new_labeled_tms) ->
+                            labeled_tms := new_labeled_tms;
+                            let ctm = check ctx tm ety in
+                            etms := Abwd.add fld (Ctx.eval ctx ctm, `Unlabeled) !etms;
+                            (ctm, `Unlabeled)
+                        | None -> fatal (Missing_field_in_tuple fld)))
+                  fields in
+              (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
+              Term.Struct
+                ( `Eta,
+                  Bwd.map
+                    (fun (fld, _) ->
+                      match fld with
+                      | Some fld -> (fld, Abwd.find fld ctms)
+                      | None -> fatal (Extra_field_in_tuple None))
+                    !labeled_tms )
+          | _ -> fatal (Checking_tuple_at_nonrecord (PUninst (ctx, uty))))
+      | _ -> fatal (Checking_tuple_at_nonrecord (PUninst (ctx, uty))))
   | Constr ({ value = constr; loc = constr_loc }, args) -> (
       match uty with
       | Canonical (name, ty_params_indices, ins) -> (
@@ -229,6 +238,8 @@ let rec check : type a b. (a, b) Ctx.t -> a check located -> value -> b term =
           with_loc constr_loc @@ fun () ->
           fatal (No_such_constructor (`Other (PUninst (ctx, uty)), constr)))
   | Match _ -> fatal (Unimplemented "Matching in terms (rather than case trees)")
+  | Struct (`Noeta, _) -> fatal (Unimplemented "Comatching in terms (rather than case trees)")
+  | Empty_co_match -> fatal (Unimplemented "(Co)matching in terms (rather than case trees)")
 
 and synth : type a b. (a, b) Ctx.t -> a synth located -> b term * value =
  fun ctx tm ->
@@ -508,30 +519,36 @@ let rec check_tree :
                   let ctx = Ctx.vis ctx (`Cube x) newnfs in
                   check_tree ctx body output (apply prev_tm newargs) tbody))
       | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
-  | Struct tms -> (
+  | Struct (tmeta, tms) -> (
+      Reporter.trace "when checking comatch" @@ fun () ->
       match uty with
       | Canonical (name, _, ins) -> (
           match Hashtbl.find Global.constants name with
-          | Record { fields; _ } ->
+          | Record { eta; fields; _ } when eta = tmeta ->
               let () =
-                is_id_perm (perm_of_ins ins)
-                <|> Checking_struct_at_degenerated_record (PConstant name) in
-              let tfields =
-                List.fold_left
-                  (fun m (x, _) -> Field.Map.add x (ref Case.Empty) m)
-                  Field.Map.empty fields in
+                is_id_perm (perm_of_ins ins) <|> struct_at_degenerated_type tmeta (PConstant name)
+              in
+              let tfields = Abwd.map (fun _ -> ref Case.Empty) fields in
               tree := Case.Cobranches tfields;
-              Mlist.miter
+              let labeled_tms = ref tms in
+              Mbwd.miter
                 (fun [ (fld, _) ] ->
                   let ety = tyof_field prev_tm ty fld in
-                  (* This enforces coverage checking.  If we want to allow delayed or disabled coverage checking, then a None result here should succeed and do nothing, leaving the corresponding cobranch as Case.Empty. *)
-                  match Field.Map.find_opt fld tms with
-                  | Some tm ->
-                      check_tree ctx tm ety (field prev_tm fld) (Field.Map.find fld tfields)
-                  | None -> fatal (Missing_field_in_struct fld))
-                [ fields ]
-          | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
-      | _ -> fatal (Checking_struct_at_nonrecord (PUninst (ctx, uty))))
+                  match Abwd.find_opt (Some fld) tms with
+                  | Some tm -> check_tree ctx tm ety (field prev_tm fld) (Abwd.find fld tfields)
+                  | None -> (
+                      match Abwd.find_opt_and_update_key None (Some fld) !labeled_tms with
+                      | Some (tm, new_labeled_tms) ->
+                          labeled_tms := new_labeled_tms;
+                          check_tree ctx tm ety (field prev_tm fld) (Abwd.find fld tfields)
+                      | None -> fatal (missing_field_in_struct eta fld)))
+                [ fields ];
+              if Option.is_some (Abwd.find_opt None !labeled_tms) then
+                fatal (Extra_field_in_tuple None)
+          | _ -> fatal (struct_at_nonrecord tmeta (PUninst (ctx, uty))))
+      | _ ->
+          Reporter.trace "fatal" @@ fun () -> fatal (struct_at_nonrecord tmeta (PUninst (ctx, uty)))
+      )
   | Match (ix, brs) -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
       match Ctx.lookup ctx ix with
@@ -749,6 +766,16 @@ let rec check_tree :
                             tbranches)
                   | _ -> fatal (Matching_on_nondatatype (`Canonical (PConstant name)))))
           | _ -> fatal (Matching_on_nondatatype (`Other (PUninst (ctx, uvarty))))))
+  | Empty_co_match -> (
+      match uty with
+      | Pi _ ->
+          check_tree ctx
+            {
+              value = Raw.Lam (None, `Normal, { value = Match ((Top, None), []); loc = tm.loc });
+              loc = tm.loc;
+            }
+            ty prev_tm tree
+      | _ -> check_tree ctx { value = Struct (`Noeta, Abwd.empty); loc = tm.loc } ty prev_tm tree)
   | _ ->
       let leaf = check ctx tm ty in
       tree := Case.Leaf leaf

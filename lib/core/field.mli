@@ -8,6 +8,6 @@ type t = Field.t
 
 val intern : string -> t
 
-module Map : module type of Map.Make (Field)
+module Set : module type of Set.Make (Field)
 
 val to_string : t -> string

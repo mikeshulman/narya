@@ -1,3 +1,5 @@
+open Bwd
+open Bwd.Infix
 open Dim
 open Core
 open Syntax
@@ -24,14 +26,13 @@ let install () =
   Hashtbl.add Global.constants gel
     (Record
        {
-         eta = true;
+         eta = `Eta;
          params = Suc (Suc (Suc Zero));
          dim = one;
          fields =
-           [
-             ( ungel,
-               app
-                 (app (Var (Pop (Top (id_sface D.zero)))) (Var (Top zero_sface_one)))
-                 (Var (Top one_sface_one)) );
-           ];
+           Emp
+           <: ( ungel,
+                app
+                  (app (Var (Pop (Top (id_sface D.zero)))) (Var (Top zero_sface_one)))
+                  (Var (Top one_sface_one)) );
        })

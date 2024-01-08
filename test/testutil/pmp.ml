@@ -29,9 +29,10 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
   | Struct tms ->
       unlocated
         (Raw.Struct
-           (List.fold_left
-              (fun acc (fld, tm) -> Field.Map.add (Field.intern fld) (parse_chk ctx tm) acc)
-              Field.Map.empty tms))
+           ( `Eta,
+             List.fold_left
+               (fun acc (fld, tm) -> Abwd.add (Some (Field.intern fld)) (parse_chk ctx tm) acc)
+               Abwd.empty tms ))
   | Constr c -> unlocated (Raw.Constr (unlocated (Constr.intern c), Emp))
   | App (fn, arg) as tm -> (
       match (parse_chk ctx fn).value with

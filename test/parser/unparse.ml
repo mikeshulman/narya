@@ -32,12 +32,23 @@ let () =
   Types.Nat.install ();
   Types.Nat.install_ops ();
   Types.Sigma.install ();
-  print "{fst := 0; snd := 0} : ℕ >< ℕ";
-  print "(0,0,0) : ℕ × ℕ × ℕ";
+  print "(fst := 0,snd := 0) : ℕ × ℕ";
+  print "(0,0) : ℕ × ℕ";
+  print "(fst := 1, 2) : ℕ × ℕ";
+  print "(snd := 1, 2) : ℕ × ℕ";
+  print "(0,(0,0)) : ℕ × ℕ × ℕ";
   print "((0,0),0) : (ℕ × ℕ) × ℕ";
-  print "{fst := x |-> x; snd := 2} : (ℕ -> ℕ) >< ℕ";
+  print "(fst ≔ x ↦ x, snd ≔ 2) : (ℕ → ℕ) × ℕ";
   assume "s" "(ℕ → ℕ) × ℕ";
   print "s .fst 3";
+  (* TODO: Needs unparsing of case trees *)
+  (*
+  Types.Stream.install ();
+  assume "zz" "Stream N";
+  print "[ .head |-> 0 | .tail |-> zz] : Stream N";
+  (* Evaluation and readback reorders fields to the order they appear in the record type definition. *)
+  print "[ .tail |-> zz | .head |-> 0 ] : Stream N";
+*)
   Types.Lst.install ();
   print "nil. : List ℕ";
   print "cons. 2 nil. : List ℕ";

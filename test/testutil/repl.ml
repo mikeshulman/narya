@@ -118,8 +118,9 @@ let print (tm : string) : unit =
       Format.pp_print_newline Format.std_formatter ()
   | _ -> fatal (Nonsynthesizing "argument of print")
 
-let run f =
+let rec run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
+      run @@ fun () ->
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->

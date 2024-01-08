@@ -19,36 +19,7 @@ type 'a located = 'a Asai.Range.located
 
 let parens = make "parens" Outfix
 
-let () =
-  set_tree parens (Closed_entry (eop LParen (term RParen (Done_closed parens))));
-  set_processor parens
-    {
-      process =
-        (fun ctx obs _loc _ ->
-          (* The location of the parentheses can be ignored. *)
-          match obs with
-          | [ Term body ] -> process ctx body
-          | _ -> fatal (Anomaly "invalid notation arguments for parens"));
-    }
-
-let pp_parens space ppf obs ws =
-  match obs with
-  | [ body ] ->
-      let wslparen, ws = take ws in
-      let wsrparen, _ = take ws in
-      pp_open_hovbox ppf 1;
-      if true then (
-        pp_tok ppf LParen;
-        pp_ws `None ppf wslparen;
-        pp_term `None ppf body;
-        pp_tok ppf RParen);
-      pp_close_box ppf ();
-      pp_ws space ppf wsrparen
-  | _ -> fatal (Anomaly "invalid notation arguments for parens")
-
-let () =
-  set_print parens pp_parens;
-  set_print_as_case parens pp_parens
+(* Parentheses are parsed, processed, and printed along with tuples, since their notation overlaps.  *)
 
 (* ********************
    Let-binding
@@ -111,10 +82,11 @@ let () =
         let style = style () in
         match obs with
         | [ x; ty; tm; body ] ->
-            let wslet, ws = take ws in
-            let wscolon, ws = take ws in
-            let wscoloneq, ws = take ws in
-            let wsin, _ = take ws in
+            let wslet, ws = take Let ws in
+            let wscolon, ws = take Colon ws in
+            let wscoloneq, ws = take Coloneq ws in
+            let wsin, ws = take In ws in
+            taken_last ws;
             if style = `Compact then pp_open_hovbox ppf 2;
             if true then (
               pp_open_hvbox ppf 2;
@@ -134,9 +106,10 @@ let () =
             pp_ws `Break ppf wsin;
             pp_let_body space ppf body
         | [ x; tm; body ] ->
-            let wslet, ws = take ws in
-            let wscoloneq, ws = take ws in
-            let wsin, _ = take ws in
+            let wslet, ws = take Let ws in
+            let wscoloneq, ws = take Coloneq ws in
+            let wsin, ws = take In ws in
+            taken_last ws;
             if style = `Compact then pp_open_hovbox ppf 2 else pp_open_hvbox ppf 2;
             if true then (
               pp_tok ppf Let;
@@ -181,12 +154,13 @@ let () =
   set_print asc @@ fun space ppf obs ws ->
   match obs with
   | [ tm; ty ] ->
-      let ws, _ = take ws in
+      let w, ws = take Colon ws in
+      taken_last ws;
       pp_open_box ppf 0;
       if true then (
         pp_term `Break ppf tm;
         pp_tok ppf Colon;
-        pp_ws `Nobreak ppf ws;
+        pp_ws `Nobreak ppf w;
         pp_term space ppf ty);
       pp_close_box ppf ()
   | _ -> fatal (Anomaly "invalid notation arguments for ascription")
@@ -243,7 +217,8 @@ let get_pi_arg :
   | Notn n when equal (notn n) asc -> (
       match args n with
       | [ Term xs; dom ] ->
-          let wscolon, _ = take (whitespace n) in
+          let wscolon, ws = take Colon (whitespace n) in
+          taken_last ws;
           let vars = get_pi_vars xs.value [] in
           Dep { wsarrow; vars; ty = dom; wslparen; wscolon; wsrparen }
       | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
@@ -258,15 +233,17 @@ let rec get_pi_args :
     | Notn n when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let wslparen, ws = take (whitespace n) in
-            let wsrparen, _ = take ws in
+            let wslparen, ws = take LParen (whitespace n) in
+            let wsrparen, ws = take RParen ws in
+            taken_last ws;
             get_pi_arg ~wsarrow body.value ~wslparen ~wsrparen :: vars
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | App { fn; arg = { value = Notn n; _ }; _ } when equal (notn n) parens -> (
         match args n with
         | [ Term body ] ->
-            let wslparen, ws = take (whitespace n) in
-            let wsrparen, _ = take ws in
+            let wslparen, ws = take LParen (whitespace n) in
+            let wsrparen, ws = take RParen ws in
+            taken_last ws;
             get_pi_args wsarrow fn
               (get_pi_arg ~wsarrow:`Noarrow body.value ~wslparen ~wsrparen :: vars)
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
@@ -278,12 +255,13 @@ let rec get_pi :
     type lt ls rt rs.
     arrow_opt ->
     observation list ->
-    Whitespace.t list list ->
+    Whitespace.alist ->
     pi_dom list * Whitespace.t list * observation =
  fun prev_arr obs ws ->
   match obs with
   | [ Term doms; Term cod ] ->
-      let wsarrow, _ = take ws in
+      let wsarrow, ws = take Arrow ws in
+      taken_last ws;
       let vars, ws, cod =
         match cod.value with
         | Notn n when equal (notn n) arrow -> get_pi (`Arrow wsarrow) (args n) (whitespace n)
@@ -445,7 +423,8 @@ let process_abs cube =
 let pp_abs cube space ppf obs ws =
   match obs with
   | [ vars; body ] ->
-      let wsmapsto, _ = take ws in
+      let wsmapsto, ws = take Mapsto ws in
+      taken_last ws;
       pp_open_box ppf 0;
       if true then (
         pp_open_hovbox ppf 2;
@@ -488,9 +467,10 @@ let () =
   set_print universe @@ fun space ppf obs ws ->
   match obs with
   | [] ->
-      let ws, _ = take ws in
+      let wstype, ws = take (Ident [ "Type" ]) ws in
+      taken_last ws;
       pp_print_string ppf "Type";
-      pp_ws space ppf ws
+      pp_ws space ppf wstype
   | _ -> fatal (Anomaly (Printf.sprintf "invalid notation arguments for Type: %d" (List.length ws)))
 
 (* ********************
@@ -522,9 +502,10 @@ let () =
   set_print degen @@ fun space ppf obs ws ->
   match obs with
   | [ tm; Term { value = Ident ([ str ], w); _ } ] ->
-      let wscaret, ws = take ws in
-      let wslbrace, ws = take ws in
-      let wsrbrace, _ = take ws in
+      let wscaret, ws = take (Op "^") ws in
+      let wslbrace, ws = take LBrace ws in
+      let wsrbrace, ws = take RBrace ws in
+      taken_last ws;
       pp_term `None ppf tm;
       pp_tok ppf (Op "^");
       pp_ws `None ppf wscaret;
@@ -537,152 +518,205 @@ let () =
   | _ -> fatal (Anomaly "invalid notation arguments for degeneracy")
 
 (* ********************
-   Anonymous structs and comatches
+   Anonymous tuples
  ******************** *)
 
-let struc = make "struc" Outfix
+let coloneq = make "coloneq" (Infixr No.minus_omega)
+let () = set_tree coloneq (Open_entry (eop Coloneq (done_open coloneq)))
 
-let rec struc_fields () =
+(* The notation for tuples is "( x ≔ M, y ≔ N, z ≔ P )".  The parentheses don't conflict with ordinary parentheses, since ≔ and , are not term-forming operators all by themselves.  The 0-ary tuple "()" is included, and also doesn't conflict since ordinary parentheses must contain a term.  We also allow some of the components of the tuple to be unlabeled, as in "(M, N, P)"; these are assigned to the fields that don't have a corresponding labeled component in the order they appear in the record type.  The only thing that's not allowed is an unlabeled 1-tuple "(M)" since that would conflict with ordinary parentheses.  (TODO: We could essentially allow that by making the tupling and projection of a 1-ary record type implicit coercions.) *)
+
+let rec tuple_fields () =
   Inner
     {
       empty_branch with
-      ops = TokMap.singleton RBrace (Done_closed struc);
+      ops = TokMap.singleton RParen (Done_closed parens);
       term =
         Some
-          (TokMap.singleton Coloneq
-             (terms [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done_closed struc) ]));
+          (TokMap.of_list [ (Op ",", Lazy (lazy (tuple_fields ()))); (RParen, Done_closed parens) ]);
     }
 
-let rec comatch_fields () =
-  Inner
-    {
-      empty_branch with
-      ops = TokMap.singleton RBrace (Done_closed struc);
-      field =
-        Some
-          (op Mapsto
-             (terms [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed struc) ]));
-    }
+let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
 
-let () =
-  set_tree struc
-    (Closed_entry
-       (eop LBrace
-          (Inner
-             {
-               ops = TokMap.singleton RBrace (Done_closed struc);
-               term =
-                 Some
-                   (TokMap.singleton Coloneq
-                      (terms
-                         [ (Op ";", Lazy (lazy (struc_fields ()))); (RBrace, Done_closed struc) ]));
-               field =
-                 Some
-                   (op Mapsto
-                      (terms
-                         [ (Op ";", Lazy (lazy (comatch_fields ()))); (RBrace, Done_closed struc) ]));
-             })))
-
-let rec process_struc :
+let rec process_tuple :
     type n.
-    n check located Field.Map.t ->
+    bool ->
+    (Field.t option, n check located) Abwd.t ->
+    Field.Set.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
- fun flds ctx obs loc ->
+ fun first flds found ctx obs loc ->
   match obs with
-  | [] -> { value = Raw.Struct flds; loc }
-  | Term { value = Ident ([ x ], _); _ } :: obs | Term { value = Field (x, _); _ } :: obs -> (
-      match obs with
-      | Term tm :: obs ->
+  | [] -> { value = Raw.Struct (`Eta, flds); loc }
+  | Term { value = Notn n; _ } :: obs when equal (notn n) coloneq -> (
+      match args n with
+      | [ Term { value = Ident ([ x ], _); _ }; Term tm ] ->
           let tm = process ctx tm in
           let fld = Field.intern x in
-          process_struc
-            (Field.Map.update fld
-               (function
-                 | None -> Some tm
-                 | Some _ -> fatal (Duplicate_field_in_struct fld))
-               flds)
-            ctx obs loc
-      | _ -> fatal (Anomaly "invalid notation arguments for struct"))
-  | _ :: _ -> fatal Invalid_field_in_struct
+          if Field.Set.mem fld found then fatal (Duplicate_field_in_tuple fld)
+          else
+            process_tuple false (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
+      | _ :: _ -> fatal Invalid_field_in_tuple
+      | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
+  | [ Term body ] when first -> process ctx body
+  | Term tm :: obs ->
+      let tm = process ctx tm in
+      process_tuple false (Abwd.add None tm flds) found ctx obs loc
 
 let () =
-  set_processor struc { process = (fun ctx obs loc _ -> process_struc Field.Map.empty ctx obs loc) }
+  set_processor parens
+    { process = (fun ctx obs loc _ -> process_tuple true Abwd.empty Field.Set.empty ctx obs loc) }
 
-let rec pp_fld :
-    type a.
-    formatter ->
-    (formatter -> a -> unit) ->
-    a ->
-    Whitespace.t list ->
-    Token.t ->
-    Whitespace.t list ->
-    observation ->
-    observation list ->
-    Whitespace.t list list ->
-    Whitespace.t list list =
- fun ppf pp x w tok wstok tm obs ws ->
-  pp_open_hovbox ppf 2;
-  if true then (
-    pp ppf x;
-    pp_ws `Nobreak ppf w;
-    pp_tok ppf tok;
-    pp_ws `Break ppf wstok;
-    pp_term (if List.is_empty obs then `None else `Nobreak) ppf tm);
-  pp_close_box ppf ();
+let pp_coloneq space ppf obs ws =
+  let wscoloneq, ws = take Coloneq ws in
+  taken_last ws;
   match obs with
-  | [] -> ws
-  | _ ->
-      let wssemi, ws = take ws in
-      pp_tok ppf (Op ";");
-      pp_ws `Break ppf wssemi;
-      ws
+  | [ x; body ] ->
+      pp_open_hovbox ppf 2;
+      if true then (
+        pp_term `Nobreak ppf x;
+        pp_tok ppf Coloneq;
+        pp_ws `Break ppf wscoloneq;
+        pp_term space ppf body);
+      pp_close_box ppf ()
+  | _ -> fatal (Anomaly "invalid notation arguments for tuple")
 
-and pp_fields : formatter -> observation list -> Whitespace.t list list -> Whitespace.t list =
+let () = set_print coloneq pp_coloneq
+
+let rec pp_fields : formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
  fun ppf obs ws ->
   match obs with
-  | [] ->
-      let wsrbrace, _ = take ws in
-      wsrbrace
-  | Term { value = Ident ([ x ], w); _ } :: obs | Term { value = Field (x, w); _ } :: obs -> (
-      let wstok, ws = take ws in
+  | [] -> ws
+  | tm :: obs -> (
+      pp_term `None ppf tm;
       match obs with
-      | tm :: obs ->
-          let ws =
-            match state () with
-            | `Term -> pp_fld ppf pp_var (Some x) w Coloneq wstok tm obs ws
-            | `Case -> pp_fld ppf pp_field x w Mapsto wstok tm obs ws in
-          pp_fields ppf obs ws
-      | _ -> fatal (Anomaly "invalid notation arguments for struct"))
-  | _ :: _ -> fatal Invalid_field_in_struct
+      | [] -> ws
+      | _ ->
+          let wscomma, ws = take (Op ",") ws in
+          pp_tok ppf (Op ",");
+          pp_ws `Break ppf wscomma;
+          pp_fields ppf obs ws)
 
-let pp_struc space ppf obs ws =
-  let style, state = (style (), state ()) in
-  (match state with
-  | `Term ->
-      if style = `Noncompact then pp_open_box ppf 0;
-      pp_open_hvbox ppf 2
-  | `Case -> pp_open_vbox ppf 2);
-  pp_tok ppf LBrace;
-  if style = `Compact then pp_print_string ppf " " else pp_print_space ppf ();
-  let wsrbrace = pp_fields ppf obs ws in
-  (if style = `Compact then pp_print_string ppf " "
-   else
-     match state with
-     | `Term ->
-         pp_close_box ppf ();
-         pp_print_custom_break ~fits:("", 1, "") ~breaks:(" ;", 0, "") ppf
-     | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(" ;", -2, "") ppf);
-  pp_tok ppf RBrace;
-  pp_close_box ppf ();
-  pp_ws space ppf wsrbrace
+let pp_tuple space ppf obs ws =
+  match obs with
+  | [] ->
+      let wslparen, ws = take LParen ws in
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      pp_tok ppf LParen;
+      pp_ws `None ppf wslparen;
+      pp_tok ppf RParen;
+      pp_ws `None ppf wsrparen
+  | [ body ] ->
+      let wslparen, ws = take LParen ws in
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      pp_open_hovbox ppf 1;
+      if true then (
+        pp_tok ppf LParen;
+        pp_ws `None ppf wslparen;
+        pp_term `None ppf body;
+        pp_tok ppf RParen);
+      pp_close_box ppf ();
+      pp_ws space ppf wsrparen
+  | _ :: _ ->
+      let style, state = (style (), state ()) in
+      (match state with
+      | `Term ->
+          if style = `Noncompact then pp_open_box ppf 0;
+          pp_open_hvbox ppf 2
+      | `Case -> pp_open_vbox ppf 2);
+      pp_tok ppf LParen;
+      let wslparen, ws = take LParen ws in
+      pp_ws (if style = `Compact then `Nobreak else `Break) ppf wslparen;
+      let ws = pp_fields ppf obs ws in
+      (if style = `Compact then pp_print_string ppf " "
+       else
+         match state with
+         | `Term ->
+             pp_close_box ppf ();
+             pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
+         | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
+      let ws =
+        match take_opt (Op ",") ws with
+        | Some (wscomma, ws) ->
+            pp_ws `None ppf wscomma;
+            ws
+        | None -> ws in
+      pp_tok ppf RParen;
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      pp_ws space ppf wsrparen;
+      pp_close_box ppf ()
 
-(* In standard formatting, structures in case trees are written as copattern-matches with field dots and ↦, while those in terms are written without dots and with ≔. *)
 let () =
-  set_print struc pp_struc;
-  set_print_as_case struc pp_struc
+  set_print parens pp_tuple;
+  set_print_as_case parens pp_tuple
+
+(* ********************
+   Comatches
+   ******************** *)
+
+(* The notations for matches and comatches are very similar.  The differences are (1) comatches label each branch by a field, while matches label it by a constructor applied to pattern variables, and (2) matches can begin with a variable to match against (if not, it is a matching lambda).  This means in particular that a comatch and a matching lambda with no branches are both denoted "[]".  This is okay because both are checking, not synthesizing, so the ambiguity is resolved by whether we are checking against a function or a codatatype.  But it means we have to be careful parsing them to avoid collisions.  We define the basic notation trees for both of them to exclude the empty case, and then give a separate notation for the empty one that parses into Empty_co_match that's disambiguated later.  *)
+
+let comatch = make "comatch" Outfix
+
+let rec comatch_fields end_ok =
+  Inner
+    {
+      empty_branch with
+      ops =
+        (if end_ok then
+           TokMap.of_list
+             [ (RBracket, Done_closed comatch); (Op "|", Lazy (lazy (comatch_fields true))) ]
+         else TokMap.singleton (Op "|") (Lazy (lazy (comatch_fields false))));
+      field =
+        Some
+          (op Mapsto
+             (terms
+                [ (Op "|", Lazy (lazy (comatch_fields true))); (RBracket, Done_closed comatch) ]));
+    }
+
+let () = set_tree comatch (Closed_entry (eop LBracket (comatch_fields false)))
+
+let rec process_comatch :
+    type n.
+    (Field.t option, n check located) Abwd.t * Field.Set.t ->
+    (string option, n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    n check located =
+ fun (flds, found) ctx obs loc ->
+  match obs with
+  | [] -> { value = Raw.Struct (`Noeta, flds); loc }
+  | Term { value = Field (x, _); _ } :: Term tm :: obs ->
+      let tm = process ctx tm in
+      let fld = Field.intern x in
+      if Field.Set.mem fld found then fatal (Duplicate_method_in_comatch fld)
+        (* Comatches can't have unlabeled fields *)
+      else process_comatch (Abwd.add (Some fld) tm flds, Field.Set.add fld found) ctx obs loc
+  | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
+
+let () =
+  set_processor comatch
+    { process = (fun ctx obs loc _ -> process_comatch (Abwd.empty, Field.Set.empty) ctx obs loc) }
+
+(* Comatches will be printed with a different instantiation of the functions that print matches. *)
+
+let empty_co_match = make "empty_co_match" Outfix
+
+let () =
+  set_tree empty_co_match
+    (Closed_entry
+       (eop LBracket
+          (ops
+             [
+               (RBracket, Done_closed empty_co_match);
+               (Op "|", op RBracket (Done_closed empty_co_match));
+             ])));
+  set_processor empty_co_match { process = (fun _ _ loc _ -> { value = Empty_co_match; loc }) }
 
 (* ********************
    Matches
@@ -690,15 +724,15 @@ let () =
 
 let mtch = make "match" Outfix
 
-let rec innermtch () =
+let rec mtch_branches end_ok =
   Inner
     {
       empty_branch with
-      ops = TokMap.of_list [ (RBracket, Done_closed mtch) ];
+      ops = (if end_ok then TokMap.of_list [ (RBracket, Done_closed mtch) ] else TokMap.empty);
       term =
         Some
           (TokMap.singleton Mapsto
-             (terms [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]));
+             (terms [ (Op "|", Lazy (lazy (mtch_branches true))); (RBracket, Done_closed mtch) ]));
     }
 
 let () =
@@ -708,17 +742,19 @@ let () =
           (Inner
              {
                empty_branch with
-               ops = TokMap.of_list [ (Op "|", innermtch ()); (RBracket, Done_closed mtch) ];
+               ops = TokMap.of_list [ (Op "|", mtch_branches false) ];
                term =
                  Some
                    (TokMap.of_list
                       [
-                        (Op "|", innermtch ());
+                        (Op "|", mtch_branches true);
                         (RBracket, Done_closed mtch);
                         ( Mapsto,
                           terms
-                            [ (Op "|", Lazy (lazy (innermtch ()))); (RBracket, Done_closed mtch) ]
-                        );
+                            [
+                              (Op "|", Lazy (lazy (mtch_branches true)));
+                              (RBracket, Done_closed mtch);
+                            ] );
                       ]);
              })))
 
@@ -747,7 +783,7 @@ let rec process_branches : type n. (string option, n) Bwv.t -> observation list 
   | Term pat :: Term body :: obs ->
       let c, Extctx (ab, _locs, ectx) = get_pattern ctx pat in
       Branch (c, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
-  | _ -> fatal (Anomaly "invalid notation arguments for match")
+  | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
 
 let () =
   set_processor mtch
@@ -771,17 +807,18 @@ let () =
               { value = Lam (None, `Normal, { value = Match ((Top, None), branches); loc }); loc });
     }
 
-let rec pp_branches :
-    bool -> formatter -> observation list -> Whitespace.t list list -> Whitespace.t list =
+let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist -> Whitespace.t list
+    =
  fun brk ppf obs ws ->
   match obs with
   | pat :: body :: obs ->
-      let wsbar, ws = take ws in
-      let wsmapsto, ws = take ws in
+      let wsbar, ws = take (Op "|") ws in
+      let wsmapsto, ws = take Mapsto ws in
       let style = style () in
       if brk || style = `Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match body with
-      | Term { value = Notn n; _ } when equal (notn n) mtch && style = `Compact ->
+      | Term { value = Notn n; _ }
+        when (equal (notn n) mtch || equal (notn n) comatch) && style = `Compact ->
           pp_open_hovbox ppf 0;
           if true then (
             pp_open_hovbox ppf 4;
@@ -792,7 +829,7 @@ let rec pp_branches :
               pp_tok ppf Mapsto);
             pp_close_box ppf ();
             pp_ws `Nobreak ppf wsmapsto;
-            pp_match false `None ppf (args n) (whitespace n));
+            pp_match false `Break ppf (args n) (whitespace n));
           pp_close_box ppf ()
       | _ ->
           pp_open_box ppf 1;
@@ -806,16 +843,17 @@ let rec pp_branches :
             pp_close_box ppf ();
             pp_ws `None ppf wsmapsto;
             pp_print_custom_break ppf ~fits:("", 1, "") ~breaks:("", 0, " ");
-            pp_term `None ppf body);
+            pp_term `Nobreak ppf body);
           pp_close_box ppf ());
       pp_branches true ppf obs ws
   | [] ->
-      let wsrbrack, _ = take ws in
+      let wsrbrack, ws = take RBracket ws in
+      taken_last ws;
       wsrbrack
-  | _ -> fatal (Anomaly "invalid notation arguments for match")
+  | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
 
 and pp_match box space ppf obs ws =
-  let wslbrack, ws = take ws in
+  let wslbrack, ws = take LBracket ws in
   let style = style () in
   match obs with
   | (Term { value = Ident _; _ } as x) :: obs ->
@@ -825,23 +863,31 @@ and pp_match box space ppf obs ws =
         pp_ws `Nobreak ppf wslbrack;
         pp_term `None ppf x;
         let wsrbrack = pp_branches true ppf obs ws in
-        if style = `Noncompact then pp_print_cut ppf () else pp_print_char ppf ' ';
+        if style = `Noncompact then pp_print_cut ppf ();
         pp_tok ppf RBracket;
         pp_ws space ppf wsrbrack);
       if box then pp_close_box ppf ()
   | _ ->
-      if box || style = `Noncompact then pp_open_vbox ppf 0;
+      let box = box || style = `Noncompact in
+      if box then pp_open_vbox ppf 0;
       if true then (
         pp_tok ppf LBracket;
-        pp_ws `None ppf wslbrack;
+        pp_ws (if box then `None else `Nobreak) ppf wslbrack;
+        let ws =
+          match take_opt (Op "|") ws with
+          | Some _ -> ws
+          | None -> (Op "|", []) :: ws in
         let wsrbrack = pp_branches ((not box) || style = `Noncompact) ppf obs ws in
-        if style = `Noncompact then pp_print_cut ppf () else pp_print_char ppf ' ';
+        if style = `Noncompact then pp_print_cut ppf ();
         pp_tok ppf RBracket;
         pp_ws space ppf wsrbrack);
-      if box || style = `Noncompact then pp_close_box ppf ()
+      if box then pp_close_box ppf ()
 
-(* Matches are only valid in case trees. *)
-let () = set_print_as_case mtch (pp_match true)
+(* Matches and comatches are only valid in case trees. *)
+let () =
+  set_print_as_case mtch (pp_match true);
+  set_print_as_case comatch (pp_match true);
+  set_print_as_case empty_co_match (pp_match true)
 
 (* ********************
    Generating the state
@@ -858,7 +904,9 @@ let builtins =
     |> State.add arrow
     |> State.add universe
     |> State.add degen
-    |> State.add struc
-    |> State.add mtch)
+    |> State.add coloneq
+    |> State.add comatch
+    |> State.add mtch
+    |> State.add empty_co_match)
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

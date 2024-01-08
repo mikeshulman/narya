@@ -44,29 +44,29 @@ and equal_at : int -> value -> value -> value -> unit option =
       match Hashtbl.find Global.constants name with
       | Record { eta; fields; dim; _ } -> (
           let (Plus kdim) = D.plus dim in
-          match compare (TubeOf.inst tyargs) (D.plus_out k kdim) with
-          | Neq ->
+          match (compare (TubeOf.inst tyargs) (D.plus_out k kdim), eta) with
+          | Neq, _ ->
               fatal
                 (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, D.plus_out k kdim))
-          | Eq -> (
-              if eta then
-                (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-                ListM.miterM
-                  (fun [ (fld, _) ] ->
-                    equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
-                  [ fields ]
-              else
-                (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
-                match (x, y) with
-                | Struct (xfld, xins), Struct (yfld, yins) ->
-                    let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
-                    ListM.miterM
-                      (fun [ (fld, _) ] ->
-                        equal_at ctx (Field.Map.find fld xfld) (Field.Map.find fld yfld)
-                          (tyof_field x ty fld))
-                      [ fields ]
-                | Struct _, _ | _, Struct _ -> fail
-                | _ -> equal_val ctx x y))
+          | Eq, `Eta ->
+              (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+              BwdM.miterM
+                (fun [ (fld, _) ] -> equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
+                [ fields ]
+          | Eq, `Noeta -> (
+              (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
+              match (x, y) with
+              | Struct (xfld, xins), Struct (yfld, yins) ->
+                  let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
+                  BwdM.miterM
+                    (fun [ (fld, _) ] ->
+                      equal_at ctx
+                        (fst (Abwd.find fld xfld))
+                        (fst (Abwd.find fld yfld))
+                        (tyof_field x ty fld))
+                    [ fields ]
+              | Struct _, _ | _, Struct _ -> fail
+              | _ -> equal_val ctx x y))
       (* At a datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  *)
       | Data { constrs; params; indices } -> (
           match compare (TubeOf.inst tyargs) k with

@@ -146,7 +146,8 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   | Field (tm, fld) ->
       let etm = eval env tm in
       field etm fld
-  | Struct fields -> Struct (Field.Map.map (fun tm -> eval env tm) fields, zero_ins (dim_env env))
+  | Struct (_, fields) ->
+      Struct (Abwd.map (fun (tm, l) -> (eval env tm, l)) fields, zero_ins (dim_env env))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -349,7 +350,7 @@ and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> v
       | App (Field fld, new_ins) :: args ->
           (* This also requires the degeneracy to be the identity. *)
           let* () = is_id_any_deg ins in
-          let* body = Field.Map.find_opt fld cobranches in
+          let* body = Abwd.find_opt fld cobranches in
           apply_tree env !body (Any (perm_of_ins new_ins)) args
       | _ -> None)
   | Empty -> None
@@ -389,7 +390,8 @@ and tyof_app :
 and field : value -> Field.t -> value =
  fun tm fld ->
   match tm with
-  | Struct (fields, _) -> Field.Map.find fld fields
+  (* TODO: Is it okay to ignore the insertion here? *)
+  | Struct (fields, _) -> fst (Abwd.find fld fields)
   | Uninst (Neu (fn, args), (lazy ty)) ->
       let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)

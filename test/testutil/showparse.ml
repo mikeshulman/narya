@@ -12,7 +12,6 @@ and parse_tree =
   | Ident of string list
   | Constr of string
   | Field of string
-  | Numeral of Q.t
 
 let rec get_obs (obs : Notation.observation) : obs =
   match obs with
@@ -27,7 +26,6 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Ident x -> Ident x
   | Constr x -> Constr x
   | Field x -> Field x
-  | Numeral n -> Numeral n
 
 let parse tm =
   let p, _ =

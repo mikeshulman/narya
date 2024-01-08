@@ -83,7 +83,6 @@ let rec process :
                 | _ -> fatal (Unbound_variable (String.concat "." parts))))))
   | Constr ident -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, Emp); loc }
   | Field _ -> fatal (Anomaly "Field is head")
-  | Numeral n -> process_numeral loc n
 
 and process_deg :
     type n lt ls rt rs.

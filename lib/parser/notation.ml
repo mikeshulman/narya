@@ -117,7 +117,6 @@ and (_, _, _, _) parse =
   | Ident : string list -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
-  | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object). *)
 and processor = {

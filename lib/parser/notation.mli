@@ -47,7 +47,6 @@ and (_, _, _, _) parse =
   | Ident : string list -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string -> ('lt, 'ls, 'rt, 'rs) parse
-  | Numeral : Q.t -> ('lt, 'ls, 'rt, 'rs) parse
 
 and ('left, 'tight) notation_entry =
   | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry

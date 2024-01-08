@@ -1,3 +1,3 @@
 (executable
-	(libraries core parser types)
+	(libraries core parser types react lwt lambda-term)
   (name narya))

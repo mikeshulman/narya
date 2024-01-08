@@ -34,6 +34,7 @@ let execute : t -> unit = function
           let btm = Readback.readback_at Ctx.empty etm ety in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           pp_term Format.std_formatter (Term utm);
+          Format.pp_print_newline Format.std_formatter ();
           Format.pp_print_newline Format.std_formatter ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Eof -> fatal (Anomaly "EOF cannot be executed")

@@ -2,6 +2,7 @@ open Dim
 open Hctx
 open Asai.Diagnostic
 open Format
+open Uuseg_string
 
 type printable = ..
 
@@ -71,7 +72,7 @@ module Code = struct
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
     | No_such_level : printable * level -> t
-    | Constant_already_defined : printable -> t
+    | Constant_already_defined : string -> t
     | Invalid_constant_name : string -> t
     | Constant_assumed : printable -> t
     | Constant_defined : printable -> t
@@ -132,7 +133,7 @@ module Code = struct
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
     | No_such_level _ -> Bug
-    | Constant_already_defined _ -> Error
+    | Constant_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
     | Constant_assumed _ -> Info
     | Constant_defined _ -> Info
@@ -353,8 +354,8 @@ module Code = struct
     | No_such_level (names, i) ->
         textf "@[<hov 2>no level variable@ (%d,%d)@ in context@ %a@]" (fst i) (snd i) pp_printable
           names
-    | Constant_already_defined name -> textf "constant already defined: %a" pp_printable name
-    | Invalid_constant_name str -> textf "invalid constant name: %s" str
+    | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
+    | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Constant_assumed name -> textf "Axiom %a assumed" pp_printable name
     | Constant_defined name -> textf "Constant %a defined" pp_printable name
     | Show (str, x) -> textf "%s: %a" str pp_printable x

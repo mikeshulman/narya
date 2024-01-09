@@ -31,14 +31,16 @@ type t =
 
 let execute : t -> unit = function
   | Axiom { name; ty = Term ty; _ } ->
+      if Option.is_some (Scope.lookup name) then
+        emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
-      else Core.Command.execute (Axiom (const, process Emp ty));
+      Core.Command.execute (Axiom (const, process Emp ty));
       emit (Constant_assumed (PConstant const))
   | Def { name; ty = Term ty; tm = Term tm; _ } ->
+      if Option.is_some (Scope.lookup name) then
+        emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
-      else Core.Command.execute (Def (const, process Emp ty, process Emp tm));
+      Core.Command.execute (Def (const, process Emp ty, process Emp tm));
       emit (Constant_defined (PConstant const))
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in

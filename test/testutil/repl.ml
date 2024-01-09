@@ -34,13 +34,13 @@ let assume (name : string) (ty : string) : unit =
   let p = Parse_term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse_term.final p with
   | Term { value = Ident (name, _); _ } ->
+      if Option.is_some (Scope.lookup name) then
+        emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
-      else
-        let rty = parse_term ty in
-        let cty = check_type rty in
-        Hashtbl.add Global.types const cty;
-        Hashtbl.add Global.constants const Axiom
+      let rty = parse_term ty in
+      let cty = check_type rty in
+      Hashtbl.add Global.types const cty;
+      Hashtbl.add Global.constants const Axiom
   | _ -> fatal (Invalid_constant_name name)
 
 let def (name : string) (ty : string) (tm : string) : unit =
@@ -48,23 +48,24 @@ let def (name : string) (ty : string) (tm : string) : unit =
   match Parse_term.final p with
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
+      if Option.is_some (Scope.lookup name) then
+        emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
-      if Hashtbl.mem Global.types const then fatal (Constant_already_defined (PConstant const))
-      else
-        let rty = parse_term ty in
-        let rtm = parse_term tm in
-        let cty = check_type rty in
-        let ety = eval (Emp D.zero) cty in
-        Hashtbl.add Global.types const cty;
-        let tree = ref Case.Empty in
-        Hashtbl.add Global.constants const (Defined tree);
-        let hd = eval (Emp D.zero) (Const const) in
-        Reporter.try_with ~fatal:(fun d ->
-            Hashtbl.remove Global.types const;
-            Hashtbl.remove Global.constants const;
-            Reporter.fatal_diagnostic d)
-        @@ fun () ->
-        Reporter.trace "when checking case tree" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
+
+      let rty = parse_term ty in
+      let rtm = parse_term tm in
+      let cty = check_type rty in
+      let ety = eval (Emp D.zero) cty in
+      Hashtbl.add Global.types const cty;
+      let tree = ref Case.Empty in
+      Hashtbl.add Global.constants const (Defined tree);
+      let hd = eval (Emp D.zero) (Const const) in
+      Reporter.try_with ~fatal:(fun d ->
+          Hashtbl.remove Global.types const;
+          Hashtbl.remove Global.constants const;
+          Reporter.fatal_diagnostic d)
+      @@ fun () ->
+      Reporter.trace "when checking case tree" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
   | _ -> fatal (Invalid_constant_name name)
 
 let undef (name : string) : unit =

@@ -7,15 +7,16 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and the libraries [Zarith](https://antoinemine.github.io/Zarith/doc/latest/index.html), [Fmlib_parse](https://hbr.github.io/fmlib/odoc/fmlib_parse/index.html), [Bwd](https://github.com/redprl/ocaml-bwd), [Algaeff](https://redprl.org/algaeff/algaeff/Algaeff/index.html), [Asai](https://redprl.org/asai/asai/), and [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/).  Currently it requires a pre-release version of fmlib.
+Narya requires OCaml version 5.1.0 and various libraries, including currently a pre-release version of fmlib.
 
 ```
 opam switch create 5.1.0
-opam install zarith bwd algaeff asai yuujinchou
+opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term
 
 git clone git@github.com:hbr/fmlib.git
 cd fmlib
 git checkout parse
+opam install js_of_ocaml js_of_ocaml-ppx
 dune build
 dune install
 

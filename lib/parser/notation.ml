@@ -280,6 +280,59 @@ let make :
     processor = None;
   }
 
+(* Split off the ending whitespace after the first newline. *)
+let rec split_whitespace (ws : Whitespace.t list) : Whitespace.t list * Whitespace.t list =
+  match ws with
+  | [] -> ([], [])
+  | `Line l :: rest -> ([ `Line l ], rest)
+  | `Block b :: rest ->
+      let first, rest = split_whitespace rest in
+      (`Block b :: first, rest)
+  | `Newlines _ :: _ -> ([], ws)
+
+let rec split_last_whitespace (ws : Whitespace.alist) : Whitespace.alist * Whitespace.t list =
+  match ws with
+  | [] -> ([], [])
+  | [ (k, w) ] ->
+      let first, rest = split_whitespace w in
+      ([ (k, first) ], rest)
+  | kw :: ws ->
+      let first, rest = split_last_whitespace ws in
+      (kw :: first, rest)
+
+let rec split_ending_whitespace :
+    type lt ls rt rs.
+    (lt, ls, rt, rs) parse located -> (lt, ls, rt, rs) parse located * Whitespace.t list = function
+  | { value; loc } -> (
+      match value with
+      | Notn (Infix { notn; ws; first; inner; last; left_ok; right_ok }) ->
+          let last, rest = split_ending_whitespace last in
+          ({ value = Notn (Infix { notn; ws; first; inner; last; left_ok; right_ok }); loc }, rest)
+      | Notn (Prefix { notn; ws; inner; last; right_ok }) ->
+          let last, rest = split_ending_whitespace last in
+          ({ value = Notn (Prefix { notn; ws; inner; last; right_ok }); loc }, rest)
+      | Notn (Postfix { notn; ws; first; inner; left_ok }) ->
+          let ws, rest = split_last_whitespace ws in
+          ({ value = Notn (Postfix { notn; ws; first; inner; left_ok }); loc }, rest)
+      | Notn (Outfix { notn; ws; inner }) ->
+          let ws, rest = split_last_whitespace ws in
+          ({ value = Notn (Outfix { notn; ws; inner }); loc }, rest)
+      | App { fn; arg; left_ok; right_ok } ->
+          let arg, rest = split_ending_whitespace arg in
+          ({ value = App { fn; arg; left_ok; right_ok }; loc }, rest)
+      | Placeholder ws ->
+          let first, rest = split_whitespace ws in
+          ({ value = Placeholder first; loc }, rest)
+      | Ident (x, ws) ->
+          let first, rest = split_whitespace ws in
+          ({ value = Ident (x, first); loc }, rest)
+      | Constr (c, ws) ->
+          let first, rest = split_whitespace ws in
+          ({ value = Constr (c, first); loc }, rest)
+      | Field (f, ws) ->
+          let first, rest = split_whitespace ws in
+          ({ value = Field (f, first); loc }, rest))
+
 (* Helper functions for constructing notation trees *)
 
 let op tok x = Inner { empty_branch with ops = TokMap.singleton tok x }

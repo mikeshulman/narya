@@ -139,6 +139,9 @@ type (_, _) notation_in_interval =
       -> ('lt, 'ls) notation_in_interval
   | Closed_in_interval : (closed, 'tight, 'right) notation -> ('lt, 'ls) notation_in_interval
 
+val split_ending_whitespace :
+  ('lt, 'ls, 'rt, 'rs) parse located -> ('lt, 'ls, 'rt, 'rs) parse located * Whitespace.t list
+
 (*  *)
 val op : TokMap.key -> ('t, 's) tree -> ('t, 's) tree
 val ops : (TokMap.key * ('t, 's) tree) list -> ('t, 's) tree

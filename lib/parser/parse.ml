@@ -418,11 +418,15 @@ module Parse_command = struct
     let* tm = C.term [] in
     return (Command.Echo { wsecho; tm })
 
+  let bof =
+    let* ws = C.bof in
+    return (Command.Bof ws)
+
   let eof =
     let* () = expect_end () in
     return Command.Eof
 
-  let command : unit -> Command.t C.Basic.t = fun () -> axiom </> def </> echo </> eof
+  let command : unit -> Command.t C.Basic.t = fun () -> bof </> axiom </> def </> echo </> eof
 
   let command_or_echo : unit -> Command.t C.Basic.t =
    fun () ->
@@ -447,10 +451,7 @@ module Parse_command = struct
     Range.run ~env @@ fun () ->
     let p =
       C.Lex_and_parse.make Lexer.Parser.start
-        (C.Basic.make_partial ()
-           (* TODO: Remember the whitespace! *)
-           (let* _ = C.bof in
-            if or_echo then command_or_echo () else command ())) in
+        (C.Basic.make_partial () (if or_echo then command_or_echo () else command ())) in
     let out, p = run p in
     (C.ensure_success p, (env, out))
 

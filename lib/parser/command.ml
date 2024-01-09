@@ -26,6 +26,7 @@ type t =
       tm : observation;
     }
   | Echo of { wsecho : Whitespace.t list; tm : observation }
+  | Bof of Whitespace.t list
   | Eof
 
 let execute : t -> unit = function
@@ -51,6 +52,7 @@ let execute : t -> unit = function
           Format.pp_print_newline Format.std_formatter ();
           Format.pp_print_newline Format.std_formatter ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
+  | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
 (* TODO: Comments that appear after a newline after a command ends should be attached to the *following* command instead. *)
@@ -86,4 +88,5 @@ let pp_command : formatter -> t -> unit =
       pp_ws `Nobreak ppf wsecho;
       pp_term `None ppf tm;
       pp_close_box ppf ()
+  | Bof ws -> pp_ws `None ppf ws
   | Eof -> ()

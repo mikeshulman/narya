@@ -53,7 +53,7 @@ let () =
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let rec batch first p src =
+let rec batch ~or_echo first p src =
   let cmd = Parse_command.final p in
   if cmd <> Eof then (
     if !typecheck then Parser.Command.execute cmd;
@@ -63,13 +63,13 @@ let rec batch first p src =
       Parser.Command.pp_command std_formatter cmd;
       Format.print_cut ());
     if not (Parse_command.has_consumed_end p) then
-      let p, src = Parse_command.parse (`Restart (p, src)) in
-      batch false p src)
+      let p, src = Parse_command.restart_parse ~or_echo p src in
+      batch ~or_echo false p src)
 
-let execute parse source =
+let execute ?(or_echo = false) (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
-  let p, src = parse (`New (`Partial, source)) in
-  batch true p src;
+  let p, src = Parse_command.start_parse ~or_echo source in
+  batch ~or_echo true p src;
   if !reformat then Format.close_box ()
 
 let ( let* ) f o = Lwt.bind f o
@@ -104,9 +104,7 @@ let rec repl terminal history buf =
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d -> Terminal.display ~output:stdout d)
-          (fun () ->
-            execute Parse_command_or_echo.parse
-              (`String { content; title = Some "interactive input" }));
+          (fun () -> execute ~or_echo:true (`String { content; title = Some "interactive input" }));
         LTerm_history.add history (Zed_string.of_utf8 (String.trim content));
         repl terminal history None)
       else (
@@ -160,12 +158,11 @@ let () =
   Types.Vec.install ();
   Types.Gel.install ();
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
-  Mbwd.miter (fun [ filename ] -> execute Parse_command.parse (`File filename)) [ !input_files ];
+  Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
   (if !use_stdin then
      let content = In_channel.input_all stdin in
-     execute Parse_command.parse (`String { content; title = Some "stdin" }));
+     execute (`String { content; title = Some "stdin" }));
   Mbwd.miter
-    (fun [ content ] ->
-      execute Parse_command.parse (`String { content; title = Some "command-line exec string" }))
+    (fun [ content ] -> execute (`String { content; title = Some "command-line exec string" }))
     [ !input_strings ];
   if !interactive then Lwt_main.run (interact ())

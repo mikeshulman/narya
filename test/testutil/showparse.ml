@@ -28,8 +28,6 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Field (x, _) -> Field x
 
 let parse tm =
-  let p, _ =
-    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
-  in
+  let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
   let (Term tm) = Parse_term.final p in
   get_tree tm.value

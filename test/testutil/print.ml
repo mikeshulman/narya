@@ -8,8 +8,7 @@ let margin = ref 80
 let set_margin n = margin := n
 
 let reformat content =
-  let p, _ =
-    Parse_term.parse (`New (`Full, `String { content; title = Some "user-supplied term" })) in
+  let p = Parse_term.parse (`String { content; title = Some "user-supplied term" }) in
   let tr = Parse_term.final p in
   pp_set_geometry std_formatter ~margin:!margin ~max_indent:(max (!margin - 12) (!margin / 2));
   pp_open_hovbox std_formatter 0;

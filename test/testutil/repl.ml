@@ -18,9 +18,7 @@ open Parse
 open Asai.Range
 
 let parse_term (tm : string) : N.zero check located =
-  let p, _ =
-    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
-  in
+  let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
   let (Term tm) = Parse_term.final p in
   Postprocess.process Emp tm
 
@@ -33,8 +31,7 @@ let check_term (rtm : N.zero check located) (ety : value) : emp term =
   Reporter.trace "when checking term" @@ fun () -> check Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
-  let p, _ =
-    Parse_term.parse (`New (`Full, `String { title = Some "constant name"; content = name })) in
+  let p = Parse_term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse_term.final p with
   | Term { value = Ident (name, _); _ } ->
       let const = Scope.define name in
@@ -47,8 +44,7 @@ let assume (name : string) (ty : string) : unit =
   | _ -> fatal (Invalid_constant_name name)
 
 let def (name : string) (ty : string) (tm : string) : unit =
-  let p, _ =
-    Parse_term.parse (`New (`Full, `String { title = Some "constant name"; content = name })) in
+  let p = Parse_term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse_term.final p with
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->

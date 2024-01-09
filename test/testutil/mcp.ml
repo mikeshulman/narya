@@ -15,9 +15,7 @@ let context = ref ectx
 
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check located =
  fun names tm ->
-  let p, _ =
-    Parse_term.parse (`New (`Full, `String { content = tm; title = Some "user-supplied term" }))
-  in
+  let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
   let (Term tm) = Parse_term.final p in
   Postprocess.process names tm
 

@@ -37,3 +37,7 @@ let nolex str =
   let p = trylex str in
   if has_failed_syntax p then failed_expectations p
   else raise (Failure ("Lexing succeeded of " ^ str))
+
+let lexbof str =
+  let p = trylex str in
+  if has_succeeded p then final p else raise (Failure ("Lexing failed of " ^ str))

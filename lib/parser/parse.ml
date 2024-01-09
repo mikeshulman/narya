@@ -332,10 +332,10 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | Ok tm -> return (Term tm)
     | Error _ -> fatal (Anomaly "Outer term failed")
 
-  (* We have to strip off the initial Eof token attached to initial comments and whitespace. *)
+  (* We have to strip off the initial Bof token attached to initial comments and whitespace. *)
   (* TODO: Save this whitespace somewhere! *)
   let ws_then c () =
-    let* () = step (fun state _ (tok, _) -> if tok = Eof then Some (state, ()) else None) in
+    let* () = step (fun state _ (tok, _) -> if tok = Bof then Some (state, ()) else None) in
     c ()
 end
 
@@ -397,9 +397,12 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
       | `New (`Full, _) -> make () (G.C.ws_then G.final ())
       | `New (`Partial, _) ->
           make_partial ()
-            (G.C.ws_then G.final ()
-            </> let* () = expect_end () in
-                return (G.eof ()))
+            (G.C.ws_then
+               (fun () ->
+                 G.final ()
+                 </> let* () = expect_end () in
+                     return (G.eof ()))
+               ())
       | `Restart (p, _) ->
           make_partial ()
             (G.final ()

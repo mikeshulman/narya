@@ -218,15 +218,15 @@ let token : Located_token.t t =
       return (tok, ws))
     </> expect_end (Eof, []))
 
-(* This means we need a separate combinator to parse any initial Whitespace.t.  We re-use the EOF token as a "BOF" token for this. *)
-let wstoken : Located_token.t t =
+(* This means we need a separate combinator to parse any initial Whitespace.t.   *)
+let bof : Located_token.t t =
   let* ws = whitespace in
-  located (return (Eof, ws))
+  located (return (Bof, ws))
 
 module Parser = struct
   include Basic.Parser
 
   (* This is how we make the lexer to plug into the parser. *)
-  let start : t = make_partial Position.start false wstoken
+  let start : t = make_partial Position.start false bof
   let restart (lex : t) : t = make_partial (position lex) false token |> transfer_lookahead lex
 end

@@ -141,3 +141,10 @@ let () =
         (Colon, []);
         (Ident [ "coo" ], []);
       ])
+
+let () = assert (lex "" = [])
+let () = assert (lexbof "" = [ (Bof, []) ])
+let () = assert (lexbof " " = [ (Bof, []) ])
+let () = assert (lexbof "\n" = [ (Bof, [ `Newlines 1 ]) ])
+let () = assert (lexbof "` line comment\n" = [ (Bof, [ `Line " line comment" ]) ])
+let () = assert (lexbof "` line comment" = [ (Bof, [ `Line " line comment" ]) ])

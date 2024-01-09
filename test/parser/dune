@@ -2,4 +2,6 @@
   (names lexer parse_arith parse_builtins parse_mcp ambiguity prefixes reformat unparse format_comments)
 	(libraries parser testutil)
 	(instrumentation (backend landmarks --auto)))
+(cram
+  (deps ../../bin/narya.exe))
 (env (_ (flags (:standard -w -37 -w -30 -w -32 -w -26 -w -27))))

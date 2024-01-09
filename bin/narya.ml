@@ -143,7 +143,9 @@ let () =
       }
   @@ fun () ->
   Reporter.run
-    ~emit:(fun d -> if !verbose then Terminal.display ~output:stderr d)
+    ~emit:(fun d ->
+      if !verbose || d.severity = Error || d.severity = Warning then
+        Terminal.display ~output:stderr d)
     ~fatal:(fun d ->
       Terminal.display ~output:stderr d;
       raise (Failure "Fatal error"))

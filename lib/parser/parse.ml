@@ -333,6 +333,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | Error _ -> fatal (Anomaly "Outer term failed")
 
   (* We have to strip off the initial Eof token attached to initial comments and whitespace. *)
+  (* TODO: Save this whitespace somewhere! *)
   let ws_then c () =
     let* () = step (fun state _ (tok, _) -> if tok = Eof then Some (state, ()) else None) in
     c ()
@@ -364,6 +365,7 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
       (action :
         [ `New of [ `Full | `Partial ] * Asai.Range.source
         | `Restart of Lex_and_parse.t * open_source ]) : Lex_and_parse.t * open_source =
+    let open G.C.Basic in
     let env, run =
       match action with
       | `New (partial, `String src) -> (
@@ -386,28 +388,26 @@ module Parse_goal (Final : Fmlib_std.Interfaces.ANY) (G : Goal with module Final
               let n, p = run_on_string_at n content p in
               (`String (n, content), p) )
       | `Restart (_, (env, `File ic)) -> (env, fun p -> (`File ic, run_on_channel ic p)) in
-    let final =
-      match action with
-      | `New (`Full, _) -> G.C.ws_then G.final ()
-      | `New (`Partial, _) | `Restart _ ->
-          G.C.Basic.(
-            G.C.ws_then G.final ()
-            </> let* () = expect_end () in
-                return (G.eof ())) in
-    let lexer =
+    let lex =
       match action with
       | `New _ -> Lexer.Parser.start
       | `Restart (p, _) -> Lex_and_parse.lex p in
-    let token_make =
+    let parse =
       match action with
-      | `New (`Full, _) -> G.C.Basic.make ()
-      | `New (`Partial, _) -> G.C.Basic.make_partial ()
+      | `New (`Full, _) -> make () (G.C.ws_then G.final ())
+      | `New (`Partial, _) ->
+          make_partial ()
+            (G.C.ws_then G.final ()
+            </> let* () = expect_end () in
+                return (G.eof ()))
       | `Restart (p, _) ->
-          fun c ->
-            G.C.Basic.make_partial () c
-            |> G.C.Basic.Parser.transfer_lookahead (Lex_and_parse.parse p) in
+          make_partial ()
+            (G.final ()
+            </> let* () = expect_end () in
+                return (G.eof ()))
+          |> G.C.Basic.Parser.transfer_lookahead (Lex_and_parse.parse p) in
     Range.run ~env @@ fun () ->
-    let p = Lex_and_parse.make lexer (token_make final) in
+    let p = Lex_and_parse.make lex parse in
     let ic, p = run p in
     (* Fmlib_parse has its own built-in error reporting with locations.  However, we instead use Asai's error reporting, so that we have a common "look" for parse errors and typechecking errors. *)
     if has_failed_syntax p then

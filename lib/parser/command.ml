@@ -53,6 +53,7 @@ let execute : t -> unit = function
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
+(* TODO: Comments that appear after a newline after a command ends should be attached to the *following* command instead. *)
 let pp_command : formatter -> t -> unit =
  fun ppf cmd ->
   match cmd with

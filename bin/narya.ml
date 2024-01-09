@@ -58,6 +58,7 @@ let rec batch first p src =
   if cmd <> Eof then (
     if !typecheck then Parser.Command.execute cmd;
     if !reformat then (
+      (* TODO: Too many newlines here. *)
       if not first then Format.print_cut ();
       Parser.Command.pp_command std_formatter cmd;
       Format.print_cut ());

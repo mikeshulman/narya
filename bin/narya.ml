@@ -132,12 +132,6 @@ let interact () =
           Lwt.fail exn)
 
 let () =
-  Reporter.run
-    ~emit:(fun d -> if !verbose then Terminal.display ~output:stderr d)
-    ~fatal:(fun d ->
-      Terminal.display ~output:stderr d;
-      raise (Failure "Fatal error"))
-  @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run
@@ -147,6 +141,12 @@ let () =
         state = `Case;
         chars = (if !unicode then `Unicode else `ASCII);
       }
+  @@ fun () ->
+  Reporter.run
+    ~emit:(fun d -> if !verbose then Terminal.display ~output:stderr d)
+    ~fatal:(fun d ->
+      Terminal.display ~output:stderr d;
+      raise (Failure "Fatal error"))
   @@ fun () ->
   Types.Nat.install ();
   Types.Sigma.install ();

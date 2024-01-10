@@ -477,31 +477,35 @@ and unparse_pi_dom :
                       ~inner:Emp ~last:dom ~left_ok:(No.le_refl No.minus_omega)
                       ~right_ok:(No.le_refl No.minus_omega))) )))
 
+(* See the explanation of this function in Core.Reporter. *)
 let () =
-  Reporter.print :=
-    fun ppf pr ->
+  Reporter.printer :=
+    fun pr ->
       match pr with
       | PTerm (ctx, tm) ->
-          Print.pp_term `None ppf
-            (Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
+          Printed
+            (Print.pp_term `None, Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
       | PVal (ctx, tm) ->
-          Print.pp_term `None ppf
-            (Term
-               (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
-                  Interval.entire))
+          Printed
+            ( Print.pp_term `None,
+              Term
+                (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
+                   Interval.entire) )
       | PNormal (ctx, tm) ->
-          Print.pp_term `None ppf
-            (Term
-               (unparse (Ctx.names ctx) (Readback.readback_nf ctx tm) Interval.entire
-                  Interval.entire))
+          Printed
+            ( Print.pp_term `None,
+              Term
+                (unparse (Ctx.names ctx) (Readback.readback_nf ctx tm) Interval.entire
+                   Interval.entire) )
       | PUninst (ctx, tm) ->
-          Print.pp_term `None ppf
-            (Term
-               (unparse (Ctx.names ctx) (Readback.readback_uninst ctx tm) Interval.entire
-                  Interval.entire))
-      | PNames vars -> Core.Names.pp_names ppf vars
-      | PCtx ctx -> Core.Ctx.pp_ctx ppf ctx
-      | PConstant name -> Uuseg_string.pp_utf_8 ppf (Scope.name_of name)
+          Printed
+            ( Print.pp_term `None,
+              Term
+                (unparse (Ctx.names ctx) (Readback.readback_uninst ctx tm) Interval.entire
+                   Interval.entire) )
+      | PNames vars -> Printed (Core.Names.pp_names, vars)
+      | PCtx ctx -> Printed (Core.Ctx.pp_ctx, ctx)
+      | PConstant name -> Printed (Uuseg_string.pp_utf_8, Scope.name_of name)
       | _ -> raise (Failure "unknown printable")
 
 (* Hack to ensure the above code is executed. *)

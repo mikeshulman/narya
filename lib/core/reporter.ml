@@ -4,14 +4,26 @@ open Asai.Diagnostic
 open Format
 open Uuseg_string
 
+(* In order to display terms and suchlike in Asai messages, we utilize a double indirection.  Firstly, displaying a term requires "unparsing" it to a parse tree and then printing the parse tree, but parse trees and unparsing aren't defined until the Parser library, which is loaded after Core.  (Displaying a value additionally requires reading it back into a term, which is defined later in Core.)  For this reason, we introduce a wrapper type "printable" that can contain a term, value, etc.  Since terms and values haven't been defined yet in this file, we make "printable" an extensible variant, so they can be added later (in the module Printable) after they are defined.  (They also have to be bundled with their context.) *)
+
 type printable = ..
-
-let print : (formatter -> printable -> unit) ref =
-  ref (fun _ _ -> raise (Failure "print not set (hint: Parser.Unparse must be loaded)"))
-
-let pp_printable ppf pr = !print ppf pr
-
 type printable += PConstant of Constant.t
+
+(* The function that actually does the work of printing a "printable" will be defined in Parser.Unparse.  But we need to be able to "call" that function in this file to define "default_text" that converts structured messages to text.  Thus, in this file we define a mutable global variable to contain that function, starting with a dummy function, and call its value to print "printable"s; then in Parser.Unparse we will set the value of that variable after defining the function it should contain. *)
+
+(* Secondly, in Asai messages are emitted by performing an effect or raising an exception that carries with it the data of a function of type "formatter -> unit", which is then called by the handler Reporter.run to format the message text as part of a larger display formatting.  This causes problems if we define our printing functions naively, since it means that any effects performed by the formatting function (such as looking up names in a Yuujinchou Scope) will take place in the context of the handler, not that where the message was invoked, and hence in the wrong scope.  To deal with this, we introduce another wrapper "printed" that stores an existential type, a value of that type, and a function that can format a value of that type. *)
+
+type printed = Printed : (formatter -> 'a -> unit) * 'a -> printed
+
+(* Obviously the only thing that can be done with a value of type "printed" is to apply the function to the argument and a formatter.  But the virtue of wrapping it up this way is that the argument is evaluated when the "printed" value is computed, not when the function is called, and hence takes place in the correct scope.  The function to be defined in Parser.Unparse will thus have type "printable -> printed", and here is where we store it. *)
+
+let printer : (printable -> printed) ref =
+  ref (fun _ -> raise (Failure "print not set (hint: Parser.Unparse must be loaded)"))
+
+(* Finally, here are some convenience functions. *)
+
+let pp_printed ppf (Printed (pp, x)) = pp ppf x
+let print pr = !printer pr
 
 module Code = struct
   type t =
@@ -240,16 +252,17 @@ module Code = struct
         text "not enough arguments to instantiate a higher-dimensional type"
     | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
     | Instantiating_zero_dimensional_type ty ->
-        textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printable ty
+        textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
+          (print ty)
     | Unequal_synthesized_type (sty, cty) ->
         textf "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
-          pp_printable sty pp_printable cty
+          pp_printed (print sty) pp_printed (print cty)
     | Checking_tuple_at_degenerated_record r ->
         textf "can't check a tuple against a record %a with a nonidentity degeneracy applied"
-          pp_printable r
+          pp_printed (print r)
     | Comatching_at_degenerated_codata r ->
         textf "can't comatch against a codatatype %a with a nonidentity degeneracy applied"
-          pp_printable r
+          pp_printed (print r)
     | Missing_field_in_tuple f -> textf "record field '%s' missing in tuple" (Field.to_string f)
     | Missing_method_in_comatch f ->
         textf "codata method '%s' missing in comatch" (Field.to_string f)
@@ -269,20 +282,23 @@ module Code = struct
         textf "missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "unnamed match variable"
     | Checking_lambda_at_nonfunction ty ->
-        textf "@[<hv 0>checking abstraction against non-function type@;<1 2>%a@]" pp_printable ty
+        textf "@[<hv 0>checking abstraction against non-function type@;<1 2>%a@]" pp_printed
+          (print ty)
     | Checking_tuple_at_nonrecord ty ->
-        textf "@[<hv 0>checking tuple against non-record type@;<1 2>%a@]" pp_printable ty
+        textf "@[<hv 0>checking tuple against non-record type@;<1 2>%a@]" pp_printed (print ty)
     | Comatching_at_noncodata ty ->
-        textf "@[<hv 0>checking comatch against non-codata type@;<1 2>%a@]" pp_printable ty
+        textf "@[<hv 0>checking comatch against non-codata type@;<1 2>%a@]" pp_printed (print ty)
     | No_such_constructor (d, c) -> (
         match d with
         | `Data d ->
-            textf "datatype %a has no constructor named %s" pp_printable d (Constr.to_string c)
+            textf "datatype %a has no constructor named %s" pp_printed (print d)
+              (Constr.to_string c)
         | `Nondata d ->
-            textf "non-datatype %a has no constructor named %s" pp_printable d (Constr.to_string c)
+            textf "non-datatype %a has no constructor named %s" pp_printed (print d)
+              (Constr.to_string c)
         | `Other ty ->
-            textf "@[<hv 0>non-datatype@;<1 2>%a@ has no constructor named %s@]" pp_printable ty
-              (Constr.to_string c))
+            textf "@[<hv 0>non-datatype@;<1 2>%a@ has no constructor named %s@]" pp_printed
+              (print ty) (Constr.to_string c))
     | Wrong_number_of_arguments_to_constructor (c, n) ->
         if n > 0 then textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
         else
@@ -290,25 +306,28 @@ module Code = struct
     | No_such_field (d, f) -> (
         match d with
         | `Record d ->
-            textf "record type %a has no field named %s" pp_printable d (Field.to_string f)
+            textf "record type %a has no field named %s" pp_printed (print d) (Field.to_string f)
         | `Nonrecord d ->
-            textf "non-record type %a has no field named %s" pp_printable d (Field.to_string f)
+            textf "non-record type %a has no field named %s" pp_printed (print d)
+              (Field.to_string f)
         | `Other -> textf "term has no field named %s" (Field.to_string f))
     | Missing_instantiation_constructor (exp, got) ->
+        let pp_got =
+          match got with
+          | `Nonconstr tm -> print tm
+          | `Constr c -> Printed (pp_print_string, Constr.to_string c) in
         fun ppf ->
           fprintf ppf
             "@[<hv 0>instantiation arguments of datatype must be matching constructors:@ expected@;<1 2>%s@ but got@;<1 2>"
             (Constr.to_string exp);
-          (match got with
-          | `Nonconstr tm -> pp_printable ppf tm
-          | `Constr c -> pp_print_string ppf (Constr.to_string c));
+          pp_printed ppf pp_got;
           pp_close_box ppf ()
     | Unequal_indices (t1, t2) ->
         textf
           "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
-          pp_printable t1 pp_printable t2
+          pp_printed (print t1) pp_printed (print t2)
     | Unbound_variable c -> textf "unbound variable: %s" c
-    | Undefined_constant c -> textf "undefined constant: %a" pp_printable c
+    | Undefined_constant c -> textf "undefined constant: %a" pp_printed (print c)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
         textf "argument of %s must be at least %d-dimensional" deg (to_int dim)
@@ -316,15 +335,15 @@ module Code = struct
     | Applying_nonfunction_nontype (tm, ty) ->
         textf
           "@[<hv 0>attempt to apply/instantiate@;<1 2>%a@ of type@;<1 2>%a@ which is not a function-type or universe@]"
-          pp_printable tm pp_printable ty
+          pp_printed (print tm) pp_printed (print ty)
     | Unimplemented str -> textf "%s not yet implemented" str
     | Matching_datatype_has_degeneracy ty ->
         textf "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"
-          pp_printable ty
+          pp_printed (print ty)
     | Invalid_match_index tm ->
         textf
           "@[<hv 0>match variable has invalid or duplicate index@;<1 2>%a@ match indices must be distinct free variables without degeneracies@]"
-          pp_printable tm
+          pp_printed (print tm)
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
           textf "too many arguments to constructor %s in match pattern (%d extra)"
@@ -333,7 +352,7 @@ module Code = struct
           textf "not enough arguments to constructor %s in match pattern (need %d more)"
             (Constr.to_string c) (abs n)
     | No_such_constructor_in_match (d, c) ->
-        textf "datatype %a being matched against has no constructor %s" pp_printable d
+        textf "datatype %a being matched against has no constructor %s" pp_printed (print d)
           (Constr.to_string c)
     | Duplicate_constructor_in_match c ->
         textf "constructor %s appears twice in match" (Constr.to_string c)
@@ -341,24 +360,24 @@ module Code = struct
     | Matching_on_nondatatype c -> (
         match c with
         | `Canonical c ->
-            textf "can't match on variable belonging to non-datatype %a" pp_printable c
+            textf "can't match on variable belonging to non-datatype %a" pp_printed (print c)
         | `Other ty ->
-            textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]"
-              pp_printable ty)
+            textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
+              (print ty))
     | Matching_on_let_bound_variable name ->
-        textf "can't match on let-bound variable %a" pp_printable name
+        textf "can't match on let-bound variable %a" pp_printed (print name)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level (names, i) ->
-        textf "@[<hov 2>no level variable@ (%d,%d)@ in context@ %a@]" (fst i) (snd i) pp_printable
-          names
+        textf "@[<hov 2>no level variable@ (%d,%d)@ in context@ %a@]" (fst i) (snd i) pp_printed
+          (print names)
     | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
-    | Constant_assumed name -> textf "Axiom %a assumed" pp_printable name
-    | Constant_defined name -> textf "Constant %a defined" pp_printable name
-    | Show (str, x) -> textf "%s: %a" str pp_printable x
+    | Constant_assumed name -> textf "Axiom %a assumed" pp_printed (print name)
+    | Constant_defined name -> textf "Constant %a defined" pp_printed (print name)
+    | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
 end
 
 include Asai.StructuredReporter.Make (Code)

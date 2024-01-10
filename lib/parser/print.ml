@@ -55,6 +55,7 @@ let pp_space ppf space =
   | `Nobreak -> pp_print_char ppf ' '
 
 (* Print the comments and newlines following a token. *)
+(* TODO: If this is called as the last thing in a box, then the forced newlines should come *after* the box closes, otherwise they produce undesired indentation on the next line.  I don't know how to deal with that; maybe override the pretty-printing functions with wrappers that store newlines in a buffer until they see whether the next event is a close_box? *)
 let pp_ws (space : space) (ppf : formatter) (ws : Whitespace.t list) : unit =
   let pp_newlines ppf n =
     for _ = 1 to n do

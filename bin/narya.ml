@@ -34,10 +34,8 @@ let speclist =
     ("-reformat", Arg.Set reformat, "Display reformatted code on stdout");
     ("-noncompact", Arg.Clear compact, "Reformat code noncompactly (default)");
     ("-compact", Arg.Set compact, "Reformat code compactly");
-    ("-unicode", Arg.Set unicode, "Reformat code using Unicode (default)");
-    ( "-ascii",
-      Arg.Clear unicode,
-      "Reformat code using ASCII for built-ins (user-defined constants are unaffected)" );
+    ("-unicode", Arg.Set unicode, "Reformat code using Unicode for built-ins (default)");
+    ("-ascii", Arg.Clear unicode, "Reformat code using ASCII for built-ins");
     ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Set use_stdin, "");
   ]
@@ -53,24 +51,30 @@ let () =
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let rec batch ~or_echo first p src =
+let rec batch ~or_echo first ws p src =
   let cmd = Parse_command.final p in
-  if cmd <> Eof then (
+  if cmd = Eof then ws
+  else (
     if !typecheck then Parser.Command.execute cmd;
-    if !reformat then (
-      (* TODO: Too many newlines here. *)
-      if not first then Format.print_cut ();
-      Parser.Command.pp_command std_formatter cmd;
-      Format.print_cut ());
-    if not (Parse_command.has_consumed_end p) then
+    let ws =
+      if !reformat then (
+        let ws = if first then ws else Whitespace.ensure_starting_newlines 2 ws in
+        Print.pp_ws `None std_formatter ws;
+        Parser.Command.pp_command std_formatter cmd)
+      else [] in
+    if Parse_command.has_consumed_end p then ws
+    else
       let p, src = Parse_command.restart_parse ~or_echo p src in
-      batch ~or_echo false p src)
+      batch ~or_echo false ws p src)
 
 let execute ?(or_echo = false) (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
   let p, src = Parse_command.start_parse ~or_echo source in
-  batch ~or_echo true p src;
-  if !reformat then Format.close_box ()
+  let ws = batch ~or_echo true [] p src in
+  if !reformat then (
+    let ws = Whitespace.ensure_ending_newlines 2 ws in
+    Print.pp_ws `None std_formatter ws;
+    Format.close_box ())
 
 let ( let* ) f o = Lwt.bind f o
 

@@ -58,10 +58,10 @@ let execute : t -> unit = function
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
 (* TODO: Comments that appear after a newline after a command ends should be attached to the *following* command instead. *)
-let pp_command : formatter -> t -> unit =
+let pp_command : formatter -> t -> Whitespace.t list =
  fun ppf cmd ->
   match cmd with
-  | Axiom { wsaxiom; name; wsname; wscolon; ty } ->
+  | Axiom { wsaxiom; name; wsname; wscolon; ty = Term ty } ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Axiom;
       pp_ws `Nobreak ppf wsaxiom;
@@ -69,9 +69,11 @@ let pp_command : formatter -> t -> unit =
       pp_ws `Break ppf wsname;
       pp_tok ppf Colon;
       pp_ws `Nobreak ppf wscolon;
-      pp_term `None ppf ty;
-      pp_close_box ppf ()
-  | Def { wsdef; name; wsname; wscolon; ty; wscoloneq; tm } ->
+      let ty, rest = split_ending_whitespace ty in
+      pp_term `None ppf (Term ty);
+      pp_close_box ppf ();
+      rest
+  | Def { wsdef; name; wsname; wscolon; ty; wscoloneq; tm = Term tm } ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Def;
       pp_ws `Nobreak ppf wsdef;
@@ -82,13 +84,16 @@ let pp_command : formatter -> t -> unit =
       pp_term `Break ppf ty;
       pp_tok ppf Coloneq;
       pp_ws `Nobreak ppf wscoloneq;
-      pp_term `None ppf tm;
-      pp_close_box ppf ()
+      let tm, rest = split_ending_whitespace tm in
+      pp_term `None ppf (Term tm);
+      pp_close_box ppf ();
+      rest
   | Echo { wsecho; tm } ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Echo;
       pp_ws `Nobreak ppf wsecho;
       pp_term `None ppf tm;
-      pp_close_box ppf ()
-  | Bof ws -> pp_ws `None ppf ws
-  | Eof -> ()
+      pp_close_box ppf ();
+      []
+  | Bof ws -> ws
+  | Eof -> []

@@ -51,7 +51,7 @@ let () =
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let rec batch ~or_echo first ws p src =
+let rec batch first ws p src =
   let cmd = Parse_command.final p in
   if cmd = Eof then ws
   else (
@@ -62,15 +62,13 @@ let rec batch ~or_echo first ws p src =
         Print.pp_ws `None std_formatter ws;
         Parser.Command.pp_command std_formatter cmd)
       else [] in
-    if Parse_command.has_consumed_end p then ws
-    else
-      let p, src = Parse_command.restart_parse ~or_echo p src in
-      batch ~or_echo false ws p src)
+    let p, src = Parse_command.restart_parse p src in
+    batch false ws p src)
 
-let execute ?(or_echo = false) (source : Asai.Range.source) =
+let execute (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
-  let p, src = Parse_command.start_parse ~or_echo source in
-  let ws = batch ~or_echo true [] p src in
+  let p, src = Parse_command.start_parse source in
+  let ws = batch true [] p src in
   if !reformat then (
     let ws = Whitespace.ensure_ending_newlines 2 ws in
     Print.pp_ws `None std_formatter ws;
@@ -108,7 +106,16 @@ let rec repl terminal history buf =
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d -> Terminal.display ~output:stdout d)
-          (fun () -> execute ~or_echo:true (`String { content; title = Some "interactive input" }));
+          (fun () ->
+            let src : Asai.Range.source = `String { content; title = Some "interactive input" } in
+            let p, src = Parse_command.start_parse ~or_echo:true src in
+            let _bof = Parse_command.final p in
+            let p, src = Parse_command.restart_parse ~or_echo:true p src in
+            let cmd = Parse_command.final p in
+            if cmd <> Eof then
+              let p, _ = Parse_command.restart_parse ~or_echo:true p src in
+              let eof = Parse_command.final p in
+              if eof = Eof then Parser.Command.execute cmd else Reporter.fatal Too_many_commands);
         LTerm_history.add history (Zed_string.of_utf8 (String.trim content));
         repl terminal history None)
       else (

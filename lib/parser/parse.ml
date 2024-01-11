@@ -436,7 +436,7 @@ module Parse_command = struct
 
   type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
 
-  let start_parse ~or_echo source : C.Lex_and_parse.t * open_source =
+  let start_parse ?(or_echo = false) source : C.Lex_and_parse.t * open_source =
     let (env : Range.Data.t), run =
       match source with
       | `String src ->
@@ -455,7 +455,7 @@ module Parse_command = struct
     let out, p = run p in
     (C.ensure_success p, (env, out))
 
-  let restart_parse ~or_echo (p : C.Lex_and_parse.t) ((env, source) : open_source) :
+  let restart_parse ?(or_echo = false) (p : C.Lex_and_parse.t) ((env, source) : open_source) :
       C.Lex_and_parse.t * open_source =
     let run =
       match source with

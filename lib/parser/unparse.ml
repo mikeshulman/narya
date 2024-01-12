@@ -261,7 +261,7 @@ let rec unparse :
                 Mbwd.mmap
                   (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
                   [ args ] in
-              unlocated (outfix ~notn:lst ~ws:[] ~inner)
+              unlocated (outfix ~notn:fwd ~ws:[] ~inner)
           | None -> (
               match get_bwd tm [] with
               | Some args ->

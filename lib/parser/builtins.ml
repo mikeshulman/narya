@@ -891,20 +891,22 @@ let () =
    Forwards Lists
    ******************** *)
 
-let lst = make "list" Outfix
+let fwd = make "list" Outfix
+
+(* We define the notation tree and printing functions for lists to be parametric over the notation and direction symbol, so that we can re-use them for both forwards and backwards lists. *)
 
 let rec inner_lst s n =
   Inner
     {
       empty_branch with
-      ops = TokMap.singleton (Op s) (op RBracket (Done_closed lst));
+      ops = TokMap.singleton (Op s) (op RBracket (Done_closed n));
       term =
         Some
           (TokMap.of_list
              [ (Op ",", Lazy (lazy (inner_lst s n))); (Op s, op RBracket (Done_closed n)) ]);
     }
 
-let rec process_lst :
+let rec process_fwd :
     type n.
     (string option, n) Bwv.t ->
     observation list ->
@@ -915,7 +917,7 @@ let rec process_lst :
   match obs with
   | [] -> { value = Constr ({ value = Constr.intern "nil"; loc }, Emp); loc }
   | Term tm :: tms ->
-      let cdr = process_lst ctx tms loc ws in
+      let cdr = process_fwd ctx tms loc ws in
       let car = process ctx tm in
       { value = Constr ({ value = Constr.intern "cons"; loc }, Snoc (Snoc (Emp, car), cdr)); loc }
 
@@ -958,9 +960,9 @@ let pp_lst : string -> space -> Format.formatter -> observation list -> Whitespa
   pp_close_box ppf ()
 
 let () =
-  set_tree lst (Closed_entry (eop LBracket (op (Op ">") (inner_lst ">" lst))));
-  set_processor lst { process = process_lst };
-  set_print lst (pp_lst ">")
+  set_tree fwd (Closed_entry (eop LBracket (op (Op ">") (inner_lst ">" fwd))));
+  set_processor fwd { process = process_fwd };
+  set_print fwd (pp_lst ">")
 
 (* ********************
    Backwards Lists
@@ -1007,7 +1009,7 @@ let builtins =
     |> State.add comatch
     |> State.add mtch
     |> State.add empty_co_match
-    |> State.add lst
+    |> State.add fwd
     |> State.add bwd)
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

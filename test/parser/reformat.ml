@@ -61,6 +61,22 @@ let test_reformat () =
   Types.Nat.install_ops ();
   reformat "x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x";
   reformat "x + x * x + x * x * x + x * x * x * x + x + x * x * x * x * x * x * x";
+
+  (* Lists *)
+  Types.Lst.install ();
+  Types.Blst.install ();
+  reformat "[> 1, 2, 3 >]";
+  reformat "[> 1 >]";
+  reformat "[> >]";
+  reformat "[< 1, 2, 3 <]";
+  reformat "[< 1 <]";
+  reformat "[< <]";
+  reformat "[> blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah >]";
+  reformat "[< blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah <]";
+  reformat "1 :> 2 :> 3 :> xs";
+  reformat "xs <: 1 <: 2 <: 3";
+  reformat "x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> xs";
+  reformat "xs <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x";
   ()
 
 let test_compactness () =

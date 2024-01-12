@@ -144,6 +144,14 @@ let rec get_list : type n li ls ri rs. n term -> n term Bwd.t -> n term Bwd.t op
       get_list (CubeOf.find_top cdr) (Snoc (elts, CubeOf.find_top car))
   | _ -> None
 
+let rec get_bwd : type n li ls ri rs. n term -> n term list -> n term Bwd.t option =
+ fun tm elts ->
+  match tm with
+  | Term.Constr (c, _, Emp) when c = Constr.intern "emp" -> Some (Bwd.of_list elts)
+  | Constr (c, _, Snoc (Snoc (Emp, rdc), rac)) when c = Constr.intern "snoc" ->
+      get_bwd (CubeOf.find_top rdc) (CubeOf.find_top rac :: elts)
+  | _ -> None
+
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
 let rec get_spine :
     type b n. n term -> [ `App of n term * n term Bwd.t | `Field of n term * Field.t * n term Bwd.t ]
@@ -254,9 +262,17 @@ let rec unparse :
                   (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
                   [ args ] in
               unlocated (outfix ~notn:lst ~ws:[] ~inner)
-          | None ->
-              let args = Bwd.map CubeOf.find_top args in
-              unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri))
+          | None -> (
+              match get_bwd tm [] with
+              | Some args ->
+                  let inner =
+                    Mbwd.mmap
+                      (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
+                      [ args ] in
+                  unlocated (outfix ~notn:bwd ~ws:[] ~inner)
+              | None ->
+                  let args = Bwd.map CubeOf.find_top args in
+                  unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)))
 
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> n term -> unparser =

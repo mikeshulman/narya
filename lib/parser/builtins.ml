@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Dim
 open Postprocess
@@ -887,20 +888,20 @@ let () =
   set_print_as_case empty_co_match (pp_match true)
 
 (* ********************
-   Lists
+   Forwards Lists
    ******************** *)
 
 let lst = make "list" Outfix
 
-let rec inner_lst () =
+let rec inner_lst s n =
   Inner
     {
       empty_branch with
-      ops = TokMap.singleton (Op ">") (op RBracket (Done_closed lst));
+      ops = TokMap.singleton (Op s) (op RBracket (Done_closed lst));
       term =
         Some
           (TokMap.of_list
-             [ (Op ",", Lazy (lazy (inner_lst ()))); (Op ">", op RBracket (Done_closed lst)) ]);
+             [ (Op ",", Lazy (lazy (inner_lst s n))); (Op s, op RBracket (Done_closed n)) ]);
     }
 
 let rec process_lst :
@@ -936,20 +937,20 @@ let rec pp_elts : Format.formatter -> observation list -> Whitespace.alist -> Wh
       pp_ws `Break ppf wscomma;
       pp_elts ppf obs ws
 
-let pp_lst : space -> Format.formatter -> observation list -> Whitespace.alist -> unit =
- fun space ppf obs ws ->
+let pp_lst : string -> space -> Format.formatter -> observation list -> Whitespace.alist -> unit =
+ fun s space ppf obs ws ->
   pp_open_hvbox ppf 2;
   if true then (
     pp_tok ppf LBracket;
     let wslbracket, ws = take LBracket ws in
     pp_ws `None ppf wslbracket;
-    pp_tok ppf (Op ">");
-    let wsrangle, ws = take (Op ">") ws in
-    pp_ws `Break ppf wsrangle;
+    pp_tok ppf (Op s);
+    let wsangle, ws = take (Op s) ws in
+    pp_ws `Break ppf wsangle;
     let ws = pp_elts ppf obs ws in
-    pp_tok ppf (Op ">");
-    let wsrangle, ws = take (Op ">") ws in
-    pp_ws `None ppf wsrangle;
+    pp_tok ppf (Op s);
+    let wsangle, ws = take (Op s) ws in
+    pp_ws `None ppf wsangle;
     pp_tok ppf RBracket;
     let wsrbracket, ws = take RBracket ws in
     pp_ws space ppf wsrbracket;
@@ -957,9 +958,35 @@ let pp_lst : space -> Format.formatter -> observation list -> Whitespace.alist -
   pp_close_box ppf ()
 
 let () =
-  set_tree lst (Closed_entry (eop LBracket (op (Op ">") (inner_lst ()))));
+  set_tree lst (Closed_entry (eop LBracket (op (Op ">") (inner_lst ">" lst))));
   set_processor lst { process = process_lst };
-  set_print lst pp_lst
+  set_print lst (pp_lst ">")
+
+(* ********************
+   Backwards Lists
+   ******************** *)
+
+let bwd = make "bwd" Outfix
+
+let rec process_bwd :
+    type n.
+    (string option, n) Bwv.t ->
+    observation Bwd.t ->
+    Asai.Range.t option ->
+    Whitespace.alist ->
+    n check located =
+ fun ctx obs loc ws ->
+  match obs with
+  | Emp -> { value = Constr ({ value = Constr.intern "emp"; loc }, Emp); loc }
+  | Snoc (tms, Term tm) ->
+      let rdc = process_bwd ctx tms loc ws in
+      let rad = process ctx tm in
+      { value = Constr ({ value = Constr.intern "snoc"; loc }, Snoc (Snoc (Emp, rdc), rad)); loc }
+
+let () =
+  set_tree bwd (Closed_entry (eop LBracket (op (Op "<") (inner_lst "<" bwd))));
+  set_processor bwd { process = (fun ctx obs loc ws -> process_bwd ctx (Bwd.of_list obs) loc ws) };
+  set_print bwd (pp_lst "<")
 
 (* ********************
    Generating the state
@@ -980,6 +1007,7 @@ let builtins =
     |> State.add comatch
     |> State.add mtch
     |> State.add empty_co_match
-    |> State.add lst)
+    |> State.add lst
+    |> State.add bwd)
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

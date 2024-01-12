@@ -166,6 +166,7 @@ let () =
   Types.Empty.install ();
   Types.Sum.install ();
   Types.Lst.install ();
+  Types.Blst.install ();
   Types.Stream.install ();
   Types.Unit.install ();
   Types.Vec.install ();

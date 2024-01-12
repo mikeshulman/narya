@@ -21,6 +21,13 @@ let get_notation head args =
           | Some (first, rest) -> Some (notn, first, rest)
           | None -> None)
       | None -> None)
+  | `Constr c -> (
+      match State.print_constr c with
+      | Some (notn, k) -> (
+          match bwd_take k args with
+          | Some (first, rest) -> Some (notn, first, rest)
+          | None -> None)
+      | None -> None)
   | _ -> None
 
 let unlocated (value : 'a) : 'a located = { value; loc = None }
@@ -129,6 +136,14 @@ let unparse_numeral : type n li ls ri rs. n term -> (li, ls, ri, rs) parse optio
     | _ -> None in
   getsucs tm 0
 
+let rec get_list : type n li ls ri rs. n term -> n term Bwd.t -> n term Bwd.t option =
+ fun tm elts ->
+  match tm with
+  | Term.Constr (c, _, Emp) when c = Constr.intern "nil" -> Some elts
+  | Constr (c, _, Snoc (Snoc (Emp, car), cdr)) when c = Constr.intern "cons" ->
+      get_list (CubeOf.find_top cdr) (Snoc (elts, CubeOf.find_top car))
+  | _ -> None
+
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
 let rec get_spine :
     type b n. n term -> [ `App of n term * n term Bwd.t | `Field of n term * Field.t * n term Bwd.t ]
@@ -231,9 +246,17 @@ let rec unparse :
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
       match unparse_numeral tm with
       | Some tm -> unlocated tm
-      | None ->
-          let args = Bwd.map CubeOf.find_top args in
-          unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)
+      | None -> (
+          match get_list tm Emp with
+          | Some args ->
+              let inner =
+                Mbwd.mmap
+                  (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
+                  [ args ] in
+              unlocated (outfix ~notn:lst ~ws:[] ~inner)
+          | None ->
+              let args = Bwd.map CubeOf.find_top args in
+              unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri))
 
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> n term -> unparser =

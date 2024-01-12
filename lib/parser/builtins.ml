@@ -873,10 +873,7 @@ and pp_match box space ppf obs ws =
       if true then (
         pp_tok ppf LBracket;
         pp_ws (if box then `None else `Nobreak) ppf wslbrack;
-        let ws =
-          match take_opt (Op "|") ws with
-          | Some _ -> ws
-          | None -> (Op "|", []) :: ws in
+        let ws = must_start_with (Op "|") ws in
         let wsrbrack = pp_branches ((not box) || style = `Noncompact) ppf obs ws in
         if style = `Noncompact then pp_print_cut ppf ();
         pp_tok ppf RBracket;
@@ -888,6 +885,81 @@ let () =
   set_print_as_case mtch (pp_match true);
   set_print_as_case comatch (pp_match true);
   set_print_as_case empty_co_match (pp_match true)
+
+(* ********************
+   Lists
+   ******************** *)
+
+let lst = make "list" Outfix
+
+let rec inner_lst () =
+  Inner
+    {
+      empty_branch with
+      ops = TokMap.singleton (Op ">") (op RBracket (Done_closed lst));
+      term =
+        Some
+          (TokMap.of_list
+             [ (Op ",", Lazy (lazy (inner_lst ()))); (Op ">", op RBracket (Done_closed lst)) ]);
+    }
+
+let rec process_lst :
+    type n.
+    (string option, n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    Whitespace.alist ->
+    n check located =
+ fun ctx obs loc ws ->
+  match obs with
+  | [] -> { value = Constr ({ value = Constr.intern "nil"; loc }, Emp); loc }
+  | Term tm :: tms ->
+      let cdr = process_lst ctx tms loc ws in
+      let car = process ctx tm in
+      { value = Constr ({ value = Constr.intern "cons"; loc }, Snoc (Snoc (Emp, car), cdr)); loc }
+
+let rec pp_elts : Format.formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
+ fun ppf obs ws ->
+  match obs with
+  | [] -> ws
+  | [ tm ] ->
+      pp_term `None ppf tm;
+      let ws = must_start_with (Op ",") ws in
+      let wscomma, ws = take (Op ",") ws in
+      (* TODO: If the last entry in a vboxed list is followed by a comment, then it doesn't get a comma after it the way it should in a vbox case. *)
+      pp_ws (`Custom (("", 1, ""), (",", 0, ""))) ppf wscomma;
+      ws
+  | tm :: obs ->
+      pp_term `None ppf tm;
+      let wscomma, ws = take (Op ",") ws in
+      pp_tok ppf (Op ",");
+      pp_ws `Break ppf wscomma;
+      pp_elts ppf obs ws
+
+let pp_lst : space -> Format.formatter -> observation list -> Whitespace.alist -> unit =
+ fun space ppf obs ws ->
+  pp_open_hvbox ppf 2;
+  if true then (
+    pp_tok ppf LBracket;
+    let wslbracket, ws = take LBracket ws in
+    pp_ws `None ppf wslbracket;
+    pp_tok ppf (Op ">");
+    let wsrangle, ws = take (Op ">") ws in
+    pp_ws `Break ppf wsrangle;
+    let ws = pp_elts ppf obs ws in
+    pp_tok ppf (Op ">");
+    let wsrangle, ws = take (Op ">") ws in
+    pp_ws `None ppf wsrangle;
+    pp_tok ppf RBracket;
+    let wsrbracket, ws = take RBracket ws in
+    pp_ws space ppf wsrbracket;
+    taken_last ws);
+  pp_close_box ppf ()
+
+let () =
+  set_tree lst (Closed_entry (eop LBracket (op (Op ">") (inner_lst ()))));
+  set_processor lst { process = process_lst };
+  set_print lst pp_lst
 
 (* ********************
    Generating the state
@@ -907,6 +979,7 @@ let builtins =
     |> State.add coloneq
     |> State.add comatch
     |> State.add mtch
-    |> State.add empty_co_match)
+    |> State.add empty_co_match
+    |> State.add lst)
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

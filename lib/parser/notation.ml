@@ -46,7 +46,8 @@ let fixprops :
   | Outfix -> (Closed, No.plus_omega, Closed)
 
 (* Notation printers are informed what sort of space to end with, if there is not specified whitespace (multiple newlines and/or comments).  These are the options. *)
-type space = [ `None | `Break | `Nobreak ]
+type space =
+  [ `None | `Break | `Nobreak | `Custom of (string * int * string) * (string * int * string) ]
 
 (* A "notation tree" (not to be confused with a "parse tree", which is the *result* of parsing) carries the information about how to parse one or more notations.  Each individual notation is defined by giving one tree, but multiple such trees can also be "merged" together.  This allows different notations that start out looking the same to be parsed with minimal backtracking, as we don't need to "decide" which notation we're parsing until we get to the point of the tree where they diverge.  Accordingly, although each notation is associated to a defining tree, a tree also stores pointers to notations at its leaves, since a merged tree could parse many different notations depending on which path through it is taken. *)
 

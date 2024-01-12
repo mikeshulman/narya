@@ -19,9 +19,9 @@ Y f x ↦ f (f (f (f (f (f (f (f x)))))))
 ( ( 0, 0 ), 0 )
 ( fst ≔ x ↦ x, snd ≔ 2 )
 s .fst 3
-nil.
-cons. 2 nil.
-cons. 4 (cons. 2 nil.)
+[> >]
+[> 2 >]
+[> 4, 2 >]
 0
 refl b
 a ↦ refl a

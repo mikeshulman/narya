@@ -22,6 +22,11 @@ let take_opt (tok : Token.t) (ws : Whitespace.alist) =
   | [] -> Some ([], [])
   | (t, x) :: xs -> if tok = t then Some (x, xs) else None
 
+let must_start_with (tok : Token.t) (ws : Whitespace.alist) =
+  match ws with
+  | (t, _) :: _ when t = tok -> ws
+  | _ -> (tok, []) :: ws
+
 (* Ensure that we took all the elements. *)
 let taken_last (ws : Whitespace.alist) =
   match ws with
@@ -53,6 +58,7 @@ let pp_space ppf space =
   | `None -> ()
   | `Break -> pp_print_space ppf ()
   | `Nobreak -> pp_print_char ppf ' '
+  | `Custom (fits, breaks) -> pp_print_custom_break ppf ~fits ~breaks
 
 (* Print the comments and newlines following a token. *)
 (* TODO: If this is called as the last thing in a box, then the forced newlines should come *after* the box closes, otherwise they produce undesired indentation on the next line.  I don't know how to deal with that; maybe override the pretty-printing functions with wrappers that store newlines in a buffer until they see whether the next event is a close_box? *)
@@ -107,7 +113,7 @@ let pp_ws (space : space) (ppf : formatter) (ws : Whitespace.t list) : unit =
       pp_open_vbox ppf 0;
       pp ppf ws
   | _ ->
-      pp_print_space ppf ();
+      pp_print_string ppf " ";
       pp_open_vbox ppf 0;
       pp ppf ws
 

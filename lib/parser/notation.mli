@@ -18,7 +18,8 @@ type (_, _, _) fixity =
   | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
   | Outfix : (closed, No.plus_omega, closed) fixity
 
-type space = [ `None | `Break | `Nobreak ]
+type space =
+  [ `None | `Break | `Nobreak | `Custom of (string * int * string) * (string * int * string) ]
 
 type (_, _) tree =
   | Inner : ('t, 's) branch -> ('t, 's) tree

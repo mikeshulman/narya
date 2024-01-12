@@ -1,5 +1,6 @@
 open Util
-open Core.Reporter
+open Core
+open Reporter
 open Notation
 module TokMap = Map.Make (Token)
 module ConstMap = Map.Make (Core.Constant)
@@ -22,8 +23,9 @@ type t = {
   tighters : EntryMap.t;
   (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  If there is more than one left-open notation starting with the same token, we store the loosest such interval. *)
   left_opens : Interval.t TokMap.t;
-  (* For unparsing we also store backwards maps turning constants and structs into notations. *)
+  (* For unparsing we also store backwards maps turning constants and constructors into notations. *)
   print_const : (Notation.t * int) ConstMap.t;
+  print_constr : (Notation.t * int) Constr.Map.t;
 }
 
 let empty : t =
@@ -34,6 +36,7 @@ let empty : t =
       |> EntryMap.add No.minus_omega { strict = empty_entry; nonstrict = empty_entry };
     left_opens = TokMap.empty;
     print_const = ConstMap.empty;
+    print_constr = Constr.Map.empty;
   }
 
 (* Add a new notation to the current state of available ones. *)
@@ -118,6 +121,18 @@ let add_const :
     let state = add notn state in
     { state with print_const = state.print_const |> ConstMap.add const (Notation.Wrap notn, k) }
 
+let add_constr :
+    type left tight right. (left, tight, right) notation -> Core.Constr.t -> int -> unit =
+ fun notn constr k ->
+  S.modify @@ fun state ->
+  if Constr.Map.mem constr state.print_constr then state
+  else
+    let state = add notn state in
+    {
+      state with
+      print_constr = state.print_constr |> Constr.Map.add constr (Notation.Wrap notn, k);
+    }
+
 let left_closeds : unit -> (No.plus_omega, No.strict) entry =
  fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
 
@@ -132,5 +147,8 @@ let left_opens : Token.t -> Interval.t option = fun tok -> TokMap.find_opt tok (
 
 let print_const : Core.Constant.t -> (Notation.t * int) option =
  fun c -> ConstMap.find_opt c (S.get ()).print_const
+
+let print_constr : Core.Constr.t -> (Notation.t * int) option =
+ fun c -> Constr.Map.find_opt c (S.get ()).print_constr
 
 let run_on init f = S.run ~init f

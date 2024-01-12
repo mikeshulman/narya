@@ -112,8 +112,8 @@ let install_ops () =
   List.iter2 Scope.set
     [ [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
     [ zero'; suc'; plus; times; ind ];
-  State.add_const plusn plus 2;
-  State.add_const timesn times 2;
+  State.S.modify (State.add_const plusn plus 2);
+  State.S.modify (State.add_const timesn times 2);
   Hashtbl.add Global.types zero' (Const nn);
   Hashtbl.add Global.constants zero' (Defined (ref (Case.Leaf (Constr (zero, D.zero, Emp)))));
   Hashtbl.add Global.types suc' (pi None (Const nn) (Const nn));

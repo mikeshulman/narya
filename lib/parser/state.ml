@@ -105,26 +105,17 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   (* We don't update the printing map since this is used for builtins that are printed specially. *)
   { s with tighters; left_opens }
 
-module S = Algaeff.State.Make (struct
-  type nonrec t = t
-end)
-
-let add_bare : type left tight right. (left, tight, right) notation -> unit =
- fun notn -> S.modify (add notn)
-
 let add_const :
-    type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> unit =
- fun notn const k ->
-  S.modify @@ fun state ->
+    type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> t -> t =
+ fun notn const k state ->
   if ConstMap.mem const state.print_const then state
   else
     let state = add notn state in
     { state with print_const = state.print_const |> ConstMap.add const (Notation.Wrap notn, k) }
 
 let add_constr :
-    type left tight right. (left, tight, right) notation -> Core.Constr.t -> int -> unit =
- fun notn constr k ->
-  S.modify @@ fun state ->
+    type left tight right. (left, tight, right) notation -> Core.Constr.t -> int -> t -> t =
+ fun notn constr k state ->
   if Constr.Map.mem constr state.print_constr then state
   else
     let state = add notn state in
@@ -132,6 +123,13 @@ let add_constr :
       state with
       print_constr = state.print_constr |> Constr.Map.add constr (Notation.Wrap notn, k);
     }
+
+module S = Algaeff.State.Make (struct
+  type nonrec t = t
+end)
+
+let add_bare : type left tight right. (left, tight, right) notation -> unit =
+ fun notn -> S.modify (add notn)
 
 let left_closeds : unit -> (No.plus_omega, No.strict) entry =
  fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict

@@ -169,6 +169,82 @@ x + x * x + x * x * x
   + x * x * x * x + x
   + x * x * x * x * x * x * x
 
+[> 1, 2, 3 >]
+
+[> 1 >]
+
+[> >]
+
+[< 1, 2, 3 <]
+
+[< 1 <]
+
+[< <]
+
+[>
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+>]
+
+[<
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+  blah,
+<]
+
+1 :> 2 :> 3 :> xs
+
+xs <: 1 <: 2 <: 3
+
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+x :>
+xs
+
+xs
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+<: x
+
 --------------------
 Noncompactly
 --------------------

@@ -41,6 +41,13 @@ let () =
   print "(fst ≔ x ↦ x, snd ≔ 2) : (ℕ → ℕ) × ℕ";
   assume "s" "(ℕ → ℕ) × ℕ";
   print "s .fst 3";
+  Types.Gel.install ();
+  assume "B" "Type";
+  assume "R" "A → B → Type";
+  assume "a" "A";
+  assume "b" "B";
+  assume "r" "R a b";
+  print "(_ ≔ r) : Gel A B R a b";
   (* TODO: Needs unparsing of case trees *)
   (*
   Types.Stream.install ();
@@ -54,11 +61,10 @@ let () =
   print "cons. 2 nil. : List ℕ";
   print "cons. 4 (cons. 2 nil.) : List ℕ";
   print "refl (0:ℕ)";
-  assume "b" "A";
-  print "refl b";
+  print "refl a";
   print "(a ↦ refl a) : (a:A) → Id A a a";
-  print "refl (refl b)";
-  print "refl (refl (refl b))";
+  print "refl (refl a)";
+  print "refl (refl (refl a))";
   (* Requires fixing the degeneracy-of-constant bug. *)
   (*
   assume "a00" "A";
@@ -72,7 +78,7 @@ let () =
   assume "a22" "Id ((x y ↦ Id A x y) : A → A → Type) a00 a01 a02 a10 a11 a12 a20 a21"
 *)
   (* Let-bindings always reduce away, disappearing after readback. *)
-  print "let x := b in b";
+  print "let x := a in a";
   (* Binary operators *)
   assume "m" "ℕ";
   assume "n" "ℕ";

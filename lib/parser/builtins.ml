@@ -559,6 +559,9 @@ let rec process_tuple :
           if Field.Set.mem fld found then fatal (Duplicate_field_in_tuple fld)
           else
             process_tuple false (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
+      | [ Term { value = Placeholder _; _ }; Term tm ] ->
+          let tm = process ctx tm in
+          process_tuple false (Abwd.add None tm flds) found ctx obs loc
       | _ :: _ -> fatal Invalid_field_in_tuple
       | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
   | [ Term body ] when first -> process ctx body

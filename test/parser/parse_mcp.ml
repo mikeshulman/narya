@@ -88,8 +88,20 @@ let () =
   let b0', _ = synth "((fst ≔ a₀, snd ≔ b₀ ) : (x:A) × B x) .snd" in
   let () = equal b0 b0' in
   let ab0' = check "(a₀ , b₀)" sigab in
+  let ab0'' = check "(_ ≔ a₀ , b₀)" sigab in
   let a0'', _ = synth "((a₀ , b₀) : (x:A) × B x) .fst" in
   let () = equal a0 a0'' in
+
+  (* 1-tuples *)
+  let () = Types.Gel.install () in
+  let rrty, _ = synth "A → X → Type" in
+  let rr = assume "R" rrty in
+  let r0ty, _ = synth "R a₀ x00" in
+  let r0 = assume "r" r0ty in
+  let ax, _ = synth "Gel A X R a₀ x00" in
+  let rax = check "(ungel ≔ r)" ax in
+  let rax' = check "(_ ≔ r)" ax in
+  let () = uncheck "(r)" ax in
 
   (* Right-associativity of prod and comma *)
   let dd = assume "D" uu in

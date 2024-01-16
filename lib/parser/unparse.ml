@@ -236,6 +236,12 @@ let rec unparse :
                                  ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
                                  ~inner:Emp ~last:tm ~left_ok:(No.le_refl No.minus_omega)
                                  ~right_ok:(No.le_refl No.minus_omega))
+                        (* An unlabeled 1-tuple must be written (_ := M). *)
+                        | `Unlabeled when Bwd.length fields = 1 ->
+                            unlocated
+                              (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))
+                                 ~inner:Emp ~last:tm ~left_ok:(No.le_refl No.minus_omega)
+                                 ~right_ok:(No.le_refl No.minus_omega))
                         | `Unlabeled -> tm) ))
                 fields Emp))
   | Struct (`Noeta, fields) ->

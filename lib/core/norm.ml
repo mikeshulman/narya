@@ -396,15 +396,16 @@ and field : value -> Field.t -> value =
       let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
       apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
-  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, fld))
+  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
-and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
+and tyof_field_withname ?severity (tm : value) (ty : value) (fld : Field.or_index) : Field.t * value
+    =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
   | Canonical (name, args, ins) -> (
       (* The head of the type must be a record type with a field having the correct name. *)
-      let (Field { params = kc; dim = n; ty = fldty }) =
+      let (Field { name = fldname; params = kc; dim = n; ty = fldty }) =
         Global.find_record_field ?severity name fld in
       (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n.  *)
       let (Plus mn) = D.plus n in
@@ -433,17 +434,21 @@ and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
               } in
           let env = Value.Ext (env, entries) in
           (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
-          inst (eval env fldty)
-            (TubeOf.mmap
-               {
-                 map =
-                   (fun _ [ arg ] ->
-                     let tm = field arg.tm fld in
-                     let ty = tyof_field arg.tm arg.ty fld in
-                     { tm; ty });
-               }
-               [ TubeOf.middle (D.zero_plus m) mn tyargs ]))
+          ( fldname,
+            inst (eval env fldty)
+              (TubeOf.mmap
+                 {
+                   map =
+                     (fun _ [ arg ] ->
+                       let tm = field arg.tm fldname in
+                       let _, ty = tyof_field_withname arg.tm arg.ty fld in
+                       { tm; ty });
+                 }
+                 [ TubeOf.middle (D.zero_plus m) mn tyargs ]) ))
   | _ -> fatal ?severity (No_such_field (`Other, fld))
+
+and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
+  snd (tyof_field_withname ?severity tm ty (`Name fld))
 
 and eval_binder :
     type m n mn b. (m, b) env -> (m, n, mn) D.plus -> (b, n) ext term -> mn Value.binder =

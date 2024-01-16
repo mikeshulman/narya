@@ -1,6 +1,5 @@
 (* This module should not be opened, but used qualified. *)
 
-open Bwd
 open Util
 open Reporter
 open Syntax
@@ -50,12 +49,24 @@ and (_, _) constr =
 let constants : (Constant.t, definition) Hashtbl.t = Hashtbl.create 10
 
 type field =
-  | Field : { params : (emp, 'p, 'pc, D.zero) exts; dim : 'n D.t; ty : ('pc, 'n) ext term } -> field
+  | Field : {
+      name : Field.t;
+      params : (emp, 'p, 'pc, D.zero) exts;
+      dim : 'n D.t;
+      ty : ('pc, 'n) ext term;
+    }
+      -> field
 
-let find_record_field ?severity (name : Constant.t) (fld : Field.t) : field =
-  match Hashtbl.find constants name with
+let find_record_field ?severity (const : Constant.t) (fld : Field.or_index) : field =
+  match Hashtbl.find constants const with
   | Record { eta = _; params; dim; fields } -> (
-      match Bwd.find_opt (fun (f, _) -> f = fld) fields with
-      | Some (_, ty) -> Field { params; dim; ty }
-      | None -> fatal ?severity (No_such_field (`Record (PConstant name), fld)))
-  | _ -> fatal ?severity (No_such_field (`Nonrecord (PConstant name), fld))
+      match fld with
+      | `Name fld -> (
+          match Abwd.find_opt fld fields with
+          | Some ty -> Field { name = fld; params; dim; ty }
+          | None -> fatal ?severity (No_such_field (`Record (PConstant const), `Name fld)))
+      | `Index n -> (
+          match Mbwd.fwd_nth_opt fields n with
+          | Some (fld, ty) -> Field { name = fld; params; dim; ty }
+          | None -> fatal ?severity (No_such_field (`Record (PConstant const), fld))))
+  | _ -> fatal ?severity (No_such_field (`Nonrecord (PConstant const), fld))

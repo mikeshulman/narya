@@ -31,6 +31,8 @@ let () =
   def "ab" "(x:A) × B x" "(fst ≔ a, snd ≔ b)";
   equal_at "ab .fst" "a" "A";
   equal_at "ab .snd" "b" "B a";
+  equal_at "ab .0" "a" "A";
+  equal_at "ab .1" "b" "B a";
   (match Hashtbl.find Global.constants (Option.get (Parser.Scope.lookup [ "ab" ])) with
   | Defined _ -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));

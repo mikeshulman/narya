@@ -82,3 +82,14 @@ let mmap : type x xs y. ((x, xs) cons hlist -> y) -> (x, xs) cons Heter.ht -> y 
  fun f xs ->
   let open Monadic (Monad.Identity) in
   mmapM f xs
+
+let fwd_nth_opt : type a. a Bwd.t -> int -> a option =
+ fun xs i ->
+  let rec go xs i =
+    match xs with
+    | Emp -> Error i
+    | Snoc (xs, x) -> (
+        match go xs i with
+        | Ok y -> Ok y
+        | Error i -> if i = 0 then Ok x else Error (i - 1)) in
+  Result.to_option (go xs i)

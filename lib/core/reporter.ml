@@ -59,7 +59,9 @@ module Code = struct
         [ `Data of printable | `Nondata of printable | `Other of printable ] * Constr.t
         -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
-    | No_such_field : [ `Record of printable | `Nonrecord of printable | `Other ] * Field.t -> t
+    | No_such_field :
+        [ `Record of printable | `Nonrecord of printable | `Other ] * Field.or_index
+        -> t
     | Missing_instantiation_constructor :
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
         -> t
@@ -309,11 +311,12 @@ module Code = struct
     | No_such_field (d, f) -> (
         match d with
         | `Record d ->
-            textf "record type %a has no field named %s" pp_printed (print d) (Field.to_string f)
+            textf "record type %a has no field named %s" pp_printed (print d)
+              (Field.to_string_ori f)
         | `Nonrecord d ->
             textf "non-record type %a has no field named %s" pp_printed (print d)
-              (Field.to_string f)
-        | `Other -> textf "term has no field named %s" (Field.to_string f))
+              (Field.to_string_ori f)
+        | `Other -> textf "term has no field named %s" (Field.to_string_ori f))
     | Missing_instantiation_constructor (exp, got) ->
         let pp_got =
           match got with

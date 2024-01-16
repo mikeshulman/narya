@@ -73,7 +73,8 @@ let () =
     unsynth ~print:() "s .third"
       ~code:
         (No_such_field
-           (`Record (Core.Reporter.PConstant Types.Sigma.sigma), Core.Field.intern "third")) in
+           (`Record (Core.Reporter.PConstant Types.Sigma.sigma), Core.Field.intern_ori "third"))
+  in
   let () = uncheck ~print:() "zero." sigab ~short:"E1000" in
   let () = uncheck ~print:() "two." nat ~short:"E1000" in
   let () =

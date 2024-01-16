@@ -17,7 +17,7 @@ module Raw = struct
   type _ synth =
     | Var : 'a index -> 'a synth
     | Const : Constant.t -> 'a synth
-    | Field : 'a synth located * Field.t -> 'a synth
+    | Field : 'a synth located * Field.or_index -> 'a synth
     | Pi : string option * 'a check located * 'a N.suc check located -> 'a synth
     | App : 'a synth located * 'a check located -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth

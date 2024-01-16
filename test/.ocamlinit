@@ -1,0 +1,2 @@
+#use_output "dune top"
+open Testutil.Repl

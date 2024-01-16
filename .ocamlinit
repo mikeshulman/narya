@@ -1,2 +1,3 @@
-#use_output "dune top"
+#use_output "cd lib; dune top"
+#use_output "cd test; dune top"
 open Testutil.Repl

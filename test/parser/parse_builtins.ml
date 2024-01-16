@@ -91,30 +91,6 @@ let () =
         ( "let",
           [ Term (Ident [ "x" ]); Term (Ident [ "a" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]
         ))
-  (* ;
-       assert (
-         parse "(x:A){y:B}(z w:C){u : D := M} -> N"
-         = Notn
-             ( "pi",
-               [
-
-                 Ident (Some "x");
-                 Term (Ident "A");
-
-                 Ident (Some "y");
-                 Term (Ident "B");
-
-                 Ident (Some "z");
-                 Ident (Some "w");
-                 Term (Ident "C");
-
-                 Ident (Some "u");
-                 Term (Ident "D");
-                 Flag Default_pi;
-                 Term (Ident "M");
-                 Term (Ident "N");
-               ] )) *)
-
   (* The parsing of "(X:Type)->Y" is technically ambiguous: in addition to a dependent function-type, it could be a non-dependent function type with ascribed domain.  We always interpret it as a dependent function-type, but to get the non-dependent version you can add extra parentheses.  *);
 
   assert (

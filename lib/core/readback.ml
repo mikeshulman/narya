@@ -51,8 +51,7 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
                   | None -> Lam (k, singleton_named_variables k x, body))
               | _ -> Lam (k, singleton_named_variables k x, body))
           | _ -> Lam (k, singleton_named_variables k x, body)))
-  | Canonical (name, canonical_args, ins) -> (
-      let k = cod_left_ins ins in
+  | Neu (Const { name; dim = k }, canonical_args) -> (
       match Hashtbl.find Global.constants name with
       | Record { eta; fields = _fields; _ } -> (
           match tm with
@@ -85,8 +84,8 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
                       let env, _ =
-                        take_canonical_args (Emp k) canonical_args params (N.plus_right indices)
-                      in
+                        take_canonical_args (Emp k) (args_of_apps k canonical_args) params
+                          (N.plus_right indices) in
                       let tyarg_args =
                         TubeOf.mmap
                           {
@@ -156,15 +155,6 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
               | Field fld -> Field (fn, fld)),
               perm_of_ins ins ))
         (readback_head ctx fn) args
-  | Canonical (name, args, ins) ->
-      Act
-        ( Bwd.fold_left
-            (fun fn arg ->
-              Term.App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ arg ]))
-            (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
-            (Act (Const name, deg_zero (cod_left_ins ins)))
-            args,
-          perm_of_ins ins )
 
 and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
  fun ctx h ->

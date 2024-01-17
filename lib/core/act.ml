@@ -128,22 +128,6 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
                 act_binder (BindCube.find cods fc) fd);
           } in
       Pi (x, doms', cods')
-  | Canonical (name, args, ins) ->
-      (* Similar to act_apps, but without needing to thread through changes in the insertion, since the intermediate applications lie in 0-dimensional types and hence any degeneracy action can be pushed inside except possibly after the complete application (if the end result is a higher-dimensional type). *)
-      let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
-      let p = dom_deg fa in
-      let new_args =
-        Bwd.map
-          (fun arg ->
-            CubeOf.build p
-              {
-                build =
-                  (fun fb ->
-                    let (Op (fd, fc)) = deg_sface fa fb in
-                    act_normal (CubeOf.find arg fd) fc);
-              })
-          args in
-      Canonical (name, new_args, new_ins)
 
 and act_binder : type m n. n binder -> (m, n) deg -> m binder =
  fun (Bind { env; perm; plus_dim; body; args }) fa ->

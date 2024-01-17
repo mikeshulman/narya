@@ -3,6 +3,7 @@ open Util
 open Dim
 open Hctx
 open Asai.Range
+open Reporter
 
 type eta = [ `Eta | `Noeta ]
 
@@ -97,7 +98,7 @@ end = struct
 
   type _ term =
     | Var : 'a index -> 'a term
-    | Const : Constant.t -> 'a term (* TODO: Should separate out canonicals? *)
+    | Const : Constant.t -> 'a term
     | Field : 'a term * Field.t -> 'a term
     | UU : 'n D.t -> 'a term
     | Inst : 'a term * ('m, 'n, 'mn, 'a term) TubeOf.t -> 'a term
@@ -151,7 +152,6 @@ module rec Value : sig
     | UU : 'n D.t -> uninst
     | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     | Neu : head * app Bwd.t -> uninst
-    | Canonical : Constant.t * ('n, normal) CubeOf.t Bwd.t * ('m, 'n, 'k) insertion -> uninst
 
   and value =
     | Uninst : uninst * value Lazy.t -> value
@@ -213,8 +213,6 @@ end = struct
     | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
     | Neu : head * app Bwd.t -> uninst
-    (* A canonical type has a name, a degenerated/substituted dimension, and a list of arguments all of that dimension, plus a possible outside insertion like an application.  It can be applied to fewer than the "correct" number of arguments that would be necessary to produce a type.  The dimension is stored implicitly and can be recovered from cod_left_ins.  Note that a canonical type can also have a nonzero "intrinsic" dimension (the main example are the Gel/Glue record types), which appears in the dimension 'k of the insertion; thus if the intrinsic dimension is zero, the insertion must be trivial. *)
-    | Canonical : Constant.t * ('n, normal) CubeOf.t Bwd.t * ('m, 'n, 'k) insertion -> uninst
 
   and value =
     (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
@@ -271,3 +269,17 @@ let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, value) CubeOf.t =
 
 let val_of_norm_tube : type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+(* Ensure that a (backwards) list of arguments consists of function applications at a fixed dimension with only identity insertions, and return them.  This is generally used for the arguments of a canonical type.  Takes an optional error code to report instead of an anomaly if the outer insertion is nonidentity, as this can be a user error (e.g. trying to check a tuple at a degenerated Gel-type).  *)
+let rec args_of_apps : type n. ?degerr:Code.t -> n D.t -> app Bwd.t -> (n, normal) CubeOf.t Bwd.t =
+ fun ?(degerr = Anomaly "unexpected degeneracy in argument spine") n xs ->
+  match xs with
+  | Emp -> Emp
+  | Snoc (xs, App (Arg arg, ins)) ->
+      if Option.is_some (is_id_ins ins) then
+        match compare (CubeOf.dim arg) n with
+        (* We DON'T pass on ?degerr to the recursive call, since any insertions deeper in the application spine are bugs. *)
+        | Eq -> Snoc (args_of_apps n xs, arg)
+        | Neq -> fatal (Dimension_mismatch ("args_of_apps", CubeOf.dim arg, n))
+      else fatal degerr
+  | _ -> fatal (Anomaly "unexpected field projection in argument spine")

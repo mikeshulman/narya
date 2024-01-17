@@ -79,7 +79,7 @@ module Code = struct
     | No_such_constructor_in_match : printable * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Index_variable_in_index_value : t
-    | Matching_on_nondatatype : [ `Canonical of printable | `Other of printable ] -> t
+    | Matching_on_nondatatype : printable -> t
     | Matching_on_let_bound_variable : printable -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
@@ -363,13 +363,9 @@ module Code = struct
     | Duplicate_constructor_in_match c ->
         textf "constructor %s appears twice in match" (Constr.to_string c)
     | Index_variable_in_index_value -> text "free index variable occurs in inferred index value"
-    | Matching_on_nondatatype c -> (
-        match c with
-        | `Canonical c ->
-            textf "can't match on variable belonging to non-datatype %a" pp_printed (print c)
-        | `Other ty ->
-            textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
-              (print ty))
+    | Matching_on_nondatatype ty ->
+        textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
+          (print ty)
     | Matching_on_let_bound_variable name ->
         textf "can't match on let-bound variable %a" pp_printed (print name)
     | Dimension_mismatch (op, a, b) ->

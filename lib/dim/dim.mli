@@ -427,6 +427,7 @@ val cod_left_ins : ('a, 'b, 'c) insertion -> 'b D.t
 val plus_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'a) D.plus
 val deg_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val perm_of_ins : ('a, 'b, 'c) insertion -> 'a perm
+val is_id_ins : ('a, 'b, 'c) insertion -> unit option
 val deg_of_plus_of_ins : ('a, 'b, 'c) insertion -> 'b deg_of_plus
 
 type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('ac, 'b, 'c) insfact

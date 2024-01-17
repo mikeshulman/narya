@@ -1997,6 +1997,8 @@ let rec perm_of_ins : type a b c. (a, b, c) insertion -> a perm =
   | Zero a -> id_perm a
   | Suc (i, e) -> Suc (perm_of_ins i, e)
 
+let is_id_ins : type a b c. (a, b, c) insertion -> unit option = fun s -> is_id_perm (perm_of_ins s)
+
 let deg_of_plus_of_ins : type a b c. (a, b, c) insertion -> b deg_of_plus =
  fun ins -> Of (plus_of_ins ins, perm_of_ins ins)
 

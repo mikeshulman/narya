@@ -38,8 +38,7 @@ and equal_at : int -> value -> value -> value -> unit option =
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at (ctx + 1) (apply x newargs) (apply y newargs) output)
-  | Canonical (name, canonical_args, ins) -> (
-      let k = cod_left_ins ins in
+  | Neu (Const { name; dim = k }, canonical_args) -> (
       (* The insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it. *)
       match Hashtbl.find Global.constants name with
       | Record { eta; fields; dim; _ } -> (
@@ -83,7 +82,9 @@ and equal_at : int -> value -> value -> value -> unit option =
                       let (Constr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
                       (* We take the parameters from the arguments of the instance of the datatype, ignoring the indices, and put them into an environment. *)
-                      let env, _ = take_canonical_args (Emp k) canonical_args params (Nat indices) in
+                      let env, _ =
+                        take_canonical_args (Emp k) (args_of_apps k canonical_args) params
+                          (Nat indices) in
                       (* The instantiation must be at other instances of the same constructor; we take its arguments as in 'check'. *)
                       let tyarg_args =
                         TubeOf.mmap
@@ -168,21 +169,6 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
             }
             [ cod1s; cod2s ]
       | Neq -> fail)
-  | Canonical (name1, args1, i1), Canonical (name2, args2, i2) -> (
-      let* () = guard (name1 = name2) in
-      match compare (cod_left_ins i1) (cod_left_ins i2) with
-      | Neq ->
-          fatal
-            (Dimension_mismatch
-               ("application in canonical equality-check", cod_left_ins i1, cod_left_ins i2))
-      | Eq ->
-          let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
-          let open Mbwd.Monadic (Monad.Maybe) in
-          miterM
-            (fun [ a1; a2 ] ->
-              let open CubeOf.Monadic (Monad.Maybe) in
-              miterM { it = (fun _ [ x; y ] -> equal_nf lvl x y) } [ a1; a2 ])
-            [ args1; args2 ])
   | _ -> fail
 
 (* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)

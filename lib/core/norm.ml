@@ -33,7 +33,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
  fun env tm ->
   match tm with
   | Var v -> lookup env v
-  | Const name -> (
+  | Const name ->
       (* A constant starts out at dimension zero, but must be lifted to the dimension of the environment. *)
       let dim = dim_env env in
       let cty = Hashtbl.find Global.types name in
@@ -49,16 +49,13 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                       let tm = eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
                       (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a normal term it had to be annotated with its type. *)
                       match tm with
-                      | Uninst (Neu _, (lazy ty)) | Uninst (Canonical _, (lazy ty)) -> { tm; ty }
+                      | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                       | _ ->
                           fatal
                             (Anomaly
                                "evaluation of lower-dimensional constant is not neutral/canonical"));
                 })) in
-      match Hashtbl.find_opt Global.constants name with
-      | Some (Record _) | Some (Data _) -> Uninst (Canonical (name, Emp, zero_ins (dim_env env)), ty)
-      | Some Axiom | Some (Defined _) -> apply_spine (Const { name; dim }) Emp ty
-      | None -> fatal (Undefined_constant (PConstant name)))
+      apply_spine (Const { name; dim }) Emp ty
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -252,11 +249,6 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
               match tm with
               | Neu (fn, args) -> apply_spine fn (Snoc (args, App (Arg newarg, zero_ins k))) ty
-              | Canonical (name, prev_args, ins) -> (
-                  match (is_id_perm (perm_of_ins ins), compare (cod_left_ins ins) k) with
-                  | Some (), Eq -> Uninst (Canonical (name, Snoc (prev_args, newarg), ins), ty)
-                  | _, Neq -> fatal (Dimension_mismatch ("applying canonical", cod_left_ins ins, k))
-                  | None, _ -> fatal (Anomaly "insertion mismatch applying canonical"))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
@@ -399,24 +391,23 @@ and field : value -> Field.t -> value =
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
-and tyof_field_withname ?severity (tm : value) (ty : value) (fld : Field.or_index) : Field.t * value
-    =
+and tyof_field_withname ?severity ?degerr (tm : value) (ty : value) (fld : Field.or_index) :
+    Field.t * value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
-  | Canonical (name, args, ins) -> (
+  | Neu (Const { name; dim = m }, args) -> (
       (* The head of the type must be a record type with a field having the correct name. *)
       let (Field { name = fldname; params = kc; dim = n; ty = fldty }) =
         Global.find_record_field ?severity name fld in
       (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n.  *)
       let (Plus mn) = D.plus n in
-      let m = cod_left_ins ins in
       let mn' = D.plus_out m mn in
       match compare (TubeOf.inst tyargs) mn' with
       | Neq ->
           fatal ?severity (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
       | Eq ->
           (* The type must be applied, at dimension m, to exactly the right number of parameters (k). *)
-          let env, Emp = take_canonical_args (Emp m) args kc N.zero in
+          let env, Emp = take_canonical_args (Emp m) (args_of_apps ?degerr m args) kc N.zero in
           (* If so, then the type of the field projection comes from the type associated to that field name in general, evaluated at the supplied parameters along with the term itself and its boundaries. *)
           let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
           let entries =
@@ -447,8 +438,8 @@ and tyof_field_withname ?severity (tm : value) (ty : value) (fld : Field.or_inde
                  [ TubeOf.middle (D.zero_plus m) mn tyargs ]) ))
   | _ -> fatal ?severity (No_such_field (`Other, fld))
 
-and tyof_field ?severity (tm : value) (ty : value) (fld : Field.t) : value =
-  snd (tyof_field_withname ?severity tm ty (`Name fld))
+and tyof_field ?severity ?degerr (tm : value) (ty : value) (fld : Field.t) : value =
+  snd (tyof_field_withname ?severity ?degerr tm ty (`Name fld))
 
 and eval_binder :
     type m n mn b. (m, b) env -> (m, n, mn) D.plus -> (b, n) ext term -> mn Value.binder =

@@ -144,6 +144,13 @@ let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
           pp_ws space ppf w
       | Field (f, w) ->
           pp_field ppf f;
+          pp_ws space ppf w
+      | Superscript (Some x, s, w) ->
+          pp_term `None ppf (Term x);
+          pp_utf_8 ppf (Token.to_super s);
+          pp_ws space ppf w
+      | Superscript (None, s, w) ->
+          pp_utf_8 ppf (Token.to_super s);
           pp_ws space ppf w)
 
 and pp_notn_case :

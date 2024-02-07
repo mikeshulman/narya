@@ -50,6 +50,9 @@ and (_, _, _, _) parse =
   | Ident : string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Superscript :
+      ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
+      -> ('lt, 'ls, 'rt, 'rs) parse
 
 and ('left, 'tight) notation_entry =
   | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry

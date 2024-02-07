@@ -16,11 +16,11 @@ let () =
           ] ));
 
   assert (
-    parse "x ^ y ^ z"
+    parse "x ** y ** z"
     = Notn
-        ( "^",
+        ( "**",
           [
-            Term (Ident [ "x" ]); Term (Notn ("^", [ Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
+            Term (Ident [ "x" ]); Term (Notn ("**", [ Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
           ] ));
 
   assert (
@@ -56,7 +56,7 @@ let () =
           ] ));
 
   assert (
-    parse "x + y ^ z * w"
+    parse "x + y ** z * w"
     = Notn
         ( "+",
           [
@@ -65,13 +65,13 @@ let () =
               (Notn
                  ( "*",
                    [
-                     Term (Notn ("^", [ Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
+                     Term (Notn ("**", [ Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
                      Term (Ident [ "w" ]);
                    ] ));
           ] ));
 
   assert (
-    parse "x * y ^ z + w"
+    parse "x * y ** z + w"
     = Notn
         ( "+",
           [
@@ -80,7 +80,7 @@ let () =
                  ( "*",
                    [
                      Term (Ident [ "x" ]);
-                     Term (Notn ("^", [ Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
+                     Term (Notn ("**", [ Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));
                    ] ));
             Term (Ident [ "w" ]);
           ] ));

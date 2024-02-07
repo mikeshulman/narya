@@ -7,18 +7,11 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and various libraries, including currently a pre-release version of fmlib.
+Narya requires OCaml version 5.1.0 and various libraries.
 
 ```
 opam switch create 5.1.0
-opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term
-
-git clone git@github.com:hbr/fmlib.git
-cd fmlib
-git checkout parse
-opam install js_of_ocaml js_of_ocaml-ppx
-dune build
-dune install
+opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib
 
 cd ../narya
 dune build @install
@@ -54,7 +47,7 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `Id M X Y` – Homogeneous identity/bridge type.  In fact this is equivalent to `refl M X Y`, and `Id` is just a synonym for `refl`.
 - `refl M` – Reflexivity term.
 - `sym M` – Symmetry of a two-dimensional square.
-- `M ^{ 102 }` – General degeneracy (combination of higher reflexivities and symmetries).
+- `M⁽¹⁰²⁾` – General degeneracy (combination of higher reflexivities and symmetries).  Can also be written `M^(102)`.
 
 Function application and field access can be thought of as left-associative infix operations with zero infix symbols and tightness +ω (although they are implemented specially internally).  In particular, a nonassociative prefix notation of tightness +ω, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  There are no such notations currently, but future possibilities include explicification of implicit functions and universe lifting.
 
@@ -67,7 +60,7 @@ A line comment starts with a backquote \` and extends to the end of the line.  A
 As in Agda, mixfix notations can involve arbitrary Unicode characters (a source file is expected to be UTF-8), most of which must be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, in Narya this has the following exceptions:
 
 - The characters `( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ …`, which either have built-in meaning or are reserved for future built-in meanings, are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in Agda, but the others are different: in Narya you can write `A→B` without spaces.  The non-ASCII characters in this group all have ASCII-sequence substitutes that are completely interchangeable: `-> |-> |=> := ::= += ...`.
-- A nonempty string consisting of the characters `~ ! @ # $ % ^ & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for parentheses (grouping), curly braces (structures and, later, implicit arguments), backquote (comments), period (fields, constructors, and namespaces), underscore (allowed in identifiers, and for unnamed variables and, later, inferred arguments), double quote (later, string literals) and single quote (allowed in identifiers, for primes on variable names).  In particular:
+- A nonempty string consisting of the characters `~ ! @ # $ % & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for parentheses (grouping), curly braces (structures and, later, implicit arguments), backquote (comments), period (fields, constructors, and namespaces), underscore (allowed in identifiers, and for unnamed variables and, later, inferred arguments), double quote (later, string literals) and single quote (allowed in identifiers, for primes on variable names).  In particular:
   - Ordinary algebraic operations like `+` and `*` can be defined so that `x+y` and `x*y` are valid.
   - This includes the colon, so you can write `(x:A) → B`, and similarly for the comma `,` in a record and the bar `|` in a match or comatch.  But the user can also use these characters in other operators, such as `::` for list cons.  (Or you can use the Unicode ∷ and require spacing around it.)
   - The ASCII substitutes for the single-token Unicode characters also fall into this category, so you can write for instance `A->B`.
@@ -160,7 +153,7 @@ There are other enhancements to matching that could be done, however, such as im
 
 Every type `A` has a binary identity/bridge type denoted `Id A x y`, and each term `x:A` has a reflexivity term `refl x : Id A x x`.  (The argument of `refl` must synthesize.)  Elements of the identity type of the universe include, at least, a binary correspondence, which is instantiated by application syntax; so from `A₂ : Id Type A₀ A₁`, if `a₀:A₀` and `a₁:A₁` we have `A₂ a₀ a₁ : Type`.  In particular, `Id A x y` is an instance of this syntax, as we have `Id A : Id Type A A`, and indeed `Id A` is just a notational variant of `refl A`.
 
-Iterating `Id` or `refl` multiple times produces higher-dimensional cube types and cubes.  There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions; its argument must also synthesize.  Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies: `M ^{ 201 }` where inside the braces is a string of digits representing the degeneracy, with `0` denoting a degenerate dimension and the other digits denoting a permutation.
+Iterating `Id` or `refl` multiple times produces higher-dimensional cube types and cubes.  There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions; its argument must also synthesize.  Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies: `M⁽¹⁰²⁾` or `M^(102)` where  the string of digits represents the degeneracy, with `0` denoting a degenerate dimension and the other digits denoting a permutation.  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers in a permutation with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.
 
 The identity/bridge type of a pi-type computes to another pi-type.  In Narya this computation is "up to definitional isomorphism", meaning that the following two types are isomorphic:
 ```

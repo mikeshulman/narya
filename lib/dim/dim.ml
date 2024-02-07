@@ -342,7 +342,7 @@ let rec ints_of_deg : type a b. (a, b) deg -> (int, a) Bwv.t = function
 let string_of_deg : type a b. (a, b) deg -> string =
  fun s ->
   String.concat
-    (if D.to_int (cod_deg s) > 9 then "_" else "")
+    (if D.to_int (cod_deg s) > 9 then "-" else "")
     (Bwv.to_list_map string_of_int (ints_of_deg s))
 
 type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
@@ -365,15 +365,17 @@ let rec deg_of_ints : type n. (int, n) Bwv.t -> int -> n deg_to option =
 
 let deg_of_string : string -> any_deg option =
  fun str ->
-  let (Wrap ints) =
-    if String.contains str '_' then Bwv.of_list_map int_of_string (String.split_on_char '_' str)
-    else
-      String.fold_left
-        (fun (Bwv.Wrap l) c -> Wrap (Snoc (l, int_of_string (String.make 1 c))))
-        (Wrap Emp) str in
-  match deg_of_ints ints (Bwv.fold_left (fun x y -> max x y) 0 ints) with
-  | None -> None
-  | Some (To s) -> Some (Any s)
+  try
+    let (Wrap ints) =
+      if String.contains str '-' then Bwv.of_list_map int_of_string (String.split_on_char '-' str)
+      else
+        String.fold_left
+          (fun (Bwv.Wrap l) c -> Wrap (Snoc (l, int_of_string (String.make 1 c))))
+          (Wrap Emp) str in
+    match deg_of_ints ints (Bwv.fold_left (fun x y -> max x y) 0 ints) with
+    | None -> None
+    | Some (To s) -> Some (Any s)
+  with Failure _ -> None
 
 (* ********** Strict faces ********** *)
 

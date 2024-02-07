@@ -28,12 +28,14 @@ let print pr = !printer pr
 module Code = struct
   type t =
     | Parse_error : t
+    | Encoding_error : t
     | Parsing_ambiguity : string -> t
     | No_relative_precedence : string * string -> t
     | Invalid_variable : string list -> t
     | Invalid_numeral : string -> t
     | Invalid_constr : string -> t
     | Invalid_field : string -> t
+    | Invalid_degeneracy : string -> t
     | Not_enough_lambdas : int -> t
     | Not_enough_arguments_to_function : t
     | Not_enough_arguments_to_instantiation : t
@@ -96,12 +98,14 @@ module Code = struct
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
     | Parse_error -> Error
+    | Encoding_error -> Error
     | Parsing_ambiguity _ -> Error
     | No_relative_precedence _ -> Error
     | Invalid_variable _ -> Error
     | Invalid_numeral _ -> Error
     | Invalid_constr _ -> Error
     | Invalid_field _ -> Error
+    | Invalid_degeneracy _ -> Error
     | Not_enough_lambdas _ -> Error
     | Type_not_fully_instantiated _ -> Error
     | Unequal_synthesized_type _ -> Error
@@ -170,7 +174,9 @@ module Code = struct
     | Invalid_field _ -> "E0203"
     | Invalid_constr _ -> "E0204"
     | Invalid_numeral _ -> "E0205"
-    | No_relative_precedence _ -> "E0206"
+    | Invalid_degeneracy _ -> "E0206"
+    | No_relative_precedence _ -> "E0207"
+    | Encoding_error -> "E0299"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
@@ -238,11 +244,15 @@ module Code = struct
 
   let default_text : t -> text = function
     | Parse_error -> text "parse error"
+    | Encoding_error -> text "UTF-8 encoding error"
     | Parsing_ambiguity str -> textf "potential parsing ambiguity: %s" str
     | Invalid_variable str -> textf "invalid local variable name: %s" (String.concat "." str)
     | Invalid_field str -> textf "invalid field name: %s" str
     | Invalid_constr str -> textf "invalid constructor name: %s" str
     | Invalid_numeral str -> textf "invalid numeral: %s" str
+    | Invalid_degeneracy str ->
+        if str = "" then text "missing degeneracy ('^' must not be followed by a space)"
+        else textf "invalid degeneracy: %s" str
     | Invalid_variable_face (k, fa) ->
         textf "invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
     | No_relative_precedence (n1, n2) ->
@@ -336,7 +346,7 @@ module Code = struct
     | Undefined_constant c -> textf "undefined constant: %a" pp_printed (print c)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
-        textf "argument of %s must be at least %d-dimensional" deg (to_int dim)
+        textf "argument of degeneracy '%s' must be at least %d-dimensional" deg (to_int dim)
     | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
     | Applying_nonfunction_nontype (tm, ty) ->
         textf

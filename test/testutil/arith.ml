@@ -12,8 +12,8 @@ let times = make "*" (Infixl No.one)
 let () = set_tree times (Open_entry (eop (Op "*") (done_open times)))
 let div = make "/" (Infixl No.one)
 let () = set_tree div (Open_entry (eop (Op "/") (done_open div)))
-let exp = make "^" (Infixr No.two)
-let () = set_tree exp (Open_entry (eop (Op "^") (done_open exp)))
+let exp = make "**" (Infixr No.two)
+let () = set_tree exp (Open_entry (eop (Op "**") (done_open exp)))
 let parens = make "()" Outfix
 let () = set_tree parens (Closed_entry (eop LParen (term RParen (Done_closed parens))))
 

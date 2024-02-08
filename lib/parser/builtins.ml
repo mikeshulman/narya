@@ -1,6 +1,5 @@
 open Bwd
 open Util
-open Dim
 open Postprocess
 open Print
 open Format
@@ -473,50 +472,6 @@ let () =
       pp_print_string ppf "Type";
       pp_ws space ppf wstype
   | _ -> fatal (Anomaly (Printf.sprintf "invalid notation arguments for Type: %d" (List.length ws)))
-
-(* ********************
-   Degeneracies
-   ******************** *)
-
-let degen = make "degeneracy" (Postfix No.plus_omega)
-
-let () =
-  set_tree degen (Open_entry (eop (Op "^") (op LBrace (term RBrace (done_open degen)))));
-  set_processor degen
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [ Term tm; Term d ] -> (
-              match d.value with
-              | Ident ([ str ], _) -> (
-                  match deg_of_string str with
-                  | Some (Any s) -> (
-                      match process ctx tm with
-                      | { value = Synth x; loc = x_loc } ->
-                          { value = Synth (Act (str, s, { value = x; loc = x_loc })); loc }
-                      | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
-                  | None -> fatal Parse_error)
-              | _ -> fatal Parse_error)
-          | _ -> fatal (Anomaly "invalid notation arguments for degeneracy"));
-    };
-  set_print degen @@ fun space ppf obs ws ->
-  match obs with
-  | [ tm; Term { value = Ident ([ str ], w); _ } ] ->
-      let wscaret, ws = take (Op "^") ws in
-      let wslbrace, ws = take LBrace ws in
-      let wsrbrace, ws = take RBrace ws in
-      taken_last ws;
-      pp_term `None ppf tm;
-      pp_tok ppf (Op "^");
-      pp_ws `None ppf wscaret;
-      pp_tok ppf LBrace;
-      pp_ws `None ppf wslbrace;
-      pp_print_string ppf str;
-      pp_ws `None ppf w;
-      pp_tok ppf RBrace;
-      pp_ws space ppf wsrbrace
-  | _ -> fatal (Anomaly "invalid notation arguments for degeneracy")
 
 (* ********************
    Anonymous tuples
@@ -1089,7 +1044,6 @@ let builtins =
     |> State.add cubeabs
     |> State.add arrow
     |> State.add universe
-    |> State.add degen
     |> State.add coloneq
     |> State.add comatch
     |> State.add mtch

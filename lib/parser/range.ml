@@ -23,7 +23,7 @@ let convert (pos1, pos2) =
   if pos1 = pos2 then
     if Int64.of_int (Position.byte_offset pos2) = src.length then eof (convert_pos src.source pos1)
       (* Fmlib also reports a 0-width range in mid-parse if we fail directly (i.e. with "fail" or "unexpected" rather than during a lookahead such as "step").  But our calls to "fail" all include an explicit range, and we never call "unexpected".  Thus I don't think this should happen, so we flag it as an Anomaly.  *)
-    else fatal (Anomaly "Zero-width range during parse failure before EOF")
+    else fatal (Anomaly "zero-width range during parse failure before EOF")
   else make (convert_pos src.source pos1, convert_pos src.source pos2)
 
 let merge loc1 loc2 =

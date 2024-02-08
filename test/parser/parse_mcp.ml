@@ -205,13 +205,12 @@ nest `}
 
   (* Generic degeneracies *)
   let ida00, _ = synth "Id A a₀ a₀" in
-  let () = equal_at (check "refl a₀" ida00) (check "a₀^{0}" ida00) ida00 in
-  (* This has no precedence with application, since otherwise one would expect this: *)
-  let () = unparse "f^{0} a₀ a₀ a₀^{0}" in
-  (* to mean this:  *)
   let idb00, _ = synth "Id B a₀ a₀ (refl a₀) (f a₀) (f a₀)" in
-  (* but it can't, since a postfix operator like _^{_} can't have higher precedence than application on the right. *)
-  let () =
-    equal_at (check "refl f a₀ a₀ (refl a₀)" idb00) (check "f^{0} a₀ a₀ (a₀^{0})" idb00) idb00 in
+  let () = equal_at (check "refl a₀" ida00) (check "a₀^(0)" ida00) ida00 in
+  let () = equal_at (check "refl a₀" ida00) (check "a₀⁽⁰⁾" ida00) ida00 in
 
+  (* Superscripts bind tighter than application: *)
+  let () = equal_at (check "refl f a₀ a₀ (refl a₀)" idb00) (check "f⁽⁰⁾ a₀ a₀ a₀⁽⁰⁾" idb00) idb00 in
+  let () =
+    equal_at (check "refl f a₀ a₀ (refl a₀)" idb00) (check "f⁽⁰⁾ a₀ a₀ (a₀)⁽⁰⁾" idb00) idb00 in
   ()

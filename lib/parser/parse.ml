@@ -17,6 +17,7 @@ module SemanticError = struct
   type t =
     (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because applications are implemented specially in the parser and not as an actual Notation. *)
     | No_relative_precedence of Asai.Range.t * string * string
+    | Empty_degeneracy of Position.range
 end
 
 (* The functor that defines all the term-parsing combinators. *)
@@ -46,17 +47,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       t =
    fun t obs ws ->
     match t with
-    | Inner ({ term; _ } as br) -> (
-        match term with
-        | Some e -> (
-            inner_nonterm br obs ws
-            </>
-            (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
-            let* subterm = lclosed Interval.entire e in
-            match subterm.get Interval.entire with
-            | Ok tm -> tree_op e (Snoc (obs, Term tm)) ws
-            | Error n -> fatal (Anomaly (Printf.sprintf "Interior term failed on notation %s" n)))
-        | None -> inner_nonterm br obs ws)
+    | Inner ({ term = Some e; _ } as br) -> (
+        inner_nonterm br obs ws
+        </>
+        (* This is an *interior* term, so it has no tightness restrictions on what notations can occur inside, and is ended by the specified ending tokens. *)
+        let* subterm = lclosed Interval.entire e in
+        match subterm.get Interval.entire with
+        | Ok tm -> tree_op e (Snoc (obs, Term tm)) ws
+        | Error n -> fatal (Anomaly (Printf.sprintf "Interior term failed on notation %s" n)))
+    | Inner ({ term = None; _ } as br) -> inner_nonterm br obs ws
     | Done_open (lt, n) -> return (obs, ws, Open_in_interval (lt, n))
     | Done_closed n -> return (obs, ws, Closed_in_interval n)
     | Lazy (lazy t) -> tree t obs ws
@@ -123,10 +122,12 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (let* inner_loc, (inner, ws, notn) = located (entry (State.left_closeds ())) in
        let ws = Bwd.to_list ws in
        match notn with
-       | Open_in_interval (lt, _) -> No.plusomega_nlt lt
+       | Open_in_interval (lt, _) -> No.plusomega_nlt lt (* This case is impossible *)
        | Closed_in_interval notn -> (
            match right notn with
-           | Closed -> return { get = (fun _ -> Ok (locate inner_loc (outfix ~notn ~ws ~inner))) }
+           | Closed ->
+               (* If the parse ended right-closed, we slurp up any superscripts. *)
+               with_supers { get = (fun _ -> Ok (locate inner_loc (outfix ~notn ~ws ~inner))) }
            | Open _ ->
                (* If the parse ended right-open, we call "lclosed" again, with the right-side upper tightness interval of the just-parsed notation, to pick up the open argument.  Since the tightness here is that of the notation n, not the "tight" from the surrounding one that called lclosed, if while parsing a right-open argument of some operator X we see a left-closed, right-open notation Z of *lower* tightness than X, we allow it, and it does not end if we encounter the start of a left-open notation Y of tightness in between X and Z, only if we see something of lower tightness than Z, or a stop-token from an *enclosing* notation (otherwise we wouldn't be able to delimit right-open operators by parentheses). *)
                let* last_arg = lclosed (interval_right notn) stop in
@@ -157,7 +158,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                    | Constr x -> Some ((`Constr x, w), state)
                    | Underscore -> Some ((`Placeholder, w), state)
                    | _ -> None)) in
-          return
+          with_supers
             {
               get =
                 (fun _ ->
@@ -170,6 +171,45 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             } in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
     lopen tight stop res
+
+  (* Parse a possibly-empty sequence of nonempty superscripts. *)
+  and supers : (Asai.Range.t * string * Whitespace.t list) list t =
+    zero_or_more
+      (let* loc, res =
+         located
+           (step (fun state rng (tok, ws) ->
+                match tok with
+                | Superscript "" -> Some (Error (SemanticError.Empty_degeneracy rng), state)
+                | Superscript s -> Some (Ok (s, ws), state)
+                | _ -> None)) in
+       match res with
+       | Ok (s, ws) -> return (loc, s, ws)
+       | Error e -> fail e)
+
+  (* Given a parsed term and a possibly-empty list of superscripts, tack them all onto the term sequentially. *)
+  and superify :
+      type lt ls.
+      (lt, ls) right_wrapped_parse ->
+      (Asai.Range.t * string * Whitespace.t list) list ->
+      (lt, ls) right_wrapped_parse =
+   fun arg sups ->
+    match sups with
+    | [] -> arg
+    | (loc, s, ws) :: sups ->
+        superify
+          {
+            get =
+              (fun _ ->
+                match arg.get Interval.empty with
+                | Ok x -> Ok { value = Superscript (Some x, s, ws); loc = Some loc }
+                | Error e -> Error e);
+          }
+          sups
+
+  and with_supers : type lt ls. (lt, ls) right_wrapped_parse -> (lt, ls) right_wrapped_parse t =
+   fun arg ->
+    let* sups = supers in
+    return (superify arg sups)
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
   and lopen :
@@ -202,7 +242,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                     match (first_arg.get (interval_left notn), right notn) with
                     | Error e, _ -> fail (No_relative_precedence (inner_loc, e, name notn))
                     | Ok first, Closed ->
-                        return
+                        with_supers
                           {
                             get =
                               (fun _ ->
@@ -235,23 +275,27 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                     match (first_arg.get Interval.plus_omega_only, right notn) with
                     | Error e, _ -> fail (No_relative_precedence (inner_loc, e, "application"))
                     | Ok fn, Closed ->
+                        let* sups = supers in
                         return
                           {
                             get =
                               (fun ivl ->
                                 match Interval.contains ivl No.plus_omega with
-                                | None -> Error "application"
-                                | Some right_ok ->
-                                    let value =
-                                      App
-                                        {
-                                          fn;
-                                          arg = locate inner_loc (outfix ~notn ~ws ~inner);
-                                          left_ok = nontrivial;
-                                          right_ok;
-                                        } in
-                                    let loc = Range.merge_opt fn.loc (Some inner_loc) in
-                                    Ok { value; loc });
+                                | None -> Error "application 1"
+                                | Some right_ok -> (
+                                    let arg =
+                                      {
+                                        get =
+                                          (fun _ -> Ok (locate inner_loc (outfix ~notn ~ws ~inner)));
+                                      } in
+                                    let arg = superify arg sups in
+                                    match arg.get ivl with
+                                    | Ok arg ->
+                                        let value =
+                                          App { fn; arg; left_ok = nontrivial; right_ok } in
+                                        let loc = Range.merge_opt fn.loc (Some inner_loc) in
+                                        Ok { value; loc }
+                                    | Error e -> Error e));
                           }
                     | Ok fn, Open _ ->
                         let* last_arg = lclosed (interval_right notn) stop in
@@ -284,7 +328,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                       }
                                 | Error e, _, _ -> Error e
                                 | _, None, _ -> Error (name notn)
-                                | _, _, None -> Error "application");
+                                | _, _, None -> Error "application 2");
                           }))
                (* If this fails, we can parse a single variable name, constr, or field projection and apply the first term to it.  Constructors are allowed here because they might have no arguments. *)
                </> let* arg_loc, (arg, w) =
@@ -297,6 +341,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                             | Underscore -> Some ((`Placeholder, w), state)
                             | Field x -> Some ((`Field x, w), state)
                             | _ -> None)) in
+                   let* sups = supers in
                    match first_arg.get Interval.plus_omega_only with
                    | Error e -> fail (No_relative_precedence (arg_loc, e, "application"))
                    | Ok fn ->
@@ -305,20 +350,30 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                            get =
                              (fun ivl ->
                                match Interval.contains ivl No.plus_omega with
-                               | Some right_ok ->
+                               | Some right_ok -> (
                                    let arg =
-                                     locate arg_loc
-                                       (match arg with
-                                       | `Ident x -> Ident (x, w)
-                                       | `Constr x -> Constr (x, w)
-                                       | `Placeholder -> Placeholder w
-                                       | `Field x -> Field (x, w)) in
-                                   Ok
-                                     {
-                                       value = App { fn; arg; left_ok = nontrivial; right_ok };
-                                       loc = Range.merge_opt fn.loc (Some arg_loc);
-                                     }
-                               | None -> Error "application");
+                                     superify
+                                       {
+                                         get =
+                                           (fun _ ->
+                                             Ok
+                                               (locate arg_loc
+                                                  (match arg with
+                                                  | `Ident x -> Ident (x, w)
+                                                  | `Constr x -> Constr (x, w)
+                                                  | `Placeholder -> Placeholder w
+                                                  | `Field x -> Field (x, w))));
+                                       }
+                                       sups in
+                                   match arg.get ivl with
+                                   | Ok arg ->
+                                       Ok
+                                         {
+                                           value = App { fn; arg; left_ok = nontrivial; right_ok };
+                                           loc = Range.merge_opt fn.loc (Some arg_loc);
+                                         }
+                                   | Error e -> Error e)
+                               | None -> Error "application 3");
                          } in
              (* Same comment here about carrying over "tight" as in lclosed. *)
              lopen tight stop res)
@@ -335,10 +390,11 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     let* tm = lclosed Interval.entire tokmap in
     match tm.get Interval.entire with
     | Ok tm -> return (Term tm)
-    | Error _ -> fatal (Anomaly "Outer term failed")
+    | Error e -> fatal (Anomaly ("Outer term failed: " ^ e))
 
   module Lex_and_parse =
-    Parse_with_lexer.Make (Unit) (Lexer.Token_whitespace) (Final) (SemanticError) (Lexer.Parser)
+    Parse_with_lexer.Make_utf8 (Unit) (Lexer.Token_whitespace) (Final) (SemanticError)
+      (Lexer.Parser)
       (Basic.Parser)
 
   let ensure_success p =
@@ -350,6 +406,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     else if has_failed_semantic p then
       match failed_semantic p with
       | No_relative_precedence (loc, n1, n2) -> fatal ~loc (No_relative_precedence (n1, n2))
+      | Empty_degeneracy rng -> fatal ~loc:(Range.convert rng) (Invalid_degeneracy "")
     else if has_succeeded p then p
     else if needs_more p then fatal (Anomaly "parser needs more")
     else fatal (Anomaly "what")
@@ -466,9 +523,8 @@ module Parse_command = struct
       | `File ic -> fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) in
     Range.run ~env @@ fun () ->
     let p =
-      C.Lex_and_parse.make (C.Lex_and_parse.lex p)
-        (C.Basic.make_partial () (if or_echo then command_or_echo () else command ())
-        |> C.Basic.Parser.transfer_lookahead (C.Lex_and_parse.parse p)) in
+      C.Lex_and_parse.make_next p
+        (C.Basic.make_partial () (if or_echo then command_or_echo () else command ())) in
     let out, p = run p in
     (C.ensure_success p, (env, out))
 

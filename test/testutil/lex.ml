@@ -21,7 +21,7 @@ module Parse_tokens = struct
 end
 
 module Lex_and_parse =
-  Parse_with_lexer.Make (Unit) (Lexer.Token_whitespace) (Token_list) (Unit) (Lexer.Parser)
+  Parse_with_lexer.Make_utf8 (Unit) (Lexer.Token_whitespace) (Token_list) (Unit) (Lexer.Parser)
     (Parse_tokens.Parser)
 
 open Lex_and_parse

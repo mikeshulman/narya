@@ -42,12 +42,12 @@
  ￫ error[E0601]
  ￭ user-supplied term
  1 | sym f
-   ^ argument of sym must be at least 2-dimensional
+   ^ argument of degeneracy 'sym' must be at least 2-dimensional
 
  ￫ error[E0601]
  ￭ user-supplied term
  1 | sym a2
-   ^ argument of sym must be at least 2-dimensional
+   ^ argument of degeneracy 'sym' must be at least 2-dimensional
 
  ￫ error[E0300]
  ￮ unbound variable: g

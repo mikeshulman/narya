@@ -62,7 +62,7 @@ type (_, _) tree =
   (* Trees associated to notations of arbitrary length are infinite, so we allow them to be computed lazily as needed. *)
   | Lazy : ('t, 's) tree Lazy.t -> ('t, 's) tree
 
-(* When there is a choice in parsing, we arrange it so that no backtracking is required (except for a single token of lookahead).  We test all the possible next literal tokens, considering the possibility of a notation operator, field, or other term.  (Constructors and identifiers are considered special terms, and extracted during postprocessing.)  Operators and fields cannot also be other terms, so there is no need for backtracking. *)
+(* When there is a choice in parsing, we arrange it so that no backtracking is required (except for a single token of lookahead).  We test all the possible next literal tokens, considering the possibility of a notation operator, field, or other term.  (Constructors and identifiers are considered special terms, and extracted during postprocessing.)  Fields cannot also be other terms, and we forbid symbols that occur in operators from also being variable names, so there is no need for backtracking. *)
 and ('t, 's) branch = {
   ops : ('t, 's) tree TokMap.t;
   field : ('t, 's) tree option;
@@ -126,6 +126,9 @@ and (_, _, _, _) parse =
   | Ident : string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Field : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Superscript :
+      ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
+      -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object).  The whitespace argument should be ignored, but we include it so that complicated notation processing functions can be shared between the processor and the printer. *)
 and processor = {
@@ -332,7 +335,10 @@ let rec split_ending_whitespace :
           ({ value = Constr (c, first); loc }, rest)
       | Field (f, ws) ->
           let first, rest = split_whitespace ws in
-          ({ value = Field (f, first); loc }, rest))
+          ({ value = Field (f, first); loc }, rest)
+      | Superscript (x, s, ws) ->
+          let first, rest = split_whitespace ws in
+          ({ value = Superscript (x, s, first); loc }, rest))
 
 (* Helper functions for constructing notation trees *)
 

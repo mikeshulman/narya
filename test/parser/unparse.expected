@@ -26,8 +26,8 @@ s .fst 3
 0
 refl a
 a ↦ refl a
-a^{00}
-a^{000}
+a⁽⁰⁰⁾
+a⁽⁰⁰⁰⁾
 a
 m + n
 m + n * n

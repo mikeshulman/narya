@@ -129,7 +129,7 @@ def swap : (A B : Type) → sum A B → sum B A
     | inr. b ↦ inl. b
   ]
 ```
-By omitting the variable name, it is possible to abstract over a variable and simultaneously match against it; thus the above can equivalently be written
+By omitting the variable name, it is possible to abstract over a variable and simultaneously match against it (pattern-matching lambda abstraction).  Thus, the above can equivalently be written
 ```
 def swap : (A B : Type) → sum A B → sum B A ≔ A B ↦
   [ | inl. a ↦ inr. a
@@ -149,7 +149,7 @@ A *codatatype* is superficially similar to a record type: it has a list of field
 2. Codatatypes do not satisfy eta-conversion (this being undecidable in the recursive case).
 3. Elements of codatatypes are defined by copattern-matching rather than with tuples.
 
-Copattern-matching is similar to tupling, but the syntax is different (more like pattern-matching); all the methods must be labeled, including their initial periods; and a constant defined by copattern-matching can be corecursive, referring to itself in the (co)branches.  As an example, the type `Stream A` (where `A` is a parameter) has two methods, `head` of type `A`, and `tail` of type `Stream A`.  The infinite stream `nats n` of all natural numbers starting at `n` can then be defined by copattern-matching as
+Copattern-matching is similar to tupling, but the syntax is different (more like pattern-matching); all the methods must be labeled, including their initial periods; and a constant defined by copattern-matching can be corecursive, referring to itself in the (co)branches.  As an example, the type `Stream A` (where `A` is a parameter) has two methods, `head` of type `A`, and `tail` of type `Stream A`.  For example, the infinite stream `nats n` of all natural numbers starting at `n` can then be defined by copattern-matching as
 ```
 def nats : ℕ → Stream ℕ
   ≔ n ↦ [
@@ -157,6 +157,8 @@ def nats : ℕ → Stream ℕ
   | .tail ↦ nats (suc. n)
 ]
 ```
+The empty (co)match `[ ]` is ambiguous: it could denote a pattern-matching lambda on a datatype with no constructors, or a copattern-match into a codatatype with no methods.  Fortunately, since both possibilities are checking rather than synthesizing, the ambiguity is resolved by bidirectional typechecking.
+
 Computationally, it is suggested to think of a codatatype as an object-oriented *interface*, and a function defined by copattern-matching as an (immutable) *object* that implements that interface, with the arguments of the function being its "member variables".  In particular, an "object" of this sort does not compute to anything until a field is accessed (method is called).  For instance, `nats 0 .tail .tail .tail .head` evaluates to `3`, but `nats 0` itself does not evaluate to anything.  This is very different from a tuple, which should be thought of as a *data structure* that contains a collection of values; in particular, it explains why records have eta-conversion and codatatypes do not.
 
 ### Case trees
@@ -194,7 +196,7 @@ However, in most cases we can pretend that these two types are literally the sam
 
 There is no unifier yet, so such an abstraction or application must include both endpoints `x₀` and `x₁` explicitly as well as the identity `x₂`.  However, there is a shorthand syntax for such higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M` (or `x |=> M` in ASCII).  This binds `x` as a "family" or "cube" of variables whose names are suffixed with face names in ternary notation: `x.0` and `x.1` and `x.2`, or in higher dimensions `x.00` through `x.22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`", but rather there are really *three different variables* that just happen to have the names `x.0` and `x.1` and `x.2`.  (There is no potential for collision with user-defined names, since ordinary local variable names cannot contain internal periods.)
 
-There is no primitive `ap`; instead it is accessed by applying `refl` to a function.  That is, if `f : A → B`, then `refl f x₀ x₁ x₂` relates `f x₀` to `f x₁` in `B`.  Likewise, identity types can be obtained by applying `refl` to a type: `Id A X Y` is just a convenient abbreviation of `refl A X Y`.
+There is no need for an additional primitive `ap`; it is accessed by applying `refl` to a function.  That is, if `f : A → B`, then `refl f x₀ x₁ x₂` relates `f x₀` to `f x₁` in `B`.  Likewise, identity types can be obtained by applying `refl` to a type: `Id A X Y` is just a convenient abbreviation of `refl A X Y`.
 
 Heterogeneous identity/bridge types are similarly obtained from `refl` of a type family: if `B : A → Type`, then `refl B x₀ x₁ x₂` is a identification/bridge in `Type` between `B x₀` and `B x₁`.  Given elements `y₀ : B x₀` and `y₁ : B x₁`, we can "instantiate" this identification at them to obtain a type of heterogeneous identifications.  This is also written as function application, `refl B x₀ x₁ x₂ y₀ y₁`.  Such heterogeneous identity/bridge types are used in the computation (up to definitional isomorphism) of dependent function types: the following type types are isomorphic.
 ```
@@ -217,7 +219,7 @@ Codatatypes behave similarly: their identity/bridge types are thus coinductive t
 
 The identity/bridge type of a datatype is itself another datatype, with constructors of the same name applied to higher-dimensional elements to construct their elements (with the boundary treated like indices).  Case trees are also allowed to match on these higher constructors, binding "cubes" of variables as above.
 
-Internal parametricity is implemented by the constant `Gel`, defined with `Types.Gel.install ()`, whose type is
+Internal parametricity is currently implemented by a constant `Gel`, defined with `Types.Gel.install ()`, whose type is
 ```
 (A : Type) (B : Type) (R : (x:A) (y:B) → Type) → Id Type A B
 ```

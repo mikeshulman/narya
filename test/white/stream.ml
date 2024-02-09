@@ -19,6 +19,10 @@ let () =
   (* Their identity/bridge types are bisimulations.  We can use this to prove propositional one-step eta-conversion. *)
   def "s_is_s'" "Id (Stream A) s s'" "[ .head ↦ refl (s .head) | .tail ↦ refl (s .tail) ]";
 
+  (* We can also define the general corecursor 'corec' by copattern-matching. *)
+  def "corec" "(A X : Type) → (X → A) → (X → X) → X → Stream A"
+    "A X h t x ↦ [ .head ↦ h x | .tail ↦ corec A X h t (t x) ]";
+
   (* Using corec, we can also define an infinitary eta-expansion. *)
   def "s''" "Stream A" "corec A (Stream A) (x ↦ x .head) (x ↦ x .tail) s";
   unequal_at "s" "s''" "Stream A";

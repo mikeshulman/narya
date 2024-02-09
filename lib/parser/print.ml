@@ -147,11 +147,16 @@ let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
           pp_ws space ppf w
       | Superscript (Some x, s, w) ->
           pp_term `None ppf (Term x);
-          pp_utf_8 ppf (Token.to_super s);
+          pp_superscript ppf s;
           pp_ws space ppf w
       | Superscript (None, s, w) ->
-          pp_utf_8 ppf (Token.to_super s);
+          pp_superscript ppf s;
           pp_ws space ppf w)
+
+and pp_superscript ppf str =
+  match chars () with
+  | `Unicode -> pp_utf_8 ppf (Token.to_super str)
+  | `ASCII -> pp_utf_8 ppf str
 
 and pp_notn_case :
     type left tight right.

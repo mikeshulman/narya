@@ -28,6 +28,11 @@ refl a
 a ↦ refl a
 a⁽⁰⁰⁾
 a⁽⁰⁰⁰⁾
+sym a22
+sym a222
+a222⁽¹³²⁾
+a222⁽²³¹⁾
+a222⁽³²¹⁾
 a
 m + n
 m + n * n

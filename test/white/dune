@@ -1,5 +1,5 @@
 (tests
-  (names errors idrefl sym symsym gel natarith parametricity churchnat sigma stream letin readback lst vec constants)
+  (names errors idrefl sym symsym gel natarith parametricity churchnat sigma stream letin readback lst vec constants degconst)
 	(libraries core types parser testutil zarith)
 	(instrumentation (backend landmarks --auto)))
 (env (_ (flags (:standard -w -37 -w -30 -w -32 -w -26 -w -27))))

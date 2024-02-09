@@ -167,7 +167,12 @@ This means that defining a constant to equal something like "`x y ↦ ( fld1 ≔
 
 A constant defined by a case tree does not compute unless the tree can be followed all the way down to a leaf.  In particular, a match or comatch is never exposed as part of a term.  Moreover, this means that when defining a constant to equal a given term, by putting the abstractions into the case tree rather than the term we ensure that it must be applied to all its arguments in order to compute, rather than immediately evaluating to an abstraction.  Again, this is usually what you want.  It more or less aligns with the behavior of functions defined by (co)pattern-matching in Agda, whereas Coq has to mimic it with `simpl nomatch` annotations.
 
-As noted, case trees can include tuples as well as matches and comatches.  Thus it is also possible to define constructors of records by case trees, in addition to as tuples.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, Sigma-types also come with a `pair` constructor defined in this way; one can write `pair A B a b` instead of `(a,b) : Σ A B`.
+As noted, case trees can include tuples as well as matches and comatches.  Thus it is also possible to define constructors of records by case trees, in addition to as tuples.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, with Σ-types we can define
+```
+def pair : (A : Type) (B : A → Type) (a : A) (b : B a) → Σ A B
+  ≔ A B a b ↦ (a,b)
+```
+and then we can write `pair A B a b` instead of `(a,b) : Σ A B`.
 
 Note that case trees are generally considered the internal implementation of pattern-matching definitions, e.g. Agda compiles its definitions internally to case trees.  I believe it is better to expose the case tree to the user explicitly.  In some cases, this can make code more concise, since all the arguments of the function no longer have to be written again in every branch and sub-branch.  But more importantly, the order in which matches are performed, and hence the way in which the function actually computes, is this way obvious to the reader, and can be specified explicitly by the programmer, in particular eliminating the confusion surrounding Agda's `--exact-split` option.  So I have no plans to implement Agda-style pattern matching syntax.
 

@@ -16,7 +16,6 @@ open Format
 let sigma = Constant.make ()
 let fst = Field.intern "fst"
 let snd = Field.intern "snd"
-let pair = Constant.make ()
 
 open Monad.Ops (Monad.Maybe)
 
@@ -76,20 +75,8 @@ let install_notations () =
 let install () =
   install_notations ();
   Scope.set [ "Σ" ] sigma;
-  Scope.set [ "pair" ] pair;
   Hashtbl.add Global.types sigma
     (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
-  Hashtbl.add Global.types pair
-    (pi None (UU D.zero)
-       (pi None
-          (pi None (Var (Top (id_sface D.zero))) (UU D.zero))
-          (pi None
-             (Var (Pop (Top (id_sface D.zero))))
-             (pi None
-                (app (Var (Pop (Top (id_sface D.zero)))) (Var (Top (id_sface D.zero))))
-                (app
-                   (app (Const sigma) (Var (Pop (Pop (Pop (Top (id_sface D.zero)))))))
-                   (Var (Pop (Pop (Top (id_sface D.zero))))))))));
   Hashtbl.add Global.constants sigma
     (Record
        {
@@ -102,32 +89,4 @@ let install () =
            <: ( snd,
                 app (Var (Pop (Top (id_sface D.zero)))) (Field (Var (Top (id_sface D.zero)), fst))
               );
-       });
-  Hashtbl.add Global.constants pair
-    (Defined
-       (ref
-          (Case.Lam
-             ( D.zero,
-               `Normal (CubeOf.singleton (Some "A")),
-               ref
-                 (Case.Lam
-                    ( D.zero,
-                      `Normal (CubeOf.singleton (Some "B")),
-                      ref
-                        (Case.Lam
-                           ( D.zero,
-                             `Normal (CubeOf.singleton (Some "a")),
-                             ref
-                               (Case.Lam
-                                  ( D.zero,
-                                    `Normal (CubeOf.singleton (Some "b")),
-                                    ref
-                                      (Case.Leaf
-                                         (Struct
-                                            ( `Eta,
-                                              Emp
-                                              <: ( fst,
-                                                   (Var (Pop (Top (id_sface D.zero))), `Unlabeled)
-                                                 )
-                                              <: (snd, (Var (Top (id_sface D.zero)), `Unlabeled)) )))
-                                  )) )) )) ))))
+       })

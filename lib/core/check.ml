@@ -104,10 +104,14 @@ let rec check : type a b. (a, b) Ctx.t -> a check located -> value -> b term =
       | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
   | Struct (`Eta, tms) -> (
       match uty with
-      | Neu (Const { name; dim }, _) -> (
+      | Neu (Const { name; ins }, _) -> (
           (* We don't need to name the arguments here because tyof_field, called below, uses them. *)
           match Hashtbl.find Global.constants name with
           | Record { eta = `Eta; fields; _ } ->
+              let () =
+                is_id_perm (perm_of_ins ins)
+                <|> Checking_tuple_at_degenerated_record (PConstant name) in
+              let dim = cod_left_ins ins in
               (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
               let etms = ref Abwd.empty in
               let labeled_tms = ref tms in
@@ -145,11 +149,11 @@ let rec check : type a b. (a, b) Ctx.t -> a check located -> value -> b term =
       | _ -> fatal (Checking_tuple_at_nonrecord (PUninst (ctx, uty))))
   | Constr ({ value = constr; loc = constr_loc }, args) -> (
       match uty with
-      | Neu (Const { name; dim = k }, ty_params_indices) -> (
+      | Neu (Const { name; ins }, ty_params_indices) -> (
           (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
           let dim = TubeOf.inst tyargs in
-          match compare k dim with
-          | Neq -> fatal (Dimension_mismatch ("checking constr", k, dim))
+          match compare (cod_left_ins ins) dim with
+          | Neq -> fatal (Dimension_mismatch ("checking constr", cod_left_ins ins, dim))
           | Eq -> (
               (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_params_indices contains the *values* of the parameters and indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
               match Hashtbl.find Global.constants name with
@@ -513,7 +517,7 @@ let rec check_tree :
   | Struct (tmeta, tms) -> (
       Reporter.trace "when checking comatch" @@ fun () ->
       match uty with
-      | Neu (Const { name; dim = _ }, _) -> (
+      | Neu (Const { name; ins = _ }, _) -> (
           match Hashtbl.find Global.constants name with
           | Record { eta; fields; _ } when eta = tmeta ->
               let tfields = Abwd.map (fun _ -> ref Case.Empty) fields in
@@ -545,9 +549,13 @@ let rec check_tree :
           (* The type of the variable must be a datatype, without any degeneracy applied outside, and at the same dimension as its instantiation. *)
           let (Fullinst (uvarty, inst_args)) = full_inst varty "check_tree (top)" in
           match uvarty with
-          | Neu (Const { name; dim }, varty_args) -> (
+          | Neu (Const { name; ins }, varty_args) -> (
+              let () =
+                is_id_perm (perm_of_ins ins)
+                <|> Matching_datatype_has_degeneracy (PUninst (ctx, uvarty)) in
               let n = TubeOf.inst inst_args in
               (* That dimension n will now become the dimension of the match. *)
+              let dim = cod_left_ins ins in
               match compare dim n with
               | Neq -> fatal (Dimension_mismatch ("match", dim, n))
               | Eq -> (
@@ -691,11 +699,12 @@ let rec check_tree :
                                       let (Fullinst (ucty, _)) =
                                         full_inst constr_nf.ty "check_tree (inner)" in
                                       match ucty with
-                                      | Neu (Const { name = _; dim }, ctyargs) -> (
-                                          match compare dim n with
+                                      | Neu (Const { name = _; ins }, ctyargs) -> (
+                                          match compare (cod_left_ins ins) n with
                                           | Neq ->
                                               fatal
-                                                (Dimension_mismatch ("created datatype", dim, n))
+                                                (Dimension_mismatch
+                                                   ("created datatype", cod_left_ins ins, n))
                                           | Eq ->
                                               let new_vals = Hashtbl.create 10 in
                                               CubeOf.miter

@@ -133,7 +133,7 @@ module rec Value : sig
 
   type head =
     | Var : { level : level; deg : ('m, 'n) deg } -> head
-    | Const : { name : Constant.t; dim : 'n D.t } -> head
+    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
@@ -184,8 +184,8 @@ end = struct
   type head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
     | Var : { level : level; deg : ('m, 'n) deg } -> head
-    (* A constant occurs at a specified dimension. *)
-    | Const : { name : Constant.t; dim : 'n D.t } -> head
+    (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial. *)
+    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =

@@ -34,7 +34,6 @@ let rec eval : type m b. (m, b) env -> b term -> value =
   match tm with
   | Var v -> lookup env v
   | Const name ->
-      (* A constant starts out at dimension zero, but must be lifted to the dimension of the environment. *)
       let dim = dim_env env in
       let cty = Hashtbl.find Global.types name in
       (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
@@ -55,7 +54,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                             (Anomaly
                                "evaluation of lower-dimensional constant is not neutral/canonical"));
                 })) in
-      apply_spine (Const { name; dim }) Emp ty
+      apply_spine (Const { name; ins = zero_ins dim }) Emp ty
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -259,9 +258,12 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
   (* Check whether the head is a constant with an associated case tree. *)
   Option.value
     (match fn with
-    | Const { name; dim } -> (
+    | Const { name; ins } -> (
         match Hashtbl.find_opt Global.constants name with
-        | Some (Defined tree) -> apply_tree (Emp dim) !tree (Any (id_deg dim)) (Bwd.prepend args [])
+        | Some (Defined tree) ->
+            let dim = cod_left_ins ins in
+            let deg = deg_of_ins ins (plus_of_ins ins) in
+            apply_tree (Emp dim) !tree (Any deg) (Bwd.prepend args [])
         | Some _ -> None
         | None -> fatal (Undefined_constant (PConstant name)))
     | _ -> None)
@@ -395,7 +397,10 @@ and tyof_field_withname ?severity ?degerr (tm : value) (ty : value) (fld : Field
     Field.t * value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
-  | Neu (Const { name; dim = m }, args) -> (
+  | Neu (Const { name; ins }, args) -> (
+      (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
+      if Option.is_none (is_id_ins ins) then fatal ?severity (No_such_field (`Other, fld));
+      let m = cod_left_ins ins in
       (* The head of the type must be a record type with a field having the correct name. *)
       let (Field { name = fldname; params = kc; dim = n; ty = fldty }) =
         Global.find_record_field ?severity name fld in

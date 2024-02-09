@@ -38,8 +38,9 @@ and equal_at : int -> value -> value -> value -> unit option =
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at (ctx + 1) (apply x newargs) (apply y newargs) output)
-  | Neu (Const { name; dim = k }, canonical_args) -> (
+  | Neu (Const { name; ins }, canonical_args) -> (
       (* The insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it. *)
+      let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
       | Record { eta; fields; dim; _ } -> (
           let (Plus kdim) = D.plus dim in
@@ -179,10 +180,13 @@ and equal_head : int -> head -> head -> unit option =
       (* Two equal variables with the same degeneracy applied are equal, including their types because that variable has only one type. *)
       let* () = guard (l1 = l2) in
       deg_equiv d1 d2
-  | Const { name = c1; dim = n1 }, Const { name = c2; dim = n2 } -> (
+  | Const { name = c1; ins = i1 }, Const { name = c2; ins = i2 } -> (
       let* () = guard (c1 = c2) in
-      match compare n1 n2 with
-      | Eq -> return ()
+      match compare (cod_left_ins i1) (cod_left_ins i2) with
+      | Eq ->
+          let d1 = deg_of_ins i1 (plus_of_ins i1) in
+          let d2 = deg_of_ins i2 (plus_of_ins i2) in
+          deg_equiv d1 d2
       | Neq -> fail)
   | _, _ -> fail
 

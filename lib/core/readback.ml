@@ -51,7 +51,8 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
                   | None -> Lam (k, singleton_named_variables k x, body))
               | _ -> Lam (k, singleton_named_variables k x, body))
           | _ -> Lam (k, singleton_named_variables k x, body)))
-  | Neu (Const { name; dim = k }, canonical_args) -> (
+  | Neu (Const { name; ins }, canonical_args) -> (
+      let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
       | Record { eta; fields = _fields; _ } -> (
           match tm with
@@ -163,8 +164,11 @@ and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
       match Ctx.find_level ctx level with
       | Some x -> Act (Var x, deg)
       | None -> fatal (No_such_level (PCtx ctx, level)))
-  (* TODO: When constants can be higher-dimensional, this needs adjusting. *)
-  | Const { name; dim } -> Act (Const name, deg_zero dim)
+  | Const { name; ins } ->
+      let dim = cod_left_ins ins in
+      let perm = deg_of_ins ins (plus_of_ins ins) in
+      let (DegExt (_, _, deg)) = comp_deg_extending (deg_zero dim) perm in
+      Act (Const name, deg)
 
 and readback_at_tel :
     type n c a b ab z.

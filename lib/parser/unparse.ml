@@ -15,14 +15,14 @@ module StringMap = Map.Make (String)
 let get_notation head args =
   match head with
   | `Term (Const c) -> (
-      match State.print_const c with
+      match State.Current.print_const c with
       | Some (notn, k) -> (
           match bwd_take k args with
           | Some (first, rest) -> Some (notn, first, rest)
           | None -> None)
       | None -> None)
   | `Constr c -> (
-      match State.print_constr c with
+      match State.Current.print_constr c with
       | Some (notn, k) -> (
           match bwd_take k args with
           | Some (first, rest) -> Some (notn, first, rest)

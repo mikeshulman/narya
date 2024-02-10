@@ -128,25 +128,36 @@ module S = Algaeff.State.Make (struct
   type nonrec t = t
 end)
 
-let add_bare : type left tight right. (left, tight, right) notation -> unit =
- fun notn -> S.modify (add notn)
+module Current = struct
+  let add : type left tight right. (left, tight, right) notation -> unit =
+   fun notn -> S.modify (add notn)
 
-let left_closeds : unit -> (No.plus_omega, No.strict) entry =
- fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
+  let add_const :
+      type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> unit =
+   fun notn const k -> S.modify (add_const notn const k)
 
-let tighters : type strict tight. (tight, strict) Interval.tt -> (tight, strict) entry =
- fun { strictness; endpoint } ->
-  let ep = Option.get (EntryMap.find (S.get ()).tighters endpoint) in
-  match strictness with
-  | Nonstrict -> ep.nonstrict
-  | Strict -> ep.strict
+  let add_constr :
+      type left tight right. (left, tight, right) notation -> Core.Constr.t -> int -> unit =
+   fun notn constr k -> S.modify (add_constr notn constr k)
 
-let left_opens : Token.t -> Interval.t option = fun tok -> TokMap.find_opt tok (S.get ()).left_opens
+  let left_closeds : unit -> (No.plus_omega, No.strict) entry =
+   fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
 
-let print_const : Core.Constant.t -> (Notation.t * int) option =
- fun c -> ConstMap.find_opt c (S.get ()).print_const
+  let tighters : type strict tight. (tight, strict) Interval.tt -> (tight, strict) entry =
+   fun { strictness; endpoint } ->
+    let ep = Option.get (EntryMap.find (S.get ()).tighters endpoint) in
+    match strictness with
+    | Nonstrict -> ep.nonstrict
+    | Strict -> ep.strict
 
-let print_constr : Core.Constr.t -> (Notation.t * int) option =
- fun c -> Constr.Map.find_opt c (S.get ()).print_constr
+  let left_opens : Token.t -> Interval.t option =
+   fun tok -> TokMap.find_opt tok (S.get ()).left_opens
+
+  let print_const : Core.Constant.t -> (Notation.t * int) option =
+   fun c -> ConstMap.find_opt c (S.get ()).print_const
+
+  let print_constr : Core.Constr.t -> (Notation.t * int) option =
+   fun c -> Constr.Map.find_opt c (S.get ()).print_constr
+end
 
 let run_on init f = S.run ~init f

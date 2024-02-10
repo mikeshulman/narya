@@ -70,7 +70,7 @@ let () =
 
 let install_notations () =
   (* TODO: How to unparse into a binding notation? *)
-  State.add_bare prodn
+  State.Current.add prodn
 
 let install () =
   install_notations ();

@@ -21,9 +21,9 @@ let () = set_tree query (Open_entry (eop (Op "?") (done_open query)))
 
 let () =
   Builtins.run @@ fun () ->
-  State.add_bare att;
-  State.add_bare bang;
-  State.add_bare query (* Plain application *);
+  State.Current.add att;
+  State.Current.add bang;
+  State.Current.add query (* Plain application *);
 
   assert (parse "@ f" = Notn ("at", [ Term (Ident [ "f" ]) ]))
   (* Since function application is "left-associative" and @ has the same tightness, "@ f x"  is parsed as "(@ f) x".  Since @ is not right-associative, function application can't appear in *its* argument, so "@ (f x)" is not a possible parse. *);
@@ -82,9 +82,9 @@ let () = set_tree perc (Open_entry (eop (Op "%") (done_open perc)))
 
 let () =
   Builtins.run @@ fun () ->
-  State.add_bare twiddle;
-  State.add_bare star;
-  State.add_bare perc;
+  State.Current.add twiddle;
+  State.Current.add star;
+  State.Current.add perc;
   unparse "~ x % y";
   assert (parse "f ~ x" = App (Ident [ "f" ], Notn ("twiddle", [ Term (Ident [ "x" ]) ])));
   unparse "f ~ x % y";
@@ -110,7 +110,7 @@ let () = set_tree atat (Open_entry (eop (Op "@@") (done_open atat)))
 
 let () =
   Builtins.run @@ fun () ->
-  State.add_bare atat;
+  State.Current.add atat;
   assert (
     parse "f @@ x ↦ y"
     = Notn

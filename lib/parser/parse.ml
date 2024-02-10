@@ -119,7 +119,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
       (lt, ls) Interval.tt -> (rt, rs) tree TokMap.t -> (lt, ls) right_wrapped_parse t =
    fun tight stop ->
     let* res =
-      (let* inner_loc, (inner, ws, notn) = located (entry (State.left_closeds ())) in
+      (let* inner_loc, (inner, ws, notn) = located (entry (State.Current.left_closeds ())) in
        let ws = Bwd.to_list ws in
        match notn with
        | Open_in_interval (lt, _) -> No.plusomega_nlt lt (* This case is impossible *)
@@ -229,13 +229,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                if TokMap.mem tok stop then Some (first_arg, state)
                else
                  let open Monad.Ops (Monad.Maybe) in
-                 let* (Interval ivl) = State.left_opens tok in
+                 let* (Interval ivl) = State.Current.left_opens tok in
                  let t = tight.endpoint in
                  let* _ = Interval.contains ivl t in
                  return (first_arg, state)))
         (* Otherwise, we parse either an arbitrary left-closed tree (applying the given result to it as a function) or an arbitrary left-open tree with tightness in the given interval (passing the given result as the starting open argument).  Interior terms are treated as in "lclosed".  *)
         </> (let* res =
-               (let* inner_loc, (inner, ws, notn) = located (entry (State.tighters tight)) in
+               (let* inner_loc, (inner, ws, notn) = located (entry (State.Current.tighters tight)) in
                 let ws = Bwd.to_list ws in
                 match notn with
                 | Open_in_interval (left_ok, notn) -> (

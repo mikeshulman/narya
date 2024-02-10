@@ -28,7 +28,7 @@ let () =
       raise (Failure "Parse failure"))
   @@ fun () ->
   State.run_on State.empty @@ fun () ->
-  State.add_bare ifthen;
+  State.Current.add ifthen;
   assert (parse "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 let () =
@@ -37,7 +37,7 @@ let () =
       raise (Failure "Parse failure"))
   @@ fun () ->
   State.run_on State.empty @@ fun () ->
-  State.add_bare ifthenelse;
+  State.Current.add ifthenelse;
   assert (
     parse "if x then y else z"
     = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))
@@ -53,8 +53,8 @@ let () =
         raise (Failure "Unexpected error code")))
   @@ fun () ->
   State.run_on State.empty @@ fun () ->
-  State.add_bare ifthen;
-  State.add_bare ifthenelse;
+  State.Current.add ifthen;
+  State.Current.add ifthenelse;
   assert (parse "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
@@ -73,8 +73,8 @@ let () =
       raise (Failure "Parse failure"))
   @@ fun () ->
   State.run_on State.empty @@ fun () ->
-  State.add_bare ifthenelse;
-  State.add_bare ifthenelif;
+  State.Current.add ifthenelse;
+  State.Current.add ifthenelif;
   assert (
     parse "if x then y else z"
     = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));

@@ -161,13 +161,31 @@ A → A → A
   (x : A) (x : A) (x : A)
   → C
 
-x + x + x + x + x + x + x + x
-  + x + x + x + x + x + x + x
-  + x + x + x
+x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
++ x
 
-x + x * x + x * x * x
-  + x * x * x * x + x
-  + x * x * x * x * x * x * x
+x
++ x * x
++ x * x * x
++ x * x * x * x
++ x
++ x * x * x * x * x * x * x
 
 [> 1, 2, 3 >]
 

@@ -45,7 +45,8 @@ let () =
           pp_close_box ppf ();
           pp_space ppf space
       | _ -> fatal (Anomaly "invalid notation arguments for amp"));
-  State.Current.add_const foo { notn = Wrap amp; pats = [ "x"; "y" ]; vals = [ "y"; "x" ] };
+  State.Current.add_with_print (`Constant foo)
+    { notn = Wrap amp; pats = [ "x"; "y" ]; vals = [ "y"; "x" ] };
   assume "a" "A";
   assume "b" "A";
   equal_at "foo a b" "b & a" "A";

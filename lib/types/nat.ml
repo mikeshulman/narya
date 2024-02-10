@@ -113,9 +113,11 @@ let install_ops () =
     [ [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
     [ zero'; suc'; plus; times; ind ];
   State.S.modify
-    (State.add_const plus { notn = Wrap plusn; pats = [ "x"; "y" ]; vals = [ "x"; "y" ] });
+    (State.add_with_print (`Constant plus)
+       { notn = Wrap plusn; pats = [ "x"; "y" ]; vals = [ "x"; "y" ] });
   State.S.modify
-    (State.add_const times { notn = Wrap timesn; pats = [ "x"; "y" ]; vals = [ "x"; "y" ] });
+    (State.add_with_print (`Constant times)
+       { notn = Wrap timesn; pats = [ "x"; "y" ]; vals = [ "x"; "y" ] });
   Hashtbl.add Global.types zero' (Const nn);
   Hashtbl.add Global.constants zero' (Defined (ref (Case.Leaf (Constr (zero, D.zero, Emp)))));
   Hashtbl.add Global.types suc' (pi None (Const nn) (Const nn));

@@ -16,8 +16,8 @@ let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
   let* { notn; pats; vals } =
     match head with
-    | `Term (Const c) -> State.Current.print_const c
-    | `Constr c -> State.Current.print_constr c
+    | `Term (Const c) -> State.Current.unparse (`Constant c)
+    | `Constr c -> State.Current.unparse (`Constr c)
     | _ -> None in
   let* first, rest = bwd_take_labeled vals args in
   let first = List.fold_left (fun acc k -> Snoc (acc, Abwd.find k first)) Emp pats in

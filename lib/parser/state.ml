@@ -3,13 +3,14 @@ open Core
 open Reporter
 open Notation
 module TokMap = Map.Make (Token)
-module ConstMap = Map.Make (Core.Constant)
 
-module StringListMap = Map.Make (struct
-  type t = string list
+module PrintKey = struct
+  type t = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t ]
 
   let compare : t -> t -> int = compare
-end)
+end
+
+module PrintMap = Map.Make (PrintKey)
 
 module EntryPair = struct
   type 'a t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
@@ -26,8 +27,7 @@ type t = {
   (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  If there is more than one left-open notation starting with the same token, we store the loosest such interval. *)
   left_opens : Interval.t TokMap.t;
   (* For unparsing we also store backwards maps turning constants and constructors into notations.  Since the arguments of a notation can occur in a different order from those of the constant or constructor, we store lists of the argument names in the order they occur in the pattern and in the term value.  Note that these permutations are only used for printing; when parsing, the postprocessor function must ALSO incorporate the inverse permutation. *)
-  print_const : permuted_notation ConstMap.t;
-  print_constr : permuted_notation Constr.Map.t;
+  unparse : permuted_notation PrintMap.t;
 }
 
 let empty : t =
@@ -37,8 +37,7 @@ let empty : t =
       |> EntryMap.add No.plus_omega { strict = empty_entry; nonstrict = empty_entry }
       |> EntryMap.add No.minus_omega { strict = empty_entry; nonstrict = empty_entry };
     left_opens = TokMap.empty;
-    print_const = ConstMap.empty;
-    print_constr = Constr.Map.empty;
+    unparse = PrintMap.empty;
   }
 
 (* Add a new notation to the current state of available ones. *)
@@ -107,21 +106,14 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   (* We don't update the printing map since this is used for builtins that are printed specially. *)
   { s with tighters; left_opens }
 
-let add_const : Core.Constant.t -> permuted_notation -> t -> t =
- fun const notn state ->
-  if ConstMap.mem const state.print_const then state
+(* Add a notation along with the information about how to unparse a constant or constructor into that notation. *)
+let add_with_print : PrintKey.t -> permuted_notation -> t -> t =
+ fun key notn state ->
+  if PrintMap.mem key state.unparse then state
   else
     let (Wrap n) = notn.notn in
     let state = add n state in
-    { state with print_const = state.print_const |> ConstMap.add const notn }
-
-let add_constr : Core.Constr.t -> permuted_notation -> t -> t =
- fun constr notn state ->
-  if Constr.Map.mem constr state.print_constr then state
-  else
-    let (Wrap n) = notn.notn in
-    let state = add n state in
-    { state with print_constr = state.print_constr |> Constr.Map.add constr notn }
+    { state with unparse = state.unparse |> PrintMap.add key notn }
 
 module S = Algaeff.State.Make (struct
   type nonrec t = t
@@ -131,11 +123,8 @@ module Current = struct
   let add : type left tight right. (left, tight, right) notation -> unit =
    fun notn -> S.modify (add notn)
 
-  let add_const : Core.Constant.t -> permuted_notation -> unit =
-   fun const notn -> S.modify (add_const const notn)
-
-  let add_constr : Core.Constr.t -> permuted_notation -> unit =
-   fun constr notn -> S.modify (add_constr constr notn)
+  let add_with_print : PrintKey.t -> permuted_notation -> unit =
+   fun key notn -> S.modify (add_with_print key notn)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
@@ -150,11 +139,8 @@ module Current = struct
   let left_opens : Token.t -> Interval.t option =
    fun tok -> TokMap.find_opt tok (S.get ()).left_opens
 
-  let print_const : Core.Constant.t -> permuted_notation option =
-   fun c -> ConstMap.find_opt c (S.get ()).print_const
-
-  let print_constr : Core.Constr.t -> permuted_notation option =
-   fun c -> Constr.Map.find_opt c (S.get ()).print_constr
+  let unparse : PrintKey.t -> permuted_notation option =
+   fun c -> PrintMap.find_opt c (S.get ()).unparse
 end
 
 let run_on init f = S.run ~init f

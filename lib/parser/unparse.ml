@@ -11,24 +11,17 @@ open Reporter
 open Printable
 module StringMap = Map.Make (String)
 
-(* If the head of an application spine is a constant term, and that constant has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments, and the rest. *)
+(* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
 let get_notation head args =
-  match head with
-  | `Term (Const c) -> (
-      match State.Current.print_const c with
-      | Some (notn, k) -> (
-          match bwd_take k args with
-          | Some (first, rest) -> Some (notn, first, rest)
-          | None -> None)
-      | None -> None)
-  | `Constr c -> (
-      match State.Current.print_constr c with
-      | Some (notn, k) -> (
-          match bwd_take k args with
-          | Some (first, rest) -> Some (notn, first, rest)
-          | None -> None)
-      | None -> None)
-  | _ -> None
+  let open Monad.Ops (Monad.Maybe) in
+  let* { notn; pats; vals } =
+    match head with
+    | `Term (Const c) -> State.Current.print_const c
+    | `Constr c -> State.Current.print_constr c
+    | _ -> None in
+  let* first, rest = bwd_take_labeled vals args in
+  let first = List.fold_left (fun acc k -> Snoc (acc, Abwd.find k first)) Emp pats in
+  return (notn, first, rest)
 
 let unlocated (value : 'a) : 'a located = { value; loc = None }
 
@@ -255,7 +248,6 @@ let rec unparse :
                     ( Snoc (acc, Term (unlocated (Field (Field.to_string fld, [])))),
                       Term (unparse vars tm Interval.entire Interval.entire) ))
                 fields Emp))
-  (* TODO: Can we associate notations to constructors, like to constants? *)
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
       match unparse_numeral tm with

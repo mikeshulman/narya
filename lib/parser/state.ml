@@ -17,15 +17,17 @@ end
 
 module EntryMap = No.MapMake (EntryPair)
 
+type permuted_notation = { notn : Notation.t; pats : string list; vals : string list }
+
 (* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation state", which can be used for parsing, and let other modules manipulate those states by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a state, remove some, and then create a new state with just those.) *)
 type t = {
   (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval.  In particular, for the empty interval (+ω,+ω] this contains only the left-closed trees, and for the entire interval [-ω,+ω] it contains all notation trees. *)
   tighters : EntryMap.t;
   (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  If there is more than one left-open notation starting with the same token, we store the loosest such interval. *)
   left_opens : Interval.t TokMap.t;
-  (* For unparsing we also store backwards maps turning constants and constructors into notations. *)
-  print_const : (Notation.t * int) ConstMap.t;
-  print_constr : (Notation.t * int) Constr.Map.t;
+  (* For unparsing we also store backwards maps turning constants and constructors into notations.  Since the arguments of a notation can occur in a different order from those of the constant or constructor, we store lists of the argument names in the order they occur in the pattern and in the term value.  Note that these permutations are only used for printing; when parsing, the postprocessor function must ALSO incorporate the inverse permutation. *)
+  print_const : permuted_notation ConstMap.t;
+  print_constr : permuted_notation Constr.Map.t;
 }
 
 let empty : t =
@@ -105,24 +107,21 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   (* We don't update the printing map since this is used for builtins that are printed specially. *)
   { s with tighters; left_opens }
 
-let add_const :
-    type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> t -> t =
- fun notn const k state ->
+let add_const : Core.Constant.t -> permuted_notation -> t -> t =
+ fun const notn state ->
   if ConstMap.mem const state.print_const then state
   else
-    let state = add notn state in
-    { state with print_const = state.print_const |> ConstMap.add const (Notation.Wrap notn, k) }
+    let (Wrap n) = notn.notn in
+    let state = add n state in
+    { state with print_const = state.print_const |> ConstMap.add const notn }
 
-let add_constr :
-    type left tight right. (left, tight, right) notation -> Core.Constr.t -> int -> t -> t =
- fun notn constr k state ->
+let add_constr : Core.Constr.t -> permuted_notation -> t -> t =
+ fun constr notn state ->
   if Constr.Map.mem constr state.print_constr then state
   else
-    let state = add notn state in
-    {
-      state with
-      print_constr = state.print_constr |> Constr.Map.add constr (Notation.Wrap notn, k);
-    }
+    let (Wrap n) = notn.notn in
+    let state = add n state in
+    { state with print_constr = state.print_constr |> Constr.Map.add constr notn }
 
 module S = Algaeff.State.Make (struct
   type nonrec t = t
@@ -132,13 +131,11 @@ module Current = struct
   let add : type left tight right. (left, tight, right) notation -> unit =
    fun notn -> S.modify (add notn)
 
-  let add_const :
-      type left tight right. (left, tight, right) notation -> Core.Constant.t -> int -> unit =
-   fun notn const k -> S.modify (add_const notn const k)
+  let add_const : Core.Constant.t -> permuted_notation -> unit =
+   fun const notn -> S.modify (add_const const notn)
 
-  let add_constr :
-      type left tight right. (left, tight, right) notation -> Core.Constr.t -> int -> unit =
-   fun notn constr k -> S.modify (add_constr notn constr k)
+  let add_constr : Core.Constr.t -> permuted_notation -> unit =
+   fun constr notn -> S.modify (add_constr constr notn)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
@@ -153,10 +150,10 @@ module Current = struct
   let left_opens : Token.t -> Interval.t option =
    fun tok -> TokMap.find_opt tok (S.get ()).left_opens
 
-  let print_const : Core.Constant.t -> (Notation.t * int) option =
+  let print_const : Core.Constant.t -> permuted_notation option =
    fun c -> ConstMap.find_opt c (S.get ()).print_const
 
-  let print_constr : Core.Constr.t -> (Notation.t * int) option =
+  let print_constr : Core.Constr.t -> permuted_notation option =
    fun c -> Constr.Map.find_opt c (S.get ()).print_constr
 end
 

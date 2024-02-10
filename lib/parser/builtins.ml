@@ -1050,7 +1050,9 @@ let builtins =
     |> State.add empty_co_match
     |> State.add fwd
     |> State.add bwd
-    |> State.add_constr cons (Constr.intern "cons") 2
-    |> State.add_constr snoc (Constr.intern "snoc") 2)
+    |> State.add_constr (Constr.intern "cons")
+         { notn = Wrap cons; pats = [ "x"; "xs" ]; vals = [ "x"; "xs" ] }
+    |> State.add_constr (Constr.intern "snoc")
+         { notn = Wrap snoc; pats = [ "xs"; "x" ]; vals = [ "xs"; "x" ] })
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

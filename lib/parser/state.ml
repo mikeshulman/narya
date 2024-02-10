@@ -1,8 +1,14 @@
+open Bwd
 open Util
 open Core
 open Reporter
 open Notation
+open Postprocess
+open Syntax
+open Format
+open Print
 module TokMap = Map.Make (Token)
+module StringMap = Map.Make (String)
 
 module PrintKey = struct
   type t = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t ]
@@ -18,7 +24,7 @@ end
 
 module EntryMap = No.MapMake (EntryPair)
 
-type permuted_notation = { notn : Notation.t; pats : string list; vals : string list }
+type permuted_notation = { notn : Notation.t; pat_vars : string list; val_vars : string list }
 
 (* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation state", which can be used for parsing, and let other modules manipulate those states by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a state, remove some, and then create a new state with just those.) *)
 type t = {
@@ -43,7 +49,7 @@ let empty : t =
 (* Add a new notation to the current state of available ones. *)
 let add : type left tight right. (left, tight, right) notation -> t -> t =
  fun n s ->
-  (* First, if its tightness is new for this state, we create new tighter-trees for the corresponding two intervals.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
+  (* First, if its tightness is new for this state, we create new tighter-trees for the corresponding two interval_vars.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
   let tighters =
     EntryMap.add_cut (tightness n)
       (fun _ up ->
@@ -115,6 +121,104 @@ let add_with_print : PrintKey.t -> permuted_notation -> t -> t =
     let state = add n state in
     { state with unparse = state.unparse |> PrintMap.add key notn }
 
+let simple_tree :
+    type left tight right.
+    (left, tight, right) fixity ->
+    (left, tight, right) notation ->
+    [ `Op of Token.t * space | `Var of string * space ] list ->
+    (left, tight) notation_entry =
+ fun fixity notn pattern ->
+  let left, _, _ = fixprops fixity in
+  let rec simple_tree pattern n =
+    match (pattern, left) with
+    | [], Closed -> n
+    | [ `Var _ ], Open _ -> n
+    | `Op (tok, _) :: pat_vars, _ -> op tok (simple_tree pat_vars n)
+    | `Var _ :: `Op (tok, _) :: pat_vars, _ -> term tok (simple_tree pat_vars n)
+    | _ -> fatal Invalid_fixity in
+  match (pattern, left) with
+  | [], _ -> fatal Invalid_fixity
+  | `Op (tok, _) :: pat_vars, Closed ->
+      Closed_entry (eop tok (simple_tree pat_vars (Done_closed notn)))
+  | `Var _ :: `Op (tok, _) :: pat_vars, Open _ ->
+      Open_entry (eop tok (simple_tree pat_vars (done_open notn)))
+  | _ -> fatal Invalid_fixity
+
+let add_user :
+    type left tight right.
+    string ->
+    (left, tight, right) fixity ->
+    (* The space tag on the last element is ignored. *)
+    [ `Op of Token.t * space | `Var of string * space ] list ->
+    PrintKey.t ->
+    [ `Hov | `Hv ] ->
+    string list ->
+    t ->
+    t =
+ fun name fixity pattern key box val_vars state ->
+  let n = make name fixity in
+  set_tree n (simple_tree fixity n pattern);
+  let pat_vars =
+    List.filter_map
+      (function
+        | `Op _ -> None
+        | `Var (x, _) -> Some x)
+      pattern in
+  set_processor n
+    {
+      process =
+        (fun ctx obs loc _ ->
+          let args =
+            List.fold_left2
+              (fun acc k (Term x) -> acc |> StringMap.add k (process ctx x))
+              StringMap.empty pat_vars obs in
+          let value =
+            match key with
+            | `Constant c ->
+                let spine =
+                  List.fold_left
+                    (fun acc k -> Raw.App ({ value = acc; loc }, StringMap.find k args))
+                    (Const c) val_vars in
+                Raw.Synth spine
+            | `Constr c ->
+                let args =
+                  List.fold_left (fun acc k -> Snoc (acc, StringMap.find k args)) Emp val_vars in
+                Raw.Constr ({ value = c; loc }, args) in
+          { value; loc });
+    };
+  let rec pp_user first ppf pat obs ws space =
+    match (pat, obs) with
+    | [], [] -> taken_last ws
+    | [], _ :: _ -> fatal (Anomaly "invalid notation arguments")
+    | `Op (op, br) :: pat, _ ->
+        let wsop, ws = take op ws in
+        pp_tok ppf op;
+        pp_ws (if List.is_empty pat then space else br) ppf wsop;
+        pp_user false ppf pat obs ws space
+    | [ `Var (_, br) ], [ x ] -> (
+        match x with
+        | Term { value = Notn m; _ } when equal (notn m) n ->
+            pp_user false ppf pattern (args m) (whitespace m) br
+        | _ ->
+            pp_term space ppf x;
+            taken_last ws)
+    | `Var (_, br) :: pat, x :: obs ->
+        (match (first, x) with
+        | true, Term { value = Notn m; _ } when equal (notn m) n ->
+            pp_user true ppf pattern (args m) (whitespace m) br
+        | _ -> pp_term br ppf x);
+        pp_user false ppf pat obs ws space
+    | `Var _ :: _, [] -> fatal (Anomaly "invalid notation arguments") in
+  set_print n (fun space ppf obs ws ->
+      (match box with
+      | `Hov -> pp_open_hovbox ppf 2
+      | `Hv -> pp_open_hvbox ppf 0);
+      pp_user true ppf pattern obs ws `None;
+      pp_close_box ppf ();
+      pp_space ppf space);
+  let state = add n state in
+  { state with unparse = state.unparse |> PrintMap.add key { notn = Wrap n; pat_vars; val_vars } }
+
 module S = Algaeff.State.Make (struct
   type nonrec t = t
 end)
@@ -123,8 +227,17 @@ module Current = struct
   let add : type left tight right. (left, tight, right) notation -> unit =
    fun notn -> S.modify (add notn)
 
-  let add_with_print : PrintKey.t -> permuted_notation -> unit =
-   fun key notn -> S.modify (add_with_print key notn)
+  let add_user :
+      type left tight right.
+      string ->
+      (left, tight, right) fixity ->
+      [ `Op of Token.t * space | `Var of string * space ] list ->
+      PrintKey.t ->
+      [ `Hov | `Hv ] ->
+      string list ->
+      unit =
+   fun name fixity pattern key box val_vars ->
+    S.modify (add_user name fixity pattern key box val_vars)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict

@@ -3,14 +3,10 @@ open Bwd.Infix
 open Util
 open Dim
 open Core
-open Reporter
 open Parser
 open Notation
-open Postprocess
 open Syntax
 open Term
-open Print
-open Format
 
 let nn = Constant.make ()
 let nnn = Constant.make ()
@@ -42,82 +38,16 @@ let install () =
   Hashtbl.add Global.constants nnn (Defined (ref (Case.Leaf (Const nn))));
   ()
 
-let plusn = make "plus" (Infixl No.zero)
-
-let () =
-  set_tree plusn (Open_entry (eop (Op "+") (done_open plusn)));
-  set_processor plusn
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [ Term x; Term y ] ->
-              let x = process ctx x in
-              let y = process ctx y in
-              {
-                value = Raw.Synth (App ({ value = App ({ value = Const plus; loc }, x); loc }, y));
-                loc;
-              }
-          | _ -> fatal (Anomaly "invalid notation arguments for plus"));
-    };
-  set_print plusn (fun space ppf obs ws ->
-      match obs with
-      | [ x; y ] ->
-          let wsplus, ws = take (Op "+") ws in
-          taken_last ws;
-          pp_open_hovbox ppf 2;
-          if true then (
-            pp_term `Break ppf x;
-            pp_tok ppf (Op "+");
-            pp_ws `Nobreak ppf wsplus;
-            pp_term `None ppf y);
-          pp_close_box ppf ();
-          pp_space ppf space
-      | _ -> fatal (Anomaly "invalid notation arguments for plus"))
-
-let timesn = make "times" (Infixl No.one)
-
-let () =
-  set_tree timesn (Open_entry (eop (Op "*") (done_open timesn)));
-  set_processor timesn
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [ Term x; Term y ] ->
-              let x = process ctx x in
-              let y = process ctx y in
-              {
-                value = Raw.Synth (App ({ value = App ({ value = Const times; loc }, x); loc }, y));
-                loc;
-              }
-          | _ -> fatal (Anomaly "invalid notation arguments for plus"));
-    };
-  set_print timesn (fun space ppf obs ws ->
-      match obs with
-      | [ x; y ] ->
-          let wstimes, ws = take (Op "*") ws in
-          taken_last ws;
-          pp_open_hovbox ppf 2;
-          if true then (
-            pp_term `Break ppf x;
-            pp_tok ppf (Op "*");
-            pp_ws `Nobreak ppf wstimes;
-            pp_term `None ppf y);
-          pp_close_box ppf ();
-          pp_space ppf space
-      | _ -> fatal (Anomaly "invalid notation arguments for times"))
-
 let install_ops () =
   List.iter2 Scope.set
     [ [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
     [ zero'; suc'; plus; times; ind ];
-  State.S.modify
-    (State.add_with_print (`Constant plus)
-       { notn = Wrap plusn; pats = [ "x"; "y" ]; vals = [ "x"; "y" ] });
-  State.S.modify
-    (State.add_with_print (`Constant times)
-       { notn = Wrap timesn; pats = [ "x"; "y" ]; vals = [ "x"; "y" ] });
+  State.Current.add_user "plus" (Infixl No.zero)
+    [ `Var ("x", `Break); `Op (Op "+", `Nobreak); `Var ("y", `Nobreak) ]
+    (`Constant plus) `Hv [ "x"; "y" ];
+  State.Current.add_user "times" (Infixl No.one)
+    [ `Var ("x", `Break); `Op (Op "*", `Nobreak); `Var ("y", `Nobreak) ]
+    (`Constant times) `Hv [ "x"; "y" ];
   Hashtbl.add Global.types zero' (Const nn);
   Hashtbl.add Global.constants zero' (Defined (ref (Case.Leaf (Constr (zero, D.zero, Emp)))));
   Hashtbl.add Global.types suc' (pi None (Const nn) (Const nn));

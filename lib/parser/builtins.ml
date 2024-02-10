@@ -1050,11 +1050,13 @@ let builtins =
     |> State.add empty_co_match
     |> State.add fwd
     |> State.add bwd
-    |> State.add_with_print
+    |> State.add_user "cons" (Infixr No.zero)
+         [ `Var ("x", `Nobreak); `Op (Op ":>", `Break); `Var ("xs", `Nobreak) ]
          (`Constr (Constr.intern "cons"))
-         { notn = Wrap cons; pats = [ "x"; "xs" ]; vals = [ "x"; "xs" ] }
-    |> State.add_with_print
+         `Hv [ "x"; "xs" ]
+    |> State.add_user "snoc" (Infixl No.zero)
+         [ `Var ("xs", `Break); `Op (Op "<:", `Nobreak); `Var ("x", `Nobreak) ]
          (`Constr (Constr.intern "snoc"))
-         { notn = Wrap snoc; pats = [ "xs"; "x" ]; vals = [ "xs"; "x" ] })
+         `Hv [ "xs"; "x" ])
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

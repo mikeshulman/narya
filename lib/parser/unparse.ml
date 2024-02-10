@@ -14,14 +14,20 @@ module StringMap = Map.Make (String)
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
 let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
-  let* { notn; pats; vals } =
+  let* { notn; pat_vars; val_vars } =
     match head with
     | `Term (Const c) -> State.Current.unparse (`Constant c)
     | `Constr c -> State.Current.unparse (`Constr c)
     | _ -> None in
-  let* first, rest = bwd_take_labeled vals args in
-  let first = List.fold_left (fun acc k -> Snoc (acc, Abwd.find k first)) Emp pats in
-  return (notn, first, rest)
+  (* There's probably a more efficient way to do this that doesn't involve converting to and from forwards lists, but this way is more natural and easier to understand, and I think this is unlikely to be a performance bottleneck. *)
+  let rec take_labeled labels elts acc =
+    match (labels, elts) with
+    | [], _ -> return (acc, elts)
+    | _ :: _, [] -> None
+    | k :: labels, x :: elts -> take_labeled labels elts (acc |> StringMap.add k x) in
+  let* first, rest = take_labeled val_vars (Bwd.to_list args) StringMap.empty in
+  let first = List.fold_left (fun acc k -> Snoc (acc, StringMap.find k first)) Emp pat_vars in
+  return (notn, first, Bwd.of_list rest)
 
 let unlocated (value : 'a) : 'a located = { value; loc = None }
 

@@ -18,6 +18,8 @@ type (_, _, _) fixity =
   | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
   | Outfix : (closed, No.plus_omega, closed) fixity
 
+val fixprops : ('left, 'tight, 'right) fixity -> 'left openness * 'tight No.t * 'right openness
+
 type space =
   [ `None | `Break | `Nobreak | `Custom of (string * int * string) * (string * int * string) ]
 

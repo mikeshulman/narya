@@ -32,6 +32,8 @@ type (_, _, _) fixity =
   | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
   | Outfix : (closed, No.plus_omega, closed) fixity
 
+type wrapped_fixity = Fixity : ('left, 'tight, 'right) fixity -> wrapped_fixity
+
 (* This is where we enforce that an infix notation can't be associative on both sides. *)
 let fixprops :
     type left tight right.

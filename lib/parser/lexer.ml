@@ -192,6 +192,14 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "data" -> return Data
   | "codata" -> return Codata
   | "section" -> return Section
+  | "infix" -> return Infix
+  | "infixl" -> return Infixl
+  | "infixr" -> return Infixr
+  | "prefix" -> return Prefix
+  | "prefixr" -> return Prefixr
+  | "postfix" -> return Postfix
+  | "postfixl" -> return Postfixl
+  | "outfix" -> return Outfix
   | "." -> return Dot
   | "..." -> return Ellipsis
   | "_" -> return Underscore

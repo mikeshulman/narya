@@ -31,6 +31,14 @@ type t =
   | Data (* data *)
   | Codata (* codata *)
   | Section (* section *)
+  | Infix
+  | Infixl
+  | Infixr
+  | Prefix
+  | Prefixr
+  | Postfix
+  | Postfixl
+  | Outfix
   | Let (* let *)
   | In (* in *)
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
@@ -153,6 +161,14 @@ let to_string = function
   | Data -> "data"
   | Codata -> "codata"
   | Section -> "section"
+  | Infix -> "infix"
+  | Infixl -> "infixl"
+  | Infixr -> "infixr"
+  | Prefix -> "prefix"
+  | Prefixr -> "prefixr"
+  | Postfix -> "postfix"
+  | Postfixl -> "postfixl"
+  | Outfix -> "outfix"
   | Let -> "let"
   | In -> "in"
   | Op s -> s

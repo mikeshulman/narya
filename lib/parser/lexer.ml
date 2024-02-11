@@ -235,3 +235,32 @@ module Parser = struct
   let start : t = make_partial Position.start false bof
   let restart (lex : t) : t = make_partial (position lex) false token |> transfer_lookahead lex
 end
+
+module Single_token = struct
+  module Basic = Token_parser.Make (Unit) (Token_whitespace) (Token_whitespace) (Unit)
+  open Basic
+
+  let token : Token_whitespace.t t = step "token" (fun state _ tok -> Some (tok, state))
+
+  module Parser = struct
+    include Basic.Parser
+
+    let start : t =
+      make ()
+        ((* bof *)
+         let* _ = token in
+         token)
+  end
+end
+
+module Lex_and_parse_single =
+  Parse_with_lexer.Make_utf8 (Unit) (Token_whitespace) (Token_whitespace) (Unit) (Parser)
+    (Single_token.Parser)
+
+let single str =
+  let open Lex_and_parse_single in
+  let p = run_on_string str (make Parser.start Single_token.Parser.start) in
+  if has_succeeded p then
+    let tok, ws = final p in
+    if ws = [] then tok else fatal (Invalid_notation_part str)
+  else fatal (Invalid_notation_part str)

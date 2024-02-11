@@ -135,3 +135,36 @@ let rec run f =
   @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
   Builtins.run @@ fun () -> Scope.run f
+
+(* Some operations on natural numbers and vectors, for white-box testing. *)
+
+let nat_install_ops () =
+  def "O" "ℕ" "zero.";
+  def "S" "ℕ → ℕ" "n ↦ suc. n";
+  def "plus" "ℕ → ℕ → ℕ" "m n ↦
+  [ n
+    | zero. ↦ m
+    | suc. n ↦ suc. (plus m n)
+  ]";
+  cmd "infixr 0 plus : m \"+\" n ≔ plus m n";
+  def "times" "ℕ → ℕ → ℕ" "m n ↦
+  [ n
+    | zero. ↦ zero.
+    | suc. n ↦ plus (times m n) m
+  ]";
+  cmd "infixr 1 times : m \"*\" n ≔ times m n";
+  def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
+    "P z s n ↦
+  [ n
+    | zero. ↦ z
+    | suc. n ↦ s n (ℕ_ind P z s n)
+  ]"
+
+let vec_install_ops () =
+  def "Vec_ind"
+    "(A:Type) (P : (n:ℕ) → Vec A n → Type) (pn : P zero. nil.) (pc : (n:ℕ) (a:A) (v:Vec A n) → P n v → P (suc. n) (cons. n a v)) (n:ℕ) (v:Vec A n) → P n v"
+    "A P pn pc n v ↦
+  [ v
+    | nil. ↦ pn
+    | cons. n a v ↦ pc n a v (Vec_ind A P pn pc n v)
+  ]"

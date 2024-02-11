@@ -3,7 +3,7 @@ open Testutil.Pmp
 let () =
   run @@ fun () ->
   Types.Nat.install ();
-  Types.Nat.install_ops ();
+  Testutil.Repl.nat_install_ops ();
   let nat, _ = synth !~"ℕ" in
   let raw0 = !."zero" in
   let zero = check raw0 nat in

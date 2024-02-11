@@ -42,7 +42,7 @@ let () =
   equal_at "nats .tail .tail .tail .head" "3" "ℕ";
 
   (* Now we construct the stream of fibonacci numbers and check the first few of its elements *)
-  Types.Nat.install_ops ();
+  Testutil.Repl.nat_install_ops ();
   Types.Sigma.install ();
   def "fib" "Stream ℕ"
     "corec ℕ (ℕ × ℕ) (x ↦ x .fst) (x ↦ ( fst ≔ x .snd , snd ≔ x .fst + x .snd )) (fst ≔ 1, snd ≔ 1)";

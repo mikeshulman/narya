@@ -9,12 +9,12 @@ let () =
   print "one";
   def "two" "nat" "f x ↦ f (f x)";
   def "three" "nat" "f x ↦ f (f (f x))";
-  def "plus" "nat → nat → nat" "m n f x ↦ (m f) (n f x)";
-  print "plus one one";
-  print "plus two three";
-  def "times" "nat → nat → nat" "m n f x ↦ m (n f) x";
-  print "times one one";
-  print "times two three";
+  def "cplus" "nat → nat → nat" "m n f x ↦ (m f) (n f x)";
+  print "cplus one one";
+  print "cplus two three";
+  def "ctimes" "nat → nat → nat" "m n f x ↦ m (n f) x";
+  print "ctimes one one";
+  print "ctimes two three";
   print "nat";
   print "(X:Type) → X → X";
   print "(X:Type)(_: X) → X";
@@ -30,7 +30,7 @@ let () =
   print "exp";
   print "exp utwo uthree";
   Types.Nat.install ();
-  Types.Nat.install_ops ();
+  Testutil.Repl.nat_install_ops ();
   Types.Sigma.install ();
   print "(fst := 0,snd := 0) : ℕ × ℕ";
   print "(0,0) : ℕ × ℕ";

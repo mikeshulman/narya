@@ -77,6 +77,9 @@ let def (name : string) (ty : string) (tm : string) : unit =
       Reporter.trace "when checking case tree" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
   | _ -> fatal (Invalid_constant_name name)
 
+(* For other commands, we piggyback on ordinary parsing.  *)
+let cmd (str : string) : unit = parse_and_execute_command str
+
 let undef (name : string) : unit =
   match Scope.lookup [ name ] with
   | Some const ->

@@ -37,6 +37,11 @@ let assume (name : string) (ty : string) : unit =
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
+      Reporter.try_with ~fatal:(fun d ->
+          Scope.S.modify_visible (Yuujinchou.Language.except name);
+          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Reporter.fatal_diagnostic d)
+      @@ fun () ->
       let rty = parse_term ty in
       let cty = check_type rty in
       Hashtbl.add Global.types const cty;
@@ -51,7 +56,11 @@ let def (name : string) (ty : string) (tm : string) : unit =
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
-
+      Reporter.try_with ~fatal:(fun d ->
+          Scope.S.modify_visible (Yuujinchou.Language.except name);
+          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Reporter.fatal_diagnostic d)
+      @@ fun () ->
       let rty = parse_term ty in
       let rtm = parse_term tm in
       let cty = check_type rty in

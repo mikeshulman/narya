@@ -34,12 +34,22 @@ let execute : t -> unit = function
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
+      Reporter.try_with ~fatal:(fun d ->
+          Scope.S.modify_visible (Yuujinchou.Language.except name);
+          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Reporter.fatal_diagnostic d)
+      @@ fun () ->
       Core.Command.execute (Axiom (const, process Emp ty));
       emit (Constant_assumed (PConstant const))
   | Def { name; ty = Term ty; tm = Term tm; _ } ->
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
+      Reporter.try_with ~fatal:(fun d ->
+          Scope.S.modify_visible (Yuujinchou.Language.except name);
+          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Reporter.fatal_diagnostic d)
+      @@ fun () ->
       Core.Command.execute (Def (const, process Emp ty, process Emp tm));
       emit (Constant_defined (PConstant const))
   | Echo { tm = Term tm; _ } -> (

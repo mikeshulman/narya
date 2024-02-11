@@ -284,21 +284,11 @@ let make :
     processor = None;
   }
 
-(* Split off the ending whitespace after the first newline. *)
-let rec split_whitespace (ws : Whitespace.t list) : Whitespace.t list * Whitespace.t list =
-  match ws with
-  | [] -> ([], [])
-  | `Line l :: rest -> ([ `Line l ], rest)
-  | `Block b :: rest ->
-      let first, rest = split_whitespace rest in
-      (`Block b :: first, rest)
-  | `Newlines _ :: _ -> ([], ws)
-
 let rec split_last_whitespace (ws : Whitespace.alist) : Whitespace.alist * Whitespace.t list =
   match ws with
   | [] -> ([], [])
   | [ (k, w) ] ->
-      let first, rest = split_whitespace w in
+      let first, rest = Whitespace.split w in
       ([ (k, first) ], rest)
   | kw :: ws ->
       let first, rest = split_last_whitespace ws in
@@ -325,19 +315,19 @@ let rec split_ending_whitespace :
           let arg, rest = split_ending_whitespace arg in
           ({ value = App { fn; arg; left_ok; right_ok }; loc }, rest)
       | Placeholder ws ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Placeholder first; loc }, rest)
       | Ident (x, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Ident (x, first); loc }, rest)
       | Constr (c, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Constr (c, first); loc }, rest)
       | Field (f, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Field (f, first); loc }, rest)
       | Superscript (x, s, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Superscript (x, s, first); loc }, rest))
 
 (* Helper functions for constructing notation trees *)

@@ -121,11 +121,14 @@ let add_with_print : PrintKey.t -> permuted_notation -> t -> t =
     let state = add n state in
     { state with unparse = state.unparse |> PrintMap.add key notn }
 
+type pattern =
+  [ `Op of Token.t * space * Whitespace.t list | `Var of string * space * Whitespace.t list ] list
+
 let simple_tree :
     type left tight right.
     (left, tight, right) fixity ->
     (left, tight, right) notation ->
-    [ `Op of Token.t * space | `Var of string * space ] list ->
+    pattern ->
     (left, tight) notation_entry =
  fun fixity notn pattern ->
   let left, _, _ = fixprops fixity in
@@ -133,14 +136,14 @@ let simple_tree :
     match (pattern, left) with
     | [], Closed -> n
     | [ `Var _ ], Open _ -> n
-    | `Op (tok, _) :: pat_vars, _ -> op tok (simple_tree pat_vars n)
-    | `Var _ :: `Op (tok, _) :: pat_vars, _ -> term tok (simple_tree pat_vars n)
+    | `Op (tok, _, _) :: pat_vars, _ -> op tok (simple_tree pat_vars n)
+    | `Var _ :: `Op (tok, _, _) :: pat_vars, _ -> term tok (simple_tree pat_vars n)
     | _ -> fatal Invalid_fixity in
   match (pattern, left) with
   | [], _ -> fatal Invalid_fixity
-  | `Op (tok, _) :: pat_vars, Closed ->
+  | `Op (tok, _, _) :: pat_vars, Closed ->
       Closed_entry (eop tok (simple_tree pat_vars (Done_closed notn)))
-  | `Var _ :: `Op (tok, _) :: pat_vars, Open _ ->
+  | `Var _ :: `Op (tok, _, _) :: pat_vars, Open _ ->
       Open_entry (eop tok (simple_tree pat_vars (done_open notn)))
   | _ -> fatal Invalid_fixity
 
@@ -149,20 +152,19 @@ let add_user :
     string ->
     (left, tight, right) fixity ->
     (* The space tag on the last element is ignored. *)
-    [ `Op of Token.t * space | `Var of string * space ] list ->
+    pattern ->
     PrintKey.t ->
-    [ `Hov | `Hv ] ->
     string list ->
     t ->
     t =
- fun name fixity pattern key box val_vars state ->
+ fun name fixity pattern key val_vars state ->
   let n = make name fixity in
   set_tree n (simple_tree fixity n pattern);
   let pat_vars =
     List.filter_map
       (function
         | `Op _ -> None
-        | `Var (x, _) -> Some x)
+        | `Var (x, _, _) -> Some x)
       pattern in
   set_processor n
     {
@@ -190,19 +192,19 @@ let add_user :
     match (pat, obs) with
     | [], [] -> taken_last ws
     | [], _ :: _ -> fatal (Anomaly "invalid notation arguments")
-    | `Op (op, br) :: pat, _ ->
+    | `Op (op, br, _) :: pat, _ ->
         let wsop, ws = take op ws in
         pp_tok ppf op;
         pp_ws (if List.is_empty pat then space else br) ppf wsop;
         pp_user false ppf pat obs ws space
-    | [ `Var (_, br) ], [ x ] -> (
+    | [ `Var (_, br, _) ], [ x ] -> (
         match x with
         | Term { value = Notn m; _ } when equal (notn m) n ->
             pp_user false ppf pattern (args m) (whitespace m) br
         | _ ->
             pp_term space ppf x;
             taken_last ws)
-    | `Var (_, br) :: pat, x :: obs ->
+    | `Var (_, br, _) :: pat, x :: obs ->
         (match (first, x) with
         | true, Term { value = Notn m; _ } when equal (notn m) n ->
             pp_user true ppf pattern (args m) (whitespace m) br
@@ -210,9 +212,7 @@ let add_user :
         pp_user false ppf pat obs ws space
     | `Var _ :: _, [] -> fatal (Anomaly "invalid notation arguments") in
   set_print n (fun space ppf obs ws ->
-      (match box with
-      | `Hov -> pp_open_hovbox ppf 2
-      | `Hv -> pp_open_hvbox ppf 0);
+      pp_open_hvbox ppf 0;
       pp_user true ppf pattern obs ws `None;
       pp_close_box ppf ();
       pp_space ppf space);
@@ -229,15 +229,8 @@ module Current = struct
 
   let add_user :
       type left tight right.
-      string ->
-      (left, tight, right) fixity ->
-      [ `Op of Token.t * space | `Var of string * space ] list ->
-      PrintKey.t ->
-      [ `Hov | `Hv ] ->
-      string list ->
-      unit =
-   fun name fixity pattern key box val_vars ->
-    S.modify (add_user name fixity pattern key box val_vars)
+      string -> (left, tight, right) fixity -> pattern -> PrintKey.t -> string list -> unit =
+   fun name fixity pattern key val_vars -> S.modify (add_user name fixity pattern key val_vars)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict

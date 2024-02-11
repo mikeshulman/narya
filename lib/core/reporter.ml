@@ -91,7 +91,11 @@ module Code = struct
     | Constant_already_defined : string -> t
     | Invalid_constant_name : string -> t
     | Too_many_commands : t
+    | Invalid_tightness : string -> t
     | Invalid_fixity : t
+    | Invalid_notation_part : string -> t
+    | Invalid_notation_pattern : t
+    | Invalid_notation_head : string -> t
     | Constant_assumed : printable -> t
     | Constant_defined : printable -> t
     | Show : string * printable -> t
@@ -156,7 +160,11 @@ module Code = struct
     | Constant_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
     | Too_many_commands -> Error
+    | Invalid_tightness _ -> Error
     | Invalid_fixity -> Error
+    | Invalid_notation_part _ -> Error
+    | Invalid_notation_pattern -> Error
+    | Invalid_notation_head _ -> Error
     | Constant_assumed _ -> Info
     | Constant_defined _ -> Info
     | Show _ -> Info
@@ -239,6 +247,10 @@ module Code = struct
     | Invalid_constant_name _ -> "E2001"
     | Too_many_commands -> "E2002"
     | Invalid_fixity -> "E2003"
+    | Invalid_tightness _ -> "E2004"
+    | Invalid_notation_part _ -> "E2005"
+    | Invalid_notation_pattern -> "E2006"
+    | Invalid_notation_head _ -> "E2007"
     (* Information *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -392,6 +404,10 @@ module Code = struct
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"
     | Invalid_fixity -> text "declared fixity doesn't match notation pattern"
+    | Invalid_tightness str -> textf "invalid tightness: %s" str
+    | Invalid_notation_part str -> textf "invalid notation part: %s" str
+    | Invalid_notation_pattern -> text "invalid notation pattern"
+    | Invalid_notation_head str -> textf "invalid notation head: %s" str
     | Constant_assumed name -> textf "Axiom %a assumed" pp_printed (print name)
     | Constant_defined name -> textf "Constant %a defined" pp_printed (print name)
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)

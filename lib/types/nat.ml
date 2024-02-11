@@ -43,11 +43,11 @@ let install_ops () =
     [ [ "O" ]; [ "S" ]; [ "plus" ]; [ "times" ]; [ "ℕ_ind" ] ]
     [ zero'; suc'; plus; times; ind ];
   State.Current.add_user "plus" (Infixl No.zero)
-    [ `Var ("x", `Break); `Op (Op "+", `Nobreak); `Var ("y", `Nobreak) ]
-    (`Constant plus) `Hv [ "x"; "y" ];
+    [ `Var ("x", `Break, []); `Op (Op "+", `Nobreak, []); `Var ("y", `None, []) ]
+    (`Constant plus) [ "x"; "y" ];
   State.Current.add_user "times" (Infixl No.one)
-    [ `Var ("x", `Break); `Op (Op "*", `Nobreak); `Var ("y", `Nobreak) ]
-    (`Constant times) `Hv [ "x"; "y" ];
+    [ `Var ("x", `Break, []); `Op (Op "*", `Nobreak, []); `Var ("y", `None, []) ]
+    (`Constant times) [ "x"; "y" ];
   Hashtbl.add Global.types zero' (Const nn);
   Hashtbl.add Global.constants zero' (Defined (ref (Case.Leaf (Constr (zero, D.zero, Emp)))));
   Hashtbl.add Global.types suc' (pi None (Const nn) (Const nn));

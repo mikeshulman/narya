@@ -178,7 +178,7 @@ let rec unparse :
  fun vars tm li ri ->
   match tm with
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
-  | Const c -> unlocated (Ident ([ Scope.name_of c ], []))
+  | Const c -> unlocated (Ident (Scope.name_of c, []))
   (* TODO: Can we associate notations to fields, like to constants? *)
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
@@ -536,7 +536,9 @@ let () =
                    Interval.entire) )
       | PNames vars -> Printed (Core.Names.pp_names, vars)
       | PCtx ctx -> Printed (Core.Ctx.pp_ctx, ctx)
-      | PConstant name -> Printed (Uuseg_string.pp_utf_8, Scope.name_of name)
+      | PConstant name ->
+          Printed
+            ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)
       | _ -> raise (Failure "unknown printable")
 
 (* Hack to ensure the above code is executed. *)

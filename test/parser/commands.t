@@ -1,5 +1,3 @@
-  $ alias narya=../../bin/narya.exe
-
 Testing parsing of commands, on the command line:
 
   $ narya -e 'axiom A : Type'

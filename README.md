@@ -19,7 +19,7 @@ dune runtest
 dune install
 ```
 
-This will make the executable `narya` available in a directory such as `~/.opam/5.1.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly with `dune exec bin/narya.exe`.  In this case, to pass arguments to the executable, put them after a `--`.  For instance, `dune exec bin/narya.exe -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
+This will make the executable `narya` available in a directory such as `~/.opam/5.1.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly with `dune exec narya`.  In this case, to pass arguments to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
 
 ## Parsing

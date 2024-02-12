@@ -18,15 +18,16 @@ end
 module Basic = Ucharacter.Make_utf8 (Bool) (Located_token) (Unit)
 open Basic
 
-(* A line comment starts with a backquote and extends to the end of the line.  *)
-let line_comment : Whitespace.t t =
-  let* c = word (fun c -> c = '`') (fun c -> c <> '\n') "line comment" in
-  let* () = set true in
-  return (`Line (String.sub c 1 (String.length c - 1)))
-
 let backquote = Uchar.of_char '`'
+let newline = Uchar.of_char '\n'
 let lbrace = Uchar.of_char '{'
 let rbrace = Uchar.of_char '}'
+
+(* A line comment starts with a backquote and extends to the end of the line.  *)
+let line_comment : Whitespace.t t =
+  let* c = uword (fun c -> c = backquote) (fun c -> c <> newline) "line comment" in
+  let* () = set true in
+  return (`Line (String.sub c 1 (String.length c - 1)))
 
 (* A block comment starts with {` and ends with `}, and can be nested.  *)
 let block_comment : Whitespace.t t =

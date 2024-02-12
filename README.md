@@ -7,7 +7,7 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ## Compilation
 
-Narya requires OCaml version 5.1.0 and various libraries.
+Narya requires OCaml version 5.1.0 (or later) and various libraries.
 
 ```
 opam switch create 5.1.0
@@ -24,9 +24,9 @@ This will make the executable `narya` available in a directory such as `~/.opam/
 
 ## Parsing
 
-The parser supports arbitrary mixfix operations with associativities and precedences, although at present these have to be defined using the OCaml interface.  We prefer to say "tightness" instead of "precedence", to make it clear that higher numbers bind more tightly.  Tightnesses are *dyadic rational numbers*, including ω and −ω that are reserved for internal use.  Notations can be either left-closed or left-open, and either right-closed or right-open, and tightness and associativity are only relevant on the open side(s).  An infix notation is one that is open on both sides; a prefix notation is closed on the left and open on the right; a postfix notation is open on the left and closed on the right; and a "closed" or "outfix" notation is closed on both sides.  The built-in notations are:
+The parser supports arbitrary mixfix operations with associativities and precedences.  We prefer to say "tightness" instead of "precedence", to make it clear that higher numbers bind more tightly.  Tightnesses are *dyadic rational numbers*, including ω and −ω that are reserved for internal use.  Notations can be either left-closed or left-open, and either right-closed or right-open, and tightness and associativity are only relevant on the open side(s).  An infix notation is one that is open on both sides; a prefix notation is closed on the left and open on the right; a postfix notation is open on the left and closed on the right; and a "closed" or "outfix" notation is closed on both sides, and has no tightness.  The built-in notations are:
 
-- `( M )` – Parentheses for grouping (a closed notation).
+- `( M )` – Parentheses for grouping (outfix).
 - `Type` – The unique universe (currently we have type-in-type).
 - `M N` – Function application (left-associative).
 - `x ↦ M` – Lambda-abstraction.  The unicode ↦ can be replaced by ASCII `|->`.
@@ -37,13 +37,14 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `M → N` – Non-dependent function-type (right-associative).
 - `M .fld` – Field access of a record (left-associative), or method call on a codatatype.
 - `(fld1 ≔ M, fld2 ≔ N)` – Anonymous record (structure).  The unicode ≔ can be replaced by ASCII `:=`.  Checks, doesn't synthesize.
-- `(M, N)` – Record with unlabeled fields.  Labeled and unlabeled fields can also be mixed.
+- `(M, N)` – Record with unlabeled fields.  Labeled and unlabeled fields can also be mixed (see below).
 - `constr. M N` – Constructor of a datatype, applied to arguments (but not parameters).  Checks, doesn't synthesize.  The postfix period is admittedly unusual; the intent is to emphasize the duality between constructors of a datatype and destructors (fields) of a codatatype/record.
 - `M : N` – Type ascription.  Necessary if you want to apply an abstraction to an argument (i.e. manually write a beta-redex) or similarly access a field of a tuple, since the typechecker is bidirectional.
 - `let x ≔ M in N` – Local binding.  Computationally equivalent to `(x ↦ N) M`, but also binds `x` to `M` while typechecking `N`, which is stronger in the presence of dependent types.  As before, ≔ can be replaced by `:=`, and `let x ≔ (M : A) in N` (commonly needed since `M` must synthesize) can be abbreviated `let x : A ≔ M in N`.
-- `[ x | constr1. a b ↦ M | constr2. c d ↦ N ]` – Match against datatype constructors.  Only valid in a top-level case tree when `x` is a variable (see below).  This syntax is tentative and might change if I get negative feedback from users.
+- `[ x | constr1. a b ↦ M | constr2. c d ↦ N ]` – Match against datatype constructors.  Only valid in a top-level case tree when `x` is a variable (see below).  This syntax is tentative and might change if we get negative feedback from users.
 - `[ constr1. a b ↦ M | constr2. c d ↦ N ]` – Abstract over a variable and immediately match against it, i.e. pattern-matching lambda.  Essentially a notational variant of `x ↦ [ x | constr1. a b ↦ M | constr2. c d ↦ N ]` without needing to choose a dummy name for the variable.  The initial `|` after the empty variable location can also be included.
 - `[ .fld1 ↦ M | .fld2 ↦ N ]` – Copattern match against a codatatype.
+- `"string"` – Quoted string.  Currently only used when specifying new notations.
 - `Id M X Y` – Homogeneous identity/bridge type.  In fact this is equivalent to `refl M X Y`, and `Id` is just a synonym for `refl`.
 - `refl M` – Reflexivity term.
 - `sym M` – Symmetry of a two-dimensional square.
@@ -68,7 +69,10 @@ As in Agda, mixfix notations can involve arbitrary Unicode characters (a source 
 
   This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing but also arbitrary unicode operators, while keeping the lexer rules simple and unchanging as new operators are defined.  If it turns out to be too unintuitive, it may be changed.
 
-Identifiers (variables and constant names) can be any string of non-whitespace characters, other than the ASCII operators listed above, that does not start or end with a period or an underscore.  In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation).  Field names, which must be identifiers, are prefixed a period when accessed, and dually constructor names are postfixed a period when applied.  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names, none of which are namespaced.
+- A nonempty string consisting of the Unicode superscript symbols `ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ𐞥ʳˢᵗᵘᵛʷˣʸᶻ⁽⁰¹²³⁴⁵⁶⁷⁸⁹⁾⁺⁻⁼` is treated as a single token and applied as a "superscript" operator to whatever immediately precedes it, binding more tightly than anything (tightness of "ω+1").  At present the only meaning of this is generic degeneracies (see below).  In addition, a caret `^` followed by a nonempty string of the corresponding ASCII characters `abcdefghijklmnopqrstuvwxyz(0123456789)+-=` (no internal spaces!) has exactly the same meaning.
+
+
+Identifiers (variables and constant names) can be any string of non-whitespace characters, other than the ASCII operators and superscript characters listed above, that does not start or end with a period or an underscore.  In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation).  Field names, which must be identifiers, are prefixed a period when accessed, and dually constructor names are postfixed a period when applied.  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names, none of which are namespaced.
 
 Numerals are strings consisting of digits, possibly containing a period but *not* starting or ending with one.  You must write `0.5` rather than `.5`, since the latter could be mistaken for a field projection.  Currently, only natural number numerals are implemented, and are parsed into applications of the constructors `suc` and `zero`, e.g. `3` becomes `suc. (suc. (suc. zero.))`.  They therefore typecheck (but don't synthesize) at any datatype (see below) having a nullary constructor `zero` and a unary recursive constructor `suc`, including of course the usual natural numbers.
 

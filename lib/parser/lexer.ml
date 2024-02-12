@@ -69,16 +69,17 @@ let whitespace : Whitespace.t list t =
 (* A quoted string starts and ends with double-quotes, and allows backslash-quoted double-quotes and backslashes inside. *)
 let quoted_string : Token.t t =
   let* _ = char '"' in
-  let buf = Buffer.create 10 in
-  let rec rest state =
+  let rec rest state str =
     let* c = ucharp (fun _ -> true) "any character" in
     match (state, Utf8.Encoder.to_internal c) with
-    | `None, "\"" -> return (Token.String (Buffer.contents buf))
-    | `None, "\\" -> rest `Quoted
-    | `None, c | `Quoted, c ->
-        Buffer.add_string buf c;
-        rest `None in
-  rest `None
+    | `None, "\"" | `Backquote, "\"" -> return (String str)
+    | `None, "\\" | `Backquote, "\\" -> rest `Quoted str
+    | _, "`" -> rest `Backquote (str ^ "`")
+    | `Backquote, "}" ->
+        emit Comment_end_in_string;
+        rest `None (str ^ "}")
+    | _, c -> rest `None (str ^ c) in
+  rest `None ""
 
 (* Any of these characters is always its own token. *)
 let onechar_ops =

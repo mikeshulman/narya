@@ -100,6 +100,7 @@ module Code = struct
     | Constant_defined : printable -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
+    | Comment_end_in_string : t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -170,6 +171,7 @@ module Code = struct
     | Constant_defined _ -> Info
     | Notation_defined _ -> Info
     | Show _ -> Info
+    | Comment_end_in_string -> Warning
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -188,6 +190,7 @@ module Code = struct
     | Invalid_numeral _ -> "E0205"
     | Invalid_degeneracy _ -> "E0206"
     | No_relative_precedence _ -> "E0207"
+    | Comment_end_in_string -> "E0250"
     | Encoding_error -> "E0299"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
@@ -415,6 +418,8 @@ module Code = struct
     | Constant_defined name -> textf "Constant %a defined" pp_printed (print name)
     | Notation_defined name -> textf "Notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
+    | Comment_end_in_string ->
+        text "comment-end sequence `} in quoted string: cannot be commented out"
 end
 
 include Asai.StructuredReporter.Make (Code)

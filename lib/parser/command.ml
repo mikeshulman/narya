@@ -88,7 +88,26 @@ let execute : t -> unit = function
             match Scope.lookup c with
             | Some c -> `Constant c
             | None -> fatal (Invalid_notation_head (String.concat "." c))) in
-      State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args)
+      let unbound, _ =
+        List.fold_left
+          (fun (args, seen) item ->
+            match item with
+            | `Var (x, _, _) -> (
+                if List.mem x seen then
+                  fatal (Invalid_notation_pattern ("duplicate variable: " ^ x));
+                let found, rest = List.partition (fun (y, _) -> x = y) args in
+                match found with
+                | [ _ ] -> (rest, x :: seen)
+                | [] -> fatal (Invalid_notation_pattern ("unused variable: " ^ x))
+                | _ -> fatal (Invalid_notation_pattern ("variable used twice: " ^ x)))
+            | `Op _ -> (args, seen))
+          (args, []) pattern in
+      if not (List.is_empty unbound) then
+        fatal
+          (Invalid_notation_pattern
+             ("unbound variable(s): " ^ String.concat ", " (List.map fst unbound)));
+      State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
+      emit (Notation_defined (String.concat "." name))
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 

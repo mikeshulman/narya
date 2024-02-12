@@ -139,6 +139,7 @@ let rec run f =
 (* Some operations on natural numbers and vectors, for white-box testing. *)
 
 let nat_install_ops () =
+  Reporter.try_with ~emit:(fun _ -> ()) @@ fun () ->
   def "O" "ℕ" "zero.";
   def "S" "ℕ → ℕ" "n ↦ suc. n";
   def "plus" "ℕ → ℕ → ℕ" "m n ↦

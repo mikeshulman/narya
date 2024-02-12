@@ -150,7 +150,7 @@ let () =
         Terminal.display ~output:stderr d)
     ~fatal:(fun d ->
       Terminal.display ~output:stderr d;
-      raise (Failure "Fatal error"))
+      exit 1)
   @@ fun () ->
   Types.Nat.install ();
   Types.Sigma.install ();

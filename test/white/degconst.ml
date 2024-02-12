@@ -1,5 +1,4 @@
-open Testutil
-open Repl
+open Testutil.Repl
 
 let () =
   run @@ fun () ->

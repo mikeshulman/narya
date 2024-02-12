@@ -1,5 +1,4 @@
-open Testutil
-open Mcp
+open Testutil.Mcp
 open Dim
 
 let () =

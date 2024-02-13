@@ -16,27 +16,28 @@
 
 (defun narya-apply-dynamic-highlighting ()
   "Apply dynamic highlighting for terms in `narya-dynamic-terms`."
-  (font-lock-add-keywords nil `((,(regexp-opt narya-dynamic-terms 'words) . 'font-lock-variable-name-face)) t))
+  (font-lock-add-keywords nil `((,(regexp-opt narya-dynamic-terms 'words) . 'font-lock-function-name-face)) t))
 
 ;; Define the syntax highlighting
 (defvar narya-font-lock-keywords
   `(
-    ;; Line comments
-    ("`.*$" . 'font-lock-comment-face)
-    ;; Block comments
-    ("{`\\(.*?\\)`}" . 'font-lock-comment-face)
     ("\\<\\(axiom\\|def\\|echo\\)\\>" . 'font-lock-keyword-face)
-    ("\\<\\(Type\\|Id\\|refl\\|sym\\|Gel\\|ungel\\)\\>" . 'font-lock-builtin-face)
+    ("\\<\\(Type\\|Id\\|refl\\|sym\\|Gel\\|ungel\\)\\>" . 'font-lock-constant-face)
     ))
+    
+(defun narya-setup-syntax-table ()
+  ;; Line comments use a backquote `, extending to the end of the line
+  ;; Block comments, starting with {` and ending with `}, support nesting.
+  (modify-syntax-entry ?\` "< 23b" (syntax-table)) 
+  (modify-syntax-entry ?\n "> b" (syntax-table)) 
+  (modify-syntax-entry ?\{ "(}1nb" (syntax-table))
+  (modify-syntax-entry ?\} "){4nb" (syntax-table))
+)
 
 ;; Define the mode
 (define-derived-mode narya-mode fundamental-mode "Narya"
   "A mode for editing my language files."
   (setq font-lock-defaults '(narya-font-lock-keywords))
-  ;; Modify the syntax table for multi-line block comments
-  (modify-syntax-entry ?\{ "(}1n" (syntax-table))
-  (modify-syntax-entry ?\` ". 23n" (syntax-table))
-  (modify-syntax-entry ?\} "){4n" (syntax-table))
   ;; Apply dynamic highlighting after changes
   (add-hook 'after-change-functions (lambda (start end old-len)
                                       (narya-update-dynamic-terms)
@@ -44,7 +45,8 @@
             nil t)
   ;; Initialize dynamic highlighting
   (narya-update-dynamic-terms)
-  (narya-apply-dynamic-highlighting))
+  (narya-apply-dynamic-highlighting)
+  (narya-setup-syntax-table))
 
 (provide 'narya)
 

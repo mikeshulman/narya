@@ -2,7 +2,7 @@
   "List of dynamically identified terms for highlighting.")
 
 (defun narya-update-dynamic-terms ()
-  "Parse the buffer for user-defined constants following 'axiom|def|echo const' and update dynamic terms."
+  "Parse the buffer for user-defined constants following 'axiom|def const' and update dynamic terms."
   (save-excursion
     (goto-char (point-min))
     (let ((terms '()))

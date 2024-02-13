@@ -101,22 +101,13 @@ let rec repl terminal history buf =
   | Some command ->
       let str = Zed_string.to_utf8 command in
       if str = "" then (
-        let content = Buffer.contents buf in
+        let str = Buffer.contents buf in
         let* () = Lwt_io.flush Lwt_io.stdout in
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d -> Terminal.display ~output:stdout d)
-          (fun () ->
-            let src : Asai.Range.source = `String { content; title = Some "interactive input" } in
-            let p, src = Parse_command.start_parse ~or_echo:true src in
-            let _bof = Parse_command.final p in
-            let p, src = Parse_command.restart_parse ~or_echo:true p src in
-            let cmd = Parse_command.final p in
-            if cmd <> Eof then
-              let p, _ = Parse_command.restart_parse ~or_echo:true p src in
-              let eof = Parse_command.final p in
-              if eof = Eof then Parser.Command.execute cmd else Reporter.fatal Too_many_commands);
-        LTerm_history.add history (Zed_string.of_utf8 (String.trim content));
+          (fun () -> parse_and_execute_command str);
+        LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
       else (
         Buffer.add_string buf str;
@@ -159,7 +150,7 @@ let () =
         Terminal.display ~output:stderr d)
     ~fatal:(fun d ->
       Terminal.display ~output:stderr d;
-      raise (Failure "Fatal error"))
+      exit 1)
   @@ fun () ->
   Types.Nat.install ();
   Types.Sigma.install ();

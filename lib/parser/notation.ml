@@ -32,6 +32,8 @@ type (_, _, _) fixity =
   | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
   | Outfix : (closed, No.plus_omega, closed) fixity
 
+type wrapped_fixity = Fixity : ('left, 'tight, 'right) fixity -> wrapped_fixity
+
 (* This is where we enforce that an infix notation can't be associative on both sides. *)
 let fixprops :
     type left tight right.
@@ -151,7 +153,7 @@ and ('left, 'tight) notation_entry =
 
 (* A notation has a precedence, which we call "tightness" to make it obvious that higher numbers bind more tightly, and is a floating-point number.  Using a DAG for precedence, as in Danielsson-Norell, is a nice idea, but it seems to require a lot of backtracking: if when parsing the right-hand argument of a notation ∧ you encounter a notation * that isn't tighter than ∧, you can't know yet that it is forbidden; you have to keep parsing in case you encounter another notation like = that is tighter than ∧ and looser than *, or in fact multiple such notations forming some arbitrarily complicated path through the DAG.  This is incompatible with the minimal-backtracking approach we take, so we stick to numerical tightnesses.
 
-   Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side), so we give those a tightness of NaN.  User-defined notations that are open on at least one side have finite tightness, while +ω and −ω tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −ω, while all outfix notations such as parentheses (and also, morally, application) have tightness +ω. *)
+   Our approach is based on the parsing technique of Pratt.  This means that a notation that's closed on both sides doesn't need a tightness at all (it behaves like the highest possible tightness on a closed side); in practice they end up with +ω.  User-defined notations that are open on at least one side have finite tightness, while +ω and −ω tightness are reserved for internal built-in notations (let-in, abstraction, and ascription are −ω, while all outfix notations such as parentheses (and also, morally, application) have tightness +ω. *)
 and ('left, 'tight, 'right) notation = {
   name : string;
   id : int; (* Autonumber primary key *)
@@ -284,21 +286,11 @@ let make :
     processor = None;
   }
 
-(* Split off the ending whitespace after the first newline. *)
-let rec split_whitespace (ws : Whitespace.t list) : Whitespace.t list * Whitespace.t list =
-  match ws with
-  | [] -> ([], [])
-  | `Line l :: rest -> ([ `Line l ], rest)
-  | `Block b :: rest ->
-      let first, rest = split_whitespace rest in
-      (`Block b :: first, rest)
-  | `Newlines _ :: _ -> ([], ws)
-
 let rec split_last_whitespace (ws : Whitespace.alist) : Whitespace.alist * Whitespace.t list =
   match ws with
   | [] -> ([], [])
   | [ (k, w) ] ->
-      let first, rest = split_whitespace w in
+      let first, rest = Whitespace.split w in
       ([ (k, first) ], rest)
   | kw :: ws ->
       let first, rest = split_last_whitespace ws in
@@ -325,19 +317,19 @@ let rec split_ending_whitespace :
           let arg, rest = split_ending_whitespace arg in
           ({ value = App { fn; arg; left_ok; right_ok }; loc }, rest)
       | Placeholder ws ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Placeholder first; loc }, rest)
       | Ident (x, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Ident (x, first); loc }, rest)
       | Constr (c, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Constr (c, first); loc }, rest)
       | Field (f, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Field (f, first); loc }, rest)
       | Superscript (x, s, ws) ->
-          let first, rest = split_whitespace ws in
+          let first, rest = Whitespace.split ws in
           ({ value = Superscript (x, s, first); loc }, rest))
 
 (* Helper functions for constructing notation trees *)

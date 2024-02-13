@@ -1,5 +1,3 @@
-  $ alias narya=../../bin/narya.exe
-
 Testing parsing of commands, on the command line:
 
   $ narya -e 'axiom A : Type'
@@ -42,6 +40,6 @@ Can we parse empty things?
 Redefining commands
 
   $ narya -e 'axiom A:Type' -e 'axiom A:Type'
-   ￫ warning[E2000]
+   ￫ warning[E2100]
    ￮ redefining constant: A
   

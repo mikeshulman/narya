@@ -58,7 +58,7 @@ let test_reformat () =
 
   (* Binary operators *)
   Types.Nat.install ();
-  Types.Nat.install_ops ();
+  Testutil.Repl.nat_install_ops ();
   reformat "x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x";
   reformat "x + x * x + x * x * x + x * x * x * x + x + x * x * x * x * x * x * x";
 

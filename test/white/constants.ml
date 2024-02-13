@@ -1,5 +1,4 @@
-open Testutil
-open Repl
+open Testutil.Repl
 open Core
 
 let () =
@@ -13,11 +12,11 @@ let () =
   def "four" "CN" "A f x ↦ f (f (f (f x)))";
   equal_at "one" "one" "CN";
   unequal_at "one" "zero" "CN";
-  def "plus" "CN → CN → CN" "m n A f x ↦ m A f (n A f x)";
-  equal_at "plus one one" "two" "CN";
-  unequal_at "plus one two" "two" "CN";
-  def "times" "CN → CN → CN" "m n A f x ↦ m A (n A f) x";
-  equal_at "times two two" "four" "CN";
+  def "cplus" "CN → CN → CN" "m n A f x ↦ m A f (n A f x)";
+  equal_at "cplus one one" "two" "CN";
+  unequal_at "cplus one two" "two" "CN";
+  def "ctimes" "CN → CN → CN" "m n A f x ↦ m A (n A f) x";
+  equal_at "ctimes two two" "four" "CN";
 
   (* Sigma-types *)
   Types.Sigma.install ();
@@ -55,7 +54,7 @@ let () =
   equal_at "zeros .tail .head" "zero" "CN";
   equal_at "zeros .tail .tail .head" "zero" "CN";
   equal_at "zeros .tail .tail .tail .head" "zero" "CN";
-  def "nats" "CN → Stream CN" "n ↦ [ .head ↦ n | .tail ↦ nats (plus n one) ]";
+  def "nats" "CN → Stream CN" "n ↦ [ .head ↦ n | .tail ↦ nats (cplus n one) ]";
   equal_at "nats zero .tail .tail .head" "two" "CN";
   equal_at "nats zero .tail .tail .tail .tail .head" "four" "CN";
 
@@ -67,7 +66,7 @@ let () =
 
   (* Natural numbers *)
   Types.Nat.install ();
-  Types.Nat.install_ops ();
+  Testutil.Repl.nat_install_ops ();
 
   (* Lists *)
   Types.Lst.install ();

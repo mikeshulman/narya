@@ -1051,12 +1051,12 @@ let builtins =
     |> State.add fwd
     |> State.add bwd
     |> State.add_user "cons" (Infixr No.zero)
-         [ `Var ("x", `Nobreak); `Op (Op ":>", `Break); `Var ("xs", `Nobreak) ]
+         [ `Var ("x", `Break, []); `Op (Op ":>", `Nobreak, []); `Var ("xs", `None, []) ]
          (`Constr (Constr.intern "cons"))
-         `Hv [ "x"; "xs" ]
+         [ "x"; "xs" ]
     |> State.add_user "snoc" (Infixl No.zero)
-         [ `Var ("xs", `Break); `Op (Op "<:", `Nobreak); `Var ("x", `Nobreak) ]
+         [ `Var ("xs", `Break, []); `Op (Op "<:", `Nobreak, []); `Var ("x", `None, []) ]
          (`Constr (Constr.intern "snoc"))
-         `Hv [ "xs"; "x" ])
+         [ "xs"; "x" ])
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

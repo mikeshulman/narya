@@ -1,4 +1,4 @@
-  $ ../../../bin/narya.exe -v parametric_identity.ny
+  $ narya -v parametric_identity.ny
    ￫ info[I0001]
    ￮ Axiom eq assumed
   

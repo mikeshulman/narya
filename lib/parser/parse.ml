@@ -475,6 +475,95 @@ module Parse_command = struct
     let* tm = C.term [] in
     return (Command.Echo { wsecho; tm })
 
+  let tightness_and_name :
+      (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
+    let* tight_or_name = ident in
+    (let* name, wsname = ident in
+     let tight, wstight = tight_or_name in
+     let tight = String.concat "." tight in
+     match No.of_rat (Q.of_string tight) with
+     | Some tight -> return (Some tight, wstight, name, wsname)
+     | None -> fatal (Invalid_tightness tight))
+    </>
+    let name, wsname = tight_or_name in
+    return (None, [], name, wsname)
+
+  let pattern_token =
+    step "" (fun state _ (tok, ws) ->
+        match tok with
+        | String str -> (
+            match Lexer.single str with
+            | Some tok -> Some (`Op (tok, `Nobreak, ws), state)
+            | None -> fatal (Invalid_notation_symbol str))
+        | _ -> None)
+
+  let pattern_var =
+    let* x, ws = ident in
+    match x with
+    | [ x ] -> return (`Var (x, `Break, ws))
+    | _ -> fatal (Invalid_variable x)
+
+  let pattern_ellipsis =
+    let* ws = token Ellipsis in
+    return (`Ellipsis ws)
+
+  let fixity_of_pattern pat tight =
+    match (pat, Bwd.of_list pat, tight) with
+    | `Op _ :: _, Snoc (_, `Op _), None -> (Fixity Outfix, pat, [])
+    | `Op _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Prefix tight), pat, [])
+    | `Op _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
+        (Fixity (Prefixr tight), Bwd.to_list bwd_pat, ws)
+    | `Var _ :: _, Snoc (_, `Op _), Some (No.Wrap tight) -> (Fixity (Postfix tight), pat, [])
+    | `Ellipsis ws :: pat, Snoc (_, `Op _), Some (No.Wrap tight) ->
+        (Fixity (Postfixl tight), pat, ws)
+    | `Var _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infix tight), pat, [])
+    | `Ellipsis ws :: pat, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infixl tight), pat, ws)
+    | `Var _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
+        (Fixity (Infixr tight), Bwd.to_list bwd_pat, ws)
+    | [ `Ellipsis _ ], Snoc (Emp, `Ellipsis _), _ -> fatal Zero_notation_symbols
+    | `Ellipsis _ :: _, Snoc (_, `Ellipsis _), _ -> fatal Ambidextrous_notation
+    | _ -> fatal Fixity_mismatch
+
+  let notation_head =
+    step "" (fun state _ (tok, ws) ->
+        match tok with
+        | Ident name -> Some ((`Constant name, ws), state)
+        | Constr c -> Some ((`Constr c, ws), state)
+        | _ -> None)
+
+  let notation_var =
+    let* x, ws = ident in
+    match x with
+    | [ x ] -> return (x, ws)
+    | _ -> fatal (Invalid_variable x)
+
+  let notation : Command.t C.Basic.t =
+    let* wsnotation = token Notation in
+    let* tight, wstight, name, wsname = tightness_and_name in
+    let* wscolon = token Colon in
+    let* pat, pattern = one_or_more (pattern_token </> pattern_var </> pattern_ellipsis) in
+    let pattern = pat :: pattern in
+    let Fixity fixity, pattern, wsellipsis = fixity_of_pattern pattern tight in
+    let* wscoloneq = token Coloneq in
+    let* head, wshead = notation_head in
+    let* args = zero_or_more notation_var in
+    return
+      (Command.Notation
+         {
+           fixity;
+           wsnotation;
+           wstight;
+           wsellipsis;
+           name;
+           wsname;
+           wscolon;
+           pattern;
+           wscoloneq;
+           head;
+           wshead;
+           args;
+         })
+
   let bof =
     let* ws = C.bof in
     return (Command.Bof ws)
@@ -483,7 +572,8 @@ module Parse_command = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command : unit -> Command.t C.Basic.t = fun () -> bof </> axiom </> def </> echo </> eof
+  let command : unit -> Command.t C.Basic.t =
+   fun () -> bof </> axiom </> def </> echo </> notation </> eof
 
   let command_or_echo : unit -> Command.t C.Basic.t =
    fun () ->
@@ -531,3 +621,14 @@ module Parse_command = struct
   let final p = C.Lex_and_parse.final p
   let has_consumed_end p = C.Lex_and_parse.has_consumed_end p
 end
+
+let parse_and_execute_command (content : string) : unit =
+  let src : Asai.Range.source = `String { content; title = Some "interactive input" } in
+  let p, src = Parse_command.start_parse ~or_echo:true src in
+  let _bof = Parse_command.final p in
+  let p, src = Parse_command.restart_parse ~or_echo:true p src in
+  let cmd = Parse_command.final p in
+  if cmd <> Eof then
+    let p, _ = Parse_command.restart_parse ~or_echo:true p src in
+    let eof = Parse_command.final p in
+    if eof = Eof then Command.execute cmd else Core.Reporter.fatal Too_many_commands

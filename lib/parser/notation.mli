@@ -18,6 +18,8 @@ type (_, _, _) fixity =
   | Postfixl : 'tight No.t -> (No.nonstrict opn, 'tight, closed) fixity
   | Outfix : (closed, No.plus_omega, closed) fixity
 
+type wrapped_fixity = Fixity : ('left, 'tight, 'right) fixity -> wrapped_fixity
+
 val fixprops : ('left, 'tight, 'right) fixity -> 'left openness * 'tight No.t * 'right openness
 
 type space =

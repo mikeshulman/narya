@@ -31,6 +31,7 @@ type t =
   | Data (* data *)
   | Codata (* codata *)
   | Section (* section *)
+  | Notation
   | Let (* let *)
   | In (* in *)
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
@@ -153,6 +154,7 @@ let to_string = function
   | Data -> "data"
   | Codata -> "codata"
   | Section -> "section"
+  | Notation -> "notation"
   | Let -> "let"
   | In -> "in"
   | Op s -> s

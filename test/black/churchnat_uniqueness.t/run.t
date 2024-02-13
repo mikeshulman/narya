@@ -1,4 +1,4 @@
-  $ ../../../bin/narya.exe -v churchnat_uniqueness.ny
+  $ narya -v churchnat_uniqueness.ny
    ￫ info[I0001]
    ￮ Axiom eq assumed
   

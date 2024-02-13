@@ -17,9 +17,9 @@ let lookup name = Option.map fst (S.resolve name)
 
 let name_of c =
   match find_data (S.get_visible ()) c with
-  | Some name -> String.concat "." name
+  | Some name -> name
   (* TODO: Better to munge the original name. *)
-  | None -> "_UNNAMED_CONSTANT"
+  | None -> [ "_UNNAMED_CONSTANT" ]
 
 (* If we already have a Constant.t, set a name to refer to that constant.  (Used for whitebox testing.) *)
 let set name c = S.include_singleton (name, (c, ()))

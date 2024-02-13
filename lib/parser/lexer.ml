@@ -18,15 +18,16 @@ end
 module Basic = Ucharacter.Make_utf8 (Bool) (Located_token) (Unit)
 open Basic
 
-(* A line comment starts with a backquote and extends to the end of the line.  *)
-let line_comment : Whitespace.t t =
-  let* c = word (fun c -> c = '`') (fun c -> c <> '\n') "line comment" in
-  let* () = set true in
-  return (`Line (String.sub c 1 (String.length c - 1)))
-
 let backquote = Uchar.of_char '`'
+let newline = Uchar.of_char '\n'
 let lbrace = Uchar.of_char '{'
 let rbrace = Uchar.of_char '}'
+
+(* A line comment starts with a backquote and extends to the end of the line.  *)
+let line_comment : Whitespace.t t =
+  let* c = uword (fun c -> c = backquote) (fun c -> c <> newline) "line comment" in
+  let* () = set true in
+  return (`Line (String.sub c 1 (String.length c - 1)))
 
 (* A block comment starts with {` and ends with `}, and can be nested.  *)
 let block_comment : Whitespace.t t =
@@ -68,16 +69,17 @@ let whitespace : Whitespace.t list t =
 (* A quoted string starts and ends with double-quotes, and allows backslash-quoted double-quotes and backslashes inside. *)
 let quoted_string : Token.t t =
   let* _ = char '"' in
-  let buf = Buffer.create 10 in
-  let rec rest state =
+  let rec rest state str =
     let* c = ucharp (fun _ -> true) "any character" in
     match (state, Utf8.Encoder.to_internal c) with
-    | `None, "\"" -> return (Token.String (Buffer.contents buf))
-    | `None, "\\" -> rest `Quoted
-    | `None, c | `Quoted, c ->
-        Buffer.add_string buf c;
-        rest `None in
-  rest `None
+    | `None, "\"" | `Backquote, "\"" -> return (String str)
+    | `None, "\\" | `Backquote, "\\" -> rest `Quoted str
+    | _, "`" -> rest `Backquote (str ^ "`")
+    | `Backquote, "}" ->
+        emit Comment_end_in_string;
+        rest `None (str ^ "}")
+    | _, c -> rest `None (str ^ c) in
+  rest `None ""
 
 (* Any of these characters is always its own token. *)
 let onechar_ops =
@@ -192,6 +194,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "data" -> return Data
   | "codata" -> return Codata
   | "section" -> return Section
+  | "notation" -> return Notation
   | "." -> return Dot
   | "..." -> return Ellipsis
   | "_" -> return Underscore
@@ -235,3 +238,32 @@ module Parser = struct
   let start : t = make_partial Position.start false bof
   let restart (lex : t) : t = make_partial (position lex) false token |> transfer_lookahead lex
 end
+
+module Single_token = struct
+  module Basic = Token_parser.Make (Unit) (Token_whitespace) (Token_whitespace) (Unit)
+  open Basic
+
+  let token : Token_whitespace.t t = step "token" (fun state _ tok -> Some (tok, state))
+
+  module Parser = struct
+    include Basic.Parser
+
+    let start : t =
+      make ()
+        ((* bof *)
+         let* _ = token in
+         token)
+  end
+end
+
+module Lex_and_parse_single =
+  Parse_with_lexer.Make_utf8 (Unit) (Token_whitespace) (Token_whitespace) (Unit) (Parser)
+    (Single_token.Parser)
+
+let single str =
+  let open Lex_and_parse_single in
+  let p = run_on_string str (make Parser.start Single_token.Parser.start) in
+  if has_succeeded p then
+    let tok, ws = final p in
+    if ws = [] then Some tok else None
+  else None

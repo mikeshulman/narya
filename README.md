@@ -82,11 +82,25 @@ Similarly, the forwards list notation `[> 1, 2, 3 >]` is automatically parsed as
 
 A Narya file is a sequence of commands.  Conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  So far, the available commands are:
 
-1. `def NAME : TYPE ≔ TERM` – Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).
+1. `def NAME : TYPE ≔ TERM`
 
-2. `axiom NAME : TYPE` – Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).
+   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).
 
-3. `echo TERM` – Normalize `TERM` and print its value to standard output.  Note that `TERM` must synthesize a type; if it is a checking term you must ascribe it. 
+2. `axiom NAME : TYPE`
+
+   Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).
+
+3. `echo TERM`
+
+   Normalize `TERM` and print its value to standard output.  Note that `TERM` must synthesize a type; if it is a checking term you must ascribe it. 
+
+4. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
+
+   Declare a new mixfix notation.  The `TIGHTNESS` must be a finite dyadic rational number, written in decimal notation; it must be present for infix, prefix, and postfix notations, and absent for outfix notations (those that both start and end with a symbol).  Every notation must then have a `NAME`, which is an identifier like the name of a constant and is entered in the global namespace as `notation.NAME`; this is used to identify it in error messages, and will eventually be used for importing and exporting notations.
+
+   The `PATTERN` of a notation is a list of interspersed distinct local variable names and double-quoted symbols, such as `x "+" y` for addition or `Γ "⊢" x "⦂" A` for a typing judgment.  Each quoted symbol must be exactly one token; any two variables must be separated by a symbol (but two symbols can follow each other without a variable in between); and there must be at least one symbol.  If a pattern starts with a variable, it may be preceded by an ellipsis, indicating that it is left-associative; and dually if it ends with a variable, it may be followed by an ellipsis, indicating that it is right-associative (but not both).
+   
+   The value of a notation consists of a `HEAD`, which is either a previously defined constant or a constructor, followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, in some order.  This restriction ensures that the notation can be used for printing as well as parsing; in the future it may be relaxed.
 
 When the Narya executable is run, it executes all the files given on its command line, in order.  As usual, the special filename `-` refers to standard input.  It then executes any strings supplied on the command line with `-e`.  Finally, if `-i` was given, it enters interactive mode.
 

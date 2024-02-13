@@ -7,7 +7,7 @@
     (goto-char (point-min))
     (let ((terms '()))
       (setq my-proof-dynamic-terms '())
-      (while (re-search-forward "\\(axiom\\|def\\|echo\\) \\([a-zA-Z0-9]+\\(?:_+[a-zA-Z0-9]+\\)*\\)\\s-*:" nil t)
+      (while (re-search-forward "\\(axiom\\|def\\) \\([a-zA-Z0-9]+\\(?:_+[a-zA-Z0-9]+\\)*\\)\\s-*:" nil t)
         (let ((const-name (match-string 2)))
           (unless (member const-name terms)
             (push const-name terms))))
@@ -21,7 +21,7 @@
 ;; Define the syntax highlighting
 (defvar narya-font-lock-keywords
   `(
-    ("\\<\\(axiom\\|def\\)\\>" . 'font-lock-keyword-face)
+    ("\\<\\(axiom\\|def\\|echo\\)\\>" . 'font-lock-keyword-face)
     ("\\<\\(Type\\|Id\\|refl\\|sym\\|Gel\\|ungel\\)\\>" . 'font-lock-constant-face)
     ))
     

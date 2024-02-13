@@ -194,14 +194,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "data" -> return Data
   | "codata" -> return Codata
   | "section" -> return Section
-  | "infix" -> return Infix
-  | "infixl" -> return Infixl
-  | "infixr" -> return Infixr
-  | "prefix" -> return Prefix
-  | "prefixr" -> return Prefixr
-  | "postfix" -> return Postfix
-  | "postfixl" -> return Postfixl
-  | "outfix" -> return Outfix
+  | "notation" -> return Notation
   | "." -> return Dot
   | "..." -> return Ellipsis
   | "_" -> return Underscore
@@ -272,5 +265,5 @@ let single str =
   let p = run_on_string str (make Parser.start Single_token.Parser.start) in
   if has_succeeded p then
     let tok, ws = final p in
-    if ws = [] then tok else fatal (Invalid_notation_part str)
-  else fatal (Invalid_notation_part str)
+    if ws = [] then Some tok else None
+  else None

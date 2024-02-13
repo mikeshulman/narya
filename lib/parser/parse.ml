@@ -475,41 +475,26 @@ module Parse_command = struct
     let* tm = C.term [] in
     return (Command.Echo { wsecho; tm })
 
-  let fixities : Token.t Array.t =
-    [| Infix; Infixl; Infixr; Prefix; Prefixr; Postfix; Postfixl; Outfix |]
-
-  let fixity =
-    step "" (fun state _ (tok, w) ->
-        if Array.mem tok fixities then Some ((tok, w), state) else None)
-
-  let make_fixity (fix : Token.t) tight =
-    match fix with
-    | Infix -> Fixity (Infix tight)
-    | Infixl -> Fixity (Infixl tight)
-    | Infixr -> Fixity (Infixr tight)
-    | Prefix -> Fixity (Prefix tight)
-    | Prefixr -> Fixity (Prefixr tight)
-    | Postfix -> Fixity (Postfix tight)
-    | Postfixl -> Fixity (Postfixl tight)
-    | _ -> fatal (Anomaly "invalid fixity")
-
-  let tightness (fix : Token.t) : (wrapped_fixity * Whitespace.t list) t =
-    if fix = Outfix then return (Fixity Outfix, [])
-    else
-      let* x, ws = ident in
-      let x = String.concat "." x in
-      try
-        match No.of_rat (Q.of_string x) with
-        | Some (Wrap tight) -> return (make_fixity fix tight, ws)
-        | None -> fatal (Invalid_tightness x)
-      with Invalid_argument _ -> fatal (Invalid_tightness x)
+  let tightness_and_name :
+      (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
+    let* tight_or_name = ident in
+    (let* name, wsname = ident in
+     let tight, wstight = tight_or_name in
+     let tight = String.concat "." tight in
+     match No.of_rat (Q.of_string tight) with
+     | Some tight -> return (Some tight, wstight, name, wsname)
+     | None -> fatal (Invalid_tightness tight))
+    </>
+    let name, wsname = tight_or_name in
+    return (None, [], name, wsname)
 
   let pattern_token =
     step "" (fun state _ (tok, ws) ->
         match tok with
-        | String str ->
-            let tok = Lexer.single str in
-            Some (`Op (tok, `Nobreak, ws), state)
+        | String str -> (
+            match Lexer.single str with
+            | Some tok -> Some (`Op (tok, `Nobreak, ws), state)
+            | None -> fatal (Invalid_notation_symbol str))
         | _ -> None)
 
   let pattern_var =
@@ -517,6 +502,27 @@ module Parse_command = struct
     match x with
     | [ x ] -> return (`Var (x, `Break, ws))
     | _ -> fatal (Invalid_variable x)
+
+  let pattern_ellipsis =
+    let* ws = token Ellipsis in
+    return (`Ellipsis ws)
+
+  let fixity_of_pattern pat tight =
+    match (pat, Bwd.of_list pat, tight) with
+    | `Op _ :: _, Snoc (_, `Op _), None -> (Fixity Outfix, pat, [])
+    | `Op _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Prefix tight), pat, [])
+    | `Op _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
+        (Fixity (Prefixr tight), Bwd.to_list bwd_pat, ws)
+    | `Var _ :: _, Snoc (_, `Op _), Some (No.Wrap tight) -> (Fixity (Postfix tight), pat, [])
+    | `Ellipsis ws :: pat, Snoc (_, `Op _), Some (No.Wrap tight) ->
+        (Fixity (Postfixl tight), pat, ws)
+    | `Var _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infix tight), pat, [])
+    | `Ellipsis ws :: pat, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infixl tight), pat, ws)
+    | `Var _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
+        (Fixity (Infixr tight), Bwd.to_list bwd_pat, ws)
+    | [ `Ellipsis _ ], Snoc (Emp, `Ellipsis _), _ -> fatal Zero_notation_symbols
+    | `Ellipsis _ :: _, Snoc (_, `Ellipsis _), _ -> fatal Ambidextrous_notation
+    | _ -> fatal Fixity_mismatch
 
   let notation_head =
     step "" (fun state _ (tok, ws) ->
@@ -532,18 +538,31 @@ module Parse_command = struct
     | _ -> fatal (Invalid_variable x)
 
   let notation : Command.t C.Basic.t =
-    let* fix, wsfix = fixity in
-    let* Fixity fixity, wstight = tightness fix in
-    let* name, wsname = ident in
+    let* wsnotation = token Notation in
+    let* tight, wstight, name, wsname = tightness_and_name in
     let* wscolon = token Colon in
-    let* pat, pattern = one_or_more (pattern_token </> pattern_var) in
+    let* pat, pattern = one_or_more (pattern_token </> pattern_var </> pattern_ellipsis) in
     let pattern = pat :: pattern in
+    let Fixity fixity, pattern, wsellipsis = fixity_of_pattern pattern tight in
     let* wscoloneq = token Coloneq in
     let* head, wshead = notation_head in
     let* args = zero_or_more notation_var in
     return
       (Command.Notation
-         { fixity; wsfix; wstight; name; wsname; wscolon; pattern; wscoloneq; head; wshead; args })
+         {
+           fixity;
+           wsnotation;
+           wstight;
+           wsellipsis;
+           name;
+           wsname;
+           wscolon;
+           pattern;
+           wscoloneq;
+           head;
+           wshead;
+           args;
+         })
 
   let bof =
     let* ws = C.bof in

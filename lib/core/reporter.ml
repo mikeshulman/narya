@@ -92,10 +92,17 @@ module Code = struct
     | Invalid_constant_name : string -> t
     | Too_many_commands : t
     | Invalid_tightness : string -> t
-    | Invalid_fixity : t
-    | Invalid_notation_part : string -> t
+    | Fixity_mismatch : t
+    | Zero_notation_symbols : t
+    | Missing_notation_symbol : t
+    | Ambidextrous_notation : t
+    | Invalid_notation_symbol : string -> t
     | Invalid_notation_head : string -> t
-    | Invalid_notation_pattern : string -> t
+    | Duplicate_notation_variable : string -> t
+    | Unused_notation_variable : string -> t
+    | Notation_variable_used_twice : string -> t
+    | Unbound_variable_in_notation : string list -> t
+    | Head_already_has_notation : string -> t
     | Constant_assumed : printable -> t
     | Constant_defined : printable -> t
     | Notation_defined : string -> t
@@ -163,10 +170,17 @@ module Code = struct
     | Invalid_constant_name _ -> Error
     | Too_many_commands -> Error
     | Invalid_tightness _ -> Error
-    | Invalid_fixity -> Error
-    | Invalid_notation_part _ -> Error
+    | Fixity_mismatch -> Error
+    | Zero_notation_symbols -> Error
+    | Missing_notation_symbol -> Error
+    | Ambidextrous_notation -> Error
+    | Invalid_notation_symbol _ -> Error
     | Invalid_notation_head _ -> Error
-    | Invalid_notation_pattern _ -> Error
+    | Duplicate_notation_variable _ -> Error
+    | Unused_notation_variable _ -> Error
+    | Notation_variable_used_twice _ -> Error
+    | Unbound_variable_in_notation _ -> Error
+    | Head_already_has_notation _ -> Warning
     | Constant_assumed _ -> Info
     | Constant_defined _ -> Info
     | Notation_defined _ -> Info
@@ -248,14 +262,23 @@ module Code = struct
     | Duplicate_method_in_comatch _ -> "E1404"
     | Invalid_method_in_comatch -> "E1405"
     (* Commands *)
-    | Constant_already_defined _ -> "E2000"
-    | Invalid_constant_name _ -> "E2001"
-    | Too_many_commands -> "E2002"
-    | Invalid_fixity -> "E2003"
-    | Invalid_tightness _ -> "E2004"
-    | Invalid_notation_part _ -> "E2005"
-    | Invalid_notation_head _ -> "E2006"
-    | Invalid_notation_pattern _ -> "E2007"
+    | Too_many_commands -> "E2000"
+    (* def *)
+    | Constant_already_defined _ -> "E2100"
+    | Invalid_constant_name _ -> "E2101"
+    (* notation *)
+    | Invalid_tightness _ -> "E2200"
+    | Invalid_notation_symbol _ -> "E2201"
+    | Zero_notation_symbols -> "E2202"
+    | Missing_notation_symbol -> "E2203"
+    | Ambidextrous_notation -> "E2204"
+    | Fixity_mismatch -> "E2205"
+    | Duplicate_notation_variable _ -> "E2206"
+    | Invalid_notation_head _ -> "E2207"
+    | Unused_notation_variable _ -> "E2208"
+    | Notation_variable_used_twice _ -> "E2209"
+    | Unbound_variable_in_notation _ -> "E2210"
+    | Head_already_has_notation _ -> "E2211"
     (* Information *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -409,11 +432,22 @@ module Code = struct
     | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"
-    | Invalid_fixity -> text "declared fixity doesn't match notation pattern"
+    | Fixity_mismatch ->
+        text
+          "notation command doesn't match pattern (tightness must be omitted only for outfix notations)"
+    | Zero_notation_symbols -> text "notation has no symbols"
+    | Missing_notation_symbol -> text "missing notation symbol between variables"
+    | Ambidextrous_notation -> text "notation can't be both right and left associative"
     | Invalid_tightness str -> textf "invalid tightness: %s" str
-    | Invalid_notation_part str -> textf "invalid notation part: %s" str
+    | Invalid_notation_symbol str -> textf "invalid notation symbol: %s" str
     | Invalid_notation_head str -> textf "invalid notation head: %s" str
-    | Invalid_notation_pattern str -> textf "invalid notation pattern: '%s'" str
+    | Duplicate_notation_variable x -> textf "duplicate notation variable: '%s'" x
+    | Unused_notation_variable x -> textf "unused notation variable: '%s'" x
+    | Notation_variable_used_twice x -> textf "notation variable '%s' used twice" x
+    | Unbound_variable_in_notation xs ->
+        textf "unbound variable(s) in notation definition: %s" (String.concat ", " xs)
+    | Head_already_has_notation name ->
+        textf "replacing printing notation for %s (previous notation will still be parseable)" name
     | Constant_assumed name -> textf "Axiom %a assumed" pp_printed (print name)
     | Constant_defined name -> textf "Constant %a defined" pp_printed (print name)
     | Notation_defined name -> textf "Notation %s defined" name

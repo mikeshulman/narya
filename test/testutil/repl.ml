@@ -147,13 +147,13 @@ let nat_install_ops () =
     | zero. ↦ m
     | suc. n ↦ suc. (plus m n)
   ]";
-  cmd "infixr 0 plus : m \"+\" n ≔ plus m n";
+  cmd "notation 0 plus : m \"+\" n … ≔ plus m n";
   def "times" "ℕ → ℕ → ℕ" "m n ↦
   [ n
     | zero. ↦ zero.
     | suc. n ↦ plus (times m n) m
   ]";
-  cmd "infixr 1 times : m \"*\" n ≔ times m n";
+  cmd "notation 1 times : m \"*\" n … ≔ times m n";
   def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
     "P z s n ↦
   [ n

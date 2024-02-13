@@ -122,9 +122,12 @@ let add_with_print : PrintKey.t -> permuted_notation -> t -> t =
     { state with unparse = state.unparse |> PrintMap.add key notn }
 
 type pattern =
-  [ `Op of Token.t * space * Whitespace.t list | `Var of string * space * Whitespace.t list ] list
+  [ `Op of Token.t * space * Whitespace.t list
+  | `Var of string * space * Whitespace.t list
+  | `Ellipsis of Whitespace.t list ]
+  list
 
-let simple_tree :
+let user_tree :
     type left tight right.
     (left, tight, right) fixity ->
     (left, tight, right) notation ->
@@ -132,20 +135,29 @@ let simple_tree :
     (left, tight) notation_entry =
  fun fixity notn pattern ->
   let left, _, _ = fixprops fixity in
-  let rec simple_tree pattern n =
+  let rec user_tree pattern n =
     match (pattern, left) with
     | [], Closed -> n
+    | [], Open _ -> fatal (Anomaly "pattern doesn't match deduced fixity")
     | [ `Var _ ], Open _ -> n
-    | `Op (tok, _, _) :: pat_vars, _ -> op tok (simple_tree pat_vars n)
-    | `Var _ :: `Op (tok, _, _) :: pat_vars, _ -> term tok (simple_tree pat_vars n)
-    | _ -> fatal Invalid_fixity in
+    | [ `Var _ ], Closed -> fatal (Anomaly "pattern doesn't match deduced fixity")
+    | `Op (tok, _, _) :: pat_vars, _ -> op tok (user_tree pat_vars n)
+    | `Var _ :: `Op (tok, _, _) :: pat_vars, _ -> term tok (user_tree pat_vars n)
+    | `Var _ :: `Var _ :: _, _ -> fatal Missing_notation_symbol
+    | `Var _ :: `Ellipsis _ :: _, _ -> fatal (Unimplemented "internal ellipses in notation")
+    | `Ellipsis _ :: _, _ -> fatal (Unimplemented "internal ellipses in notation") in
   match (pattern, left) with
-  | [], _ -> fatal Invalid_fixity
+  | [], _ -> fatal (Anomaly "empty pattern")
   | `Op (tok, _, _) :: pat_vars, Closed ->
-      Closed_entry (eop tok (simple_tree pat_vars (Done_closed notn)))
+      Closed_entry (eop tok (user_tree pat_vars (Done_closed notn)))
   | `Var _ :: `Op (tok, _, _) :: pat_vars, Open _ ->
-      Open_entry (eop tok (simple_tree pat_vars (done_open notn)))
-  | _ -> fatal Invalid_fixity
+      Open_entry (eop tok (user_tree pat_vars (done_open notn)))
+  | `Var _ :: _, Closed | `Op _ :: _, Open _ ->
+      fatal (Anomaly "pattern doesn't match deduced fixity")
+  | `Var _ :: `Ellipsis _ :: _, _ | `Ellipsis _ :: _, _ ->
+      fatal (Unimplemented "internal ellipses in notation")
+  | `Var _ :: `Var _ :: _, _ -> fatal Missing_notation_symbol
+  | [ `Var _ ], _ -> fatal Zero_notation_symbols
 
 let add_user :
     type left tight right.
@@ -159,11 +171,11 @@ let add_user :
     t =
  fun name fixity pattern key val_vars state ->
   let n = make name fixity in
-  set_tree n (simple_tree fixity n pattern);
+  set_tree n (user_tree fixity n pattern);
   let pat_vars =
     List.filter_map
       (function
-        | `Op _ -> None
+        | `Op _ | `Ellipsis _ -> None
         | `Var (x, _, _) -> Some x)
       pattern in
   set_processor n
@@ -197,6 +209,7 @@ let add_user :
         pp_tok ppf op;
         pp_ws (if List.is_empty pat then space else br) ppf wsop;
         pp_user false ppf pat obs ws space
+    | `Ellipsis _ :: _, _ -> fatal (Unimplemented "internal ellipsis in notation pattern")
     | [ `Var (_, br, _) ], [ x ] -> (
         match x with
         | Term { value = Notn m; _ } when equal (notn m) n ->
@@ -217,6 +230,12 @@ let add_user :
       pp_close_box ppf ();
       pp_space ppf space);
   let state = add n state in
+  (if PrintMap.mem key state.unparse then
+     let keyname =
+       match key with
+       | `Constr c -> Constr.to_string c ^ "."
+       | `Constant c -> String.concat "." (Scope.name_of c) in
+     emit (Head_already_has_notation keyname));
   { state with unparse = state.unparse |> PrintMap.add key { notn = Wrap n; pat_vars; val_vars } }
 
 module S = Algaeff.State.Make (struct

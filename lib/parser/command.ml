@@ -30,8 +30,9 @@ type t =
   | Echo of { wsecho : Whitespace.t list; tm : observation }
   | Notation : {
       fixity : ('left, 'tight, 'right) fixity;
-      wsfix : Whitespace.t list;
-      wstight : Whitespace.t list;
+      wsnotation : Whitespace.t list;
+      wstight : Whitespace.t list; (* Empty for outfix *)
+      wsellipsis : Whitespace.t list; (* Empty for non-associative *)
       name : Scope.Trie.path;
       wsname : Whitespace.t list;
       wscolon : Whitespace.t list;
@@ -81,6 +82,16 @@ let execute : t -> unit = function
           Format.pp_print_newline Format.std_formatter ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
+      let notation_name = "notation" :: name in
+      if Option.is_some (Scope.lookup notation_name) then
+        emit (Constant_already_defined (String.concat "." notation_name));
+      (* TODO: Should the "name" of a notation actually be a Constant.t, to be looked up in the scope? *)
+      let _ = Scope.define notation_name in
+      Reporter.try_with ~fatal:(fun d ->
+          Scope.S.modify_visible (Yuujinchou.Language.except notation_name);
+          Scope.S.modify_export (Yuujinchou.Language.except notation_name);
+          Reporter.fatal_diagnostic d)
+      @@ fun () ->
       let head =
         match head with
         | `Constr c -> `Constr (Constr.intern c)
@@ -93,33 +104,31 @@ let execute : t -> unit = function
           (fun (args, seen) item ->
             match item with
             | `Var (x, _, _) -> (
-                if List.mem x seen then
-                  fatal (Invalid_notation_pattern ("duplicate variable: " ^ x));
+                if List.mem x seen then fatal (Duplicate_notation_variable x);
                 let found, rest = List.partition (fun (y, _) -> x = y) args in
                 match found with
                 | [ _ ] -> (rest, x :: seen)
-                | [] -> fatal (Invalid_notation_pattern ("unused variable: " ^ x))
-                | _ -> fatal (Invalid_notation_pattern ("variable used twice: " ^ x)))
-            | `Op _ -> (args, seen))
+                | [] -> fatal (Unused_notation_variable x)
+                | _ -> fatal (Notation_variable_used_twice x))
+            | `Op _ | `Ellipsis _ -> (args, seen))
           (args, []) pattern in
       if not (List.is_empty unbound) then
-        fatal
-          (Invalid_notation_pattern
-             ("unbound variable(s): " ^ String.concat ", " (List.map fst unbound)));
+        fatal (Unbound_variable_in_notation (List.map fst unbound));
       State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
       emit (Notation_defined (String.concat "." name))
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
-let fixity_toks : type left tight right. (left, tight, right) fixity -> Token.t * string = function
-  | Infix tight -> (Infix, No.to_string tight)
-  | Infixl tight -> (Infixl, No.to_string tight)
-  | Infixr tight -> (Infixr, No.to_string tight)
-  | Prefix tight -> (Prefix, No.to_string tight)
-  | Prefixr tight -> (Prefixr, No.to_string tight)
-  | Postfix tight -> (Postfix, No.to_string tight)
-  | Postfixl tight -> (Postfixl, No.to_string tight)
-  | Outfix -> (Outfix, "")
+let tightness_of_fixity : type left tight right. (left, tight, right) fixity -> string option =
+  function
+  | Infix tight
+  | Infixl tight
+  | Infixr tight
+  | Prefix tight
+  | Prefixr tight
+  | Postfix tight
+  | Postfixl tight -> Some (No.to_string tight)
+  | Outfix -> None
 
 let pp_pattern : formatter -> State.pattern -> unit =
  fun ppf pattern ->
@@ -133,6 +142,9 @@ let pp_pattern : formatter -> State.pattern -> unit =
           pp_print_string ppf "\"";
           pp_tok ppf op;
           pp_print_string ppf "\"";
+          pp_ws `Break ppf ws
+      | `Ellipsis ws ->
+          pp_tok ppf Ellipsis;
           pp_ws `Break ppf ws)
     pattern;
   pp_close_box ppf ()
@@ -176,18 +188,42 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_close_box ppf ();
       rest
   | Notation
-      { fixity; wsfix; wstight; name; wsname; wscolon; pattern; wscoloneq; head; wshead; args } ->
+      {
+        fixity;
+        wsnotation;
+        wstight;
+        wsellipsis;
+        name;
+        wsname;
+        wscolon;
+        pattern;
+        wscoloneq;
+        head;
+        wshead;
+        args;
+      } ->
       pp_open_hvbox ppf 2;
-      let fix_tok, tight_tok = fixity_toks fixity in
-      pp_tok ppf fix_tok;
-      pp_ws `Nobreak ppf wsfix;
-      pp_print_string ppf tight_tok;
+      pp_tok ppf Notation;
+      pp_ws `Nobreak ppf wsnotation;
+      (match tightness_of_fixity fixity with
+      | Some str -> pp_print_string ppf str
+      | None -> ());
       pp_ws `Nobreak ppf wstight;
       pp_utf_8 ppf (String.concat "." name);
       pp_ws `Break ppf wsname;
       pp_tok ppf Colon;
       pp_ws `Nobreak ppf wscolon;
+      (match fixity with
+      | Infixl _ | Postfixl _ ->
+          pp_tok ppf Ellipsis;
+          pp_ws `Break ppf wsellipsis
+      | _ -> ());
       pp_pattern ppf pattern;
+      (match fixity with
+      | Infixr _ | Prefixr _ ->
+          pp_tok ppf Ellipsis;
+          pp_ws `Break ppf wsellipsis
+      | _ -> ());
       pp_tok ppf Coloneq;
       pp_ws `Nobreak ppf wscoloneq;
       (match head with

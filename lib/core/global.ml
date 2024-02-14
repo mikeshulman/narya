@@ -16,13 +16,13 @@ type definition =
   | Axiom : definition
   | Defined : emp Case.tree ref -> definition
   | Record : {
-      (* Whether the record type supports eta-conversion *)
+      (* Whether the type supports eta-conversion, i.e. whether it is really a record type or a codatatype. *)
       eta : eta;
       (* The number of parameters of an instance of the record type, which must also be the number of Pis in its type (which is where the types *of* the parameters are recorded). *)
       params : (emp, 'p, 'pc, D.zero) exts;
       (* The dimension of the record type itself, as a type.  In nearly all cases this will be zero; the main exception is Gel/Corr. *)
       dim : 'n D.t;
-      (* The fields are listed in order, so that each can depend on the previous ones.  Each field has a type that depends on the parameters of the record type, along with an element of that type and its boundaries if any. *)
+      (* The fields are listed in order, so that each can depend on the previous ones.  But instead of explicitly depending on those prevous fields as variables, each field has a type that depends on the parameters of the record type, along with an element of the record type itself (and its boundaries, if any), by way of projecting out its fields. *)
       fields : (Field.t, ('pc, 'n) ext term) Abwd.t;
     }
       -> definition

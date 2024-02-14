@@ -194,7 +194,7 @@ let rec check : type a b. (a, b) Ctx.t -> a check located -> value -> b term =
                       [ tyargs ] in
                   (* Now we evaluate each argument *type* of the constructor at the parameters and the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
                   let env, newargs =
-                    check_tel constr ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
+                    check_at_tel constr ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
                   (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
                   let constr_indices =
                     Bwv.map
@@ -419,7 +419,7 @@ and synth_app :
       fatal (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PUninst (ctx, fnty)))
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube. *)
-and check_tel :
+and check_at_tel :
     type n a b c bc e.
     Constr.t ->
     (a, e) Ctx.t ->
@@ -442,7 +442,7 @@ and check_tel :
             map =
               (fun fa [ tyargs ] ->
                 match tyargs with
-                | [] -> fatal (Anomaly "missing arguments in check_tel")
+                | [] -> fatal (Anomaly "missing arguments in check_at_tel")
                 | argtm :: argrest ->
                     let fa = sface_of_tface fa in
                     let argty =
@@ -466,7 +466,7 @@ and check_tel :
       let ctms = TubeOf.mmap { map = (fun _ [ t ] -> readback_nf ctx t) } [ tyarg ] in
       let etm = Ctx.eval ctx ctm in
       let newenv, newargs =
-        check_tel c ctx
+        check_at_tel c ctx
           (Ext
              ( env,
                CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm))
@@ -776,3 +776,20 @@ let rec check_tree :
   | _ ->
       let leaf = check ctx tm ty in
       tree := Case.Leaf leaf
+
+(* Given a raw telescope and a context, we can check it to produce a checked telescope and also a new context extended by that telescope. *)
+
+type (_, _) checked_tel =
+  | Checked_tel : ('b, 'd, 'bd) Telescope.t * ('ac, 'bd) Ctx.t -> ('ac, 'b) checked_tel
+
+let rec check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel =
+ fun ctx tel ->
+  match tel with
+  | Emp -> Checked_tel (Emp, ctx)
+  | Ext (x, ty, tys) ->
+      let cty = check ctx ty (universe D.zero) in
+      let ety = Ctx.eval ctx cty in
+      let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
+      let ctx = Ctx.vis ctx (`Cube x) newnfs in
+      let (Checked_tel (ctys, ctx)) = check_tel ctx tys in
+      Checked_tel (Ext (x, cty, ctys), ctx)

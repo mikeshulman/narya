@@ -82,13 +82,13 @@ Similarly, the forwards list notation `[> 1, 2, 3 >]` is automatically parsed as
 
 A Narya file is a sequence of commands.  Conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  So far, the available commands are:
 
-1. `def NAME : TYPE ≔ TERM`
+1. `def NAME [PARAMS] : TYPE ≔ TERM`
 
-   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).
+   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).  The optional list of `PARAMS` consists of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` over these parameters, and its value is the abstraction of `TERM` over them.
 
-2. `axiom NAME : TYPE`
+2. `axiom NAME [PARAMS] : TYPE`
 
-   Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).
+   Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).  Parameters are treated as for `def`.
 
 3. `echo TERM`
 

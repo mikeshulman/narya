@@ -12,7 +12,7 @@ axiom rev : (X:Type) (x y : X) (p : eq X x y) → eq X y x
 def nat : Type ≔ (A:Type) → A → (A → A) → A
 def zero : nat ≔ A z s ↦ z
 def suc : nat → nat ≔ n A z s ↦ s (n A z s)
-def ite : (A:Type) → A → (A → A) → nat → A ≔ A z s n ↦ n A z s
+def ite (A:Type) (z : A) (s : A → A) (n : nat) : A ≔ n A z s
 
 {` We postulate funext for such natural numbers.  (Doing it
 explicitly, for nat only, avoids the need to introduce dependent
@@ -37,13 +37,13 @@ we just use (binary) parametricity for n:
 `}
 
 def itenat
-  : ` two nat-algebras
+    ` two nat-algebras
 		(A:Type) (zA:A) (sA : A→A) (B:Type) (zB:B) (sB : B→B)
     ` and a nat-homomorphism between them
     (f : A → B) (zf : eq B (f zA) zB) (sf : (a:A) → eq B (f (sA a)) (sB (f a)))
     (n:nat)
-  → eq B (f (ite A zA sA n)) (ite B zB sB n)
-  ≔ A zA sA B zB sB f zf sf n ↦
+  : eq B (f (ite A zA sA n)) (ite B zB sB n)
+  ≔
   refl n A B (Gel A B (a b ↦ eq B (f a) b))
     zA zB (_ ≔ zf) sA sB
     (a b r ↦ (_ ≔ trans B (f (sA a)) (sB (f a)) (sB b) (sf a) (cong B B sB (f a) b (r .0)))) .0
@@ -61,20 +61,21 @@ def itenat
       ite_N n = n Nat zero suc = n
 `}
 
-def itenn : (n:nat) → eq nat (ite nat zero suc n) n
-  ≔ n ↦ natfunext (ite nat zero suc n) n
-            (X zX sX ↦ itenat nat zero suc X zX sX (ite X zX sX) (eqr X zX)
-                          (m ↦ eqr X (sX (ite X zX sX m))) n)
+def itenn (n:nat) : eq nat (ite nat zero suc n) n
+  ≔ natfunext (ite nat zero suc n) n
+       (X zX sX ↦ itenat nat zero suc X zX sX (ite X zX sX) (eqr X zX)
+                     (m ↦ eqr X (sX (ite X zX sX m))) n)
 
 {` - so now we can apply this to any f : N → A homomorphism and obtain
 
     f n = f (ite_N n) = ite_A n
 `}
 
-def uniq : (A:Type) (zA:A) (sA:A→A)
+def uniq (A:Type) (zA:A) (sA:A→A)
   (f:nat→A) (zf : eq A (f zero) zA) (sf : (n:nat) → eq A (f (suc n)) (sA (f n)))
-  (n : nat) → eq A (f n) (ite A zA sA n)
-  ≔ A zA sA f zf sf n ↦
+  (n : nat)
+	: eq A (f n) (ite A zA sA n)
+  ≔
   trans A (f n) (f (ite nat zero suc n)) (ite A zA sA n)
     (cong nat A f n (ite nat zero suc n) (rev nat (ite nat zero suc n) n (itenn n)))
     (itenat nat zero suc A zA sA f zf sf n)

@@ -464,11 +464,12 @@ module Parse_command = struct
 
   let parameter =
     let* wslparen = token LParen in
-    let* name, wsname = variable in
+    let* name, names = one_or_more variable in
+    let names = name :: names in
     let* wscolon = token Colon in
     let* ty = C.term [ RParen ] in
     let* wsrparen = token RParen in
-    return ({ wslparen; name; wsname; wscolon; ty; wsrparen } : Parameter.t)
+    return ({ wslparen; names; wscolon; ty; wsrparen } : Parameter.t)
 
   let axiom =
     let* wsaxiom = token Axiom in

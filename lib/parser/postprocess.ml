@@ -114,7 +114,19 @@ let rec process_tel : type n. (string option, n) Bwv.t -> Parameter.t list -> n 
  fun ctx parameters ->
   match parameters with
   | [] -> Processed_tel (Emp, ctx)
-  | { name; ty = Term ty; _ } :: parameters ->
-      let ty = process ctx ty in
-      let (Processed_tel (tel, ctx)) = process_tel (Snoc (ctx, name)) parameters in
-      Processed_tel (Ext (name, ty, tel), ctx)
+  | { names; ty; _ } :: parameters -> process_vars ctx names ty parameters
+
+and process_vars :
+    type n b.
+    (string option, n) Bwv.t ->
+    (string option * b) list ->
+    observation ->
+    Parameter.t list ->
+    n processed_tel =
+ fun ctx names (Term ty) parameters ->
+  match names with
+  | [] -> process_tel ctx parameters
+  | (name, _) :: names ->
+      let pty = process ctx ty in
+      let (Processed_tel (tel, ctx)) = process_vars (Snoc (ctx, name)) names (Term ty) parameters in
+      Processed_tel (Ext (name, pty, tel), ctx)

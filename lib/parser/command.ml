@@ -154,11 +154,14 @@ let pp_pattern : formatter -> State.pattern -> unit =
   pp_close_box ppf ()
 
 let pp_parameter : formatter -> Parameter.t -> unit =
- fun ppf { wslparen; name; wsname; wscolon; ty; wsrparen } ->
+ fun ppf { wslparen; names; wscolon; ty; wsrparen } ->
   pp_tok ppf LParen;
   pp_ws `None ppf wslparen;
-  pp_var ppf name;
-  pp_ws `Break ppf wsname;
+  List.iter
+    (fun (name, wsname) ->
+      pp_var ppf name;
+      pp_ws `Break ppf wsname)
+    names;
   pp_tok ppf Colon;
   pp_ws `Nobreak ppf wscolon;
   pp_term `None ppf ty;

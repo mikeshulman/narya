@@ -21,7 +21,7 @@
 ;; Define the syntax highlighting
 (defvar narya-font-lock-keywords
   `(
-    ("\\<\\(axiom\\|def\\|echo\\)\\>" . 'font-lock-keyword-face)
+    ("\\<\\(axiom\\|def\\|echo\\|notation\\)\\>" . 'font-lock-keyword-face)
     ("\\<\\(Type\\|Id\\|refl\\|sym\\|Gel\\|ungel\\)\\>" . 'font-lock-constant-face)
     ))
     

@@ -6,7 +6,7 @@
   (save-excursion
     (goto-char (point-min))
     (let ((terms '()))
-      (setq my-proof-dynamic-terms '())
+      (setq narya-dynamic-terms '())
       (while (re-search-forward "\\(axiom\\|def\\) \\([a-zA-Z0-9]+\\(?:_+[a-zA-Z0-9]+\\)*\\)\\s-*:" nil t)
         (let ((const-name (match-string 2)))
           (unless (member const-name terms)

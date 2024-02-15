@@ -9,17 +9,21 @@ open Check
 open Asai.Range
 
 type t =
-  | Axiom of Constant.t * N.zero check located
-  | Def of Constant.t * N.zero check located * N.zero check located
+  | Axiom : Constant.t * (N.zero, 'b, 'c) Raw.tel * 'c check located -> t
+  | Def : Constant.t * (N.zero, 'b, 'c) Raw.tel * 'c check located * 'c check located -> t
 
 let execute : t -> unit = function
-  | Axiom (const, ty) ->
-      let cty = check Ctx.empty ty (universe D.zero) in
+  | Axiom (const, params, ty) ->
+      let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
+      let cty = check ctx ty (universe D.zero) in
+      let cty = Telescope.pis params cty in
       Hashtbl.add Global.types const cty;
       Hashtbl.add Global.constants const Axiom
-  | Def (const, ty, tm) ->
-      let cty = check Ctx.empty ty (universe D.zero) in
-      let ety = eval (Emp D.zero) cty in
+  | Def (const, params, ty, tm) ->
+      let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
+      let cty = check ctx ty (universe D.zero) in
+      let ety = Ctx.eval ctx cty in
+      let cty = Telescope.pis params cty in
       Hashtbl.add Global.types const cty;
       let tree = ref Case.Empty in
       Hashtbl.add Global.constants const (Defined tree);
@@ -28,4 +32,4 @@ let execute : t -> unit = function
           Hashtbl.remove Global.types const;
           Hashtbl.remove Global.constants const;
           Reporter.fatal_diagnostic d)
-      @@ fun () -> check_tree Ctx.empty tm ety hd tree
+      @@ fun () -> check_tree ctx tm ety hd (Ctx.lam_tree ctx tree)

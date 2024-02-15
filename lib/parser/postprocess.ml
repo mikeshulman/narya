@@ -106,3 +106,15 @@ and process_deg :
       | { value = Synth arg; loc } -> Some (Synth (Act (str, s, { value = arg; loc })))
       | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
   | None -> None
+
+type _ processed_tel =
+  | Processed_tel : ('n, 'k, 'nk) Raw.tel * (string option, 'nk) Bwv.t -> 'n processed_tel
+
+let rec process_tel : type n. (string option, n) Bwv.t -> Parameter.t list -> n processed_tel =
+ fun ctx parameters ->
+  match parameters with
+  | [] -> Processed_tel (Emp, ctx)
+  | { name; ty = Term ty; _ } :: parameters ->
+      let ty = process ctx ty in
+      let (Processed_tel (tel, ctx)) = process_tel (Snoc (ctx, name)) parameters in
+      Processed_tel (Ext (name, ty, tel), ctx)

@@ -454,21 +454,39 @@ module Parse_command = struct
         | Ident name -> Some ((name, w), state)
         | _ -> None)
 
+  let variable =
+    step "" (fun state _ (tok, w) ->
+        match tok with
+        | Ident [ x ] -> Some ((Some x, w), state)
+        | Ident xs -> fatal (Invalid_variable xs)
+        | Underscore -> Some ((None, w), state)
+        | _ -> None)
+
+  let parameter =
+    let* wslparen = token LParen in
+    let* name, wsname = variable in
+    let* wscolon = token Colon in
+    let* ty = C.term [ RParen ] in
+    let* wsrparen = token RParen in
+    return ({ wslparen; name; wsname; wscolon; ty; wsrparen } : Parameter.t)
+
   let axiom =
     let* wsaxiom = token Axiom in
     let* name, wsname = ident in
+    let* parameters = zero_or_more parameter in
     let* wscolon = token Colon in
     let* ty = C.term [] in
-    return (Command.Axiom { wsaxiom; name; wsname; wscolon; ty })
+    return (Command.Axiom { wsaxiom; name; wsname; parameters; wscolon; ty })
 
   let def =
     let* wsdef = token Def in
     let* name, wsname = ident in
+    let* parameters = zero_or_more parameter in
     let* wscolon = token Colon in
     let* ty = C.term [ Coloneq ] in
     let* wscoloneq = token Coloneq in
     let* tm = C.term [] in
-    return (Command.Def { wsdef; name; wsname; wscolon; ty; wscoloneq; tm })
+    return (Command.Def { wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm })
 
   let echo =
     let* wsecho = token Echo in

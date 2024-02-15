@@ -297,6 +297,27 @@ let rec names : type a b. (a, b) t -> b Names.t = function
 let lookup_name : type a b. (a, b) t -> b index -> string list =
  fun ctx x -> Names.lookup (names ctx) x
 
+(* Generate a case tree consisting of a sequence of abstractions corresponding to the (checked) variables in a context. *)
+let rec lam_tree : type a b. (a, b) t -> emp Case.tree ref -> b Case.tree ref =
+ fun ctx tree ->
+  match ctx with
+  | Emp -> tree
+  | Vis (ctx, xs, vars) ->
+      let tree = lam_tree ctx tree in
+      let next = ref Case.Empty in
+      tree := Case.Lam (CubeOf.dim vars, xs, next);
+      next
+  | Invis (ctx, vars) ->
+      let tree = lam_tree ctx tree in
+      let next = ref Case.Empty in
+      tree := Case.Lam (CubeOf.dim vars, `Cube None, next);
+      next
+  | Split (ctx, _, _, xs, vars) ->
+      let tree = lam_tree ctx tree in
+      let next = ref Case.Empty in
+      tree := Case.Lam (CubeOf.dim vars, xs, next);
+      next
+
 open Format
 
 let pp_lvlopt ppf = function

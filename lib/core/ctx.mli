@@ -61,4 +61,5 @@ val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t
 val map : (normal -> normal) -> ('a, 'b) t -> ('a, 'b) t
 val names : ('a, 'b) t -> 'b Names.t
 val lookup_name : ('a, 'b) t -> 'b index -> string list
+val lam_tree : ('a, 'b) t -> emp Case.tree ref -> 'b Case.tree ref
 val pp_ctx : Format.formatter -> ('a, 'b) t -> unit

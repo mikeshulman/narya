@@ -15,6 +15,7 @@ type t =
       wsaxiom : Whitespace.t list;
       name : Scope.Trie.path;
       wsname : Whitespace.t list;
+      parameters : Parameter.t list;
       wscolon : Whitespace.t list;
       ty : observation;
     }
@@ -22,6 +23,7 @@ type t =
       wsdef : Whitespace.t list;
       name : Scope.Trie.path;
       wsname : Whitespace.t list;
+      parameters : Parameter.t list;
       wscolon : Whitespace.t list;
       ty : observation;
       wscoloneq : Whitespace.t list;
@@ -47,7 +49,7 @@ type t =
   | Eof
 
 let execute : t -> unit = function
-  | Axiom { name; ty = Term ty; _ } ->
+  | Axiom { name; parameters; ty = Term ty; _ } ->
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
@@ -56,9 +58,10 @@ let execute : t -> unit = function
           Scope.S.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      Core.Command.execute (Axiom (const, process Emp ty));
+      let (Processed_tel (params, ctx)) = process_tel Emp parameters in
+      Core.Command.execute (Axiom (const, params, process ctx ty));
       emit (Constant_assumed (PConstant const))
-  | Def { name; ty = Term ty; tm = Term tm; _ } ->
+  | Def { name; parameters; ty = Term ty; tm = Term tm; _ } ->
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
@@ -67,7 +70,8 @@ let execute : t -> unit = function
           Scope.S.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      Core.Command.execute (Def (const, process Emp ty, process Emp tm));
+      let (Processed_tel (params, ctx)) = process_tel Emp parameters in
+      Core.Command.execute (Def (const, params, process ctx ty, process ctx tm));
       emit (Constant_defined (PConstant const))
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
@@ -149,27 +153,41 @@ let pp_pattern : formatter -> State.pattern -> unit =
     pattern;
   pp_close_box ppf ()
 
+let pp_parameter : formatter -> Parameter.t -> unit =
+ fun ppf { wslparen; name; wsname; wscolon; ty; wsrparen } ->
+  pp_tok ppf LParen;
+  pp_ws `None ppf wslparen;
+  pp_var ppf name;
+  pp_ws `Break ppf wsname;
+  pp_tok ppf Colon;
+  pp_ws `Nobreak ppf wscolon;
+  pp_term `None ppf ty;
+  pp_tok ppf RParen;
+  pp_ws `Break ppf wsrparen
+
 let pp_command : formatter -> t -> Whitespace.t list =
  fun ppf cmd ->
   match cmd with
-  | Axiom { wsaxiom; name; wsname; wscolon; ty = Term ty } ->
+  | Axiom { wsaxiom; name; wsname; parameters; wscolon; ty = Term ty } ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Axiom;
       pp_ws `Nobreak ppf wsaxiom;
       pp_utf_8 ppf (String.concat "." name);
       pp_ws `Break ppf wsname;
+      List.iter (pp_parameter ppf) parameters;
       pp_tok ppf Colon;
       pp_ws `Nobreak ppf wscolon;
       let ty, rest = split_ending_whitespace ty in
       pp_term `None ppf (Term ty);
       pp_close_box ppf ();
       rest
-  | Def { wsdef; name; wsname; wscolon; ty; wscoloneq; tm = Term tm } ->
+  | Def { wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm = Term tm } ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Def;
       pp_ws `Nobreak ppf wsdef;
       pp_utf_8 ppf (String.concat "." name);
       pp_ws `Break ppf wsname;
+      List.iter (pp_parameter ppf) parameters;
       pp_tok ppf Colon;
       pp_ws `Nobreak ppf wscolon;
       pp_term `Break ppf ty;

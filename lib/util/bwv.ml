@@ -72,7 +72,7 @@ let of_list : type a mn. mn N.t -> a list -> ((a, mn) t * a list) option =
    fun n xs ys ->
     match (n, ys) with
     | Zero, _ -> Some (xs, ys)
-    | Suc _, y :: ys -> of_list (N.suc_plus'' n) (Snoc (xs, y)) ys
+    | Suc _, y :: ys -> of_list (N.suc_plus n) (Snoc (xs, y)) ys
     | _ -> None in
   of_list (N.zero_plus n) Emp ys
 

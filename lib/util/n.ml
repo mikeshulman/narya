@@ -20,18 +20,18 @@ type (_, _, _) plus =
   | Zero : ('m, zero, 'm) plus
   | Suc : ('m, 'n, 'p) plus -> ('m, 'n suc, 'p suc) plus
 
-(* Successors shift between the inputs of addition. *)
-let rec suc_plus : type m n p. (m suc, n, p) plus -> (m, n suc, p) plus = function
+(* Successors shift between the inputs of addition.  These are named after the shape of their outputs. *)
+let rec plus_suc : type m n p. (m suc, n, p) plus -> (m, n suc, p) plus = function
   | Zero -> Suc Zero
-  | Suc x -> Suc (suc_plus x)
+  | Suc x -> Suc (plus_suc x)
 
-let rec suc_plus' : type m n p. (m, n, p) plus -> (m suc, n, p suc) plus = function
+let rec suc_plus_eq_suc : type m n p. (m, n, p) plus -> (m suc, n, p suc) plus = function
   | Zero -> Zero
-  | Suc x -> Suc (suc_plus' x)
+  | Suc x -> Suc (suc_plus_eq_suc x)
 
-let suc_plus'' : type m n p. (m, n suc, p) plus -> (m suc, n, p) plus =
+let suc_plus : type m n p. (m, n suc, p) plus -> (m suc, n, p) plus =
  fun x ->
-  let (Suc y) = suc_plus' x in
+  let (Suc y) = suc_plus_eq_suc x in
   y
 
 (* A type is a natural number if there is something it can be added to on the right. *)
@@ -127,7 +127,7 @@ let rec plus_comm : type m n mn. m t -> (m, n, mn) plus -> (n, m, mn) plus =
  fun m mn ->
   match mn with
   | Zero -> zero_plus m
-  | Suc mn -> suc_plus' (plus_comm m mn)
+  | Suc mn -> suc_plus_eq_suc (plus_comm m mn)
 
 (* ********** Well-scoped De Bruijn indices ********** *)
 
@@ -166,7 +166,7 @@ let rec switch_index : type m n mn. m t -> (m, n suc, mn) plus -> mn index =
       match mn with
       | Suc _ -> Top)
   | Suc m -> (
-      match suc_plus mn with
+      match plus_suc mn with
       | Suc mn -> Pop (switch_index (Nat m) mn))
 
 (* If an 'n index is thought of as something to remove from a list of 'n things to get a smaller list, and if we remove one such thing and then another, we could have removed those things in the other order, and this function computes the indices that would be required to do that. *)
@@ -210,8 +210,8 @@ let rec compare : type m n. m t -> n t -> (m, n) compare =
   | Nat (Suc m), Nat (Suc n) -> (
       match compare (Nat m) (Nat n) with
       | Eq -> Eq
-      | Lt p -> Lt (suc_plus' p)
-      | Gt p -> Gt (suc_plus' p))
+      | Lt p -> Lt (suc_plus_eq_suc p)
+      | Gt p -> Gt (suc_plus_eq_suc p))
 
 (* Similarly, we can compare two additions.  We are lazy and don't record the evidence for Lt and Gt. *)
 
@@ -475,7 +475,7 @@ let plus_pos : type a b ab. a t -> b pos -> (a, b, ab) plus -> ab pos =
 
 let pos_plus : type a b ab. a pos -> (a, b, ab) plus -> ab pos =
  fun (Pos a) ab ->
-  let (Suc ab) = suc_plus ab in
+  let (Suc ab) = plus_suc ab in
   Pos (plus_out a ab)
 
 let pos : type a. a pos -> a t = fun (Pos a) -> suc a

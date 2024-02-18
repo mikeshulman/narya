@@ -28,7 +28,7 @@ let rec lambdas :
   match (ab, tm.value) with
   | Zero, _ -> ([], tm)
   | Suc _, Lam (x, `Normal, body) ->
-      let names, body = lambdas (N.suc_plus'' ab) body in
+      let names, body = lambdas (N.suc_plus ab) body in
       (x :: names, body)
   | _ -> fatal (Not_enough_lambdas (N.to_int (N.plus_right ab)))
 

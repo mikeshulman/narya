@@ -20,6 +20,6 @@ let of_bwd : type a n. n N.t -> a Bwd.t -> string -> (a, n) t =
     | Nat Zero, Emp ->
         let Eq = N.plus_uniq mn (N.zero_plus (N.plus_right mn)) in
         acc
-    | Nat (Suc m), Snoc (xs, x) -> of_bwd (Nat m) (N.suc_plus mn) xs (x :: acc)
+    | Nat (Suc m), Snoc (xs, x) -> of_bwd (Nat m) (N.plus_suc mn) xs (x :: acc)
     | _ -> raise (Failure ("Wrong number of arguments in " ^ err)) in
   of_bwd n Zero xs []

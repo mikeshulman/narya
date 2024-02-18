@@ -243,7 +243,7 @@ let ext_tel :
         let newctx = Vis (ctx, `Cube x, newnfs) in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
-          rest (N.suc_plus'' ac) (exts_suc'' ec) (N.suc_plus'' dc)
+          rest (N.suc_plus ac) (exts_suc'' ec) (N.suc_plus dc)
           (Snoc (vars, newvars)) in
   ext_tel ctx env tel ac ec (N.zero_plus (N.plus_right ac)) Emp
 

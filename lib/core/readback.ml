@@ -11,7 +11,7 @@ open Printable
 
 (* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
 
-(* TODO: Do we really want readback to eta-expand?  Equality-testing does eta-expanding already, so it shouldn't be necessary here, and in practice the user will probably prefer things to not get eta-expanded unnecessarily. *)
+(* TODO: Do we really want readback to eta-expand?  Equality-testing does eta-expanding already, so it shouldn't be necessary here, and in practice the user will probably prefer things to not get eta-expanded unnecessarily.  Not eta-expanding would mean that constants defined as case trees that are just an abstracted leaf wouldn't get printed as their bodies but just as constants, unless the user eta-expands them.  Maybe the user should be able to set a flag indicating whether to print case trees. *)
 
 let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> a term =
  fun n x -> readback_at n x.tm x.ty
@@ -46,7 +46,8 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
                       match compare (CubeOf.dim x) k with
                       | Eq -> Lam (k, `Normal x, body)
                       | Neq ->
-                          fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
+                          (* This can happen for degenerated constants, which are at higher dimension than their case trees.  TODO: Ideally, we'd like some kind of "partially-cube" variable here. *)
+                          Lam (k, `Cube (CubeOf.find_top x), body))
                   (* Otherwise, we use the variable(s) from the type.  However, in this case we insist that the variable has a name, since we are (probably?) doing an eta-expansion and so the variable *will* appear in the body even if the pi-type is non-dependent. *)
                   | None -> Lam (k, singleton_named_variables k x, body))
               | _ -> Lam (k, singleton_named_variables k x, body))

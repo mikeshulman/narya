@@ -123,6 +123,31 @@ let app fn arg = App (fn, CubeOf.singleton arg)
 let apps fn args = List.fold_left app fn args
 let constr name args = Constr (name, D.zero, Bwd.map CubeOf.singleton args)
 
+(* ******************** Case trees ******************** *)
+
+module Case = struct
+  type _ tree =
+    (* As in a term, a lambda binds a full cube of variables, although we might allow the user to specify one variable that represents the full cube. *)
+    | Lam : 'n D.t * 'n variables * ('a, 'n) ext tree ref -> 'a tree
+    | Leaf : 'a term -> 'a tree
+    | Branches : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> 'a tree
+    | Cobranches : (Field.t, 'a tree ref) Abwd.t -> 'a tree
+    | Empty : 'a tree
+
+  (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)
+  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * 'ab tree ref -> ('a, 'n) branch
+
+  (* Find the name of the (n+1)st abstracted variable, where n is the length of a supplied argument list.  Doesn't "look through" branches or cobranches or into leaves. *)
+  let rec nth_var : type a b. a tree -> b Bwd.t -> any_variables option =
+   fun tr args ->
+    match tr with
+    | Lam (_, x, body) -> (
+        match args with
+        | Emp -> Some (Any x)
+        | Snoc (args, _) -> nth_var !body args)
+    | _ -> None
+end
+
 (* ******************** Values ******************** *)
 
 (* Internal values, the result of evaluation, with closures for abstractions.  Use De Bruijn *levels*, so that weakening is implicit.  Fully internal unbiased syntax lives here: in addition to higher-dimensional applications and abstractions, we also have higher-dimensional pi-types, higher-dimensional universes, and instantiations of higher-dimensional types.  Separated into neutrals and normals, so that there are no beta-redexes.  Explicit substitutions (environments) are stored on binders, for NBE. *)

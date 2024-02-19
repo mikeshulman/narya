@@ -12,6 +12,10 @@ Testing parsing and printing of cube variables
   > def fg' : Id (A -> B) f g := x |=> refl b
   > echo fg'
   > echo refl fg'
+  > axiom a0:A
+  > axiom a1:A
+  > axiom a2:Id A a0 a1
+  > echo refl f a0 a1 a2  
 
   $ narya cube_vars.ny
   x0 x1 x2 ↦ refl b

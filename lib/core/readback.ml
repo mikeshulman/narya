@@ -37,7 +37,7 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
               | Eq -> Lam (k, `Normal x, body)
               | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
           (* Also if it's a partial application of a constant that's defined as a case tree, we pick up variables from the case tree. *)
-          | Uninst (Neu (Const { name; _ }, args), _) -> (
+          | Uninst (Neu { head = Const { name; _ }; args }, _) -> (
               match Hashtbl.find_opt Global.constants name with
               | Some (Defined tree) -> (
                   match Case.nth_var !tree args with
@@ -51,7 +51,7 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
                   | None -> Lam (k, singleton_named_variables k x, body))
               | _ -> Lam (k, singleton_named_variables k x, body))
           | _ -> Lam (k, singleton_named_variables k x, body)))
-  | Neu (Const { name; ins }, canonical_args) -> (
+  | Neu { head = Const { name; ins }; args = canonical_args } -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
       | Record { eta; fields = _fields; _ } -> (
@@ -146,7 +146,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
                   let sargs = CubeOf.subcube fa args in
                   readback_val sctx (apply_binder (BindCube.find cods fa) sargs));
             } )
-  | Neu (fn, args) ->
+  | Neu { head; args } ->
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
           Term.Act
@@ -155,7 +155,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
                   App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ args ])
               | Field fld -> Field (fn, fld)),
               perm_of_ins ins ))
-        (readback_head ctx fn) args
+        (readback_head ctx head) args
 
 and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
  fun ctx h ->

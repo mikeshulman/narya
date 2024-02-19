@@ -38,7 +38,7 @@ and equal_at : int -> value -> value -> value -> unit option =
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at (ctx + 1) (apply x newargs) (apply y newargs) output)
-  | Neu (Const { name; ins }, canonical_args) -> (
+  | Neu { head = Const { name; ins }; args = canonical_args } -> (
       (* The insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it. *)
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
@@ -146,9 +146,9 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       match compare m n with
       | Eq -> return ()
       | _ -> fail)
-  | Neu (fn1, args1), Neu (fn2, args2) ->
+  | Neu { head = head1; args = args1 }, Neu { head = head2; args = args2 } ->
       (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside). *)
-      let* () = equal_head lvl fn1 fn2 in
+      let* () = equal_head lvl head1 head2 in
       (* Then we recursively check that all their arguments are equal. *)
       equal_args lvl args1 args2
   | Pi (_, dom1s, cod1s), Pi (_, dom2s, cod2s) -> (

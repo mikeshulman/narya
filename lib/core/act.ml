@@ -99,11 +99,11 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
   match tm with
-  | Neu (fn, args) ->
+  | Neu { head; args } ->
       (* We act on the applications from the outside (last) to the inside, since the degeneracy has to be factored and may leave neutral insertions behind.  The resulting inner degeneracy then acts on the head. *)
       let Any s', args = act_apps args s in
-      let fn = act_head fn s' in
-      Neu (fn, args)
+      let head = act_head head s' in
+      Neu { head; args }
   | UU nk ->
       let (Of fa) = deg_plus_to s nk ~on:"universe" in
       UU (dom_deg fa)

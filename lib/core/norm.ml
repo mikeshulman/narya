@@ -247,17 +247,18 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
               let ty = lazy (tyof_app cods tyargs arg) in
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
               match tm with
-              | Neu (fn, args) -> apply_spine fn (Snoc (args, App (Arg newarg, zero_ins k))) ty
+              | Neu { head; args } ->
+                  apply_spine head (Snoc (args, App (Arg newarg, zero_ins k))) ty
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
 
 (* Compute the application of a head to a spine of arguments (including field projections), using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application, so that we can annotate the latter case. *)
 and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
- fun fn args ty ->
+ fun head args ty ->
   (* Check whether the head is a constant with an associated case tree. *)
   Option.value
-    (match fn with
+    (match head with
     | Const { name; ins } -> (
         match Hashtbl.find_opt Global.constants name with
         | Some (Defined tree) ->
@@ -268,7 +269,7 @@ and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
         | None -> fatal (Undefined_constant (PConstant name)))
     | _ -> None)
     (* If it has no case tree, or is not a constant, we just add the argument to the neutral application spine and return. *)
-    ~default:(Uninst (Neu (fn, args), ty))
+    ~default:(Uninst (Neu { head; args }, ty))
 
 (* Evaluate a case tree, in an environment of variables for which we have already found values, with possible additional arguments.  The degeneracy is one to be applied to the value of the case tree *before* applying it to any additional arguments; thus if it is nonidentity we cannot pick up additional arguments.  Return None if the case tree doesn't apply for any reason (e.g. not enough arguments, or a dispatching argument doesn't match any branch, or there is a nonidentity degeneracy in the way of picking up extra arguments). *)
 and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
@@ -386,10 +387,10 @@ and field : value -> Field.t -> value =
   match tm with
   (* TODO: Is it okay to ignore the insertion here? *)
   | Struct (fields, _) -> fst (Abwd.find fld fields)
-  | Uninst (Neu (fn, args), (lazy ty)) ->
+  | Uninst (Neu { head; args }, (lazy ty)) ->
       let newty = lazy (tyof_field tm ty fld) in
       (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
-      apply_spine fn (Snoc (args, App (Field fld, zero_ins D.zero))) newty
+      apply_spine head (Snoc (args, App (Field fld, zero_ins D.zero))) newty
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
@@ -397,7 +398,7 @@ and tyof_field_withname ?severity ?degerr (tm : value) (ty : value) (fld : Field
     Field.t * value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
-  | Neu (Const { name; ins }, args) -> (
+  | Neu { head = Const { name; ins }; args } -> (
       (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
       if Option.is_none (is_id_ins ins) then fatal ?severity (No_such_field (`Other, fld));
       let m = cod_left_ins ins in

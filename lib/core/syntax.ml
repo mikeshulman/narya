@@ -181,7 +181,7 @@ module rec Value : sig
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    | Neu : head * app Bwd.t -> uninst
+    | Neu : { head : head; args : app Bwd.t } -> uninst
 
   and value =
     | Uninst : uninst * value Lazy.t -> value
@@ -242,7 +242,7 @@ end = struct
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
-    | Neu : head * app Bwd.t -> uninst
+    | Neu : { head : head; args : app Bwd.t } -> uninst
 
   and value =
     (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
@@ -281,7 +281,8 @@ open Value
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : level -> value -> value =
- fun level ty -> Uninst (Neu (Var { level; deg = id_deg D.zero }, Emp), Lazy.from_val ty)
+ fun level ty ->
+  Uninst (Neu { head = Var { level; deg = id_deg D.zero }; args = Emp }, Lazy.from_val ty)
 
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function

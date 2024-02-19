@@ -513,6 +513,8 @@ let () =
   Reporter.printer :=
     fun pr ->
       match pr with
+      | PUnit -> Printed ((fun _ () -> ()), ())
+      | PString str -> Printed (Uuseg_string.pp_utf_8, str)
       | PTerm (ctx, tm) ->
           Printed
             (Print.pp_term `None, Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))

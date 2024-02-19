@@ -500,7 +500,6 @@ let rec check_tree :
               let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
               let output = tyof_app cods tyargs newargs in
               let tbody = ref Case.Empty in
-              tree := Case.Lam (m, singleton_variables m x, tbody);
               match cube with
               | `Normal ->
                   let (Faces dom_faces) = count_faces m in
@@ -508,9 +507,11 @@ let rec check_tree :
                   let (Plus af) = N.plus f in
                   let names, body = lambdas af tm in
                   let names = vars_of_list m names in
+                  tree := Case.Lam (m, names, tbody);
                   let ctx = Ctx.split ctx dom_faces af names newnfs in
                   check_tree ctx body output (apply prev_tm newargs) tbody
               | `Cube ->
+                  tree := Case.Lam (m, singleton_variables m x, tbody);
                   let ctx = Ctx.vis ctx (`Cube x) newnfs in
                   check_tree ctx body output (apply prev_tm newargs) tbody))
       | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))

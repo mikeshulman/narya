@@ -26,3 +26,5 @@ Testing parsing and printing of cube variables
   
   x ⤇ b⁽⁰⁰⁾
   
+  refl b
+  

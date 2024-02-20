@@ -19,6 +19,7 @@ let () =
   let eq22 = check "cons. (refl a) (cons. (refl a) nil.)" id22 in
 
   (* Check that the induction principle has the right type *)
+  Testutil.Repl.lst_install_ops ();
   let _, indty = synth "List_ind" in
 
   let indty', _ =

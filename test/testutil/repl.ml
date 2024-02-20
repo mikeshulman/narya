@@ -161,6 +161,15 @@ let nat_install_ops () =
     | suc. n ↦ s n (ℕ_ind P z s n)
   ]"
 
+let lst_install_ops () =
+  def "List_ind"
+    "(A:Type) (P : List A → Type) (pn : P nil.) (pc : (a:A) (l:List A) → P l → P (cons. a l)) (l:List A) → P l"
+    "A P pn pc l ↦
+  [ l
+    | nil. ↦ pn
+    | cons. a l ↦ pc a l (List_ind A P pn pc l)
+  ]"
+
 let vec_install_ops () =
   def "Vec_ind"
     "(A:Type) (P : (n:ℕ) → Vec A n → Type) (pn : P zero. nil.) (pc : (n:ℕ) (a:A) (v:Vec A n) → P n v → P (suc. n) (cons. n a v)) (n:ℕ) (v:Vec A n) → P n v"

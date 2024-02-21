@@ -541,6 +541,12 @@ let () =
       | PConstant name ->
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)
+      | Dump.Val tm -> Printed (Dump.value, tm)
+      | Dump.Uninst tm -> Printed (Dump.uninst, tm)
+      | Dump.Head h -> Printed (Dump.head, h)
+      | Dump.Binder b -> Printed (Dump.binder, b)
+      | Dump.Term tm -> Printed (Dump.term, tm)
+      | Dump.Env e -> Printed (Dump.env, e)
       | _ -> raise (Failure "unknown printable")
 
 (* Hack to ensure the above code is executed. *)

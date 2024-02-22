@@ -31,6 +31,10 @@ let () =
   print "exp utwo uthree";
   Types.Nat.install ();
   Testutil.Repl.nat_install_ops ();
+  assume "f" "ℕ → ℕ";
+  print "f 1";
+  print "refl f 1 1 1";
+  print "refl (refl f) 1 1 1 1 1 1 1 1 1";
   Types.Sigma.install ();
   print "(fst := 0,snd := 0) : ℕ × ℕ";
   print "(0,0) : ℕ × ℕ";

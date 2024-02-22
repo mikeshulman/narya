@@ -154,16 +154,18 @@ let rec get_bwd : type n li ls ri rs. n term -> n term list -> n term Bwd.t opti
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
 let rec get_spine :
     type b n. n term -> [ `App of n term * n term Bwd.t | `Field of n term * Field.t * n term Bwd.t ]
-    = function
+    =
+ fun tm ->
+  match tm with
   | App (fn, arg) -> (
       match get_spine fn with
       | `App (head, args) -> `App (head, CubeOf.append_bwd args arg)
       | `Field (head, fld, args) -> `Field (head, fld, CubeOf.append_bwd args arg))
   | Field (head, fld) -> `Field (head, fld, Emp)
-  (* We have to look through degeneracies here. *)
-  | Act (tm, s) -> (
+  (* We have to look through identity degeneracies here. *)
+  | Act (body, s) -> (
       match is_id_deg s with
-      | Some () -> get_spine tm
+      | Some () -> get_spine body
       | None -> `App (tm, Emp))
   | tm -> `App (tm, Emp)
 

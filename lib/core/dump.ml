@@ -91,7 +91,7 @@ and term : type b. formatter -> b term -> unit =
   | App (fn, _) -> fprintf ppf "App (%a, ?)" term fn
   | Lam (_, _, body) -> fprintf ppf "Lam (?, ?, %a)" term body
   | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)
-  | Act (tm, _) -> fprintf ppf "Act (%a, ?)" term tm
+  | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
   | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
   | Struct (_, _) -> fprintf ppf "Struct (?,?)"
   | Match (_, _, _) -> fprintf ppf "Match (?,?,?)"

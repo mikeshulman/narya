@@ -99,6 +99,10 @@ module rec Term : sig
     | Leaf : 'a term -> 'a term
 
   and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * 'ab term -> ('a, 'n) branch
+
+  and ('a, 'b, 'ab) tel =
+    | Emp : ('a, N.zero, 'a) tel
+    | Ext : string option * 'a term * (('a, D.zero) ext, 'b, 'ab) tel -> ('a, 'b N.suc, 'ab) tel
 end = struct
   module CodFam = struct
     type ('k, 'a) t = ('a, 'k) ext Term.term
@@ -127,6 +131,10 @@ end = struct
 
   (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)
   and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * 'ab term -> ('a, 'n) branch
+
+  and ('a, 'b, 'ab) tel =
+    | Emp : ('a, N.zero, 'a) tel
+    | Ext : string option * 'a term * (('a, D.zero) ext, 'b, 'ab) tel -> ('a, 'b N.suc, 'ab) tel
 end
 
 open Term
@@ -145,6 +153,20 @@ let pi x dom cod = Pi (x, CubeOf.singleton dom, CodCube.singleton cod)
 let app fn arg = App (fn, CubeOf.singleton arg)
 let apps fn args = List.fold_left app fn args
 let constr name args = Constr (name, D.zero, Bwd.map CubeOf.singleton args)
+
+module Telescope = struct
+  type ('a, 'b, 'ab) t = ('a, 'b, 'ab) Term.tel
+
+  let rec length : type a b ab. (a, b, ab) t -> b N.t = function
+    | Emp -> Nat Zero
+    | Ext (_, _, tel) -> N.suc (length tel)
+
+  let rec pis : type a b ab. (a, b, ab) t -> ab term -> a term =
+   fun doms cod ->
+    match doms with
+    | Emp -> cod
+    | Ext (x, dom, doms) -> pi x dom (pis doms cod)
+end
 
 (* ******************** Values ******************** *)
 

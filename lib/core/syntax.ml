@@ -70,7 +70,9 @@ let singleton_named_variables : type n. n D.t -> string option -> n variables =
 
    Incorporates information appropriate to the internal syntax that is constructed during typechecking, e.g. applications and abstractions are grouped by a dimension, since this can be inferred during typechecking, from the synthesized type of a function being applied and from the pi-type the lambda is being checked against, respectively.  Similarly, we have instantiations of higher-dimensional types obtained by applying them to a tube of boundary terms.
 
-   Typechecking of user syntax still produces only unary pi-types and zero-dimensional universes, but we include arbitrary-dimensional ones here so that they can also be the output of readback from internal values.  We likewise include arbitrary degeneracy actions, since these can appear in readback. *)
+   Typechecking of user syntax still produces only unary pi-types and zero-dimensional universes, but we include arbitrary-dimensional ones here so that they can also be the output of readback from internal values.  We likewise include arbitrary degeneracy actions, since these can appear in readback.
+
+   In addition, case trees are included as particular terms, built out of Matches, Structs (including both tuples and comatches), and Lams.  When the case tree reaches a leaf, we mark it with a Leaf constructor and proceed to include an ordinary term. *)
 
 (* The codomain of a higher-dimensional pi-type is a cube of terms with bound variables whose number varies with the face of the cube.  We can enforce this with a parametrized instance of Cube, but it has to be defined recursively with term using a recursive module (like BindCube in Value; see there for more commentary). *)
 module rec Term : sig
@@ -86,14 +88,17 @@ module rec Term : sig
     | Field : 'a term * Field.t -> 'a term
     | UU : 'n D.t -> 'a term
     | Inst : 'a term * ('m, 'n, 'mn, 'a term) TubeOf.t -> 'a term
-    (* Since the user doesn't write higher-dimensional pi-types explicitly, there is always only one variable name. *)
     | Pi : string option * ('n, 'a term) CubeOf.t * ('n, 'a) CodCube.t -> 'a term
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : 'n D.t * 'n variables * ('a, 'n) ext Term.term -> 'a term
-    | Struct : eta * (Field.t, 'a term * [ `Labeled | `Unlabeled ]) Abwd.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
+    | Struct : eta * (Field.t, 'a term * [ `Labeled | `Unlabeled ]) Abwd.t -> 'a term
+    | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> 'a term
+    | Leaf : 'a term -> 'a term
+
+  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * 'ab term -> ('a, 'n) branch
 end = struct
   module CodFam = struct
     type ('k, 'a) t = ('a, 'k) ext Term.term
@@ -107,46 +112,39 @@ end = struct
     | Field : 'a term * Field.t -> 'a term
     | UU : 'n D.t -> 'a term
     | Inst : 'a term * ('m, 'n, 'mn, 'a term) TubeOf.t -> 'a term
+    (* Since the user doesn't write higher-dimensional pi-types explicitly, there is always only one variable name in a pi-type. *)
     | Pi : string option * ('n, 'a term) CubeOf.t * ('n, 'a) CodCube.t -> 'a term
     | App : 'a term * ('n, 'a term) CubeOf.t -> 'a term
     | Lam : 'n D.t * 'n variables * ('a, 'n) ext Term.term -> 'a term
-    | Struct : eta * (Field.t, 'a term * [ `Labeled | `Unlabeled ]) Abwd.t -> 'a term
     | Constr : Constr.t * 'n D.t * ('n, 'a term) CubeOf.t Bwd.t -> 'a term
     | Act : 'a term * ('m, 'n) deg -> 'a term
     | Let : string option * 'a term * ('a, D.zero) ext term -> 'a term
+    (* Non-eta structs (comatches) and matches appear only in top-level case trees, not in arbitrary locations in a term. *)
+    | Struct : eta * (Field.t, 'a term * [ `Labeled | `Unlabeled ]) Abwd.t -> 'a term
+    | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> 'a term
+    (* A "leaf" marks the boundary between the top-level case tree and an arbitrary term it contains. *)
+    | Leaf : 'a term -> 'a term
+
+  (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)
+  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * 'ab term -> ('a, 'n) branch
 end
 
 open Term
+
+(* Find the name of the (n+1)st abstracted variable, where n is the length of a supplied argument list.  Doesn't "look through" branches or cobranches or into leaves. *)
+let rec nth_var : type a b. a term -> b Bwd.t -> any_variables option =
+ fun tr args ->
+  match tr with
+  | Lam (_, x, body) -> (
+      match args with
+      | Emp -> Some (Any x)
+      | Snoc (args, _) -> nth_var body args)
+  | _ -> None
 
 let pi x dom cod = Pi (x, CubeOf.singleton dom, CodCube.singleton cod)
 let app fn arg = App (fn, CubeOf.singleton arg)
 let apps fn args = List.fold_left app fn args
 let constr name args = Constr (name, D.zero, Bwd.map CubeOf.singleton args)
-
-(* ******************** Case trees ******************** *)
-
-module Case = struct
-  type _ tree =
-    (* As in a term, a lambda binds a full cube of variables, although we might allow the user to specify one variable that represents the full cube. *)
-    | Lam : 'n D.t * 'n variables * ('a, 'n) ext tree ref -> 'a tree
-    | Leaf : 'a term -> 'a tree
-    | Branches : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> 'a tree
-    | Cobranches : (Field.t, 'a tree ref) Abwd.t -> 'a tree
-    | Empty : 'a tree
-
-  (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)
-  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * 'ab tree ref -> ('a, 'n) branch
-
-  (* Find the name of the (n+1)st abstracted variable, where n is the length of a supplied argument list.  Doesn't "look through" branches or cobranches or into leaves. *)
-  let rec nth_var : type a b. a tree -> b Bwd.t -> any_variables option =
-   fun tr args ->
-    match tr with
-    | Lam (_, x, body) -> (
-        match args with
-        | Emp -> Some (Any x)
-        | Snoc (args, _) -> nth_var !body args)
-    | _ -> None
-end
 
 (* ******************** Values ******************** *)
 
@@ -178,10 +176,12 @@ module rec Value : sig
       }
         -> 'mn binder
 
+  and alignment = [ `True | `Chaotic of value ]
+
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    | Neu : { head : head; args : app Bwd.t } -> uninst
+    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
 
   and value =
     | Uninst : uninst * value Lazy.t -> value
@@ -193,9 +193,12 @@ module rec Value : sig
       }
         -> value
     | Lam : 'k variables * 'k binder -> value
-    | Struct : (Field.t, value * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion -> value
+    | Struct :
+        (Field.t, tree_value Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
+        -> value
     | Constr : Constr.t * 'n D.t * ('n, value) CubeOf.t Bwd.t -> value
 
+  and tree_value = True_neutral | Leaf of value | Noleaf of value
   and normal = { tm : value; ty : value }
 
   and (_, _) env =
@@ -236,13 +239,19 @@ end = struct
       }
         -> 'mn binder
 
+  (* A neutral has an "alignment".
+     - A True neutral is an ordinary neutral that will never reduce further, such as an application of a variable or axiom, or of a defined constant with a neutral argument in a matching position.
+     - A Chaotic neutral has a head defined by a case tree but isn't fully applied, so it might reduce further if it is applied to further arguments or field projections.  Thus it stores a value that should be either an abstraction or a struct, but does not test as equal to that value.
+     - A Lawful neutral (not yet implemented) will never reduce further, but has a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.). *)
+  and alignment = [ `True | `Chaotic of value ]
+
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
-    | Neu : { head : head; args : app Bwd.t } -> uninst
+    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also has an alignment.  *)
+    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
 
   and value =
     (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
@@ -261,10 +270,14 @@ end = struct
         -> value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * 'k binder -> value
-    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application.  We also remember which fields are labeled, for readback purposes. *)
-    | Struct : (Field.t, value * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion -> value
+    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application.  We also remember which fields are labeled, for readback purposes.  Finally, in case this is the Chaotic value of a not-fully-applied case tree, we remember whether the value of each branch is a leaf yet or not, and we make them all lazy so that corecursive definitions don't try to compute an entire infinite structure. *)
+    | Struct :
+        (Field.t, tree_value Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
+        -> value
     (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)
     | Constr : Constr.t * 'n D.t * ('n, value) CubeOf.t Bwd.t -> value
+
+  and tree_value = True_neutral | Leaf of value | Noleaf of value
 
   (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
   and normal = { tm : value; ty : value }
@@ -282,7 +295,9 @@ open Value
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : level -> value -> value =
  fun level ty ->
-  Uninst (Neu { head = Var { level; deg = id_deg D.zero }; args = Emp }, Lazy.from_val ty)
+  Uninst
+    ( Neu { head = Var { level; deg = id_deg D.zero }; args = Emp; alignment = `True },
+      Lazy.from_val ty )
 
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function

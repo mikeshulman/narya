@@ -1,6 +1,7 @@
 open Util
 open Dim
 open Syntax
+open Term
 open Value
 open Hctx
 
@@ -34,7 +35,8 @@ val lookup_face :
 val lookup_invis : ('a, 'b) t -> 'b index -> level option * normal
 val find_level : ('a, 'b) t -> level -> 'b index option
 val env : ('a, 'b) t -> (D.zero, 'b) env
-val eval : ('a, 'b) t -> 'b Term.term -> value
+val eval_tree : ('a, 'b) t -> 'b Term.term -> tree_value
+val eval_term : ('a, 'b) t -> 'b Term.term -> value
 val ext : ('a, 'b) t -> string option -> value -> ('a N.suc, ('b, D.zero) ext) t
 val ext_let : ('a, 'b) t -> string option -> normal -> ('a N.suc, ('b, D.zero) ext) t
 
@@ -61,5 +63,5 @@ val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t
 val map : (normal -> normal) -> ('a, 'b) t -> ('a, 'b) t
 val names : ('a, 'b) t -> 'b Names.t
 val lookup_name : ('a, 'b) t -> 'b index -> string list
-val lam_tree : ('a, 'b) t -> emp Case.tree ref -> 'b Case.tree ref
+val lam : ('a, 'b) t -> 'b term -> emp term
 val pp_ctx : Format.formatter -> ('a, 'b) t -> unit

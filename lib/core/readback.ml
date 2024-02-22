@@ -28,31 +28,33 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
           let newctx = Ctx.vis ctx (`Cube x) newnfs in
           let output = tyof_app cods tyargs args in
-          let body = readback_at newctx (apply tm args) output in
+          let body = readback_at newctx (apply_term tm args) output in
           (* If the term is already an abstraction, we pick up its variable(s). *)
           match tm with
-          | Lam (`Cube x, _) -> Lam (k, `Cube x, body)
+          | Lam (`Cube x, _) -> Term.Lam (k, `Cube x, body)
           | Lam (`Normal x, _) -> (
               match compare (CubeOf.dim x) k with
-              | Eq -> Lam (k, `Normal x, body)
+              | Eq -> Term.Lam (k, `Normal x, body)
               | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
           (* Also if it's a partial application of a constant that's defined as a case tree, we pick up variables from the case tree. *)
-          | Uninst (Neu { head = Const { name; _ }; args }, _) -> (
+          (* TODO: Inspect Lawful alignments instead *)
+          | Uninst (Neu { head = Const { name; _ }; args; alignment = _ }, _) -> (
               match Hashtbl.find_opt Global.constants name with
               | Some (Defined tree) -> (
-                  match Case.nth_var !tree args with
-                  | Some (Any (`Cube x)) -> Lam (k, `Cube x, body)
+                  match nth_var tree args with
+                  | Some (Any (`Cube x)) -> Term.Lam (k, `Cube x, body)
                   | Some (Any (`Normal x)) -> (
                       match compare (CubeOf.dim x) k with
-                      | Eq -> Lam (k, `Normal x, body)
+                      | Eq -> Term.Lam (k, `Normal x, body)
                       | Neq ->
                           (* This can happen for degenerated constants, which are at higher dimension than their case trees.  TODO: Ideally, we'd like some kind of "partially-cube" variable here. *)
-                          Lam (k, `Cube (CubeOf.find_top x), body))
+                          Term.Lam (k, `Cube (CubeOf.find_top x), body))
                   (* Otherwise, we use the variable(s) from the type.  However, in this case we insist that the variable has a name, since we are (probably?) doing an eta-expansion and so the variable *will* appear in the body even if the pi-type is non-dependent. *)
-                  | None -> Lam (k, singleton_named_variables k x, body))
-              | _ -> Lam (k, singleton_named_variables k x, body))
-          | _ -> Lam (k, singleton_named_variables k x, body)))
-  | Neu { head = Const { name; ins }; args = canonical_args } -> (
+                  | None -> Term.Lam (k, singleton_named_variables k x, body))
+              | _ -> Term.Lam (k, singleton_named_variables k x, body))
+          | _ -> Term.Lam (k, singleton_named_variables k x, body)))
+  (* TODO: Inspect Lawful alignments instead *)
+  | Neu { head = Const { name; ins }; args = canonical_args; alignment = _ } -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
       | Record { eta; fields = _fields; _ } -> (
@@ -60,7 +62,10 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
           | Struct (tmflds, tmins) ->
               let fields =
                 Abwd.mapi
-                  (fun fld (fldtm, l) -> (readback_at ctx fldtm (tyof_field tm ty fld), l))
+                  (fun fld (fldtm, l) ->
+                    match Lazy.force fldtm with
+                    | Noleaf x -> (readback_at ctx x (tyof_field tm ty fld), l)
+                    | _ -> fatal (Unimplemented "reading back case trees"))
                   tmflds in
               Act (Struct (eta, fields), perm_of_ins tmins)
           | _ ->
@@ -145,9 +150,9 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
                 (fun fa ->
                   let sctx = Ctx.vis ctx (`Cube x) (CubeOf.subcube fa newnfs) in
                   let sargs = CubeOf.subcube fa args in
-                  readback_val sctx (apply_binder (BindCube.find cods fa) sargs));
+                  readback_val sctx (apply_binder_term (BindCube.find cods fa) sargs));
             } )
-  | Neu { head; args } ->
+  | Neu { head; args; alignment = _ } ->
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
           Term.Act
@@ -183,7 +188,7 @@ and readback_at_tel :
   match (xs, tys) with
   | [], Emp -> []
   | x :: xs, Ext (_, ty, tys) ->
-      let ety = eval env ty in
+      let ety = eval_term env ty in
       (* Copied from check_tel; TODO: Factor it out *)
       let tyargtbl = Hashtbl.create 10 in
       let [ tyarg; tms; tyargs ] =
@@ -197,7 +202,7 @@ and readback_at_tel :
                     let fa = sface_of_tface fa in
                     let argty =
                       inst
-                        (eval (Act (env, op_of_sface fa)) ty)
+                        (eval_term (Act (env, op_of_sface fa)) ty)
                         (TubeOf.build D.zero
                            (D.zero_plus (dom_sface fa))
                            {

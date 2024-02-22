@@ -14,7 +14,7 @@ let types : (Constant.t, emp term) Hashtbl.t = Hashtbl.create 10
 (* Each constant either is an axiom, has a definition (a case tree), is a record (including coinductive ones), or is a datatype (including indexed ones). *)
 type definition =
   | Axiom : definition
-  | Defined : emp Case.tree ref -> definition
+  | Defined : emp term -> definition
   | Record : {
       (* Whether the type supports eta-conversion, i.e. whether it is really a record type or a codatatype. *)
       eta : eta;

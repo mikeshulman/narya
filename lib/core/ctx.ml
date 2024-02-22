@@ -167,8 +167,11 @@ let rec env : type a b. (a, b) t -> (D.zero, b) env = function
   | Split (ctx, _, _, _, v) ->
       Ext (env ctx, CubeOf.mmap { map = (fun _ [ x ] -> CubeOf.singleton (snd x).tm) } [ v ])
 
-(* Evaluate a term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
-let eval : type a b. (a, b) t -> b term -> value = fun ctx tm -> Norm.eval (env ctx) tm
+(* Evaluate a case tree or term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
+let eval_tree : type a b. (a, b) t -> b term -> tree_value =
+ fun ctx tm -> Norm.eval_tree (env ctx) tm
+
+let eval_term : type a b. (a, b) t -> b term -> value = fun ctx tm -> Norm.eval_term (env ctx) tm
 
 (* Extend a context by one new variable, without a value but with an assigned type. *)
 let ext : type a b. (a, b) t -> string option -> value -> (a N.suc, (b, D.zero) ext) t =
@@ -239,7 +242,7 @@ let ext_tel :
         let newvars, newnfs =
           dom_vars (length ctx)
             (CubeOf.build (dim_env env)
-               { build = (fun fa -> Norm.eval (Act (env, op_of_sface fa)) rty) }) in
+               { build = (fun fa -> Norm.eval_term (Act (env, op_of_sface fa)) rty) }) in
         let newctx = Vis (ctx, `Cube x, newnfs) in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
@@ -298,25 +301,13 @@ let lookup_name : type a b. (a, b) t -> b index -> string list =
  fun ctx x -> Names.lookup (names ctx) x
 
 (* Generate a case tree consisting of a sequence of abstractions corresponding to the (checked) variables in a context. *)
-let rec lam_tree : type a b. (a, b) t -> emp Case.tree ref -> b Case.tree ref =
+let rec lam : type a b. (a, b) t -> b term -> emp term =
  fun ctx tree ->
   match ctx with
   | Emp -> tree
-  | Vis (ctx, xs, vars) ->
-      let tree = lam_tree ctx tree in
-      let next = ref Case.Empty in
-      tree := Case.Lam (CubeOf.dim vars, xs, next);
-      next
-  | Invis (ctx, vars) ->
-      let tree = lam_tree ctx tree in
-      let next = ref Case.Empty in
-      tree := Case.Lam (CubeOf.dim vars, `Cube None, next);
-      next
-  | Split (ctx, _, _, xs, vars) ->
-      let tree = lam_tree ctx tree in
-      let next = ref Case.Empty in
-      tree := Case.Lam (CubeOf.dim vars, xs, next);
-      next
+  | Vis (ctx, xs, vars) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
+  | Invis (ctx, vars) -> lam ctx (Lam (CubeOf.dim vars, `Cube None, tree))
+  | Split (ctx, _, _, xs, vars) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
 
 open Format
 

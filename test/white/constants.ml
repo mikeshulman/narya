@@ -169,4 +169,7 @@ let () =
 
   def "mtchbd0''" "(e:∅) (f : ℕ → ℕ) → Id (ℕ → ℕ) f f"
     "e f n0 n1 n2 ↦ [ n0 | zero. ↦ [e] | suc. _ ↦ refl f n0 n1 n2 ]";
+
+  (* Matching inside a tuple *)
+  def "mtchtup" "ℕ → ((X : Type) × (X → X))" "n ↦ ( [ n | zero. ↦ ℕ | suc. _ ↦ ℕ ], x ↦ x )";
   ()

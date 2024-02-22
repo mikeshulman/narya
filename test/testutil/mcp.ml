@@ -30,7 +30,7 @@ let synth (tm : string) : Value.value * Value.value =
   match parse_term names tm with
   | { value = Synth raw; loc } ->
       let syn, ty = Check.synth ctx { value = raw; loc } in
-      let esyn = Ctx.eval ctx syn in
+      let esyn = Ctx.eval_term ctx syn in
       (esyn, ty)
   | _ -> Reporter.fatal (Nonsynthesizing "toplevel synth")
 
@@ -39,7 +39,7 @@ let check (tm : string) (ty : Value.value) : Value.value =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to check"))
-  @@ fun () -> Ctx.eval ctx (Check.check ctx (parse_term names tm) ty)
+  @@ fun () -> Ctx.eval_term ctx (Check.check ctx (parse_term names tm) ty)
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 

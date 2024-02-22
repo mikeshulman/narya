@@ -7,8 +7,69 @@ open Term
 open Value
 open Inst
 open Bwd
-open Monad.Ops (Monad.Maybe)
 open Hctx
+
+(* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a term always produces just a value, whereas evaluating a case tree can either
+
+   1. Produce a new partially-evaluated case tree that isn't fully applied yet.  This is actually represented by a value that's either a Lam or a Struct.
+   2. Reach a leaf and produce a value.
+   3. Conclude that the case tree is true neutral and will never reduce further.
+
+   These possibilities are encoded in a "tree_value", defined in Syntax.Value.  However, just as with the representation of terms, there is enough commonality between the two (application of lambdas and field projection from structs) that we don't want to duplicate the code.  Thus, we define the evaluation functions to take a "term", which might be either an honest term or a case tree, and always return a value, but indicate the other information produced by evaluating a case tree using effects and exceptions.
+
+   1. This is indicated by simply returning a value with no other effects.
+   2. This is indicated by setting an effectual state to `Leaf (from the default of `Noleaf) and returning a value.
+   3. This is indicated by raising the exception True_neutral.
+*)
+
+exception True_neutral
+
+type _ Effect.t += Set_leaf : unit Effect.t
+
+let leaf () = Effect.perform Set_leaf
+
+let as_tree f =
+  let open Effect.Deep in
+  let st = ref `Noleaf in
+  match_with f ()
+    {
+      retc =
+        (fun x ->
+          match !st with
+          | `Leaf -> Leaf x
+          | `Noleaf -> Noleaf x);
+      exnc =
+        (fun e ->
+          match e with
+          | True_neutral -> True_neutral
+          | _ -> raise e);
+      effc =
+        (fun (type a) (eff : a Effect.t) ->
+          match eff with
+          | Set_leaf ->
+              Option.some @@ fun (k : (a, _) continuation) ->
+              st := `Leaf;
+              continue k ()
+          | _ -> None);
+    }
+
+let as_term f =
+  let open Effect.Deep in
+  match_with f ()
+    {
+      retc = Fun.id;
+      exnc =
+        (fun e ->
+          match e with
+          | True_neutral -> fatal (Anomaly "true neutral case tree in term")
+          | _ -> raise e);
+      effc =
+        (fun (type a) (eff : a Effect.t) ->
+          match eff with
+          | Set_leaf ->
+              Option.some @@ fun (_ : (a, _) continuation) -> fatal (Anomaly "leaf in term")
+          | _ -> None);
+    }
 
 (* Look up a value in an environment by variable index.  The result has to have a degeneracy action applied (from the actions stored in the environment).  Thus this depends on being able to act on a value by a degeneracy, so we can't define it until after act.ml is loaded (unless we do open recursive trickery). *)
 let lookup : type n b. (n, b) env -> b index -> value =
@@ -33,7 +94,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
  fun env tm ->
   match tm with
   | Var v -> lookup env v
-  | Const name ->
+  | Const name -> (
       let dim = dim_env env in
       let cty = Hashtbl.find Global.types name in
       (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
@@ -54,7 +115,15 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                             (Anomaly
                                "evaluation of lower-dimensional constant is not neutral/canonical"));
                 })) in
-      apply_spine (Const { name; ins = zero_ins dim }) Emp ty
+      let head = Const { name; ins = zero_ins dim } in
+      match Hashtbl.find_opt Global.constants name with
+      | Some (Defined tree) -> (
+          match as_tree @@ fun () -> eval (Emp dim) tree with
+          | Leaf x -> x
+          | Noleaf x -> Uninst (Neu { head; args = Emp; alignment = `Chaotic x }, ty)
+          | True_neutral -> Uninst (Neu { head; args = Emp; alignment = `True }, ty))
+      | Some _ -> Uninst (Neu { head; args = Emp; alignment = `True }, ty)
+      | None -> fatal (Undefined_constant (PConstant name)))
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -143,7 +212,9 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let etm = eval env tm in
       field etm fld
   | Struct (_, fields) ->
-      Struct (Abwd.map (fun (tm, l) -> (eval env tm, l)) fields, zero_ins (dim_env env))
+      Struct
+        ( Abwd.map (fun (tm, l) -> (lazy (as_tree @@ fun () -> eval env tm), l)) fields,
+          zero_ins (dim_env env) )
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -215,6 +286,28 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let (Plus kn) = D.plus (cod_deg s) in
       let ks = plus_deg k kn km s in
       act_value (eval env x) ks
+  | Match (ix, n, branches) -> (
+      (* Get the argument being inspected *)
+      let m = dim_env env in
+      match lookup env ix with
+      (* It must be an application of a constructor *)
+      | Constr (name, dim, dargs) -> (
+          match Constr.Map.find_opt name branches with
+          (* Matches are constructed to contain all the constructors of the datatype being matched on, and this constructor belongs to that datatype, so it ought to be in the match. *)
+          | None -> fatal (Anomaly "constructor missing from compiled match")
+          | Some (Branch (plus, body)) -> (
+              let (Plus mn) = D.plus n in
+              match compare dim (D.plus_out m mn) with
+              | Eq ->
+                  (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
+                  let env = take_args env mn dargs plus in
+                  (* Then we proceed recursively with the body of that branch. *)
+                  eval env body
+              | _ -> raise True_neutral))
+      | _ -> raise True_neutral)
+  | Leaf tm ->
+      leaf ();
+      eval env tm
 
 (* Apply a function value to an argument (with its boundaries). *)
 and apply : type n. value -> (n, value) CubeOf.t -> value =
@@ -247,108 +340,18 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
               let ty = lazy (tyof_app cods tyargs arg) in
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
               match tm with
-              | Neu { head; args } ->
-                  apply_spine head (Snoc (args, App (Arg newarg, zero_ins k))) ty
+              | Neu { head; args; alignment } -> (
+                  let args = Snoc (args, App (Arg newarg, zero_ins k)) in
+                  match alignment with
+                  | `True -> Uninst (Neu { head; args; alignment = `True }, ty)
+                  | `Chaotic tm -> (
+                      match as_tree @@ fun () -> apply tm arg with
+                      | Leaf x -> x
+                      | Noleaf x -> Uninst (Neu { head; args; alignment = `Chaotic x }, ty)
+                      | True_neutral -> Uninst (Neu { head; args; alignment = `True }, ty)))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
-
-(* Compute the application of a head to a spine of arguments (including field projections), using a case tree for a head constant if possible, otherwise just constructing a neutral application.  We have to be given the overall type of the application, so that we can annotate the latter case. *)
-and apply_spine : head -> app Bwd.t -> value Lazy.t -> value =
- fun head args ty ->
-  (* Check whether the head is a constant with an associated case tree. *)
-  Option.value
-    (match head with
-    | Const { name; ins } -> (
-        match Hashtbl.find_opt Global.constants name with
-        | Some (Defined tree) ->
-            let dim = cod_left_ins ins in
-            let deg = deg_of_ins ins (plus_of_ins ins) in
-            apply_tree (Emp dim) !tree (Any deg) (Bwd.prepend args [])
-        | Some _ -> None
-        | None -> fatal (Undefined_constant (PConstant name)))
-    | _ -> None)
-    (* If it has no case tree, or is not a constant, we just add the argument to the neutral application spine and return. *)
-    ~default:(Uninst (Neu { head; args }, ty))
-
-(* Evaluate a case tree, in an environment of variables for which we have already found values, with possible additional arguments.  The degeneracy is one to be applied to the value of the case tree *before* applying it to any additional arguments; thus if it is nonidentity we cannot pick up additional arguments.  Return None if the case tree doesn't apply for any reason (e.g. not enough arguments, or a dispatching argument doesn't match any branch, or there is a nonidentity degeneracy in the way of picking up extra arguments). *)
-and apply_tree : type n a. (n, a) env -> a Case.tree -> any_deg -> app list -> value option =
- fun env tree ins args ->
-  match tree with
-  | Lam (n, _, body) -> (
-      (* We fail unless the current insertion is the identity.  TODO: Actually should we allow degeneracies for higher lambdas and behave like degeneracy actions on lambdas?  *)
-      let* () = is_id_any_deg ins in
-      (* Pick up another argument. *)
-      let m = dim_env env in
-      let (Plus plus_dim) = D.plus n in
-      match args with
-      | App (Arg arg, newins) :: args -> (
-          match compare (CubeOf.dim arg) (D.plus_out m plus_dim) with
-          | Neq ->
-              fatal
-                (Dimension_mismatch ("applying case tree", CubeOf.dim arg, D.plus_out m plus_dim))
-          | Eq ->
-              apply_tree
-                (Ext
-                   ( env,
-                     CubeOf.build n
-                       {
-                         build =
-                           (fun fa ->
-                             CubeOf.build m
-                               {
-                                 build =
-                                   (fun fb ->
-                                     let (Plus plus_dom) = D.plus (dom_sface fa) in
-                                     (CubeOf.find arg (sface_plus_sface fb plus_dim plus_dom fa)).tm);
-                               });
-                       } ))
-                !body
-                (Any (perm_of_ins newins))
-                args)
-      | _ -> None)
-  | Leaf body ->
-      (* We've found a term to evaluate *)
-      let res = act_any (eval env body) ins in
-      (* Now apply this to any remaining arguments. *)
-      Some
-        (List.fold_left
-           (fun f (Value.App (a, i)) ->
-             act_value
-               (match a with
-               | Arg arg -> apply f (val_of_norm_cube arg)
-               | Field fld -> field f fld)
-               (perm_of_ins i))
-           res args)
-  | Branches (ix, n, branches) -> (
-      (* Get the argument being inspected *)
-      let m = dim_env env in
-      match lookup env ix with
-      (* It must be an application of a constructor *)
-      | Constr (name, dim, dargs) -> (
-          match Constr.Map.find_opt name branches with
-          (* Matches are constructed to contain all the constructors of the datatype being matched on, and this constructor belongs to that datatype, so it ought to be in the match. *)
-          | None -> fatal (Anomaly "constructor missing from compiled match")
-          | Some (Branch (plus, body)) -> (
-              let (Plus mn) = D.plus n in
-              match compare dim (D.plus_out m mn) with
-              | Eq ->
-                  (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
-                  let env = take_args env mn dargs plus in
-                  (* Then we proceed recursively with the body of that branch. *)
-                  apply_tree env !body ins args
-              | _ -> None))
-      | _ -> None)
-  | Cobranches cobranches -> (
-      (* A cobranch can only succeed if there is a field projection to match against occurring next in the spine. *)
-      match args with
-      | App (Field fld, new_ins) :: args ->
-          (* This also requires the degeneracy to be the identity. *)
-          let* () = is_id_any_deg ins in
-          let* body = Abwd.find_opt fld cobranches in
-          apply_tree env !body (Any (perm_of_ins new_ins)) args
-      | _ -> None)
-  | Empty -> None
 
 (* Compute the output type of a function application, given the codomains and instantiation arguments of the pi-type (the latter being the functions acting on the boundary) and the arguments it is applied to. *)
 and tyof_app :
@@ -381,16 +384,27 @@ and tyof_app :
       [ fns ] in
   inst (apply_binder (BindCube.find_top cods) args) out_args
 
-(* Compute a field of a structure, at a particular dimension. *)
+(* Compute a field of a structure, at a particular dimension.  This does not do any "evaluation", so in particular it doesn't issue any effects or exceptions. *)
 and field : value -> Field.t -> value =
  fun tm fld ->
   match tm with
   (* TODO: Is it okay to ignore the insertion here? *)
-  | Struct (fields, _) -> fst (Abwd.find fld fields)
-  | Uninst (Neu { head; args }, (lazy ty)) ->
+  | Struct (fields, _) -> (
+      match Lazy.force (fst (Abwd.find fld fields)) with
+      | Noleaf x -> x
+      | Leaf _ -> fatal (Anomaly "leaf in field")
+      | True_neutral -> fatal (Anomaly "true neutral case tree in field"))
+  | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
       let newty = lazy (tyof_field tm ty fld) in
-      (* The D.zero here isn't really right, but since it's the identity permutation anyway I don't think it matters? *)
-      apply_spine head (Snoc (args, App (Field fld, zero_ins D.zero))) newty
+      let args = Snoc (args, App (Field fld, zero_ins D.zero)) in
+      match alignment with
+      | `True -> Uninst (Neu { head; args; alignment = `True }, newty)
+      | `Chaotic (Struct (fields, _)) -> (
+          match Lazy.force (fst (Abwd.find fld fields)) with
+          | Leaf x -> x
+          | Noleaf x -> Uninst (Neu { head; args; alignment = `Chaotic x }, newty)
+          | True_neutral -> Uninst (Neu { head; args; alignment = `True }, newty))
+      | `Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
@@ -398,7 +412,8 @@ and tyof_field_withname ?severity ?degerr (tm : value) (ty : value) (fld : Field
     Field.t * value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
-  | Neu { head = Const { name; ins }; args } -> (
+  (* TODO: Inspect Lawful alignment rather than the head. *)
+  | Neu { head = Const { name; ins }; args; alignment = _ } -> (
       (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
       if Option.is_none (is_id_ins ins) then fatal ?severity (No_such_field (`Other, fld));
       let m = cod_left_ins ins in
@@ -492,3 +507,12 @@ and apply_binder : type n. n Value.binder -> (n, value) CubeOf.t -> value =
               [ b.args ] ))
        b.body)
     b.perm
+
+let eval_tree : type m b. (m, b) env -> b term -> tree_value =
+ fun env tm -> as_tree @@ fun () -> eval env tm
+
+let eval_term : type m b. (m, b) env -> b term -> value =
+ fun env tm -> as_term @@ fun () -> eval env tm
+
+let apply_term fn arg = as_term @@ fun () -> apply fn arg
+let apply_binder_term b arg = as_term @@ fun () -> apply_binder b arg

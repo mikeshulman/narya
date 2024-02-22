@@ -37,8 +37,9 @@ and equal_at : int -> value -> value -> value -> unit option =
           (* Calculate the output type of the application to those variables *)
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
-          equal_at (ctx + 1) (apply x newargs) (apply y newargs) output)
-  | Neu { head = Const { name; ins }; args = canonical_args } -> (
+          equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output)
+  (* TODO: Inspect Lawful alignments instead *)
+  | Neu { head = Const { name; ins }; args = canonical_args; alignment = _ } -> (
       (* The insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it. *)
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
@@ -60,10 +61,12 @@ and equal_at : int -> value -> value -> value -> unit option =
                   let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
                   BwdM.miterM
                     (fun [ (fld, _) ] ->
-                      equal_at ctx
-                        (fst (Abwd.find fld xfld))
-                        (fst (Abwd.find fld yfld))
-                        (tyof_field x ty fld))
+                      match
+                        ( Lazy.force (fst (Abwd.find fld xfld)),
+                          Lazy.force (fst (Abwd.find fld yfld)) )
+                      with
+                      | Leaf xtm, Leaf ytm -> equal_at ctx xtm ytm (tyof_field x ty fld)
+                      | _ -> fatal (Anomaly "trying to compare case trees for equality"))
                     [ fields ]
               | Struct _, _ | _, Struct _ -> fail
               | _ -> equal_val ctx x y))
@@ -146,8 +149,9 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
       match compare m n with
       | Eq -> return ()
       | _ -> fail)
-  | Neu { head = head1; args = args1 }, Neu { head = head2; args = args2 } ->
-      (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside). *)
+  | ( Neu { head = head1; args = args1; alignment = _ },
+      Neu { head = head2; args = args2; alignment = _ } ) ->
+      (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside).  An alignment doesn't affect definitional equality. *)
       let* () = equal_head lvl head1 head2 in
       (* Then we recursively check that all their arguments are equal. *)
       equal_args lvl args1 args2
@@ -166,7 +170,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
               it =
                 (fun s [ cod1; cod2 ] ->
                   let sargs = CubeOf.subcube s newargs in
-                  equal_val (lvl + 1) (apply_binder cod1 sargs) (apply_binder cod2 sargs));
+                  equal_val (lvl + 1) (apply_binder_term cod1 sargs) (apply_binder_term cod2 sargs));
             }
             [ cod1s; cod2s ]
       | Neq -> fail)
@@ -231,7 +235,7 @@ and equal_at_tel :
   match (xs, ys, tys) with
   | [], [], Emp -> Some ()
   | x :: xs, y :: ys, Ext (_, ty, tys) ->
-      let ety = eval env ty in
+      let ety = eval_term env ty in
       (* Copied from check_tel; TODO: Factor it out *)
       let tyargtbl = Hashtbl.create 10 in
       let [ tyarg; tyargs ] =
@@ -245,7 +249,7 @@ and equal_at_tel :
                     let fa = sface_of_tface fa in
                     let argty =
                       inst
-                        (eval (Act (env, op_of_sface fa)) ty)
+                        (eval_term (Act (env, op_of_sface fa)) ty)
                         (TubeOf.build D.zero
                            (D.zero_plus (dom_sface fa))
                            {

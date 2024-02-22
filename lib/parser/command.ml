@@ -78,7 +78,7 @@ let execute : t -> unit = function
       match rtm.value with
       | Synth stm ->
           let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in
-          let etm = Norm.eval (Emp D.zero) ctm in
+          let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           pp_term `None Format.std_formatter (Term utm);

@@ -1,9 +1,7 @@
 open Util
 open Dim
-open Norm
 open Syntax
 open Raw
-open Value
 open Inst
 open Check
 open Asai.Range
@@ -22,14 +20,15 @@ let execute : t -> unit = function
   | Def (const, params, ty, tm) ->
       let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
       let cty = check ctx ty (universe D.zero) in
-      let ety = Ctx.eval ctx cty in
+      let ety = Ctx.eval_term ctx cty in
       let cty = Telescope.pis params cty in
       Hashtbl.add Global.types const cty;
-      let tree = ref Case.Empty in
-      Hashtbl.add Global.constants const (Defined tree);
-      let hd = eval (Emp D.zero) (Const const) in
+      (* We temporarily define the constant as an axiom, so that its type can be used recursively in typechecking its definition.  This doesn't preclude some branches of the definition depending on the value of other branches (e.g. as in matching against a HIT), but it means that such dependence must be incorporated explicitly by the typechecker. *)
+      Hashtbl.add Global.constants const Axiom;
       Reporter.try_with ~fatal:(fun d ->
           Hashtbl.remove Global.types const;
           Hashtbl.remove Global.constants const;
           Reporter.fatal_diagnostic d)
-      @@ fun () -> check_tree ctx tm ety hd (Ctx.lam_tree ctx tree)
+      @@ fun () ->
+      let tree = Ctx.lam ctx (check ~tree:true ctx tm ety) in
+      Hashtbl.add Global.constants const (Defined tree)

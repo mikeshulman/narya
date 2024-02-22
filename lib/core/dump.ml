@@ -1,6 +1,7 @@
 (* This module should not be imported, but used qualified (including its constructor names for printable). *)
 
 open Dim
+open Util
 open Reporter
 open Format
 open Syntax
@@ -27,15 +28,37 @@ let rec value : formatter -> value -> unit =
   | Inst { tm; dim = d; args = _; tys = _ } ->
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
   | Lam (_, _) -> fprintf ppf "Lam ?"
-  | Struct (_, _) -> fprintf ppf "Struct ?"
+  | Struct (f, _) -> fprintf ppf "Struct (%a)" fields f
   | Constr (_, _, _) -> fprintf ppf "Constr ?"
+
+and fields : formatter -> (Field.t, tree_value Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t -> unit =
+ fun ppf -> function
+  | Emp -> fprintf ppf "Emp"
+  | Snoc (flds, (f, ((lazy v), l))) ->
+      fprintf ppf "%a <: (%s, %a, %s)" fields flds (Field.to_string f) tree_value v
+        (match l with
+        | `Unlabeled -> "`Unlabeled"
+        | `Labeled -> "`Labeled")
+
+and tree_value : formatter -> tree_value -> unit =
+ fun ppf v ->
+  match v with
+  | True_neutral -> fprintf ppf "True_neutral"
+  | Leaf v -> fprintf ppf "Leaf (%a)" value v
+  | Noleaf v -> fprintf ppf "Noleaf (%a)" value v
 
 and uninst : formatter -> uninst -> unit =
  fun ppf u ->
   match u with
   | UU n -> fprintf ppf "UU %a" dim n
   | Pi (_, _, _) -> fprintf ppf "Pi ?"
-  | Neu { head = h; args = _ } -> fprintf ppf "Neu (%a, ?, ?)" head h
+  | Neu { head = h; args = _; alignment = al } -> fprintf ppf "Neu (%a, ?, %a)" head h alignment al
+
+and alignment : formatter -> alignment -> unit =
+ fun ppf al ->
+  match al with
+  | `True -> fprintf ppf "`True"
+  | `Chaotic v -> fprintf ppf "`Chaotic (%a)" value v
 
 and head : formatter -> head -> unit =
  fun ppf h ->
@@ -71,3 +94,5 @@ and term : type b. formatter -> b term -> unit =
   | Act (tm, _) -> fprintf ppf "Act (%a, ?)" term tm
   | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
   | Struct (_, _) -> fprintf ppf "Struct (?,?)"
+  | Match (_, _, _) -> fprintf ppf "Match (?,?,?)"
+  | Leaf tm -> fprintf ppf "Leaf %a" term tm

@@ -103,7 +103,7 @@ let synth (tm : pmt) : Value.value * Value.value =
   @@ fun () ->
   let raw = parse_syn names tm in
   let syn, ty = Check.synth ctx raw in
-  let esyn = Ctx.eval ctx syn in
+  let esyn = Ctx.eval_term ctx syn in
   (esyn, ty)
 
 let check (tm : pmt) (ty : Value.value) : Value.value =
@@ -114,7 +114,7 @@ let check (tm : pmt) (ty : Value.value) : Value.value =
   @@ fun () ->
   let raw = parse_chk names tm in
   let chk = Check.check ctx raw ty in
-  Ctx.eval ctx chk
+  Ctx.eval_term ctx chk
 
 (* Assert that a term *doesn't* synthesize or check *)
 
@@ -164,7 +164,7 @@ let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
 (* Infix notation for applying values *)
 
 let ( $$ ) (fn : Value.value) (arg : Value.value) : Value.value =
-  Norm.apply fn (Dim.CubeOf.singleton arg)
+  Norm.apply_term fn (Dim.CubeOf.singleton arg)
 
 let run f =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->

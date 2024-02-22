@@ -79,7 +79,17 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
       Lam (act_variables x fa, act_binder body fa)
   | Struct (fields, ins) ->
       let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
-      Struct (Abwd.map (fun (tm, l) -> (act_value tm fa, l)) fields, new_ins)
+      Struct
+        ( Abwd.map
+            (fun (tm, l) ->
+              ( lazy
+                  (match Lazy.force tm with
+                  | True_neutral -> True_neutral
+                  | Leaf tm -> Leaf (act_value tm fa)
+                  | Noleaf tm -> Noleaf (act_value tm fa)),
+                l ))
+            fields,
+          new_ins )
   | Constr (name, dim, args) ->
       let (Of fa) = deg_plus_to s dim ~on:"constr" in
       Constr
@@ -96,14 +106,22 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
                 })
             args )
 
+and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
+ fun alignment s ->
+  match alignment with
+  | `True -> `True
+  | `Chaotic tm -> `Chaotic (act_value tm s)
+
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
   match tm with
-  | Neu { head; args } ->
+  | Neu { head; args; alignment } ->
       (* We act on the applications from the outside (last) to the inside, since the degeneracy has to be factored and may leave neutral insertions behind.  The resulting inner degeneracy then acts on the head. *)
       let Any s', args = act_apps args s in
       let head = act_head head s' in
-      Neu { head; args }
+      (* We act on the alignment separately with the original s, since (e.g.) a chaotic alignment is a "value" of the entire application spine, not just the head. *)
+      let alignment = act_alignment alignment s in
+      Neu { head; args; alignment }
   | UU nk ->
       let (Of fa) = deg_plus_to s nk ~on:"universe" in
       UU (dom_deg fa)

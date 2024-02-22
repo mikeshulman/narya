@@ -64,17 +64,17 @@ let def (name : string) (ty : string) (tm : string) : unit =
       let rty = parse_term ty in
       let rtm = parse_term tm in
       let cty = check_type rty in
-      let ety = eval (Emp D.zero) cty in
+      let ety = eval_term (Emp D.zero) cty in
       Hashtbl.add Global.types const cty;
-      let tree = ref Case.Empty in
-      Hashtbl.add Global.constants const (Defined tree);
-      let hd = eval (Emp D.zero) (Const const) in
+      Hashtbl.add Global.constants const Axiom;
       Reporter.try_with ~fatal:(fun d ->
           Hashtbl.remove Global.types const;
           Hashtbl.remove Global.constants const;
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      Reporter.trace "when checking case tree" @@ fun () -> check_tree Ctx.empty rtm ety hd tree
+      Reporter.trace "when checking case tree" @@ fun () ->
+      let tree = check ~tree:true Ctx.empty rtm ety in
+      Hashtbl.add Global.constants const (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
 
 (* For other commands, we piggyback on ordinary parsing.  *)
@@ -92,11 +92,11 @@ let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   let rtm1 = parse_term tm1 in
   let rtm2 = parse_term tm2 in
   let cty = check_type rty in
-  let ety = eval (Emp D.zero) cty in
+  let ety = eval_term (Emp D.zero) cty in
   let ctm1 = check_term rtm1 ety in
   let ctm2 = check_term rtm2 ety in
-  let etm1 = eval (Emp D.zero) ctm1 in
-  let etm2 = eval (Emp D.zero) ctm2 in
+  let etm1 = eval_term (Emp D.zero) ctm1 in
+  let etm2 = eval_term (Emp D.zero) ctm2 in
   match Equal.equal_at 0 etm1 etm2 ety with
   | None -> raise (Failure "Unequal terms")
   | Some () -> ()
@@ -106,11 +106,11 @@ let unequal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   let rtm1 = parse_term tm1 in
   let rtm2 = parse_term tm2 in
   let cty = check_type rty in
-  let ety = eval (Emp D.zero) cty in
+  let ety = eval_term (Emp D.zero) cty in
   let ctm1 = check_term rtm1 ety in
   let ctm2 = check_term rtm2 ety in
-  let etm1 = eval (Emp D.zero) ctm1 in
-  let etm2 = eval (Emp D.zero) ctm2 in
+  let etm1 = eval_term (Emp D.zero) ctm1 in
+  let etm2 = eval_term (Emp D.zero) ctm2 in
   match Equal.equal_at 0 etm1 etm2 ety with
   | None -> ()
   | Some () -> raise (Failure "Equal terms")
@@ -120,7 +120,7 @@ let print (tm : string) : unit =
   match rtm with
   | { value = Synth rtm; loc } ->
       let ctm, ety = synth Ctx.empty { value = rtm; loc } in
-      let etm = eval (Emp D.zero) ctm in
+      let etm = eval_term (Emp D.zero) ctm in
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in
       pp_term `None Format.std_formatter (Term utm);

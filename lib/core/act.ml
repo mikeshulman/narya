@@ -109,8 +109,8 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
 and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
  fun alignment s ->
   match alignment with
-  | `True -> `True
-  | `Chaotic tm -> `Chaotic (act_value tm s)
+  | True -> True
+  | Chaotic tm -> Chaotic (act_value tm s)
 
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->

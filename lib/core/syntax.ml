@@ -198,7 +198,7 @@ module rec Value : sig
       }
         -> 'mn binder
 
-  and alignment = [ `True | `Chaotic of value ]
+  and alignment = True | Chaotic of value
 
   and uninst =
     | UU : 'n D.t -> uninst
@@ -265,7 +265,7 @@ end = struct
      - A True neutral is an ordinary neutral that will never reduce further, such as an application of a variable or axiom, or of a defined constant with a neutral argument in a matching position.
      - A Chaotic neutral has a head defined by a case tree but isn't fully applied, so it might reduce further if it is applied to further arguments or field projections.  Thus it stores a value that should be either an abstraction or a struct, but does not test as equal to that value.
      - A Lawful neutral (not yet implemented) will never reduce further, but has a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.). *)
-  and alignment = [ `True | `Chaotic of value ]
+  and alignment = True | Chaotic of value
 
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
@@ -318,7 +318,7 @@ open Value
 let var : level -> value -> value =
  fun level ty ->
   Uninst
-    ( Neu { head = Var { level; deg = id_deg D.zero }; args = Emp; alignment = `True },
+    ( Neu { head = Var { level; deg = id_deg D.zero }; args = Emp; alignment = True },
       Lazy.from_val ty )
 
 (* Every context morphism has a valid dimension. *)

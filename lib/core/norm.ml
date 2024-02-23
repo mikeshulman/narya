@@ -120,9 +120,9 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       | Some (Defined tree) -> (
           match as_tree @@ fun () -> eval (Emp dim) tree with
           | Leaf x -> x
-          | Noleaf x -> Uninst (Neu { head; args = Emp; alignment = `Chaotic x }, ty)
-          | True_neutral -> Uninst (Neu { head; args = Emp; alignment = `True }, ty))
-      | Some _ -> Uninst (Neu { head; args = Emp; alignment = `True }, ty)
+          | Noleaf x -> Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty)
+          | True_neutral -> Uninst (Neu { head; args = Emp; alignment = True }, ty))
+      | Some _ -> Uninst (Neu { head; args = Emp; alignment = True }, ty)
       | None -> fatal (Undefined_constant (PConstant name)))
   | UU n ->
       let m = dim_env env in
@@ -343,12 +343,12 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
               | Neu { head; args; alignment } -> (
                   let args = Snoc (args, App (Arg newarg, zero_ins k)) in
                   match alignment with
-                  | `True -> Uninst (Neu { head; args; alignment = `True }, ty)
-                  | `Chaotic tm -> (
+                  | True -> Uninst (Neu { head; args; alignment = True }, ty)
+                  | Chaotic tm -> (
                       match as_tree @@ fun () -> apply tm arg with
                       | Leaf x -> x
-                      | Noleaf x -> Uninst (Neu { head; args; alignment = `Chaotic x }, ty)
-                      | True_neutral -> Uninst (Neu { head; args; alignment = `True }, ty)))
+                      | Noleaf x -> Uninst (Neu { head; args; alignment = Chaotic x }, ty)
+                      | True_neutral -> Uninst (Neu { head; args; alignment = True }, ty)))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
@@ -398,13 +398,13 @@ and field : value -> Field.t -> value =
       let newty = lazy (tyof_field tm ty fld) in
       let args = Snoc (args, App (Field fld, zero_ins D.zero)) in
       match alignment with
-      | `True -> Uninst (Neu { head; args; alignment = `True }, newty)
-      | `Chaotic (Struct (fields, _)) -> (
+      | True -> Uninst (Neu { head; args; alignment = True }, newty)
+      | Chaotic (Struct (fields, _)) -> (
           match Lazy.force (fst (Abwd.find fld fields)) with
           | Leaf x -> x
-          | Noleaf x -> Uninst (Neu { head; args; alignment = `Chaotic x }, newty)
-          | True_neutral -> Uninst (Neu { head; args; alignment = `True }, newty))
-      | `Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree"))
+          | Noleaf x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
+          | True_neutral -> Uninst (Neu { head; args; alignment = True }, newty))
+      | Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)

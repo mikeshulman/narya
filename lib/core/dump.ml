@@ -57,8 +57,8 @@ and uninst : formatter -> uninst -> unit =
 and alignment : formatter -> alignment -> unit =
  fun ppf al ->
   match al with
-  | `True -> fprintf ppf "`True"
-  | `Chaotic v -> fprintf ppf "`Chaotic (%a)" value v
+  | True -> fprintf ppf "True"
+  | Chaotic v -> fprintf ppf "Chaotic (%a)" value v
 
 and head : formatter -> head -> unit =
  fun ppf h ->

@@ -133,7 +133,7 @@ let rec check : type a b. ?tree:bool -> (a, b) Ctx.t -> a check located -> value
                                 (* TODO: Is this insertion right?  Hopefully it doesn't matter. *)
                                 head = Const { name = Constant.make (); ins = zero_ins dim };
                                 args = Emp;
-                                alignment = `Chaotic str;
+                                alignment = Chaotic str;
                               },
                             Lazy.from_val ty )
                       else str in
@@ -299,7 +299,7 @@ let rec check : type a b. ?tree:bool -> (a, b) Ctx.t -> a check located -> value
                           let is_fresh x =
                             match x.tm with
                             | Uninst
-                                (Neu { head = Var { level; deg }; args = Emp; alignment = `True }, _)
+                                (Neu { head = Var { level; deg }; args = Emp; alignment = True }, _)
                               ->
                                 let () = is_id_deg deg <|> Invalid_match_index (PVal (ctx, x.tm)) in
                                 if Hashtbl.mem seen level then

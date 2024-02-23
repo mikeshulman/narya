@@ -165,7 +165,6 @@ let rec check : type a b. ?tree:bool -> (a, b) Ctx.t -> a check located -> value
                           (fld, (x, y))
                       | None -> fatal (Extra_field_in_tuple None))
                     !labeled_tms )
-          (* TODO: This is only if tmeta = `Eta, report separate errors in the `Noeta case. *)
           | _ ->
               fatal
                 (match tmeta with

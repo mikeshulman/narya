@@ -2,6 +2,7 @@ open Util
 open Core
 open Parser
 open Syntax
+open Value
 open Parse
 open Asai.Range
 
@@ -21,7 +22,7 @@ let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check locat
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let synth (tm : string) : Value.value * Value.value =
+let synth (tm : string) : kinetic value * kinetic value =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
@@ -34,12 +35,12 @@ let synth (tm : string) : Value.value * Value.value =
       (esyn, ty)
   | _ -> Reporter.fatal (Nonsynthesizing "toplevel synth")
 
-let check (tm : string) (ty : Value.value) : Value.value =
+let check (tm : string) (ty : kinetic value) : kinetic value =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to check"))
-  @@ fun () -> Ctx.eval_term ctx (Check.check ctx (parse_term names tm) ty)
+  @@ fun () -> Ctx.eval_term ctx (Check.check Kinetic ctx (parse_term names tm) ty)
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 
@@ -69,8 +70,8 @@ let unsynth : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string ->
       raise (Failure "Synthesis success")
   | _ -> Reporter.fatal (Nonsynthesizing "top-level unsynth")
 
-let uncheck : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string -> Value.value -> unit
-    =
+let uncheck :
+    ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string -> kinetic value -> unit =
  fun ?print ?code ?short tm ty ->
   let (Ctx (ctx, names)) = !context in
   Reporter.try_with ~fatal:(fun d ->
@@ -90,7 +91,7 @@ let uncheck : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string ->
             Terminal.display d;
             raise (Failure "Unexpected error code")))
   @@ fun () ->
-  let _ = Check.check ctx (parse_term names tm) ty in
+  let _ = Check.check Kinetic ctx (parse_term names tm) ty in
   raise (Failure "Checking success")
 
 (* Assert that a term doesn't parse *)
@@ -106,29 +107,29 @@ let unparse : ?print:unit -> string -> unit =
 
 (* Add to the context of assumptions *)
 
-let assume (x : string) (ty : Value.value) : Value.value =
+let assume (x : string) (ty : kinetic value) : kinetic value =
   let (Ctx (ctx, names)) = !context in
   context := Ctx (Ctx.ext ctx (Some x) ty, Snoc (names, Some x));
   fst (synth x)
 
 (* Check that two terms are, or aren't, equal, at a type or synthesizing *)
 
-let equal_at (tm1 : Value.value) (tm2 : Value.value) (ty : Value.value) : unit =
+let equal_at (tm1 : kinetic value) (tm2 : kinetic value) (ty : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_some (Equal.equal_at (Ctx.length ctx) tm1 tm2 ty) then ()
   else raise (Failure "Unequal terms")
 
-let unequal_at (tm1 : Value.value) (tm2 : Value.value) (ty : Value.value) : unit =
+let unequal_at (tm1 : kinetic value) (tm2 : kinetic value) (ty : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_none (Equal.equal_at (Ctx.length ctx) tm1 tm2 ty) then ()
   else raise (Failure "Equal terms")
 
-let equal (tm1 : Value.value) (tm2 : Value.value) : unit =
+let equal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_some (Equal.equal_val (Ctx.length ctx) tm1 tm2) then ()
   else raise (Failure "Unequal terms")
 
-let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
+let unequal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_none (Equal.equal_val (Ctx.length ctx) tm1 tm2) then ()
   else raise (Failure "Equal terms")

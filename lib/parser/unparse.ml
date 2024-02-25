@@ -123,7 +123,7 @@ let rec unparse_abs :
       unlocated (App { fn; arg; left_ok; right_ok })
 
 (* If a term is a natural number numeral (a bunch of 'suc' constructors applied to a 'zero' constructor), unparse it as that numeral; otherwise return None. *)
-let unparse_numeral : type n li ls ri rs. n term -> (li, ls, ri, rs) parse option =
+let unparse_numeral : type n li ls ri rs. (n, kinetic) term -> (li, ls, ri, rs) parse option =
  fun tm ->
   let rec getsucs tm k =
     match tm with
@@ -135,7 +135,9 @@ let unparse_numeral : type n li ls ri rs. n term -> (li, ls, ri, rs) parse optio
     | _ -> None in
   getsucs tm 0
 
-let rec get_list : type n li ls ri rs. n term -> n term Bwd.t -> n term Bwd.t option =
+let rec get_list :
+    type n li ls ri rs.
+    (n, kinetic) term -> (n, kinetic) term Bwd.t -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
   | Term.Constr (c, _, Emp) when c = Constr.intern "nil" -> Some elts
@@ -143,7 +145,9 @@ let rec get_list : type n li ls ri rs. n term -> n term Bwd.t -> n term Bwd.t op
       get_list (CubeOf.find_top cdr) (Snoc (elts, CubeOf.find_top car))
   | _ -> None
 
-let rec get_bwd : type n li ls ri rs. n term -> n term list -> n term Bwd.t option =
+let rec get_bwd :
+    type n li ls ri rs.
+    (n, kinetic) term -> (n, kinetic) term list -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
   | Term.Constr (c, _, Emp) when c = Constr.intern "emp" -> Some (Bwd.of_list elts)
@@ -153,8 +157,10 @@ let rec get_bwd : type n li ls ri rs. n term -> n term list -> n term Bwd.t opti
 
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
 let rec get_spine :
-    type b n. n term -> [ `App of n term * n term Bwd.t | `Field of n term * Field.t * n term Bwd.t ]
-    =
+    type b n.
+    (n, kinetic) term ->
+    [ `App of (n, kinetic) term * (n, kinetic) term Bwd.t
+    | `Field of (n, kinetic) term * Field.t * (n, kinetic) term Bwd.t ] =
  fun tm ->
   match tm with
   | App (fn, arg) -> (
@@ -173,7 +179,7 @@ let rec get_spine :
 let rec unparse :
     type n lt ls rt rs.
     n Names.t ->
-    n term ->
+    (n, kinetic) term ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
@@ -220,7 +226,7 @@ let rec unparse :
                   ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
                   ~last:body ~right_ok)))
   | Lam (_, cube, _) -> unparse_lam cube vars Emp tm li ri
-  | Struct (`Eta, fields) ->
+  | Struct (Eta, fields) ->
       unlocated
         (outfix ~notn:parens ~ws:[]
            ~inner:
@@ -245,7 +251,9 @@ let rec unparse :
                                  ~right_ok:(No.le_refl No.minus_omega))
                         | `Unlabeled -> tm) ))
                 fields Emp))
-  | Struct (`Noeta, fields) ->
+  (* Not yet unparsing comatches *)
+  (*
+  | Struct (Noeta, fields) ->
       unlocated
         (outfix ~notn:comatch ~ws:[]
            ~inner:
@@ -256,6 +264,7 @@ let rec unparse :
                     ( Snoc (acc, Term (unlocated (Field (Field.to_string fld, [])))),
                       Term (unparse vars tm Interval.entire Interval.entire) ))
                 fields Emp))
+*)
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
       match unparse_numeral tm with
@@ -279,20 +288,19 @@ let rec unparse :
               | None ->
                   let args = Bwd.map CubeOf.find_top args in
                   unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)))
-  | Match _ -> fatal (Unimplemented "unparsing Match")
-  | Leaf tm -> unparse vars tm li ri
+  | Match _ -> .
 
 (* The master unparsing function can easily be delayed. *)
-and make_unparser : type n. n Names.t -> n term -> unparser =
+and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
 
 (* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
 and unparse_spine :
     type n lt ls rt rs.
     n Names.t ->
-    [ `Term of n term
+    [ `Term of (n, kinetic) term
     | `Constr of Constr.t
-    | `Field of n term * Field.t
+    | `Field of (n, kinetic) term * Field.t
     | `Degen of string
     | `Unparser of unparser ] ->
     unparser Bwd.t ->
@@ -360,7 +368,7 @@ and unparse_lam :
     m variables ->
     n Names.t ->
     string option Bwd.t ->
-    n term ->
+    (n, kinetic) term ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
@@ -417,7 +425,7 @@ and unparse_pis :
     type n lt ls rt rs.
     n Names.t ->
     unparser Bwd.t ->
-    n term ->
+    (n, kinetic) term ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =

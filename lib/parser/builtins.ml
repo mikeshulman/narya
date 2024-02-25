@@ -505,7 +505,7 @@ let rec process_tuple :
     n check located =
  fun first flds found ctx obs loc ->
   match obs with
-  | [] -> { value = Raw.Struct (`Eta, flds); loc }
+  | [] -> { value = Raw.Struct (Eta, flds); loc }
   | Term { value = Notn n; _ } :: obs when equal (notn n) coloneq -> (
       match args n with
       | [ Term { value = Ident ([ x ], _); _ }; Term tm ] ->
@@ -649,7 +649,7 @@ let rec process_comatch :
     n check located =
  fun (flds, found) ctx obs loc ->
   match obs with
-  | [] -> { value = Raw.Struct (`Noeta, flds); loc }
+  | [] -> { value = Raw.Struct (Noeta, flds); loc }
   | Term { value = Field (x, _); _ } :: Term tm :: obs ->
       let tm = process ctx tm in
       let fld = Field.intern x in

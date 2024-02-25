@@ -18,7 +18,7 @@ let install () =
             Lam
               ( D.zero,
                 `Normal (CubeOf.singleton (Some "B")),
-                Leaf
+                Realize
                   (Pi
                      ( (* TODO: Get the variable somehow from the second argument *)
                        Some "x",

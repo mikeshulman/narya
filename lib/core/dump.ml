@@ -11,17 +11,17 @@ open Term
 (* Functions to dump a partial direct representation of various kinds of syntax, avoiding the machinery of readback, unparsing, etc. that's needed for ordinary pretty-printing.  Intended only for debugging. *)
 
 type printable +=
-  | Val : value -> printable
+  | Val : 's value -> printable
   | Uninst : uninst -> printable
   | Head : head -> printable
-  | Binder : 'b binder -> printable
-  | Term : 'b term -> printable
+  | Binder : ('b, 's) binder -> printable
+  | Term : ('b, 's) term -> printable
   | Env : ('n, 'b) env -> printable
 
 let dim : formatter -> 'a D.t -> unit =
  fun ppf d -> fprintf ppf "%d" (String.length (string_of_deg (id_deg d)))
 
-let rec value : formatter -> value -> unit =
+let rec value : type s. formatter -> s value -> unit =
  fun ppf v ->
   match v with
   | Uninst (tm, _) -> fprintf ppf "Uninst (%a, ?)" uninst tm
@@ -31,21 +31,22 @@ let rec value : formatter -> value -> unit =
   | Struct (f, _) -> fprintf ppf "Struct (%a)" fields f
   | Constr (_, _, _) -> fprintf ppf "Constr ?"
 
-and fields : formatter -> (Field.t, tree_value Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t -> unit =
+and fields :
+    type s. formatter -> (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t -> unit =
  fun ppf -> function
   | Emp -> fprintf ppf "Emp"
   | Snoc (flds, (f, ((lazy v), l))) ->
-      fprintf ppf "%a <: (%s, %a, %s)" fields flds (Field.to_string f) tree_value v
+      fprintf ppf "%a <: (%s, %a, %s)" fields flds (Field.to_string f) evaluation v
         (match l with
         | `Unlabeled -> "`Unlabeled"
         | `Labeled -> "`Labeled")
 
-and tree_value : formatter -> tree_value -> unit =
+and evaluation : type s. formatter -> s evaluation -> unit =
  fun ppf v ->
   match v with
-  | True_neutral -> fprintf ppf "True_neutral"
-  | Leaf v -> fprintf ppf "Leaf (%a)" value v
-  | Noleaf v -> fprintf ppf "Noleaf (%a)" value v
+  | Unrealized _ -> fprintf ppf "Unrealized"
+  | Realize v -> fprintf ppf "Realize (%a)" value v
+  | Val v -> fprintf ppf "Val (%a)" value v
 
 and uninst : formatter -> uninst -> unit =
  fun ppf u ->
@@ -68,7 +69,7 @@ and head : formatter -> head -> unit =
       fprintf ppf "Const (%a, %s)" pp_printed (print (PConstant name))
         (string_of_deg (perm_of_ins ins))
 
-and binder : type b. formatter -> b binder -> unit =
+and binder : type b s. formatter -> (b, s) binder -> unit =
  fun ppf (Bind { env = e; perm; plus_dim = _; body; args = _ }) ->
   fprintf ppf "Binder (%a, %s, ?, %a ,?)" env e (string_of_deg perm) term body
 
@@ -79,7 +80,7 @@ and env : type b n. formatter -> (n, b) env -> unit =
   | Ext (e, _) -> fprintf ppf "%a <: ?" env e
   | Act (e, Op (f, d)) -> fprintf ppf "%a <* (%s,%s)" env e (string_of_sface f) (string_of_deg d)
 
-and term : type b. formatter -> b term -> unit =
+and term : type b s. formatter -> (b, s) term -> unit =
  fun ppf tm ->
   match tm with
   | Var _ -> fprintf ppf "Var ?"
@@ -94,5 +95,5 @@ and term : type b. formatter -> b term -> unit =
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
   | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
   | Struct (_, _) -> fprintf ppf "Struct (?,?)"
-  | Match (_, _, _) -> fprintf ppf "Match (?,?,?)"
-  | Leaf tm -> fprintf ppf "Leaf %a" term tm
+  | Match (_, _, _, _) -> fprintf ppf "Match (?,?,?)"
+  | Realize tm -> fprintf ppf "Realize %a" term tm

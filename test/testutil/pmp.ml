@@ -1,6 +1,7 @@
 open Util
 open Core
 open Syntax
+open Value
 open Parser
 open Asai.Range
 
@@ -29,7 +30,7 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
   | Struct tms ->
       unlocated
         (Raw.Struct
-           ( `Eta,
+           ( Eta,
              List.fold_left
                (fun acc (fld, tm) -> Abwd.add (Some (Field.intern fld)) (parse_chk ctx tm) acc)
                Abwd.empty tms ))
@@ -95,7 +96,7 @@ let context = ref ectx
 
 (* Functions to synth and check terms *)
 
-let synth (tm : pmt) : Value.value * Value.value =
+let synth (tm : pmt) : kinetic value * kinetic value =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
@@ -106,14 +107,14 @@ let synth (tm : pmt) : Value.value * Value.value =
   let esyn = Ctx.eval_term ctx syn in
   (esyn, ty)
 
-let check (tm : pmt) (ty : Value.value) : Value.value =
+let check (tm : pmt) (ty : kinetic value) : kinetic value =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to check"))
   @@ fun () ->
   let raw = parse_chk names tm in
-  let chk = Check.check ctx raw ty in
+  let chk = Check.check Kinetic ctx raw ty in
   Ctx.eval_term ctx chk
 
 (* Assert that a term *doesn't* synthesize or check *)
@@ -125,45 +126,45 @@ let unsynth (tm : pmt) : unit =
   let _ = Check.synth ctx raw in
   raise (Failure "Synthesis success")
 
-let uncheck (tm : pmt) (ty : Value.value) : unit =
+let uncheck (tm : pmt) (ty : kinetic value) : unit =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
   let raw = parse_chk names tm in
-  let _ = Check.check ctx raw ty in
+  let _ = Check.check Kinetic ctx raw ty in
   raise (Failure "Checking success")
 
 (* Add to the context of assumptions *)
 
-let assume (x : string) (ty : Value.value) : Value.value =
+let assume (x : string) (ty : kinetic value) : kinetic value =
   let (Ctx (ctx, names)) = !context in
   context := Ctx (Ctx.ext ctx (Some x) ty, Snoc (names, x));
   fst (synth !!x)
 
 (* Check that two terms are, or aren't, equal, at a type or synthesizing *)
 
-let equal_at (tm1 : Value.value) (tm2 : Value.value) (ty : Value.value) : unit =
+let equal_at (tm1 : kinetic value) (tm2 : kinetic value) (ty : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_some (Equal.equal_at (Ctx.length ctx) tm1 tm2 ty) then ()
   else raise (Failure "Unequal terms")
 
-let unequal_at (tm1 : Value.value) (tm2 : Value.value) (ty : Value.value) : unit =
+let unequal_at (tm1 : kinetic value) (tm2 : kinetic value) (ty : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_none (Equal.equal_at (Ctx.length ctx) tm1 tm2 ty) then ()
   else raise (Failure "Equal terms")
 
-let equal (tm1 : Value.value) (tm2 : Value.value) : unit =
+let equal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_some (Equal.equal_val (Ctx.length ctx) tm1 tm2) then ()
   else raise (Failure "Unequal terms")
 
-let unequal (tm1 : Value.value) (tm2 : Value.value) : unit =
+let unequal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
   let (Ctx (ctx, _)) = !context in
   if Option.is_none (Equal.equal_val (Ctx.length ctx) tm1 tm2) then ()
   else raise (Failure "Equal terms")
 
 (* Infix notation for applying values *)
 
-let ( $$ ) (fn : Value.value) (arg : Value.value) : Value.value =
+let ( $$ ) (fn : kinetic value) (arg : kinetic value) : kinetic value =
   Norm.apply_term fn (Dim.CubeOf.singleton arg)
 
 let run f =

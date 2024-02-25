@@ -13,13 +13,13 @@ type t =
 let execute : t -> unit = function
   | Axiom (const, params, ty) ->
       let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
-      let cty = check ctx ty (universe D.zero) in
+      let cty = check Kinetic ctx ty (universe D.zero) in
       let cty = Telescope.pis params cty in
       Hashtbl.add Global.types const cty;
       Hashtbl.add Global.constants const Axiom
   | Def (const, params, ty, tm) ->
       let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
-      let cty = check ctx ty (universe D.zero) in
+      let cty = check Kinetic ctx ty (universe D.zero) in
       let ety = Ctx.eval_term ctx cty in
       let cty = Telescope.pis params cty in
       Hashtbl.add Global.types const cty;
@@ -30,5 +30,5 @@ let execute : t -> unit = function
           Hashtbl.remove Global.constants const;
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      let tree = Ctx.lam ctx (check ~tree:true ctx tm ety) in
+      let tree = Ctx.lam ctx (check Potential ctx tm ety) in
       Hashtbl.add Global.constants const (Defined tree)

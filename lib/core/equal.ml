@@ -20,7 +20,7 @@ let rec equal_nf : int -> normal -> normal -> unit option =
   equal_at n x.tm y.tm x.ty
 
 (* Eta-expanding compare two values at a type, which they are both assumed to belong to. *)
-and equal_at : int -> value -> value -> value -> unit option =
+and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit option =
  fun ctx x y ty ->
   (* The type must be fully instantiated. *)
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
@@ -49,24 +49,21 @@ and equal_at : int -> value -> value -> value -> unit option =
           | Neq, _ ->
               fatal
                 (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, D.plus_out k kdim))
-          | Eq, `Eta ->
+          | Eq, Eta ->
               (* It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
               BwdM.miterM
                 (fun [ (fld, _) ] -> equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
                 [ fields ]
-          | Eq, `Noeta -> (
+          | Eq, Noeta -> (
               (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
               match (x, y) with
               | Struct (xfld, xins), Struct (yfld, yins) ->
                   let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
                   BwdM.miterM
                     (fun [ (fld, _) ] ->
-                      match
-                        ( Lazy.force (fst (Abwd.find fld xfld)),
-                          Lazy.force (fst (Abwd.find fld yfld)) )
-                      with
-                      | Leaf xtm, Leaf ytm -> equal_at ctx xtm ytm (tyof_field x ty fld)
-                      | _ -> fatal (Anomaly "trying to compare case trees for equality"))
+                      let (Val xtm) = Lazy.force (fst (Abwd.find fld xfld)) in
+                      let (Val ytm) = Lazy.force (fst (Abwd.find fld yfld)) in
+                      equal_at ctx xtm ytm (tyof_field x ty fld))
                     [ fields ]
               | Struct _, _ | _, Struct _ -> fail
               | _ -> equal_val ctx x y))
@@ -118,7 +115,7 @@ and equal_at : int -> value -> value -> value -> unit option =
   | _ -> equal_val ctx x y
 
 (* "Synthesizing" equality check of two values, now *not* assumed a priori to have the same type.  If this function concludes that they are equal, then the equality of their types is part of that conclusion. *)
-and equal_val : int -> value -> value -> unit option =
+and equal_val : int -> kinetic value -> kinetic value -> unit option =
  fun n x y ->
   match (x, y) with
   (* Since an Inst has a positive amount of instantiation, it can never equal an Uninst.  We don't need to check that the types agree, since equal_uninst concludes equality of types rather than assumes it. *)
@@ -226,10 +223,10 @@ and equal_at_tel :
     type n a b ab.
     int ->
     (n, a) env ->
-    value list ->
-    value list ->
+    kinetic value list ->
+    kinetic value list ->
     (a, b, ab) Telescope.t ->
-    (D.zero, n, n, value list) TubeOf.t ->
+    (D.zero, n, n, kinetic value list) TubeOf.t ->
     unit option =
  fun ctx env xs ys tys tyargs ->
   match (xs, ys, tys) with

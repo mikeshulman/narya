@@ -24,11 +24,11 @@ let parse_term (tm : string) : N.zero check located =
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let check_type (rty : N.zero check located) : emp term =
-  Reporter.trace "when checking type" @@ fun () -> check Ctx.empty rty (universe D.zero)
+let check_type (rty : N.zero check located) : (emp, kinetic) term =
+  Reporter.trace "when checking type" @@ fun () -> check Kinetic Ctx.empty rty (universe D.zero)
 
-let check_term (rtm : N.zero check located) (ety : value) : emp term =
-  Reporter.trace "when checking term" @@ fun () -> check Ctx.empty rtm ety
+let check_term (rtm : N.zero check located) (ety : kinetic value) : (emp, kinetic) term =
+  Reporter.trace "when checking term" @@ fun () -> check Kinetic Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
   let p = Parse_term.parse (`String { title = Some "constant name"; content = name }) in
@@ -73,7 +73,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       Reporter.trace "when checking case tree" @@ fun () ->
-      let tree = check ~tree:true Ctx.empty rtm ety in
+      let tree = check Potential Ctx.empty rtm ety in
       Hashtbl.add Global.constants const (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
 

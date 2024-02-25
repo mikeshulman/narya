@@ -9,7 +9,7 @@ open Hctx
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  In most situations, the failure of this is a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
 
-let full_inst ?severity (ty : value) (err : string) : full_inst =
+let full_inst ?severity (ty : kinetic value) (err : string) : full_inst =
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
   | Uninst (ty, (lazy (Uninst (UU n, _)))) -> (
@@ -25,7 +25,7 @@ let full_inst ?severity (ty : value) (err : string) : full_inst =
   | _ -> fatal ?severity (Type_not_fully_instantiated err)
 
 (* Instantiate an arbitrary value, combining tubes. *)
-let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
+let rec inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kinetic value =
  fun tm args2 ->
   let n = TubeOf.inst args2 in
   match D.compare_zero n with
@@ -73,8 +73,9 @@ let rec inst : type m n mn. value -> (m, n, mn, normal) TubeOf.t -> value =
 
 and inst_args :
     type m n mn.
-    (m, n, mn, normal) TubeOf.t -> (D.zero, m, m, value) TubeOf.t -> (D.zero, m, m, value) TubeOf.t
-    =
+    (m, n, mn, normal) TubeOf.t ->
+    (D.zero, m, m, kinetic value) TubeOf.t ->
+    (D.zero, m, m, kinetic value) TubeOf.t =
  fun args2 tys ->
   let n = TubeOf.inst args2 in
   TubeOf.mmap
@@ -98,9 +99,9 @@ and inst_args :
     [ tys ]
 
 (* Given a *type*, hence an element of a fully instantiated universe, extract the arguments of the instantiation of that universe.  These were stored in the extra arguments of Uninst and Inst. *)
-type inst_tys = Inst_tys : (D.zero, 'n, 'n, value) TubeOf.t -> inst_tys
+type inst_tys = Inst_tys : (D.zero, 'n, 'n, kinetic value) TubeOf.t -> inst_tys
 
-let inst_tys : value -> inst_tys = function
+let inst_tys : kinetic value -> inst_tys = function
   | Uninst (_, (lazy (Uninst (UU z, _)))) -> (
       match compare z D.zero with
       | Eq -> Inst_tys (TubeOf.empty D.zero)
@@ -115,7 +116,8 @@ let inst_tys : value -> inst_tys = function
   | _ -> fatal (Anomaly "invalid type, has no instantiation arguments")
 
 (* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
-and norm_of_vals : type k. (k, value) CubeOf.t -> (k, value) CubeOf.t -> (k, normal) CubeOf.t =
+and norm_of_vals :
+    type k. (k, kinetic value) CubeOf.t -> (k, kinetic value) CubeOf.t -> (k, normal) CubeOf.t =
  fun tms tys ->
   (* Since we have to instantiate the types at the *normal* version of the terms, which is what we are computing, we also add the results to a hashtable as we create them so we can access them randomly later. *)
   let new_tm_tbl = Hashtbl.create 10 in
@@ -154,7 +156,7 @@ let rec take_args :
     type m n mn a b ab.
     (m, a) env ->
     (m, n, mn) D.plus ->
-    (mn, value) CubeOf.t Bwd.t ->
+    (mn, kinetic value) CubeOf.t Bwd.t ->
     (a, b, ab, n) exts ->
     (m, ab) env =
  fun env mn dargs plus ->
@@ -206,7 +208,7 @@ let rec take_canonical_args :
       | _ -> fatal (Anomaly "wrong number of arguments in canonical argument list"))
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
-let rec universe : type n. n D.t -> value =
+let rec universe : type n. n D.t -> kinetic value =
  fun n ->
   match D.compare_zero n with
   | Zero ->
@@ -235,7 +237,7 @@ and universe_nf : type n. n D.t -> normal =
 
 (* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
 let rec tyof_inst :
-    type m n mn. (D.zero, mn, mn, normal) TubeOf.t -> (m, n, mn, normal) TubeOf.t -> value =
+    type m n mn. (D.zero, mn, mn, normal) TubeOf.t -> (m, n, mn, normal) TubeOf.t -> kinetic value =
  fun tyargs eargs ->
   let m = TubeOf.uninst eargs in
   let n = TubeOf.inst eargs in
@@ -280,8 +282,10 @@ let rec tyof_inst :
 
 (* To typecheck a lambda, do an eta-expanding equality check, check pi-types for equality, or read back a pi-type or a term at a pi-type, we must create one new variable for each argument in the boundary.  Sometimes we need these variables as values and other times as normals. *)
 let dom_vars :
-    type m. int -> (m, value) CubeOf.t -> (m, value) CubeOf.t * (m, level option * normal) CubeOf.t
-    =
+    type m.
+    int ->
+    (m, kinetic value) CubeOf.t ->
+    (m, kinetic value) CubeOf.t * (m, level option * normal) CubeOf.t =
  fun i doms ->
   (* To make these variables into values, we need to annotate them with their types, which in general are instantiations of the domains at previous variables.  Thus, we assemble them in a hashtable as we create them for random access to the previous ones. *)
   let argtbl = Hashtbl.create 10 in

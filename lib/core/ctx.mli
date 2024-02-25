@@ -35,9 +35,9 @@ val lookup_face :
 val lookup_invis : ('a, 'b) t -> 'b index -> level option * normal
 val find_level : ('a, 'b) t -> level -> 'b index option
 val env : ('a, 'b) t -> (D.zero, 'b) env
-val eval_tree : ('a, 'b) t -> 'b Term.term -> tree_value
-val eval_term : ('a, 'b) t -> 'b Term.term -> value
-val ext : ('a, 'b) t -> string option -> value -> ('a N.suc, ('b, D.zero) ext) t
+val eval : ('a, 'b) t -> ('b, 's) Term.term -> 's evaluation
+val eval_term : ('a, 'b) t -> ('b, kinetic) Term.term -> kinetic value
+val ext : ('a, 'b) t -> string option -> kinetic value -> ('a N.suc, ('b, D.zero) ext) t
 val ext_let : ('a, 'b) t -> string option -> normal -> ('a N.suc, ('b, D.zero) ext) t
 
 val exts :
@@ -57,11 +57,11 @@ val ext_tel :
   ('b, 'c, 'bc) Telescope.t ->
   ('a, 'c, 'ac) N.plus ->
   ('e, 'c, 'ec, 'n) exts ->
-  ('ac, 'ec) t * ('n, 'bc) env * (('n, value) CubeOf.t, 'c) Bwv.t
+  ('ac, 'ec) t * ('n, 'bc) env * (('n, kinetic value) CubeOf.t, 'c) Bwv.t
 
 val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t
 val map : (normal -> normal) -> ('a, 'b) t -> ('a, 'b) t
 val names : ('a, 'b) t -> 'b Names.t
 val lookup_name : ('a, 'b) t -> 'b index -> string list
-val lam : ('a, 'b) t -> 'b term -> emp term
+val lam : ('a, 'b) t -> ('b, potential) term -> (emp, potential) term
 val pp_ctx : Format.formatter -> ('a, 'b) t -> unit

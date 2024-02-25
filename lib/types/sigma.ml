@@ -80,7 +80,7 @@ let install () =
   Hashtbl.add Global.constants sigma
     (Record
        {
-         eta = `Eta;
+         eta = Eta;
          params = Suc (Suc Zero);
          dim = D.zero;
          fields =

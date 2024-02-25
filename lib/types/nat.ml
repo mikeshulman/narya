@@ -27,5 +27,5 @@ let install () =
            |> Constr.Map.add suc (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
        });
   Hashtbl.add Global.types nnn (UU D.zero);
-  Hashtbl.add Global.constants nnn (Defined (Leaf (Const nn)));
+  Hashtbl.add Global.constants nnn (Defined (Realize (Const nn)));
   ()

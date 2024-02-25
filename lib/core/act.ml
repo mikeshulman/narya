@@ -40,7 +40,7 @@ let act_variables : type m n. n variables -> (m, n) deg -> m variables =
       | Neq -> `Cube (CubeOf.find_top x))
 
 (* Since a value is either instantiated or uninstantiated, this function just deals with instantiations and lambda-abstractions and passes everything else off to act_uninst. *)
-let rec act_value : type m n. value -> (m, n) deg -> value =
+let rec act_value : type m n s. s value -> (m, n) deg -> s value =
  fun v s ->
   match v with
   | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, Lazy.from_val (act_ty v ty s))
@@ -80,16 +80,7 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
   | Struct (fields, ins) ->
       let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
       Struct
-        ( Abwd.map
-            (fun (tm, l) ->
-              ( lazy
-                  (match Lazy.force tm with
-                  | True_neutral -> True_neutral
-                  | Leaf tm -> Leaf (act_value tm fa)
-                  | Noleaf tm -> Noleaf (act_value tm fa)),
-                l ))
-            fields,
-          new_ins )
+        (Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields, new_ins)
   | Constr (name, dim, args) ->
       let (Of fa) = deg_plus_to s dim ~on:"constr" in
       Constr
@@ -105,6 +96,13 @@ let rec act_value : type m n. value -> (m, n) deg -> value =
                       act_value (CubeOf.find tm fc) fd);
                 })
             args )
+
+and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
+ fun tm fa ->
+  match tm with
+  | Unrealized e -> Unrealized e
+  | Realize tm -> Realize (act_value tm fa)
+  | Val tm -> Val (act_value tm fa)
 
 and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
  fun alignment s ->
@@ -147,7 +145,7 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
           } in
       Pi (x, doms', cods')
 
-and act_binder : type m n. n binder -> (m, n) deg -> m binder =
+and act_binder : type m n s. (n, s) binder -> (m, n) deg -> (m, s) binder =
  fun (Bind { env; perm; plus_dim; body; args }) fa ->
   let m = dim_env env in
   let m_n = plus_dim in
@@ -195,7 +193,8 @@ and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }
 
 (* When acting on a neutral or normal, we also need to specify the typed of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions.  This function computes this "type of acted terms". *)
-and act_ty : type a b. ?err:Code.t -> value -> value -> (a, b) deg -> value =
+and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) deg -> kinetic value
+    =
  fun ?err tm tmty s ->
   match tmty with
   | Inst { tm = ty; dim; args; tys = _ } -> (
@@ -289,4 +288,4 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
       (new_s, Snoc (new_rest, App (new_arg, new_ins)))
 
 (* A version that takes the degeneracy wrapped. *)
-let act_any : value -> any_deg -> value = fun v (Any s) -> act_value v s
+let act_any : type s. s value -> any_deg -> s value = fun v (Any s) -> act_value v s

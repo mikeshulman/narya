@@ -9,73 +9,19 @@ open Inst
 open Bwd
 open Hctx
 
-(* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a term always produces just a value, whereas evaluating a case tree can either
+(* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
    1. Produce a new partially-evaluated case tree that isn't fully applied yet.  This is actually represented by a value that's either a Lam or a Struct.
    2. Reach a leaf and produce a value.
    3. Conclude that the case tree is true neutral and will never reduce further.
 
-   These possibilities are encoded in a "tree_value", defined in Syntax.Value.  However, just as with the representation of terms, there is enough commonality between the two (application of lambdas and field projection from structs) that we don't want to duplicate the code.  Thus, we define the evaluation functions to take a "term", which might be either an honest term or a case tree, and always return a value, but indicate the other information produced by evaluating a case tree using effects and exceptions.
-
-   1. This is indicated by simply returning a value with no other effects.
-   2. This is indicated by setting an effectual state to `Leaf (from the default of `Noleaf) and returning a value.
-   3. This is indicated by raising the exception True_neutral.
-*)
-
-exception True_neutral
-
-type _ Effect.t += Set_leaf : unit Effect.t
-
-let leaf () = Effect.perform Set_leaf
-
-let as_tree f =
-  let open Effect.Deep in
-  let st = ref `Noleaf in
-  match_with f ()
-    {
-      retc =
-        (fun x ->
-          match !st with
-          | `Leaf -> Leaf x
-          | `Noleaf -> Noleaf x);
-      exnc =
-        (fun e ->
-          match e with
-          | True_neutral -> True_neutral
-          | _ -> raise e);
-      effc =
-        (fun (type a) (eff : a Effect.t) ->
-          match eff with
-          | Set_leaf ->
-              Option.some @@ fun (k : (a, _) continuation) ->
-              st := `Leaf;
-              continue k ()
-          | _ -> None);
-    }
-
-let as_term f =
-  let open Effect.Deep in
-  match_with f ()
-    {
-      retc = Fun.id;
-      exnc =
-        (fun e ->
-          match e with
-          | True_neutral -> fatal (Anomaly "true neutral case tree in term")
-          | _ -> raise e);
-      effc =
-        (fun (type a) (eff : a Effect.t) ->
-          match eff with
-          | Set_leaf ->
-              Option.some @@ fun (_ : (a, _) continuation) -> fatal (Anomaly "leaf in term")
-          | _ -> None);
-    }
+   These possibilities are encoded in an "evaluation", defined in Syntax.Value.  The point is that, just as with the representation of terms, there is enough commonality between the two (application of lambdas and field projection from structs) that we don't want to duplicate the code, so we define the evaluation functions to return an "evaluation" result that is a GADT parametrized by the kind of energy of the term. *)
 
 (* Look up a value in an environment by variable index.  The result has to have a degeneracy action applied (from the actions stored in the environment).  Thus this depends on being able to act on a value by a degeneracy, so we can't define it until after act.ml is loaded (unless we do open recursive trickery). *)
-let lookup : type n b. (n, b) env -> b index -> value =
+let lookup : type n b. (n, b) env -> b index -> kinetic value =
  fun env v ->
   (* We traverse the environment, accumulating operator actions as we go, until we find the specified index. *)
-  let rec lookup : type m n b. (n, b) env -> b index -> (m, n) op -> value =
+  let rec lookup : type m n b. (n, b) env -> b index -> (m, n) op -> kinetic value =
    fun env v op ->
     match (env, v) with
     | Emp _, _ -> .
@@ -90,44 +36,43 @@ let lookup : type n b. (n, b) env -> b index -> value =
   lookup env v (id_op (dim_env env))
 
 (* The master evaluation function. *)
-let rec eval : type m b. (m, b) env -> b term -> value =
+let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
  fun env tm ->
   match tm with
-  | Var v -> lookup env v
+  | Var v -> Val (lookup env v)
   | Const name -> (
       let dim = dim_env env in
       let cty = Hashtbl.find Global.types name in
       (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
       let ty =
         lazy
-          (inst (eval (Emp dim) cty)
+          (inst (eval_term (Emp dim) cty)
              (TubeOf.build D.zero (D.zero_plus dim)
                 {
                   build =
                     (fun fa ->
                       (* To compute those lower-dimensional versions, we recursively evaluate the same constant in lower-dimensional contexts. *)
-                      let tm = eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
+                      let (Val tm) =
+                        eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
                       (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a normal term it had to be annotated with its type. *)
                       match tm with
                       | Uninst (Neu _, (lazy ty)) -> { tm; ty }
-                      | _ ->
-                          fatal
-                            (Anomaly
-                               "evaluation of lower-dimensional constant is not neutral/canonical"));
+                      | _ -> fatal (Anomaly "eval of lower-dim constant not neutral/canonical"));
                 })) in
       let head = Const { name; ins = zero_ins dim } in
       match Hashtbl.find_opt Global.constants name with
       | Some (Defined tree) -> (
-          match as_tree @@ fun () -> eval (Emp dim) tree with
-          | Leaf x -> x
-          | Noleaf x -> Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty)
-          | True_neutral -> Uninst (Neu { head; args = Emp; alignment = True }, ty))
-      | Some _ -> Uninst (Neu { head; args = Emp; alignment = True }, ty)
+          match eval (Emp dim) tree with
+          | Realize x -> Val x
+          | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
+          (* Since a top-level case tree is in the empty context, it doesn't have't anything to stuck-match against. *)
+          | Unrealized _ -> fatal (Anomaly "true neutral case tree in empty context"))
+      | Some _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty))
       | None -> fatal (Undefined_constant (PConstant name)))
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
-      universe (D.plus_out m mn)
+      Val (universe (D.plus_out m mn))
   | Inst (tm, args) -> (
       let nk = TubeOf.plus args in
       (* Add the environment dimension to the uninstantiated dimensions *)
@@ -135,7 +80,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let (Plus mn) = D.plus (TubeOf.uninst args) in
       let mn' = D.plus_out m mn in
       (* Evaluate the inner term *)
-      let newtm = eval env tm in
+      let newtm = eval_term env tm in
       (* Evaluate the arguments, rearranging and acting by faces and degeneracies *)
       let (Plus mn_k) = D.plus (D.plus_right nk) in
       let mn_k' = D.plus_out mn' mn_k in
@@ -159,7 +104,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                     let pq' = D.plus_out p pq in
                     let Eq = D.plus_uniq (cod_plus_of_tface fcd) nk in
                     (* Thus tm is p+q dimensional. *)
-                    let tm = eval (Act (env, op_of_sface fb)) (TubeOf.find args fcd) in
+                    let (Val tm) = eval (Act (env, op_of_sface fb)) (TubeOf.find args fcd) in
                     (* So its type needs to be fully instantiated at that dimension. *)
                     let ty =
                       inst ty
@@ -176,19 +121,19 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               }
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
-          inst newtm newargs)
+          Val (inst newtm newargs))
   | Lam (n, x, body) -> (
       match compare (dim_env env) D.zero with
-      | Eq -> Lam (x, eval_binder env (D.zero_plus n) body)
+      | Eq -> Val (Lam (x, eval_binder env (D.zero_plus n) body))
       | Neq -> (
           let (Plus mn) = D.plus n in
           match x with
-          | `Cube x -> Lam (`Cube x, eval_binder env mn body)
+          | `Cube x -> Val (Lam (`Cube x, eval_binder env mn body))
           (* TODO: Ideally this could be a "partially-cube" variable. *)
-          | `Normal x -> Lam (`Cube (CubeOf.find_top x), eval_binder env mn body)))
+          | `Normal x -> Val (Lam (`Cube (CubeOf.find_top x), eval_binder env mn body))))
   | App (fn, args) ->
       (* First we evaluate the function. *)
-      let efn = eval env fn in
+      let (Val efn) = eval env fn in
       (* The environment is m-dimensional and the original application is n-dimensional, so the *substituted* application is m+n dimensional.  Thus must therefore match the dimension of the function being applied. *)
       let m = dim_env env in
       let n = CubeOf.dim args in
@@ -204,33 +149,23 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                 (* ...we decompose it as a sum of a face "fa" of m and a face "fb" of n... *)
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
                 (* ...and evaluate the supplied argument indexed by the face fb of n, in an environment acted on by the face fa of m. *)
-                eval (Act (env, op_of_sface fa)) (CubeOf.find args fb));
+                let (Val v) = eval (Act (env, op_of_sface fa)) (CubeOf.find args fb) in
+                v);
           } in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
   | Field (tm, fld) ->
-      let etm = eval env tm in
-      field etm fld
+      let (Val etm) = eval env tm in
+      Val (field etm fld)
   | Struct (_, fields) ->
-      Struct
-        ( Abwd.map (fun (tm, l) -> (lazy (as_tree @@ fun () -> eval env tm), l)) fields,
-          zero_ins (dim_env env) )
+      Val
+        (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, zero_ins (dim_env env)))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
-      let eargs =
-        Bwd.map
-          (fun tms ->
-            CubeOf.build mn
-              {
-                build =
-                  (fun fab ->
-                    let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                    eval (Act (env, op_of_sface fa)) (CubeOf.find tms fb));
-              })
-          args in
-      Constr (constr, mn, eargs)
+      let eargs = Bwd.map (eval_args env m_n mn) args in
+      Val (Constr (constr, mn, eargs))
   | Pi (x, doms, cods) ->
       let n = CubeOf.dim doms in
       let m = dim_env env in
@@ -242,7 +177,8 @@ let rec eval : type m b. (m, b) env -> b term -> value =
             build =
               (fun fab ->
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                eval (Act (env, op_of_sface fa)) (CubeOf.find doms fb));
+                let (Val v) = eval (Act (env, op_of_sface fa)) (CubeOf.find doms fb) in
+                v);
           } in
       let cods =
         BindCube.build mn
@@ -261,7 +197,7 @@ let rec eval : type m b. (m, b) env -> b term -> value =
               (fun fa ->
                 let k = dom_tface fa in
                 let fa = sface_of_tface fa in
-                let tm = eval (Act (env, op_of_sface fa)) tm in
+                let (Val tm) = eval (Act (env, op_of_sface fa)) tm in
                 let ty =
                   inst (universe k)
                     (TubeOf.build D.zero (D.zero_plus k)
@@ -274,10 +210,16 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                 Hashtbl.add tytbl (SFace_of fa) ntm;
                 ntm);
           } in
-      Uninst (Pi (x, doms, cods), lazy (inst (universe m) tys))
+      Val (Uninst (Pi (x, doms, cods), lazy (inst (universe m) tys)))
   | Let (_, v, body) ->
       let args =
-        CubeOf.build (dim_env env) { build = (fun fa -> eval (Act (env, op_of_sface fa)) v) } in
+        CubeOf.build (dim_env env)
+          {
+            build =
+              (fun fa ->
+                let (Val v) = eval (Act (env, op_of_sface fa)) v in
+                v);
+          } in
       eval (Ext (env, CubeOf.singleton args)) body
   (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
   | Act (x, s) ->
@@ -285,8 +227,9 @@ let rec eval : type m b. (m, b) env -> b term -> value =
       let (Plus km) = D.plus (dom_deg s) in
       let (Plus kn) = D.plus (cod_deg s) in
       let ks = plus_deg k kn km s in
-      act_value (eval env x) ks
-  | Match (ix, n, branches) -> (
+      let (Val v) = eval env x in
+      Val (act_value v ks)
+  | Match (Potential, ix, n, branches) -> (
       (* Get the argument being inspected *)
       let m = dim_env env in
       match lookup env ix with
@@ -303,14 +246,33 @@ let rec eval : type m b. (m, b) env -> b term -> value =
                   let env = take_args env mn dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
                   eval env body
-              | _ -> raise True_neutral))
-      | _ -> raise True_neutral)
-  | Leaf tm ->
-      leaf ();
-      eval env tm
+              | _ -> Unrealized Potential))
+      | _ -> Unrealized Potential)
+  | Realize tm ->
+      let (Val v) = eval env tm in
+      Realize v
+
+(* Here are some helper functions that don't get the correct types if we define them inline. *)
+
+and eval_args :
+    type m n mn a.
+    (m, a) env ->
+    (m, n, mn) D.plus ->
+    mn D.t ->
+    (n, (a, kinetic) term) CubeOf.t ->
+    (mn, kinetic value) CubeOf.t =
+ fun env m_n mn tms ->
+  CubeOf.build mn
+    {
+      build =
+        (fun fab ->
+          let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
+          match eval (Act (env, op_of_sface fa)) (CubeOf.find tms fb) with
+          | Val v -> v);
+    }
 
 (* Apply a function value to an argument (with its boundaries). *)
-and apply : type n. value -> (n, value) CubeOf.t -> value =
+and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
  fun fn arg ->
   match fn with
   (* If the function is a lambda-abstraction, we check that it has the correct dimension and then beta-reduce, adding the arguments to the environment. *)
@@ -343,20 +305,23 @@ and apply : type n. value -> (n, value) CubeOf.t -> value =
               | Neu { head; args; alignment } -> (
                   let args = Snoc (args, App (Arg newarg, zero_ins k)) in
                   match alignment with
-                  | True -> Uninst (Neu { head; args; alignment = True }, ty)
+                  | True -> Val (Uninst (Neu { head; args; alignment = True }, ty))
                   | Chaotic tm -> (
-                      match as_tree @@ fun () -> apply tm arg with
-                      | Leaf x -> x
-                      | Noleaf x -> Uninst (Neu { head; args; alignment = Chaotic x }, ty)
-                      | True_neutral -> Uninst (Neu { head; args; alignment = True }, ty)))
+                      match apply tm arg with
+                      | Realize x -> Val x
+                      | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
+                      | Unrealized _ -> Val (Uninst (Neu { head; args; alignment = True }, ty))))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
 
 (* Compute the output type of a function application, given the codomains and instantiation arguments of the pi-type (the latter being the functions acting on the boundary) and the arguments it is applied to. *)
 and tyof_app :
-    type k. (k, unit) BindCube.t -> (D.zero, k, k, normal) TubeOf.t -> (k, value) CubeOf.t -> value
-    =
+    type k.
+    (k, unit) BindCube.t ->
+    (D.zero, k, k, normal) TubeOf.t ->
+    (k, kinetic value) CubeOf.t ->
+    kinetic value =
  fun cods fns args ->
   let out_arg_tbl = Hashtbl.create 10 in
   let out_args =
@@ -366,10 +331,10 @@ and tyof_app :
           (fun fa [ { tm = afn; ty = _ } ] ->
             let fa = sface_of_tface fa in
             let tmargs = CubeOf.subcube fa args in
-            let tm = apply afn tmargs in
+            let (Val tm) = apply afn tmargs in
+            let (Val cod) = apply_binder (BindCube.find cods fa) tmargs in
             let ty =
-              inst
-                (apply_binder (BindCube.find cods fa) tmargs)
+              inst cod
                 (TubeOf.build D.zero
                    (D.zero_plus (dom_sface fa))
                    {
@@ -382,18 +347,17 @@ and tyof_app :
             out_tm);
       }
       [ fns ] in
-  inst (apply_binder (BindCube.find_top cods) args) out_args
+  let (Val out) = apply_binder (BindCube.find_top cods) args in
+  inst out out_args
 
-(* Compute a field of a structure, at a particular dimension.  This does not do any "evaluation", so in particular it doesn't issue any effects or exceptions. *)
-and field : value -> Field.t -> value =
+(* Compute a field of a structure, at a particular dimension. *)
+and field : kinetic value -> Field.t -> kinetic value =
  fun tm fld ->
   match tm with
   (* TODO: Is it okay to ignore the insertion here? *)
-  | Struct (fields, _) -> (
-      match Lazy.force (fst (Abwd.find fld fields)) with
-      | Noleaf x -> x
-      | Leaf _ -> fatal (Anomaly "leaf in field")
-      | True_neutral -> fatal (Anomaly "true neutral case tree in field"))
+  | Struct (fields, _) ->
+      let (Val x) = Lazy.force (fst (Abwd.find fld fields)) in
+      x
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
       let newty = lazy (tyof_field tm ty fld) in
       let args = Snoc (args, App (Field fld, zero_ins D.zero)) in
@@ -401,15 +365,15 @@ and field : value -> Field.t -> value =
       | True -> Uninst (Neu { head; args; alignment = True }, newty)
       | Chaotic (Struct (fields, _)) -> (
           match Lazy.force (fst (Abwd.find fld fields)) with
-          | Leaf x -> x
-          | Noleaf x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
-          | True_neutral -> Uninst (Neu { head; args; alignment = True }, newty))
+          | Realize x -> x
+          | Val x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
+          | Unrealized _ -> Uninst (Neu { head; args; alignment = True }, newty))
       | Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
-and tyof_field_withname ?severity ?degerr (tm : value) (ty : value) (fld : Field.or_index) :
-    Field.t * value =
+and tyof_field_withname ?severity ?degerr (tm : kinetic value) (ty : kinetic value)
+    (fld : Field.or_index) : Field.t * kinetic value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
   (* TODO: Inspect Lawful alignment rather than the head. *)
@@ -446,8 +410,9 @@ and tyof_field_withname ?severity ?degerr (tm : value) (ty : value) (fld : Field
               } in
           let env = Value.Ext (env, entries) in
           (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
+          let (Val efldty) = eval env fldty in
           ( fldname,
-            inst (eval env fldty)
+            inst efldty
               (TubeOf.mmap
                  {
                    map =
@@ -459,11 +424,13 @@ and tyof_field_withname ?severity ?degerr (tm : value) (ty : value) (fld : Field
                  [ TubeOf.middle (D.zero_plus m) mn tyargs ]) ))
   | _ -> fatal ?severity (No_such_field (`Other, fld))
 
-and tyof_field ?severity ?degerr (tm : value) (ty : value) (fld : Field.t) : value =
+and tyof_field ?severity ?degerr (tm : kinetic value) (ty : kinetic value) (fld : Field.t) :
+    kinetic value =
   snd (tyof_field_withname ?severity ?degerr tm ty (`Name fld))
 
 and eval_binder :
-    type m n mn b. (m, b) env -> (m, n, mn) D.plus -> (b, n) ext term -> mn Value.binder =
+    type m n mn b s. (m, b) env -> (m, n, mn) D.plus -> ((b, n) ext, s) term -> (mn, s) Value.binder
+    =
  fun env plus_dim body ->
   let n = D.plus_right plus_dim in
   let m = dim_env env in
@@ -486,33 +453,42 @@ and eval_binder :
   let perm = id_perm (D.plus_out m plus_dim) in
   Value.Bind { env; perm; plus_dim; body; args }
 
-and apply_binder : type n. n Value.binder -> (n, value) CubeOf.t -> value =
+and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t -> s evaluation =
  fun (Value.Bind b) argstbl ->
-  act_value
-    (eval
-       (Ext
-          ( b.env,
-            CubeOf.mmap
-              {
-                map =
-                  (fun _ [ ffs ] ->
-                    CubeOf.mmap
-                      {
-                        map =
-                          (fun _ [ Face_of (Face (fa, fb)) ] ->
-                            act_value (CubeOf.find argstbl fa) fb);
-                      }
-                      [ ffs ]);
-              }
-              [ b.args ] ))
-       b.body)
-    b.perm
+  match
+    eval
+      (Ext
+         ( b.env,
+           CubeOf.mmap
+             {
+               map =
+                 (fun _ [ ffs ] ->
+                   CubeOf.mmap
+                     {
+                       map =
+                         (fun _ [ Face_of (Face (fa, fb)) ] ->
+                           act_value (CubeOf.find argstbl fa) fb);
+                     }
+                     [ ffs ]);
+             }
+             [ b.args ] ))
+      b.body
+  with
+  | Unrealized e -> Unrealized e
+  | Realize v -> Realize (act_value v b.perm)
+  | Val v -> Val (act_value v b.perm)
 
-let eval_tree : type m b. (m, b) env -> b term -> tree_value =
- fun env tm -> as_tree @@ fun () -> eval env tm
+and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
+ fun env tm ->
+  let (Val v) = eval env tm in
+  v
 
-let eval_term : type m b. (m, b) env -> b term -> value =
- fun env tm -> as_term @@ fun () -> eval env tm
+let apply_term : kinetic value -> ('n, kinetic value) CubeOf.t -> kinetic value =
+ fun fn arg ->
+  let (Val v) = apply fn arg in
+  v
 
-let apply_term fn arg = as_term @@ fun () -> apply fn arg
-let apply_binder_term b arg = as_term @@ fun () -> apply_binder b arg
+let apply_binder_term : ('n, kinetic) binder -> ('n, kinetic value) CubeOf.t -> kinetic value =
+ fun b arg ->
+  let (Val v) = apply_binder b arg in
+  v

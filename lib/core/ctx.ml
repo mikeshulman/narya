@@ -168,13 +168,14 @@ let rec env : type a b. (a, b) t -> (D.zero, b) env = function
       Ext (env ctx, CubeOf.mmap { map = (fun _ [ x ] -> CubeOf.singleton (snd x).tm) } [ v ])
 
 (* Evaluate a case tree or term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
-let eval_tree : type a b. (a, b) t -> b term -> tree_value =
- fun ctx tm -> Norm.eval_tree (env ctx) tm
+let eval : type a b s. (a, b) t -> (b, s) term -> s evaluation =
+ fun ctx tm -> Norm.eval (env ctx) tm
 
-let eval_term : type a b. (a, b) t -> b term -> value = fun ctx tm -> Norm.eval_term (env ctx) tm
+let eval_term : type a b. (a, b) t -> (b, kinetic) term -> kinetic value =
+ fun ctx tm -> Norm.eval_term (env ctx) tm
 
 (* Extend a context by one new variable, without a value but with an assigned type. *)
-let ext : type a b. (a, b) t -> string option -> value -> (a N.suc, (b, D.zero) ext) t =
+let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) ext) t =
  fun ctx x ty ->
   let n = length ctx in
   Vis (ctx, singleton_variables D.zero x, CubeOf.singleton (Some (n, 0), { tm = var (n, 0) ty; ty }))
@@ -221,7 +222,7 @@ let ext_tel :
     (b, c, bc) Telescope.t ->
     (a, c, ac) N.plus ->
     (e, c, ec, n) exts ->
-    (ac, ec) t * (n, bc) env * ((n, value) CubeOf.t, c) Bwv.t =
+    (ac, ec) t * (n, bc) env * ((n, kinetic value) CubeOf.t, c) Bwv.t =
  fun ctx env tel ac ec ->
   let rec ext_tel :
       type a b c ac bc d dc e ec.
@@ -231,8 +232,8 @@ let ext_tel :
       (a, c, ac) N.plus ->
       (e, c, ec, n) exts ->
       (d, c, dc) N.plus ->
-      ((n, value) CubeOf.t, d) Bwv.t ->
-      (ac, ec) t * (n, bc) env * ((n, value) CubeOf.t, dc) Bwv.t =
+      ((n, kinetic value) CubeOf.t, d) Bwv.t ->
+      (ac, ec) t * (n, bc) env * ((n, kinetic value) CubeOf.t, dc) Bwv.t =
    fun ctx env tel ac ec dc vars ->
     match (tel, ac, dc) with
     | Emp, Zero, Zero ->
@@ -301,7 +302,7 @@ let lookup_name : type a b. (a, b) t -> b index -> string list =
  fun ctx x -> Names.lookup (names ctx) x
 
 (* Generate a case tree consisting of a sequence of abstractions corresponding to the (checked) variables in a context. *)
-let rec lam : type a b. (a, b) t -> b term -> emp term =
+let rec lam : type a b. (a, b) t -> (b, potential) term -> (emp, potential) term =
  fun ctx tree ->
   match ctx with
   | Emp -> tree

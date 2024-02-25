@@ -13,10 +13,10 @@ open Printable
 
 (* TODO: Do we really want readback to eta-expand?  Equality-testing does eta-expanding already, so it shouldn't be necessary here, and in practice the user will probably prefer things to not get eta-expanded unnecessarily.  Not eta-expanding would mean that constants defined as case trees that are just an abstracted leaf wouldn't get printed as their bodies but just as constants, unless the user eta-expands them.  Maybe the user should be able to set a flag indicating whether to print case trees. *)
 
-let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> a term =
+let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =
  fun n x -> readback_at n x.tm x.ty
 
-and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
+and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a, kinetic) term =
  fun ctx tm ty ->
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
   match uty with
@@ -59,15 +59,17 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
       match Hashtbl.find Global.constants name with
       | Record { eta; fields = _fields; _ } -> (
           match tm with
-          | Struct (tmflds, tmins) ->
-              let fields =
-                Abwd.mapi
-                  (fun fld (fldtm, l) ->
-                    match Lazy.force fldtm with
-                    | Noleaf x -> (readback_at ctx x (tyof_field tm ty fld), l)
-                    | _ -> fatal (Unimplemented "reading back case trees"))
-                  tmflds in
-              Act (Struct (eta, fields), perm_of_ins tmins)
+          | Struct (tmflds, tmins) -> (
+              match eta with
+              | Eta ->
+                  let fields =
+                    Abwd.mapi
+                      (fun fld (fldtm, l) ->
+                        match Lazy.force fldtm with
+                        | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
+                      tmflds in
+                  Act (Struct (Eta, fields), perm_of_ins tmins)
+              | Noeta -> fatal (Anomaly "reading back struct at codatatype"))
           | _ ->
               (* Eta-expanding readback should really do this, but it probably isn't what the user wants to see when printing terms, and in practice that's what we use readback for (equality-testing is a separate thing). *)
               (* if eta then
@@ -122,7 +124,7 @@ and readback_at : type a z. (z, a) Ctx.t -> value -> value -> a term =
       | _ -> readback_val ctx tm)
   | _ -> readback_val ctx tm
 
-and readback_val : type a z. (z, a) Ctx.t -> value -> a term =
+and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =
  fun n x ->
   match x with
   | Uninst (u, _) -> readback_uninst n u
@@ -134,7 +136,7 @@ and readback_val : type a z. (z, a) Ctx.t -> value -> a term =
   | Struct _ -> fatal (Anomaly "unexpected struct in synthesizing readback")
   | Constr _ -> fatal (Anomaly "unexpected constr in synthesizing readback")
 
-and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
+and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
  fun ctx x ->
   match x with
   | UU m -> UU m
@@ -163,7 +165,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> a term =
               perm_of_ins ins ))
         (readback_head ctx head) args
 
-and readback_head : type a k z. (z, a) Ctx.t -> head -> a term =
+and readback_head : type a k z. (z, a) Ctx.t -> head -> (a, kinetic) term =
  fun ctx h ->
   match h with
   | Var { level; deg } -> (
@@ -180,10 +182,10 @@ and readback_at_tel :
     type n c a b ab z.
     (z, c) Ctx.t ->
     (n, a) env ->
-    value list ->
+    kinetic value list ->
     (a, b, ab) Telescope.t ->
-    (D.zero, n, n, value list) TubeOf.t ->
-    (n, c term) CubeOf.t list =
+    (D.zero, n, n, kinetic value list) TubeOf.t ->
+    (n, (c, kinetic) term) CubeOf.t list =
  fun ctx env xs tys tyargs ->
   match (xs, tys) with
   | [], Emp -> []

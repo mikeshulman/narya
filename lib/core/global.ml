@@ -9,21 +9,21 @@ open Hctx
 
 (* The global environment of constants *)
 
-let types : (Constant.t, emp term) Hashtbl.t = Hashtbl.create 10
+let types : (Constant.t, (emp, kinetic) term) Hashtbl.t = Hashtbl.create 10
 
 (* Each constant either is an axiom, has a definition (a case tree), is a record (including coinductive ones), or is a datatype (including indexed ones). *)
 type definition =
   | Axiom : definition
-  | Defined : emp term -> definition
+  | Defined : (emp, potential) term -> definition
   | Record : {
       (* Whether the type supports eta-conversion, i.e. whether it is really a record type or a codatatype. *)
-      eta : eta;
+      eta : potential eta;
       (* The number of parameters of an instance of the record type, which must also be the number of Pis in its type (which is where the types *of* the parameters are recorded). *)
       params : (emp, 'p, 'pc, D.zero) exts;
       (* The dimension of the record type itself, as a type.  In nearly all cases this will be zero; the main exception is Gel/Corr. *)
       dim : 'n D.t;
       (* The fields are listed in order, so that each can depend on the previous ones.  But instead of explicitly depending on those prevous fields as variables, each field has a type that depends on the parameters of the record type, along with an element of the record type itself (and its boundaries, if any), by way of projecting out its fields. *)
-      fields : (Field.t, ('pc, 'n) ext term) Abwd.t;
+      fields : (Field.t, (('pc, 'n) ext, kinetic) term) Abwd.t;
     }
       -> definition
   | Data : {
@@ -42,7 +42,7 @@ and (_, _) constr =
       (* The types of the arguments, given the parameters of the datatype. *)
       args : ('p, 'a, 'pa) Telescope.t;
       (* The values of the indices, given the parameters and the arguments. *)
-      indices : ('pa term, 'i) Bwv.t;
+      indices : (('pa, kinetic) term, 'i) Bwv.t;
     }
       -> ('p, 'i) constr
 
@@ -53,7 +53,7 @@ type field =
       name : Field.t;
       params : (emp, 'p, 'pc, D.zero) exts;
       dim : 'n D.t;
-      ty : ('pc, 'n) ext term;
+      ty : (('pc, 'n) ext, kinetic) term;
     }
       -> field
 

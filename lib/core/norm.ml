@@ -252,8 +252,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Val v) = eval env tm in
       Realize v
 
-(* Here are some helper functions that don't get the correct types if we define them inline. *)
-
+(* A helper function that doesn't get the correct types if we define it inline. *)
 and eval_args :
     type m n mn a.
     (m, a) env ->

@@ -2023,9 +2023,12 @@ let rec insfact : type ac b c bc. (ac, bc) deg -> (b, c, bc) D.plus -> (ac, b, c
       Insfact (s, Suc (i, e))
 
 (* In particular, any insertion can be composed with a degeneracy to produce a smaller degeneracy and an insertion. *)
-type _ insfact_comp = Insfact_comp : ('m, 'n) deg * ('ml, 'm, 'l) insertion -> 'n insfact_comp
+type (_, _) insfact_comp =
+  | Insfact_comp :
+      ('m, 'n) deg * ('ml, 'm, 'l) insertion * ('k, 'j, 'l) D.plus
+      -> ('n, 'k) insfact_comp
 
-let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> n insfact_comp =
+let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> (n, k) insfact_comp =
  fun ins s ->
   let nk = plus_of_ins ins in
   let s' = perm_of_ins ins in
@@ -2033,7 +2036,7 @@ let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> n insf
   let (Plus kd) = D.plus (D.plus_right nk_d) in
   let n_kd = D.plus_assocr nk kd nk_d in
   let (Insfact (fa, new_ins)) = insfact s's n_kd in
-  Insfact_comp (fa, new_ins)
+  Insfact_comp (fa, new_ins, kd)
 
 (* ********** Special generators ********** *)
 

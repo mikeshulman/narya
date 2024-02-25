@@ -78,7 +78,7 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
       let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
       Lam (act_variables x fa, act_binder body fa)
   | Struct (fields, ins) ->
-      let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
+      let (Insfact_comp (fa, new_ins, _)) = insfact_comp ins s in
       Struct
         (Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields, new_ins)
   | Constr (name, dim, args) ->
@@ -258,7 +258,7 @@ and act_head : type a b. head -> (a, b) deg -> head =
       Var { level; deg }
   (* To act on a constant, we push as much of the degeneracy through the insertion as possible. *)
   | Const { name; ins } ->
-      let (Insfact_comp (_, ins)) = insfact_comp ins s in
+      let (Insfact_comp (_, ins, _)) = insfact_comp ins s in
       Const { name; ins }
 
 (* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)
@@ -268,7 +268,7 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
   | Emp -> (Any s, Emp)
   | Snoc (rest, App (arg, ins)) ->
       (* To act on an application, we compose the acting degeneracy with the delayed insertion, factor the result into a new insertion to leave outside and a smaller degeneracy to push in, and push the smaller degeneracy action into the application, acting on the function/struct. *)
-      let (Insfact_comp (fa, new_ins)) = insfact_comp ins s in
+      let (Insfact_comp (fa, new_ins, _)) = insfact_comp ins s in
       let p = dom_deg fa in
       let new_arg =
         match arg with

@@ -435,9 +435,12 @@ type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('a
 val comp_insfact : ('ac, 'b, 'c) insfact -> ('b, 'c, 'bc) D.plus -> ('ac, 'bc) deg
 val insfact : ('ac, 'bc) deg -> ('b, 'c, 'bc) D.plus -> ('ac, 'b, 'c) insfact
 
-type _ insfact_comp = Insfact_comp : ('m, 'n) deg * ('ml, 'm, 'l) insertion -> 'n insfact_comp
+type (_, _) insfact_comp =
+  | Insfact_comp :
+      ('m, 'n) deg * ('ml, 'm, 'l) insertion * ('k, 'j, 'l) D.plus
+      -> ('n, 'k) insfact_comp
 
-val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> 'n insfact_comp
+val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k) insfact_comp
 
 (*  *)
 val one : one D.t

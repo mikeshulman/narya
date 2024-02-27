@@ -70,8 +70,7 @@ and head : formatter -> head -> unit =
         (string_of_deg (perm_of_ins ins))
 
 and binder : type b s. formatter -> (b, s) binder -> unit =
- fun ppf (Bind { env = e; perm; plus_dim = _; body; args = _ }) ->
-  fprintf ppf "Binder (%a, %s, ?, %a ,?)" env e (string_of_deg perm) term body
+ fun ppf (Bind { env = e; ins = _; body }) -> fprintf ppf "Binder (%a, ?, %a)" env e term body
 
 and env : type b n. formatter -> (n, b) env -> unit =
  fun ppf e ->

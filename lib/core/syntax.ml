@@ -220,10 +220,8 @@ module rec Value : sig
   and (_, _) binder =
     | Bind : {
         env : ('m, 'a) env;
-        perm : 'mn perm;
-        plus_dim : ('m, 'n, 'mn) D.plus;
         body : (('a, 'n) ext, 's) term;
-        args : ('n, ('m, 'mn face_of) CubeOf.t) CubeOf.t;
+        ins : ('mn, 'm, 'n) insertion;
       }
         -> ('mn, 's) binder
 
@@ -287,10 +285,8 @@ end = struct
   and (_, _) binder =
     | Bind : {
         env : ('m, 'a) env;
-        perm : 'mn perm;
-        plus_dim : ('m, 'n, 'mn) D.plus;
         body : (('a, 'n) ext, 's) term;
-        args : ('n, ('m, 'mn face_of) CubeOf.t) CubeOf.t;
+        ins : ('mn, 'm, 'n) insertion;
       }
         -> ('mn, 's) binder
 
@@ -367,7 +363,7 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
 
 (* And likewise every binder *)
 let dim_binder : type m s. (m, s) binder -> m D.t = function
-  | Bind b -> D.plus_out (dim_env b.env) b.plus_dim
+  | Bind b -> D.plus_out (dim_env b.env) (plus_of_ins b.ins)
 
 (* Project out a cube or tube of values from a cube or tube of normals *)
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =

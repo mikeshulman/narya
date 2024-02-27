@@ -430,52 +430,42 @@ and tyof_field ?severity ?degerr (tm : kinetic value) (ty : kinetic value) (fld 
 and eval_binder :
     type m n mn b s. (m, b) env -> (m, n, mn) D.plus -> ((b, n) ext, s) term -> (mn, s) Value.binder
     =
- fun env plus_dim body ->
-  let n = D.plus_right plus_dim in
+ fun env mn body ->
   let m = dim_env env in
-  let args =
-    CubeOf.build n
-      {
-        build =
-          (fun fa ->
-            CubeOf.build m
-              {
-                build =
-                  (fun fb ->
-                    let (Plus plus_dom) = D.plus (dom_sface fa) in
-                    Face_of
-                      (Face
-                         ( sface_plus_sface fb plus_dim plus_dom fa,
-                           id_perm (D.plus_out (dom_sface fb) plus_dom) )));
-              });
-      } in
-  let perm = id_perm (D.plus_out m plus_dim) in
-  Value.Bind { env; perm; plus_dim; body; args }
+  let n = D.plus_right mn in
+  let (Id_ins ins) = id_ins m n in
+  let Eq = D.plus_uniq mn (plus_of_ins ins) in
+  Value.Bind { env; ins; body }
 
 and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t -> s evaluation =
- fun (Value.Bind b) argstbl ->
+ fun (Value.Bind { env; ins; body }) argstbl ->
+  let m = dim_env env in
+  let n = cod_right_ins ins in
+  let mn = plus_of_ins ins in
+  let perm = perm_of_ins ins in
   match
     eval
       (Ext
-         ( b.env,
-           CubeOf.mmap
+         ( env,
+           CubeOf.build n
              {
-               map =
-                 (fun _ [ ffs ] ->
-                   CubeOf.mmap
+               build =
+                 (fun fs ->
+                   CubeOf.build m
                      {
-                       map =
-                         (fun _ [ Face_of (Face (fa, fb)) ] ->
+                       build =
+                         (fun fr ->
+                           let (Plus kj) = D.plus (dom_sface fs) in
+                           let frfs = sface_plus_sface fr mn kj fs in
+                           let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
                            act_value (CubeOf.find argstbl fa) fb);
-                     }
-                     [ ffs ]);
-             }
-             [ b.args ] ))
-      b.body
+                     });
+             } ))
+      body
   with
   | Unrealized e -> Unrealized e
-  | Realize v -> Realize (act_value v b.perm)
-  | Val v -> Val (act_value v b.perm)
+  | Realize v -> Realize (act_value v perm)
+  | Val v -> Val (act_value v perm)
 
 and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
  fun env tm ->

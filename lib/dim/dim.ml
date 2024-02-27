@@ -1973,6 +1973,16 @@ type (_, _, _) insertion =
 
 let zero_ins : type a. a D.t -> (a, a, D.zero) insertion = fun a -> Zero a
 
+type (_, _) id_ins = Id_ins : ('ab, 'a, 'b) insertion -> ('a, 'b) id_ins
+
+let rec id_ins : type a b. a D.t -> b D.t -> (a, b) id_ins =
+ fun a b ->
+  match b with
+  | Nat Zero -> Id_ins (Zero a)
+  | Nat (Suc b) ->
+      let (Id_ins ins) = id_ins a (Nat b) in
+      Id_ins (Suc (ins, Top))
+
 let rec dom_ins : type a b c. (a, b, c) insertion -> a D.t = function
   | Zero a -> a
   | Suc (ins, _) -> N.suc (dom_ins ins)
@@ -1980,6 +1990,12 @@ let rec dom_ins : type a b c. (a, b, c) insertion -> a D.t = function
 let rec cod_left_ins : type a b c. (a, b, c) insertion -> b D.t = function
   | Zero a -> a
   | Suc (ins, _) -> cod_left_ins ins
+
+let rec cod_right_ins : type a b c. (a, b, c) insertion -> c D.t = function
+  | Zero _ -> Nat Zero
+  | Suc (ins, _) ->
+      let (Nat x) = cod_right_ins ins in
+      Nat (Suc x)
 
 (* The domain of an insertion is the sum of the two pieces of its codomain. *)
 let rec plus_of_ins : type a b c. (a, b, c) insertion -> (b, c, a) D.plus = function
@@ -2023,20 +2039,20 @@ let rec insfact : type ac b c bc. (ac, bc) deg -> (b, c, bc) D.plus -> (ac, b, c
       Insfact (s, Suc (i, e))
 
 (* In particular, any insertion can be composed with a degeneracy to produce a smaller degeneracy and an insertion. *)
-type (_, _) insfact_comp =
+type (_, _, _) insfact_comp =
   | Insfact_comp :
-      ('m, 'n) deg * ('ml, 'm, 'l) insertion * ('k, 'j, 'l) D.plus
-      -> ('n, 'k) insfact_comp
+      ('m, 'n) deg * ('ml, 'm, 'l) insertion * ('k, 'j, 'l) D.plus * ('a, 'i, 'ml) D.plus
+      -> ('n, 'k, 'a) insfact_comp
 
-let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> (n, k) insfact_comp =
+let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> (n, k, a) insfact_comp =
  fun ins s ->
   let nk = plus_of_ins ins in
   let s' = perm_of_ins ins in
-  let (DegExt (_, nk_d, s's)) = comp_deg_extending s' s in
+  let (DegExt (ai, nk_d, s's)) = comp_deg_extending s' s in
   let (Plus kd) = D.plus (D.plus_right nk_d) in
   let n_kd = D.plus_assocr nk kd nk_d in
   let (Insfact (fa, new_ins)) = insfact s's n_kd in
-  Insfact_comp (fa, new_ins, kd)
+  Insfact_comp (fa, new_ins, kd, ai)
 
 (* ********** Special generators ********** *)
 

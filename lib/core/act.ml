@@ -78,7 +78,7 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
       let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
       Lam (act_variables x fa, act_binder body fa)
   | Struct (fields, ins) ->
-      let (Insfact_comp (fa, new_ins, _)) = insfact_comp ins s in
+      let (Insfact_comp (fa, new_ins, _, _)) = insfact_comp ins s in
       Struct
         (Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields, new_ins)
   | Constr (name, dim, args) ->
@@ -145,49 +145,18 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
           } in
       Pi (x, doms', cods')
 
-and act_binder : type m n s. (n, s) binder -> (m, n) deg -> (m, s) binder =
- fun (Bind { env; perm; plus_dim; body; args }) fa ->
-  let m = dim_env env in
-  let m_n = plus_dim in
-  let n = D.plus_right m_n in
-  let mn = D.plus_out m m_n in
-  (* We factor the degeneracy as a strict degeneracy determined by fc, following a permutation fb (a.k.a. an insertion into zero). *)
-  let (Insfact (fc, ins)) = insfact fa (D.zero_plus mn) in
-  let j_mn = plus_of_ins ins in
-  let fb = perm_of_ins ins in
-  let fbinv = perm_inv fb in
-  let j = dom_deg fc in
-  (* The permutation fb is composed with (a whiskering of) the previous stored permutation to become the new one. *)
-  let perm = comp_perm (plus_perm j j_mn perm) fb in
-  (* The strict degeneracy fc acts on the stored environment *)
-  let (Plus jm) = D.plus m in
-  let fcm = deg_plus fc (D.zero_plus m) jm in
-  let env = Act (env, op_of_deg fcm) in
-  (* Now we have to assemble the arguments. *)
-  let plus_dim = D.plus_assocl jm plus_dim j_mn in
-  (* To make the new argument matrix... *)
-  let args =
-    CubeOf.build n
-      {
-        build =
-          (fun fv ->
-            (* let c = dom_sface fv in *)
-            CubeOf.build (D.plus_out j jm)
-              {
-                build =
-                  (fun frfu ->
-                    (* ...we split the face of j+m into a face fr of j and a face fu of m... *)
-                    let (SFace_of_plus (_, fr, fu)) = sface_of_plus jm frfu in
-                    (* ...combine the face fu of m and the face fv of n using the previous argument matrix... *)
-                    let (Face_of fs) = CubeOf.find (CubeOf.find args fv) fu in
-                    let (Plus ci) = D.plus (dom_face fs) in
-                    (* ...add the resulting face to fr... *)
-                    let frfs = face_plus_face (face_of_sface fr) j_mn ci fs in
-                    (* ...and combine it with the inverse of fb from above. *)
-                    Face_of (comp_face (face_of_perm fbinv) frfs));
-              });
-      } in
-  Bind { env; perm; plus_dim; body; args }
+and act_binder : type mn kn b s. (mn, s) binder -> (kn, b) deg -> (kn, s) binder =
+ fun (Bind { env; ins; body }) fa ->
+  let k = dom_deg fa in
+  let n = cod_right_ins ins in
+  let (Insfact_comp (fc, ins, extra1, extra2)) = insfact_comp ins fa in
+  match (compare (D.plus_right extra1) D.zero, compare (D.plus_right extra2) D.zero) with
+  | Neq, _ | _, Neq -> fatal (Anomaly "mismatch in act_binder")
+  | Eq, Eq ->
+      let Eq = D.plus_uniq extra1 (D.plus_zero n) in
+      let Eq = D.plus_uniq extra2 (D.plus_zero k) in
+      let env = Act (env, op_of_deg fc) in
+      Bind { env; ins; body }
 
 and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }
@@ -258,7 +227,7 @@ and act_head : type a b. head -> (a, b) deg -> head =
       Var { level; deg }
   (* To act on a constant, we push as much of the degeneracy through the insertion as possible. *)
   | Const { name; ins } ->
-      let (Insfact_comp (_, ins, _)) = insfact_comp ins s in
+      let (Insfact_comp (_, ins, _, _)) = insfact_comp ins s in
       Const { name; ins }
 
 (* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)
@@ -268,7 +237,7 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
   | Emp -> (Any s, Emp)
   | Snoc (rest, App (arg, ins)) ->
       (* To act on an application, we compose the acting degeneracy with the delayed insertion, factor the result into a new insertion to leave outside and a smaller degeneracy to push in, and push the smaller degeneracy action into the application, acting on the function/struct. *)
-      let (Insfact_comp (fa, new_ins, _)) = insfact_comp ins s in
+      let (Insfact_comp (fa, new_ins, _, _)) = insfact_comp ins s in
       let p = dom_deg fa in
       let new_arg =
         match arg with

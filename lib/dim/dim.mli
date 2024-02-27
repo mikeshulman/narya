@@ -422,8 +422,13 @@ val comp_op_deg_of_plus : ('m, 'n) op -> 'm deg_of_plus -> 'n op_of_plus
 type (_, _, _) insertion
 
 val zero_ins : 'a D.t -> ('a, 'a, D.zero) insertion
+
+type (_, _) id_ins = Id_ins : ('ab, 'a, 'b) insertion -> ('a, 'b) id_ins
+
+val id_ins : 'a D.t -> 'b D.t -> ('a, 'b) id_ins
 val dom_ins : ('a, 'b, 'c) insertion -> 'a D.t
 val cod_left_ins : ('a, 'b, 'c) insertion -> 'b D.t
+val cod_right_ins : ('a, 'b, 'c) insertion -> 'c D.t
 val plus_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'a) D.plus
 val deg_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val perm_of_ins : ('a, 'b, 'c) insertion -> 'a perm
@@ -435,12 +440,12 @@ type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('a
 val comp_insfact : ('ac, 'b, 'c) insfact -> ('b, 'c, 'bc) D.plus -> ('ac, 'bc) deg
 val insfact : ('ac, 'bc) deg -> ('b, 'c, 'bc) D.plus -> ('ac, 'b, 'c) insfact
 
-type (_, _) insfact_comp =
+type (_, _, _) insfact_comp =
   | Insfact_comp :
-      ('m, 'n) deg * ('ml, 'm, 'l) insertion * ('k, 'j, 'l) D.plus
-      -> ('n, 'k) insfact_comp
+      ('m, 'n) deg * ('ml, 'm, 'l) insertion * ('k, 'j, 'l) D.plus * ('a, 'i, 'ml) D.plus
+      -> ('n, 'k, 'a) insfact_comp
 
-val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k) insfact_comp
+val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k, 'a) insfact_comp
 
 (*  *)
 val one : one D.t

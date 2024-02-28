@@ -296,15 +296,6 @@ let rec check :
                                 (if Constr.Map.mem constr.value tbranches then
                                    with_loc constr.loc @@ fun () ->
                                    fatal (Duplicate_constructor_in_match constr.value));
-                                let (Global.Constr { args; indices = _ }) =
-                                  match Constr.Map.find_opt constr.value constrs with
-                                  | Some c -> c
-                                  | None ->
-                                      with_loc constr.loc @@ fun () ->
-                                      fatal
-                                        (No_such_constructor_in_match (PConstant name, constr.value))
-                                in
-                                let (Exts efc) = exts (Telescope.length args) in
                                 (* Get the argument types and index terms for the constructor of this branch. *)
                                 let (Global.Constr { args = argtys; indices = index_terms }) =
                                   match Constr.Map.find_opt constr.value constrs with
@@ -314,6 +305,7 @@ let rec check :
                                       fatal
                                         (No_such_constructor_in_match (PConstant name, constr.value))
                                 in
+                                let (Exts efc) = exts (Telescope.length argtys) in
                                 (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
                                 let c = Telescope.length argtys in
                                 match N.compare (exts_right efc) c with

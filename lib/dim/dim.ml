@@ -24,7 +24,11 @@ module Endpoints = struct
     | '1' -> Ok (Some Top)
     | '2' -> Ok None
     | _ -> Error ()
+
+  let refl_char = 'r'
 end
+
+let refl_string = String.make 1 Endpoints.refl_char
 
 (* ********** Dimensions ********** *)
 
@@ -335,44 +339,56 @@ let is_id_any_deg : any_deg -> unit option = function
   | Any s -> is_id_deg s
 
 (* Converting to and from strings. *)
-let rec ints_of_deg : type a b. (a, b) deg -> (int, a) Bwv.t = function
-  | Zero a -> Bwv.init a (fun _ -> 0)
-  | Suc (s, k) -> Bwv.insert k (D.to_int (cod_deg s) + 1) (ints_of_deg s)
+let rec strings_of_deg : type a b. (a, b) deg -> (string, a) Bwv.t = function
+  | Zero a -> Bwv.init a (fun _ -> refl_string)
+  | Suc (s, k) -> Bwv.insert k (string_of_int (D.to_int (cod_deg s) + 1)) (strings_of_deg s)
 
 let string_of_deg : type a b. (a, b) deg -> string =
  fun s ->
-  String.concat
-    (if D.to_int (cod_deg s) > 9 then "-" else "")
-    (Bwv.to_list_map string_of_int (ints_of_deg s))
+  String.concat (if D.to_int (cod_deg s) > 9 then "-" else "") (Bwv.to_list (strings_of_deg s))
 
 type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
 
-let rec deg_of_ints : type n. (int, n) Bwv.t -> int -> n deg_to option =
+let rec deg_of_strings :
+    type n. ([ `Int of int | `Str of string ], n) Bwv.t -> int -> n deg_to option =
  fun xs i ->
   if i <= 0 then
-    if Bwv.fold_right (fun x b -> x = 0 && b) xs true then Some (To (Zero (Bwv.length xs)))
+    if Bwv.fold_right (fun x b -> x = `Str refl_string && b) xs true then
+      Some (To (Zero (Bwv.length xs)))
     else None
   else
     match xs with
     | Emp -> None
     | Snoc _ -> (
-        match Bwv.find_remove i xs with
+        match Bwv.find_remove (`Int i) xs with
         | None -> None
         | Some (xs, j) -> (
-            match deg_of_ints xs (i - 1) with
+            match deg_of_strings xs (i - 1) with
             | None -> None
             | Some (To s) -> Some (To (Suc (s, j)))))
 
 let deg_of_string : string -> any_deg option =
  fun str ->
+  let parsestr x =
+    match int_of_string_opt x with
+    | Some i -> `Int i
+    | None -> `Str x in
   try
-    let (Wrap ints) =
-      if String.contains str '-' then Bwv.of_list_map int_of_string (String.split_on_char '-' str)
+    let (Wrap strs) =
+      if String.contains str '-' then Bwv.of_list_map parsestr (String.split_on_char '-' str)
       else
         String.fold_left
-          (fun (Bwv.Wrap l) c -> Wrap (Snoc (l, int_of_string (String.make 1 c))))
+          (fun (Bwv.Wrap l) c -> Wrap (Snoc (l, parsestr (String.make 1 c))))
           (Wrap Emp) str in
-    match deg_of_ints ints (Bwv.fold_left (fun x y -> max x y) 0 ints) with
+    match
+      deg_of_strings strs
+        (Bwv.fold_left
+           (fun x y ->
+             match y with
+             | `Int y -> max x y
+             | `Str _ -> x)
+           0 strs)
+    with
     | None -> None
     | Some (To s) -> Some (Any s)
   with Failure _ -> None

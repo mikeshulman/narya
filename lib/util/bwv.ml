@@ -432,6 +432,7 @@ let rec prepend_map : type a b n. (a -> b) -> (a, n) t -> b list -> b list =
   | Snoc (xs, x) -> prepend_map f xs (f x :: ys)
 
 let to_list_map : type a b n. (a -> b) -> (a, n) t -> b list = fun f xs -> prepend_map f xs []
+let to_list : type a n. (a, n) t -> a list = fun xs -> to_list_map (fun x -> x) xs
 
 type _ wrapped = Wrap : ('a, 'n) t -> 'a wrapped
 

@@ -291,7 +291,7 @@ let rec check :
                           let constr_vars = TubeOf.plus_cube inst_vars (CubeOf.singleton lvl) in
                           (* We iterate through the branches supplied by the user, typechecking them and inserting them in the match tree. *)
                           let tbranches =
-                            Mlist.Examples.fold_left
+                            List.fold_left
                               (fun tbranches (Branch (constr, user_args, body)) ->
                                 (if Constr.Map.mem constr.value tbranches then
                                    with_loc constr.loc @@ fun () ->

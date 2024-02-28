@@ -98,12 +98,12 @@ let () =
 
   (* The two degenerate squares associated to an identification have unequal types, although each has a standard degeneracy notation. *)
   let r1x2, r1x2ty = synth "refl x2" in
-  let r1x2', r1x2ty' = synth "x2⁽⁰¹⁾" in
+  let r1x2', r1x2ty' = synth "x2⁽ʳ¹⁾" in
   let () = equal r1x2ty r1x2ty' in
   let () = equal r1x2 r1x2' in
 
   let r2x2, r2x2ty = synth "refl ((x ↦ refl x) : (x:X) → Id X x x) x0 x1 x2" in
-  let r2x2', r2x2ty' = synth "x2⁽¹⁰⁾" in
+  let r2x2', r2x2ty' = synth "x2⁽¹ʳ⁾" in
   let () = equal r2x2ty r2x2ty' in
   let () = equal r2x2 r2x2' in
 
@@ -126,7 +126,7 @@ let () =
   equal r1reflx0ty r2reflx0ty;
   equal r1reflx0 r2reflx0;
 
-  let r1reflx0', r1reflx0ty' = synth "x0⁽⁰⁰⁾" in
+  let r1reflx0', r1reflx0ty' = synth "x0⁽ʳʳ⁾" in
   equal r1reflx0ty r1reflx0ty';
   equal r1reflx0 r1reflx0';
 

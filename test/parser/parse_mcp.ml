@@ -206,11 +206,11 @@ nest `}
   (* Generic degeneracies *)
   let ida00, _ = synth "Id A a₀ a₀" in
   let idb00, _ = synth "Id B a₀ a₀ (refl a₀) (f a₀) (f a₀)" in
-  let () = equal_at (check "refl a₀" ida00) (check "a₀^(0)" ida00) ida00 in
-  let () = equal_at (check "refl a₀" ida00) (check "a₀⁽⁰⁾" ida00) ida00 in
+  let () = equal_at (check "refl a₀" ida00) (check "a₀^(r)" ida00) ida00 in
+  let () = equal_at (check "refl a₀" ida00) (check "a₀⁽ʳ⁾" ida00) ida00 in
 
   (* Superscripts bind tighter than application: *)
-  let () = equal_at (check "refl f a₀ a₀ (refl a₀)" idb00) (check "f⁽⁰⁾ a₀ a₀ a₀⁽⁰⁾" idb00) idb00 in
+  let () = equal_at (check "refl f a₀ a₀ (refl a₀)" idb00) (check "f⁽ʳ⁾ a₀ a₀ a₀⁽ʳ⁾" idb00) idb00 in
   let () =
-    equal_at (check "refl f a₀ a₀ (refl a₀)" idb00) (check "f⁽⁰⁾ a₀ a₀ (a₀)⁽⁰⁾" idb00) idb00 in
+    equal_at (check "refl f a₀ a₀ (refl a₀)" idb00) (check "f⁽ʳ⁾ a₀ a₀ (a₀)⁽ʳ⁾" idb00) idb00 in
   ()

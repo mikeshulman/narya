@@ -12,7 +12,7 @@ let () =
   let idx01', _ = synth "refl X x0 x1" in
   equal idx01 idx01';
   (* We also have a standard degeneracy notation *)
-  let idx01'', _ = synth "X^(0) x0 x1" in
+  let idx01'', _ = synth "X^(r) x0 x1" in
   equal idx01 idx01'';
   let x2 = assume "x2" idx01 in
   let xtox, _ = synth "X → X" in
@@ -114,7 +114,7 @@ let () =
   equal sr1x2ty r2x2ty;
   equal sr1x2 r2x2;
 
-  let sr1x2', sr1x2ty' = synth "x2^(0)^(21)" in
+  let sr1x2', sr1x2ty' = synth "x2^(r)^(21)" in
   equal sr1x2ty sr1x2ty';
   equal sr1x2 sr1x2';
 

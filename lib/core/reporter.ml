@@ -62,7 +62,8 @@ module Code = struct
         -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
     | No_such_field :
-        [ `Record of printable | `Nonrecord of printable | `Other ] * Field.or_index
+        [ `Record of printable | `Nonrecord of printable | `Other | `Degenerated_record ]
+        * Field.or_index
         -> t
     | Missing_instantiation_constructor :
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
@@ -370,7 +371,11 @@ module Code = struct
         | `Nonrecord d ->
             textf "non-record type %a has no field named %s" pp_printed (print d)
               (Field.to_string_ori f)
-        | `Other -> textf "term has no field named %s" (Field.to_string_ori f))
+        | `Other -> textf "term has no field named %s" (Field.to_string_ori f)
+        | `Degenerated_record ->
+            textf
+              "record type with a nonidentity degeneracy applied is no longer a record, hence has no field named %s"
+              (Field.to_string_ori f))
     | Missing_instantiation_constructor (exp, got) ->
         let pp_got =
           match got with

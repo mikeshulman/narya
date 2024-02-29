@@ -170,6 +170,11 @@
  1 | (ungel ≔ r2)
    ^ can't check a tuple against a record Gel with a nonidentity degeneracy applied
 
+ ￫ error[E0800]
+ ￭ user-supplied term
+ 1 | gg' .ungel
+   ^ record type with a nonidentity degeneracy applied is no longer a record, hence has no field named ungel
+
  ￫ error[E0506]
  ￭ user-supplied term
  1 | x ↦ x.0

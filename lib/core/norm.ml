@@ -396,7 +396,8 @@ and tyof_field_withname ?severity ?degerr (tm : kinetic value) (ty : kinetic val
         _;
       } -> (
       (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
-      if Option.is_none (is_id_ins ins) then fatal ?severity (No_such_field (`Other, fld));
+      if Option.is_none (is_id_ins ins) then
+        fatal ?severity (No_such_field (`Degenerated_record, fld));
       let m = cod_left_ins ins in
       let n = cod_right_ins ins in
       let mn = plus_of_ins ins in

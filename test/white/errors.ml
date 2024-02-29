@@ -128,6 +128,13 @@ let () =
     uncheck ~print:() "(ungel ≔ r2)" symr2ty
       ~code:(Checking_tuple_at_degenerated_record (Core.Reporter.PConstant Types.Gel.gel)) in
 
+  let gg = assume "gg" r2ty in
+  let _ = synth "gg .ungel" in
+  let gg' = assume "gg'" symr2ty in
+  let _ =
+    unsynth ~print:() "gg' .ungel"
+      ~code:(No_such_field (`Degenerated_record, Core.Field.intern_ori "ungel")) in
+
   (* Cube variables *)
   let () = uncheck ~print:() "x ↦ x.0" atoa ~code:(Invalid_variable_face (D.zero, zero_sface_one)) in
   ()

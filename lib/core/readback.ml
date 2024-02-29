@@ -37,7 +37,6 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
               | Eq -> Term.Lam (k, `Normal x, body)
               | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
           (* Also if it's a partial application of a constant that's defined as a case tree, we pick up variables from the case tree. *)
-          (* TODO: Inspect Lawful alignments instead *)
           | Uninst (Neu { head = Const { name; _ }; args; alignment = _ }, _) -> (
               match Hashtbl.find_opt Global.constants name with
               | Some (Defined tree) -> (
@@ -53,7 +52,57 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                   | None -> Term.Lam (k, singleton_named_variables k x, body))
               | _ -> Term.Lam (k, singleton_named_variables k x, body))
           | _ -> Term.Lam (k, singleton_named_variables k x, body)))
-  (* TODO: Inspect Lawful alignments instead *)
+  | Neu { alignment = Lawful (Codata { eta = Eta; fields = _; _ }); _ } -> (
+      match tm with
+      | Struct (tmflds, tmins) ->
+          let fields =
+            Abwd.mapi
+              (fun fld (fldtm, l) ->
+                match Lazy.force fldtm with
+                | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
+              tmflds in
+          Act (Struct (Eta, fields), perm_of_ins tmins)
+      | _ ->
+          (* Eta-expanding readback should really do this, but it probably isn't what the user wants to see when printing terms, and in practice that's what we use readback for (equality-testing is a separate thing). *)
+          (* Struct
+               ( Eta,
+                 Abwd.mapi
+                   (fun fld _ -> (readback_at ctx (field tm fld) (tyof_field tm ty fld), `Labeled))
+                   fields ) *)
+          readback_val ctx tm)
+  | Neu { alignment = Lawful (Codata { eta = Noeta; _ }); _ } ->
+      fatal (Anomaly "reading back struct at codatatype")
+  | Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ } -> (
+      match tm with
+      | Constr (xconstr, xn, xargs) -> (
+          let (Dataconstr { env; args = argtys; indices = _ }) = Constr.Map.find xconstr constrs in
+          match (compare xn (TubeOf.inst tyargs), compare (TubeOf.inst tyargs) (dim_env env)) with
+          | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
+          | _, Neq ->
+              fatal (Dimension_mismatch ("reading back constrs", TubeOf.inst tyargs, dim_env env))
+          | Eq, Eq ->
+              let tyarg_args =
+                TubeOf.mmap
+                  {
+                    map =
+                      (fun _ [ tm ] ->
+                        match tm.tm with
+                        | Constr (tmname, _, tmargs) ->
+                            if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
+                            else fatal (Anomaly "inst arg wrong constr in readback at datatype")
+                        | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
+                  }
+                  [ tyargs ] in
+              Constr
+                ( xconstr,
+                  dim_env env,
+                  Bwd.of_list
+                    (readback_at_tel ctx env
+                       (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                       argtys
+                       (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ]))
+                ))
+      | _ -> readback_val ctx tm)
   | Neu { head = Const { name; ins }; args = canonical_args; alignment = _ } -> (
       let k = cod_left_ins ins in
       match Hashtbl.find Global.constants name with
@@ -90,7 +139,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                   | Neq ->
                       fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
                   | Eq ->
-                      let (Constr { args = argtys; indices = _ }) =
+                      let (Dataconstr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
                       let env, _ =
                         take_canonical_args (Emp k) (args_of_apps k canonical_args) params

@@ -39,6 +39,10 @@ let act_variables : type m n. n variables -> (m, n) deg -> m variables =
       (* TODO: Ideally this could be a "partially-cube" variable. *)
       | Neq -> `Cube (CubeOf.find_top x))
 
+(* Acting on a binder and on other sorts of closures will be unified by the function 'act_closure', but its return value involves an existential type, so it has to be a GADT. *)
+type (_, _, _) act_closure =
+  | Act_closure : ('m, 'a) env * ('mn, 'm, 'n) insertion -> ('a, 'mn, 'n) act_closure
+
 (* Since a value is either instantiated or uninstantiated, this function just deals with instantiations and lambda-abstractions and passes everything else off to act_uninst. *)
 let rec act_value : type m n s. s value -> (m, n) deg -> s value =
  fun v s ->
@@ -98,17 +102,51 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
             args )
 
 and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
- fun tm fa ->
+ fun tm s ->
   match tm with
-  | Unrealized e -> Unrealized e
-  | Realize tm -> Realize (act_value tm fa)
-  | Val tm -> Val (act_value tm fa)
+  | Unrealized -> Unrealized
+  | Realize tm -> Realize (act_value tm s)
+  | Val tm -> Val (act_value tm s)
+  | Canonical c -> Canonical (act_canonical c s)
 
 and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
  fun alignment s ->
   match alignment with
   | True -> True
   | Chaotic tm -> Chaotic (act_value tm s)
+  | Lawful tm -> Lawful (act_canonical tm s)
+
+and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
+ fun tm s ->
+  match tm with
+  | Data { dim; indices; missing; constrs } ->
+      let (Of fa) = deg_plus_to s dim in
+      Data
+        {
+          dim = dom_deg fa;
+          indices =
+            Bwv.map
+              (fun ixs ->
+                CubeOf.build (dom_deg fa)
+                  {
+                    build =
+                      (fun fb ->
+                        let (Op (fd, fc)) = deg_sface fa fb in
+                        act_normal (CubeOf.find ixs fd) fc);
+                  })
+              indices;
+          missing;
+          constrs = Constr.Map.map (fun c -> act_dataconstr c fa) constrs;
+        }
+  | Codata { eta; env; ins; fields } ->
+      let (Of fa) = deg_plus_to s (dom_ins ins) in
+      let (Act_closure (env, ins)) = act_closure env ins fa in
+      Codata { eta; env; ins; fields }
+
+and act_dataconstr : type m n i. (n, i) dataconstr -> (m, n) deg -> (m, i) dataconstr =
+ fun (Dataconstr { env; args; indices }) s ->
+  let env = Act (env, op_of_deg s) in
+  Dataconstr { env; args; indices }
 
 and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
  fun tm s ->
@@ -145,18 +183,17 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
           } in
       Pi (x, doms', cods')
 
-and act_binder : type mn kn b s. (mn, s) binder -> (kn, b) deg -> (kn, s) binder =
+(* act_closure and act_binder assume that the degeneracy has exactly the correct codomain.  So if it doesn't, the caller should call deg_plus_to first. *)
+and act_closure :
+    type mn m n a kn. (m, a) env -> (mn, m, n) insertion -> (kn, mn) deg -> (a, kn, n) act_closure =
+ fun env ins fa ->
+  let (Insfact (fc, ins)) = insfact (comp_deg (perm_of_ins ins) fa) (plus_of_ins ins) in
+  Act_closure (Act (env, op_of_deg fc), ins)
+
+and act_binder : type mn kn s. (mn, s) binder -> (kn, mn) deg -> (kn, s) binder =
  fun (Bind { env; ins; body }) fa ->
-  let k = dom_deg fa in
-  let n = cod_right_ins ins in
-  let (Insfact_comp (fc, ins, extra1, extra2)) = insfact_comp ins fa in
-  match (compare (D.plus_right extra1) D.zero, compare (D.plus_right extra2) D.zero) with
-  | Neq, _ | _, Neq -> fatal (Anomaly "mismatch in act_binder")
-  | Eq, Eq ->
-      let Eq = D.plus_uniq extra1 (D.plus_zero n) in
-      let Eq = D.plus_uniq extra2 (D.plus_zero k) in
-      let env = Act (env, op_of_deg fc) in
-      Bind { env; ins; body }
+  let (Act_closure (env, ins)) = act_closure env ins fa in
+  Bind { env; ins; body }
 
 and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }

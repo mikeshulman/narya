@@ -23,8 +23,8 @@ let install () =
          indices = Zero;
          constrs =
            Constr.Map.empty
-           |> Constr.Map.add zero (Global.Constr { args = Emp; indices = Emp })
-           |> Constr.Map.add suc (Global.Constr { args = Ext (None, Const nn, Emp); indices = Emp });
+           |> Constr.Map.add zero (Dataconstr { args = Emp; indices = Emp })
+           |> Constr.Map.add suc (Dataconstr { args = Ext (None, Const nn, Emp); indices = Emp });
        });
   Hashtbl.add Global.types nnn (UU D.zero);
   Hashtbl.add Global.constants nnn (Defined (Realize (Const nn)));

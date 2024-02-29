@@ -1,6 +1,7 @@
 open Dim
 open Core
 open Syntax
+open Term
 open Parser
 
 let inl = Constr.intern "inl"
@@ -17,9 +18,8 @@ let install () =
          constrs =
            Constr.Map.empty
            |> Constr.Map.add inl
-                (Global.Constr
+                (Dataconstr
                    { args = Ext (None, Var (Pop (Top (id_sface D.zero))), Emp); indices = Emp })
            |> Constr.Map.add inr
-                (Global.Constr
-                   { args = Ext (None, Var (Top (id_sface D.zero)), Emp); indices = Emp });
+                (Dataconstr { args = Ext (None, Var (Top (id_sface D.zero)), Emp); indices = Emp });
        })

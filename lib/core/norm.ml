@@ -65,8 +65,9 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           match eval (Emp dim) tree with
           | Realize x -> Val x
           | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
+          | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
           (* Since a top-level case tree is in the empty context, it doesn't have't anything to stuck-match against. *)
-          | Unrealized _ -> fatal (Anomaly "true neutral case tree in empty context"))
+          | Unrealized -> fatal (Anomaly "true neutral case tree in empty context"))
       | Some _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty))
       | None -> fatal (Undefined_constant (PConstant name)))
   | UU n ->
@@ -229,7 +230,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let ks = plus_deg k kn km s in
       let (Val v) = eval env x in
       Val (act_value v ks)
-  | Match (Potential, ix, n, branches) -> (
+  | Match (ix, n, branches) -> (
       (* Get the argument being inspected *)
       let m = dim_env env in
       match lookup env ix with
@@ -246,11 +247,12 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                   let env = take_args env mn dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
                   eval env body
-              | _ -> Unrealized Potential))
-      | _ -> Unrealized Potential)
+              | _ -> Unrealized))
+      | _ -> Unrealized)
   | Realize tm ->
       let (Val v) = eval env tm in
       Realize v
+  | Canonical c -> Canonical (eval_canonical env c)
 
 (* A helper function that doesn't get the correct types if we define it inline. *)
 and eval_args :
@@ -309,7 +311,17 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
                       match apply tm arg with
                       | Realize x -> Val x
                       | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
-                      | Unrealized _ -> Val (Uninst (Neu { head; args; alignment = True }, ty))))
+                      | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
+                      | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
+                  | Lawful (Data { dim; indices; missing = Suc _ as ij; constrs }) -> (
+                      match compare dim k with
+                      | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
+                      | Eq ->
+                          let indices, missing = (Bwv.Snoc (indices, newarg), N.suc_plus ij) in
+                          let alignment = Lawful (Data { dim; indices; missing; constrs }) in
+                          Val (Uninst (Neu { head; args; alignment }, ty)))
+                  | Lawful (Codata _) | Lawful (Data { missing = Zero; _ }) ->
+                      fatal (Anomaly "invalid application of type"))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
@@ -366,8 +378,10 @@ and field : kinetic value -> Field.t -> kinetic value =
           match Lazy.force (fst (Abwd.find fld fields)) with
           | Realize x -> x
           | Val x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
-          | Unrealized _ -> Uninst (Neu { head; args; alignment = True }, newty))
-      | Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree"))
+          | Unrealized -> Uninst (Neu { head; args; alignment = True }, newty)
+          | Canonical c -> Uninst (Neu { head; args; alignment = Lawful c }, newty))
+      | Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree")
+      | Lawful _ -> fatal (Anomaly "field projection of canonical type"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
@@ -375,7 +389,54 @@ and tyof_field_withname ?severity ?degerr (tm : kinetic value) (ty : kinetic val
     (fld : Field.or_index) : Field.t * kinetic value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
-  (* TODO: Inspect Lawful alignment rather than the head. *)
+  | Neu
+      {
+        head = Const { name = const; _ };
+        alignment = Lawful (Codata { eta = _; env; ins; fields });
+        _;
+      } -> (
+      (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
+      if Option.is_none (is_id_ins ins) then fatal ?severity (No_such_field (`Other, fld));
+      let m = cod_left_ins ins in
+      let n = cod_right_ins ins in
+      let mn = plus_of_ins ins in
+      let mn' = D.plus_out m mn in
+      match compare (TubeOf.inst tyargs) mn' with
+      | Neq ->
+          fatal ?severity (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
+      | Eq -> (
+          (* The type of the field projection comes from the type associated to that field name in general, evaluated at the supplied parameters along with the term itself and its boundaries. *)
+          let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
+          let entries =
+            CubeOf.build n
+              {
+                build =
+                  (fun fb ->
+                    CubeOf.build m
+                      {
+                        build =
+                          (fun fa ->
+                            let (Plus pq) = D.plus (dom_sface fb) in
+                            CubeOf.find tyargs' (sface_plus_sface fa mn pq fb));
+                      });
+              } in
+          let env = Value.Ext (env, entries) in
+          match Global.find_field fields fld with
+          | Some (fldname, fldty) ->
+              let (Val efldty) = eval env fldty in
+              ( fldname,
+                (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
+                inst efldty
+                  (TubeOf.mmap
+                     {
+                       map =
+                         (fun _ [ arg ] ->
+                           let tm = field arg.tm fldname in
+                           let _, ty = tyof_field_withname arg.tm arg.ty fld in
+                           { tm; ty });
+                     }
+                     [ TubeOf.middle (D.zero_plus m) mn tyargs ]) )
+          | None -> fatal ?severity (No_such_field (`Record (PConstant const), fld))))
   | Neu { head = Const { name; ins }; args; alignment = _ } -> (
       (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
       if Option.is_none (is_id_ins ins) then fatal ?severity (No_such_field (`Other, fld));
@@ -463,9 +524,23 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
              } ))
       body
   with
-  | Unrealized e -> Unrealized e
+  | Unrealized -> Unrealized
   | Realize v -> Realize (act_value v perm)
   | Val v -> Val (act_value v perm)
+  | Canonical c -> Canonical (act_canonical c perm)
+
+and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical =
+ fun env can ->
+  match can with
+  | Data (i, constrs) ->
+      let constrs =
+        Constr.Map.map
+          (fun (Term.Dataconstr { args; indices }) -> Value.Dataconstr { env; args; indices })
+          constrs in
+      Data { dim = dim_env env; indices = Emp; missing = N.zero_plus i; constrs }
+  | Codata (eta, n, fields) ->
+      let (Id_ins ins) = id_ins (dim_env env) n in
+      Codata { eta; env; ins; fields }
 
 and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
  fun env tm ->

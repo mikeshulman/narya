@@ -19,7 +19,7 @@ let rec equal_nf : int -> normal -> normal -> unit option =
   (* Thus, we can do an eta-expanding check at either one of their stored types, since they are assumed equal.  *)
   equal_at n x.tm y.tm x.ty
 
-(* Eta-expanding compare two values at a type, which they are both assumed to belong to. *)
+(* Compare two values at a type, which they are both assumed to belong to.  We do eta-expansion here if the type is one with an eta-rule, like a pi-type or a record type.  We also deal with the case of terms that don't synthesize, such as structs even in codatatypes without eta, and constructors in datatypes. *)
 and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit option =
  fun ctx x y ty ->
   (* The type must be fully instantiated. *)
@@ -38,7 +38,62 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
           let output = tyof_app cods tyargs newargs in
           (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
           equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output)
-  (* TODO: Inspect Lawful alignments instead *)
+  (* In the case of a codatatype/record, the insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it.  And its dimension gets checked by tyof_field.  In fact because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the data here except whether it has eta and what the list of field names is. *)
+  | Neu { alignment = Lawful (Codata { eta = Eta; fields; _ }); _ } ->
+      (* In the eta case, we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+      BwdM.miterM
+        (fun [ (fld, _) ] -> equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
+        [ fields ]
+  | Neu { alignment = Lawful (Codata { eta = Noeta; fields; _ }); _ } -> (
+      (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
+      match (x, y) with
+      | Struct (xfld, xins), Struct (yfld, yins) ->
+          let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
+          BwdM.miterM
+            (fun [ (fld, _) ] ->
+              let (Val xtm) = Lazy.force (fst (Abwd.find fld xfld)) in
+              let (Val ytm) = Lazy.force (fst (Abwd.find fld yfld)) in
+              equal_at ctx xtm ytm (tyof_field x ty fld))
+            [ fields ]
+      | Struct _, _ | _, Struct _ -> fail
+      | _ -> equal_val ctx x y)
+  (* At a datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  We require the datatype to be applied to all its indices, and we check the dimension. *)
+  | Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ } -> (
+      match (x, y) with
+      | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
+          let (Dataconstr { env; args = argtys; indices = _ }) = Constr.Map.find xconstr constrs in
+          let* () = guard (xconstr = yconstr) in
+          match
+            ( compare xn yn,
+              compare xn (TubeOf.inst tyargs),
+              compare (TubeOf.inst tyargs) (dim_env env) )
+          with
+          | Neq, _, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, yn))
+          | _, Neq, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
+          | _, _, Neq ->
+              fatal (Dimension_mismatch ("equality at canonical", TubeOf.inst tyargs, dim_env env))
+          | Eq, Eq, Eq ->
+              (* The instantiation must be at other instances of the same constructor; we take its arguments as in 'check'. *)
+              let tyarg_args =
+                TubeOf.mmap
+                  {
+                    map =
+                      (fun _ [ tm ] ->
+                        match tm.tm with
+                        | Constr (tmname, _, tmargs) ->
+                            if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
+                            else fatal (Anomaly "inst arg wrong constr in equality at datatype")
+                        | _ -> fatal (Anomaly "inst arg not constr in equality at datatype"));
+                  }
+                  [ tyargs ] in
+              (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
+              equal_at_tel ctx env
+                (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
+                argtys
+                (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ]))
+      | Constr _, _ | _, Constr _ -> fail
+      | _ -> equal_val ctx x y)
   | Neu { head = Const { name; ins }; args = canonical_args; alignment = _ } -> (
       (* The insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it. *)
       let k = cod_left_ins ins in
@@ -80,7 +135,7 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
                   | _, Neq ->
                       fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
                   | Eq, Eq ->
-                      let (Constr { args = argtys; indices = _ }) =
+                      let (Dataconstr { args = argtys; indices = _ }) =
                         Constr.Map.find xconstr constrs in
                       (* We take the parameters from the arguments of the instance of the datatype, ignoring the indices, and put them into an environment. *)
                       let env, _ =

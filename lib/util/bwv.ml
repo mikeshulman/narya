@@ -55,15 +55,6 @@ let rec take : type a m n mn. (m, n, mn) N.plus -> (a, mn) t -> (a, m) t =
       let (Snoc (xs, _)) = xs in
       take mn xs
 
-let rec split : type a m n mn. (m, n, mn) N.plus -> (a, mn) t -> (a, m) t * (a, n) t =
- fun mn xs ->
-  match mn with
-  | Zero -> (xs, Emp)
-  | Suc mn ->
-      let (Snoc (xs, x)) = xs in
-      let first, rest = split mn xs in
-      (first, Snoc (rest, x))
-
 (* Take a specified number of elements from the front (left) of a list to make a vector of that length, if there are that many, returning the vector and the rest of the list.  *)
 let of_list : type a mn. mn N.t -> a list -> ((a, mn) t * a list) option =
  fun n ys ->
@@ -414,6 +405,15 @@ let rec take_bwd : type a n. n N.t -> a Bwd.t -> (a, n) t =
   match (n, xs) with
   | Nat Zero, _ -> Emp
   | Nat (Suc n), Snoc (xs, x) -> Snoc (take_bwd (Nat n) xs, x)
+  | _ -> raise Not_found
+
+let rec unappend_bwd : type a n. n N.t -> a Bwd.t -> a Bwd.t * (a, n) t =
+ fun n xs ->
+  match (n, xs) with
+  | Nat Zero, _ -> (xs, Emp)
+  | Nat (Suc n), Snoc (xs, x) ->
+      let rest, taken = unappend_bwd (Nat n) xs in
+      (rest, Snoc (taken, x))
   | _ -> raise Not_found
 
 (* Converting to a Bwd *)

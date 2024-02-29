@@ -22,9 +22,9 @@ let install () =
          constrs =
            Constr.Map.empty
            |> Constr.Map.add nil
-                (Global.Constr { args = Emp; indices = Snoc (Emp, Constr (zero, D.zero, Emp)) })
+                (Dataconstr { args = Emp; indices = Snoc (Emp, Constr (zero, D.zero, Emp)) })
            |> Constr.Map.add cons
-                (Global.Constr
+                (Dataconstr
                    {
                      args =
                        Ext

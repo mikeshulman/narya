@@ -32,19 +32,9 @@ type definition =
       (* The number of indices.  Together these sum to the number of Pis in its type.  *)
       indices : ('p, 'i, 'pi) N.plus;
       (* The constructors.  These are typechecked in order, but once the datatype is defined the order doesn't matter any more, so we store them in a map. *)
-      constrs : ('pc, 'i) constr Constr.Map.t;
+      constrs : ('pc, 'i) dataconstr Constr.Map.t;
     }
       -> definition
-
-(* A data constructor with 'p parameters and 'i indices.  Currently, all constructors are 0-dimensional, but we aim to generalize this to HITs in future. *)
-and (_, _) constr =
-  | Constr : {
-      (* The types of the arguments, given the parameters of the datatype. *)
-      args : ('p, 'a, 'pa) Telescope.t;
-      (* The values of the indices, given the parameters and the arguments. *)
-      indices : (('pa, kinetic) term, 'i) Bwv.t;
-    }
-      -> ('p, 'i) constr
 
 let constants : (Constant.t, definition) Hashtbl.t = Hashtbl.create 10
 
@@ -56,6 +46,14 @@ type field =
       ty : (('pc, 'n) ext, kinetic) term;
     }
       -> field
+
+let find_field (fields : (Field.t, 'a) Abwd.t) (fld : Field.or_index) : (Field.t * 'a) option =
+  match fld with
+  | `Name fld -> (
+      match Abwd.find_opt fld fields with
+      | Some ty -> Some (fld, ty)
+      | None -> None)
+  | `Index n -> Mbwd.fwd_nth_opt fields n
 
 let find_record_field ?severity (const : Constant.t) (fld : Field.or_index) : field =
   match Hashtbl.find constants const with

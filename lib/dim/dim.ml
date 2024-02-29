@@ -2008,10 +2008,8 @@ let rec cod_left_ins : type a b c. (a, b, c) insertion -> b D.t = function
   | Suc (ins, _) -> cod_left_ins ins
 
 let rec cod_right_ins : type a b c. (a, b, c) insertion -> c D.t = function
-  | Zero _ -> Nat Zero
-  | Suc (ins, _) ->
-      let (Nat x) = cod_right_ins ins in
-      Nat (Suc x)
+  | Zero _ -> D.zero
+  | Suc (ins, _) -> D.suc (cod_right_ins ins)
 
 (* The domain of an insertion is the sum of the two pieces of its codomain. *)
 let rec plus_of_ins : type a b c. (a, b, c) insertion -> (b, c, a) D.plus = function

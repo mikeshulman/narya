@@ -7,18 +7,15 @@ open Reporter
 
 (* ******************** Groups of terms ******************** *)
 
-(* At both the checked and the value level we have actually three different types to define: ordinary terms, case trees for (co)recursive function definitions, and case trees for canonical types.  However, there is some overlap in the types of constructors and operations that these support: they can all contain lambda-abstractions and structs, while both kinds of case tree can contain matches.  Thus, to avoid duplication of code, we actually define all three together as one GADT type family, indexed by a three-element type to distinguish them.  We name the three groups after kinds of energy:
+(* At both the checked and the value level we have actually two different types to define: ordinary terms and case trees.  However, there is some overlap in the types of constructors and operations that these support: they can both contain lambda-abstractions and structs.  Thus, to avoid duplication of code, we actually define both together as one GADT type family, indexed by a two-element type to distinguish them.  We name the two groups after the two kinds of energy:
 
    - Ordinary terms are "kinetic", because ordinary computation applies directly to them.
-   - Function case trees are "potential", because such definitions don't compute until enough arguments are applied to reach a leaf of the case tree.
-   - Type case trees are "rest", because they never compute, only specify behavior according to their intrinsic nature.
+   - Case trees are "potential", because they don't compute until enough arguments are applied to reach a leaf of the case tree.  That leaf can be either a kinetic term or information about a canonical type (which is not a computation, just a specification of behavior).
 *)
 
 type kinetic = Dummy_kinetic
 type potential = Dummy_potential
-type rest = Dummy_rest
 type _ energy = Kinetic : kinetic energy | Potential : potential energy
-type _ nonkinetic = Potential : potential nonkinetic
 
 (* Structs can have or lack eta-conversion, but the only kinetic ones are the ones with eta (records). *)
 type _ eta = Eta : 's eta | Noeta : potential eta
@@ -113,10 +110,24 @@ module rec Term : sig
         -> ('a, kinetic) term
     | Lam : 'n D.t * 'n variables * (('a, 'n) ext, 's) Term.term -> ('a, 's) term
     | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
-    | Match : 's nonkinetic * 'a index * 'n D.t * ('a, 'n, 's) branch Constr.Map.t -> ('a, 's) term
+    | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
     | Realize : ('a, kinetic) term -> ('a, potential) term
+    | Canonical : 'a canonical -> ('a, potential) term
 
-  and (_, _, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * ('ab, 's) term -> ('a, 'n, 's) branch
+  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * ('ab, potential) term -> ('a, 'n) branch
+
+  and _ canonical =
+    | Data : 'i N.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    | Codata :
+        potential eta * 'n D.t * (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t
+        -> 'a canonical
+
+  and (_, _) dataconstr =
+    | Dataconstr : {
+        args : ('p, 'a, 'pa) tel;
+        indices : (('pa, kinetic) term, 'i) Bwv.t;
+      }
+        -> ('p, 'i) dataconstr
 
   and ('a, 'b, 'ab) tel =
     | Emp : ('a, N.zero, 'a) tel
@@ -151,12 +162,30 @@ end = struct
     | Lam : 'n D.t * 'n variables * (('a, 'n) ext, 's) Term.term -> ('a, 's) term
     | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms. *)
-    | Match : 's nonkinetic * 'a index * 'n D.t * ('a, 'n, 's) branch Constr.Map.t -> ('a, 's) term
-    (* A potential term is "realized" by kinetic terms at its leaves. *)
+    | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
+    (* A potential term is "realized" by kinetic terms, or canonical types, at its leaves. *)
     | Realize : ('a, kinetic) term -> ('a, potential) term
+    | Canonical : 'a canonical -> ('a, potential) term
 
   (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)
-  and (_, _, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * ('ab, 's) term -> ('a, 'n, 's) branch
+  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * ('ab, potential) term -> ('a, 'n) branch
+
+  (* A canonical type is either a datatype or a codatatype/record. *)
+  and _ canonical =
+    (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
+    | Data : 'i N.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
+    | Codata :
+        potential eta * 'n D.t * (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t
+        -> 'a canonical
+
+  (* A datatype constructor has a telescope of arguments and a list of index values depending on those arguments. *)
+  and (_, _) dataconstr =
+    | Dataconstr : {
+        args : ('p, 'a, 'pa) tel;
+        indices : (('pa, kinetic) term, 'i) Bwv.t;
+      }
+        -> ('p, 'i) dataconstr
 
   (* A telescope is a list of types, each dependent on the previous ones. *)
   and ('a, 'b, 'ab) tel =
@@ -195,6 +224,12 @@ module Telescope = struct
     match doms with
     | Emp -> cod
     | Ext (x, dom, doms) -> pi x dom (pis doms cod)
+
+  let rec lams : type a b ab. (a, b, ab) t -> (ab, kinetic) term -> (a, kinetic) term =
+   fun doms body ->
+    match doms with
+    | Emp -> body
+    | Ext (x, _, doms) -> Lam (D.zero, singleton_variables D.zero x, lams doms body)
 end
 
 (* ******************** Values ******************** *)
@@ -225,7 +260,7 @@ module rec Value : sig
       }
         -> ('mn, 's) binder
 
-  and alignment = True | Chaotic of potential value
+  and alignment = True | Chaotic of potential value | Lawful of canonical
 
   and uninst =
     | UU : 'n D.t -> uninst
@@ -250,7 +285,32 @@ module rec Value : sig
   and _ evaluation =
     | Val : 's value -> 's evaluation
     | Realize : kinetic value -> potential evaluation
-    | Unrealized : 's nonkinetic -> 's evaluation
+    | Unrealized : potential evaluation
+    | Canonical : canonical -> potential evaluation
+
+  and canonical =
+    | Data : {
+        dim : 'm D.t;
+        indices : (('m, normal) CubeOf.t, 'i) Bwv.t;
+        missing : ('i, 'j, 'ij) N.plus;
+        constrs : ('m, 'ij) dataconstr Constr.Map.t;
+      }
+        -> canonical
+    | Codata : {
+        eta : potential eta;
+        env : ('m, 'a) env;
+        ins : ('mn, 'm, 'n) insertion;
+        fields : (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t;
+      }
+        -> canonical
+
+  and (_, _) dataconstr =
+    | Dataconstr : {
+        env : ('m, 'a) env;
+        args : ('a, 'p, 'ap) Telescope.t;
+        indices : (('ap, kinetic) term, 'ij) Bwv.t;
+      }
+        -> ('m, 'ij) dataconstr
 
   and normal = { tm : kinetic value; ty : kinetic value }
 
@@ -293,8 +353,8 @@ end = struct
   (* A neutral has an "alignment".
      - A True neutral is an ordinary neutral that will never reduce further, such as an application of a variable or axiom, or of a defined constant with a neutral argument in a matching position.
      - A Chaotic neutral has a head defined by a case tree but isn't fully applied, so it might reduce further if it is applied to further arguments or field projections.  Thus it stores a value that should be either an abstraction or a struct, but does not test as equal to that value.
-     - A Lawful neutral (not yet implemented) will never reduce further, but has a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.). *)
-  and alignment = True | Chaotic of potential value
+     - A Lawful neutral has a head defined by a case tree that will doesn't reduce, but if it is applied to enough arguments it obtains a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.). *)
+  and alignment = True | Chaotic of potential value | Lawful of canonical
 
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
@@ -328,12 +388,40 @@ end = struct
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
         -> 's value
 
-  (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating another kind of term might be a value of the same kind, or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
+  (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
   and _ evaluation =
     (* When 's = potential, a Val means the case tree is not yet fully applied; while when 's = kinetic, it is the only possible kind of result.  Collapsing these two together seems to unify the code for Lam and Struct as much as possible. *)
     | Val : 's value -> 's evaluation
     | Realize : kinetic value -> potential evaluation
-    | Unrealized : 's nonkinetic -> 's evaluation
+    | Unrealized : potential evaluation
+    | Canonical : canonical -> potential evaluation
+
+  (* A canonical type value is either a datatype or a codatatype/record. *)
+  and canonical =
+    (* A datatype value has a Bwv of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
+    | Data : {
+        dim : 'm D.t;
+        indices : (('m, normal) CubeOf.t, 'i) Bwv.t;
+        missing : ('i, 'j, 'ij) N.plus;
+        constrs : ('m, 'ij) dataconstr Constr.Map.t;
+      }
+        -> canonical
+    (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
+    | Codata : {
+        eta : potential eta;
+        env : ('m, 'a) env;
+        ins : ('mn, 'm, 'n) insertion;
+        fields : (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t;
+      }
+        -> canonical
+
+  and (_, _) dataconstr =
+    | Dataconstr : {
+        env : ('m, 'a) env;
+        args : ('a, 'p, 'ap) Telescope.t;
+        indices : (('ap, kinetic) term, 'ij) Bwv.t;
+      }
+        -> ('m, 'ij) dataconstr
 
   (* A "normal form" is a value paired with its type.  The type is used for eta-expansion and equality-checking. *)
   and normal = { tm : kinetic value; ty : kinetic value }
@@ -363,7 +451,7 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
 
 (* And likewise every binder *)
 let dim_binder : type m s. (m, s) binder -> m D.t = function
-  | Bind b -> D.plus_out (dim_env b.env) (plus_of_ins b.ins)
+  | Bind b -> dom_ins b.ins
 
 (* Project out a cube or tube of values from a cube or tube of normals *)
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =

@@ -44,9 +44,10 @@ and fields :
 and evaluation : type s. formatter -> s evaluation -> unit =
  fun ppf v ->
   match v with
-  | Unrealized _ -> fprintf ppf "Unrealized"
+  | Unrealized -> fprintf ppf "Unrealized"
   | Realize v -> fprintf ppf "Realize (%a)" value v
   | Val v -> fprintf ppf "Val (%a)" value v
+  | Canonical _ -> fprintf ppf "Canonical ?"
 
 and uninst : formatter -> uninst -> unit =
  fun ppf u ->
@@ -60,6 +61,7 @@ and alignment : formatter -> alignment -> unit =
   match al with
   | True -> fprintf ppf "True"
   | Chaotic v -> fprintf ppf "Chaotic (%a)" value v
+  | Lawful _ -> fprintf ppf "Lawful ?"
 
 and head : formatter -> head -> unit =
  fun ppf h ->
@@ -94,5 +96,6 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
   | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
   | Struct (_, _) -> fprintf ppf "Struct (?,?)"
-  | Match (_, _, _, _) -> fprintf ppf "Match (?,?,?)"
+  | Match (_, _, _) -> fprintf ppf "Match (?,?,?)"
   | Realize tm -> fprintf ppf "Realize %a" term tm
+  | Canonical _ -> fprintf ppf "Canonical ?"

@@ -17,9 +17,9 @@ let install () =
          indices = Zero;
          constrs =
            Constr.Map.empty
-           |> Constr.Map.add emp (Global.Constr { args = Emp; indices = Emp })
+           |> Constr.Map.add emp (Dataconstr { args = Emp; indices = Emp })
            |> Constr.Map.add snoc
-                (Global.Constr
+                (Dataconstr
                    {
                      args =
                        Ext

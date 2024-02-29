@@ -288,7 +288,6 @@ let rec unparse :
               | None ->
                   let args = Bwd.map CubeOf.find_top args in
                   unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)))
-  | Match _ -> .
 
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =

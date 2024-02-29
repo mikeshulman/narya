@@ -24,15 +24,24 @@ let install () =
                     (Var (Pop (Pop (Top (id_sface D.zero)))))
                     (Var (Pop (Top (id_sface D.zero)))) )))));
   Hashtbl.add Global.constants gel
-    (Record
-       {
-         eta = Eta;
-         params = Suc (Suc (Suc Zero));
-         dim = one;
-         fields =
-           Emp
-           <: ( ungel,
-                app
-                  (app (Var (Pop (Top (id_sface D.zero)))) (Var (Top zero_sface_one)))
-                  (Var (Top one_sface_one)) );
-       })
+    (Defined
+       (Lam
+          ( D.zero,
+            `Cube (Some "A"),
+            Lam
+              ( D.zero,
+                `Cube (Some "B"),
+                Lam
+                  ( D.zero,
+                    `Cube (Some "R"),
+                    Canonical
+                      (Codata
+                         ( Eta,
+                           one,
+                           Emp
+                           <: ( ungel,
+                                app
+                                  (app
+                                     (Var (Pop (Top (id_sface D.zero))))
+                                     (Var (Top zero_sface_one)))
+                                  (Var (Top one_sface_one)) ) )) ) ) )))

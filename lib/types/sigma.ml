@@ -78,15 +78,20 @@ let install () =
   Hashtbl.add Global.types sigma
     (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
   Hashtbl.add Global.constants sigma
-    (Record
-       {
-         eta = Eta;
-         params = Suc (Suc Zero);
-         dim = D.zero;
-         fields =
-           Emp
-           <: (fst, Var (Pop (Pop (Top (id_sface D.zero)))))
-           <: ( snd,
-                app (Var (Pop (Top (id_sface D.zero)))) (Field (Var (Top (id_sface D.zero)), fst))
-              );
-       })
+    (Defined
+       (Lam
+          ( D.zero,
+            `Cube (Some "A"),
+            Lam
+              ( D.zero,
+                `Cube (Some "B"),
+                Canonical
+                  (Codata
+                     ( Eta,
+                       D.zero,
+                       Emp
+                       <: (fst, Var (Pop (Pop (Top (id_sface D.zero)))))
+                       <: ( snd,
+                            app
+                              (Var (Pop (Top (id_sface D.zero))))
+                              (Field (Var (Top (id_sface D.zero)), fst)) ) )) ) )))

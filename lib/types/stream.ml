@@ -13,13 +13,16 @@ let install () =
   let stream = Scope.define [ "Stream" ] in
   Hashtbl.add Global.types stream (pi None (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants stream
-    (Record
-       {
-         eta = Noeta;
-         params = Suc Zero;
-         dim = D.zero;
-         fields =
-           Emp
-           <: (head, Var (Pop (Top (id_sface D.zero))))
-           <: (tail, App (Const stream, CubeOf.singleton (Var (Pop (Top (id_sface D.zero))))));
-       })
+    (Defined
+       (Lam
+          ( D.zero,
+            `Cube (Some "A"),
+            Canonical
+              (Codata
+                 ( Noeta,
+                   D.zero,
+                   Emp
+                   <: (head, Var (Pop (Top (id_sface D.zero))))
+                   <: ( tail,
+                        App (Const stream, CubeOf.singleton (Var (Pop (Top (id_sface D.zero))))) )
+                 )) )))

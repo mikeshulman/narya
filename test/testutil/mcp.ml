@@ -48,18 +48,18 @@ let unsynth : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string ->
  fun ?print ?code ?short tm ->
   let (Ctx (ctx, names)) = !context in
   Reporter.try_with ~fatal:(fun d ->
-      if Option.is_some print then Terminal.display d;
       match code with
       | None -> (
           match short with
-          | None -> ()
+          | None -> if Option.is_some print then Terminal.display d
           | Some str ->
-              if Reporter.Code.short_code d.message = str then ()
+              if Reporter.Code.short_code d.message = str then (
+                if Option.is_some print then Terminal.display d)
               else (
                 Terminal.display d;
                 raise (Failure "Unexpected error code")))
       | Some c ->
-          if d.message = c then ()
+          if d.message = c then (if Option.is_some print then Terminal.display d)
           else (
             Terminal.display d;
             raise (Failure "Unexpected error code")))
@@ -75,18 +75,18 @@ let uncheck :
  fun ?print ?code ?short tm ty ->
   let (Ctx (ctx, names)) = !context in
   Reporter.try_with ~fatal:(fun d ->
-      if Option.is_some print then Terminal.display d;
       match code with
       | None -> (
           match short with
-          | None -> ()
+          | None -> if Option.is_some print then Terminal.display d
           | Some str ->
-              if Reporter.Code.short_code d.message = str then ()
+              if Reporter.Code.short_code d.message = str then (
+                if Option.is_some print then Terminal.display d)
               else (
                 Terminal.display d;
                 raise (Failure "Unexpected error code")))
       | Some c ->
-          if d.message = c then ()
+          if d.message = c then (if Option.is_some print then Terminal.display d)
           else (
             Terminal.display d;
             raise (Failure "Unexpected error code")))

@@ -1,4 +1,5 @@
 open Dim
+open Util
 open Core
 open Syntax
 open Term
@@ -11,15 +12,26 @@ let install () =
   let sum = Scope.define [ "sum" ] in
   Hashtbl.add Global.types sum (pi None (UU D.zero) (pi None (UU D.zero) (UU D.zero)));
   Hashtbl.add Global.constants sum
-    (Data
-       {
-         params = Suc (Suc Zero);
-         indices = Zero;
-         constrs =
-           Constr.Map.empty
-           |> Constr.Map.add inl
-                (Dataconstr
-                   { args = Ext (None, Var (Pop (Top (id_sface D.zero))), Emp); indices = Emp })
-           |> Constr.Map.add inr
-                (Dataconstr { args = Ext (None, Var (Top (id_sface D.zero)), Emp); indices = Emp });
-       })
+    (Defined
+       (Lam
+          ( D.zero,
+            `Cube (Some "A"),
+            Lam
+              ( D.zero,
+                `Cube (Some "B"),
+                Canonical
+                  (Data
+                     ( N.zero,
+                       Constr.Map.empty
+                       |> Constr.Map.add inl
+                            (Dataconstr
+                               {
+                                 args = Ext (None, Var (Pop (Top (id_sface D.zero))), Emp);
+                                 indices = Emp;
+                               })
+                       |> Constr.Map.add inr
+                            (Dataconstr
+                               {
+                                 args = Ext (None, Var (Top (id_sface D.zero)), Emp);
+                                 indices = Emp;
+                               }) )) ) )))

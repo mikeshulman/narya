@@ -17,15 +17,14 @@ let install () =
   Scope.set [ "Nat" ] nnn;
   Hashtbl.add Global.types nn (UU D.zero);
   Hashtbl.add Global.constants nn
-    (Data
-       {
-         params = Zero;
-         indices = Zero;
-         constrs =
-           Constr.Map.empty
-           |> Constr.Map.add zero (Dataconstr { args = Emp; indices = Emp })
-           |> Constr.Map.add suc (Dataconstr { args = Ext (None, Const nn, Emp); indices = Emp });
-       });
+    (Defined
+       (Canonical
+          (Data
+             ( N.zero,
+               Constr.Map.empty
+               |> Constr.Map.add zero (Dataconstr { args = Emp; indices = Emp })
+               |> Constr.Map.add suc
+                    (Dataconstr { args = Ext (None, Const nn, Emp); indices = Emp }) ))));
   Hashtbl.add Global.types nnn (UU D.zero);
   Hashtbl.add Global.constants nnn (Defined (Realize (Const nn)));
   ()

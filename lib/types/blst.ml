@@ -1,4 +1,5 @@
 open Dim
+open Util
 open Core
 open Syntax
 open Term
@@ -11,21 +12,22 @@ let install () =
   let bwd = Scope.define [ "Bwd" ] in
   Hashtbl.add Global.types bwd (pi None (UU D.zero) (UU D.zero));
   Hashtbl.add Global.constants bwd
-    (Data
-       {
-         params = Suc Zero;
-         indices = Zero;
-         constrs =
-           Constr.Map.empty
-           |> Constr.Map.add emp (Dataconstr { args = Emp; indices = Emp })
-           |> Constr.Map.add snoc
-                (Dataconstr
-                   {
-                     args =
-                       Ext
-                         ( None,
-                           app (Const bwd) (Term.Var (Top (id_sface D.zero))),
-                           Ext (None, Var (Pop (Top (id_sface D.zero))), Emp) );
-                     indices = Emp;
-                   });
-       })
+    (Defined
+       (Lam
+          ( D.zero,
+            `Cube (Some "A"),
+            Canonical
+              (Data
+                 ( N.zero,
+                   Constr.Map.empty
+                   |> Constr.Map.add emp (Dataconstr { args = Emp; indices = Emp })
+                   |> Constr.Map.add snoc
+                        (Dataconstr
+                           {
+                             args =
+                               Ext
+                                 ( None,
+                                   app (Const bwd) (Term.Var (Top (id_sface D.zero))),
+                                   Ext (None, Var (Pop (Top (id_sface D.zero))), Emp) );
+                             indices = Emp;
+                           }) )) )))

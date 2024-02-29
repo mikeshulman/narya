@@ -385,8 +385,8 @@ and field : kinetic value -> Field.t -> kinetic value =
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 (* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
-and tyof_field_withname ?severity ?degerr (tm : kinetic value) (ty : kinetic value)
-    (fld : Field.or_index) : Field.t * kinetic value =
+and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.or_index) :
+    Field.t * kinetic value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
   | Neu
@@ -422,7 +422,7 @@ and tyof_field_withname ?severity ?degerr (tm : kinetic value) (ty : kinetic val
                       });
               } in
           let env = Value.Ext (env, entries) in
-          match Global.find_field fields fld with
+          match Field.find fields fld with
           | Some (fldname, fldty) ->
               let (Val efldty) = eval env fldty in
               ( fldname,
@@ -438,56 +438,10 @@ and tyof_field_withname ?severity ?degerr (tm : kinetic value) (ty : kinetic val
                      }
                      [ TubeOf.middle (D.zero_plus m) mn tyargs ]) )
           | None -> fatal ?severity (No_such_field (`Record (PConstant const), fld))))
-  | Neu { head = Const { name; ins }; args; alignment = _ } -> (
-      (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
-      if Option.is_none (is_id_ins ins) then fatal ?severity (No_such_field (`Other, fld));
-      let m = cod_left_ins ins in
-      (* The head of the type must be a record type with a field having the correct name. *)
-      let (Field { name = fldname; params = kc; dim = n; ty = fldty }) =
-        Global.find_record_field ?severity name fld in
-      (* The total dimension of the record type is the dimension (m) at which the constant is applied, plus the intrinsic dimension of the record (n).  It must therefore be (fully) instantiated at that dimension m+n.  *)
-      let (Plus mn) = D.plus n in
-      let mn' = D.plus_out m mn in
-      match compare (TubeOf.inst tyargs) mn' with
-      | Neq ->
-          fatal ?severity (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
-      | Eq ->
-          (* The type must be applied, at dimension m, to exactly the right number of parameters (k). *)
-          let env, Emp = take_canonical_args (Emp m) (args_of_apps ?degerr m args) kc N.zero in
-          (* If so, then the type of the field projection comes from the type associated to that field name in general, evaluated at the supplied parameters along with the term itself and its boundaries. *)
-          let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
-          let entries =
-            CubeOf.build n
-              {
-                build =
-                  (fun fb ->
-                    CubeOf.build m
-                      {
-                        build =
-                          (fun fa ->
-                            let (Plus pq) = D.plus (dom_sface fb) in
-                            CubeOf.find tyargs' (sface_plus_sface fa mn pq fb));
-                      });
-              } in
-          let env = Value.Ext (env, entries) in
-          (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
-          let (Val efldty) = eval env fldty in
-          ( fldname,
-            inst efldty
-              (TubeOf.mmap
-                 {
-                   map =
-                     (fun _ [ arg ] ->
-                       let tm = field arg.tm fldname in
-                       let _, ty = tyof_field_withname arg.tm arg.ty fld in
-                       { tm; ty });
-                 }
-                 [ TubeOf.middle (D.zero_plus m) mn tyargs ]) ))
   | _ -> fatal ?severity (No_such_field (`Other, fld))
 
-and tyof_field ?severity ?degerr (tm : kinetic value) (ty : kinetic value) (fld : Field.t) :
-    kinetic value =
-  snd (tyof_field_withname ?severity ?degerr tm ty (`Name fld))
+and tyof_field ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.t) : kinetic value =
+  snd (tyof_field_withname ?severity tm ty (`Name fld))
 
 and eval_binder :
     type m n mn b s. (m, b) env -> (m, n, mn) D.plus -> ((b, n) ext, s) term -> (mn, s) Value.binder

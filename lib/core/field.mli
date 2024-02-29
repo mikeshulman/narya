@@ -1,3 +1,5 @@
+open Util
+
 module Field : sig
   type t
 
@@ -16,3 +18,4 @@ type or_index = [ `Name of t | `Index of int ]
 
 val to_string_ori : or_index -> string
 val intern_ori : string -> or_index
+val find : (Field.t, 'a) Abwd.t -> or_index -> (Field.t * 'a) option

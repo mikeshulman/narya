@@ -1,3 +1,5 @@
+open Util
+
 module Field = struct
   type t = string
 
@@ -24,3 +26,11 @@ let intern_ori (str : string) : or_index =
     let n = int_of_string str in
     `Index n
   with Failure _ -> `Name str
+
+let find (fields : (Field.t, 'a) Abwd.t) (fld : or_index) : (Field.t * 'a) option =
+  match fld with
+  | `Name fld -> (
+      match Abwd.find_opt fld fields with
+      | Some ty -> Some (fld, ty)
+      | None -> None)
+  | `Index n -> Mbwd.fwd_nth_opt fields n

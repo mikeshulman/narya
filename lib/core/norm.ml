@@ -238,7 +238,11 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       | Constr (name, dim, dargs) -> (
           match Constr.Map.find_opt name branches with
           (* Matches are constructed to contain all the constructors of the datatype being matched on, and this constructor belongs to that datatype, so it ought to be in the match. *)
-          | None -> fatal (Anomaly "constructor missing from compiled match")
+          | None ->
+              fatal
+                (Anomaly
+                   (Printf.sprintf "constructor %s missing from compiled match"
+                      (Constr.to_string name)))
           | Some (Branch (plus, body)) -> (
               let (Plus mn) = D.plus n in
               match compare dim (D.plus_out m mn) with

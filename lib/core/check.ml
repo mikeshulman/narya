@@ -393,9 +393,9 @@ let rec check :
                                           let _ = readback_nf thectx v in
                                           ())
                                         new_vals in
-                                    (* We evaluate "rty" and "rprevtm" in this new context, to obtain the type at which the branch body will be checked, and the up-until-now term that will be in effect for that checking. *)
+                                    (* We evaluate "rty" in this new context, to obtain the type at which the branch body will be checked. *)
                                     let newty = Ctx.eval_term thectx rty in
-                                    (* Finally, recurse into the "body". *)
+                                    (* Finally, we recurse into the "body" of the branch. *)
                                     tbranches
                                     |> Constr.Map.add constr.value
                                          (Term.Branch (efc, check energy thectx body newty))

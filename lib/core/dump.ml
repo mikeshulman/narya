@@ -1,5 +1,6 @@
 (* This module should not be imported, but used qualified (including its constructor names for printable). *)
 
+open Bwd
 open Dim
 open Util
 open Reporter
@@ -54,7 +55,22 @@ and uninst : formatter -> uninst -> unit =
   match u with
   | UU n -> fprintf ppf "UU %a" dim n
   | Pi (_, _, _) -> fprintf ppf "Pi ?"
-  | Neu { head = h; args = _; alignment = al } -> fprintf ppf "Neu (%a, ?, %a)" head h alignment al
+  | Neu { head = h; args = a; alignment = al } ->
+      fprintf ppf "Neu (%a, (%a), %a)" head h args a alignment al
+
+and args : formatter -> app Bwd.t -> unit =
+ fun ppf args ->
+  fprintf ppf "Emp";
+  Mbwd.miter (fun [ a ] -> fprintf ppf " <: %a" app a) [ args ]
+
+and app : formatter -> app -> unit =
+ fun ppf -> function
+  | App (a, _) -> fprintf ppf "(%a,?)" arg a
+
+and arg : type n. formatter -> n arg -> unit =
+ fun ppf -> function
+  | Arg xs -> value ppf (CubeOf.find_top xs).tm
+  | Field fld -> fprintf ppf ".%s" (Field.to_string fld)
 
 and alignment : formatter -> alignment -> unit =
  fun ppf al ->
@@ -66,7 +82,7 @@ and alignment : formatter -> alignment -> unit =
 and head : formatter -> head -> unit =
  fun ppf h ->
   match h with
-  | Var _ -> fprintf ppf "Var ?"
+  | Var { level; _ } -> fprintf ppf "Var (%d,%d)" (fst level) (snd level)
   | Const { name; ins } ->
       fprintf ppf "Const (%a, %s)" pp_printed (print (PConstant name))
         (string_of_deg (perm_of_ins ins))

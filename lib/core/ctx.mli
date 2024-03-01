@@ -44,19 +44,19 @@ val exts :
   ('a, 'd) t ->
   ('b1, 'b2, 'b) N.plus ->
   ('a, 'b2, 'ab2) N.plus ->
-  ('d, 'b, 'db, D.zero) exts ->
+  ('d, 'b, D.zero, 'db) exts ->
   (string option * (level option * normal), 'b) Bwv.t ->
   ('ab2, 'db) t
 
 val ext_invis :
-  ('a, 'd) t -> ('d, 'b, 'db, D.zero) exts -> (level option * normal, 'b) Bwv.t -> ('a, 'db) t
+  ('a, 'd) t -> ('d, 'b, D.zero, 'db) exts -> (level option * normal, 'b) Bwv.t -> ('a, 'db) t
 
 val ext_tel :
   ('a, 'e) t ->
   ('n, 'b) env ->
   ('b, 'c, 'bc) Telescope.t ->
   ('a, 'c, 'ac) N.plus ->
-  ('e, 'c, 'ec, 'n) exts ->
+  ('e, 'c, 'n, 'ec) exts ->
   ('ac, 'ec) t * ('n, 'bc) env * (('n, kinetic value) CubeOf.t, 'c) Bwv.t
 
 val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t

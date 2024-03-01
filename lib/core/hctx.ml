@@ -7,26 +7,26 @@ type emp = Dummy_emp
 type ('xs, 'x) ext = Dummy_ext
 type _ hctx = Emp : emp hctx | Ext : 'xs hctx * 'x D.t -> ('xs, 'x) ext hctx
 
-(* ('a, 'b, 'ab, 'n) exts means that 'a is an hctx (although this isn't enforced -- it could be any type), 'b is a N.t, and 'ab is the result of adding 'b copies of the dimension 'n at the end of 'a. *)
+(* ('a, 'b, 'n, 'ab) exts means that 'a is an hctx (although this isn't enforced -- it could be any type), 'b is a N.t, and 'ab is the result of adding 'b copies of the dimension 'n at the end of 'a. *)
 type (_, _, _, _) exts =
-  | Zero : ('a, N.zero, 'a, 'n) exts
-  | Suc : ('a, 'b, 'ab, 'n) exts -> ('a, 'b N.suc, ('ab, 'n) ext, 'n) exts
+  | Zero : ('a, N.zero, 'n, 'a) exts
+  | Suc : ('a, 'b, 'n, 'ab) exts -> ('a, 'b N.suc, 'n, ('ab, 'n) ext) exts
 
-let rec exts_ext : type a b c n. (a, b, c, n) exts -> ((a, n) ext, b, (c, n) ext, n) exts = function
+let rec exts_ext : type a b c n. (a, b, n, c) exts -> ((a, n) ext, b, n, (c, n) ext) exts = function
   | Zero -> Zero
   | Suc ab -> Suc (exts_ext ab)
 
-(* This is named by analogy to N.suc_plus''. *)
-let exts_suc'' : type a b c n. (a, b N.suc, c, n) exts -> ((a, n) ext, b, c, n) exts = function
+(* This is named by analogy to N.suc_plus. *)
+let exts_suc : type a b c n. (a, b N.suc, n, c) exts -> ((a, n) ext, b, n, c) exts = function
   | Suc ab -> exts_ext ab
 
-let rec exts_right : type a b c n. (a, b, c, n) exts -> b N.t = function
+let rec exts_right : type a b c n. (a, b, n, c) exts -> b N.t = function
   | Zero -> Nat Zero
   | Suc ab ->
       let (Nat b) = exts_right ab in
       Nat (Suc b)
 
-type (_, _, _) has_exts = Exts : ('a, 'b, 'ab, 'n) exts -> ('a, 'b, 'n) has_exts
+type (_, _, _) has_exts = Exts : ('a, 'b, 'n, 'ab) exts -> ('a, 'b, 'n) has_exts
 
 let rec exts : type a b n. b N.t -> (a, b, n) has_exts =
  fun b ->

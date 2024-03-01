@@ -190,7 +190,7 @@ let rec exts :
     (a, d) t ->
     (b1, b2, b) N.plus ->
     (a, b2, ab2) N.plus ->
-    (d, b, db, D.zero) exts ->
+    (d, b, D.zero, db) exts ->
     (string option * (level option * normal), b) Bwv.t ->
     (ab2, db) t =
  fun ctx bb ab db keys ->
@@ -206,7 +206,7 @@ let rec exts :
 (* Extend a context by a finite number of invisible variables. *)
 let rec ext_invis :
     type a b1 b2 b ab2 c d db.
-    (a, d) t -> (d, b, db, D.zero) exts -> (level option * normal, b) Bwv.t -> (a, db) t =
+    (a, d) t -> (d, b, D.zero, db) exts -> (level option * normal, b) Bwv.t -> (a, db) t =
  fun ctx db keys ->
   match (db, keys) with
   | Zero, Emp -> ctx
@@ -221,7 +221,7 @@ let ext_tel :
     (n, b) env ->
     (b, c, bc) Telescope.t ->
     (a, c, ac) N.plus ->
-    (e, c, ec, n) exts ->
+    (e, c, n, ec) exts ->
     (ac, ec) t * (n, bc) env * ((n, kinetic value) CubeOf.t, c) Bwv.t =
  fun ctx env tel ac ec ->
   let rec ext_tel :
@@ -230,7 +230,7 @@ let ext_tel :
       (n, b) env ->
       (b, c, bc) Telescope.t ->
       (a, c, ac) N.plus ->
-      (e, c, ec, n) exts ->
+      (e, c, n, ec) exts ->
       (d, c, dc) N.plus ->
       ((n, kinetic value) CubeOf.t, d) Bwv.t ->
       (ac, ec) t * (n, bc) env * ((n, kinetic value) CubeOf.t, dc) Bwv.t =
@@ -247,7 +247,7 @@ let ext_tel :
         let newctx = Vis (ctx, `Cube x, newnfs) in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
-          rest (N.suc_plus ac) (exts_suc'' ec) (N.suc_plus dc)
+          rest (N.suc_plus ac) (exts_suc ec) (N.suc_plus dc)
           (Snoc (vars, newvars)) in
   ext_tel ctx env tel ac ec (N.zero_plus (N.plus_right ac)) Emp
 

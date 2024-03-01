@@ -114,7 +114,7 @@ module rec Term : sig
     | Realize : ('a, kinetic) term -> ('a, potential) term
     | Canonical : 'a canonical -> ('a, potential) term
 
-  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * ('ab, potential) term -> ('a, 'n) branch
+  and (_, _) branch = Branch : ('a, 'b, 'n, 'ab) exts * ('ab, potential) term -> ('a, 'n) branch
 
   and _ canonical =
     | Data : 'i N.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
@@ -168,7 +168,7 @@ end = struct
     | Canonical : 'a canonical -> ('a, potential) term
 
   (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)
-  and (_, _) branch = Branch : ('a, 'b, 'ab, 'n) exts * ('ab, potential) term -> ('a, 'n) branch
+  and (_, _) branch = Branch : ('a, 'b, 'n, 'ab) exts * ('ab, potential) term -> ('a, 'n) branch
 
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =

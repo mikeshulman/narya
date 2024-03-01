@@ -247,7 +247,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               let (Plus mn) = D.plus n in
               match compare dim (D.plus_out m mn) with
               | Eq ->
-                  (* If we have a branch with a matching constant, then in the argument the constant must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
+                  (* If we have a branch with a matching constant, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
                   let env = take_args env mn dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
                   eval env body

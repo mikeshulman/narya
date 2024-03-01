@@ -145,7 +145,7 @@ and norm_of_vals :
 (* Assemble an environment from a Bwv of values. *)
 let rec env_of_bwv :
     type n a ea.
-    n D.t -> ((n, normal) CubeOf.t, a) Bwv.t -> (emp, a, ea, D.zero) exts -> (n, ea) env =
+    n D.t -> ((n, normal) CubeOf.t, a) Bwv.t -> (emp, a, D.zero, ea) exts -> (n, ea) env =
  fun n xs ea ->
   match (xs, ea) with
   | Emp, Zero -> Emp n
@@ -157,7 +157,7 @@ let rec take_args :
     (m, a) env ->
     (m, n, mn) D.plus ->
     (mn, kinetic value) CubeOf.t Bwd.t ->
-    (a, b, ab, n) exts ->
+    (a, b, n, ab) exts ->
     (m, ab) env =
  fun env mn dargs plus ->
   let m = dim_env env in
@@ -188,7 +188,7 @@ let rec take_canonical_args :
     type n a b ab c.
     (n, a) env ->
     (n, normal) CubeOf.t Bwd.t ->
-    (a, b, ab, D.zero) exts ->
+    (a, b, D.zero, ab) exts ->
     c N.t ->
     (n, ab) env * ((n, normal) CubeOf.t, c) Bwv.t =
  fun env args ab c ->

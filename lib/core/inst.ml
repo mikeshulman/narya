@@ -142,15 +142,6 @@ and norm_of_vals :
       [ tms; tys ] in
   new_tms
 
-(* Assemble an environment from a Bwv of values. *)
-let rec env_of_bwv :
-    type n a ea.
-    n D.t -> ((n, normal) CubeOf.t, a) Bwv.t -> (emp, a, D.zero, ea) exts -> (n, ea) env =
- fun n xs ea ->
-  match (xs, ea) with
-  | Emp, Zero -> Emp n
-  | Snoc (xs, x), Suc ea -> Ext (env_of_bwv n xs ea, CubeOf.singleton (val_of_norm_cube x))
-
 (* Require that the supplied Bwd contains exactly b arguments, rearrange each mn-cube argument into an n-cube of m-cubes, and add all of them to the given environment. *)
 let rec take_args :
     type m n mn a b ab.

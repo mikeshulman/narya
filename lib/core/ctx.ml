@@ -1,5 +1,6 @@
 (* This module should not be opened, but used qualified *)
 
+open Bwd
 open Util
 open Dim
 open Syntax
@@ -184,62 +185,32 @@ let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, 
 let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) ext) t =
  fun ctx x v -> Vis (ctx, singleton_variables D.zero x, CubeOf.singleton (None, v))
 
-(* Extend a context by a finite number of new variables, whose types and values are specified in a Bwv, and some last number of which are visible. *)
-let rec exts :
-    type a b1 b2 b ab2 c d db.
-    (a, d) t ->
-    (b1, b2, b) N.plus ->
-    (a, b2, ab2) N.plus ->
-    (d, b, D.zero, db) exts ->
-    (string option * (level option * normal), b) Bwv.t ->
-    (ab2, db) t =
- fun ctx bb ab db keys ->
-  match (bb, ab, db, keys) with
-  | Zero, Zero, Zero, Emp -> ctx
-  | Suc bb, Suc ab, Suc db, Snoc (keys, key) ->
-      let newctx = exts ctx bb ab db keys in
-      Vis (newctx, singleton_variables D.zero (fst key), CubeOf.singleton (snd key))
-  | Zero, Zero, Suc db, Snoc (keys, key) ->
-      let newctx = exts ctx Zero ab db keys in
-      Invis (newctx, CubeOf.singleton (snd key))
-
-(* Extend a context by a finite number of invisible variables. *)
-let rec ext_invis :
-    type a b1 b2 b ab2 c d db.
-    (a, d) t -> (d, b, D.zero, db) exts -> (level option * normal, b) Bwv.t -> (a, db) t =
- fun ctx db keys ->
-  match (db, keys) with
-  | Zero, Emp -> ctx
-  | Suc db, Snoc (keys, key) ->
-      let newctx = ext_invis ctx db keys in
-      Invis (newctx, CubeOf.singleton key)
-
 (* Extend a context by a finite number of cubes of new visible variables at some dimension, with boundaries, whose types are specified by the evaluation of some telescope in some (possibly higher-dimensional) environment (and hence may depend on the earlier ones).  Also return the new variables in a Bwd of Cubes, and the new environment extended by the *top-dimensional variables only*. *)
 let ext_tel :
     type a b c ac bc e ec n.
     (a, e) t ->
     (n, b) env ->
+    (* Note that c is a Fwn, since it is the length of a telescope. *)
     (b, c, bc) Telescope.t ->
-    (a, c, ac) N.plus ->
+    (a, c, ac) Fwn.bplus ->
     (e, c, n, ec) exts ->
-    (ac, ec) t * (n, bc) env * ((n, kinetic value) CubeOf.t, c) Bwv.t =
+    (ac, ec) t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
  fun ctx env tel ac ec ->
   let rec ext_tel :
-      type a b c ac bc d dc e ec.
+      type a b c ac bc d e ec.
       (a, e) t ->
       (n, b) env ->
       (b, c, bc) Telescope.t ->
-      (a, c, ac) N.plus ->
+      (a, c, ac) Fwn.bplus ->
       (e, c, n, ec) exts ->
-      (d, c, dc) N.plus ->
-      ((n, kinetic value) CubeOf.t, d) Bwv.t ->
-      (ac, ec) t * (n, bc) env * ((n, kinetic value) CubeOf.t, dc) Bwv.t =
-   fun ctx env tel ac ec dc vars ->
-    match (tel, ac, dc) with
-    | Emp, Zero, Zero ->
+      (n, kinetic value) CubeOf.t Bwd.t ->
+      (ac, ec) t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
+   fun ctx env tel ac ec vars ->
+    match (tel, ac) with
+    | Emp, Zero ->
         let Zero, Zero = (ac, ec) in
         (ctx, env, vars)
-    | Ext (x, rty, rest), Suc _, Suc _ ->
+    | Ext (x, rty, rest), Suc ac ->
         let newvars, newnfs =
           dom_vars (length ctx)
             (CubeOf.build (dim_env env)
@@ -247,9 +218,9 @@ let ext_tel :
         let newctx = Vis (ctx, `Cube x, newnfs) in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
-          rest (N.suc_plus ac) (exts_suc ec) (N.suc_plus dc)
+          rest ac (exts_suc ec)
           (Snoc (vars, newvars)) in
-  ext_tel ctx env tel ac ec (N.zero_plus (N.plus_right ac)) Emp
+  ext_tel ctx env tel ac ec Emp
 
 (* Let-bind some of the variables in a context *)
 

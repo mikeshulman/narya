@@ -51,12 +51,12 @@ module Raw = struct
 
   and _ branch =
     (* The location of the second argument is that of the entire pattern. *)
-    | Branch : Constr.t located * ('a, 'b, 'ab) N.plus located * 'ab check located -> 'a branch
+    | Branch : Constr.t located * ('a, 'b, 'ab) Fwn.bplus located * 'ab check located -> 'a branch
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
   type (_, _, _) tel =
-    | Emp : ('a, N.zero, 'a) tel
-    | Ext : string option * 'a check located * ('a N.suc, 'b, 'ab) tel -> ('a, 'b N.suc, 'ab) tel
+    | Emp : ('a, Fwn.zero, 'a) tel
+    | Ext : string option * 'a check located * ('a N.suc, 'b, 'ab) tel -> ('a, 'b Fwn.suc, 'ab) tel
 end
 
 (* ******************** Names ******************** *)
@@ -130,10 +130,10 @@ module rec Term : sig
         -> ('p, 'i) dataconstr
 
   and ('a, 'b, 'ab) tel =
-    | Emp : ('a, N.zero, 'a) tel
+    | Emp : ('a, Fwn.zero, 'a) tel
     | Ext :
         string option * ('a, kinetic) term * (('a, D.zero) ext, 'b, 'ab) tel
-        -> ('a, 'b N.suc, 'ab) tel
+        -> ('a, 'b Fwn.suc, 'ab) tel
 end = struct
   module CodFam = struct
     type ('k, 'a) t = (('a, 'k) ext, kinetic) Term.term
@@ -189,10 +189,10 @@ end = struct
 
   (* A telescope is a list of types, each dependent on the previous ones. *)
   and ('a, 'b, 'ab) tel =
-    | Emp : ('a, N.zero, 'a) tel
+    | Emp : ('a, Fwn.zero, 'a) tel
     | Ext :
         string option * ('a, kinetic) term * (('a, D.zero) ext, 'b, 'ab) tel
-        -> ('a, 'b N.suc, 'ab) tel
+        -> ('a, 'b Fwn.suc, 'ab) tel
 end
 
 open Term
@@ -215,9 +215,9 @@ let constr name args = Constr (name, D.zero, Bwd.map CubeOf.singleton args)
 module Telescope = struct
   type ('a, 'b, 'ab) t = ('a, 'b, 'ab) Term.tel
 
-  let rec length : type a b ab. (a, b, ab) t -> b N.t = function
-    | Emp -> Nat Zero
-    | Ext (_, _, tel) -> N.suc (length tel)
+  let rec length : type a b ab. (a, b, ab) t -> b Fwn.t = function
+    | Emp -> Zero
+    | Ext (_, _, tel) -> Suc (length tel)
 
   let rec pis : type a b ab. (a, b, ab) t -> (ab, kinetic) term -> (a, kinetic) term =
    fun doms cod ->

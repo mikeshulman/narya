@@ -7,33 +7,31 @@ type emp = Dummy_emp
 type ('xs, 'x) ext = Dummy_ext
 type _ hctx = Emp : emp hctx | Ext : 'xs hctx * 'x D.t -> ('xs, 'x) ext hctx
 
-(* ('a, 'b, 'n, 'ab) exts means that 'a is an hctx (although this isn't enforced -- it could be any type), 'b is a N.t, and 'ab is the result of adding 'b copies of the dimension 'n at the end of 'a. *)
+(* ('a, 'b, 'n, 'ab) exts means that 'a is an hctx (although this isn't enforced -- it could be any type), 'b is a Fwn.t, and 'ab is the result of adding 'b copies of the dimension 'n at the end of 'a. *)
 type (_, _, _, _) exts =
-  | Zero : ('a, N.zero, 'n, 'a) exts
-  | Suc : ('a, 'b, 'n, 'ab) exts -> ('a, 'b N.suc, 'n, ('ab, 'n) ext) exts
+  | Zero : ('a, Fwn.zero, 'n, 'a) exts
+  | Suc : ('a, 'b, 'n, 'ab) exts -> ('a, 'b Fwn.suc, 'n, ('ab, 'n) ext) exts
 
 let rec exts_ext : type a b c n. (a, b, n, c) exts -> ((a, n) ext, b, n, (c, n) ext) exts = function
   | Zero -> Zero
   | Suc ab -> Suc (exts_ext ab)
 
 (* This is named by analogy to N.suc_plus. *)
-let exts_suc : type a b c n. (a, b N.suc, n, c) exts -> ((a, n) ext, b, n, c) exts = function
+let exts_suc : type a b c n. (a, b Fwn.suc, n, c) exts -> ((a, n) ext, b, n, c) exts = function
   | Suc ab -> exts_ext ab
 
-let rec exts_right : type a b c n. (a, b, n, c) exts -> b N.t = function
-  | Zero -> Nat Zero
-  | Suc ab ->
-      let (Nat b) = exts_right ab in
-      Nat (Suc b)
+let rec exts_right : type a b c n. (a, b, n, c) exts -> b Fwn.t = function
+  | Zero -> Zero
+  | Suc ab -> Suc (exts_right ab)
 
 type (_, _, _) has_exts = Exts : ('a, 'b, 'n, 'ab) exts -> ('a, 'b, 'n) has_exts
 
-let rec exts : type a b n. b N.t -> (a, b, n) has_exts =
+let rec exts : type a b n. b Fwn.t -> (a, b, n) has_exts =
  fun b ->
   match b with
-  | Nat Zero -> Exts Zero
-  | Nat (Suc b) ->
-      let (Exts p) = exts (Nat b) in
+  | Zero -> Exts Zero
+  | Suc b ->
+      let (Exts p) = exts b in
       Exts (Suc p)
 
 (* A typechecked De Bruijn index is a well-scoped natural number together with a definite strict face (the top face, if none was supplied explicitly).  Unlike a raw De Bruijn index, the scoping is by an hctx rather than a type-level nat.  This allows the face to also be well-scoped: its codomain must be the dimension appearing in the hctx at that position. *)
@@ -58,13 +56,13 @@ type (_, _, _) append =
 
 (* Change a backwards hctx into a forwards one. *)
 
-type _ to_fw = To_fw : 'a fwhctx * (emp, 'a, 'b) append -> 'b to_fw
+type _ hctx_to_fw = To_fw : 'a fwhctx * (emp, 'a, 'b) append -> 'b hctx_to_fw
 
-let to_fw : type c. c hctx -> c to_fw =
+let hctx_to_fw : type c. c hctx -> c hctx_to_fw =
  fun c ->
-  let rec to_fw : type a b c. a hctx -> b fwhctx -> (a, b, c) append -> c to_fw =
+  let rec hctx_to_fw : type a b c. a hctx -> b fwhctx -> (a, b, c) append -> c hctx_to_fw =
    fun a b abc ->
     match a with
     | Emp -> To_fw (b, abc)
-    | Ext (a, x) -> to_fw a (Cons (x, b)) (Append_cons abc) in
-  to_fw c Nil Append_nil
+    | Ext (a, x) -> hctx_to_fw a (Cons (x, b)) (Append_cons abc) in
+  hctx_to_fw c Nil Append_nil

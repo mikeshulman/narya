@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Dim
 open Syntax
@@ -40,24 +41,13 @@ val eval_term : ('a, 'b) t -> ('b, kinetic) Term.term -> kinetic value
 val ext : ('a, 'b) t -> string option -> kinetic value -> ('a N.suc, ('b, D.zero) ext) t
 val ext_let : ('a, 'b) t -> string option -> normal -> ('a N.suc, ('b, D.zero) ext) t
 
-val exts :
-  ('a, 'd) t ->
-  ('b1, 'b2, 'b) N.plus ->
-  ('a, 'b2, 'ab2) N.plus ->
-  ('d, 'b, D.zero, 'db) exts ->
-  (string option * (level option * normal), 'b) Bwv.t ->
-  ('ab2, 'db) t
-
-val ext_invis :
-  ('a, 'd) t -> ('d, 'b, D.zero, 'db) exts -> (level option * normal, 'b) Bwv.t -> ('a, 'db) t
-
 val ext_tel :
   ('a, 'e) t ->
   ('n, 'b) env ->
   ('b, 'c, 'bc) Telescope.t ->
-  ('a, 'c, 'ac) N.plus ->
+  ('a, 'c, 'ac) Fwn.bplus ->
   ('e, 'c, 'n, 'ec) exts ->
-  ('ac, 'ec) t * ('n, 'bc) env * (('n, kinetic value) CubeOf.t, 'c) Bwv.t
+  ('ac, 'ec) t * ('n, 'bc) env * ('n, kinetic value) CubeOf.t Bwd.t
 
 val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t
 val map : (normal -> normal) -> ('a, 'b) t -> ('a, 'b) t

@@ -719,19 +719,15 @@ let () =
 
 let rec get_pattern :
     type n lt1 ls1 rt1 rs1.
-    (string option, n) Bwv.t ->
     (lt1, ls1, rt1, rs1) parse located ->
-    Constr.t located * n extended_ctx =
- fun ctx pat ->
+    string option list ->
+    Constr.t located * string option list =
+ fun pat vars ->
   match pat.value with
-  | Constr (c, _) -> ({ value = Constr.intern c; loc = pat.loc }, Extctx (Zero, Emp, ctx))
-  | App { fn; arg = { value = Ident ([ x ], _); loc }; _ } ->
-      let c, Extctx (ab, locs, ctx) = get_pattern ctx fn in
-      (c, Extctx (Suc ab, Snoc (locs, loc), Snoc (ctx, Some x)))
+  | Constr (c, _) -> ({ value = Constr.intern c; loc = pat.loc }, vars)
+  | App { fn; arg = { value = Ident ([ x ], _); loc = _ }; _ } -> get_pattern fn (Some x :: vars)
   | App { arg = { value = Ident (xs, _); _ }; _ } -> fatal (Invalid_variable xs)
-  | App { fn; arg = { value = Placeholder _; loc }; _ } ->
-      let c, Extctx (ab, locs, ctx) = get_pattern ctx fn in
-      (c, Extctx (Suc ab, Snoc (locs, loc), Snoc (ctx, None)))
+  | App { fn; arg = { value = Placeholder _; loc = _ }; _ } -> get_pattern fn (None :: vars)
   | _ -> fatal Parse_error
 
 let rec process_branches : type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list
@@ -740,7 +736,8 @@ let rec process_branches : type n. (string option, n) Bwv.t -> observation list 
   match obs with
   | [] -> []
   | Term pat :: Term body :: obs ->
-      let c, Extctx (ab, _locs, ectx) = get_pattern ctx pat in
+      let c, vars = get_pattern pat [] in
+      let (Append_plus (ab, ectx)) = Bwv.append_plus ctx vars in
       Branch (c, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
 

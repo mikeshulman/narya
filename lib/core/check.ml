@@ -273,19 +273,16 @@ let rec check :
                         (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
                         let c = Telescope.length argtys in
                         match
-                          (N.compare (exts_right efc) c, N.compare (N.plus_right user_args.value) c)
+                          ( Fwn.compare (exts_right efc) c,
+                            Fwn.compare (Fwn.bplus_right user_args.value) c )
                         with
-                        | Gt _, _ | Lt _, _ -> fatal (Anomaly "length mismatch in check_tree")
-                        | _, Gt diff ->
+                        | Neq, _ -> fatal (Anomaly "length mismatch in check_tree")
+                        | _, Neq ->
                             with_loc user_args.loc @@ fun () ->
                             fatal
                               (Wrong_number_of_arguments_to_pattern
-                                 (constr.value, N.to_int (Nat diff)))
-                        | _, Lt diff ->
-                            with_loc user_args.loc @@ fun () ->
-                            fatal
-                              (Wrong_number_of_arguments_to_pattern
-                                 (constr.value, -N.to_int (Nat diff)))
+                                 ( constr.value,
+                                   Fwn.to_int (Fwn.bplus_right user_args.value) - Fwn.to_int c ))
                         | Eq, Eq -> (
                             (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
                             let newctx, newenv, newvars =
@@ -315,7 +312,7 @@ let rec check :
                                         Value.Constr
                                           ( constr.value,
                                             dom_sface fa,
-                                            Bwv.to_bwd_map (CubeOf.subcube fa) newvars ) in
+                                            Bwd.map (CubeOf.subcube fa) newvars ) in
                                       let ty =
                                         inst
                                           (Bwv.fold_left
@@ -702,7 +699,7 @@ and check_at_tel :
   | _ ->
       fatal
         (Wrong_number_of_arguments_to_constructor
-           (c, List.length tms - N.to_int (Telescope.length tys)))
+           (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
 (* Given a raw telescope and a context, we can check it to produce a checked telescope and also a new context extended by that telescope. *)
 

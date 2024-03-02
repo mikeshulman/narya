@@ -43,3 +43,28 @@ type 'a index =
 
 (* A De Bruijn level is a pair of integers: one for the position (counting in) of the cube-variable-bundle in the context, and one that counts through the faces of that bundle. *)
 type level = int * int
+
+(* We also have a forwards version. *)
+
+type nil = Dummy_nil
+type ('x, 'xs) cons = Dummy_cons
+type _ fwhctx = Nil : nil fwhctx | Cons : 'x D.t * 'xs fwhctx -> ('x, 'xs) cons fwhctx
+
+(* As with lists and backwards lists, a forward hctx can naturally be appended to a backward one. *)
+
+type (_, _, _) append =
+  | Append_nil : ('a, nil, 'a) append
+  | Append_cons : (('a, 'x) ext, 'b, 'c) append -> ('a, ('x, 'b) cons, 'c) append
+
+(* Change a backwards hctx into a forwards one. *)
+
+type _ to_fw = To_fw : 'a fwhctx * (emp, 'a, 'b) append -> 'b to_fw
+
+let to_fw : type c. c hctx -> c to_fw =
+ fun c ->
+  let rec to_fw : type a b c. a hctx -> b fwhctx -> (a, b, c) append -> c to_fw =
+   fun a b abc ->
+    match a with
+    | Emp -> To_fw (b, abc)
+    | Ext (a, x) -> to_fw a (Cons (x, b)) (Append_cons abc) in
+  to_fw c Nil Append_nil

@@ -22,30 +22,27 @@ open Reporter
 
    More precisely, the RAW parameter 'a is a simple type-level natural number, since the parser can't tell what dimensions things have, and a raw index variable is paired with a face of an arbitrary dimension corresponding to how the user used it.  However, the CHECKED parameter 'b is actually a type-level list of dimensions (an "hctx"), and a checked index variable is paired with a face *of the corresponding dimension*.  For level variables we use a pair of integers: one for the position in the context, and the other that counts through the variables in each cube.  (Since levels are only ever compared for equality, the ordering of the latter numbers doesn't matter.) *)
 
-type (_, _) t =
-  | Emp : (N.zero, emp) t
+type (_, _) entry =
   (* Add a cube of internal variables that are visible to the parser as a cube of variables. *)
-  | Vis :
-      ('a, 'b) t * 'n variables * ('n, level option * normal) CubeOf.t
-      -> ('a N.suc, ('b, 'n) ext) t
+  | Vis : 'n variables * ('n, level option * normal) CubeOf.t -> (N.one, 'n) entry
   (* Add a cube of internal variables that are not visible to the parser. *)
-  | Invis : ('a, 'b) t * ('n, level option * normal) CubeOf.t -> ('a, ('b, 'n) ext) t
+  | Invis : ('n, level option * normal) CubeOf.t -> (N.zero, 'n) entry
   (* Add a cube of internal variables that are visible to the parser as a list of ordinary variables. *)
   | Split :
-      ('a, 'b) t
-      * ('n, 'f) count_faces
-      * ('a, 'f, 'af) N.plus
-      * 'n variables
-      * ('n, level option * normal) CubeOf.t
-      -> ('af, ('b, 'n) ext) t
+      ('n, 'f) count_faces * 'n variables * ('n, level option * normal) CubeOf.t
+      -> ('f, 'n) entry
+
+type (_, _) t =
+  | Emp : (N.zero, emp) t
+  | Snoc : ('a, 'b) t * ('x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) ext) t
 
 let vis :
     type a b n.
     (a, b) t -> n variables -> (n, level option * normal) CubeOf.t -> (a N.suc, (b, n) ext) t =
- fun ctx xs vars -> Vis (ctx, xs, vars)
+ fun ctx xs vars -> Snoc (ctx, Vis (xs, vars), Suc Zero)
 
 let invis : type a b n. (a, b) t -> (n, level option * normal) CubeOf.t -> (a, (b, n) ext) t =
- fun ctx vars -> Invis (ctx, vars)
+ fun ctx vars -> Snoc (ctx, Invis vars, Zero)
 
 let split :
     type a b n f af.
@@ -55,13 +52,11 @@ let split :
     n variables ->
     (n, level option * normal) CubeOf.t ->
     (af, (b, n) ext) t =
- fun ctx af pf name vars -> Split (ctx, af, pf, name, vars)
+ fun ctx af pf name vars -> Snoc (ctx, Split (af, name, vars), pf)
 
 let rec length : type a b. (a, b) t -> int = function
   | Emp -> 0
-  | Vis (ctx, _, _) -> length ctx + 1
-  | Invis (ctx, _) -> length ctx + 1
-  | Split (ctx, _, _, _, _) -> length ctx + 1
+  | Snoc (ctx, _, _) -> length ctx + 1
 
 let empty : (N.zero, emp) t = Emp
 
@@ -72,7 +67,7 @@ let rec lookup : type a b n. (a, b) t -> a Raw.index -> level option * normal * 
   | Emp -> (
       match k with
       | _ -> .)
-  | Vis (ctx, _, x) -> (
+  | Snoc (ctx, Vis (_, x), Suc Zero) -> (
       match k with
       | Top, None ->
           (* If the raw index variable doesn't have a specified face, it means the top face. *)
@@ -88,10 +83,10 @@ let rec lookup : type a b n. (a, b) t -> a Raw.index -> level option * normal * 
       | Pop k, fa ->
           let j, x, v = lookup ctx (k, fa) in
           (j, x, Pop v))
-  | Invis (ctx, _) ->
+  | Snoc (ctx, Invis _, Zero) ->
       let j, x, v = lookup ctx k in
       (j, x, Pop v)
-  | Split (ctx, af, pf, _, xs) -> lookup_face pf (sfaces af) ctx xs k
+  | Snoc (ctx, Split (af, _, xs), pf) -> lookup_face pf (sfaces af) ctx xs k
 
 and lookup_face :
     type a f af b n.
@@ -121,15 +116,15 @@ let rec lookup_invis : type a b. (a, b) t -> b index -> level option * normal =
   | Emp -> (
       match k with
       | _ -> .)
-  | Vis (ctx, _, x) -> (
+  | Snoc (ctx, Vis (_, x), Suc Zero) -> (
       match k with
       | Top fa -> CubeOf.find x fa
       | Pop k -> lookup_invis ctx k)
-  | Invis (ctx, x) -> (
+  | Snoc (ctx, Invis x, Zero) -> (
       match k with
       | Top fa -> CubeOf.find x fa
       | Pop k -> lookup_invis ctx k)
-  | Split (ctx, _, _, _, x) -> (
+  | Snoc (ctx, Split (_, _, x), _) -> (
       match k with
       | Top fa -> CubeOf.find x fa
       | Pop k -> lookup_invis ctx k)
@@ -139,9 +134,9 @@ let rec find_level : type a b. (a, b) t -> level -> b index option =
  fun ctx i ->
   match ctx with
   | Emp -> None
-  | Vis (ctx, _, vars) -> find_level_in_cube ctx vars i
-  | Invis (ctx, vars) -> find_level_in_cube ctx vars i
-  | Split (ctx, _, _, _, vars) -> find_level_in_cube ctx vars i
+  | Snoc (ctx, Vis (_, vars), Suc Zero) -> find_level_in_cube ctx vars i
+  | Snoc (ctx, Invis vars, Zero) -> find_level_in_cube ctx vars i
+  | Snoc (ctx, Split (_, _, vars), _) -> find_level_in_cube ctx vars i
 
 and find_level_in_cube :
     type a b n. (a, b) t -> (n, level option * normal) CubeOf.t -> level -> (b, n) ext index option
@@ -161,11 +156,11 @@ and find_level_in_cube :
 (* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with any boundaries. *)
 let rec env : type a b. (a, b) t -> (D.zero, b) env = function
   | Emp -> Emp D.zero
-  | Vis (ctx, _, v) ->
+  | Snoc (ctx, Vis (_, v), Suc Zero) ->
       Ext (env ctx, CubeOf.mmap { map = (fun _ [ x ] -> CubeOf.singleton (snd x).tm) } [ v ])
-  | Invis (ctx, v) ->
+  | Snoc (ctx, Invis v, Zero) ->
       Ext (env ctx, CubeOf.mmap { map = (fun _ [ x ] -> CubeOf.singleton (snd x).tm) } [ v ])
-  | Split (ctx, _, _, _, v) ->
+  | Snoc (ctx, Split (_, _, v), _) ->
       Ext (env ctx, CubeOf.mmap { map = (fun _ [ x ] -> CubeOf.singleton (snd x).tm) } [ v ])
 
 (* Evaluate a case tree or term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
@@ -179,11 +174,12 @@ let eval_term : type a b. (a, b) t -> (b, kinetic) term -> kinetic value =
 let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) ext) t =
  fun ctx x ty ->
   let n = length ctx in
-  Vis (ctx, singleton_variables D.zero x, CubeOf.singleton (Some (n, 0), { tm = var (n, 0) ty; ty }))
+  vis ctx (singleton_variables D.zero x)
+    (CubeOf.singleton (Some (n, 0), { tm = var (n, 0) ty; ty }))
 
 (* Extend a context by one new variable with an assigned value. *)
 let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) ext) t =
- fun ctx x v -> Vis (ctx, singleton_variables D.zero x, CubeOf.singleton (None, v))
+ fun ctx x v -> vis ctx (singleton_variables D.zero x) (CubeOf.singleton (None, v))
 
 (* Extend a context by a finite number of cubes of new visible variables at some dimension, with boundaries, whose types are specified by the evaluation of some telescope in some (possibly higher-dimensional) environment (and hence may depend on the earlier ones).  Also return the new variables in a Bwd of Cubes, and the new environment extended by the *top-dimensional variables only*. *)
 let ext_tel :
@@ -215,7 +211,7 @@ let ext_tel :
           dom_vars (length ctx)
             (CubeOf.build (dim_env env)
                { build = (fun fa -> Norm.eval_term (Act (env, op_of_sface fa)) rty) }) in
-        let newctx = Vis (ctx, `Cube x, newnfs) in
+        let newctx = vis ctx (`Cube x) newnfs in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
           rest ac (exts_suc ec)
@@ -247,27 +243,34 @@ let rec bind_some : type a e n. (level -> normal option) -> (a, e) t -> (a, e) t
  fun binder ctx ->
   match ctx with
   | Emp -> Emp
-  | Vis (ctx, name, xs) -> Vis (bind_some binder ctx, name, bind_some_cube binder xs)
-  | Invis (ctx, xs) -> Invis (bind_some binder ctx, bind_some_cube binder xs)
-  | Split (ctx, af, pf, name, xs) ->
-      Split (bind_some binder ctx, af, pf, name, bind_some_cube binder xs)
+  | Snoc (ctx, Vis (name, xs), Suc Zero) ->
+      vis (bind_some binder ctx) name (bind_some_cube binder xs)
+  | Snoc (ctx, Invis xs, Zero) -> invis (bind_some binder ctx) (bind_some_cube binder xs)
+  | Snoc (ctx, Split (af, name, xs), pf) ->
+      split (bind_some binder ctx) af pf name (bind_some_cube binder xs)
+
+(* Following Cockx's thesis, in this file we call forwards contexts "telescopes", since they generally are going to get appended to a "real", backwards, context.  They are indexed by a raw length that is a *forwards* natural number, and a checked length that is a *forwards* hctx. *)
+type (_, _) tel =
+  | Nil : (Fwn.zero, nil) tel
+  | Snoc : ('x, 'n) entry * ('a, 'b) tel * ('x, 'a, 'xa) Fwn.fplus -> ('xa, ('n, 'b) cons) tel
 
 (* Apply a function to all the types and terms in a context. *)
 let rec map : type a b. (normal -> normal) -> (a, b) t -> (a, b) t =
  fun f ctx ->
   match ctx with
   | Emp -> Emp
-  | Vis (ctx, name, xs) ->
-      Vis (map f ctx, name, CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
-  | Invis (ctx, xs) -> Invis (map f ctx, CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
-  | Split (ctx, af, pf, name, xs) ->
-      Split (map f ctx, af, pf, name, CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
+  | Snoc (ctx, Vis (name, xs), Suc Zero) ->
+      vis (map f ctx) name (CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
+  | Snoc (ctx, Invis xs, Zero) ->
+      invis (map f ctx) (CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
+  | Snoc (ctx, Split (af, name, xs), pf) ->
+      split (map f ctx) af pf name (CubeOf.mmap { map = (fun _ [ (i, x) ] -> (i, f x)) } [ xs ])
 
 let rec names : type a b. (a, b) t -> b Names.t = function
   | Emp -> Names.empty
-  | Vis (ctx, name, _) -> snd (Names.add (names ctx) name)
-  | Invis (ctx, _) -> snd (Names.add_cube (names ctx) None)
-  | Split (ctx, _, _, name, _) -> snd (Names.add (names ctx) name)
+  | Snoc (ctx, Vis (name, _), _) -> snd (Names.add (names ctx) name)
+  | Snoc (ctx, Invis _, _) -> snd (Names.add_cube (names ctx) None)
+  | Snoc (ctx, Split (_, name, _), _) -> snd (Names.add (names ctx) name)
 
 let lookup_name : type a b. (a, b) t -> b index -> string list =
  fun ctx x -> Names.lookup (names ctx) x
@@ -277,9 +280,9 @@ let rec lam : type a b. (a, b) t -> (b, potential) term -> (emp, potential) term
  fun ctx tree ->
   match ctx with
   | Emp -> tree
-  | Vis (ctx, xs, vars) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
-  | Invis (ctx, vars) -> lam ctx (Lam (CubeOf.dim vars, `Cube None, tree))
-  | Split (ctx, _, _, xs, vars) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
+  | Snoc (ctx, Vis (xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
+  | Snoc (ctx, Invis vars, _) -> lam ctx (Lam (CubeOf.dim vars, `Cube None, tree))
+  | Snoc (ctx, Split (_, xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
 
 open Format
 
@@ -327,13 +330,13 @@ let pp_ctx : type a b. Format.formatter -> (a, b) t -> unit =
    fun comma ppf ctx ->
     match ctx with
     | Emp -> ()
-    | Vis (ctx, x, lvls) ->
+    | Snoc (ctx, Vis (x, lvls), _) ->
         fprintf ppf "%a%a" (pp true) ctx pp_variables (x, lvls);
         if comma then fprintf ppf ",@ "
-    | Invis (ctx, lvls) ->
+    | Snoc (ctx, Invis lvls, _) ->
         fprintf ppf "%a%a" (pp true) ctx pp_variables (`Cube (Some "-"), lvls);
         if comma then fprintf ppf ",@ "
-    | Split (ctx, _, _, x, lvls) ->
+    | Snoc (ctx, Split (_, x, lvls), _) ->
         fprintf ppf "%a%a" (pp true) ctx pp_variables (x, lvls);
         if comma then fprintf ppf ",@ " in
   fprintf ppf "@[<hv 2>(%a)@]" (pp false) ctx

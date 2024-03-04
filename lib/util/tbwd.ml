@@ -61,6 +61,13 @@ module Tbwd = struct
     | Id : ('a, 'a) permute
     | Insert : ('a, 'b) permute * ('b, 'n, 'c) insert -> (('a, 'n) snoc, 'c) permute
 
+  (* There is some redundancy in the above presentation of permutations: Insert (Id, Now) is the same permutation as Id (of a longer list).  We could probably set up the data structures to exclude that possibility statically, but for now we are content to provide a "smart constructor" version of Insert that refuses to create Insert (Id, Now), returning Id instead.  (The latter is preferred for efficiency reasons, because when computing with a permutation we can sometimes short-circuit the rest of the computation if we know the rest of the permutation is an identity.)  *)
+  let insert : type a b n c. (a, b) permute -> (b, n, c) insert -> ((a, n) snoc, c) permute =
+   fun perm ins ->
+    match (perm, ins) with
+    | Id, Now -> Id
+    | _ -> Insert (perm, ins)
+
   (* Insertions can be transferred across a permutation, and when the image is removed produce a new permutation. *)
   type (_, _, _) permute_insert =
     | Permute_insert : ('d, 'n, 'c) insert * ('a, 'd) permute -> ('a, 'n, 'c) permute_insert
@@ -76,7 +83,7 @@ module Tbwd = struct
         | Later ab ->
             let (Permute_insert (res, p)) = permute_insert ab bc in
             let (Comp_insert (x, y)) = comp_insert res ins in
-            Permute_insert (y, Insert (p, x)))
+            Permute_insert (y, insert p x))
 
   (* Compose two permutations. *)
   let rec comp_permute : type a b c. (a, b) permute -> (b, c) permute -> (a, c) permute =
@@ -85,7 +92,7 @@ module Tbwd = struct
     | Id -> bc
     | Insert (ab, b) ->
         let (Permute_insert (c, bc)) = permute_insert b bc in
-        Insert (comp_permute ab bc, c)
+        insert (comp_permute ab bc) c
 
   (* As with lists and backwards lists, a forward type-list can naturally be appended to a backward one. *)
 
@@ -108,7 +115,7 @@ module Tbwd = struct
    fun ab ac bc ->
     match (ac, bc) with
     | Append_nil, Append_nil -> ab
-    | Append_cons ac, Append_cons bc -> permute_append (Insert (ab, Now)) ac bc
+    | Append_cons ac, Append_cons bc -> permute_append (insert ab Now) ac bc
 
   (* Change a backwards type-list into a forwards one. *)
 
@@ -135,7 +142,7 @@ module Tbwd = struct
     match cd with
     | Now ->
         let (Append_cons ad) = ad in
-        permute_append (Insert (Id, ab)) ad bc
+        permute_append (insert Id ab) ad bc
     | Later cd ->
         let Append_cons ad, Append_cons bc = (ad, bc) in
         ins_ins_permute (Later ab) cd ad bc

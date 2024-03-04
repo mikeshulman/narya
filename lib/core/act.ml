@@ -68,6 +68,7 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
                 act_normal (TubeOf.find args (sface_plus_pface fe nj q fd)) fs);
           } in
       let tys' = TubeOf.plus_cube tys (CubeOf.singleton v) in
+      (* This is the boundary of "act_value_cube tys' fa", but computing it that way would also try to compute the inner filler, which would be an infinite loop. *)
       let tys =
         TubeOf.build D.zero
           (D.zero_plus (dom_deg fa))
@@ -87,19 +88,7 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
         (Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields, new_ins)
   | Constr (name, dim, args) ->
       let (Of fa) = deg_plus_to s dim ~on:"constr" in
-      Constr
-        ( name,
-          dom_deg fa,
-          Bwd.map
-            (fun tm ->
-              CubeOf.build (dom_deg fa)
-                {
-                  build =
-                    (fun fb ->
-                      let (Op (fc, fd)) = deg_sface fa fb in
-                      act_value (CubeOf.find tm fc) fd);
-                })
-            args )
+      Constr (name, dom_deg fa, Bwd.map (fun tm -> act_value_cube tm fa) args)
 
 and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
  fun tm s ->
@@ -124,17 +113,7 @@ and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
       Data
         {
           dim = dom_deg fa;
-          indices =
-            Bwv.map
-              (fun ixs ->
-                CubeOf.build (dom_deg fa)
-                  {
-                    build =
-                      (fun fb ->
-                        let (Op (fd, fc)) = deg_sface fa fb in
-                        act_normal (CubeOf.find ixs fd) fc);
-                  })
-              indices;
+          indices = Bwv.map (fun ixs -> act_normal_cube ixs fa) indices;
           missing;
           constrs = Constr.Map.map (fun c -> act_dataconstr c fa) constrs;
         }
@@ -165,14 +144,7 @@ and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
       let k = CubeOf.dim doms in
       let (Of fa) = deg_plus_to s k ~on:"pi-type" in
       let mi = dom_deg fa in
-      let doms' =
-        CubeOf.build mi
-          {
-            build =
-              (fun fb ->
-                let (Op (fc, fd)) = deg_sface fa fb in
-                act_value (CubeOf.find doms fc) fd);
-          } in
+      let doms' = act_value_cube doms fa in
       let cods' =
         BindCube.build mi
           {
@@ -213,7 +185,7 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
           let (Of fa) = deg_plus_to s (TubeOf.inst args) ?err ~on:"instantiated type" in
           (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
           let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
-          (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral. *)
+          (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral.  (Hence why we can't use call act_normal_cube and then take the boundary.) *)
           let args =
             TubeOf.build D.zero
               (D.zero_plus (dom_deg fa))
@@ -275,23 +247,36 @@ and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
   | Snoc (rest, App (arg, ins)) ->
       (* To act on an application, we compose the acting degeneracy with the delayed insertion, factor the result into a new insertion to leave outside and a smaller degeneracy to push in, and push the smaller degeneracy action into the application, acting on the function/struct. *)
       let (Insfact_comp (fa, new_ins, _, _)) = insfact_comp ins s in
-      let p = dom_deg fa in
       let new_arg =
         match arg with
         | Arg args ->
             (* And, in the function case, on the arguments by factorization. *)
-            Arg
-              (CubeOf.build p
-                 {
-                   build =
-                     (fun fb ->
-                       let (Op (fd, fc)) = deg_sface fa fb in
-                       act_normal (CubeOf.find args fd) fc);
-                 })
+            Arg (act_normal_cube args fa)
         | Field fld -> Field fld in
       (* Finally, we recurse and assemble the result. *)
       let new_s, new_rest = act_apps rest fa in
       (new_s, Snoc (new_rest, App (new_arg, new_ins)))
+
+(* Act on a cube of objects *)
+and act_value_cube : type m n s. (n, s value) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =
+ fun xs fa ->
+  CubeOf.build (dom_deg fa)
+    {
+      build =
+        (fun fb ->
+          let (Op (fd, fc)) = deg_sface fa fb in
+          act_value (CubeOf.find xs fd) fc);
+    }
+
+and act_normal_cube : type m n. (n, normal) CubeOf.t -> (m, n) deg -> (m, normal) CubeOf.t =
+ fun xs fa ->
+  CubeOf.build (dom_deg fa)
+    {
+      build =
+        (fun fb ->
+          let (Op (fd, fc)) = deg_sface fa fb in
+          act_normal (CubeOf.find xs fd) fc);
+    }
 
 (* A version that takes the degeneracy wrapped. *)
 let act_any : type s. s value -> any_deg -> s value = fun v (Any s) -> act_value v s

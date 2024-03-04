@@ -1,3 +1,5 @@
+(* Extra functions acting on lists. *)
+
 (* Split off the last element of a list, if it is nonempty. *)
 let rec split_last = function
   | [] -> None

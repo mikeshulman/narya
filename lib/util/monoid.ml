@@ -1,4 +1,4 @@
-(* Type-level (additive) monoids *)
+(* Module signatures for type-level (additive) monoids. *)
 
 type (_, _) eq = Eq : ('a, 'a) eq
 type (_, _) compare = Eq : ('a, 'a) compare | Neq : ('a, 'b) compare

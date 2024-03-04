@@ -1,4 +1,7 @@
+(* "Monads are just a mode of use of modules." -- Bob Harper *)
+
 (* This module is not meant to be opened; its sub-modules should be used qualified. *)
+
 module GList = List
 
 (* Plain monads *)

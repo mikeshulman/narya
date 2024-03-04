@@ -1,6 +1,7 @@
+(* Type-level dyadic rationals, represeted as surreal sign-sequences, plus +ω and -ω. *)
+
 open Monoid
 
-(* Type-level dyadic rationals, represeted as surreal sign-sequences, plus +ω and -ω. *)
 type zero = Dummy_zero
 type 'a plus = Dummy_plus
 type 'a minus = Dummy_minus

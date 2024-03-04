@@ -1,8 +1,8 @@
+(* Backwards vectors, indexed by type-level (backwards) natural numbers.  This module should not be opened, but used qualified. *)
+
 open Bwd
 open Tlist
 open Hlist
-
-(* Snoc vectors, indexed by type-level natural numbers.  This module should not be opened, but used qualified. *)
 
 (* An ('a, 'n) Bwv.t is a vector of length 'n of elements of type 'a. *)
 type (_, _) t = Emp : ('a, N.zero) t | Snoc : ('a, 'n) t * 'a -> ('a, 'n N.suc) t

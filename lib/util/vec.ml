@@ -1,3 +1,5 @@
+(* Forwards vectors, indexed by type-level forwards natural numbers.  This module should not be opened, but used qualified. *)
+
 type (_, _) t = [] : ('a, Fwn.zero) t | ( :: ) : 'a * ('a, 'n) t -> ('a, 'n Fwn.suc) t
 
 let nil : type a. (a, Fwn.zero) t = []

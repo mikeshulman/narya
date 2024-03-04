@@ -1,6 +1,6 @@
-open Tlist
-
 (* Type-level backwards lists *)
+
+open Tlist
 
 type emp = private Dummy_emp
 type ('xs, 'x) snoc = private Dummy_ext

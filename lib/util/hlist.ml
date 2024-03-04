@@ -1,8 +1,8 @@
-(* Heterogeneous lists *)
+(* Heterogeneous lists, parametrized by a type-level list. *)
 
 open Tlist
 
-(* We define this outside the module so that its constructors are globally visible once this file is opened. *)
+(* We define this outside the module so that its constructors are globally visible once this file is opened.  However, note that this clobbers the notation for ordinary lists, so open this file with care. *)
 type _ hlist = [] : nil hlist | ( :: ) : 'x * 'xs hlist -> ('x, 'xs) cons hlist
 
 module Hlist = struct

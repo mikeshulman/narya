@@ -1,4 +1,4 @@
-(* "Forwards" natural numbers.  Backwards natural numbers are the natural lengths of backwards lists, while forwards natural numbers are the natural lengths of forwards lists.  Should not be opened, but used qualified. *)
+(* "Forwards" natural numbers.  Backwards natural numbers are the natural lengths of backwards lists, while forwards natural numbers are the natural lengths of forwards lists.  This module should not be opened, but used qualified. *)
 
 open Monoid
 
@@ -64,7 +64,7 @@ let rec compare : type a b. a t -> b t -> (a, b) Monoid.compare =
       | Neq -> Neq)
   | _ -> Neq
 
-(* Convert to an integer *)
+(* Convert a forwards nat to an integer *)
 let rec to_int : type a. a t -> int = function
   | Zero -> 0
   | Suc a -> to_int a + 1

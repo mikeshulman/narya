@@ -1,3 +1,5 @@
+(* Extra functions acting on backwards lists *)
+
 open Bwd
 
 (* Split off the first element of a Bwd.t, if it is nonempty. *)

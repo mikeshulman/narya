@@ -1,3 +1,5 @@
+(* Backwards association lists.  Use in place of Map when the order of entries also matters.  This module should not be opened, but used qualified. *)
+
 open Bwd
 
 type ('k, 'a) t = ('k * 'a) Bwd.t

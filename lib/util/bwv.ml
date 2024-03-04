@@ -1,5 +1,6 @@
-open Hlist
 open Bwd
+open Tlist
+open Hlist
 
 (* Snoc vectors, indexed by type-level natural numbers.  This module should not be opened, but used qualified. *)
 
@@ -113,7 +114,7 @@ module Heter = struct
     | ( :: ) : ('x, 'n) t * ('xs, 'n) ht -> (('x, 'xs) cons, 'n) ht
 
   (* The hlist of empty bwvs. *)
-  let rec emp : type xs. xs tlist -> (xs, N.zero) ht = function
+  let rec emp : type xs. xs Tlist.t -> (xs, N.zero) ht = function
     | Nil -> []
     | Cons xs -> Emp :: emp xs
 
@@ -146,7 +147,7 @@ module Monadic (M : Monad.Plain) = struct
       type x xs ys n.
       ((x, xs) cons hlist -> ys hlist M.t) ->
       ((x, xs) cons, n) Heter.ht ->
-      ys tlist ->
+      ys Tlist.t ->
       (ys, n) Heter.ht M.t =
    fun f xss ys ->
     match xss with
@@ -195,7 +196,8 @@ end
 
 let pmap :
     type x xs ys n.
-    ((x, xs) cons hlist -> ys hlist) -> ((x, xs) cons, n) Heter.ht -> ys tlist -> (ys, n) Heter.ht =
+    ((x, xs) cons hlist -> ys hlist) -> ((x, xs) cons, n) Heter.ht -> ys Tlist.t -> (ys, n) Heter.ht
+    =
  fun f xss ys ->
   let open Monadic (Monad.Identity) in
   pmapM f xss ys

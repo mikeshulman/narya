@@ -1,7 +1,7 @@
 open Bwd
 open Util
+open Tbwd
 open Dim
-open Hctx
 open Asai.Range
 open Reporter
 
@@ -88,10 +88,14 @@ let singleton_named_variables : type n. n D.t -> string option -> n variables =
 (* The codomain of a higher-dimensional pi-type is a cube of terms with bound variables whose number varies with the face of the cube.  We can enforce this with a parametrized instance of Cube, but it has to be defined recursively with term using a recursive module (like BindCube in Value; see there for more commentary). *)
 module rec Term : sig
   module CodFam : sig
-    type ('k, 'a) t = (('a, 'k) ext, kinetic) Term.term
+    type ('k, 'a) t = (('a, 'k) snoc, kinetic) Term.term
   end
 
   module CodCube : module type of Cube (CodFam)
+
+  type 'a index =
+    | Top : ('k, 'n) sface -> ('a, 'n) snoc index
+    | Pop : 'xs index -> ('xs, 'x) snoc index
 
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
@@ -106,20 +110,21 @@ module rec Term : sig
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t Bwd.t -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
     | Let :
-        string option * ('a, kinetic) term * (('a, D.zero) ext, kinetic) term
+        string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
         -> ('a, kinetic) term
-    | Lam : 'n D.t * 'n variables * (('a, 'n) ext, 's) Term.term -> ('a, 's) term
+    | Lam : 'n D.t * 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
     | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
     | Realize : ('a, kinetic) term -> ('a, potential) term
     | Canonical : 'a canonical -> ('a, potential) term
 
-  and (_, _) branch = Branch : ('a, 'b, 'n, 'ab) exts * ('ab, potential) term -> ('a, 'n) branch
+  and (_, _) branch =
+    | Branch : ('a, 'b, 'n, 'ab) Tbwd.snocs * ('ab, potential) term -> ('a, 'n) branch
 
   and _ canonical =
     | Data : 'i N.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
     | Codata :
-        potential eta * 'n D.t * (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t
+        potential eta * 'n D.t * (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t
         -> 'a canonical
 
   and (_, _) dataconstr =
@@ -132,14 +137,19 @@ module rec Term : sig
   and ('a, 'b, 'ab) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
     | Ext :
-        string option * ('a, kinetic) term * (('a, D.zero) ext, 'b, 'ab) tel
+        string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
         -> ('a, 'b Fwn.suc, 'ab) tel
 end = struct
   module CodFam = struct
-    type ('k, 'a) t = (('a, 'k) ext, kinetic) Term.term
+    type ('k, 'a) t = (('a, 'k) snoc, kinetic) Term.term
   end
 
   module CodCube = Cube (CodFam)
+
+  (* A typechecked De Bruijn index is a well-scoped natural number together with a definite strict face (the top face, if none was supplied explicitly).  Unlike a raw De Bruijn index, the scoping is by an hctx rather than a type-level nat.  This allows the face to also be well-scoped: its codomain must be the dimension appearing in the hctx at that position. *)
+  type 'a index =
+    | Top : ('k, 'n) sface -> ('a, 'n) snoc index
+    | Pop : 'xs index -> ('xs, 'x) snoc index
 
   type (_, _) term =
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
@@ -156,10 +166,10 @@ end = struct
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t Bwd.t -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
     | Let :
-        string option * ('a, kinetic) term * (('a, D.zero) ext, kinetic) term
+        string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
         -> ('a, kinetic) term
     (* Abstractions and structs can appear in any kind of term. *)
-    | Lam : 'n D.t * 'n variables * (('a, 'n) ext, 's) Term.term -> ('a, 's) term
+    | Lam : 'n D.t * 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms. *)
     | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
@@ -168,7 +178,8 @@ end = struct
     | Canonical : 'a canonical -> ('a, potential) term
 
   (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables. *)
-  and (_, _) branch = Branch : ('a, 'b, 'n, 'ab) exts * ('ab, potential) term -> ('a, 'n) branch
+  and (_, _) branch =
+    | Branch : ('a, 'b, 'n, 'ab) Tbwd.snocs * ('ab, potential) term -> ('a, 'n) branch
 
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =
@@ -176,7 +187,7 @@ end = struct
     | Data : 'i N.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
     | Codata :
-        potential eta * 'n D.t * (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t
+        potential eta * 'n D.t * (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t
         -> 'a canonical
 
   (* A datatype constructor has a telescope of arguments and a list of index values depending on those arguments. *)
@@ -191,7 +202,7 @@ end = struct
   and ('a, 'b, 'ab) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
     | Ext :
-        string option * ('a, kinetic) term * (('a, D.zero) ext, 'b, 'ab) tel
+        string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
         -> ('a, 'b Fwn.suc, 'ab) tel
 end
 
@@ -234,6 +245,9 @@ end
 
 (* ******************** Values ******************** *)
 
+(* A De Bruijn level is a pair of integers: one for the position (counting in) of the cube-variable-bundle in the context, and one that counts through the faces of that bundle. *)
+type level = int * int
+
 (* Internal values, the result of evaluation, with closures for abstractions.  Use De Bruijn *levels*, so that weakening is implicit.  Fully internal unbiased syntax lives here: in addition to higher-dimensional applications and abstractions, we also have higher-dimensional pi-types, higher-dimensional universes, and instantiations of higher-dimensional types.  Separated into neutrals and normals, so that there are no beta-redexes.  Explicit substitutions (environments) are stored on binders, for NBE. *)
 
 (* The codomains of a pi-type are stored as a Cube of binders, and since binders are a type family this dependence has to be specified by applying a module functor (rather than just parametrizing a type).  Since values are defined mutually with binders, we need to "apply the functor Cube" mutually with the definition of these types.  This is possible using a recursive module. *)
@@ -255,7 +269,7 @@ module rec Value : sig
   and (_, _) binder =
     | Bind : {
         env : ('m, 'a) env;
-        body : (('a, 'n) ext, 's) term;
+        body : (('a, 'n) snoc, 's) term;
         ins : ('mn, 'm, 'n) insertion;
       }
         -> ('mn, 's) binder
@@ -300,7 +314,7 @@ module rec Value : sig
         eta : potential eta;
         env : ('m, 'a) env;
         ins : ('mn, 'm, 'n) insertion;
-        fields : (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t;
+        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
       }
         -> canonical
 
@@ -316,7 +330,7 @@ module rec Value : sig
 
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
-    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) ext) env
+    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end = struct
   (* Here is the recursive application of the functor Cube.  First we define a module to pass as its argument, with type defined to equal the yet-to-be-defined binder, referred to recursively. *)
@@ -345,7 +359,7 @@ end = struct
   and (_, _) binder =
     | Bind : {
         env : ('m, 'a) env;
-        body : (('a, 'n) ext, 's) term;
+        body : (('a, 'n) snoc, 's) term;
         ins : ('mn, 'm, 'n) insertion;
       }
         -> ('mn, 's) binder
@@ -411,7 +425,7 @@ end = struct
         eta : potential eta;
         env : ('m, 'a) env;
         ins : ('mn, 'm, 'n) insertion;
-        fields : (Field.t, (('a, 'n) ext, kinetic) term) Abwd.t;
+        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
       }
         -> canonical
 
@@ -430,7 +444,7 @@ end = struct
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
     (* Here the k-cube denotes a "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, while each of them has an n-cube of values representing a value and its boundaries. *)
-    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) ext) env
+    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
 end
 

@@ -2,13 +2,13 @@
 
 open Bwd
 open Util
+open Tbwd
 open Dim
+open Reporter
 open Syntax
 open Term
 open Value
 open Inst
-open Hctx
-open Reporter
 
 (* To first approximation, a context is a list of variables, each of which has a value that is a normal form.  Often the "value" of a variable will just be ITSELF, represented by a De Bruijn LEVEL, together of course with its type.  This can then appear in the types of later variables.  In particular, the LENGTH of this context, which is its type parameter as a type-level nat, is the current De Bruijn LEVEL for new variables to be added.
 
@@ -34,14 +34,14 @@ type (_, _) entry =
 
 type (_, _) t =
   | Emp : (N.zero, emp) t
-  | Snoc : ('a, 'b) t * ('x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) ext) t
+  | Snoc : ('a, 'b) t * ('x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) snoc) t
 
 let vis :
     type a b n.
-    (a, b) t -> n variables -> (n, level option * normal) CubeOf.t -> (a N.suc, (b, n) ext) t =
+    (a, b) t -> n variables -> (n, level option * normal) CubeOf.t -> (a N.suc, (b, n) snoc) t =
  fun ctx xs vars -> Snoc (ctx, Vis (xs, vars), Suc Zero)
 
-let invis : type a b n. (a, b) t -> (n, level option * normal) CubeOf.t -> (a, (b, n) ext) t =
+let invis : type a b n. (a, b) t -> (n, level option * normal) CubeOf.t -> (a, (b, n) snoc) t =
  fun ctx vars -> Snoc (ctx, Invis vars, Zero)
 
 let split :
@@ -51,7 +51,7 @@ let split :
     (a, f, af) N.plus ->
     n variables ->
     (n, level option * normal) CubeOf.t ->
-    (af, (b, n) ext) t =
+    (af, (b, n) snoc) t =
  fun ctx af pf name vars -> Snoc (ctx, Split (af, name, vars), pf)
 
 let rec length : type a b. (a, b) t -> int = function
@@ -95,7 +95,7 @@ and lookup_face :
     (a, b) t ->
     (n, level option * normal) CubeOf.t ->
     af Raw.index ->
-    level option * normal * (b, n) ext index =
+    level option * normal * (b, n) snoc index =
  fun pf sf ctx xs k ->
   match (pf, sf) with
   | Zero, Emp ->
@@ -139,11 +139,11 @@ let rec find_level : type a b. (a, b) t -> level -> b index option =
   | Snoc (ctx, Split (_, _, vars), _) -> find_level_in_cube ctx vars i
 
 and find_level_in_cube :
-    type a b n. (a, b) t -> (n, level option * normal) CubeOf.t -> level -> (b, n) ext index option
+    type a b n. (a, b) t -> (n, level option * normal) CubeOf.t -> level -> (b, n) snoc index option
     =
  fun ctx vars i ->
   let open CubeOf.Monadic (Monad.State (struct
-    type t = (b, n) ext index option
+    type t = (b, n) snoc index option
   end)) in
   match
     miterM
@@ -171,14 +171,14 @@ let eval_term : type a b. (a, b) t -> (b, kinetic) term -> kinetic value =
  fun ctx tm -> Norm.eval_term (env ctx) tm
 
 (* Extend a context by one new variable, without a value but with an assigned type. *)
-let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) ext) t =
+let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) snoc) t =
  fun ctx x ty ->
   let n = length ctx in
   vis ctx (singleton_variables D.zero x)
     (CubeOf.singleton (Some (n, 0), { tm = var (n, 0) ty; ty }))
 
 (* Extend a context by one new variable with an assigned value. *)
-let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) ext) t =
+let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t =
  fun ctx x v -> vis ctx (singleton_variables D.zero x) (CubeOf.singleton (None, v))
 
 (* Extend a context by a finite number of cubes of new visible variables at some dimension, with boundaries, whose types are specified by the evaluation of some telescope in some (possibly higher-dimensional) environment (and hence may depend on the earlier ones).  Also return the new variables in a Bwd of Cubes, and the new environment extended by the *top-dimensional variables only*. *)
@@ -189,7 +189,7 @@ let ext_tel :
     (* Note that c is a Fwn, since it is the length of a telescope. *)
     (b, c, bc) Telescope.t ->
     (a, c, ac) Fwn.bplus ->
-    (e, c, n, ec) exts ->
+    (e, c, n, ec) Tbwd.snocs ->
     (ac, ec) t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
  fun ctx env tel ac ec ->
   let rec ext_tel :
@@ -198,7 +198,7 @@ let ext_tel :
       (n, b) env ->
       (b, c, bc) Telescope.t ->
       (a, c, ac) Fwn.bplus ->
-      (e, c, n, ec) exts ->
+      (e, c, n, ec) Tbwd.snocs ->
       (n, kinetic value) CubeOf.t Bwd.t ->
       (ac, ec) t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
    fun ctx env tel ac ec vars ->
@@ -214,7 +214,7 @@ let ext_tel :
         let newctx = vis ctx (`Cube x) newnfs in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
-          rest ac (exts_suc ec)
+          rest ac (Tbwd.snocs_suc ec)
           (Snoc (vars, newvars)) in
   ext_tel ctx env tel ac ec Emp
 
@@ -250,9 +250,9 @@ let rec bind_some : type a e n. (level -> normal option) -> (a, e) t -> (a, e) t
       split (bind_some binder ctx) af pf name (bind_some_cube binder xs)
 
 (* Following Cockx's thesis, in this file we call forwards contexts "telescopes", since they generally are going to get appended to a "real", backwards, context.  They are indexed by a raw length that is a *forwards* natural number, and a checked length that is a *forwards* hctx. *)
-type (_, _) tel =
-  | Nil : (Fwn.zero, nil) tel
-  | Snoc : ('x, 'n) entry * ('a, 'b) tel * ('x, 'a, 'xa) Fwn.fplus -> ('xa, ('n, 'b) cons) tel
+(* type (_, _) tel =
+     | Nil : (Fwn.zero, nil) tel
+     | Snoc : ('x, 'n) entry * ('a, 'b) tel * ('x, 'a, 'xa) Fwn.fplus -> ('xa, ('n, 'b) cons) tel *)
 
 (* Apply a function to all the types and terms in a context. *)
 let rec map : type a b. (normal -> normal) -> (a, b) t -> (a, b) t =

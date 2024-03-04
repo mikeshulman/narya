@@ -1,19 +1,20 @@
 open Util
+open Tbwd
 open Dim
 open Syntax
+open Term
 open Reporter
 module StringMap = Map.Make (String)
-open Hctx
 
 (* Track the used variable names, to generate fresh ones for bound variables if needed. *)
 
 (* We store a parametrized list like a context, and also a map that counts how many like-named variables already exist, so that we can create a new one with an unused number. *)
-type 'b ctx = Emp : emp ctx | Snoc : 'b ctx * 'n variables -> ('b, 'n) ext ctx
+type 'b ctx = Emp : emp ctx | Snoc : 'b ctx * 'n variables -> ('b, 'n) snoc ctx
 type 'b t = { ctx : 'b ctx; used : int StringMap.t }
 
 let empty : emp t = { ctx = Emp; used = StringMap.empty }
 
-let cubevar x fa =
+let cubevar x fa : string list =
   let fa = string_of_sface fa in
   if fa = "" then [ x ] else [ x; fa ]
 
@@ -63,18 +64,18 @@ let uniquifies :
   let open CubeOf.Monadic (M) in
   mmapM { map = (fun _ [ name ] used -> uniquify name used) } [ names ] used
 
-let add_cube : 'b t -> string option -> string option * ('b, 'n) ext t =
+let add_cube : 'b t -> string option -> string option * ('b, 'n) snoc t =
  fun { ctx; used } name ->
   let name, used = uniquify name used in
   (name, { ctx = Snoc (ctx, `Cube name); used })
 
 let add_normals :
-    'b t -> ('n, string option) CubeOf.t -> ('n, string option) CubeOf.t * ('b, 'n) ext t =
+    'b t -> ('n, string option) CubeOf.t -> ('n, string option) CubeOf.t * ('b, 'n) snoc t =
  fun { ctx; used } names ->
   let names, used = uniquifies names used in
   (names, { ctx = Snoc (ctx, `Normal names); used })
 
-let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) ext t =
+let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t =
  fun vars name ->
   match name with
   | `Cube name ->

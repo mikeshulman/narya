@@ -1,4 +1,6 @@
+open Bwd
 open Util
+open Tbwd
 open Reporter
 open Dim
 open Act
@@ -6,8 +8,6 @@ open Syntax
 open Term
 open Value
 open Inst
-open Bwd
-open Hctx
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
@@ -448,8 +448,8 @@ and tyof_field ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.
   snd (tyof_field_withname ?severity tm ty (`Name fld))
 
 and eval_binder :
-    type m n mn b s. (m, b) env -> (m, n, mn) D.plus -> ((b, n) ext, s) term -> (mn, s) Value.binder
-    =
+    type m n mn b s.
+    (m, b) env -> (m, n, mn) D.plus -> ((b, n) snoc, s) term -> (mn, s) Value.binder =
  fun env mn body ->
   let m = dim_env env in
   let n = D.plus_right mn in

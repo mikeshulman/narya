@@ -1,5 +1,7 @@
 open Bwd
 open Util
+open Tlist
+open Hlist
 
 (* ********** Endpoints ********** *)
 
@@ -682,8 +684,6 @@ module Cube (F : Fam) = struct
   (* Heterogeneous lists and multimaps, which take the current face as input everywhere in addition to the values in the data structure.  We use the technique of heteregeneous generic traversal, which is a much more significant win here in terms of coding because we only have to descend into gt's once, and all the other operations can be derived from the simpler t version. *)
 
   module Heter = struct
-    open Hlist
-
     (* An hlist of elements of F.t, with the first parameter fixed but the second varying along the list. *)
     type (_, _) hft =
       | [] : ('n, nil) hft
@@ -713,7 +713,7 @@ module Cube (F : Fam) = struct
       | Cons hs, x :: xs -> x :: hgt_of_hlist hs xs
 
     (* hgts preserves validity of tlists. *)
-    let rec tlist_hgts : type m n xs ys. (m, n, xs, ys) hgts -> xs tlist -> ys tlist =
+    let rec tlist_hgts : type m n xs ys. (m, n, xs, ys) hgts -> xs Tlist.t -> ys Tlist.t =
      fun hs xs ->
       match (hs, xs) with
       | Nil, Nil -> Nil
@@ -722,7 +722,7 @@ module Cube (F : Fam) = struct
     (* And any tlist of value types has some corresponding list of gts. *)
     type (_, _, _) has_hgts = Hgts : ('m, 'n, 'xs, 'xss) hgts -> ('m, 'n, 'xs) has_hgts
 
-    let rec hgts_of_tlist : type m n xs. xs tlist -> (m, n, xs) has_hgts = function
+    let rec hgts_of_tlist : type m n xs. xs Tlist.t -> (m, n, xs) has_hgts = function
       | Nil -> Hgts Nil
       | Cons xs ->
           let (Hgts xss) = hgts_of_tlist xs in
@@ -767,9 +767,9 @@ module Cube (F : Fam) = struct
 
   (* OCaml can't always tell from context what [x ; xs] should be; in particular it often fails to notice hfts.  So we also give a different syntax that is unambiguous.  *)
   module Infix = struct
-    let hnil : type n. (n, Hlist.nil) Heter.hft = []
+    let hnil : type n. (n, nil) Heter.hft = []
 
-    let ( @: ) : type n x xs. (n, x) F.t -> (n, xs) Heter.hft -> (n, (x, xs) Hlist.cons) Heter.hft =
+    let ( @: ) : type n x xs. (n, x) F.t -> (n, xs) Heter.hft -> (n, (x, xs) cons) Heter.hft =
      fun x xs -> x :: xs
   end
 
@@ -790,9 +790,9 @@ module Cube (F : Fam) = struct
         (k, m, km) D.plus ->
         (l, m, n) D.plus ->
         (k, l) bwsface ->
-        (n, (b, bs) Hlist.cons, cs) pmapperM ->
-        (m, km, (b, bs) Hlist.cons) Heter.hgt ->
-        cs Hlist.tlist ->
+        (n, (b, bs) cons, cs) pmapperM ->
+        (m, km, (b, bs) cons) Heter.hgt ->
+        cs Tlist.t ->
         (m, km, cs) Heter.hgt M.t =
      fun km lm d g trs cst ->
       match trs with
@@ -818,9 +818,9 @@ module Cube (F : Fam) = struct
     (* And the actual one for a t, which we can henceforth restrict our attention to. *)
     let pmapM :
         type n b bs cs.
-        (n, (b, bs) Hlist.cons, cs) pmapperM ->
-        (n, n, (b, bs) Hlist.cons) Heter.hgt ->
-        cs Hlist.tlist ->
+        (n, (b, bs) cons, cs) pmapperM ->
+        (n, n, (b, bs) cons) Heter.hgt ->
+        cs Tlist.t ->
         (n, n, cs) Heter.hgt M.t =
      fun g xs cs ->
       let (x :: _) = xs in
@@ -833,8 +833,7 @@ module Cube (F : Fam) = struct
 
     let mmapM :
         type n b bs c.
-        (n, (b, bs) Hlist.cons, c) mmapperM -> (n, n, (b, bs) Hlist.cons) Heter.hgt -> (n, c) t M.t
-        =
+        (n, (b, bs) cons, c) mmapperM -> (n, n, (b, bs) cons) Heter.hgt -> (n, c) t M.t =
      fun g xs ->
       let* [ ys ] =
         pmapM
@@ -851,8 +850,7 @@ module Cube (F : Fam) = struct
     type ('n, 'bs) miteratorM = { it : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> unit M.t }
 
     let miterM :
-        type n b bs.
-        (n, (b, bs) Hlist.cons) miteratorM -> (n, n, (b, bs) Hlist.cons) Heter.hgt -> unit M.t =
+        type n b bs. (n, (b, bs) cons) miteratorM -> (n, n, (b, bs) cons) Heter.hgt -> unit M.t =
      fun g xs ->
       let* [] =
         pmapM
@@ -903,20 +901,19 @@ module Cube (F : Fam) = struct
 
   let pmap :
       type n b bs cs.
-      (n, (b, bs) Hlist.cons, cs) IdM.pmapperM ->
-      (n, n, (b, bs) Hlist.cons) Heter.hgt ->
-      cs Hlist.tlist ->
+      (n, (b, bs) cons, cs) IdM.pmapperM ->
+      (n, n, (b, bs) cons) Heter.hgt ->
+      cs Tlist.t ->
       (n, n, cs) Heter.hgt =
    fun g xs ys -> IdM.pmapM { map = (fun fa x -> g.map fa x) } xs ys
 
   let mmap :
-      type n b bs c.
-      (n, (b, bs) Hlist.cons, c) IdM.mmapperM -> (n, n, (b, bs) Hlist.cons) Heter.hgt -> (n, c) t =
+      type n b bs c. (n, (b, bs) cons, c) IdM.mmapperM -> (n, n, (b, bs) cons) Heter.hgt -> (n, c) t
+      =
    fun g xs -> IdM.mmapM { map = (fun fa x -> g.map fa x) } xs
 
   let miter :
-      type n b bs.
-      (n, (b, bs) Hlist.cons) IdM.miteratorM -> (n, n, (b, bs) Hlist.cons) Heter.hgt -> unit =
+      type n b bs. (n, (b, bs) cons) IdM.miteratorM -> (n, n, (b, bs) cons) Heter.hgt -> unit =
    fun g xs -> IdM.miterM { it = (fun fa x -> g.it fa x) } xs
 
   let build : type n b. n D.t -> (n, b) IdM.builderM -> (n, b) t =
@@ -1383,8 +1380,6 @@ module Tube (F : Fam) = struct
 
   (* The structure of hlists for tubes is exactly parallel to that for cubes. *)
   module Heter = struct
-    open Hlist
-
     type (_, _, _, _, _) hgt =
       | [] : ('m, 'k, 'mk, 'nk, nil) hgt
       | ( :: ) :
@@ -1448,7 +1443,7 @@ module Tube (F : Fam) = struct
       | [] -> []
       | Branch (_, m) :: xs -> m :: mid xs
 
-    let rec leaf : type n nk bs. n D.t -> bs Hlist.tlist -> (n, D.zero, n, nk, bs) hgt =
+    let rec leaf : type n nk bs. n D.t -> bs Tlist.t -> (n, D.zero, n, nk, bs) hgt =
      fun n bs ->
       match bs with
       | Nil -> []
@@ -1484,9 +1479,9 @@ module Tube (F : Fam) = struct
         (m, l, ml) D.plus ->
         (m, l1, ml1) D.plus ->
         (k, l1, l2, l) bwtface ->
-        (ml1, l2, ml, (b, bs) Hlist.cons, cs) pmapperM ->
-        (m, mk, (b, bs) Hlist.cons) C.Heter.hgt ->
-        cs Hlist.tlist ->
+        (ml1, l2, ml, (b, bs) cons, cs) pmapperM ->
+        (m, mk, (b, bs) cons) C.Heter.hgt ->
+        cs Tlist.t ->
         (m, mk, cs) C.Heter.hgt M.t =
      fun mk ml ml1 d g trs cst ->
       match trs with
@@ -1521,9 +1516,9 @@ module Tube (F : Fam) = struct
         (m1, m2, m) D.plus ->
         (m2, l, m2l) D.plus ->
         (k, D.zero, l, l) bwtface ->
-        (m1, m2l, ml, (b, bs) Hlist.cons, cs) pmapperM ->
-        (m, mk, (b, bs) Hlist.cons) C.Heter.hgt ->
-        cs Hlist.tlist ->
+        (m1, m2l, ml, (b, bs) cons, cs) pmapperM ->
+        (m, mk, (b, bs) cons) C.Heter.hgt ->
+        cs Tlist.t ->
         (m, mk, cs) C.Heter.hgt M.t =
      fun mk ml m12 m2l d g trs cst ->
       match (m12, trs) with
@@ -1556,9 +1551,9 @@ module Tube (F : Fam) = struct
         (nk1, k2, nk) D.plus ->
         (nk1, l2, nkl) D.plus ->
         (k2, l2) bwsface ->
-        (n, kl, nkl, (b, bs) Hlist.cons, cs) pmapperM ->
-        (n, k1, nk1, nk, (b, bs) Hlist.cons) Heter.hgt ->
-        cs Hlist.tlist ->
+        (n, kl, nkl, (b, bs) cons, cs) pmapperM ->
+        (n, k1, nk1, nk, (b, bs) cons) Heter.hgt ->
+        cs Tlist.t ->
         (n, k1, nk1, nk, cs) Heter.hgt M.t =
      fun nk1 kl nk12 nkl d g trs cst ->
       match (nk1, trs) with
@@ -1583,9 +1578,9 @@ module Tube (F : Fam) = struct
 
     let pmapM :
         type n k nk b bs cs.
-        (n, k, nk, (b, bs) Hlist.cons, cs) pmapperM ->
-        (n, k, nk, nk, (b, bs) Hlist.cons) Heter.hgt ->
-        cs Hlist.tlist ->
+        (n, k, nk, (b, bs) cons, cs) pmapperM ->
+        (n, k, nk, nk, (b, bs) cons) Heter.hgt ->
+        cs Tlist.t ->
         (n, k, nk, nk, cs) Heter.hgt M.t =
      fun g trs cst ->
       let (tr :: _) = trs in
@@ -1605,8 +1600,8 @@ module Tube (F : Fam) = struct
 
     let mmapM :
         type n k nk b bs c.
-        (n, k, nk, (b, bs) Hlist.cons, c) mmapperM ->
-        (n, k, nk, nk, (b, bs) Hlist.cons) Heter.hgt ->
+        (n, k, nk, (b, bs) cons, c) mmapperM ->
+        (n, k, nk, nk, (b, bs) cons) Heter.hgt ->
         (n, k, nk, c) t M.t =
      fun g xs ->
       let* [ ys ] =
@@ -1626,9 +1621,7 @@ module Tube (F : Fam) = struct
 
     let miterM :
         type n k nk b bs.
-        (n, k, nk, (b, bs) Hlist.cons) miteratorM ->
-        (n, k, nk, nk, (b, bs) Hlist.cons) Heter.hgt ->
-        unit M.t =
+        (n, k, nk, (b, bs) cons) miteratorM -> (n, k, nk, nk, (b, bs) cons) Heter.hgt -> unit M.t =
      fun g xs ->
       let* [] =
         pmapM
@@ -1743,24 +1736,22 @@ module Tube (F : Fam) = struct
 
   let pmap :
       type n k nk b bs cs.
-      (n, k, nk, (b, bs) Hlist.cons, cs) IdM.pmapperM ->
-      (n, k, nk, nk, (b, bs) Hlist.cons) Heter.hgt ->
-      cs Hlist.tlist ->
+      (n, k, nk, (b, bs) cons, cs) IdM.pmapperM ->
+      (n, k, nk, nk, (b, bs) cons) Heter.hgt ->
+      cs Tlist.t ->
       (n, k, nk, nk, cs) Heter.hgt =
    fun g trs cst -> IdM.pmapM g trs cst
 
   let mmap :
       type n k nk b bs c.
-      (n, k, nk, (b, bs) Hlist.cons, c) IdM.mmapperM ->
-      (n, k, nk, nk, (b, bs) Hlist.cons) Heter.hgt ->
+      (n, k, nk, (b, bs) cons, c) IdM.mmapperM ->
+      (n, k, nk, nk, (b, bs) cons) Heter.hgt ->
       (n, k, nk, c) t =
    fun g xs -> IdM.mmapM g xs
 
   let miter :
       type n k nk b bs.
-      (n, k, nk, (b, bs) Hlist.cons) IdM.miteratorM ->
-      (n, k, nk, nk, (b, bs) Hlist.cons) Heter.hgt ->
-      unit =
+      (n, k, nk, (b, bs) cons) IdM.miteratorM -> (n, k, nk, nk, (b, bs) cons) Heter.hgt -> unit =
    fun g xs -> IdM.miterM g xs
 
   let build :

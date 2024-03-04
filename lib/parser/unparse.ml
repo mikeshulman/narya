@@ -526,6 +526,7 @@ let () =
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
       | PString str -> Printed (Uuseg_string.pp_utf_8, str)
+      | PLevel i -> Printed ((fun ppf i -> Format.fprintf ppf "(%d,%d)" (fst i) (snd i)), i)
       | PTerm (ctx, tm) ->
           Printed
             (Print.pp_term `None, Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))

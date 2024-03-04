@@ -1,8 +1,9 @@
 (* This module should not be opened, but used qualified. *)
 
+open Util
+open Tbwd
 open Syntax
 open Term
-open Hctx
 
 (* The global environment of constants *)
 

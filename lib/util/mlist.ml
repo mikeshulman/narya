@@ -1,5 +1,6 @@
 (* This is just a demonstration, in the simple case of lists, of a technique for unifying tranversals of data structures.  We use it later in more complicated cases of Bwvs, Cubes, and Tubes. *)
 
+open Tlist
 open Hlist
 
 module Heter = struct
@@ -7,7 +8,7 @@ module Heter = struct
   type _ ht = [] : nil ht | ( :: ) : 'x list * 'xs ht -> ('x, 'xs) cons ht
 
   (* The hlist consisting of all empty lists  *)
-  let rec empty : type xs. xs tlist -> xs ht = function
+  let rec empty : type xs. xs Tlist.t -> xs ht = function
     | Nil -> []
     | Cons xs -> [] :: empty xs
 
@@ -29,7 +30,7 @@ module Heter = struct
     | x :: xs -> List.tl x :: tl xs
 
   (* Every hlist of lists has a valid type *)
-  let rec tlist : type xs. xs ht -> xs tlist = function
+  let rec tlist : type xs. xs ht -> xs Tlist.t = function
     | [] -> Nil
     | _ :: xs -> Cons (tlist xs)
 end
@@ -41,7 +42,8 @@ module Monadic (M : Monad.Plain) = struct
 
   let rec pmapM :
       type x xs ys.
-      ((x, xs) cons hlist -> ys hlist M.t) -> (x, xs) cons Heter.ht -> ys tlist -> ys Heter.ht M.t =
+      ((x, xs) cons hlist -> ys hlist M.t) -> (x, xs) cons Heter.ht -> ys Tlist.t -> ys Heter.ht M.t
+      =
    fun f xss ys ->
     match xss with
     | [] :: _ -> return (Heter.empty ys)
@@ -76,7 +78,7 @@ end
 (* The non-monadic versions just specialize to the identity. *)
 let pmap :
     type x xs ys.
-    ((x, xs) cons hlist -> ys hlist) -> (x, xs) cons Heter.ht -> ys tlist -> ys Heter.ht =
+    ((x, xs) cons hlist -> ys hlist) -> (x, xs) cons Heter.ht -> ys Tlist.t -> ys Heter.ht =
  fun f xss ys ->
   let open Monadic (Monad.Identity) in
   pmapM f xss ys

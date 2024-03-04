@@ -1,10 +1,10 @@
 open Util
+open Tbwd
 open Reporter
 open Dim
 open Syntax
 open Value
 open Bwd
-open Hctx
 
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  In most situations, the failure of this is a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
@@ -148,7 +148,7 @@ let rec take_args :
     (m, a) env ->
     (m, n, mn) D.plus ->
     (mn, kinetic value) CubeOf.t Bwd.t ->
-    (a, b, n, ab) exts ->
+    (a, b, n, ab) Tbwd.snocs ->
     (m, ab) env =
  fun env mn dargs plus ->
   let m = dim_env env in
@@ -179,7 +179,7 @@ let rec take_canonical_args :
     type n a b ab c.
     (n, a) env ->
     (n, normal) CubeOf.t Bwd.t ->
-    (a, b, D.zero, ab) exts ->
+    (a, b, D.zero, ab) Tbwd.snocs ->
     c N.t ->
     (n, ab) env * ((n, normal) CubeOf.t, c) Bwv.t =
  fun env args ab c ->

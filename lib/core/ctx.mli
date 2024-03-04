@@ -1,17 +1,17 @@
 open Bwd
 open Util
+open Tbwd
 open Dim
 open Syntax
 open Term
 open Value
-open Hctx
 
 type (_, _) t
 
 val vis :
-  ('a, 'b) t -> 'n variables -> ('n, level option * normal) CubeOf.t -> ('a N.suc, ('b, 'n) ext) t
+  ('a, 'b) t -> 'n variables -> ('n, level option * normal) CubeOf.t -> ('a N.suc, ('b, 'n) snoc) t
 
-val invis : ('a, 'b) t -> ('n, level option * normal) CubeOf.t -> ('a, ('b, 'n) ext) t
+val invis : ('a, 'b) t -> ('n, level option * normal) CubeOf.t -> ('a, ('b, 'n) snoc) t
 
 val split :
   ('a, 'b) t ->
@@ -19,7 +19,7 @@ val split :
   ('a, 'f, 'af) N.plus ->
   'n variables ->
   ('n, level option * normal) CubeOf.t ->
-  ('af, ('b, 'n) ext) t
+  ('af, ('b, 'n) snoc) t
 
 val length : ('a, 'b) t -> int
 val empty : (N.zero, emp) t
@@ -31,22 +31,22 @@ val lookup_face :
   ('a, 'b) t ->
   ('n, level option * normal) CubeOf.t ->
   'af Raw.index ->
-  level option * normal * ('b, 'n) ext index
+  level option * normal * ('b, 'n) snoc index
 
 val lookup_invis : ('a, 'b) t -> 'b index -> level option * normal
 val find_level : ('a, 'b) t -> level -> 'b index option
 val env : ('a, 'b) t -> (D.zero, 'b) env
 val eval : ('a, 'b) t -> ('b, 's) Term.term -> 's evaluation
 val eval_term : ('a, 'b) t -> ('b, kinetic) Term.term -> kinetic value
-val ext : ('a, 'b) t -> string option -> kinetic value -> ('a N.suc, ('b, D.zero) ext) t
-val ext_let : ('a, 'b) t -> string option -> normal -> ('a N.suc, ('b, D.zero) ext) t
+val ext : ('a, 'b) t -> string option -> kinetic value -> ('a N.suc, ('b, D.zero) snoc) t
+val ext_let : ('a, 'b) t -> string option -> normal -> ('a N.suc, ('b, D.zero) snoc) t
 
 val ext_tel :
   ('a, 'e) t ->
   ('n, 'b) env ->
   ('b, 'c, 'bc) Telescope.t ->
   ('a, 'c, 'ac) Fwn.bplus ->
-  ('e, 'c, 'n, 'ec) exts ->
+  ('e, 'c, 'n, 'ec) Tbwd.snocs ->
   ('ac, 'ec) t * ('n, 'bc) env * ('n, kinetic value) CubeOf.t Bwd.t
 
 val bind_some : (level -> normal option) -> ('a, 'e) t -> ('a, 'e) t

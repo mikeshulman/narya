@@ -1,5 +1,4 @@
 open Dim
-open Hctx
 open Asai.Diagnostic
 open Format
 open Uuseg_string
@@ -88,7 +87,7 @@ module Code = struct
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
-    | No_such_level : printable * level -> t
+    | No_such_level : printable * printable -> t
     | Constant_already_defined : string -> t
     | Invalid_constant_name : string -> t
     | Too_many_commands : t
@@ -432,7 +431,7 @@ module Code = struct
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level (names, i) ->
-        textf "@[<hov 2>no level variable@ (%d,%d)@ in context@ %a@]" (fst i) (snd i) pp_printed
+        textf "@[<hov 2>no level variable@ %a@ in context@ %a@]" pp_printed (print i) pp_printed
           (print names)
     | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name

@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Tbwd
 open Reporter
 open Syntax
 open Term
@@ -11,7 +12,6 @@ open Act
 open Norm
 open Equal
 open Readback
-open Hctx
 open Printable
 open Asai.Range
 
@@ -269,11 +269,11 @@ let rec check :
                               with_loc constr.loc @@ fun () ->
                               fatal (No_such_constructor_in_match (PConstant name, constr.value))
                         in
-                        let (Exts efc) = exts (Telescope.length argtys) in
+                        let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
                         (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
                         let c = Telescope.length argtys in
                         match
-                          ( Fwn.compare (exts_right efc) c,
+                          ( Fwn.compare (Tbwd.snocs_right efc) c,
                             Fwn.compare (Fwn.bplus_right user_args.value) c )
                         with
                         | Neq, _ -> fatal (Anomaly "length mismatch in check_tree")
@@ -575,7 +575,7 @@ and synth_app :
                     Hashtbl.add eargtbl (SFace_of fa) { tm; ty };
                     return (ctm @: [ tm ]));
               }
-              [ doms ] (Hlist.Cons (Cons Nil)) (sfn.loc, locs, args) in
+              [ doms ] (Cons (Cons Nil)) (sfn.loc, locs, args) in
           (* Evaluate cod at these evaluated arguments and instantiate it at the appropriate values of tyargs. *)
           let output = tyof_app cods tyargs eargs in
           ({ value = Term.App (sfn.value, cargs); loc = newloc }, output, rlocs, rest))

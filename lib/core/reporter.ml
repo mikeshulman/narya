@@ -108,6 +108,7 @@ module Code = struct
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
+    | Error_printing_error : t -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -186,12 +187,15 @@ module Code = struct
     | Notation_defined _ -> Info
     | Show _ -> Info
     | Comment_end_in_string -> Warning
+    | Error_printing_error _ ->
+        Warning (* Should really be a bug, but we also want to display the error that was raised *)
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
     (* Usually bugs *)
     | Anomaly _ -> "E0000"
     | No_such_level _ -> "E0001"
+    | Error_printing_error _ -> "E0002"
     (* Unimplemented future features *)
     | Unimplemented _ -> "E0100"
     | Unsupported_numeral _ -> "E0101"
@@ -286,7 +290,7 @@ module Code = struct
     (* Debugging *)
     | Show _ -> "I9999"
 
-  let default_text : t -> text = function
+  let rec default_text : t -> text = function
     | Parse_error -> text "parse error"
     | Encoding_error -> text "UTF-8 encoding error"
     | Parsing_ambiguity str -> textf "potential parsing ambiguity: %s" str
@@ -458,6 +462,8 @@ module Code = struct
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
     | Comment_end_in_string ->
         text "comment-end sequence `} in quoted string: cannot be commented out"
+    | Error_printing_error e ->
+        textf "Error while printing message:@ %a" (fun ppf () -> default_text e ppf) ()
 end
 
 include Asai.StructuredReporter.Make (Code)

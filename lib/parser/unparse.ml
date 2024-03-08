@@ -523,6 +523,10 @@ and unparse_pi_dom :
 let () =
   Reporter.printer :=
     fun pr ->
+      Reporter.try_with ~fatal:(fun d ->
+          if true then Reporter.emit (Error_printing_error d.message);
+          Printed ((fun ppf () -> Format.pp_print_string ppf "PRINTING_ERROR"), ()))
+      @@ fun () ->
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
       | PString str -> Printed (Uuseg_string.pp_utf_8, str)

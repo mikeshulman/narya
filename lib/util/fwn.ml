@@ -17,19 +17,41 @@ let rec bplus_right : type a b ab. (a, b, ab) bplus -> b t = function
   | Zero -> Zero
   | Suc ab -> Suc (bplus_right ab)
 
+let rec bplus_uniq : type a b ab ab'. (a, b, ab) bplus -> (a, b, ab') bplus -> (ab, ab') Monoid.eq =
+ fun ab ab' ->
+  match (ab, ab') with
+  | Zero, Zero -> Eq
+  | Suc ab, Suc ab' ->
+      let Eq = bplus_uniq ab ab' in
+      Eq
+
+type (_, _) has_bplus = Bplus : ('a, 'b, 'ab) bplus -> ('a, 'b) has_bplus
+
+let rec bplus : type a b. b t -> (a, b) has_bplus = function
+  | Zero -> Bplus Zero
+  | Suc b ->
+      let (Bplus ab) = bplus b in
+      Bplus (Suc ab)
+
 (* We can also get a forwards one as the result.  This is the length-level analogue of prepending a backwards list on the front of a forwards one.  *)
 type (_, _, _) fplus =
   | Zero : (N.zero, 'a, 'a) fplus
   | Suc : ('a, 'b suc, 'ab) fplus -> ('a N.suc, 'b, 'ab) fplus
 
+let rec fplus_uniq : type a b ab ab'. (a, b, ab) fplus -> (a, b, ab') fplus -> (ab, ab') Monoid.eq =
+ fun ab ab' ->
+  match (ab, ab') with
+  | Zero, Zero -> Eq
+  | Suc ab, Suc ab' ->
+      let Eq = fplus_uniq ab ab' in
+      Eq
+
 type (_, _) has_fplus = Fplus : ('a, 'b, 'ab) fplus -> ('a, 'b) has_fplus
 
-let rec fplus : type a b. a N.t -> b t -> (a, b) has_fplus =
- fun a b ->
-  match a with
+let rec fplus : type a b. a N.t -> (a, b) has_fplus = function
   | Nat Zero -> Fplus Zero
   | Nat (Suc a) ->
-      let (Fplus ab) = fplus (Nat a) (Suc b) in
+      let (Fplus ab) = fplus (Nat a) in
       Fplus (Suc ab)
 
 (* These two kinds of addition associate with addition of backwards nats.  Here a, b, ab, and abc are backwards, while c and bc are forwards. *)

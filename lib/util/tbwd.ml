@@ -56,7 +56,7 @@ module Tbwd = struct
         let (Comp_insert (ad, dc)) = comp_insert ab bc in
         Comp_insert (Later ad, Later dc)
 
-  (* ('a, 'b) permute says that 'a is a permutation of 'b, both being hctxs. *)
+  (* ('a, 'b) permute says that 'a is a permutation of 'b, both being backwards type lists. *)
   type (_, _) permute =
     | Id : ('a, 'a) permute
     | Insert : ('a, 'b) permute * ('b, 'n, 'c) insert -> (('a, 'n) snoc, 'c) permute
@@ -108,7 +108,7 @@ module Tbwd = struct
         let (Append ab) = append xs in
         Append (Append_cons ab)
 
-  (* Snocend a permutation by the identity *)
+  (* Extend a permutation by the identity *)
   let rec permute_append :
       type a b c ac bc. (a, b) permute -> (a, c, ac) append -> (b, c, bc) append -> (ac, bc) permute
       =

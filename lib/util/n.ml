@@ -151,7 +151,7 @@ let rec plus_index : type m n mn. (m, n, mn) plus -> n index -> mn index =
       let (Suc mn) = mn in
       Pop (plus_index mn i)
 
-(* Lift an index to a context extended on the right, thereby extending the numerical De Bruijn index value by the same amount.   *)
+(* Lift an index to a context extended on the right, thereby extending the numerical De Bruijn index value by the same amount. *)
 let rec index_plus : type m n mn. m index -> (m, n, mn) plus -> mn index =
  fun i mn ->
   match mn with
@@ -191,6 +191,19 @@ let rec index_equiv : type m n. m index -> n index -> unit option =
   | Top, Top -> Some ()
   | Pop k, Pop l -> index_equiv k l
   | _, _ -> None
+
+(* An index in a sum is either an index in the RHS, or an index in the LHS lifted. *)
+let rec index_in_plus : type m n mn. (m, n, mn) plus -> mn index -> (m index, n index) Either.t =
+ fun mn i ->
+  match mn with
+  | Zero -> Left i
+  | Suc mn -> (
+      match i with
+      | Top -> Right Top
+      | Pop i -> (
+          match index_in_plus mn i with
+          | Left j -> Left j
+          | Right k -> Right (Pop k)))
 
 (* ********** Comparison ********** *)
 

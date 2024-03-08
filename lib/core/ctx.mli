@@ -44,6 +44,7 @@ val ext_let : ('a, 'b) t -> string option -> normal -> ('a N.suc, ('b, D.zero) s
 val ext_tel :
   ('a, 'e) t ->
   ('n, 'b) env ->
+  (string option, 'c) Vec.t ->
   ('b, 'c, 'bc) Telescope.t ->
   ('a, 'c, 'ac) Fwn.bplus ->
   ('e, 'c, 'n, 'ec) Tbwd.snocs ->

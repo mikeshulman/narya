@@ -447,12 +447,12 @@ let rec append_list_map : type a b n. (a -> b) -> (b, n) t -> a list -> b wrappe
 let of_list_map : type a b n. (a -> b) -> a list -> b wrapped = fun f ys -> append_list_map f Emp ys
 
 type (_, _) append_plus =
-  | Append_plus : ('n, 'm, 'nm) Fwn.bplus * ('a, 'nm) t -> ('a, 'n) append_plus
+  | Append_plus : ('n, 'm, 'nm) Fwn.bplus * ('a, 'm) Vec.t * ('a, 'nm) t -> ('a, 'n) append_plus
 
 let rec append_plus : type a n. (a, n) t -> a list -> (a, n) append_plus =
  fun ctx vars ->
   match vars with
-  | [] -> Append_plus (Zero, ctx)
+  | [] -> Append_plus (Zero, [], ctx)
   | x :: xs ->
-      let (Append_plus (nm, ctx)) = append_plus (Snoc (ctx, x)) xs in
-      Append_plus (Suc nm, ctx)
+      let (Append_plus (nm, ys, ctx)) = append_plus (Snoc (ctx, x)) xs in
+      Append_plus (Suc nm, x :: ys, ctx)

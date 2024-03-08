@@ -737,8 +737,8 @@ let rec process_branches : type n. (string option, n) Bwv.t -> observation list 
   | [] -> []
   | Term pat :: Term body :: obs ->
       let c, vars = get_pattern pat [] in
-      let (Append_plus (ab, ectx)) = Bwv.append_plus ctx vars in
-      Branch (c, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
+      let (Append_plus (ab, xs, ectx)) = Bwv.append_plus ctx vars in
+      Branch (c, xs, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
 
 let () =

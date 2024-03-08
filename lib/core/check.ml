@@ -257,7 +257,7 @@ let rec check :
                   (* We now iterate through the branches supplied by the user, typechecking them and inserting them in the match tree. *)
                   let tbranches =
                     List.fold_left
-                      (fun tbranches (Branch (constr, user_args, body)) ->
+                      (fun tbranches (Branch (constr, xs, user_args, body)) ->
                         (if Constr.Map.mem constr.value tbranches then
                            with_loc constr.loc @@ fun () ->
                            fatal (Duplicate_constructor_in_match constr.value));
@@ -286,7 +286,7 @@ let rec check :
                         | Eq, Eq -> (
                             (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
                             let newctx, newenv, newvars =
-                              Ctx.ext_tel ctx env argtys user_args.value efc in
+                              Ctx.ext_tel ctx env xs argtys user_args.value efc in
                             (* The type of the match must be specialized in the branches by substituting different constructors for the match variable, as well as the index values for the index variables, and lower-dimensional versions of each constructor for the instantiation variables.  Thus, we readback the type into this extended context, so we can re-evaluate it with those variables bound to values. *)
                             let rty = readback_val newctx ty in
                             (* Evaluate the "index_terms" at the new pattern variables, obtaining what the indices should be for the new term that replaces the match variable in the match body. *)

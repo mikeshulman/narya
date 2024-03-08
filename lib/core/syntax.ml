@@ -50,8 +50,13 @@ module Raw = struct
         : 'a check
 
   and _ branch =
-    (* The location of the second argument is that of the entire pattern. *)
-    | Branch : Constr.t located * ('a, 'b, 'ab) Fwn.bplus located * 'ab check located -> 'a branch
+    (* The location of the third argument is that of the entire pattern. *)
+    | Branch :
+        Constr.t located
+        * (string option, 'b) Vec.t
+        * ('a, 'b, 'ab) Fwn.bplus located
+        * 'ab check located
+        -> 'a branch
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
   type (_, _, _) tel =

@@ -187,36 +187,42 @@ let ext_tel :
     (a, e) t ->
     (n, b) env ->
     (* Note that c is a Fwn, since it is the length of a telescope. *)
+    (string option, c) Vec.t ->
     (b, c, bc) Telescope.t ->
     (a, c, ac) Fwn.bplus ->
     (e, c, n, ec) Tbwd.snocs ->
     (ac, ec) t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
- fun ctx env tel ac ec ->
+ fun ctx env xs tel ac ec ->
   let rec ext_tel :
       type a b c ac bc d e ec.
       (a, e) t ->
       (n, b) env ->
+      (string option, c) Vec.t ->
       (b, c, bc) Telescope.t ->
       (a, c, ac) Fwn.bplus ->
       (e, c, n, ec) Tbwd.snocs ->
       (n, kinetic value) CubeOf.t Bwd.t ->
       (ac, ec) t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
-   fun ctx env tel ac ec vars ->
-    match (tel, ac) with
-    | Emp, Zero ->
+   fun ctx env xs tel ac ec vars ->
+    match (xs, tel, ac) with
+    | [], Emp, Zero ->
         let Zero, Zero = (ac, ec) in
         (ctx, env, vars)
-    | Ext (x, rty, rest), Suc ac ->
+    | x :: xs, Ext (x', rty, rest), Suc ac ->
         let newvars, newnfs =
           dom_vars (length ctx)
             (CubeOf.build (dim_env env)
                { build = (fun fa -> Norm.eval_term (Act (env, op_of_sface fa)) rty) }) in
+        let x =
+          match x with
+          | Some x -> Some x
+          | None -> x' in
         let newctx = vis ctx (`Cube x) newnfs in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
-          rest ac (Tbwd.snocs_suc ec)
+          xs rest ac (Tbwd.snocs_suc ec)
           (Snoc (vars, newvars)) in
-  ext_tel ctx env tel ac ec Emp
+  ext_tel ctx env xs tel ac ec Emp
 
 (* Let-bind some of the variables in a context *)
 

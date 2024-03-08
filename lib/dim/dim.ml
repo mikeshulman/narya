@@ -265,12 +265,9 @@ let rec switch_perm : type m n mn. m D.t -> (m, n, mn) D.plus -> mn perm =
 let rec coinsert : type m. m perm -> m D.suc D.index -> m D.suc perm =
  fun p -> function
   | Top -> Suc (p, Top)
-  | Pop i -> (
-      match p with
-      | Zero _ -> (
-          match i with
-          | _ -> .)
-      | Suc (p, j) -> Suc (coinsert p i, Pop j))
+  | Pop i ->
+      let Suc (p, j), _ = (p, i) in
+      Suc (coinsert p i, Pop j)
 
 let rec perm_inv : type m. m perm -> m perm = function
   | Zero z -> Zero z

@@ -14,27 +14,87 @@
    ￫ info[I0001]
    ￮ Axiom rev assumed
   
-   ￫ info[I0000]
-   ￮ Constant nat defined
+   ￫ info[I0001]
+   ￮ Axiom tr assumed
   
    ￫ info[I0000]
-   ￮ Constant zero defined
+   ￮ Constant cnat defined
   
    ￫ info[I0000]
-   ￮ Constant suc defined
+   ￮ Constant czero defined
+  
+   ￫ info[I0000]
+   ￮ Constant csuc defined
+  
+   ￫ info[I0000]
+   ￮ Constant cone defined
   
    ￫ info[I0000]
    ￮ Constant ite defined
   
    ￫ info[I0001]
-   ￮ Axiom natfunext assumed
+   ￮ Axiom cnatfunext assumed
   
    ￫ info[I0000]
-   ￮ Constant itenat defined
+   ￮ Constant itecnat defined
   
    ￫ info[I0000]
    ￮ Constant itenn defined
   
    ￫ info[I0000]
    ￮ Constant uniq defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_rec defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_ind defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_add defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_add_assoc defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_right_add_zero defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_left_add_zero defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_add_succ defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_add_comm defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_mul defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_right_mul_zero defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_left_mul_zero defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_right_mul_one defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_left_mul_one defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_mul_succ defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_mul_comm defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_left_distr_mul_add defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_right_distr_mul_add defined
+  
+   ￫ info[I0000]
+   ￮ Constant cnat_mul_assoc defined
   

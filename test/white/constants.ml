@@ -71,7 +71,7 @@ let () =
   (* Lists *)
   Types.Lst.install ();
   def "append" "(A:Type) -> List A -> List A -> List A"
-    "A xs ys ↦ [ xs
+    "A xs ys ↦ match xs [
       | nil.       ↦ ys
       | cons. x xs ↦ cons. x (append A xs ys)
       ]";
@@ -80,12 +80,12 @@ let () =
 
   (* Vectors *)
   Types.Vec.install ();
-  def "lplus" "ℕ -> ℕ -> ℕ" "m n ↦ [ m
+  def "lplus" "ℕ -> ℕ -> ℕ" "m n ↦ match m [
     | zero. ↦ n
     | suc. m ↦ suc. (lplus m n)
     ]";
   def "vappend" "(A:Type) (m n : ℕ) -> Vec A m -> Vec A n -> Vec A (lplus m n)"
-    "A m n xs ys ↦ [ xs
+    "A m n xs ys ↦ match xs [
     | nil.         ↦ ys
     | cons. k z zs ↦ cons. (lplus k n) z (vappend A k n zs ys)
     ]";
@@ -104,38 +104,36 @@ let () =
   (* Empty type *)
   Types.Empty.install ();
   def "abort1" "(A:Type) → ∅ → A" "A ↦ [ ]";
-  def "abort2" "(A:Type) → ∅ → A" "A ↦ [|]";
-  def "abort3" "(A:Type) → ∅ → A" "A x ↦ [ x | ]";
-  def "abort4" "(A:Type) → ∅ → A" "A x ↦ [ x ]";
+  def "abort2" "(A:Type) → ∅ → A" "A x ↦ match x [ ]";
 
   (* Higher-dimensional lambdas in case trees.  This simple version doesn't actually need them, as it could be just an ordinary higher-dimensional lambda term at a leaf. *)
   assume "f" "(x:A)→B x";
   def "reflf" "Id ((x:A)→B x) f f" "x₀ x₁ x₂ ↦ refl f x₀ x₁ x₂";
   def "reflf_eq_reflf" "Id (Id ((x:A)→B x) f f) reflf (refl f)" "refl (refl f)";
   (* To test that we actually allow higher-dimensional lambdas in case trees, we need to do some case-tree-only thing inside the lambda, like a match. *)
-  def "refl_abort_f" "∅ → Id ((x:A)→B x) f f" "e x₀ x₁ x₂ ↦ [ e | ]";
+  def "refl_abort_f" "∅ → Id ((x:A)→B x) f f" "e x₀ x₁ x₂ ↦ match e [ ]";
   def "refl_nat_f" "ℕ → Id ((x:A)→B x) f f"
-    "n x₀ x₁ x₂ ↦ [ n | zero. ↦ refl f x₀ x₁ x₂ | suc. _ ↦ refl f x₀ x₁ x₂ ]";
+    "n x₀ x₁ x₂ ↦ match n [ zero. ↦ refl f x₀ x₁ x₂ | suc. _ ↦ refl f x₀ x₁ x₂ ]";
   def "refl_nat_f_eq_reflf" "Id (Id ((x:A)→B x) f f) (refl_nat_f zero.) (refl f)" "refl (refl f)";
 
   (* We also test cube variable abstraction syntax *)
-  def "refl_abort_f_cube" "∅ → Id ((x:A)→B x) f f" "e x ⤇ [ e | ]";
+  def "refl_abort_f_cube" "∅ → Id ((x:A)→B x) f f" "e x ⤇ match e [ ]";
   def "refl_nat_f_cube" "ℕ → Id ((x:A)→B x) f f"
-    "n x ⤇ [ n | zero. ↦ refl f x.0 x.1 x.2 | suc. _ ↦ refl f x.0 x.1 x.2 ]";
+    "n x ⤇ match n [ zero. ↦ refl f x.0 x.1 x.2 | suc. _ ↦ refl f x.0 x.1 x.2 ]";
   (* These are actually *unequal* because definition by case trees is generative. *)
   unequal_at "refl_nat_f" "refl_nat_f_cube" "ℕ → Id ((x:A)→B x) f f";
   (* But they become equal when evaluated at concrete numbers so that the case trees compute away. *)
   equal_at "refl_nat_f 3" "refl_nat_f_cube 3" "Id ((x:A)→B x) f f";
 
   (* Higher-dimensional matches *)
-  def "foo" "(x y : ℕ) → Id ℕ x y → ℕ" "x y p ↦ [ p | zero. ↦ 0 | suc. n ↦ 1 ]";
+  def "foo" "(x y : ℕ) → Id ℕ x y → ℕ" "x y p ↦ match p [ zero. ↦ 0 | suc. n ↦ 1 ]";
   def "bar" "(x y : ℕ) → Id ℕ x y → ℕ" "x y ↦ [ zero. ↦ zero. | suc. p ↦ p.0 ]";
   equal_at "bar 1 1 (refl (1:ℕ))" "0" "ℕ";
   equal_at "bar 2 2 (refl (2:ℕ))" "1" "ℕ";
   def "prec" "ℕ → ℕ" "[ zero. ↦ zero. | suc. n ↦ n ]";
   def "idnat" "(x y : ℕ) → Id ℕ x y → Id ℕ x y" "x y ↦ [ zero. ↦ zero. | suc. p ↦ suc. p ]";
   def "apprec" "(x y : ℕ) → Id ℕ x y → Id ℕ (prec x) (prec y)"
-    "x y p ↦ [ p | zero. ↦ zero. | suc. p ↦ p ]";
+    "x y p ↦ match p [ zero. ↦ zero. | suc. p ↦ p ]";
   Types.Unit.install ();
   def "code" "ℕ → ℕ → Type"
     "[ zero. ↦ [ zero. ↦ ⊤
@@ -147,9 +145,9 @@ let () =
     "x y ↦ [ zero. ↦ ()
             | suc. p ↦ encode p.0 p.1 p.2 ]";
   def "decode" "(x y : ℕ) → code x y → Id ℕ x y"
-    "x y c |-> [ x | zero. ↦ [ y | zero. ↦ zero.
-                | suc. _ ↦ [ c | ] ]
-     | suc. x ↦ [ y | zero. ↦ [ c | ]
+    "x y c |-> match x [ zero. ↦ match y [ zero. ↦ zero.
+                | suc. _ ↦ match c [ ] ]
+     | suc. x ↦ match y [ zero. ↦ match c [ ]
                  | suc. y ↦ suc. (decode x y c) ] ]";
   def "encode_decode" "(x y : ℕ) (c : code x y) → Id (code x y) (encode x y (decode x y c)) c"
     "[ zero. ↦ [ zero. ↦ _ ↦ ()
@@ -162,16 +160,16 @@ let () =
 
   (* Matching on a boundary of a cube variable. *)
   def "mtchbd0" "(e:∅) (f : ℕ → ℕ) → Id (ℕ → ℕ) f f"
-    "e f n ⤇ [ n.0 | zero. ↦ [ e ] | suc. _ ↦ [ e ] ]";
+    "e f n ⤇ match n.0 [ zero. ↦ match e [ ] | suc. _ ↦ match e [ ] ]";
 
   def "mtchbd0'" "(e:∅) (f : ℕ → ℕ) → Id (ℕ → ℕ) f f"
-    "e f n ⤇ [ n.0 | zero. ↦ [ e ] | suc. _ ↦ refl f n.0 n.1 n.2 ]";
+    "e f n ⤇ match n.0 [ zero. ↦ match e [ ] | suc. _ ↦ refl f n.0 n.1 n.2 ]";
 
   def "mtchbd0''" "(e:∅) (f : ℕ → ℕ) → Id (ℕ → ℕ) f f"
-    "e f n0 n1 n2 ↦ [ n0 | zero. ↦ [e] | suc. _ ↦ refl f n0 n1 n2 ]";
+    "e f n0 n1 n2 ↦ match n0 [ zero. ↦ match e [ ] | suc. _ ↦ refl f n0 n1 n2 ]";
 
   (* Matching inside a tuple *)
-  def "mtchtup" "ℕ → ((X : Type) × (X → X))" "n ↦ ( [ n | zero. ↦ ℕ | suc. _ ↦ ℕ ], x ↦ x )";
+  def "mtchtup" "ℕ → ((X : Type) × (X → X))" "n ↦ ( match n [ zero. ↦ ℕ | suc. _ ↦ ℕ ], x ↦ x )";
 
   (* Covectors (canonical types defined inside a match) *)
   Types.Covec.install ();
@@ -181,7 +179,7 @@ let () =
   equal_at "onetwo .1 .0" "2" "ℕ";
   equal_at "onetwo .1 .1" "()" "Covec ℕ 0";
   def "coconcat" "(A:Type) (m n : ℕ) → Covec A m → Covec A n → Covec A (lplus m n)"
-    "A m n v w ↦ [ m
+    "A m n v w ↦ match m [
     | zero. ↦ w
     | suc. m ↦ (v .0 , coconcat A m n (v .1) w) ]";
   ()

@@ -142,21 +142,19 @@ let nat_install_ops () =
   Reporter.try_with ~emit:(fun _ -> ()) @@ fun () ->
   def "O" "ℕ" "zero.";
   def "S" "ℕ → ℕ" "n ↦ suc. n";
-  def "plus" "ℕ → ℕ → ℕ" "m n ↦
-  [ n
+  def "plus" "ℕ → ℕ → ℕ" "m n ↦ match n [ 
     | zero. ↦ m
     | suc. n ↦ suc. (plus m n)
   ]";
   cmd "notation 0 plus : m \"+\" n … ≔ plus m n";
-  def "times" "ℕ → ℕ → ℕ" "m n ↦
-  [ n
+  def "times" "ℕ → ℕ → ℕ"
+    "m n ↦ match n [
     | zero. ↦ zero.
     | suc. n ↦ plus (times m n) m
   ]";
   cmd "notation 1 times : m \"*\" n … ≔ times m n";
   def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
-    "P z s n ↦
-  [ n
+    "P z s n ↦ match n [
     | zero. ↦ z
     | suc. n ↦ s n (ℕ_ind P z s n)
   ]"
@@ -164,8 +162,7 @@ let nat_install_ops () =
 let lst_install_ops () =
   def "List_ind"
     "(A:Type) (P : List A → Type) (pn : P nil.) (pc : (a:A) (l:List A) → P l → P (cons. a l)) (l:List A) → P l"
-    "A P pn pc l ↦
-  [ l
+    "A P pn pc l ↦ match l [
     | nil. ↦ pn
     | cons. a l ↦ pc a l (List_ind A P pn pc l)
   ]"
@@ -173,8 +170,7 @@ let lst_install_ops () =
 let vec_install_ops () =
   def "Vec_ind"
     "(A:Type) (P : (n:ℕ) → Vec A n → Type) (pn : P zero. nil.) (pc : (n:ℕ) (a:A) (v:Vec A n) → P n v → P (suc. n) (cons. n a v)) (n:ℕ) (v:Vec A n) → P n v"
-    "A P pn pc n v ↦
-  [ v
+    "A P pn pc n v ↦ match v [
     | nil. ↦ pn
     | cons. n a v ↦ pc n a v (Vec_ind A P pn pc n v)
   ]"

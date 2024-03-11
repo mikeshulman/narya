@@ -27,6 +27,7 @@ type t =
   | Axiom (* axiom *)
   | Def (* def *)
   | Echo (* echo *)
+  | Match
   | Record (* record *)
   | Data (* data *)
   | Codata (* codata *)
@@ -150,6 +151,7 @@ let to_string = function
   | Axiom -> "axiom"
   | Def -> "def"
   | Echo -> "echo"
+  | Match -> "match"
   | Record -> "record"
   | Data -> "data"
   | Codata -> "codata"

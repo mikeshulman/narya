@@ -437,12 +437,12 @@ f
            ] 
 ]
 
-[ x
+match x [ 
   | con. a b ↦ blah blah 
   | str. u v ↦ bluh bluh 
 ]
 
-[ x
+match x [ 
   | con. a b ↦
     blah blah blah blah blah
       blah blah blah blah
@@ -450,7 +450,7 @@ f
   | str. u v ↦ bluh bluh 
 ]
 
-[ x
+match x [ 
   | con. a a a a a a a a a a
       a a a a a a a a a a a a
       a ↦
@@ -458,7 +458,7 @@ f
   | str. u v ↦ bluh bluh 
 ]
 
-[ x
+match x [ 
   | con. a a a a a a a a a a
       a a a a a a a a a a a a
       a ↦
@@ -473,9 +473,9 @@ f
   | str. u v ↦ bluh bluh 
 ]
 
-[ x
+match x [ 
   | con. a b ↦
-    [ y
+    match y [ 
       | foo. ↦
         ba ba baa ba baa baba
           ba ba baaba babba
@@ -485,7 +485,7 @@ f
   | str. u v ↦ bluh bluh 
 ]
 
-[ x
+match x [ 
   | con. a b ↦
     [
       | .foo ↦
@@ -514,7 +514,7 @@ f
     ] 
 ]
 
-([ x
+(match x [ 
    | poo. ↦ bah 
  ])
 
@@ -649,25 +649,25 @@ f
 [ | fst. ↦ [ | foo. ↦ bar | baz. ↦ qux ] 
   | snd. ↦ [ | poo. ↦ [ | bah. ↦ bum ] ] ]
 
-[ x
+match x [ 
   | con. a b ↦ blah blah 
   | str. u v ↦ bluh bluh ]
 
-[ x
+match x [ 
   | con. a b ↦
     blah blah blah blah blah
       blah blah blah blah
       blah 
   | str. u v ↦ bluh bluh ]
 
-[ x
+match x [ 
   | con. a a a a a a a a a a
       a a a a a a a a a a a a
       a ↦
     blah blah 
   | str. u v ↦ bluh bluh ]
 
-[ x
+match x [ 
   | con. a a a a a a a a a a
       a a a a a a a a a a a a
       a ↦
@@ -679,15 +679,15 @@ f
 [ | con. a b ↦ blah blah 
   | str. u v ↦ bluh bluh ]
 
-[ x
-  | con. a b ↦ [ y
+match x [ 
+  | con. a b ↦ match y [ 
     | foo. ↦
       ba ba baa ba baa baba
         ba ba baaba babba ba 
     | bar. u v w z w ↦ z ] 
   | str. u v ↦ bluh bluh ]
 
-[ x
+match x [ 
   | con. a b ↦ [ 
     | .foo ↦
       ba ba baa ba baa baba
@@ -704,6 +704,6 @@ f
   | str. u v ↦ [ 
     | baz. ↦ bluh bluh ] ]
 
-([ x
+(match x [ 
    | poo. ↦ bah ])
 

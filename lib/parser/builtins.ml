@@ -683,39 +683,34 @@ let () =
 
 let mtch = make "match" Outfix
 
-let rec mtch_branches end_ok =
+let rec mtch_branches bar_ok end_ok =
   Inner
     {
       empty_branch with
-      ops = (if end_ok then TokMap.of_list [ (RBracket, Done_closed mtch) ] else TokMap.empty);
+      ops =
+        TokMap.of_list
+          ((if end_ok then [ ((RBracket : Token.t), Done_closed mtch) ] else [])
+          @ if bar_ok then [ (Op "|", mtch_branches false false) ] else []);
       term =
         Some
           (TokMap.singleton Mapsto
-             (terms [ (Op "|", Lazy (lazy (mtch_branches false))); (RBracket, Done_closed mtch) ]));
+             (terms
+                [ (Op "|", Lazy (lazy (mtch_branches false false))); (RBracket, Done_closed mtch) ]));
     }
 
 let () =
   set_tree mtch
     (Closed_entry
-       (eop LBracket
-          (Inner
-             {
-               empty_branch with
-               ops = TokMap.of_list [ (Op "|", mtch_branches false) ];
-               term =
-                 Some
-                   (TokMap.of_list
-                      [
-                        (Op "|", mtch_branches true);
-                        (RBracket, Done_closed mtch);
-                        ( Mapsto,
-                          terms
-                            [
-                              (Op "|", Lazy (lazy (mtch_branches false)));
-                              (RBracket, Done_closed mtch);
-                            ] );
-                      ]);
-             })))
+       (eops
+          [
+            (LBracket, mtch_branches true false);
+            ( Match,
+              Inner
+                {
+                  empty_branch with
+                  term = Some (TokMap.singleton LBracket (mtch_branches true true));
+                } );
+          ]))
 
 let rec get_pattern :
     type n lt1 ls1 rt1 rs1.
@@ -809,21 +804,28 @@ let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist 
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
 
 and pp_match box space ppf obs ws =
-  let wslbrack, ws = take LBracket ws in
   let style = style () in
-  match obs with
-  | (Term { value = Ident _; _ } as x) :: obs ->
-      if box then pp_open_vbox ppf 0;
-      if true then (
-        pp_tok ppf LBracket;
-        pp_ws `Nobreak ppf wslbrack;
-        pp_term `None ppf x;
-        let wsrbrack = pp_branches true ppf obs ws in
-        if style = `Noncompact then pp_print_cut ppf ();
-        pp_tok ppf RBracket;
-        pp_ws space ppf wsrbrack);
-      if box then pp_close_box ppf ()
-  | _ ->
+  match take_opt Match ws with
+  | Some (wsmtch, ws) -> (
+      match obs with
+      | (Term { value = Ident _; _ } as x) :: obs ->
+          let wslbrack, ws = take LBracket ws in
+          if box then pp_open_vbox ppf 0;
+          if true then (
+            pp_tok ppf Match;
+            pp_ws `Nobreak ppf wsmtch;
+            pp_term `Nobreak ppf x;
+            pp_tok ppf LBracket;
+            pp_ws `Nobreak ppf wslbrack;
+            let ws = must_start_with (Op "|") ws in
+            let wsrbrack = pp_branches true ppf obs ws in
+            if style = `Noncompact then pp_print_cut ppf ();
+            pp_tok ppf RBracket;
+            pp_ws space ppf wsrbrack);
+          if box then pp_close_box ppf ()
+      | _ -> fatal (Anomaly "missing variable in match"))
+  | None ->
+      let wslbrack, ws = take LBracket ws in
       let box = box || style = `Noncompact in
       if box then pp_open_vbox ppf 0;
       if true then (

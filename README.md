@@ -41,8 +41,8 @@ The parser supports arbitrary mixfix operations with associativities and precede
 - `constr. M N` – Constructor of a datatype, applied to arguments (but not parameters).  Checks, doesn't synthesize.  The postfix period is admittedly unusual; the intent is to emphasize the duality between constructors of a datatype and destructors (fields) of a codatatype/record.
 - `M : N` – Type ascription.  Necessary if you want to apply an abstraction to an argument (i.e. manually write a beta-redex) or similarly access a field of a tuple, since the typechecker is bidirectional.
 - `let x ≔ M in N` – Local binding.  Computationally equivalent to `(x ↦ N) M`, but also binds `x` to `M` while typechecking `N`, which is stronger in the presence of dependent types.  As before, ≔ can be replaced by `:=`, and `let x ≔ (M : A) in N` (commonly needed since `M` must synthesize) can be abbreviated `let x : A ≔ M in N`.
-- `[ x | constr1. a b ↦ M | constr2. c d ↦ N ]` – Match against datatype constructors.  Only valid in a top-level case tree when `x` is a variable (see below).  This syntax is tentative and might change if we get negative feedback from users.
-- `[ constr1. a b ↦ M | constr2. c d ↦ N ]` – Abstract over a variable and immediately match against it, i.e. pattern-matching lambda.  Essentially a notational variant of `x ↦ [ x | constr1. a b ↦ M | constr2. c d ↦ N ]` without needing to choose a dummy name for the variable.  The initial `|` after the empty variable location can also be included.
+- `match x [ constr1. a b ↦ M | constr2. c d ↦ N ]` – Match against datatype constructors.  Only valid in a top-level case tree when `x` is a variable (see below).  The first constructor may optionally also begin with a `|`.
+- `[ constr1. a b ↦ M | constr2. c d ↦ N ]` – Abstract over a variable and immediately match against it, i.e. pattern-matching lambda.  Essentially a notational variant of `x ↦ match x [ constr1. a b ↦ M | constr2. c d ↦ N ]` without needing to choose a dummy name for the variable.  The initial `|` after the empty variable location can also be included.
 - `[ .fld1 ↦ M | .fld2 ↦ N ]` – Copattern match against a codatatype.
 - `"string"` – Quoted string.  Currently only used when specifying new notations.
 - `Id M X Y` – Homogeneous identity/bridge type.  In fact this is equivalent to `refl M X Y`, and `Id` is just a synonym for `refl`.
@@ -141,7 +141,7 @@ When a new constant is defined as a function containing datatypes in its domain,
 ```
 def swap : (A B : Type) → sum A B → sum B A
   ≔ A B x ↦
-  [ x
+  match x [
     | inl. a ↦ inr. a
     | inr. b ↦ inl. b
   ]

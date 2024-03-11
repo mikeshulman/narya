@@ -123,21 +123,21 @@ let test_compactness () =
   (* Matches *)
   reformat "[fst. |-> [foo. |-> bar  | baz. |-> qux ] | snd. |-> [ poo. |-> [ bah. |-> bum ] ] ]";
   set_margin 30;
-  reformat "[x| con. a b |-> blah blah | str. u v |-> bluh bluh ]";
+  reformat "match x [ con. a b |-> blah blah | str. u v |-> bluh bluh ]";
   reformat
-    "[x| con. a b |-> blah blah blah blah blah blah blah blah blah blah  | str. u v |-> bluh bluh ]";
+    "match x [| con. a b |-> blah blah blah blah blah blah blah blah blah blah  | str. u v |-> bluh bluh ]";
   reformat
-    "[x| con. a a a a a a a a a a a a a a a a a a a a a a a  |-> blah blah | str. u v |-> bluh bluh ]";
+    "match x [| con. a a a a a a a a a a a a a a a a a a a a a a a  |-> blah blah | str. u v |-> bluh bluh ]";
   reformat
-    "[x| con. a a a a a a a a a a a a a a a a a a a a a a a  |-> blah blah blah blah blah blah blah blah blah blah blah | str. u v |-> bluh bluh ]";
+    "match x [| con. a a a a a a a a a a a a a a a a a a a a a a a  |-> blah blah blah blah blah blah blah blah blah blah blah | str. u v |-> bluh bluh ]";
   reformat "[ con. a b |-> blah blah | str. u v |-> bluh bluh ]";
   reformat
-    "[x| con. a b |-> [ y | foo. |-> ba ba baa ba baa baba ba ba baaba babba ba | bar. u v w z w |-> z ] | str. u v |-> bluh bluh ]";
+    "match x [| con. a b |-> match y [ foo. |-> ba ba baa ba baa baba ba ba baaba babba ba | bar. u v w z w |-> z ] | str. u v |-> bluh bluh ]";
   reformat
-    "[x| con. a b |-> [ .foo |-> ba ba baa ba baa baba ba ba baaba babba ba | .bar |-> z ] | str. u v |-> [ .flab |-> boo boo | .flub |-> zoo zo zoo zo zzo zo ] ]";
+    "match x [| con. a b |-> [ .foo |-> ba ba baa ba baa baba ba ba baaba babba ba | .bar |-> z ] | str. u v |-> [ .flab |-> boo boo | .flub |-> zoo zo zoo zo zzo zo ] ]";
   reformat
     "[ con. a b |-> [ foo. x |-> ba ba ba | bar. y z |-> y ] | str. u v |-> [ baz. |-> bluh bluh ] ]";
-  reformat "([x| poo. |-> bah])";
+  reformat "(match x [| poo. |-> bah])";
   ()
 
 let () =

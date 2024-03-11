@@ -6,6 +6,7 @@ open Syntax
 open Term
 open Value
 open Inst
+open Domvars
 open Norm
 open Printable
 

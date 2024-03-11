@@ -3,11 +3,12 @@ open Util
 open Tbwd
 open Reporter
 open Dim
-open Act
 open Syntax
 open Term
 open Value
 open Inst
+open Act
+open Permute
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
@@ -243,14 +244,14 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                 (Anomaly
                    (Printf.sprintf "constructor %s missing from compiled match"
                       (Constr.to_string name)))
-          | Some (Branch (plus, body)) -> (
+          | Some (Branch (plus, perm, body)) -> (
               let (Plus mn) = D.plus n in
               match compare dim (D.plus_out m mn) with
               | Eq ->
                   (* If we have a branch with a matching constant, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
                   let env = take_args env mn dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
-                  eval env body
+                  eval (permute_env perm env) body
               | _ -> Unrealized))
       | _ -> Unrealized)
   | Realize tm ->

@@ -4,6 +4,7 @@ open Dim
 open Syntax
 open Value
 open Inst
+open Domvars
 open Norm
 open Monoid
 open Monad.ZeroOps (Monad.Maybe)

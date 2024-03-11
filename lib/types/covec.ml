@@ -26,10 +26,12 @@ let install () =
                   ( Top (id_sface D.zero),
                     D.zero,
                     Constr.Map.empty
-                    |> Constr.Map.add zero (Branch (Zero, Canonical (Codata (Eta, D.zero, Emp))))
+                    |> Constr.Map.add zero
+                         (Branch (Zero, Id, Canonical (Codata (Eta, D.zero, Emp))))
                     |> Constr.Map.add suc
                          (Branch
                             ( Suc Zero,
+                              Id,
                               Canonical
                                 (Codata
                                    ( Eta,

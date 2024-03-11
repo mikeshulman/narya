@@ -6,10 +6,12 @@ open Syntax
 open Term
 open Value
 open Inst
+open Domvars
 open Raw
 open Dim
 open Act
 open Norm
+open Permute
 open Equal
 open Readback
 open Printable
@@ -286,7 +288,7 @@ let rec check :
                         | Eq, Eq -> (
                             (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
                             let newctx, newenv, newvars =
-                              Ctx.ext_tel ctx env xs argtys user_args.value efc in
+                              ext_tel ctx env xs argtys user_args.value efc in
                             (* The type of the match must be specialized in the branches by substituting different constructors for the match variable, as well as the index values for the index variables, and lower-dimensional versions of each constructor for the instantiation variables.  Thus, we readback the type into this extended context, so we can re-evaluate it with those variables bound to values. *)
                             let rty = readback_val newctx ty in
                             (* Evaluate the "index_terms" at the new pattern variables, obtaining what the indices should be for the new term that replaces the match variable in the match body. *)
@@ -355,7 +357,7 @@ let rec check :
                                   ( compare constrdim dim,
                                     N.compare (Bwv.length index_vars) (Bwv.length indices) )
                                 with
-                                | Eq, Eq ->
+                                | Eq, Eq -> (
                                     let new_vals = Hashtbl.create 10 in
                                     CubeOf.miter
                                       { it = (fun _ [ v; c ] -> Hashtbl.add new_vals v c) }
@@ -366,36 +368,63 @@ let rec check :
                                           { it = (fun _ [ v; c ] -> Hashtbl.add new_vals v c) }
                                           [ vs; cs ])
                                       index_vars indices;
-                                    (* Now we let-bind the match variable to the constructor applied to these new variables, the "index_vars" to the index values, and the inst_vars to the boundary constructor values. *)
-                                    let boundctx =
-                                      Ctx.bind_some (Hashtbl.find_opt new_vals) newctx in
-                                    (* We have to substitute the values of these newly bound variables into all the other types and terms in the context, which we do by reading them back in the old context and then evaluating in the new one. *)
-                                    let thectx =
-                                      Ctx.map
-                                        (fun x ->
-                                          let e = Ctx.env boundctx in
-                                          let tm = eval_term e (readback_nf newctx x) in
-                                          let ty = eval_term e (readback_val newctx x.ty) in
-                                          { tm; ty })
-                                        boundctx in
-                                    (* We readback the index and instantiation values into this context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)
-                                    let _ =
-                                      Reporter.try_with ~fatal:(fun d ->
-                                          match d.message with
-                                          | No_such_level _ -> fatal Index_variable_in_index_value
-                                          | _ -> fatal_diagnostic d)
-                                      @@ fun () ->
-                                      Hashtbl.iter
-                                        (fun _ v ->
-                                          let _ = readback_nf thectx v in
-                                          ())
-                                        new_vals in
-                                    (* We evaluate "rty" in this new context, to obtain the type at which the branch body will be checked. *)
-                                    let newty = Ctx.eval_term thectx rty in
-                                    (* Finally, we recurse into the "body" of the branch. *)
-                                    tbranches
-                                    |> Constr.Map.add constr.value
-                                         (Term.Branch (efc, check energy thectx body newty))
+                                    (* Now we let-bind the match variable to the constructor applied to these new variables, the "index_vars" to the index values, and the inst_vars to the boundary constructor values.  The operation Ctx.bind_some automatically substitutes these new values into the types and values of other variables in the context, and reorders it if necessary so that each variable only depends on previous ones. *)
+                                    match
+                                      Ctx.bind_some
+                                        {
+                                          nf =
+                                            (fun ~oldctx ~newctx nf ->
+                                              Reporter.try_with ~fatal:(fun d ->
+                                                  match d.message with
+                                                  | No_such_level _ -> None
+                                                  | _ -> fatal_diagnostic d)
+                                              @@ fun () ->
+                                              let tm = readback_nf oldctx nf in
+                                              let ty = readback_val oldctx nf.ty in
+                                              let (Val etm) = Ctx.eval newctx tm in
+                                              let (Val ety) = Ctx.eval newctx ty in
+                                              Some { tm = etm; ty = ety });
+                                          ty =
+                                            (fun ~oldctx ~newctx ty ->
+                                              Reporter.try_with ~fatal:(fun d ->
+                                                  match d.message with
+                                                  | No_such_level _ -> None
+                                                  | _ -> fatal_diagnostic d)
+                                              @@ fun () ->
+                                              let ty = readback_val oldctx ty in
+                                              let (Val ety) = Ctx.eval newctx ty in
+                                              Some ety);
+                                        }
+                                        (Hashtbl.find_opt new_vals) newctx
+                                    with
+                                    | None -> fatal No_permutation
+                                    | Bind_some (perm, thectx) ->
+                                        (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)
+                                        (* TODO: Reimplement this; the level variables are wrong now *)
+                                        (*
+                                        let _ =
+                                          Reporter.try_with ~fatal:(fun d ->
+                                              match d.message with
+                                              | No_such_level _ ->
+                                                  fatal Index_variable_in_index_value
+                                              | _ -> fatal_diagnostic d)
+                                          @@ fun () ->
+                                          Hashtbl.iter
+                                            (fun _ v ->
+                                              let _ = readback_nf thectx v in
+                                              ())
+                                            new_vals in
+*)
+                                        (* We evaluate "rty" in this new context, to obtain the type at which the branch body will be checked. *)
+                                        let newty =
+                                          Norm.eval_term
+                                            (permute_env (Tbwd.permute_inv perm) (Ctx.env thectx))
+                                            rty in
+                                        (* Finally, we recurse into the "body" of the branch. *)
+                                        tbranches
+                                        |> Constr.Map.add constr.value
+                                             (Term.Branch (efc, perm, check energy thectx body newty))
+                                    )
                                 | Neq, _ -> fatal (Anomaly "created datatype has wrong dimension")
                                 | _, _ ->
                                     fatal (Anomaly "created datatype has wrong number of indices"))
@@ -407,7 +436,7 @@ let rec check :
                       if not (Constr.Map.mem c tbranches) then
                         fatal (Missing_constructor_in_match c))
                     constrs;
-                  Match (ix, n, tbranches))
+                  Term.Match (ix, n, tbranches))
           | _ -> fatal (Matching_on_nondatatype (PUninst (ctx, uvarty)))))
   | Empty_co_match, Kinetic ->
       fatal (Unimplemented "(Co)matching in terms (rather than case trees)")

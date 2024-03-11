@@ -87,6 +87,7 @@ module Code = struct
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
+    | No_permutation : t
     | No_such_level : printable * printable -> t
     | Constant_already_defined : string -> t
     | Invalid_constant_name : string -> t
@@ -166,6 +167,7 @@ module Code = struct
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
+    | No_permutation -> Bug
     | No_such_level _ -> Bug
     | Constant_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
@@ -196,6 +198,7 @@ module Code = struct
     | Anomaly _ -> "E0000"
     | No_such_level _ -> "E0001"
     | Error_printing_error _ -> "E0002"
+    | No_permutation -> "E0003"
     (* Unimplemented future features *)
     | Unimplemented _ -> "E0100"
     | Unsupported_numeral _ -> "E0101"
@@ -437,6 +440,7 @@ module Code = struct
     | No_such_level (names, i) ->
         textf "@[<hov 2>no level variable@ %a@ in context@ %a@]" pp_printed (print i) pp_printed
           (print names)
+    | No_permutation -> text "unable to find a consistent permutation of the context"
     | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"

@@ -47,6 +47,7 @@ type (_, _, _) act_closure =
 let rec act_value : type m n s. s value -> (m, n) deg -> s value =
  fun v s ->
   match v with
+  | Lazy (lazy v) -> act_value v s
   | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, Lazy.from_val (act_ty v ty s))
   | Inst { tm; dim; args; tys } ->
       let (Of fa) = deg_plus_to s (TubeOf.uninst args) ~on:"instantiation" in
@@ -175,6 +176,7 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
     =
  fun ?err tm tmty s ->
   match tmty with
+  | Lazy (lazy tmty) -> act_ty ?err tm tmty s
   | Inst { tm = ty; dim; args; tys = _ } -> (
       (* A type must be fully instantiated, so in particular tys is trivial. *)
       match compare (TubeOf.uninst args) D.zero with

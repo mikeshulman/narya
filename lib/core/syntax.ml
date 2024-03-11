@@ -300,6 +300,7 @@ module rec Value : sig
     | Struct :
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
         -> 's value
+    | Lazy : 's value Lazy.t -> 's value
 
   and _ evaluation =
     | Val : 's value -> 's evaluation
@@ -406,6 +407,7 @@ end = struct
     | Struct :
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
         -> 's value
+    | Lazy : 's value Lazy.t -> 's value
 
   (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
   and _ evaluation =

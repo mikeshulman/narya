@@ -108,6 +108,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
 and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =
  fun n x ->
   match x with
+  | Lazy (lazy x) -> readback_val n x
   | Uninst (u, _) -> readback_uninst n u
   | Inst { tm; dim = _; args; tys = _ } ->
       let tm = readback_uninst n tm in

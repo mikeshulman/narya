@@ -32,6 +32,7 @@ let rec inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kine
   | Zero -> tm
   | Pos dim2 -> (
       match tm with
+      | Lazy (lazy tm) -> inst tm args2
       | Inst { tm; dim = _; args = args1; tys = tys1 } -> (
           match compare (TubeOf.out args2) (TubeOf.uninst args1) with
           | Neq ->

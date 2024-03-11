@@ -25,6 +25,7 @@ let dim : formatter -> 'a D.t -> unit =
 let rec value : type s. formatter -> s value -> unit =
  fun ppf v ->
   match v with
+  | Lazy (lazy v) -> value ppf v
   | Uninst (tm, _) -> fprintf ppf "Uninst (%a, ?)" uninst tm
   | Inst { tm; dim = d; args = _; tys = _ } ->
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)

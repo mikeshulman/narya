@@ -87,7 +87,7 @@ let () =
   def "vappend" "(A:Type) (m n : ℕ) -> Vec A m -> Vec A n -> Vec A (lplus m n)"
     "A m n xs ys ↦ [ xs
     | nil.         ↦ ys
-    | cons. m x xs ↦ cons. (lplus m n) x (vappend A m n xs ys)
+    | cons. k z zs ↦ cons. (lplus k n) z (vappend A k n zs ys)
     | ]";
   equal_at "vappend ℕ 1 2 (cons. 0 0 nil.) (cons. 1 1 (cons. 0 2 nil.))"
     "cons. 2 0 (cons. 1 1 (cons. 0 2 nil.))" "Vec ℕ 3";
@@ -147,10 +147,10 @@ let () =
     "x y ↦ [ zero. ↦ ()
             | suc. p ↦ encode p.0 p.1 p.2 ]";
   def "decode" "(x y : ℕ) → code x y → Id ℕ x y"
-    "[ zero. ↦ [ zero. ↦ _ ↦ zero.
-                | suc. _ ↦ [ ] ]
-     | suc. x ↦ [ zero. ↦ [ ]
-                 | suc. y ↦ c ↦ suc. (decode x y c) ] ]";
+    "x y c |-> [ x | zero. ↦ [ y | zero. ↦ zero.
+                | suc. _ ↦ [ c | ] ]
+     | suc. x ↦ [ y | zero. ↦ [ c | ]
+                 | suc. y ↦ suc. (decode x y c) ] ]";
   def "encode_decode" "(x y : ℕ) (c : code x y) → Id (code x y) (encode x y (decode x y c)) c"
     "[ zero. ↦ [ zero. ↦ _ ↦ ()
                 | suc. _ ↦ [ ] ]
@@ -180,4 +180,8 @@ let () =
   equal_at "onetwo .0" "1" "ℕ";
   equal_at "onetwo .1 .0" "2" "ℕ";
   equal_at "onetwo .1 .1" "()" "Covec ℕ 0";
+  def "coconcat" "(A:Type) (m n : ℕ) → Covec A m → Covec A n → Covec A (lplus m n)"
+    "A m n v w ↦ [ m
+    | zero. ↦ w
+    | suc. m ↦ (v .0 , coconcat A m n (v .1) w) ]";
   ()

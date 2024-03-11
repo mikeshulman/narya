@@ -138,6 +138,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
                   readback_val sctx (apply_binder_term (BindCube.find cods fa) sargs));
             } )
   | Neu { head; args; alignment = _ } ->
+      (* TODO: I would like to be able to read back a lawful or chaotic neutral and retain the corresponding information.  For (fully defined) constants that doesn't matter since when re-evaluating the constant definition is again present, but it would be useful to also be able to have chaotic or lawful *variables* somehow.  For instance, a local "let rec" could bind a variable to a case tree, leading to chaotic or lawful applications of that variable, and then how do we read those back?  Or, while typechecking a codata, it would be useful to be able to set the type of the self variable locally to a temporary lawful containing the typechecked previous fields, but this might get read back and re-evaluated in the process of checking a match inside a later field, so we'd need to deal with it somehow. *)
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
           Term.Act

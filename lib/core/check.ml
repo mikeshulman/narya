@@ -65,7 +65,7 @@ let spine :
     | _ -> (tm, locs, args) in
   spine tm [] []
 
-(* Check a term or case tree.  The default is to check a term; the optional argument switches modes to checking a case tree. *)
+(* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential). *)
 let rec check :
     type a b s. s energy -> (a, b) Ctx.t -> a check located -> kinetic value -> (b, s) term =
  fun energy ctx tm ty ->

@@ -224,6 +224,7 @@ module Ordered = struct
     Ext
       ( env ctx,
         CubeOf.mmap
+          (* We wrap the value in a Lazy because it might be Unknown or Delayed, but we don't want an error reported unless such a value is actually *used*. *)
           { map = (fun _ [ x ] -> CubeOf.singleton (Lazy (lazy (Binding.value x).tm))) }
           [ v ] )
 

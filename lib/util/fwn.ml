@@ -38,6 +38,10 @@ type (_, _, _) fplus =
   | Zero : (N.zero, 'a, 'a) fplus
   | Suc : ('a, 'b suc, 'ab) fplus -> ('a N.suc, 'b, 'ab) fplus
 
+let rec fplus_left : type a b ab. (a, b, ab) fplus -> a N.t = function
+  | Zero -> N.zero
+  | Suc ab -> N.suc (fplus_left ab)
+
 let rec fplus_uniq : type a b ab ab'. (a, b, ab) fplus -> (a, b, ab') fplus -> (ab, ab') Monoid.eq =
  fun ab ab' ->
   match (ab, ab') with

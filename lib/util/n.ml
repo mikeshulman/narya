@@ -158,6 +158,29 @@ let rec index_plus : type m n mn. m index -> (m, n, mn) plus -> mn index =
   | Zero -> i
   | Suc mn -> Pop (index_plus i mn)
 
+(* Lift an index to a context extended on the right by one element, keeping the same numerical De Bruijn index.  *)
+let rec suc_index : type m. m index -> m suc index = function
+  | Top -> Top
+  | Pop i -> Pop (suc_index i)
+
+(* Lift an index to a context extended on the right, keeping the same numerical De Bruijn index.  Although computationally this is a no-op, unfortunately the best intrinsically well-typed implementation I've found is O(n^2). *)
+let rec lift_index : type m n mn. (m, n, mn) plus -> m index -> mn index =
+ fun mn i ->
+  match i with
+  | Top ->
+      let (Suc _) = plus_suc mn in
+      Top
+  | Pop i ->
+      let (Suc mn) = plus_suc mn in
+      Pop (lift_index mn i)
+
+(* Alternative implementation of lift_index, also O(n^2): *)
+let rec _lift_index : type m n mn. (m, n, mn) plus -> m index -> mn index =
+ fun mn i ->
+  match mn with
+  | Zero -> i
+  | Suc mn -> suc_index (_lift_index mn i)
+
 (* The mth index from the right of m+n+1. *)
 let rec switch_index : type m n mn. m t -> (m, n suc, mn) plus -> mn index =
  fun (Nat m) mn ->
@@ -510,3 +533,96 @@ let compare_zero : type a. a t -> a compare_zero = function
   | Nat Zero -> Zero
   | Nat (Suc a) -> Pos (Pos (Nat a))
 
+(* ******************** Permutations ******************** *)
+
+(* A permutation is either the identity, or obtained from a smaller permutation by inserting the last element of the domain at some index of the codomain. *)
+type (_, _) perm =
+  | Id : ('a, 'a) perm
+  | Insert : ('a, 'b) perm * 'b suc index -> ('a suc, 'b suc) perm
+
+(* Since our type-level naturals are skeletal, the domain and codomain of a permutation actually have to be equal.  But we never use this, because keeping them as distinct type variables provides better bug-catching type-checking, e.g. it prevents us from forgetting to invert a permutation when necessary. *)
+let rec _perm_eq : type a b. (a, b) perm -> (a, b) Monoid.eq = function
+  | Id -> Eq
+  | Insert (p, _) ->
+      let Eq = _perm_eq p in
+      Eq
+
+(* There is some redundancy in the above presentation of permutations: Insert (Id, Top) is the same permutation as Id of the successor.  We could probably set up the data structures to exclude that possibility statically, but for now we are content to provide a "smart constructor" version of Insert that refuses to create Insert (Id, Top), returning Id instead.  (The latter is preferred for efficiency reasons, because when computing with a permutation we can sometimes short-circuit the rest of the computation if we know the rest of the permutation is an identity.)  *)
+let insert : type a b. (a, b) perm -> b suc index -> (a suc, b suc) perm =
+ fun p i ->
+  match (p, i) with
+  | Id, Top -> Id
+  | _ -> Insert (p, i)
+
+(* Insert a sequence of 'c' elements into a permutation at the same position, in order. *)
+let rec insert_plus :
+    type a b c ac bc.
+    (a, b) perm -> b suc index -> (a, c, ac) plus -> (b, c, bc) plus -> (ac, bc) perm =
+ fun p i ac bc ->
+  match (ac, bc) with
+  | Zero, Zero -> p
+  | Suc ac, Suc bc -> insert (insert_plus p i ac bc) (lift_index (suc_plus_eq_suc bc) i)
+
+(* A permutation can be applied to an index in its domain to produce an index in its codomain. *)
+let rec perm_apply : type a b. (a, b) perm -> a index -> b index =
+ fun p i ->
+  match (p, i) with
+  | Id, _ -> i
+  | Insert (_, j), Top -> j
+  | Insert (p, j), Pop i -> fst (swap_indices j (perm_apply p i))
+
+(* A permutation can be extended by the identity on the right. *)
+let rec perm_plus :
+    type a b c ac bc. (a, b) perm -> (a, c, ac) plus -> (b, c, bc) plus -> (ac, bc) perm =
+ fun p ac bc ->
+  match (ac, bc) with
+  | Zero, Zero -> p
+  | Suc ac, Suc bc -> insert (perm_plus p ac bc) Top
+
+(* The identity permutation.  (With our current implementation this is just a constructor.) *)
+let id_perm : type a. a t -> (a, a) perm = fun _ -> Id
+
+(* To invert permutations, we first define the dual of "insert" that inserts the last element of the codomain into the domain. *)
+
+let rec coinsert : type a b. (a, b) perm -> a suc index -> (a suc, b suc) perm =
+ fun p i ->
+  match i with
+  | Top -> insert p Top
+  | Pop i -> (
+      match p with
+      | Insert (p, j) -> insert (coinsert p i) (Pop j)
+      | Id -> (
+          match i with
+          | Top -> insert (coinsert Id i) (Pop Top)
+          | Pop _ -> insert (coinsert Id i) (Pop Top)))
+
+let rec perm_inv : type a b. (a, b) perm -> (b, a) perm = function
+  | Id -> Id
+  | Insert (p, i) -> coinsert (perm_inv p) i
+
+(* Similarly to degeneracies, the "residual" of permutation at an element of its domain is the image of that element together with the permutation obtained by removing that element from the domain and its image from the codomain. *)
+type (_, _) perm_residual =
+  | Residual : ('a, 'b) perm * 'b suc index -> ('a suc, 'b suc) perm_residual
+
+let rec perm_residual : type a b. (a, b) perm -> a index -> (a, b) perm_residual =
+ fun s k ->
+  match (s, k) with
+  | Insert (s, i), Top -> Residual (s, i)
+  | Id, Top -> Residual (Id, Top)
+  | Insert (s, i), Pop k ->
+      let (Residual (s, j)) = perm_residual s k in
+      let i, j = swap_indices i j in
+      Residual (insert s j, i)
+  | Id, Pop k ->
+      let (Residual (s, j)) = perm_residual Id k in
+      let i, j = swap_indices Top j in
+      Residual (insert s j, i)
+
+(* Using residuals, we can define composition of permutations. *)
+let rec comp_perm : type a b c. (a, b) perm -> (b, c) perm -> (a, c) perm =
+ fun a b ->
+  match a with
+  | Id -> b
+  | Insert (s, k) ->
+      let (Residual (t, i)) = perm_residual b k in
+      insert (comp_perm s t) i

@@ -510,27 +510,3 @@ let compare_zero : type a. a t -> a compare_zero = function
   | Nat Zero -> Zero
   | Nat (Suc a) -> Pos (Pos (Nat a))
 
-(* Subsets *)
-
-(* Possibly this is not actually used. *)
-
-type (_, _) subset =
-  | Zero : (zero, zero) subset
-  | Omit : ('a, 'b) subset -> ('a, 'b suc) subset
-  | Take : ('a, 'b) subset -> ('a suc, 'b suc) subset
-
-let rec improper_subset : type n. n t -> (n, n) subset = function
-  | Nat Zero -> Zero
-  | Nat (Suc n) -> Take (improper_subset (Nat n))
-
-let rec index_in : type a b. (a, b) subset -> a index -> b index =
- fun sub ix ->
-  match sub with
-  | Zero -> (
-      match ix with
-      | _ -> .)
-  | Omit sub -> Pop (index_in sub ix)
-  | Take sub -> (
-      match ix with
-      | Top -> Top
-      | Pop ix -> Pop (index_in sub ix))

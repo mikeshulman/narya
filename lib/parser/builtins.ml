@@ -691,7 +691,7 @@ let rec mtch_branches end_ok =
       term =
         Some
           (TokMap.singleton Mapsto
-             (terms [ (Op "|", Lazy (lazy (mtch_branches true))); (RBracket, Done_closed mtch) ]));
+             (terms [ (Op "|", Lazy (lazy (mtch_branches false))); (RBracket, Done_closed mtch) ]));
     }
 
 let () =
@@ -711,7 +711,7 @@ let () =
                         ( Mapsto,
                           terms
                             [
-                              (Op "|", Lazy (lazy (mtch_branches true)));
+                              (Op "|", Lazy (lazy (mtch_branches false)));
                               (RBracket, Done_closed mtch);
                             ] );
                       ]);

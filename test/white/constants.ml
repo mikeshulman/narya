@@ -88,7 +88,7 @@ let () =
     "A m n xs ys ↦ [ xs
     | nil.         ↦ ys
     | cons. k z zs ↦ cons. (lplus k n) z (vappend A k n zs ys)
-    | ]";
+    ]";
   equal_at "vappend ℕ 1 2 (cons. 0 0 nil.) (cons. 1 1 (cons. 0 2 nil.))"
     "cons. 2 0 (cons. 1 1 (cons. 0 2 nil.))" "Vec ℕ 3";
 

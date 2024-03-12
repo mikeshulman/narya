@@ -158,7 +158,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
   | _ -> fail
 
 (* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)
-and equal_head : int -> head -> head -> unit option =
+and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
  fun _ x y ->
   match (x, y) with
   | Var { level = l1; deg = d1 }, Var { level = l2; deg = d2 } ->

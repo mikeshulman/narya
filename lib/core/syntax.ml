@@ -268,9 +268,12 @@ module rec Value : sig
 
   module BindCube : module type of Cube (BindFam)
 
-  type head =
-    | Var : { level : level; deg : ('m, 'n) deg } -> head
-    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
+  type var
+  type const
+
+  type 'h head =
+    | Var : { level : level; deg : ('m, 'n) deg } -> var head
+    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
@@ -283,12 +286,15 @@ module rec Value : sig
       }
         -> ('mn, 's) binder
 
-  and alignment = True | Chaotic of potential value | Lawful of canonical
+  and _ alignment =
+    | True : 'h alignment
+    | Chaotic : potential value -> const alignment
+    | Lawful : canonical -> const alignment
 
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
+    | Neu : { head : 'h head; args : app Bwd.t; alignment : 'h alignment } -> uninst
 
   and _ value =
     | Uninst : uninst * kinetic value Lazy.t -> kinetic value
@@ -350,12 +356,15 @@ end = struct
 
   module BindCube = Cube (BindFam)
 
-  (* The head of an elimination spine is either a variable or a constant. *)
-  type head =
+  type var = private Dummy_var
+  type const = private Dummy_const
+
+  (* The head of an elimination spine is either a variable or a constant.  We define this type to be parametrized over a pair of dummy indices indicating which it is, so that most of the time we can treat them equally by parametrizing over the index, but in some places (e.g. alignment) we can specify that only one kind of head is allowed. *)
+  type _ head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
-    | Var : { level : level; deg : ('m, 'n) deg } -> head
+    | Var : { level : level; deg : ('m, 'n) deg } -> var head
     (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial. *)
-    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
+    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =
@@ -377,16 +386,20 @@ end = struct
   (* A neutral has an "alignment".
      - A True neutral is an ordinary neutral that will never reduce further, such as an application of a variable or axiom, or of a defined constant with a neutral argument in a matching position.
      - A Chaotic neutral has a head defined by a case tree but isn't fully applied, so it might reduce further if it is applied to further arguments or field projections.  Thus it stores a value that should be either an abstraction or a struct, but does not test as equal to that value.
-     - A Lawful neutral has a head defined by a case tree that will doesn't reduce, but if it is applied to enough arguments it obtains a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.). *)
-  and alignment = True | Chaotic of potential value | Lawful of canonical
+     - A Lawful neutral has a head defined by a case tree that will doesn't reduce, but if it is applied to enough arguments it obtains a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.).
+     Alignments are parametrized over the class of head for a neutral that can have such an alignment.  Only constant-headed neutrals can have chaotic or lawful alignments; variables are always true neutral.  This is because alignments are ignored by readback, and so the information they contain must be reconstructible from the read-back term, which is possible for the case tree that is stored with a constant in the global environment, but not for a variable. *)
+  and _ alignment =
+    | True : 'h alignment
+    | Chaotic : potential value -> const alignment
+    | Lawful : canonical -> const alignment
 
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also has an alignment.  *)
-    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
+    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also has an alignment, which must be an allowed alignment for its class of head. *)
+    | Neu : { head : 'h head; args : app Bwd.t; alignment : 'h alignment } -> uninst
 
   and _ value =
     (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)

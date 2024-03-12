@@ -75,9 +75,8 @@ let install_notations () =
 let install () =
   install_notations ();
   Scope.set [ "Σ" ] sigma;
-  Hashtbl.add Global.types sigma
-    (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
-  Hashtbl.add Global.constants sigma
+  Global.add sigma
+    (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)))
     (Defined
        (Lam
           ( D.zero,

@@ -8,9 +8,8 @@ let pisym = Constant.make ()
 
 let install () =
   Scope.set [ "Π" ] pisym;
-  Hashtbl.add Global.types pisym
-    (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)));
-  Hashtbl.add Global.constants pisym
+  Global.add pisym
+    (pi None (UU D.zero) (pi None (pi None (Var (Top (id_sface D.zero))) (UU D.zero)) (UU D.zero)))
     (Defined
        (Lam
           ( D.zero,

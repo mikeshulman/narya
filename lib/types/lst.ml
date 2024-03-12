@@ -10,8 +10,7 @@ let cons = Constr.intern "cons"
 
 let install () =
   let list = Scope.define [ "List" ] in
-  Hashtbl.add Global.types list (pi None (UU D.zero) (UU D.zero));
-  Hashtbl.add Global.constants list
+  Global.add list (pi None (UU D.zero) (UU D.zero))
     (Defined
        (Lam
           ( D.zero,

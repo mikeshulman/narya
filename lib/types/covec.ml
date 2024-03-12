@@ -13,8 +13,8 @@ let cdr = Field.intern "cdr"
 let install () =
   Nat.install ();
   let covec = Scope.define [ "Covec" ] in
-  Hashtbl.add Global.types covec (pi None (UU D.zero) (pi None (Const nn) (UU D.zero)));
-  Hashtbl.add Global.constants covec
+  Global.add covec
+    (pi None (UU D.zero) (pi None (Const nn) (UU D.zero)))
     (Defined
        (Lam
           ( D.zero,

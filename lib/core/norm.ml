@@ -44,7 +44,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
   | Const name -> (
       let dim = dim_env env in
       let cty =
-        match Hashtbl.find_opt Global.types name with
+        match Global.find_type_opt name with
         | Some cty -> cty
         | None -> fatal (Undefined_constant (PConstant name)) in
       (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
@@ -64,7 +64,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                       | _ -> fatal (Anomaly "eval of lower-dim constant not neutral/canonical"));
                 })) in
       let head = Const { name; ins = zero_ins dim } in
-      match Hashtbl.find_opt Global.constants name with
+      match Global.find_definition_opt name with
       | Some (Defined tree) -> (
           match eval (Emp dim) tree with
           | Realize x -> Val x

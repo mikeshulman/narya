@@ -14,8 +14,8 @@ let cons = Constr.intern "cons"
 let install () =
   Nat.install ();
   let vec = Scope.define [ "Vec" ] in
-  Hashtbl.add Global.types vec (pi None (UU D.zero) (pi None (Const nn) (UU D.zero)));
-  Hashtbl.add Global.constants vec
+  Global.add vec
+    (pi None (UU D.zero) (pi None (Const nn) (UU D.zero)))
     (Defined
        (Lam
           ( D.zero,

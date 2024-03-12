@@ -11,8 +11,7 @@ let tail = Field.intern "tail"
 
 let install () =
   let stream = Scope.define [ "Stream" ] in
-  Hashtbl.add Global.types stream (pi None (UU D.zero) (UU D.zero));
-  Hashtbl.add Global.constants stream
+  Global.add stream (pi None (UU D.zero) (UU D.zero))
     (Defined
        (Lam
           ( D.zero,

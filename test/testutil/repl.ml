@@ -44,8 +44,7 @@ let assume (name : string) (ty : string) : unit =
       @@ fun () ->
       let rty = parse_term ty in
       let cty = check_type rty in
-      Hashtbl.add Global.types const cty;
-      Hashtbl.add Global.constants const Axiom
+      Global.add const cty Axiom
   | _ -> fatal (Invalid_constant_name name)
 
 let def (name : string) (ty : string) (tm : string) : unit =
@@ -65,16 +64,9 @@ let def (name : string) (ty : string) (tm : string) : unit =
       let rtm = parse_term tm in
       let cty = check_type rty in
       let ety = eval_term (Emp D.zero) cty in
-      Hashtbl.add Global.types const cty;
-      Hashtbl.add Global.constants const Axiom;
-      Reporter.try_with ~fatal:(fun d ->
-          Hashtbl.remove Global.types const;
-          Hashtbl.remove Global.constants const;
-          Reporter.fatal_diagnostic d)
-      @@ fun () ->
       Reporter.trace "when checking case tree" @@ fun () ->
-      let tree = check Potential Ctx.empty rtm ety in
-      Hashtbl.add Global.constants const (Defined tree)
+      let tree = Global.run_with const cty Axiom @@ fun () -> check Potential Ctx.empty rtm ety in
+      Global.add const cty (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
 
 (* For other commands, we piggyback on ordinary parsing.  *)
@@ -82,9 +74,7 @@ let cmd (str : string) : unit = parse_and_execute_command str
 
 let undef (name : string) : unit =
   match Scope.lookup [ name ] with
-  | Some const ->
-      Hashtbl.remove Global.types const;
-      Hashtbl.remove Global.constants const
+  | Some const -> Global.remove const
   | None -> raise (Failure ("Can't undefine undefined constant " ^ name))
 
 let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
@@ -134,7 +124,8 @@ let rec run f =
       raise (Failure "Fatal error"))
   @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
-  Builtins.run @@ fun () -> Scope.run f
+  Builtins.run @@ fun () ->
+  Global.run_empty @@ fun () -> Scope.run f
 
 (* Some operations on natural numbers and vectors, for white-box testing. *)
 

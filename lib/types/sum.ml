@@ -10,8 +10,8 @@ let inr = Constr.intern "inr"
 
 let install () =
   let sum = Scope.define [ "sum" ] in
-  Hashtbl.add Global.types sum (pi None (UU D.zero) (pi None (UU D.zero) (UU D.zero)));
-  Hashtbl.add Global.constants sum
+  Global.add sum
+    (pi None (UU D.zero) (pi None (UU D.zero) (UU D.zero)))
     (Defined
        (Lam
           ( D.zero,

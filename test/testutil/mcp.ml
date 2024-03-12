@@ -141,4 +141,5 @@ let rec run f =
       raise (Failure "Fatal error"))
   @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
-  Builtins.run @@ fun () -> Scope.run f
+  Builtins.run @@ fun () ->
+  Global.run_empty @@ fun () -> Scope.run f

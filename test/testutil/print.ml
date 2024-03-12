@@ -24,4 +24,5 @@ let run f =
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
-  Scope.run @@ fun () -> Builtins.run f
+  Builtins.run @@ fun () ->
+  Global.run_empty @@ fun () -> Scope.run f

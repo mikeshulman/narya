@@ -10,8 +10,7 @@ let snoc = Constr.intern "snoc"
 
 let install () =
   let bwd = Scope.define [ "Bwd" ] in
-  Hashtbl.add Global.types bwd (pi None (UU D.zero) (UU D.zero));
-  Hashtbl.add Global.constants bwd
+  Global.add bwd (pi None (UU D.zero) (UU D.zero))
     (Defined
        (Lam
           ( D.zero,

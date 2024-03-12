@@ -39,7 +39,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
               | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
           (* Also if it's a partial application of a constant that's defined as a case tree, we pick up variables from the case tree. *)
           | Uninst (Neu { head = Const { name; _ }; args; alignment = _ }, _) -> (
-              match Hashtbl.find_opt Global.constants name with
+              match Global.find_definition_opt name with
               | Some (Defined tree) -> (
                   match nth_var tree args with
                   | Some (Any (`Cube x)) -> Term.Lam (k, `Cube x, body)

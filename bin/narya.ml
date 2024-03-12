@@ -134,6 +134,7 @@ let interact () =
           Lwt.fail exn)
 
 let () =
+  Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run

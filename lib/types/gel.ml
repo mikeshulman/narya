@@ -11,7 +11,7 @@ let gel = Constant.make ()
 
 let install () =
   Scope.set [ "Gel" ] gel;
-  Hashtbl.add Global.types gel
+  Global.add gel
     (pi None (UU D.zero)
        (pi None (UU D.zero)
           (pi None
@@ -22,8 +22,7 @@ let install () =
                 ( Act (UU D.zero, refl),
                   TubeOf.pair
                     (Var (Pop (Pop (Top (id_sface D.zero)))))
-                    (Var (Pop (Top (id_sface D.zero)))) )))));
-  Hashtbl.add Global.constants gel
+                    (Var (Pop (Top (id_sface D.zero)))) )))))
     (Defined
        (Lam
           ( D.zero,

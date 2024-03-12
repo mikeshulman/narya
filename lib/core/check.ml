@@ -118,8 +118,11 @@ let rec check :
              | Eta, Eta | Noeta, Noeta -> true
              | _ -> false ->
           let () =
-            is_id_perm (perm_of_ins ins) <|> Checking_tuple_at_degenerated_record (PConstant name)
-          in
+            is_id_perm (perm_of_ins ins)
+            <|>
+            match tmeta with
+            | Eta -> Checking_tuple_at_degenerated_record (PConstant name)
+            | Noeta -> Comatching_at_degenerated_codata (PConstant name) in
           let dim = cod_left_ins ins in
           (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
           let etms = ref Abwd.empty in

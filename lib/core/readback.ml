@@ -76,7 +76,10 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
   | Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ } -> (
       match tm with
       | Constr (xconstr, xn, xargs) -> (
-          let (Dataconstr { env; args = argtys; indices = _ }) = Constr.Map.find xconstr constrs in
+          let (Dataconstr { env; args = argtys; indices = _ }) =
+            match Constr.Map.find_opt xconstr constrs with
+            | Some x -> x
+            | None -> fatal (Anomaly "constr not found in readback") in
           match (compare xn (TubeOf.inst tyargs), compare (TubeOf.inst tyargs) (dim_env env)) with
           | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
           | _, Neq ->

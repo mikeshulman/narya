@@ -133,7 +133,10 @@ let rec check :
               Bwd.map
                 (fun (fld, _) ->
                   match fld with
-                  | Some fld -> (fld, Abwd.find fld ctms)
+                  | Some fld -> (
+                      match Abwd.find_opt fld ctms with
+                      | Some x -> (fld, x)
+                      | None -> fatal (Anomaly "missing field in check"))
                   | None -> fatal (Extra_field_in_tuple None))
                 !labeled_tms )
       | _ ->

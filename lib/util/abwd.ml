@@ -15,7 +15,6 @@ let mapi (f : 'k -> 'a -> 'b) (map : ('k, 'a) t) : ('k, 'b) t =
 let find_opt (x : 'k) (map : ('k, 'a) t) : 'a option =
   Option.map snd (Bwd.find_opt (fun (y, _) -> x = y) map)
 
-let find (x : 'k) (map : ('k, 'a) t) : 'a = snd (Bwd.find (fun (y, _) -> x = y) map)
 let add (x : 'k) (a : 'a) (map : ('k, 'a) t) = Snoc (map, (x, a))
 
 let fold (f : 'k -> 'a -> 'acc -> 'acc) (map : ('k, 'a) t) (start : 'acc) =

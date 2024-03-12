@@ -52,8 +52,16 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
           let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
           BwdM.miterM
             (fun [ (fld, _) ] ->
-              let (Val xtm) = Lazy.force (fst (Abwd.find fld xfld)) in
-              let (Val ytm) = Lazy.force (fst (Abwd.find fld yfld)) in
+              let xv =
+                match Abwd.find_opt fld xfld with
+                | Some xv -> xv
+                | None -> fatal (Anomaly "missing field in equality-check") in
+              let (Val xtm) = Lazy.force (fst xv) in
+              let yv =
+                match Abwd.find_opt fld yfld with
+                | Some yv -> yv
+                | None -> fatal (Anomaly "missing field in equality-check") in
+              let (Val ytm) = Lazy.force (fst yv) in
               equal_at ctx xtm ytm (tyof_field x ty fld))
             [ fields ]
       | Struct _, _ | _, Struct _ -> fail
@@ -62,7 +70,10 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
   | Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ } -> (
       match (x, y) with
       | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
-          let (Dataconstr { env; args = argtys; indices = _ }) = Constr.Map.find xconstr constrs in
+          let (Dataconstr { env; args = argtys; indices = _ }) =
+            match Constr.Map.find_opt xconstr constrs with
+            | Some x -> x
+            | None -> fatal (Anomaly "constr not found in equality-check") in
           let* () = guard (xconstr = yconstr) in
           match
             ( compare xn yn,

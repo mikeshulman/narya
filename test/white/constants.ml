@@ -170,6 +170,9 @@ let () =
 
   (* Matching inside a tuple *)
   def "mtchtup" "ℕ → ((X : Type) × (X → X))" "n ↦ ( match n [ zero. ↦ ℕ | suc. _ ↦ ℕ ], x ↦ x )";
+  def "mtchtup2" "ℕ → (x:ℕ) × Id ℕ x 0"
+    "n ↦ ( fst := match n [ zero. |-> 0 | suc. _ |-> 0 ],
+            snd := match n [ zero. |-> refl (0:Nat) | suc. _ |-> refl (0:Nat) ])";
 
   (* Covectors (canonical types defined inside a match) *)
   Types.Covec.install ();

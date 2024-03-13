@@ -36,3 +36,7 @@ let run_empty f = State.run ~init:empty f
 let run_with c ty df f =
   let d = State.get () in
   State.run ~init:(add_to c ty df d) f
+
+let run_with_definition c df f =
+  let d = State.get () in
+  State.run ~init:{ types = d.types; definitions = d.definitions |> ConstantMap.add c df } f

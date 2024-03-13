@@ -449,6 +449,7 @@ end = struct
         eta : potential eta;
         env : ('m, 'a) env;
         ins : ('mn, 'm, 'n) insertion;
+        (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
         fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
       }
         -> canonical

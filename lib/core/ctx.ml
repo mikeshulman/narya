@@ -1,5 +1,6 @@
 (* This module should not be opened, but used qualified *)
 
+open Bwd
 open Util
 open Tlist
 open Tbwd
@@ -82,6 +83,11 @@ let raw_entry : type f n. (f, n) entry -> f N.t = function
 let _dim_entry : type f n. (f, n) entry -> n D.t = function
   | Vis (_, x) | Invis x | Split (_, _, x) -> CubeOf.dim x
 
+let app_entry : type f n. (f, n) entry -> app = function
+  | Vis (_, b) | Invis b | Split (_, _, b) ->
+      let n = CubeOf.dim b in
+      App (Arg (CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ b ]), zero_ins n)
+
 module Ordered = struct
   type (_, _) t =
     | Emp : (N.zero, emp) t
@@ -117,6 +123,10 @@ module Ordered = struct
     | Snoc (ctx, _, _) -> length ctx + 1
 
   let empty : (N.zero, emp) t = Emp
+
+  let rec apps : type a b. (a, b) t -> app Bwd.t = function
+    | Emp -> Emp
+    | Snoc (ctx, e, _) -> Snoc (apps ctx, app_entry e)
 
   (* When we look up a visible variable in a context, we find the level (if any), the value, and the corresponding possibly-invisible variable. *)
   let rec lookup : type a b n. (a, b) t -> a Raw.index -> level option * normal * b index =
@@ -522,11 +532,13 @@ module Ordered = struct
             | Nil | None -> None))
 
   type (_, _, _, _, _, _) go_bind_some =
-    | Go_bind_some :
-        ('cf, 'k) Tbwd.flatten
-        * ('af, 'bf, 'cf) Tbwd.append_permute
-        * ('a, 'b, 'c) Tbwd.append_permute
-        * ('k, 'c) t
+    | Go_bind_some : {
+        raw_flat : ('cf, 'k) Tbwd.flatten;
+        raw_perm : ('af, 'bf, 'cf) Tbwd.append_permute;
+        checked_perm : ('a, 'b, 'c) Tbwd.append_permute;
+        newctx : ('k, 'c) t;
+        oldctx : ('k, 'c) t;
+      }
         -> ('i, 'j, 'a, 'af, 'b, 'bf) go_bind_some
     | None : ('i, 'j, 'a, 'af, 'b, 'bf) go_bind_some
 
@@ -546,32 +558,48 @@ module Ordered = struct
         let oldctx = Snoc (oldctx, oldentry, faces) in
         let newctx = Snoc (newctx, newentry, faces) in
         match go_bind_some binder f ~oldctx ~newctx (Flat_snoc (af, faces)) rest with
-        | Go_bind_some (cf, abcf, abc, ctx) ->
-            Go_bind_some (cf, Ap_insert (fins, abcf), Ap_insert (ins, abc), ctx)
+        | Go_bind_some { raw_flat; raw_perm; checked_perm; oldctx; newctx } ->
+            Go_bind_some
+              {
+                raw_flat;
+                raw_perm = Ap_insert (fins, raw_perm);
+                checked_perm = Ap_insert (ins, checked_perm);
+                oldctx;
+                newctx;
+              }
         | None -> None)
-    | Nil -> Go_bind_some (af, Ap_nil, Ap_nil, newctx)
+    | Nil ->
+        Go_bind_some { raw_flat = af; raw_perm = Ap_nil; checked_perm = Ap_nil; oldctx; newctx }
     | None -> None
 
   type (_, _) bind_some =
-    | Bind_some : ('a, 'i) N.perm * ('c, 'b) Tbwd.permute * ('i, 'c) t -> ('a, 'b) bind_some
+    | Bind_some : {
+        raw_perm : ('a, 'i) N.perm;
+        checked_perm : ('c, 'b) Tbwd.permute;
+        oldctx : ('i, 'c) t;
+        newctx : ('i, 'c) t;
+      }
+        -> ('a, 'b) bind_some
     | None : ('a, 'b) bind_some
 
   let bind_some :
       type a b. (level -> normal option) -> eval_readback -> (a, b) t -> (a, b) bind_some =
    fun binder f ctx ->
-    let (To_tel (ij, bc, tel)) = to_tel ctx in
+    let (To_tel (bplus_raw, checked_append, tel)) = to_tel ctx in
     let telf = tel_flatten tel in
-    let af : (emp, N.zero) Tbwd.flatten = Flat_emp in
-    match go_bind_some binder f ~oldctx:empty ~newctx:empty af tel with
-    | Go_bind_some (cf, abcf, abc, newctx) ->
-        let (Append afbf) = Tbwd.append (Tlist.flatten_in telf) in
-        let (Bplus_flatten_append (df, ij')) = Tbwd.bplus_flatten_append af telf afbf in
-        let Eq = Fwn.bplus_uniq ij ij' in
+    match go_bind_some binder f ~oldctx:empty ~newctx:empty Flat_emp tel with
+    | Go_bind_some { raw_flat; raw_perm; checked_perm; oldctx; newctx } ->
+        let (Append raw_append) = Tbwd.append (Tlist.flatten_in telf) in
+        let (Bplus_flatten_append (new_flat, bplus_raw')) =
+          Tbwd.bplus_flatten_append Flat_emp telf raw_append in
+        let Eq = Fwn.bplus_uniq bplus_raw bplus_raw' in
         (* The N.perm_inv here is absolutely essential.  Our choice to index N.perm by a separate domain and codomain, even though in concrete cases the two are always equal, means that if we leave it off, the typechecker complains.  (We could convince the typechecker to let us leave it off by destructing "perm_eq", but that would be stupid.) *)
-        Bind_some
-          ( N.perm_inv (Tbwd.permute_flatten cf df (Tbwd.append_append_permute abcf afbf)),
-            Tbwd.append_append_permute abc bc,
-            newctx )
+        let raw_perm =
+          N.perm_inv
+            (Tbwd.permute_flatten raw_flat new_flat
+               (Tbwd.append_append_permute raw_perm raw_append)) in
+        let checked_perm = Tbwd.append_append_permute checked_perm checked_append in
+        Bind_some { raw_perm; checked_perm; oldctx; newctx }
     | None -> None
 end
 
@@ -589,6 +617,7 @@ let split (Permute (p, ctx)) af pf name vars =
 
 let length (Permute (_, ctx)) = Ordered.length ctx
 let empty = Permute (N.id_perm N.zero, Ordered.empty)
+let apps (Permute (_, ctx)) = Ordered.apps ctx
 
 (* Lookup is the only place where the permutations are used nontrivially: we apply the permutation to the raw index before looking it up. *)
 let lookup (Permute (p, ctx)) i = Ordered.lookup ctx (N.perm_apply p (fst i), snd i)
@@ -606,7 +635,12 @@ type eval_readback = {
 
 (* Note the different return type of this bind_some and of Ordered.bind_some.  The latter returns a new ordered context and two permutations, one for the raw indices and one for the checked indices.  This one incorporates the raw permutation into the permutation stored in the context and returns only the checked permutation to the caller. *)
 type (_, _) bind_some =
-  | Bind_some : ('c, 'b) Tbwd.permute * ('a, 'c) t -> ('a, 'b) bind_some
+  | Bind_some : {
+      checked_perm : ('c, 'b) Tbwd.permute;
+      oldctx : ('a, 'c) t;
+      newctx : ('a, 'c) t;
+    }
+      -> ('a, 'b) bind_some
   | None : ('a, 'b) bind_some
 
 let bind_some (f : eval_readback) g (Permute (p, ctx)) =
@@ -625,7 +659,13 @@ let bind_some (f : eval_readback) g (Permute (p, ctx)) =
       }
       ctx
   with
-  | Bind_some (q, r, ctx) -> Bind_some (r, Permute (N.comp_perm p q, ctx))
+  | Bind_some { raw_perm; checked_perm; oldctx; newctx } ->
+      Bind_some
+        {
+          checked_perm;
+          oldctx = Permute (N.comp_perm p raw_perm, oldctx);
+          newctx = Permute (N.comp_perm p raw_perm, newctx);
+        }
   | None -> None
 
 let names (Permute (_, ctx)) = Ordered.names ctx

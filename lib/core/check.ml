@@ -11,7 +11,6 @@ open Raw
 open Dim
 open Act
 open Norm
-open Permute
 open Equal
 open Readback
 open Printable
@@ -65,168 +64,169 @@ let spine :
     | _ -> (tm, locs, args) in
   spine tm [] []
 
+(* When checking a case tree (a "potential" term), we have to retain some information about the definition being checked.  Specifically, we remember:
+   1. The name of the top-level constant being defined.
+   2. The arguments that it has been applied to so far at this point in the case tree.  These all start out as variables, but after checking matches some of them get substituted by constructor expressions.
+   3. A "hypothesizing" callback that allows us to say "if I were to return such-and-such a term from my current typechecking problem, what would the resulting definition of the top-level constant be?"  This is used when typechecking comatches and codata (and, potentially one day, matches and data as well, such as for HITs) whose later branches depend on the *values* of previous ones.  So as we typecheck the branches of such a thing, we collect a partial definition including all the branches that have been typechecked so far, and temporarily bind the constant to that value while typechecking later branches.  And in order that this is correct, whenever we pass *inside* a case tree construct (lambda, match, or comatch) we wrap the outer callback in an inner one that inserts the correct construct to the hypothesized term.  (It's tempting to think of implementing this with algebraic effects rather than an explicit callback, but I found the purely functional version easier to get correct, even if it does involve passing around more arguments.)
+
+   We parametrize this "status" datatype over the energy of the term (kinetic or potential), since only potential terms have any status to remember.  This implies that status also serves the purpose of recording which kind of term we are checking, so we don't need to pass that around separately. *)
+type (_, _) status =
+  | Kinetic : ('b, kinetic) status
+  | Potential :
+      Constant.t * app Bwd.t * (('b, potential) term -> (emp, potential) term)
+      -> ('b, potential) status
+
 (* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential). *)
 let rec check :
-    type a b s. s energy -> (a, b) Ctx.t -> a check located -> kinetic value -> (b, s) term =
- fun energy ctx tm ty ->
+    type a b s. (b, s) status -> (a, b) Ctx.t -> a check located -> kinetic value -> (b, s) term =
+ fun status ctx tm ty ->
   with_loc tm.loc @@ fun () ->
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
-  match (tm.value, energy) with
-  | Synth stm, _ -> (
+  match (tm.value, uty, status) with
+  | Synth stm, _, _ -> (
       let sval, sty = synth ctx { value = stm; loc = tm.loc } in
       let () =
         equal_val (Ctx.length ctx) sty ty
         <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty)) in
-      match energy with
-      | Potential -> (Term.Realize sval : (b, s) term)
+      match status with
+      | Potential _ -> (Term.Realize sval : (b, s) term)
       | Kinetic -> sval)
-  | Lam (x, cube, body), _ -> (
-      match uty with
-      | Pi (_, doms, cods) -> (
-          let m = CubeOf.dim doms in
-          match compare (TubeOf.inst tyargs) m with
-          | Neq -> fatal (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
-          | Eq ->
-              let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
-              (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
-              let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
-              (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
-              let output = tyof_app cods tyargs newargs in
-              let xs, cbody =
-                match cube with
-                | `Normal ->
-                    (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
-                    let (Faces dom_faces) = count_faces m in
-                    let f = faces_out dom_faces in
-                    let (Plus af) = N.plus f in
-                    let names, body = lambdas af tm in
-                    let names = vars_of_list m names in
-                    (names, check energy (Ctx.split ctx dom_faces af names newnfs) body output)
-                | `Cube ->
-                    (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
-                    (`Cube x, check energy (Ctx.vis ctx (`Cube x) newnfs) body output) in
-              Term.Lam (m, xs, cbody))
-      | _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty))))
-  | Struct (Noeta, _), Kinetic ->
+  | Lam (x, cube, body), Pi (_, doms, cods), _ -> (
+      let m = CubeOf.dim doms in
+      (* It seems that we have to perform this matching inside a helper function with a declared polymorphic type in order for its type to get specialized correctly and for it to typecheck. *)
+      let mkstatus :
+          type b n s.
+          (b, s) status ->
+          n D.t ->
+          n variables ->
+          (n, Ctx.Binding.t) CubeOf.t ->
+          ((b, n) snoc, s) status =
+       fun status m names newnfs ->
+        match status with
+        | Kinetic -> Kinetic
+        | Potential (c, args, hyp) ->
+            let xs = CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ] in
+            Potential
+              (c, Snoc (args, App (Arg xs, zero_ins m)), fun tm -> hyp (Term.Lam (m, names, tm)))
+      in
+      match compare (TubeOf.inst tyargs) m with
+      | Neq -> fatal (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
+      | Eq ->
+          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
+          (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
+          let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
+          (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
+          let output = tyof_app cods tyargs newargs in
+          let xs, cbody =
+            match cube with
+            | `Normal ->
+                (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
+                let (Faces dom_faces) = count_faces m in
+                let f = faces_out dom_faces in
+                let (Plus af) = N.plus f in
+                let names, body = lambdas af tm in
+                let names = vars_of_list m names in
+                let status = mkstatus status m names newnfs in
+                (names, check status (Ctx.split ctx dom_faces af names newnfs) body output)
+            | `Cube ->
+                let status = mkstatus status m (`Cube x) newnfs in
+                (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
+                (`Cube x, check status (Ctx.vis ctx (`Cube x) newnfs) body output) in
+          Term.Lam (m, xs, cbody))
+  | Lam _, _, _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty)))
+  | Struct (Noeta, _), _, Kinetic ->
       fatal (Unimplemented "Comatching in terms (rather than case trees)")
-  | Struct (tmeta, tms), _ -> (
-      match uty with
-      | Neu { head = Const { name; _ }; alignment = Lawful (Codata { eta; ins; fields; _ }); _ }
-      (* We don't need to name the arguments here because tyof_field, called below, uses them. *)
-        when match (eta, tmeta) with
-             | Eta, Eta | Noeta, Noeta -> true
-             | _ -> false ->
+  | ( Struct (Noeta, tms),
+      (* We don't need to name the arguments here because tyof_field, called below from check_field, uses them. *)
+      Neu
+        { head = Const { name; _ }; alignment = Lawful (Codata { eta = Noeta; ins; fields; _ }); _ },
+      Potential _ ) ->
+      let () = is_id_perm (perm_of_ins ins) <|> Comatching_at_degenerated_codata (PConstant name) in
+      check_struct status Noeta ctx tms ty ins fields
+  | ( Struct (Eta, tms),
+      Neu { head = Const { name; _ }; alignment = Lawful (Codata { eta = Eta; ins; fields; _ }); _ },
+      _ ) ->
+      let () =
+        is_id_perm (perm_of_ins ins) <|> Checking_tuple_at_degenerated_record (PConstant name) in
+      check_struct status Eta ctx tms ty ins fields
+  | Struct (Noeta, _), _, _ -> fatal (Comatching_at_noncodata (PUninst (ctx, uty)))
+  | Struct (Eta, _), _, _ -> fatal (Checking_tuple_at_nonrecord (PUninst (ctx, uty)))
+  | ( Constr ({ value = constr; loc = constr_loc }, args),
+      Neu
+        {
+          (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
+          head = Const { name; _ };
+          alignment = Lawful (Data { dim; indices = ty_indices; missing = Zero; constrs });
+          _;
+        },
+      _ ) -> (
+      (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_indices contains the *values* of the indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
+      let (Dataconstr { env; args = constr_arg_tys; indices = constr_indices }) =
+        match Constr.Map.find_opt constr constrs with
+        | Some c -> c
+        | None ->
+            with_loc constr_loc @@ fun () ->
+            fatal (No_such_constructor (`Data (PConstant name), constr)) in
+      (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
+      match compare (TubeOf.inst tyargs) dim with
+      | Neq -> fatal (Dimension_mismatch ("checking constr", dim_env env, dim))
+      | Eq -> (
+          let tyarg_args =
+            TubeOf.mmap
+              {
+                map =
+                  (fun fa [ tm ] ->
+                    match tm.tm with
+                    | Constr (tmname, n, tmargs) ->
+                        if tmname <> constr then
+                          fatal (Missing_instantiation_constructor (constr, `Constr tmname))
+                        else
+                          (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
+                          let _ = compare n (dom_tface fa) in
+                          Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) tmargs []
+                    | _ ->
+                        fatal
+                          (Missing_instantiation_constructor (constr, `Nonconstr (PNormal (ctx, tm)))));
+              }
+              [ tyargs ] in
+          (* Now we evaluate each argument *type* of the constructor at (the parameters and) the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
+          let env, newargs =
+            check_at_tel constr ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
+          (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
+          let constr_indices =
+            Bwv.map
+              (fun ix ->
+                CubeOf.build dim { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) ix) })
+              constr_indices in
+          (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, raising an anomaly in case I was wrong about that.  *)
           let () =
-            is_id_perm (perm_of_ins ins)
-            <|>
-            match tmeta with
-            | Eta -> Checking_tuple_at_degenerated_record (PConstant name)
-            | Noeta -> Comatching_at_degenerated_codata (PConstant name) in
-          let dim = cod_left_ins ins in
-          (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
-          let etms = ref Abwd.empty in
-          let labeled_tms = ref tms in
-          let ctms =
-            Abwd.mapi (fun fld _ -> check_field energy ctx ty dim tms etms labeled_tms fld) fields
-          in
-          (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
-          Term.Struct
-            ( Eta,
-              Bwd.map
-                (fun (fld, _) ->
-                  match fld with
-                  | Some fld -> (
-                      match Abwd.find_opt fld ctms with
-                      | Some x -> (fld, x)
-                      | None -> fatal (Anomaly "missing field in check"))
-                  | None -> fatal (Extra_field_in_tuple None))
-                !labeled_tms )
-      | _ ->
-          fatal
-            (match tmeta with
-            | Eta -> Checking_tuple_at_nonrecord (PUninst (ctx, uty))
-            | Noeta -> Comatching_at_noncodata (PUninst (ctx, uty))))
-  | Constr ({ value = constr; loc = constr_loc }, args), _ -> (
-      match uty with
-      | Neu
-          {
-            (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
-            head = Const { name; _ };
-            alignment = Lawful (Data { dim; indices = ty_indices; missing = Zero; constrs });
-            _;
-          } -> (
-          (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_indices contains the *values* of the indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
-          let (Dataconstr { env; args = constr_arg_tys; indices = constr_indices }) =
-            match Constr.Map.find_opt constr constrs with
-            | Some c -> c
-            | None ->
-                with_loc constr_loc @@ fun () ->
-                fatal (No_such_constructor (`Data (PConstant name), constr)) in
-          (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
-          match compare (TubeOf.inst tyargs) dim with
-          | Neq -> fatal (Dimension_mismatch ("checking constr", dim_env env, dim))
-          | Eq -> (
-              let tyarg_args =
-                TubeOf.mmap
+            Bwv.miter
+              (fun [ t1s; t2s ] ->
+                CubeOf.miter
                   {
-                    map =
-                      (fun fa [ tm ] ->
-                        match tm.tm with
-                        | Constr (tmname, n, tmargs) ->
-                            if tmname <> constr then
-                              fatal (Missing_instantiation_constructor (constr, `Constr tmname))
-                            else
-                              (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
-                              let _ = compare n (dom_tface fa) in
-                              Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) tmargs []
-                        | _ ->
-                            fatal
-                              (Missing_instantiation_constructor
-                                 (constr, `Nonconstr (PNormal (ctx, tm)))));
+                    it =
+                      (fun fa [ t1; t2 ] ->
+                        match equal_at (Ctx.length ctx) t1 t2.tm t2.ty with
+                        | Some () -> ()
+                        | None -> (
+                            match is_id_sface fa with
+                            | Some () ->
+                                fatal
+                                  (Unequal_indices
+                                     (PNormal (ctx, { tm = t1; ty = t2.ty }), PNormal (ctx, t2)))
+                            | None -> fatal (Anomaly "mismatching lower-dimensional constructors")));
                   }
-                  [ tyargs ] in
-              (* Now we evaluate each argument *type* of the constructor at (the parameters and) the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
-              let env, newargs =
-                check_at_tel constr ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
-              (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
-              let constr_indices =
-                Bwv.map
-                  (fun ix ->
-                    CubeOf.build dim
-                      { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) ix) })
-                  constr_indices in
-              (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, raising an anomaly in case I was wrong about that.  *)
-              let () =
-                Bwv.miter
-                  (fun [ t1s; t2s ] ->
-                    CubeOf.miter
-                      {
-                        it =
-                          (fun fa [ t1; t2 ] ->
-                            match equal_at (Ctx.length ctx) t1 t2.tm t2.ty with
-                            | Some () -> ()
-                            | None -> (
-                                match is_id_sface fa with
-                                | Some () ->
-                                    fatal
-                                      (Unequal_indices
-                                         (PNormal (ctx, { tm = t1; ty = t2.ty }), PNormal (ctx, t2)))
-                                | None ->
-                                    fatal (Anomaly "mismatching lower-dimensional constructors")));
-                      }
-                      [ t1s; t2s ])
-                  [ constr_indices; ty_indices ] in
-              let c = Term.Constr (constr, dim, Bwd.of_list newargs) in
-              match energy with
-              | Potential -> Realize c
-              | Kinetic -> c))
-      (* TODO: If checking against a pi-type, we could automatically eta-expand. *)
-      | _ ->
-          with_loc constr_loc @@ fun () ->
-          fatal (No_such_constructor (`Other (PUninst (ctx, uty)), constr)))
-  | Match _, Kinetic -> fatal (Unimplemented "Matching in terms (rather than case trees)")
-  | Match (ix, brs), Potential -> (
+                  [ t1s; t2s ])
+              [ constr_indices; ty_indices ] in
+          let c = Term.Constr (constr, dim, Bwd.of_list newargs) in
+          match status with
+          | Potential _ -> Realize c
+          | Kinetic -> c))
+  | Constr ({ value; loc }, _), _, _ ->
+      with_loc loc @@ fun () -> fatal (No_such_constructor (`Other (PUninst (ctx, uty)), value))
+  | Match _, _, Kinetic -> fatal (Unimplemented "Matching in terms (rather than case trees)")
+  | Match (ix, brs), _, Potential _ -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
       match Ctx.lookup ctx ix with
       | None, _, ix -> fatal (Matching_on_let_bound_variable (PTerm (ctx, Var ix)))
@@ -240,9 +240,8 @@ let rec check :
                 args = varty_args;
                 alignment = Lawful (Data { dim; indices; missing = Zero; constrs });
               } -> (
-              let n = TubeOf.inst inst_args in
-              match compare dim n with
-              | Neq -> fatal (Dimension_mismatch ("match", dim, n))
+              match compare dim (TubeOf.inst inst_args) with
+              | Neq -> fatal (Dimension_mismatch ("match", dim, TubeOf.inst inst_args))
               | Eq ->
                   (* In our simple version of pattern-matching, the "indices" and all their boundaries must be distinct free variables with no degeneracies, so that in the branch for each constructor they can be set equal to the computed value of that index for that constructor (and in which they cannot occur).  This is a special case of the unification algorithm described in CDP "Pattern-matching without K" where the only allowed rule is "Solution".  Later we can try to enhance it with their full unification algorithm, at least for non-higher datatypes.  In addition, for a higher-dimensional match, the instantiation arguments must also all be distinct variables, distinct from the indices. *)
                   let seen = Hashtbl.create 10 in
@@ -295,13 +294,11 @@ let rec check :
                             (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
                             let newctx, newenv, newvars =
                               ext_tel ctx env xs argtys user_args.value efc in
-                            (* The type of the match must be specialized in the branches by substituting different constructors for the match variable, as well as the index values for the index variables, and lower-dimensional versions of each constructor for the instantiation variables.  Thus, we readback the type into this extended context, so we can re-evaluate it with those variables bound to values. *)
-                            let rty = readback_val newctx ty in
                             (* Evaluate the "index_terms" at the new pattern variables, obtaining what the indices should be for the new term that replaces the match variable in the match body. *)
                             let index_vals =
                               Bwv.map
                                 (fun ixtm ->
-                                  CubeOf.build n
+                                  CubeOf.build dim
                                     {
                                       build =
                                         (fun fa -> eval_term (Act (newenv, op_of_sface fa)) ixtm);
@@ -311,7 +308,7 @@ let rec check :
                             let params, _ = Bwv.unappend_bwd (Bwv.length indices) varty_args in
                             let argtbl = Hashtbl.create 10 in
                             let constr_nfs =
-                              CubeOf.build n
+                              CubeOf.build dim
                                 {
                                   build =
                                     (fun fa ->
@@ -404,10 +401,8 @@ let rec check :
                                         (Hashtbl.find_opt new_vals) newctx
                                     with
                                     | None -> fatal No_permutation
-                                    | Bind_some (perm, thectx) ->
+                                    | Bind_some { checked_perm; oldctx; newctx } ->
                                         (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)
-                                        (* TODO: Reimplement this; the level variables are wrong now *)
-                                        (*
                                         let _ =
                                           Reporter.try_with ~fatal:(fun d ->
                                               match d.message with
@@ -417,19 +412,63 @@ let rec check :
                                           @@ fun () ->
                                           Hashtbl.iter
                                             (fun _ v ->
-                                              let _ = readback_nf thectx v in
+                                              let _ = readback_nf oldctx v in
                                               ())
                                             new_vals in
-*)
-                                        (* We evaluate "rty" in this new context, to obtain the type at which the branch body will be checked. *)
-                                        let newty =
-                                          Norm.eval_term
-                                            (permute_env (Tbwd.permute_inv perm) (Ctx.env thectx))
-                                            rty in
+                                        (* The type of the match must be specialized in the branches by substituting different constructors for the match variable, as well as the index values for the index variables, and lower-dimensional versions of each constructor for the instantiation variables.  Thus, we readback-eval this type into the new context, to obtain the type at which the branch body will be checked. *)
+                                        let newty = Ctx.eval_term newctx (readback_val oldctx ty) in
+                                        (* Now we have to modify the "status" data by readback-eval on the arguments and adding a hypothesized current branch to the match.  Since we're already in the potential case, I don't understand why it doesn't work to just destruct status directly rather than use a polymorphic helper function.  *)
+                                        let mkstatus :
+                                            type a b ab c n.
+                                            (a, potential) status ->
+                                            a Term.index ->
+                                            n D.t ->
+                                            (a, n) Term.branch Constr.Map.t ->
+                                            (a, b, n, ab) Tbwd.snocs ->
+                                            (c, ab) Tbwd.permute ->
+                                            (c, potential) status =
+                                         fun (Potential (c, args, hyp)) ix m tbranches efc perm ->
+                                          let args =
+                                            Bwd.map
+                                              (function
+                                                | Value.App (Arg xs, ins) ->
+                                                    Value.App
+                                                      ( Arg
+                                                          (CubeOf.mmap
+                                                             {
+                                                               map =
+                                                                 (fun _ [ x ] ->
+                                                                   let tm =
+                                                                     Ctx.eval_term newctx
+                                                                       (readback_nf oldctx x) in
+                                                                   let ty =
+                                                                     Ctx.eval_term newctx
+                                                                       (readback_val oldctx x.ty)
+                                                                   in
+                                                                   { tm; ty });
+                                                             }
+                                                             [ xs ]),
+                                                        ins )
+                                                | fld -> fld)
+                                              args in
+                                          Potential
+                                            ( c,
+                                              args,
+                                              fun tm ->
+                                                hyp
+                                                  (Term.Match
+                                                     ( ix,
+                                                       m,
+                                                       tbranches
+                                                       |> Constr.Map.add constr.value
+                                                            (Term.Branch (efc, perm, tm)) )) ) in
+                                        let status =
+                                          mkstatus status ix dim tbranches efc checked_perm in
                                         (* Finally, we recurse into the "body" of the branch. *)
                                         tbranches
                                         |> Constr.Map.add constr.value
-                                             (Term.Branch (efc, perm, check energy thectx body newty))
+                                             (Term.Branch
+                                                (efc, checked_perm, check status newctx body newty))
                                     )
                                 | Neq, _ -> fatal (Anomaly "created datatype has wrong dimension")
                                 | _, _ ->
@@ -442,56 +481,120 @@ let rec check :
                       if not (Constr.Map.mem c tbranches) then
                         fatal (Missing_constructor_in_match c))
                     constrs;
-                  Term.Match (ix, n, tbranches))
+                  Term.Match (ix, dim, tbranches))
           | _ -> fatal (Matching_on_nondatatype (PUninst (ctx, uvarty)))))
-  | Empty_co_match, Kinetic ->
+  | Empty_co_match, _, Kinetic ->
       fatal (Unimplemented "(Co)matching in terms (rather than case trees)")
-  | Empty_co_match, Potential -> (
-      match uty with
-      | Pi _ ->
-          check Potential ctx
-            {
-              value = Raw.Lam (None, `Normal, { value = Match ((Top, None), []); loc = tm.loc });
-              loc = tm.loc;
-            }
-            ty
-      | _ -> check Potential ctx { value = Struct (Noeta, Abwd.empty); loc = tm.loc } ty)
+  | Empty_co_match, Pi _, Potential _ ->
+      check status ctx
+        {
+          value = Raw.Lam (None, `Normal, { value = Match ((Top, None), []); loc = tm.loc });
+          loc = tm.loc;
+        }
+        ty
+  | Empty_co_match, _, _ -> check status ctx { value = Struct (Noeta, Abwd.empty); loc = tm.loc } ty
 
-and check_field :
+and check_struct :
+    type a b c mn m n s.
+    (b, s) status ->
+    s eta ->
+    (a, b) Ctx.t ->
+    (Field.t option, a check located) Abwd.t ->
+    kinetic value ->
+    (mn, m, n) insertion ->
+    (Field.t, ((c, n) snoc, kinetic) term) Abwd.t ->
+    (b, s) term =
+ fun status eta ctx tms ty ins fields ->
+  let dim = cod_left_ins ins in
+  (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
+  let tms, ctms =
+    check_fields status eta ctx ty dim
+      (* We convert the backwards alist of fields and values into a forwards list of field names only. *)
+      (Bwd.fold_right (fun (fld, _) flds -> fld :: flds) fields [])
+      tms Emp Emp in
+  (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
+  Term.Struct
+    ( eta,
+      Bwd.map
+        (function
+          | Some fld, _ -> (
+              match Abwd.find_opt fld ctms with
+              | Some x -> (fld, x)
+              | None -> fatal (Anomaly "missing field in check"))
+          | None, _ -> fatal (Extra_field_in_tuple None))
+        tms )
+
+and check_fields :
     type a b n s.
-    s energy ->
+    (b, s) status ->
+    s eta ->
     (a, b) Ctx.t ->
     kinetic value ->
     n D.t ->
+    Field.t list ->
     (Field.t option, a check located) Abwd.t ->
-    (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t ref ->
-    (Field.t option, a check located) Abwd.t ref ->
+    (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t option, a check located) Abwd.t
+    * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
+ fun status eta ctx ty dim fields tms etms ctms ->
+  let str = Value.Struct (etms, zero_ins dim) in
+  match (fields, status) with
+  | [], _ -> (tms, ctms)
+  | fld :: fields, Potential (name, args, hyp) ->
+      (* Temporarily bind the current constant to the up-until-now value. *)
+      Global.run_with_definition name (Defined (hyp (Term.Struct (eta, ctms)))) @@ fun () ->
+      (* TODO: Is this insertion right?  Hopefully it doesn't matter. *)
+      let head = Value.Const { name; ins = zero_ins dim } in
+      let prev_etm = Uninst (Neu { head; args; alignment = Chaotic str }, Lazy.from_val ty) in
+      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
+  | fld :: fields, Kinetic -> check_field status eta ctx ty dim fld fields str tms etms ctms
+
+and check_field :
+    type a b n s.
+    (b, s) status ->
+    s eta ->
+    (a, b) Ctx.t ->
+    kinetic value ->
+    n D.t ->
     Field.t ->
-    (b, s) term * [ `Labeled | `Unlabeled ] =
- fun tree ctx ty dim tms etms labeled_tms fld ->
-  (* Here's a struct containing all the previously typechecked fields. *)
-  let str = Value.Struct (!etms, zero_ins dim) in
-  let prev_etm =
-    match tree with
-    | Potential ->
-        (* If we're checking a case tree, then those other fields might be case trees as well, and thus they should only appear inside a chaotic neutral.  We aren't currently storing the entire spine of the top-level constant being defined, so instead we create a new temporary constant. *)
-        (* TODO: Is this insertion right?  Hopefully it doesn't matter. *)
-        let head = Value.Const { name = Constant.make (); ins = zero_ins dim } in
-        Uninst (Neu { head; args = Emp; alignment = Chaotic str }, Lazy.from_val ty)
-    | Kinetic -> str in
+    Field.t list ->
+    kinetic value ->
+    (Field.t option, a check located) Abwd.t ->
+    (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t option, a check located) Abwd.t
+    * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
+ fun status eta ctx ty dim fld fields prev_etm tms etms ctms ->
+  (* Once again we need a helper function with a declared polymorphic type in order to munge the status.  *)
+  let mkstatus :
+      type b s.
+      (b, s) status ->
+      s eta ->
+      (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+      [ `Labeled | `Unlabeled ] ->
+      (b, s) status =
+   fun status eta ctms lbl ->
+    match status with
+    | Kinetic -> Kinetic
+    | Potential (c, args, hyp) ->
+        Potential (c, args, fun tm -> hyp (Term.Struct (eta, Snoc (ctms, (fld, (tm, lbl)))))) in
   let ety = tyof_field prev_etm ty fld in
   match Abwd.find_opt (Some fld) tms with
   | Some tm ->
-      let ctm = check tree ctx tm ety in
-      etms := Abwd.add fld (lazy (Ctx.eval ctx ctm), `Labeled) !etms;
-      (ctm, `Labeled)
+      let field_status = mkstatus status eta ctms `Labeled in
+      let ctm = check field_status ctx tm ety in
+      let etms = Abwd.add fld (lazy (Ctx.eval ctx ctm), `Labeled) etms in
+      let ctms = Snoc (ctms, (fld, (ctm, `Labeled))) in
+      check_fields status eta ctx ty dim fields tms etms ctms
   | None -> (
-      match Abwd.find_opt_and_update_key None (Some fld) !labeled_tms with
-      | Some (tm, new_labeled_tms) ->
-          labeled_tms := new_labeled_tms;
-          let ctm = check tree ctx tm ety in
-          etms := Abwd.add fld (lazy (Ctx.eval ctx ctm), `Unlabeled) !etms;
-          (ctm, `Unlabeled)
+      let field_status = mkstatus status eta ctms `Unlabeled in
+      match Abwd.find_opt_and_update_key None (Some fld) tms with
+      | Some (tm, tms) ->
+          let ctm = check field_status ctx tm ety in
+          let etms = Abwd.add fld (lazy (Ctx.eval ctx ctm), `Unlabeled) etms in
+          let ctms = Snoc (ctms, (fld, (ctm, `Unlabeled))) in
+          check_fields status eta ctx ty dim fields tms etms ctms
       | None -> fatal (Missing_field_in_tuple fld))
 
 and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kinetic value =

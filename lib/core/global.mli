@@ -11,3 +11,4 @@ val run_empty : (unit -> 'a) -> 'a
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit
 val remove : Constant.t -> unit
 val run_with : Constant.t -> (emp, kinetic) term -> definition -> (unit -> 'a) -> 'a
+val run_with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a

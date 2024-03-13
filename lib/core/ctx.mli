@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Tbwd
 open Dim
@@ -28,6 +29,7 @@ val split :
 
 val length : ('a, 'b) t -> int
 val empty : (N.zero, emp) t
+val apps : ('a, 'b) t -> app Bwd.t
 val lookup : ('a, 'b) t -> 'a Raw.index -> level option * normal * 'b index
 val find_level : ('a, 'b) t -> level -> 'b index option
 val env : ('a, 'b) t -> (D.zero, 'b) env
@@ -42,7 +44,12 @@ type eval_readback = {
 }
 
 type (_, _) bind_some =
-  | Bind_some : ('c, 'b) Tbwd.permute * ('a, 'c) t -> ('a, 'b) bind_some
+  | Bind_some : {
+      checked_perm : ('c, 'b) Tbwd.permute;
+      oldctx : ('a, 'c) t;
+      newctx : ('a, 'c) t;
+    }
+      -> ('a, 'b) bind_some
   | None : ('a, 'b) bind_some
 
 val bind_some : eval_readback -> (level -> normal option) -> ('a, 'e) t -> ('a, 'e) bind_some

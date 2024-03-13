@@ -8,6 +8,7 @@ open Inst
 
 (* To typecheck a lambda, do an eta-expanding equality check, check pi-types for equality, or read back a pi-type or a term at a pi-type, we must create one new variable for each argument in the boundary.  Sometimes we need these variables as values and other times as normals.  The function dom_vars creates these variables and returns them in two cubes.  It, and the function ext_tel below that follows from it, are in a separate file because it depends on Inst and Ctx and is used in Equal, Readback, and Check, and doesn't seem to be placed naturally in any of those files. *)
 
+(* TODO: Let the caller customize what gets built and returned, by passing an hlist of some kind.  Now we sometimes actually want just "normal"s too. *)
 let dom_vars :
     type m.
     int -> (m, kinetic value) CubeOf.t -> (m, kinetic value) CubeOf.t * (m, Ctx.Binding.t) CubeOf.t

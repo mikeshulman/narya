@@ -104,7 +104,7 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Var _ -> fprintf ppf "Var ?"
   | Const c -> fprintf ppf "Const %a" pp_printed (print (PConstant c))
   | Field (tm, fld) -> fprintf ppf "Field (%a, %s)" term tm (Field.to_string fld)
-  | UU n -> fprintf ppf "UU %s" (string_of_deg (id_deg n))
+  | UU n -> fprintf ppf "UU %a" dim n
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
   | Pi (_, _, _) -> fprintf ppf "Pi (?, ?, ?)"
   | App (fn, _) -> fprintf ppf "App (%a, ?)" term fn

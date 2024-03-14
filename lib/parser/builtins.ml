@@ -671,14 +671,7 @@ let () =
 let empty_co_match = make "empty_co_match" Outfix
 
 let () =
-  set_tree empty_co_match
-    (Closed_entry
-       (eop LBracket
-          (ops
-             [
-               (RBracket, Done_closed empty_co_match);
-               (Op "|", op RBracket (Done_closed empty_co_match));
-             ])));
+  set_tree empty_co_match (Closed_entry (eop LBracket (op RBracket (Done_closed empty_co_match))));
   set_processor empty_co_match { process = (fun _ _ loc _ -> { value = Empty_co_match; loc }) }
 
 (* ********************

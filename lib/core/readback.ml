@@ -71,8 +71,6 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                    (fun fld _ -> (readback_at ctx (field tm fld) (tyof_field tm ty fld), `Labeled))
                    fields ) *)
           readback_val ctx tm)
-  | Neu { alignment = Lawful (Codata { eta = Noeta; _ }); _ } ->
-      fatal (Anomaly "reading back struct at codatatype")
   | Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ } -> (
       match tm with
       | Constr (xconstr, xn, xargs) -> (

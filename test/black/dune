@@ -1,2 +1,2 @@
 (cram
-  (deps ../../bin/narya.exe))
+  (deps %{bin:narya}))

@@ -868,17 +868,12 @@ let rec inner_lst s n =
     }
 
 let rec process_fwd :
-    type n.
-    (string option, n) Bwv.t ->
-    observation list ->
-    Asai.Range.t option ->
-    Whitespace.alist ->
-    n check located =
- fun ctx obs loc ws ->
+    type n. (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
+ fun ctx obs loc ->
   match obs with
   | [] -> { value = Constr ({ value = Constr.intern "nil"; loc }, Emp); loc }
   | Term tm :: tms ->
-      let cdr = process_fwd ctx tms loc ws in
+      let cdr = process_fwd ctx tms loc in
       let car = process ctx tm in
       { value = Constr ({ value = Constr.intern "cons"; loc }, Snoc (Snoc (Emp, car), cdr)); loc }
 
@@ -922,7 +917,7 @@ let pp_lst : string -> space -> Format.formatter -> observation list -> Whitespa
 
 let () =
   set_tree fwd (Closed_entry (eop LBracket (op (Op ">") (inner_lst ">" fwd))));
-  set_processor fwd { process = process_fwd };
+  set_processor fwd { process = (fun ctx obs loc _ -> process_fwd ctx obs loc) };
   set_print fwd (pp_lst ">")
 
 let cons = make "cons" (Infixr No.zero)
@@ -973,23 +968,19 @@ let () =
 let bwd = make "bwd" Outfix
 
 let rec process_bwd :
-    type n.
-    (string option, n) Bwv.t ->
-    observation Bwd.t ->
-    Asai.Range.t option ->
-    Whitespace.alist ->
-    n check located =
- fun ctx obs loc ws ->
+    type n. (string option, n) Bwv.t -> observation Bwd.t -> Asai.Range.t option -> n check located
+    =
+ fun ctx obs loc ->
   match obs with
   | Emp -> { value = Constr ({ value = Constr.intern "emp"; loc }, Emp); loc }
   | Snoc (tms, Term tm) ->
-      let rdc = process_bwd ctx tms loc ws in
+      let rdc = process_bwd ctx tms loc in
       let rad = process ctx tm in
       { value = Constr ({ value = Constr.intern "snoc"; loc }, Snoc (Snoc (Emp, rdc), rad)); loc }
 
 let () =
   set_tree bwd (Closed_entry (eop LBracket (op (Op "<") (inner_lst "<" bwd))));
-  set_processor bwd { process = (fun ctx obs loc ws -> process_bwd ctx (Bwd.of_list obs) loc ws) };
+  set_processor bwd { process = (fun ctx obs loc _ -> process_bwd ctx (Bwd.of_list obs) loc) };
   set_print bwd (pp_lst "<")
 
 let snoc = make "snoc" (Infixl No.zero)

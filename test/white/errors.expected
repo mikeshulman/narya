@@ -122,6 +122,11 @@
  ￫ error[E0200]
  ￮ parse error
 
+ ￫ error[E0200]
+ ￭ user-supplied term
+ 1 | [ | | .head |-> 0 | .tail |-> f ]
+   ^ parse error
+
  ￫ error[E0902]
  ￭ user-supplied term
  1 | ( fst ≔ a )

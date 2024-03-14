@@ -54,6 +54,7 @@ let () =
   let () = unsynth ~print:() "( (x) ≔ a )" ~code:Invalid_field_in_tuple in
   let () = unsynth ~print:() "[ _ ↦ a ]" ~code:Parse_error in
   let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:Parse_error in
+  let () = unsynth ~print:() "[ | | .head |-> 0 | .tail |-> f ]" ~code:Parse_error in
 
   (* Records and datatypes *)
   let () = Types.Sigma.install () in

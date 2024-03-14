@@ -622,23 +622,27 @@ let () =
 
 let comatch = make "comatch" Outfix
 
-let rec comatch_fields end_ok =
-  Inner
-    {
-      empty_branch with
-      ops =
-        (if end_ok then
-           TokMap.of_list
-             [ (RBracket, Done_closed comatch); (Op "|", Lazy (lazy (comatch_fields true))) ]
-         else TokMap.singleton (Op "|") (Lazy (lazy (comatch_fields false))));
-      field =
-        Some
-          (op Mapsto
-             (terms
-                [ (Op "|", Lazy (lazy (comatch_fields true))); (RBracket, Done_closed comatch) ]));
-    }
+let rec comatch_fields () =
+  field
+    (op Mapsto
+       (terms [ (Op "|", Lazy (lazy (comatch_fields ()))); (RBracket, Done_closed comatch) ]))
 
-let () = set_tree comatch (Closed_entry (eop LBracket (comatch_fields false)))
+let () =
+  set_tree comatch
+    (Closed_entry
+       (eop LBracket
+          (Inner
+             {
+               empty_branch with
+               ops = TokMap.singleton (Op "|") (comatch_fields ());
+               field =
+                 Some
+                   (op Mapsto
+                      (terms
+                         [
+                           (Op "|", Lazy (lazy (comatch_fields ()))); (RBracket, Done_closed comatch);
+                         ]));
+             })))
 
 let rec process_comatch :
     type n.

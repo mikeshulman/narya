@@ -48,6 +48,8 @@ module Code = struct
     | Extra_method_in_comatch : Field.t -> t
     | Invalid_field_in_tuple : t
     | Duplicate_field_in_tuple : Field.t -> t
+    | Duplicate_method_in_codata : Field.t -> t
+    | Duplicate_field_in_record : Field.t -> t
     | Invalid_method_in_comatch : t
     | Duplicate_method_in_comatch : Field.t -> t
     | Missing_constructor_in_match : Constr.t -> t
@@ -110,6 +112,8 @@ module Code = struct
     | Show : string * printable -> t
     | Comment_end_in_string : t
     | Error_printing_error : t -> t
+    | Checking_canonical_at_nonuniverse : string * printable -> t
+    | Canonical_type_outside_case_tree : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -132,6 +136,8 @@ module Code = struct
     | Extra_method_in_comatch _ -> Error
     | Invalid_field_in_tuple -> Error
     | Duplicate_field_in_tuple _ -> Error
+    | Duplicate_method_in_codata _ -> Error
+    | Duplicate_field_in_record _ -> Error
     | Invalid_method_in_comatch -> Error
     | Duplicate_method_in_comatch _ -> Error
     | Missing_constructor_in_match _ -> Error
@@ -189,8 +195,9 @@ module Code = struct
     | Notation_defined _ -> Info
     | Show _ -> Info
     | Comment_end_in_string -> Warning
-    | Error_printing_error _ ->
-        Warning (* Should really be a bug, but we also want to display the error that was raised *)
+    | Error_printing_error _ -> Bug
+    | Checking_canonical_at_nonuniverse _ -> Error
+    | Canonical_type_outside_case_tree _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -268,6 +275,11 @@ module Code = struct
     | Extra_method_in_comatch _ -> "E1403"
     | Duplicate_method_in_comatch _ -> "E1404"
     | Invalid_method_in_comatch -> "E1405"
+    (* Canonical types *)
+    | Checking_canonical_at_nonuniverse _ -> "E1500"
+    | Canonical_type_outside_case_tree _ -> "E1501"
+    | Duplicate_field_in_record _ -> "E1502"
+    | Duplicate_method_in_codata _ -> "E1503"
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
@@ -467,7 +479,14 @@ module Code = struct
     | Comment_end_in_string ->
         text "comment-end sequence `} in quoted string: cannot be commented out"
     | Error_printing_error e ->
-        textf "Error while printing message:@ %a" (fun ppf () -> default_text e ppf) ()
+        textf "error while printing message:@ %a" (fun ppf () -> default_text e ppf) ()
+    | Checking_canonical_at_nonuniverse (tm, ty) ->
+        textf "checking %s at non-universe %a" tm pp_printed (print ty)
+    | Canonical_type_outside_case_tree str -> textf "type %s can only occur in case trees" str
+    | Duplicate_method_in_codata fld ->
+        textf "duplicate method in codatatype: %s" (Field.to_string fld)
+    | Duplicate_field_in_record fld ->
+        textf "duplicate field in record type: %s" (Field.to_string fld)
 end
 
 include Asai.StructuredReporter.Make (Code)

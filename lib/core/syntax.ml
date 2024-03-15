@@ -48,6 +48,7 @@ module Raw = struct
     | Match : 'a index * 'a branch list -> 'a check
     | Empty_co_match (* "[]" or "[|]", which could be either an empty match or an empty comatch *)
         : 'a check
+    | Codata : potential eta * (Field.t, string option * 'a N.suc check located) Abwd.t -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)

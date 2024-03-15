@@ -525,6 +525,12 @@ codata [
 | x .tail : Stream A
 ]
 
+sig (
+  fst : blah blah blah blah
+          blah blah blah blah,
+  tail : Stream A,
+  )
+
 
 --------------------
 Compactly
@@ -719,4 +725,9 @@ codata [
               blah blah blah
               blah blah
 | x .tail : Stream A ]
+
+sig (
+  fst : blah blah blah blah
+          blah blah blah blah,
+  tail : Stream A)
 

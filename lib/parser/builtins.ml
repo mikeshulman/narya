@@ -931,6 +931,63 @@ let pp_codata space ppf obs ws =
 let () = set_print codata pp_codata
 
 (* ********************
+   Record types
+   ******************** *)
+
+let record = make "record" Outfix
+
+let rec record_fields () =
+  Inner
+    {
+      empty_branch with
+      ops = TokMap.singleton RParen (Done_closed record);
+      term =
+        Some
+          (TokMap.singleton Colon
+             (terms [ (Op ",", Lazy (lazy (record_fields ()))); (RParen, Done_closed record) ]));
+    }
+
+let () = set_tree record (Closed_entry (eop Sig (op LParen (record_fields ()))))
+
+let rec pp_record_fields ppf obs ws =
+  match obs with
+  | [] ->
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      wsrparen
+  | var :: body :: obs ->
+      pp_open_hvbox ppf 2;
+      pp_term `Break ppf var;
+      let wscolon, ws = take Colon ws in
+      pp_tok ppf Colon;
+      pp_ws `Nobreak ppf wscolon;
+      pp_close_box ppf ();
+      let ws = must_start_with (Op ",") ws in
+      let wscomma, ws = take (Op ",") ws in
+      pp_term `None ppf body;
+      if style () = `Compact && List.is_empty obs then pp_ws `None ppf wscomma
+      else (
+        pp_tok ppf (Op ",");
+        pp_ws `Break ppf wscomma);
+      pp_record_fields ppf obs ws
+  | [ _ ] -> fatal (Anomaly "invalid notation arguments for record")
+
+let pp_record space ppf obs ws =
+  pp_open_vbox ppf 2;
+  let wssig, ws = take Sig ws in
+  pp_tok ppf Sig;
+  pp_ws `Nobreak ppf wssig;
+  let wslparen, ws = take LParen ws in
+  pp_tok ppf LParen;
+  pp_ws `Break ppf wslparen;
+  let wsrparen = pp_record_fields ppf obs ws in
+  pp_tok ppf RParen;
+  pp_ws space ppf wsrparen;
+  pp_close_box ppf ()
+
+let () = set_print record pp_record
+
+(* ********************
    Forwards Lists
    ******************** *)
 
@@ -1125,6 +1182,7 @@ let builtins =
     |> State.add mtch
     |> State.add empty_co_match
     |> State.add codata
+    |> State.add record
     |> State.add fwd
     |> State.add bwd
     |> State.add_user "cons" (Infixr No.zero)

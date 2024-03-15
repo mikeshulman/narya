@@ -2,7 +2,7 @@ open Testutil.Repl
 
 let () =
   run @@ fun () ->
-  Types.Stream.install ();
+  def "Stream" "Type → Type" "A ↦ codata [ _ .head : A | _ .tail : Stream A ]";
   assume "A" "Type";
 
   (* We suppose a stream and take some parts of it *)

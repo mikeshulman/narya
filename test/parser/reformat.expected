@@ -518,6 +518,13 @@ match x [
    | poo. ↦ bah 
  ])
 
+codata [
+| x .head : blah blah blah
+              blah blah blah
+              blah blah
+| x .tail : Stream A
+]
+
 
 --------------------
 Compactly
@@ -706,4 +713,10 @@ match x [
 
 (match x [ 
    | poo. ↦ bah ])
+
+codata [
+| x .head : blah blah blah
+              blah blah blah
+              blah blah
+| x .tail : Stream A ]
 

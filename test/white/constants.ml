@@ -48,7 +48,7 @@ let () =
     "Id Type ((x:A) → B x) ((x:A) → B x)";
 
   (* Coinductive streams *)
-  Types.Stream.install ();
+  def "Stream" "Type → Type" "A ↦ codata [ _ .head : A | _ .tail : Stream A ]";
   def "zeros" "Stream CN" "[ .head ↦ zero | .tail ↦ zeros ]";
   equal_at "zeros .head" "zero" "CN";
   equal_at "zeros .tail .head" "zero" "CN";

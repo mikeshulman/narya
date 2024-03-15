@@ -138,6 +138,9 @@ let test_compactness () =
   reformat
     "[ con. a b |-> [ foo. x |-> ba ba ba | bar. y z |-> y ] | str. u v |-> [ baz. |-> bluh bluh ] ]";
   reformat "(match x [| poo. |-> bah])";
+
+  (* Canonical types *)
+  reformat "codata [ x .head : blah blah blah blah blah blah blah blah | x .tail : Stream A ]";
   ()
 
 let () =

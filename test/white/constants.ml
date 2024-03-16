@@ -134,7 +134,7 @@ let () =
   def "idnat" "(x y : ℕ) → Id ℕ x y → Id ℕ x y" "x y ↦ [ zero. ↦ zero. | suc. p ↦ suc. p ]";
   def "apprec" "(x y : ℕ) → Id ℕ x y → Id ℕ (prec x) (prec y)"
     "x y p ↦ match p [ zero. ↦ zero. | suc. p ↦ p ]";
-  Types.Unit.install ();
+  def "⊤" "Type" "sig ()";
   def "code" "ℕ → ℕ → Type"
     "[ zero. ↦ [ zero. ↦ ⊤
                 | suc. _ ↦ ∅ ]

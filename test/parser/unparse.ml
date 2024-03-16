@@ -45,7 +45,7 @@ let () =
   print "(fst ≔ x ↦ x, snd ≔ 2) : (ℕ → ℕ) × ℕ";
   assume "s" "(ℕ → ℕ) × ℕ";
   print "s .fst 3";
-  Types.Gel.install ();
+  Testutil.Repl.gel_install ();
   assume "B" "Type";
   assume "R" "A → B → Type";
   assume "a" "A";

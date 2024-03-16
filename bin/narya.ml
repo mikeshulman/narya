@@ -159,10 +159,8 @@ let () =
   Types.Sum.install ();
   Types.Lst.install ();
   Types.Blst.install ();
-  Types.Unit.install ();
   Types.Vec.install ();
   Types.Covec.install ();
-  Types.Gel.install ();
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
   Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
   (if !use_stdin then

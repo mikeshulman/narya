@@ -1,5 +1,7 @@
 {` Uniqueness of iteration for Church encoded Nat from parametricity (from Thorsten) `}
 
+def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig x ⤇ ( ungel : R x.0 x.1 )
+
 {` First we postulate an equality type, with congruence, transitivity, reversal, and transport. `}
 axiom eq : (X:Type) → X → X → Type
 axiom eqr : (X:Type) (x:X) → eq X x x

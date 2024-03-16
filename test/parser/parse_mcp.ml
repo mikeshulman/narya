@@ -94,7 +94,7 @@ let () =
   let () = equal a0 a0'' in
 
   (* 1-tuples *)
-  let () = Types.Gel.install () in
+  Testutil.Repl.gel_install ();
   let rrty, _ = synth "A → X → Type" in
   let rr = assume "R" rrty in
   let r0ty, _ = synth "R a₀ x00" in

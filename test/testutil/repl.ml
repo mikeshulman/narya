@@ -167,3 +167,6 @@ let vec_install_ops () =
     | nil. ↦ pn
     | cons. n a v ↦ pc n a v (Vec_ind A P pn pc n v)
   ]"
+
+let gel_install () =
+  def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

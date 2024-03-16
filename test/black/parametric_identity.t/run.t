@@ -1,4 +1,7 @@
   $ narya -v parametric_identity.ny
+   ￫ info[I0000]
+   ￮ Constant Gel defined
+  
    ￫ info[I0001]
    ￮ Axiom eq assumed
   

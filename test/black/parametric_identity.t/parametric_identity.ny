@@ -1,3 +1,5 @@
+def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig a b ↦ ( ungel : R a b )
+
 {` First we postulate an equality type `}
 axiom eq : (X:Type) → X → X → Type
 axiom eqr : (X:Type) (x:X) → eq X x x

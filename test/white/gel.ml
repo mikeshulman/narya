@@ -2,7 +2,7 @@ open Testutil.Pmp
 
 let () =
   run @@ fun () ->
-  Types.Gel.install ();
+  Testutil.Repl.gel_install ();
 
   (* First we define and typecheck the basic operations Gel, gel (as a struct), and ungel (as a field). *)
   let ggel, ggelty = synth !~"Gel" in

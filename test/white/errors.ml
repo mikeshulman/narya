@@ -88,7 +88,7 @@ let () =
   in
 
   (* To test degeneracies on records we have to set up a bunch of stuff, since the simplest case this happens is with Id Gel and squares in the universe. *)
-  let () = Types.Gel.install () in
+  Testutil.Repl.gel_install ();
   let aa0 = assume "A0" uu in
   let bb0 = assume "B0" uu in
   let corrab0, _ = synth "A0 → B0 → Type" in
@@ -125,9 +125,7 @@ let () =
     synth "sym (refl Gel A0 A1 A2 B0 B1 B2 R0 R1 R2) a0 b0 (ungel ≔ r0) a1 b1 (ungel ≔ r1) a2 b2"
   in
 
-  let () =
-    uncheck ~print:() "(ungel ≔ r2)" symr2ty
-      ~code:(Checking_tuple_at_degenerated_record (Core.Reporter.PConstant Types.Gel.gel)) in
+  let () = uncheck ~print:() "(ungel ≔ r2)" symr2ty ~short:"E0901" in
 
   let gg = assume "gg" r2ty in
   let _ = synth "gg .ungel" in

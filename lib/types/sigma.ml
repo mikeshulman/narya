@@ -13,6 +13,8 @@ open Term
 open Print
 open Format
 
+(* TODO: Get rid of this file, since we can define sigma-types like any other record type.  But the user can't define binding notations yet. *)
+
 let sigma = Constant.make ()
 let fst = Field.intern "fst"
 let snd = Field.intern "snd"

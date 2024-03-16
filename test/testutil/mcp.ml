@@ -1,4 +1,3 @@
-open Util
 open Core
 open Parser
 open Syntax
@@ -7,14 +6,14 @@ open Parse
 open Asai.Range
 
 (* The current context of assumptions, including names. *)
-type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx
+type ctx = Ctx : ('n, 'b) Ctx.t * 'n Varscope.t -> ctx
 
-let ectx = Ctx (Ctx.empty, Emp)
+let ectx = Ctx (Ctx.empty, Varscope.empty)
 let context = ref ectx
 
 (* Functions to synth and check terms *)
 
-let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check located =
+let parse_term : type n. n Varscope.t -> string -> n Raw.check located =
  fun names tm ->
   let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
   let (Term tm) = Parse_term.final p in
@@ -109,7 +108,7 @@ let unparse : ?print:unit -> string -> unit =
 
 let assume (x : string) (ty : kinetic value) : kinetic value =
   let (Ctx (ctx, names)) = !context in
-  context := Ctx (Ctx.ext ctx (Some x) ty, Snoc (names, Some x));
+  context := Ctx (Ctx.ext ctx (Some x) ty, Varscope.ext names (Some x));
   fst (synth x)
 
 (* Check that two terms are, or aren't, equal, at a type or synthesizing *)

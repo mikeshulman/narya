@@ -1,6 +1,7 @@
 open Bwd
 open Util
-open Core.Syntax.Raw
+open Core
+open Syntax.Raw
 open Asai.Range
 module TokMap : module type of Map.Make (Token)
 
@@ -67,11 +68,7 @@ and ('left, 'tight, 'right) notation
 and processor = {
   process :
     'n.
-    (string option, 'n) Bwv.t ->
-    observation list ->
-    Asai.Range.t option ->
-    Whitespace.alist ->
-    'n check located;
+    'n Varscope.t -> observation list -> Asai.Range.t option -> Whitespace.alist -> 'n check located;
 }
 
 and printer = space -> Format.formatter -> observation list -> Whitespace.alist -> unit

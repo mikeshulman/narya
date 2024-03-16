@@ -136,11 +136,7 @@ and (_, _, _, _) parse =
 and processor = {
   process :
     'n.
-    (string option, 'n) Bwv.t ->
-    observation list ->
-    Asai.Range.t option ->
-    Whitespace.alist ->
-    'n check located;
+    'n Varscope.t -> observation list -> Asai.Range.t option -> Whitespace.alist -> 'n check located;
 }
 
 (* A printing function for a notation is told what sort of space (if any) to end with, and is given the formatter, the list of arguments of the notation, and the list of whitespaces attached after all the operator parts of the notation. *)

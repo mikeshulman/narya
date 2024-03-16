@@ -43,7 +43,7 @@ let () =
                 | _ -> (None, one, b))
             | _ -> fatal (Anomaly "invalid notation arguments for sigma") in
           let a = process ctx a in
-          let b = process (Snoc (ctx, x)) b in
+          let b = process (Varscope.ext ctx x) b in
           {
             value =
               Synth

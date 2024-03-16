@@ -58,7 +58,7 @@ let execute : t -> unit = function
           Scope.S.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      let (Processed_tel (params, ctx)) = process_tel Emp parameters in
+      let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty));
       emit (Constant_assumed (PConstant const))
   | Def { name; parameters; ty = Term ty; tm = Term tm; _ } ->
@@ -70,11 +70,11 @@ let execute : t -> unit = function
           Scope.S.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      let (Processed_tel (params, ctx)) = process_tel Emp parameters in
+      let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
       Core.Command.execute (Def (const, params, process ctx ty, process ctx tm));
       emit (Constant_defined (PConstant const))
   | Echo { tm = Term tm; _ } -> (
-      let rtm = process Emp tm in
+      let rtm = process Varscope.empty tm in
       match rtm.value with
       | Synth stm ->
           let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in

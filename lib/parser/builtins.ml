@@ -46,7 +46,7 @@ let () =
           | [ Term x; Term ty; Term tm; Term body ] -> (
               let x = get_var x.value in
               let ty, tm = (process ctx ty, process ctx tm) in
-              match process (Snoc (ctx, x)) body with
+              match process (Varscope.ext ctx x) body with
               | { value = Synth body; loc = body_loc } ->
                   {
                     value =
@@ -62,7 +62,7 @@ let () =
               let x = get_var x.value in
               match process ctx tm with
               | { value = Synth term; loc = term_loc } -> (
-                  match process (Snoc (ctx, x)) body with
+                  match process (Varscope.ext ctx x) body with
                   | { value = Synth body; loc = body_loc } ->
                       {
                         value =
@@ -272,19 +272,19 @@ let rec get_pi :
 (* Given the variables with domains and the codomain of a pi-type, process it into a raw term. *)
 let rec process_pi :
     type n lt ls rt rs.
-    (string option, n) Bwv.t -> pi_dom list -> (lt, ls, rt, rs) parse located -> n check located =
+    n Varscope.t -> pi_dom list -> (lt, ls, rt, rs) parse located -> n check located =
  fun ctx doms cod ->
   match doms with
   | [] -> process ctx cod
   | Nondep { ty = Term dom; _ } :: doms ->
       let cdom = process ctx dom in
-      let ctx = Bwv.Snoc (ctx, None) in
+      let ctx = Varscope.ext ctx None in
       let cod = process_pi ctx doms cod in
       let loc = Range.merge_opt cdom.loc cod.loc in
       { value = Synth (Pi (None, cdom, cod)); loc }
   | Dep ({ vars = (x, _) :: xs; ty = Term dom; _ } as data) :: doms ->
       let cdom = process ctx dom in
-      let ctx = Bwv.Snoc (ctx, x) in
+      let ctx = Varscope.ext ctx x in
       let cod = process_pi ctx (Dep { data with vars = xs } :: doms) cod in
       let loc = Range.merge_opt cdom.loc cod.loc in
       { value = Synth (Pi (x, cdom, cod)); loc }
@@ -374,38 +374,38 @@ let () = set_tree cubeabs (Open_entry (eop DblMapsto (done_open cubeabs)))
 
 type _ extended_ctx =
   | Extctx :
-      ('n, 'm, 'nm) N.plus * (Asai.Range.t option, 'm) Bwv.t * (string option, 'nm) Bwv.t
+      ('n, 'm, 'nm) N.plus * (Asai.Range.t option, 'm) Bwv.t * 'nm Varscope.t
       -> 'n extended_ctx
 
 let rec get_vars :
-    type n lt1 ls1 rt1 rs1.
-    (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse located -> n extended_ctx =
+    type n lt1 ls1 rt1 rs1. n Varscope.t -> (lt1, ls1, rt1, rs1) parse located -> n extended_ctx =
  fun ctx vars ->
   match vars.value with
-  | Ident ([ x ], _) -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Snoc (ctx, Some x))
+  | Ident ([ x ], _) -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Varscope.ext ctx (Some x))
   | Ident (xs, _) -> fatal (Invalid_variable xs)
-  | Placeholder _ -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Snoc (ctx, None))
+  | Placeholder _ -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Varscope.ext ctx None)
   | App { fn; arg = { value = Ident ([ x ], _); _ }; _ } ->
       let (Extctx (ab, locs, ctx)) = get_vars ctx fn in
-      Extctx (Suc ab, Snoc (locs, vars.loc), Snoc (ctx, Some x))
+      Extctx (Suc ab, Snoc (locs, vars.loc), Varscope.ext ctx (Some x))
   | App { arg = { value = Ident (xs, _); _ }; _ } -> fatal (Invalid_variable xs)
   | App { fn; arg = { value = Placeholder _; _ }; _ } ->
       let (Extctx (ab, locs, ctx)) = get_vars ctx fn in
-      Extctx (Suc ab, Snoc (locs, vars.loc), Snoc (ctx, None))
+      Extctx (Suc ab, Snoc (locs, vars.loc), Varscope.ext ctx None)
   | _ -> fatal Parse_error
 
 let rec raw_lam :
     type a b ab.
-    (string option, ab) Bwv.t ->
+    ab Varscope.t ->
     [ `Cube | `Normal ] ->
     (a, b, ab) N.plus ->
     (Asai.Range.t option, b) Bwv.t ->
     ab check located ->
     a check located =
  fun names cube ab locs tm ->
-  match (names, ab, locs) with
-  | _, Zero, Emp -> tm
-  | Snoc (names, x), Suc ab, Snoc (locs, loc) ->
+  match (ab, locs) with
+  | Zero, Emp -> tm
+  | Suc ab, Snoc (locs, loc) ->
+      let names, x = Varscope.top names in
       raw_lam names cube ab locs { value = Lam (x, cube, tm); loc = Range.merge_opt loc tm.loc }
 
 let process_abs cube =
@@ -499,7 +499,7 @@ let rec process_tuple :
     bool ->
     (Field.t option, n check located) Abwd.t ->
     Field.Set.t ->
-    (string option, n) Bwv.t ->
+    n Varscope.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
@@ -647,7 +647,7 @@ let () =
 let rec process_comatch :
     type n.
     (Field.t option, n check located) Abwd.t * Field.Set.t ->
-    (string option, n) Bwv.t ->
+    n Varscope.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
@@ -722,14 +722,13 @@ let rec get_pattern :
   | App { fn; arg = { value = Placeholder _; loc = _ }; _ } -> get_pattern fn (None :: vars)
   | _ -> fatal Parse_error
 
-let rec process_branches : type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list
-    =
+let rec process_branches : type n. n Varscope.t -> observation list -> n Raw.branch list =
  fun ctx obs ->
   match obs with
   | [] -> []
   | Term pat :: Term body :: obs ->
       let c, vars = get_pattern pat [] in
-      let (Append_plus (ab, xs, ectx)) = Bwv.append_plus ctx vars in
+      let (Bappend_plus (ab, xs, ectx)) = Varscope.bappend_plus ctx vars in
       Branch (c, xs, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
 
@@ -741,17 +740,18 @@ let () =
           match obs with
           (* If the first thing is a valid local variable or cube variable, then it's the match variable. *)
           | Term { value = Ident ([ ident ], _); _ } :: obs -> (
-              match Bwv.find (Some ident) ctx with
-              | None -> fatal (Unbound_variable ident)
-              | Some x -> { value = Match ((x, None), process_branches ctx obs); loc })
+              match Varscope.find ident ctx with
+              | `None -> fatal (Unbound_variable ident)
+              | `Var x -> { value = Match ((x, None), process_branches ctx obs); loc }
+              | `Field _ -> fatal Parse_error)
           | Term { value = Ident ([ ident; fld ], _); _ } :: obs -> (
-              match (Bwv.find (Some ident) ctx, Dim.sface_of_string fld) with
-              | Some x, Some fa -> { value = Match ((x, Some fa), process_branches ctx obs); loc }
-              | None, _ -> fatal (Unbound_variable ident)
+              match (Varscope.find ident ctx, Dim.sface_of_string fld) with
+              | `Var x, Some fa -> { value = Match ((x, Some fa), process_branches ctx obs); loc }
+              | `None, _ -> fatal (Unbound_variable ident)
               | _ -> fatal Parse_error)
           (* Otherwise, it's a matching lambda. *)
           | _ ->
-              let branches = process_branches (Snoc (ctx, None)) obs in
+              let branches = process_branches (Varscope.ext ctx None) obs in
               { value = Lam (None, `Normal, { value = Match ((Top, None), branches); loc }); loc });
     }
 
@@ -868,7 +868,7 @@ let rec process_codata :
     type n.
     (Field.t, string option * n N.suc check located) Abwd.t ->
     Field.Set.t ->
-    (string option, n) Bwv.t ->
+    n Varscope.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
@@ -884,7 +884,7 @@ let rec process_codata :
         | Placeholder _ -> None
         | Ident (x, _) -> fatal (Invalid_variable x)
         | _ -> fatal Parse_error in
-      let ty = process (Snoc (ctx, x)) ty in
+      let ty = process (Varscope.ext ctx x) ty in
       let fld = Field.intern fld in
       if Field.Set.mem fld found then fatal (Duplicate_method_in_codata fld)
       else process_codata (Abwd.add fld (x, ty) flds) (Field.Set.add fld found) ctx obs loc
@@ -1007,7 +1007,7 @@ let rec inner_lst s n =
     }
 
 let rec process_fwd :
-    type n. (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
+    type n. n Varscope.t -> observation list -> Asai.Range.t option -> n check located =
  fun ctx obs loc ->
   match obs with
   | [] -> { value = Constr ({ value = Constr.intern "nil"; loc }, Emp); loc }
@@ -1107,8 +1107,7 @@ let () =
 let bwd = make "bwd" Outfix
 
 let rec process_bwd :
-    type n. (string option, n) Bwv.t -> observation Bwd.t -> Asai.Range.t option -> n check located
-    =
+    type n. n Varscope.t -> observation Bwd.t -> Asai.Range.t option -> n check located =
  fun ctx obs loc ->
   match obs with
   | Emp -> { value = Constr ({ value = Constr.intern "emp"; loc }, Emp); loc }

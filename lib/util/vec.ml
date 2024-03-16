@@ -10,3 +10,15 @@ let rec map : type a b n. (a -> b) -> (a, n) t -> (b, n) t =
   match xs with
   | [] -> []
   | x :: xs -> f x :: map f xs
+
+type _ wrapped = Wrap : ('a, 'n) t -> 'a wrapped
+
+let rec of_list : type a. a list -> a wrapped = function
+  | [] -> Wrap []
+  | x :: xs ->
+      let (Wrap xs) = of_list xs in
+      Wrap (x :: xs)
+
+let rec to_list : type a n. (a, n) t -> a list = function
+  | [] -> []
+  | x :: xs -> x :: to_list xs

@@ -34,10 +34,14 @@
    ^ checking abstraction against non-function type refl A
 
  ￫ error[E0400]
- ￮ non-synthesizing term in synthesizing position (argument of degeneracy)
+ ￭ user-supplied term
+ 1 | refl (x ↦ x)
+   ^ non-synthesizing term in synthesizing position (argument of degeneracy)
 
  ￫ error[E0600]
- ￮ missing argument for degeneracy refl
+ ￭ user-supplied term
+ 1 | refl
+   ^ missing argument for degeneracy refl
 
  ￫ error[E0601]
  ￭ user-supplied term
@@ -50,7 +54,9 @@
    ^ argument of degeneracy 'sym' must be at least 2-dimensional
 
  ￫ error[E0300]
- ￮ unbound variable: g
+ ￭ user-supplied term
+ 1 | g
+   ^ unbound variable: g
 
  ￫ error[E0504]
  ￭ user-supplied term
@@ -88,16 +94,24 @@
    ^ invalid constructor name: con.str.
 
  ￫ error[E0300]
- ￮ unbound variable: 0.1.2
+ ￭ user-supplied term
+ 1 | x |-> f 0.1.2 x
+   ^ unbound variable: 0.1.2
 
  ￫ error[E0202]
- ￮ invalid local variable name: x.y
+ ￭ user-supplied term
+ 1 | let x.y ≔ z in w
+   ^ invalid local variable name: x.y
 
  ￫ error[E0202]
- ￮ invalid local variable name: x.y
+ ￭ user-supplied term
+ 1 | x.y ↦ z
+   ^ invalid local variable name: x.y
 
  ￫ error[E0202]
- ￮ invalid local variable name: x.y
+ ￭ user-supplied term
+ 1 | a x.y b ↦ z
+   ^ invalid local variable name: x.y
 
  ￫ error[E0200]
  ￭ user-supplied term
@@ -105,22 +119,34 @@
    ^ parse error
 
  ￫ error[E0200]
- ￮ parse error
+ ￭ user-supplied term
+ 1 | (f x) y ↦ z
+   ^ parse error
 
  ￫ error[E0100]
- ￮ unification arguments not yet implemented
+ ￭ user-supplied term
+ 1 | _
+   ^ unification arguments not yet implemented
 
  ￫ error[E0904]
- ￮ record field 'fst' appears more than once in tuple
+ ￭ user-supplied term
+ 1 | a ↦ ( fst ≔ a, fst ≔ a )
+   ^ record field 'fst' appears more than once in tuple
 
  ￫ error[E0905]
- ￮ invalid field in tuple
+ ￭ user-supplied term
+ 1 | ( (x) ≔ a )
+   ^ invalid field in tuple
 
  ￫ error[E0200]
- ￮ parse error
+ ￭ user-supplied term
+ 1 | [ _ ↦ a ]
+   ^ parse error
 
  ￫ error[E0200]
- ￮ parse error
+ ￭ user-supplied term
+ 1 | [ (x) ↦ a ]
+   ^ parse error
 
  ￫ error[E0200]
  ￭ user-supplied term
@@ -168,7 +194,9 @@
    ^ not enough arguments to constructor suc (need 1 more)
 
  ￫ error[E0101]
- ￮ unsupported numeral: 21/5
+ ￭ user-supplied term
+ 1 | 4.2
+   ^ unsupported numeral: 21/5
 
  ￫ error[E0901]
  ￭ user-supplied term

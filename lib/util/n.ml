@@ -293,6 +293,16 @@ let rec int_of_plus : type m n mn. (m, n, mn) plus -> int = function
 
 let to_int : type n. n t -> int = fun (Nat n) -> int_of_plus n
 
+type _ plus_something = Plus_something : ('a, 'b, 'ab) plus -> 'a plus_something
+
+let rec plus_of_int : type a. int -> a plus_something =
+ fun b ->
+  if b < 0 then raise (Invalid_argument "plus_of_int")
+  else if b = 0 then Plus_something Zero
+  else
+    let (Plus_something ab) = plus_of_int (b - 1) in
+    Plus_something (Suc ab)
+
 let rec int_of_index : type n. n index -> int = function
   | Top -> 0
   | Pop k -> 1 + int_of_index k
@@ -539,6 +549,14 @@ let compare_zero : type a. a t -> a compare_zero = function
 type (_, _) perm =
   | Id : ('a, 'a) perm
   | Insert : ('a, 'b) perm * 'b suc index -> ('a suc, 'b suc) perm
+
+let rec perm_dom : type a b. b t -> (a, b) perm -> a t =
+ fun b p ->
+  match p with
+  | Id -> b
+  | Insert (p, _) ->
+      let (Nat (Suc b)) = b in
+      suc (perm_dom (Nat b) p)
 
 (* Since our type-level naturals are skeletal, the domain and codomain of a permutation actually have to be equal.  But we never use this, because keeping them as distinct type variables provides better bug-catching type-checking, e.g. it prevents us from forgetting to invert a permutation when necessary. *)
 let rec _perm_eq : type a b. (a, b) perm -> (a, b) Monoid.eq = function

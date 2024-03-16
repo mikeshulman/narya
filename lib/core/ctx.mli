@@ -27,6 +27,7 @@ val split :
   ('n, Binding.t) CubeOf.t ->
   ('af, ('b, 'n) snoc) t
 
+val raw_length : ('a, 'b) t -> 'a N.t
 val length : ('a, 'b) t -> int
 val empty : (N.zero, emp) t
 val apps : ('a, 'b) t -> app Bwd.t

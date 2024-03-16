@@ -615,6 +615,7 @@ let split (Permute (p, ctx)) af pf name vars =
   let (Plus qf) = N.plus (faces_out af) in
   Permute (N.perm_plus p pf qf, Ordered.split ctx af qf name vars)
 
+let raw_length (Permute (p, ctx)) = N.perm_dom (Ordered.raw_length ctx) p
 let length (Permute (_, ctx)) = Ordered.length ctx
 let empty = Permute (N.id_perm N.zero, Ordered.empty)
 let apps (Permute (_, ctx)) = Ordered.apps ctx

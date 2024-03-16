@@ -17,6 +17,12 @@ let rec bplus_right : type a b ab. (a, b, ab) bplus -> b t = function
   | Zero -> Zero
   | Suc ab -> Suc (bplus_right ab)
 
+let rec bplus_out : type a b ab. a N.t -> (a, b, ab) bplus -> ab N.t =
+ fun a ab ->
+  match ab with
+  | Zero -> a
+  | Suc ab -> bplus_out (N.suc a) ab
+
 let rec bplus_uniq : type a b ab ab'. (a, b, ab) bplus -> (a, b, ab') bplus -> (ab, ab') Monoid.eq =
  fun ab ab' ->
   match (ab, ab') with

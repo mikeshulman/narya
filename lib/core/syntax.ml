@@ -46,9 +46,11 @@ module Raw = struct
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located Bwd.t -> 'a check
     | Match : 'a index * 'a branch list -> 'a check
-    | Empty_co_match (* "[]" or "[|]", which could be either an empty match or an empty comatch *)
-        : 'a check
-    | Codata : potential eta * (Field.t, string option * 'a N.suc check located) Abwd.t -> 'a check
+    (* "[]", which could be either an empty match or an empty comatch *)
+    | Empty_co_match : 'a check
+    | Codata :
+        potential eta * ('a, 'ac) codata_vars * (Field.t, 'ac check located) Abwd.t
+        -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
@@ -58,6 +60,12 @@ module Raw = struct
         * ('a, 'b, 'ab) Fwn.bplus located
         * 'ab check located
         -> 'a branch
+
+  (* A normal codatatype binds one more "self" variable in the types of its fields.  A normal record type does the same, except that the user doesn't have a name for that variable and instead accesses it by lexical variables that postprocess to its fields using Varscope. *)
+  and (_, _) codata_vars =
+    | Cube : string option -> ('a, 'a N.suc) codata_vars
+    (* A higher-dimensional codatatype simply binds a "self" cube of variables, but unfortunately a higher-dimensional record type doesn't have any variable to make a cube.  So we allow the user to specify either a single cube variable name (thereby also accidentally giving access to the internal previously unnamed variable) or a list of ordinary variables to be its boundary only.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one.  (TODO: This Bwv really ought to be a forwards Vec, but that would require changing too much else for now, such as making count_faces return a Fwn.) *)
+    | Normal : ('a, 'c, 'ac) N.plus located * (string option, 'c) Bwv.t -> ('a, 'ac) codata_vars
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
   type (_, _, _) tel =

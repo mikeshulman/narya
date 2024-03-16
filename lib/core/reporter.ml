@@ -114,6 +114,7 @@ module Code = struct
     | Error_printing_error : t -> t
     | Checking_canonical_at_nonuniverse : string * printable -> t
     | Canonical_type_outside_case_tree : string -> t
+    | Wrong_boundary_of_record : int -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -198,6 +199,7 @@ module Code = struct
     | Error_printing_error _ -> Bug
     | Checking_canonical_at_nonuniverse _ -> Error
     | Canonical_type_outside_case_tree _ -> Error
+    | Wrong_boundary_of_record _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -280,6 +282,7 @@ module Code = struct
     | Canonical_type_outside_case_tree _ -> "E1501"
     | Duplicate_field_in_record _ -> "E1502"
     | Duplicate_method_in_codata _ -> "E1503"
+    | Wrong_boundary_of_record _ -> "E1504"
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
@@ -487,6 +490,12 @@ module Code = struct
         textf "duplicate method in codatatype: %s" (Field.to_string fld)
     | Duplicate_field_in_record fld ->
         textf "duplicate field in record type: %s" (Field.to_string fld)
+    | Wrong_boundary_of_record n ->
+        if n > 0 then
+          textf "too many variables in boundary of higher-dimensional record (%d extra)" n
+        else
+          textf "not enough variables in boundary of higher-dimensional record (need %d more)"
+            (abs n)
 end
 
 include Asai.StructuredReporter.Make (Code)

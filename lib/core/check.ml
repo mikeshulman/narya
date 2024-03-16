@@ -22,7 +22,7 @@ let ( <|> ) : type a b. a option -> Code.t -> a =
   | Some x -> x
   | None -> fatal e
 
-(* Look through a specified number of lambdas to find an inner body. *)
+(* Look through a specified number of lambdas to find an inner body.  TODO: Here 'b should really be a Fwn and the result should be a Vec, which suggests that faces should be counted in a Fwn, which would unfortunately be a massive change. *)
 let rec lambdas :
     type a b ab. (a, b, ab) N.plus -> a check located -> string option list * ab check located =
  fun ab tm ->
@@ -33,6 +33,7 @@ let rec lambdas :
       (x :: names, body)
   | _ -> fatal (Not_enough_lambdas (N.to_int (N.plus_right ab)))
 
+(* Convert a list of variable names to a cube of them.  TODO: I believe that in all places where we use this, we could in theory statically guarantee that there are the correct number of names.  But it would be most natural to have them in a Vec, which suggests that faces should be counted in a Fwn rather than a N, which would unfortunately be a massive change.  *)
 let vars_of_list m names =
   let module S = Monad.State (struct
     type t = string option list
@@ -493,28 +494,29 @@ let rec check :
         }
         ty
   | Empty_co_match, _, _ -> check status ctx { value = Struct (Noeta, Abwd.empty); loc = tm.loc } ty
-  | Codata (eta, fields), UU m, Potential _ -> (
+  | Codata (eta, cube, fields), UU m, Potential _ -> (
       match compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking codata", TubeOf.inst tyargs, m))
-      | Eq -> check_codata status ctx eta tyargs Emp (Bwd.to_list fields))
+      | Eq -> check_codata status ctx eta tyargs Emp cube (Bwd.to_list fields))
   | Codata _, _, Potential _ ->
       fatal (Checking_canonical_at_nonuniverse ("codatatype", PVal (ctx, ty)))
   | Codata _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "codatatype")
 
 and check_codata :
-    type a b n.
+    type a c ac b n.
     (b, potential) status ->
     (a, b) Ctx.t ->
     potential eta ->
     (D.zero, n, n, normal) TubeOf.t ->
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
-    (Field.t * (string option * a N.suc check located)) list ->
+    (a, ac) codata_vars ->
+    (Field.t * ac check located) list ->
     (b, potential) term =
- fun status ctx eta tyargs checked_fields raw_fields ->
+ fun status ctx eta tyargs checked_fields cube raw_fields ->
   let dim = TubeOf.inst tyargs in
   match (raw_fields, status) with
   | [], _ -> Canonical (Codata (eta, dim, checked_fields))
-  | (fld, (x, rty)) :: raw_fields, Potential (name, args, hyp) ->
+  | (fld, rty) :: raw_fields, Potential (name, args, hyp) -> (
       (* Temporarily bind the current constant to the up-until-now value. *)
       Global.run_with_definition name
         (Defined (hyp (Term.Canonical (Codata (eta, dim, checked_fields)))))
@@ -529,10 +531,24 @@ and check_codata :
           (TubeOf.plus_cube
              (TubeOf.mmap { map = (fun _ [ nf ] -> nf.tm) } [ tyargs ])
              (CubeOf.singleton prev_ety)) in
-      let newctx = Ctx.vis ctx (`Cube x) domvars in
-      let cty = check Kinetic newctx rty (universe D.zero) in
-      let checked_fields = Snoc (checked_fields, (fld, cty)) in
-      check_codata status ctx eta tyargs checked_fields raw_fields
+      match cube with
+      | Cube x ->
+          let newctx = Ctx.vis ctx (`Cube x) domvars in
+          let cty = check Kinetic newctx rty (universe D.zero) in
+          let checked_fields = Snoc (checked_fields, (fld, cty)) in
+          check_codata status ctx eta tyargs checked_fields cube raw_fields
+      | Normal ({ value = ac; loc }, xs) -> (
+          let (Faces faces) = count_faces dim in
+          match N.compare (faces_out faces) (N.plus_right ac) with
+          | Eq ->
+              let newctx = Ctx.split ctx faces ac (vars_of_list dim (Bwv.to_list xs)) domvars in
+              let cty = check Kinetic newctx rty (universe D.zero) in
+              let checked_fields = Snoc (checked_fields, (fld, cty)) in
+              check_codata status ctx eta tyargs checked_fields cube raw_fields
+          | Lt _ | Gt _ ->
+              fatal ?loc
+                (Wrong_boundary_of_record (N.to_int (N.plus_right ac) - N.to_int (faces_out faces)))
+          ))
 
 and check_struct :
     type a b c mn m n s.

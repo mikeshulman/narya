@@ -866,33 +866,33 @@ let () = set_tree codata (Closed_entry (eop Codata (op LBracket (codata_fields t
 
 let rec process_codata :
     type n.
-    (Field.t, string option * n N.suc check located) Abwd.t ->
-    Field.Set.t ->
+    (Field.t, n N.suc check located) Abwd.t ->
     n Varscope.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
- fun flds found ctx obs loc ->
+ fun flds ctx obs loc ->
   match obs with
-  | [] -> { value = Raw.Codata (Noeta, flds); loc }
-  | Term { value = App { fn = { value = x; _ }; arg = { value = Field (fld, _); _ }; _ }; _ }
+  | [] -> { value = Raw.Codata (Noeta, Cube None, flds); loc }
+  | Term { value = App { fn = { value = x; _ }; arg = { value = Field (fld, _); _ }; _ }; loc }
     :: Term ty
-    :: obs ->
+    :: obs -> (
+      with_loc loc @@ fun () ->
       let x =
         match x with
         | Ident ([ x ], _) -> Some x
         | Placeholder _ -> None
         | Ident (x, _) -> fatal (Invalid_variable x)
         | _ -> fatal Parse_error in
-      let ty = process (Varscope.ext ctx x) ty in
       let fld = Field.intern fld in
-      if Field.Set.mem fld found then fatal (Duplicate_method_in_codata fld)
-      else process_codata (Abwd.add fld (x, ty) flds) (Field.Set.add fld found) ctx obs loc
+      match Abwd.find_opt fld flds with
+      | Some _ -> fatal (Duplicate_method_in_codata fld)
+      | None ->
+          let ty = process (Varscope.ext ctx x) ty in
+          process_codata (Abwd.add fld ty flds) ctx obs loc)
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
 
-let () =
-  set_processor codata
-    { process = (fun ctx obs loc _ -> process_codata Emp Field.Set.empty ctx obs loc) }
+let () = set_processor codata { process = (fun ctx obs loc _ -> process_codata Emp ctx obs loc) }
 
 let rec pp_codata_fields ppf obs ws =
   match obs with
@@ -947,7 +947,79 @@ let rec record_fields () =
              (terms [ (Op ",", Lazy (lazy (record_fields ()))); (RParen, Done_closed record) ]));
     }
 
-let () = set_tree record (Closed_entry (eop Sig (op LParen (record_fields ()))))
+let () =
+  set_tree record
+    (Closed_entry
+       (eop Sig
+          (Inner
+             {
+               empty_branch with
+               ops = TokMap.singleton LParen (record_fields ());
+               term =
+                 Some
+                   (TokMap.of_list
+                      [
+                        (Mapsto, op LParen (record_fields ()));
+                        (DblMapsto, op LParen (record_fields ()));
+                      ]);
+             })))
+
+let rec process_record :
+    type a ac.
+    (Field.t, ac N.suc check located) Abwd.t ->
+    ac Varscope.t ->
+    (a, ac N.suc) codata_vars ->
+    string option ->
+    (string, Field.t) Abwd.t ->
+    observation list ->
+    Asai.Range.t option ->
+    a check located =
+ fun flds ctx cube var vars obs loc ->
+  match obs with
+  | [] -> { value = Raw.Codata (Eta, cube, flds); loc }
+  | Term { value = Ident ([ fldname ], _); loc } :: Term ty :: obs -> (
+      with_loc loc @@ fun () ->
+      let fld = Field.intern fldname in
+      let vars = Snoc (vars, (fldname, fld)) in
+      match Abwd.find_opt fld flds with
+      | Some _ -> fatal (Duplicate_field_in_record fld)
+      | None ->
+          let ty = process (Varscope.ext_fields ctx var vars) ty in
+          process_record (Abwd.add fld ty flds) ctx cube var vars obs loc)
+  | _ :: _ :: _ -> fatal Parse_error
+  | _ :: [] -> fatal (Anomaly "invalid notation arguments for record")
+
+let () =
+  set_processor record
+    {
+      process =
+        (fun ctx obs loc ws ->
+          let _, ws = take Sig ws in
+          match take_opt Mapsto ws with
+          | Some _ -> (
+              match obs with
+              | Term { value = x; loc } :: obs ->
+                  with_loc loc @@ fun () ->
+                  let (Append_plus (ac, vars, ctx)) =
+                    Varscope.append_plus ctx (List.map fst (get_pi_vars x [])) in
+                  process_record Emp ctx
+                    (Normal ({ value = Suc ac; loc }, Snoc (vars, None)))
+                    None Emp obs loc
+              | _ -> fatal (Anomaly "invalid notation arguments for record"))
+          | None -> (
+              match take_opt DblMapsto ws with
+              | Some _ -> (
+                  match obs with
+                  | Term { value = x; loc } :: obs ->
+                      with_loc loc @@ fun () ->
+                      let x = get_var x in
+                      process_record Emp ctx (Cube x) x Emp obs loc
+                  | _ -> fatal (Anomaly "invalid notation arguments for record"))
+              | None ->
+                  process_record Emp ctx
+                    (Normal ({ value = Suc Zero; loc }, Snoc (Emp, None)))
+                    None Emp obs loc));
+    }
 
 let rec pp_record_fields ppf obs ws =
   match obs with

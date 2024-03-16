@@ -41,7 +41,7 @@ module Raw = struct
 
   and _ check =
     | Synth : 'a synth -> 'a check
-    | Lam : string option * [ `Cube | `Normal ] * 'a N.suc check located -> 'a check
+    | Lam : string option located * [ `Cube | `Normal ] * 'a N.suc check located -> 'a check
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located Bwd.t -> 'a check

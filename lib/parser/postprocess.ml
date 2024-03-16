@@ -10,7 +10,10 @@ open Asai.Range
 open Monad.Ops (Monad.Maybe)
 
 (* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
-let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse -> string option = function
+let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse located -> string option =
+ fun { value; loc } ->
+  with_loc loc @@ fun () ->
+  match value with
   | Ident ([ x ], _) -> Some x
   | Ident (xs, _) -> fatal (Invalid_variable xs)
   | Placeholder _ -> None
@@ -57,7 +60,7 @@ let rec process :
           | Constr (head, args) ->
               let arg = process ctx arg in
               { value = Raw.Constr (head, Snoc (args, arg)); loc }
-          | _ -> fatal (Nonsynthesizing "application head")))
+          | _ -> fatal ?loc:fn.loc (Nonsynthesizing "application head")))
   | Placeholder _ -> fatal (Unimplemented "unification arguments")
   | Ident (parts, _) -> (
       let open Monad.Ops (Monad.Maybe) in
@@ -97,7 +100,7 @@ let rec process :
             let body = process ctx x in
             match body.value with
             | Synth arg -> { value = Synth (Act (str, s, { value = arg; loc = body.loc })); loc }
-            | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
+            | _ -> fatal ?loc:body.loc (Nonsynthesizing "argument of degeneracy"))
         | None -> fatal (Invalid_degeneracy str)
       else fatal (Unimplemented "non-degeneracy superscripts (degeneracies must be parenthesized)")
   | Superscript (None, _, _) -> fatal (Anomaly "degeneracy is head")
@@ -109,7 +112,7 @@ and process_deg :
   | Some (Any s) -> (
       match process ctx arg with
       | { value = Synth arg; loc } -> Some (Synth (Act (str, s, { value = arg; loc })))
-      | _ -> fatal (Nonsynthesizing "argument of degeneracy"))
+      | { loc; _ } -> fatal ?loc (Nonsynthesizing "argument of degeneracy"))
   | None -> None
 
 type _ processed_tel = Processed_tel : ('n, 'k, 'nk) Raw.tel * 'nk Varscope.t -> 'n processed_tel

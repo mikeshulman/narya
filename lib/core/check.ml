@@ -24,14 +24,18 @@ let ( <|> ) : type a b. a option -> Code.t -> a =
 
 (* Look through a specified number of lambdas to find an inner body.  TODO: Here 'b should really be a Fwn and the result should be a Vec, which suggests that faces should be counted in a Fwn, which would unfortunately be a massive change. *)
 let rec lambdas :
-    type a b ab. (a, b, ab) N.plus -> a check located -> string option list * ab check located =
- fun ab tm ->
+    type a b ab.
+    Asai.Range.t option ->
+    (a, b, ab) N.plus ->
+    a check located ->
+    string option list * ab check located =
+ fun loc ab tm ->
   match (ab, tm.value) with
   | Zero, _ -> ([], tm)
-  | Suc _, Lam (x, `Normal, body) ->
-      let names, body = lambdas (N.suc_plus ab) body in
+  | Suc _, Lam ({ value = x; loc }, `Normal, body) ->
+      let names, body = lambdas loc (N.suc_plus ab) body in
       (x :: names, body)
-  | _ -> fatal (Not_enough_lambdas (N.to_int (N.plus_right ab)))
+  | _ -> fatal ?loc (Not_enough_lambdas (N.to_int (N.plus_right ab)))
 
 (* Convert a list of variable names to a cube of them.  TODO: I believe that in all places where we use this, we could in theory statically guarantee that there are the correct number of names.  But it would be most natural to have them in a Vec, which suggests that faces should be counted in a Fwn rather than a N, which would unfortunately be a massive change.  *)
 let vars_of_list m names =
@@ -93,7 +97,7 @@ let rec check :
       match status with
       | Potential _ -> (Term.Realize sval : (b, s) term)
       | Kinetic -> sval)
-  | Lam (x, cube, body), Pi (_, doms, cods), _ -> (
+  | Lam ({ value = x; _ }, cube, body), Pi (_, doms, cods), _ -> (
       let m = CubeOf.dim doms in
       (* It seems that we have to perform this matching inside a helper function with a declared polymorphic type in order for its type to get specialized correctly and for it to typecheck. *)
       let mkstatus :
@@ -126,7 +130,7 @@ let rec check :
                 let (Faces dom_faces) = count_faces m in
                 let f = faces_out dom_faces in
                 let (Plus af) = N.plus f in
-                let names, body = lambdas af tm in
+                let names, body = lambdas None af tm in
                 let names = vars_of_list m names in
                 let status = mkstatus status m names newnfs in
                 (names, check status (Ctx.split ctx dom_faces af names newnfs) body output)
@@ -489,7 +493,11 @@ let rec check :
   | Empty_co_match, Pi _, Potential _ ->
       check status ctx
         {
-          value = Raw.Lam (None, `Normal, { value = Match ((Top, None), []); loc = tm.loc });
+          value =
+            Raw.Lam
+              ( { value = None; loc = None },
+                `Normal,
+                { value = Match ((Top, None), []); loc = tm.loc } );
           loc = tm.loc;
         }
         ty
@@ -684,6 +692,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
       let sx, ety = synth ctx x in
       let ex = Ctx.eval_term ctx sx in
       ( Act (sx, fa),
+        with_loc x.loc @@ fun () ->
         act_ty ex ety fa ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa)) )
   | Asc (tm, ty) ->
       let cty = check Kinetic ctx ty (universe D.zero) in

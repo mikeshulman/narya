@@ -30,7 +30,7 @@ let () =
     {
       process =
         (fun ctx obs loc _ ->
-          let x, Term a, Term b =
+          let x, xloc, Term a, Term b =
             match obs with
             | [ one; b ] -> (
                 match one with
@@ -38,11 +38,12 @@ let () =
                     match args n with
                     | [ Term { value = Notn n; _ } ] when equal (notn n) Builtins.asc -> (
                         match args n with
-                        | [ Term { value = Ident ([ x ], _); _ }; Term a ] -> (Some x, Term a, b)
-                        | [ Term { value = Placeholder _; _ }; Term a ] -> (None, Term a, b)
-                        | _ -> (None, one, b))
-                    | _ -> (None, one, b))
-                | _ -> (None, one, b))
+                        | [ Term { value = Ident ([ x ], _); loc = xloc }; Term a ] ->
+                            (Some x, xloc, Term a, b)
+                        | [ Term { value = Placeholder _; _ }; Term a ] -> (None, None, Term a, b)
+                        | _ -> (None, None, one, b))
+                    | _ -> (None, None, one, b))
+                | _ -> (None, None, one, b))
             | _ -> fatal (Anomaly "invalid notation arguments for sigma") in
           let a = process ctx a in
           let b = process (Varscope.ext ctx x) b in
@@ -51,7 +52,7 @@ let () =
               Synth
                 (App
                    ( { value = App ({ value = Const sigma; loc }, a); loc },
-                     { value = Lam (x, `Normal, b); loc } ));
+                     { value = Lam ({ value = x; loc = xloc }, `Normal, b); loc } ));
             loc;
           });
     };

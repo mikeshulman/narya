@@ -44,7 +44,7 @@ let () =
         (fun ctx obs loc _ ->
           match obs with
           | [ Term x; Term ty; Term tm; Term body ] -> (
-              let x = get_var x.value in
+              let x = get_var x in
               let ty, tm = (process ctx ty, process ctx tm) in
               match process (Varscope.ext ctx x) body with
               | { value = Synth body; loc = body_loc } ->
@@ -59,7 +59,7 @@ let () =
                   }
               | _ -> fatal (Nonsynthesizing "body of let"))
           | [ Term x; Term tm; Term body ] -> (
-              let x = get_var x.value in
+              let x = get_var x in
               match process ctx tm with
               | { value = Synth term; loc = term_loc } -> (
                   match process (Varscope.ext ctx x) body with
@@ -189,19 +189,18 @@ type pi_dom =
 (* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument 'vars'. *)
 let rec get_pi_vars :
     type lt ls rt rs.
-    (lt, ls, rt, rs) parse ->
+    (lt, ls, rt, rs) parse located ->
     (string option * Whitespace.t list) list ->
     (string option * Whitespace.t list) list =
- fun xs vars ->
-  match xs with
+ fun { value; loc } vars ->
+  match value with
   | Ident ([ x ], w) -> (Some x, w) :: vars
   | Placeholder w -> (None, w) :: vars
-  | App { fn; arg = { value = Ident ([ x ], w); _ }; _ } ->
-      get_pi_vars fn.value ((Some x, w) :: vars)
-  | App { fn; arg = { value = Placeholder w; _ }; _ } -> get_pi_vars fn.value ((None, w) :: vars)
+  | App { fn; arg = { value = Ident ([ x ], w); _ }; _ } -> get_pi_vars fn ((Some x, w) :: vars)
+  | App { fn; arg = { value = Placeholder w; _ }; _ } -> get_pi_vars fn ((None, w) :: vars)
   (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
-  | Ident (xs, _) -> fatal (Invalid_variable xs)
-  | App { arg = { value = Ident (xs, _); _ }; _ } -> fatal (Invalid_variable xs)
+  | Ident (name, _) -> fatal ?loc (Invalid_variable name)
+  | App { arg = { value = Ident (xs, _); loc }; _ } -> fatal ?loc (Invalid_variable xs)
   | _ -> raise Not_a_pi_arg
 
 (* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables and the type. *)
@@ -219,7 +218,7 @@ let get_pi_arg :
       | [ Term xs; dom ] ->
           let wscolon, ws = take Colon (whitespace n) in
           taken_last ws;
-          let vars = get_pi_vars xs.value [] in
+          let vars = get_pi_vars xs [] in
           Dep { wsarrow; vars; ty = dom; wslparen; wscolon; wsrparen }
       | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
   | _ -> raise Not_a_pi_arg
@@ -382,16 +381,16 @@ let rec get_vars :
  fun ctx vars ->
   match vars.value with
   | Ident ([ x ], _) -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Varscope.ext ctx (Some x))
-  | Ident (xs, _) -> fatal (Invalid_variable xs)
+  | Ident (xs, _) -> fatal ?loc:vars.loc (Invalid_variable xs)
   | Placeholder _ -> Extctx (Suc Zero, Snoc (Emp, vars.loc), Varscope.ext ctx None)
   | App { fn; arg = { value = Ident ([ x ], _); _ }; _ } ->
       let (Extctx (ab, locs, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (locs, vars.loc), Varscope.ext ctx (Some x))
-  | App { arg = { value = Ident (xs, _); _ }; _ } -> fatal (Invalid_variable xs)
+  | App { arg = { value = Ident (xs, _); loc }; _ } -> fatal ?loc (Invalid_variable xs)
   | App { fn; arg = { value = Placeholder _; _ }; _ } ->
       let (Extctx (ab, locs, ctx)) = get_vars ctx fn in
       Extctx (Suc ab, Snoc (locs, vars.loc), Varscope.ext ctx None)
-  | _ -> fatal Parse_error
+  | _ -> fatal ?loc:vars.loc Parse_error
 
 let rec raw_lam :
     type a b ab.
@@ -406,7 +405,8 @@ let rec raw_lam :
   | Zero, Emp -> tm
   | Suc ab, Snoc (locs, loc) ->
       let names, x = Varscope.top names in
-      raw_lam names cube ab locs { value = Lam (x, cube, tm); loc = Range.merge_opt loc tm.loc }
+      raw_lam names cube ab locs
+        { value = Lam ({ value = x; loc }, cube, tm); loc = Range.merge_opt loc tm.loc }
 
 let process_abs cube =
   {
@@ -506,18 +506,18 @@ let rec process_tuple :
  fun first flds found ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Struct (Eta, flds); loc }
-  | Term { value = Notn n; _ } :: obs when equal (notn n) coloneq -> (
+  | Term { value = Notn n; loc } :: obs when equal (notn n) coloneq -> (
       match args n with
-      | [ Term { value = Ident ([ x ], _); _ }; Term tm ] ->
+      | [ Term { value = Ident ([ x ], _); loc = xloc }; Term tm ] ->
           let tm = process ctx tm in
           let fld = Field.intern x in
-          if Field.Set.mem fld found then fatal (Duplicate_field_in_tuple fld)
+          if Field.Set.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
           else
             process_tuple false (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
       | [ Term { value = Placeholder _; _ }; Term tm ] ->
           let tm = process ctx tm in
           process_tuple false (Abwd.add None tm flds) found ctx obs loc
-      | _ :: _ -> fatal Invalid_field_in_tuple
+      | Term x :: _ -> fatal ?loc:x.loc Invalid_field_in_tuple
       | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
   | [ Term body ] when first -> process ctx body
   | Term tm :: obs ->
@@ -654,10 +654,10 @@ let rec process_comatch :
  fun (flds, found) ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Struct (Noeta, flds); loc }
-  | Term { value = Field (x, _); _ } :: Term tm :: obs ->
+  | Term { value = Field (x, _); loc } :: Term tm :: obs ->
       let tm = process ctx tm in
       let fld = Field.intern x in
-      if Field.Set.mem fld found then fatal (Duplicate_method_in_comatch fld)
+      if Field.Set.mem fld found then fatal ?loc (Duplicate_method_in_comatch fld)
         (* Comatches can't have unlabeled fields *)
       else process_comatch (Abwd.add (Some fld) tm flds, Field.Set.add fld found) ctx obs loc
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
@@ -752,7 +752,14 @@ let () =
           (* Otherwise, it's a matching lambda. *)
           | _ ->
               let branches = process_branches (Varscope.ext ctx None) obs in
-              { value = Lam (None, `Normal, { value = Match ((Top, None), branches); loc }); loc });
+              {
+                value =
+                  Lam
+                    ( { value = None; loc = None },
+                      `Normal,
+                      { value = Match ((Top, None), branches); loc } );
+                loc;
+              });
     }
 
 let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist -> Whitespace.t list
@@ -874,7 +881,12 @@ let rec process_codata :
  fun flds ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Codata (Noeta, Cube None, flds); loc }
-  | Term { value = App { fn = { value = x; _ }; arg = { value = Field (fld, _); _ }; _ }; loc }
+  | Term
+      {
+        value =
+          App { fn = { value = x; loc = xloc }; arg = { value = Field (fld, _); loc = fldloc }; _ };
+        loc;
+      }
     :: Term ty
     :: obs -> (
       with_loc loc @@ fun () ->
@@ -882,11 +894,11 @@ let rec process_codata :
         match x with
         | Ident ([ x ], _) -> Some x
         | Placeholder _ -> None
-        | Ident (x, _) -> fatal (Invalid_variable x)
-        | _ -> fatal Parse_error in
+        | Ident (x, _) -> fatal ?loc:xloc (Invalid_variable x)
+        | _ -> fatal ?loc:xloc Parse_error in
       let fld = Field.intern fld in
       match Abwd.find_opt fld flds with
-      | Some _ -> fatal (Duplicate_method_in_codata fld)
+      | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
       | None ->
           let ty = process (Varscope.ext ctx x) ty in
           process_codata (Abwd.add fld ty flds) ctx obs loc)
@@ -977,12 +989,11 @@ let rec process_record :
  fun flds ctx cube var vars obs loc ->
   match obs with
   | [] -> { value = Raw.Codata (Eta, cube, flds); loc }
-  | Term { value = Ident ([ fldname ], _); loc } :: Term ty :: obs -> (
-      with_loc loc @@ fun () ->
+  | Term { value = Ident ([ fldname ], _); loc = fldloc } :: Term ty :: obs -> (
       let fld = Field.intern fldname in
       let vars = Snoc (vars, (fldname, fld)) in
       match Abwd.find_opt fld flds with
-      | Some _ -> fatal (Duplicate_field_in_record fld)
+      | Some _ -> fatal ?loc:fldloc (Duplicate_field_in_record fld)
       | None ->
           let ty = process (Varscope.ext_fields ctx var vars) ty in
           process_record (Abwd.add fld ty flds) ctx cube var vars obs loc)
@@ -998,20 +1009,19 @@ let () =
           match take_opt Mapsto ws with
           | Some _ -> (
               match obs with
-              | Term { value = x; loc } :: obs ->
-                  with_loc loc @@ fun () ->
+              | Term x :: obs ->
+                  with_loc x.loc @@ fun () ->
                   let (Append_plus (ac, vars, ctx)) =
                     Varscope.append_plus ctx (List.map fst (get_pi_vars x [])) in
                   process_record Emp ctx
-                    (Normal ({ value = Suc ac; loc }, Snoc (vars, None)))
+                    (Normal ({ value = Suc ac; loc = x.loc }, Snoc (vars, None)))
                     None Emp obs loc
               | _ -> fatal (Anomaly "invalid notation arguments for record"))
           | None -> (
               match take_opt DblMapsto ws with
               | Some _ -> (
                   match obs with
-                  | Term { value = x; loc } :: obs ->
-                      with_loc loc @@ fun () ->
+                  | Term x :: obs ->
                       let x = get_var x in
                       process_record Emp ctx (Cube x) x Emp obs loc
                   | _ -> fatal (Anomaly "invalid notation arguments for record"))

@@ -26,7 +26,8 @@ type pmt =
 (* Using a Bwv of variable names, to turn them into De Bruijn indices, we can parse such a term into a synth/checkable one. *)
 let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
  fun ctx -> function
-  | Lam (x, body) -> unlocated (Raw.Lam (Some x, `Normal, parse_chk (Snoc (ctx, x)) body))
+  | Lam (x, body) ->
+      unlocated (Raw.Lam ({ value = Some x; loc = None }, `Normal, parse_chk (Snoc (ctx, x)) body))
   | Struct tms ->
       unlocated
         (Raw.Struct

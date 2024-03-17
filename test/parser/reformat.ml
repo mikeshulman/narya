@@ -141,7 +141,10 @@ let test_compactness () =
 
   (* Canonical types *)
   reformat "codata [ x .head : blah blah blah blah blah blah blah blah | x .tail : Stream A ]";
+  reformat
+    "codata [ x .head : blah blah blah blah blah blah blah blah -> blah | x .tail : Stream A ]";
   reformat "sig ( fst : blah blah blah blah blah blah blah blah, tail : Stream A )";
+  reformat "data [ one. : blah blah blah blah blah blah blah blah blah -> blah | two. : me ]";
   ()
 
 let () =

@@ -525,11 +525,28 @@ codata [
 | x .tail : Stream A
 ]
 
+codata [
+| x .head : blah blah blah
+              blah blah blah
+              blah blah
+              → blah 
+| x .tail
+  : Stream A
+]
+
 sig (
   fst : blah blah blah blah
           blah blah blah blah,
   tail : Stream A,
   )
+
+data [
+| one. : blah blah blah blah
+           blah blah blah
+           blah blah
+           → blah 
+| two. : me
+]
 
 
 --------------------
@@ -726,8 +743,23 @@ codata [
               blah blah
 | x .tail : Stream A ]
 
+codata [
+| x .head : blah blah blah
+              blah blah blah
+              blah blah
+              → blah 
+| x .tail
+  : Stream A ]
+
 sig (
   fst : blah blah blah blah
           blah blah blah blah,
   tail : Stream A)
+
+data [
+| one. : blah blah blah blah
+           blah blah blah
+           blah blah
+           → blah 
+| two. : me ]
 

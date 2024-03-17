@@ -1116,44 +1116,48 @@ let rec process_data :
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for data")
 
 let () = set_processor data { process = (fun ctx obs loc _ -> process_data Emp ctx obs loc) }
-(*
-   let rec pp_codata_fields ppf obs ws =
-     match obs with
-     | [] ->
-         let wsrbrack, ws = take RBracket ws in
-         taken_last ws;
-         wsrbrack
-     | varfld :: body :: obs ->
-         pp_open_hvbox ppf 2;
-         let wsbar, ws = take (Op "|") ws in
-         pp_tok ppf (Op "|");
-         pp_ws `Nobreak ppf wsbar;
-         pp_term `Break ppf varfld;
-         let wscolon, ws = take Colon ws in
-         pp_tok ppf Colon;
-         pp_ws `Nobreak ppf wscolon;
-         pp_close_box ppf ();
-         pp_term (if style () = `Compact && List.is_empty obs then `Nobreak else `Break) ppf body;
-         pp_codata_fields ppf obs ws
-     | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
 
-   let pp_codata space ppf obs ws =
-     pp_open_vbox ppf 0;
-     let wscodata, ws = take Codata ws in
-     pp_tok ppf Codata;
-     pp_ws `Nobreak ppf wscodata;
-     let wslbrack, ws = take LBracket ws in
-     pp_tok ppf LBracket;
-     pp_ws `Break ppf wslbrack;
-     let ws = must_start_with (Op "|") ws in
-     let wsrbrack = pp_codata_fields ppf obs ws in
-     pp_tok ppf RBracket;
-     pp_ws space ppf wsrbrack;
-     pp_close_box ppf ()
+let rec pp_data_constrs ppf obs ws =
+  match obs with
+  | [] ->
+      let wsrbrack, ws = take RBracket ws in
+      taken_last ws;
+      wsrbrack
+  | varcon :: body :: obs ->
+      pp_open_hvbox ppf 2;
+      let wsbar, ws = take (Op "|") ws in
+      pp_tok ppf (Op "|");
+      pp_ws `Nobreak ppf wsbar;
+      pp_term `Break ppf varcon;
+      let wscolon, ws = take Colon ws in
+      pp_tok ppf Colon;
+      pp_ws `Nobreak ppf wscolon;
+      pp_close_box ppf ();
+      if List.is_empty obs then
+        if style () = `Compact then pp_term `Nobreak ppf body else pp_term `Break ppf body
+      else (
+        pp_term `Break ppf body;
+        (* I don't understand why this seems to be necessary.  The `Break in the previous line should insert a break, and it does in the case of codata, but for some reason not here. *)
+        pp_print_cut ppf ());
+      pp_data_constrs ppf obs ws
+  | _ :: _ -> fatal (Anomaly "invalid notation arguments for data")
 
-   let () = set_print codata pp_codata
+let pp_data space ppf obs ws =
+  pp_open_vbox ppf 0;
+  let wscodata, ws = take Data ws in
+  pp_tok ppf Data;
+  pp_ws `Nobreak ppf wscodata;
+  let wslbrack, ws = take LBracket ws in
+  pp_tok ppf LBracket;
+  pp_ws `Break ppf wslbrack;
+  let ws = must_start_with (Op "|") ws in
+  let wsrbrack = pp_data_constrs ppf obs ws in
+  pp_tok ppf RBracket;
+  pp_ws space ppf wsrbrack;
+  pp_close_box ppf ()
 
-*)
+let () = set_print data pp_data
+
 (* ********************
    Forwards Lists
    ******************** *)

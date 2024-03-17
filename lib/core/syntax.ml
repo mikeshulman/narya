@@ -74,6 +74,14 @@ module Raw = struct
   and (_, _, _) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
     | Ext : string option * 'a check located * ('a N.suc, 'b, 'ab) tel -> ('a, 'b Fwn.suc, 'ab) tel
+
+  let rec dataconstr_of_pi : type a. a check located -> a dataconstr =
+   fun ty ->
+    match ty.value with
+    | Synth (Pi (x, dom, cod)) ->
+        let (Dataconstr (tel, out)) = dataconstr_of_pi cod in
+        Dataconstr (Ext (x, dom, tel), out)
+    | _ -> Dataconstr (Emp, ty)
 end
 
 (* ******************** Names ******************** *)

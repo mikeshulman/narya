@@ -562,7 +562,8 @@ and check_data :
             ->
               if head = out_head && Option.is_some (is_id_ins ins) then
                 let (Wrap indices) =
-                  get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps) in
+                  get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps) output.loc
+                in
                 match N.compare (Bwv.length indices) num_indices with
                 | Eq ->
                     check_data status ctx ty num_indices
@@ -571,16 +572,23 @@ and check_data :
                 | _ ->
                     (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
                     fatal (Anomaly "length of indices mismatch")
-              else fatal (Invalid_constructor_type c)
-          | _ -> fatal (Invalid_constructor_type c)))
+              else fatal ?loc:output.loc (Invalid_constructor_type c)
+          | _ -> fatal ?loc:output.loc (Invalid_constructor_type c)))
 
 and get_indices :
-    type a b. (a, b) Ctx.t -> Constr.t -> app list -> app list -> (b, kinetic) term Bwv.wrapped =
- fun ctx c current output ->
+    type a b.
+    (a, b) Ctx.t ->
+    Constr.t ->
+    app list ->
+    app list ->
+    Asai.Range.t option ->
+    (b, kinetic) term Bwv.wrapped =
+ fun ctx c current output loc ->
+  with_loc loc @@ fun () ->
   match (current, output) with
   | arg1 :: current, arg2 :: output -> (
       match equal_arg (Ctx.length ctx) arg1 arg2 with
-      | Some () -> get_indices ctx c current output
+      | Some () -> get_indices ctx c current output loc
       | None -> fatal (Invalid_constructor_type c))
   | [], _ ->
       Bwv.of_list_map
@@ -593,7 +601,7 @@ and get_indices :
                   | Neq -> fatal (Invalid_constructor_type c))
               | None -> fatal (Invalid_constructor_type c))
           | Value.App (Field _, _) -> fatal (Anomaly "field is not an index"))
-        current
+        output
   | _ -> fatal (Invalid_constructor_type c)
 
 and check_codata :

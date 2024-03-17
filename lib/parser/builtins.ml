@@ -1070,6 +1070,91 @@ let pp_record space ppf obs ws =
 let () = set_print record pp_record
 
 (* ********************
+   Datatypes
+   ******************** *)
+
+let data = make "data" Outfix
+
+let rec data_constrs bar_ok =
+  Inner
+    {
+      empty_branch with
+      ops =
+        (if bar_ok then
+           TokMap.of_list
+             [ (Op "|", Lazy (lazy (data_constrs false))); (RBracket, Done_closed data) ]
+         else TokMap.empty);
+      term =
+        Some
+          (TokMap.singleton Colon
+             (terms [ (Op "|", Lazy (lazy (data_constrs false))); (RBracket, Done_closed data) ]));
+    }
+
+let () = set_tree data (Closed_entry (eop Data (op LBracket (data_constrs true))))
+
+let rec process_data :
+    type n.
+    (Constr.t, n Raw.dataconstr located) Abwd.t ->
+    n Varscope.t ->
+    observation list ->
+    Asai.Range.t option ->
+    n check located =
+ fun constrs ctx obs loc ->
+  match obs with
+  | [] -> { value = Raw.Data constrs; loc }
+  | Term { value = Constr (c, _); loc = cloc } :: Term ty :: obs -> (
+      let c = Constr.intern c in
+      match Abwd.find_opt c constrs with
+      | Some _ -> fatal ?loc:cloc (Duplicate_constructor_in_data c)
+      | None ->
+          let rty = process ctx ty in
+          process_data
+            (Abwd.add c
+               ({ value = dataconstr_of_pi rty; loc = ty.loc } : n dataconstr located)
+               constrs)
+            ctx obs loc)
+  | _ :: _ -> fatal (Anomaly "invalid notation arguments for data")
+
+let () = set_processor data { process = (fun ctx obs loc _ -> process_data Emp ctx obs loc) }
+(*
+   let rec pp_codata_fields ppf obs ws =
+     match obs with
+     | [] ->
+         let wsrbrack, ws = take RBracket ws in
+         taken_last ws;
+         wsrbrack
+     | varfld :: body :: obs ->
+         pp_open_hvbox ppf 2;
+         let wsbar, ws = take (Op "|") ws in
+         pp_tok ppf (Op "|");
+         pp_ws `Nobreak ppf wsbar;
+         pp_term `Break ppf varfld;
+         let wscolon, ws = take Colon ws in
+         pp_tok ppf Colon;
+         pp_ws `Nobreak ppf wscolon;
+         pp_close_box ppf ();
+         pp_term (if style () = `Compact && List.is_empty obs then `Nobreak else `Break) ppf body;
+         pp_codata_fields ppf obs ws
+     | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
+
+   let pp_codata space ppf obs ws =
+     pp_open_vbox ppf 0;
+     let wscodata, ws = take Codata ws in
+     pp_tok ppf Codata;
+     pp_ws `Nobreak ppf wscodata;
+     let wslbrack, ws = take LBracket ws in
+     pp_tok ppf LBracket;
+     pp_ws `Break ppf wslbrack;
+     let ws = must_start_with (Op "|") ws in
+     let wsrbrack = pp_codata_fields ppf obs ws in
+     pp_tok ppf RBracket;
+     pp_ws space ppf wsrbrack;
+     pp_close_box ppf ()
+
+   let () = set_print codata pp_codata
+
+*)
+(* ********************
    Forwards Lists
    ******************** *)
 
@@ -1264,6 +1349,7 @@ let builtins =
     |> State.add empty_co_match
     |> State.add codata
     |> State.add record
+    |> State.add data
     |> State.add fwd
     |> State.add bwd
     |> State.add_user "cons" (Infixr No.zero)

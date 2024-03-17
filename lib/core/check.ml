@@ -37,6 +37,25 @@ let rec lambdas :
       (x :: names, body)
   | _ -> fatal ?loc (Not_enough_lambdas (N.to_int (N.plus_right ab)))
 
+(* Check that a given value is a zero-dimensional type family (something where an indexed datatype could live) and return the length of its domain telescope (the number of indices).  Unfortunately I don't see an easy way to do this without essentially going through all the same steps of extending the context that we would do to check something at that type family. *)
+let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
+ fun ctx ty ->
+  let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
+  match uty with
+  | UU m -> (
+      match compare m D.zero with
+      | Eq -> 0
+      | Neq -> fatal (Unimplemented "higher-dimensional datatypes"))
+  | Pi (x, doms, cods) -> (
+      (* In practice, these dimensions will always be zero also if the function succeeds, otherwise the eventual output would have to be higher-dimensional too.  But it doesn't hurt to be more general, and will require less change if we eventually implement higher-dimensional datatypes. *)
+      match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
+      | Eq ->
+          let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
+          let output = tyof_app cods tyargs newargs in
+          1 + typefam (Ctx.vis ctx (`Cube x) newnfs) output
+      | Neq -> fatal (Dimension_mismatch ("typefam", TubeOf.inst tyargs, CubeOf.dim doms)))
+  | _ -> fatal (Checking_canonical_at_nonuniverse ("datatype", PVal (ctx, ty)))
+
 (* Convert a list of variable names to a cube of them.  TODO: I believe that in all places where we use this, we could in theory statically guarantee that there are the correct number of names.  But it would be most natural to have them in a Vec, which suggests that faces should be counted in a Fwn rather than a N, which would unfortunately be a massive change.  *)
 let vars_of_list m names =
   let module S = Monad.State (struct
@@ -80,6 +99,10 @@ type (_, _) status =
   | Potential :
       Constant.t * app Bwd.t * (('b, potential) term -> (emp, potential) term)
       -> ('b, potential) status
+
+(* The output of checking a telescope includes an extended context. *)
+type (_, _) checked_tel =
+  | Checked_tel : ('b, 'd, 'bd) Telescope.t * ('ac, 'bd) Ctx.t -> ('ac, 'b) checked_tel
 
 (* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential). *)
 let rec check :
@@ -229,7 +252,7 @@ let rec check :
           | Potential _ -> Realize c
           | Kinetic -> c))
   | Constr ({ value; loc }, _), _, _ ->
-      with_loc loc @@ fun () -> fatal (No_such_constructor (`Other (PUninst (ctx, uty)), value))
+      fatal ?loc (No_such_constructor (`Other (PUninst (ctx, uty)), value))
   | Match _, _, Kinetic -> fatal (Unimplemented "Matching in terms (rather than case trees)")
   | Match (ix, brs), _, Potential _ -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
@@ -509,6 +532,69 @@ let rec check :
   | Codata _, _, Potential _ ->
       fatal (Checking_canonical_at_nonuniverse ("codatatype", PVal (ctx, ty)))
   | Codata _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "codatatype")
+  | Data constrs, _, Potential _ ->
+      let (Plus_something num_indices) = N.plus_of_int (typefam ctx ty) in
+      check_data status ctx ty (Nat num_indices) Constr.Map.empty (Bwd.to_list constrs)
+  | Data _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "datatype")
+
+and check_data :
+    type a b i bi.
+    (b, potential) status ->
+    (a, b) Ctx.t ->
+    kinetic value ->
+    i N.t ->
+    (b, i) Term.dataconstr Constr.Map.t ->
+    (Constr.t * a Raw.dataconstr located) list ->
+    (b, potential) term =
+ fun status ctx ty num_indices checked_constrs raw_constrs ->
+  match (raw_constrs, status) with
+  | [], _ -> Canonical (Data (num_indices, checked_constrs))
+  | (c, { value = Dataconstr (args, output); loc }) :: raw_constrs, Potential (head, current_apps, _)
+    -> (
+      with_loc loc @@ fun () ->
+      match Constr.Map.find_opt c checked_constrs with
+      | Some _ -> fatal (Duplicate_constructor_in_data c)
+      | None -> (
+          let (Checked_tel (args, newctx)) = check_tel ctx args in
+          let coutput = check Kinetic newctx output (universe D.zero) in
+          match Ctx.eval_term newctx coutput with
+          | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; alignment = _ }, _)
+            ->
+              if head = out_head && Option.is_some (is_id_ins ins) then
+                let (Wrap indices) =
+                  get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps) in
+                match N.compare (Bwv.length indices) num_indices with
+                | Eq ->
+                    check_data status ctx ty num_indices
+                      (checked_constrs |> Constr.Map.add c (Term.Dataconstr { args; indices }))
+                      raw_constrs
+                | _ ->
+                    (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
+                    fatal (Anomaly "length of indices mismatch")
+              else fatal (Invalid_constructor_type c)
+          | _ -> fatal (Invalid_constructor_type c)))
+
+and get_indices :
+    type a b. (a, b) Ctx.t -> Constr.t -> app list -> app list -> (b, kinetic) term Bwv.wrapped =
+ fun ctx c current output ->
+  match (current, output) with
+  | arg1 :: current, arg2 :: output -> (
+      match equal_arg (Ctx.length ctx) arg1 arg2 with
+      | Some () -> get_indices ctx c current output
+      | None -> fatal (Invalid_constructor_type c))
+  | [], _ ->
+      Bwv.of_list_map
+        (function
+          | Value.App (Arg arg, ins) -> (
+              match is_id_ins ins with
+              | Some () -> (
+                  match compare (CubeOf.dim arg) D.zero with
+                  | Eq -> readback_nf ctx (CubeOf.find_top arg)
+                  | Neq -> fatal (Invalid_constructor_type c))
+              | None -> fatal (Invalid_constructor_type c))
+          | Value.App (Field _, _) -> fatal (Anomaly "field is not an index"))
+        current
+  | _ -> fatal (Invalid_constructor_type c)
 
 and check_codata :
     type a c ac b n.
@@ -905,10 +991,7 @@ and check_at_tel :
 
 (* Given a raw telescope and a context, we can check it to produce a checked telescope and also a new context extended by that telescope. *)
 
-type (_, _) checked_tel =
-  | Checked_tel : ('b, 'd, 'bd) Telescope.t * ('ac, 'bd) Ctx.t -> ('ac, 'b) checked_tel
-
-let rec check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel =
+and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel =
  fun ctx tel ->
   match tel with
   | Emp -> Checked_tel (Emp, ctx)

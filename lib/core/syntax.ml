@@ -48,6 +48,7 @@ module Raw = struct
     | Match : 'a index * 'a branch list -> 'a check
     (* "[]", which could be either an empty match or an empty comatch *)
     | Empty_co_match : 'a check
+    | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
     | Codata :
         potential eta * ('a, 'ac) codata_vars * (Field.t, 'ac check located) Abwd.t
         -> 'a check
@@ -61,6 +62,8 @@ module Raw = struct
         * 'ab check located
         -> 'a branch
 
+  and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located -> 'a dataconstr
+
   (* A normal codatatype binds one more "self" variable in the types of its fields.  A normal record type does the same, except that the user doesn't have a name for that variable and instead accesses it by lexical variables that postprocess to its fields using Varscope. *)
   and (_, _) codata_vars =
     | Cube : string option -> ('a, 'a N.suc) codata_vars
@@ -68,7 +71,7 @@ module Raw = struct
     | Normal : ('a, 'c, 'ac) N.plus located * (string option, 'c) Bwv.t -> ('a, 'ac) codata_vars
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
-  type (_, _, _) tel =
+  and (_, _, _) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
     | Ext : string option * 'a check located * ('a N.suc, 'b, 'ab) tel -> ('a, 'b Fwn.suc, 'ab) tel
 end

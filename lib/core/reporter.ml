@@ -82,6 +82,7 @@ module Code = struct
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
     | No_such_constructor_in_match : printable * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
+    | Duplicate_constructor_in_data : Constr.t -> t
     | Index_variable_in_index_value : t
     | Matching_on_nondatatype : printable -> t
     | Matching_on_let_bound_variable : printable -> t
@@ -115,6 +116,7 @@ module Code = struct
     | Checking_canonical_at_nonuniverse : string * printable -> t
     | Canonical_type_outside_case_tree : string -> t
     | Wrong_boundary_of_record : int -> t
+    | Invalid_constructor_type : Constr.t -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -168,6 +170,7 @@ module Code = struct
     | Wrong_number_of_arguments_to_pattern _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
+    | Duplicate_constructor_in_data _ -> Error
     | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
     | Matching_on_let_bound_variable _ -> Error
@@ -200,6 +203,7 @@ module Code = struct
     | Checking_canonical_at_nonuniverse _ -> Error
     | Canonical_type_outside_case_tree _ -> Error
     | Wrong_boundary_of_record _ -> Error
+    | Invalid_constructor_type _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -282,7 +286,9 @@ module Code = struct
     | Canonical_type_outside_case_tree _ -> "E1501"
     | Duplicate_field_in_record _ -> "E1502"
     | Duplicate_method_in_codata _ -> "E1503"
-    | Wrong_boundary_of_record _ -> "E1504"
+    | Duplicate_constructor_in_data _ -> "E1504"
+    | Wrong_boundary_of_record _ -> "E1505"
+    | Invalid_constructor_type _ -> "E1506"
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
@@ -490,12 +496,17 @@ module Code = struct
         textf "duplicate method in codatatype: %s" (Field.to_string fld)
     | Duplicate_field_in_record fld ->
         textf "duplicate field in record type: %s" (Field.to_string fld)
+    | Duplicate_constructor_in_data c ->
+        textf "duplicate constructor in datatype: %s" (Constr.to_string c)
     | Wrong_boundary_of_record n ->
         if n > 0 then
           textf "too many variables in boundary of higher-dimensional record (%d extra)" n
         else
           textf "not enough variables in boundary of higher-dimensional record (need %d more)"
             (abs n)
+    | Invalid_constructor_type c ->
+        textf "invalid type for constructor %s: must be current datatype instance"
+          (Constr.to_string c)
 end
 
 include Asai.StructuredReporter.Make (Code)

@@ -165,13 +165,50 @@ let () =
       pp_close_box ppf ()
   | _ -> fatal (Anomaly "invalid notation arguments for ascription")
 
+(* ********************
+   Telescopes
+   ******************** *)
+
+exception Invalid_telescope
+
+(* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument 'vars'. *)
+let rec process_var_list :
+    type lt ls rt rs.
+    (lt, ls, rt, rs) parse located ->
+    (string option * Whitespace.t list) list ->
+    (string option * Whitespace.t list) list =
+ fun { value; loc } vars ->
+  match value with
+  | Ident ([ x ], w) -> (Some x, w) :: vars
+  | Placeholder w -> (None, w) :: vars
+  | App { fn; arg = { value = Ident ([ x ], w); _ }; _ } -> process_var_list fn ((Some x, w) :: vars)
+  | App { fn; arg = { value = Placeholder w; _ }; _ } -> process_var_list fn ((None, w) :: vars)
+  (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
+  | Ident (name, _) -> fatal ?loc (Invalid_variable name)
+  | App { arg = { value = Ident (xs, _); loc }; _ } -> fatal ?loc (Invalid_variable xs)
+  | _ -> raise Invalid_telescope
+
+(* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables, the type, and the whitespace of the colon. *)
+let process_typed_vars :
+    type lt ls rt rs.
+    (lt, ls, rt, rs) parse ->
+    (string option * Whitespace.t list) list * Whitespace.t list * observation =
+ fun arg ->
+  match arg with
+  | Notn n when equal (notn n) asc -> (
+      match args n with
+      | [ Term xs; ty ] ->
+          let wscolon, ws = take Colon (whitespace n) in
+          taken_last ws;
+          (process_var_list xs [], wscolon, ty)
+      | _ -> fatal (Anomaly "invalid notation arguments for telescope"))
+  | _ -> raise Invalid_telescope
+
 (* ****************************************
    Function types (dependent and non)
  **************************************** *)
 
 let arrow = make "arrow" (Infixr No.zero)
-
-exception Not_a_pi_arg
 
 type arrow_opt = [ `Arrow of Whitespace.t list | `Noarrow | `First ]
 
@@ -186,47 +223,10 @@ type pi_dom =
     }
   | Nondep of { wsarrow : arrow_opt; ty : observation }
 
-(* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument 'vars'. *)
-let rec get_pi_vars :
-    type lt ls rt rs.
-    (lt, ls, rt, rs) parse located ->
-    (string option * Whitespace.t list) list ->
-    (string option * Whitespace.t list) list =
- fun { value; loc } vars ->
-  match value with
-  | Ident ([ x ], w) -> (Some x, w) :: vars
-  | Placeholder w -> (None, w) :: vars
-  | App { fn; arg = { value = Ident ([ x ], w); _ }; _ } -> get_pi_vars fn ((Some x, w) :: vars)
-  | App { fn; arg = { value = Placeholder w; _ }; _ } -> get_pi_vars fn ((None, w) :: vars)
-  (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
-  | Ident (name, _) -> fatal ?loc (Invalid_variable name)
-  | App { arg = { value = Ident (xs, _); loc }; _ } -> fatal ?loc (Invalid_variable xs)
-  | _ -> raise Not_a_pi_arg
-
-(* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables and the type. *)
-let get_pi_arg :
-    type lt ls rt rs.
-    wsarrow:arrow_opt ->
-    (lt, ls, rt, rs) parse ->
-    wslparen:Whitespace.t list ->
-    wsrparen:Whitespace.t list ->
-    pi_dom =
- fun ~wsarrow arg ~wslparen ~wsrparen ->
-  match arg with
-  | Notn n when equal (notn n) asc -> (
-      match args n with
-      | [ Term xs; dom ] ->
-          let wscolon, ws = take Colon (whitespace n) in
-          taken_last ws;
-          let vars = get_pi_vars xs [] in
-          Dep { wsarrow; vars; ty = dom; wslparen; wscolon; wsrparen }
-      | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
-  | _ -> raise Not_a_pi_arg
-
 (* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of variables with types, prepending that list onto the front of the given accumulation list, with the first one having an arrow attached (before it front) if 'wsarrow' is given.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type and cons it onto the list. *)
 let rec get_pi_args :
     type lt ls rt rs. arrow_opt -> (lt, ls, rt, rs) parse located -> pi_dom list -> pi_dom list =
- fun wsarrow doms vars ->
+ fun wsarrow doms accum ->
   try
     match doms.value with
     | Notn n when equal (notn n) parens -> (
@@ -235,7 +235,8 @@ let rec get_pi_args :
             let wslparen, ws = take LParen (whitespace n) in
             let wsrparen, ws = take RParen ws in
             taken_last ws;
-            get_pi_arg ~wsarrow body.value ~wslparen ~wsrparen :: vars
+            let vars, wscolon, ty = process_typed_vars body.value in
+            Dep { wsarrow; vars; ty; wslparen; wscolon; wsrparen } :: accum
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
     | App { fn; arg = { value = Notn n; _ }; _ } when equal (notn n) parens -> (
         match args n with
@@ -243,11 +244,12 @@ let rec get_pi_args :
             let wslparen, ws = take LParen (whitespace n) in
             let wsrparen, ws = take RParen ws in
             taken_last ws;
+            let vars, wscolon, ty = process_typed_vars body.value in
             get_pi_args wsarrow fn
-              (get_pi_arg ~wsarrow:`Noarrow body.value ~wslparen ~wsrparen :: vars)
+              (Dep { wsarrow = `Noarrow; vars; ty; wslparen; wscolon; wsrparen } :: accum)
         | _ -> fatal (Anomaly "invalid notation arguments for arrow"))
-    | _ -> raise Not_a_pi_arg
-  with Not_a_pi_arg -> Nondep { wsarrow; ty = Term doms } :: vars
+    | _ -> raise Invalid_telescope
+  with Invalid_telescope -> Nondep { wsarrow; ty = Term doms } :: accum
 
 (* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
 let rec get_pi :
@@ -1012,7 +1014,7 @@ let () =
               | Term x :: obs ->
                   with_loc x.loc @@ fun () ->
                   let (Append_plus (ac, vars, ctx)) =
-                    Varscope.append_plus ctx (List.map fst (get_pi_vars x [])) in
+                    Varscope.append_plus ctx (List.map fst (process_var_list x [])) in
                   process_record Emp ctx
                     (Normal ({ value = Suc ac; loc = x.loc }, Snoc (vars, None)))
                     None Emp obs loc
@@ -1092,6 +1094,47 @@ let rec data_constrs bar_ok =
 
 let () = set_tree data (Closed_entry (eop Data (op LBracket (data_constrs true))))
 
+let rec constr_tel :
+    observation ->
+    (string option list * observation) list ->
+    Constr.t located * (string option list * observation) list =
+ fun tel accum ->
+  match tel with
+  | Term { value = Constr (c, _); loc } -> ({ value = Constr.intern c; loc }, accum)
+  | Term { value = App { fn; arg = { value = Notn n; loc = _ }; _ }; loc = _ }
+    when equal (notn n) parens -> (
+      match args n with
+      | [ Term arg ] ->
+          let vars, _, ty = process_typed_vars arg.value in
+          constr_tel (Term fn) ((List.map fst vars, ty) :: accum)
+      | _ -> fatal (Anomaly "invalid notation arguments for tel"))
+  | _ -> fatal Parse_error
+
+let rec process_dataconstr :
+    type n.
+    n Varscope.t -> (string option list * observation) list -> observation -> n Raw.dataconstr =
+ fun ctx tel_args (Term ty) ->
+  match tel_args with
+  | (vars, argty) :: tel_args -> process_dataconstr_vars ctx vars argty tel_args (Term ty)
+  | [] -> dataconstr_of_pi (process ctx ty)
+
+and process_dataconstr_vars :
+    type n.
+    n Varscope.t ->
+    string option list ->
+    observation ->
+    (string option list * observation) list ->
+    observation ->
+    n Raw.dataconstr =
+ fun ctx vars (Term argty) tel_args ty ->
+  match vars with
+  | [] -> process_dataconstr ctx tel_args ty
+  | x :: xs ->
+      let newctx = Varscope.ext ctx x in
+      let (Dataconstr (args, body)) = process_dataconstr_vars newctx xs (Term argty) tel_args ty in
+      let arg = process ctx argty in
+      Dataconstr (Ext (x, arg, args), body)
+
 let rec process_data :
     type n.
     (Constr.t, n Raw.dataconstr located) Abwd.t ->
@@ -1102,16 +1145,15 @@ let rec process_data :
  fun constrs ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Data constrs; loc }
-  | Term { value = Constr (c, _); loc = cloc } :: Term ty :: obs -> (
-      let c = Constr.intern c in
-      match Abwd.find_opt c constrs with
-      | Some _ -> fatal ?loc:cloc (Duplicate_constructor_in_data c)
+  | tel :: ty :: obs -> (
+      let c, tel_args = constr_tel tel [] in
+      match Abwd.find_opt c.value constrs with
+      | Some _ -> fatal ?loc:c.loc (Duplicate_constructor_in_data c.value)
       | None ->
-          let rty = process ctx ty in
+          let dc = process_dataconstr ctx tel_args ty in
+          let (Term { loc = tloc; _ }) = tel in
           process_data
-            (Abwd.add c
-               ({ value = dataconstr_of_pi rty; loc = ty.loc } : n dataconstr located)
-               constrs)
+            (Abwd.add c.value ({ value = dc; loc = tloc } : n dataconstr located) constrs)
             ctx obs loc)
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for data")
 

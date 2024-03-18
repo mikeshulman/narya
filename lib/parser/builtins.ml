@@ -1088,8 +1088,8 @@ let rec data_constrs bar_ok =
          else TokMap.empty);
       term =
         Some
-          (TokMap.singleton Colon
-             (terms [ (Op "|", Lazy (lazy (data_constrs false))); (RBracket, Done_closed data) ]));
+          (TokMap.of_list
+             [ (Op "|", Lazy (lazy (data_constrs false))); (RBracket, Done_closed data) ]);
     }
 
 let () = set_tree data (Closed_entry (eop Data (op LBracket (data_constrs true))))
@@ -1112,11 +1112,15 @@ let rec constr_tel :
 
 let rec process_dataconstr :
     type n.
-    n Varscope.t -> (string option list * observation) list -> observation -> n Raw.dataconstr =
- fun ctx tel_args (Term ty) ->
-  match tel_args with
-  | (vars, argty) :: tel_args -> process_dataconstr_vars ctx vars argty tel_args (Term ty)
-  | [] -> dataconstr_of_pi (process ctx ty)
+    n Varscope.t ->
+    (string option list * observation) list ->
+    observation option ->
+    n Raw.dataconstr =
+ fun ctx tel_args ty ->
+  match (tel_args, ty) with
+  | (vars, argty) :: tel_args, _ -> process_dataconstr_vars ctx vars argty tel_args ty
+  | [], Some (Term ty) -> dataconstr_of_pi (process ctx ty)
+  | [], None -> Dataconstr (Emp, None)
 
 and process_dataconstr_vars :
     type n.
@@ -1124,7 +1128,7 @@ and process_dataconstr_vars :
     string option list ->
     observation ->
     (string option list * observation) list ->
-    observation ->
+    observation option ->
     n Raw.dataconstr =
  fun ctx vars (Term argty) tel_args ty ->
   match vars with
@@ -1145,17 +1149,22 @@ let rec process_data :
  fun constrs ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Data constrs; loc }
-  | tel :: ty :: obs -> (
-      let c, tel_args = constr_tel tel [] in
+  | Term tel :: obs -> (
+      let Term tel, ty =
+        match tel with
+        | { value = Notn n; loc = _ } when equal (notn n) asc -> (
+            match args n with
+            | [ tel; ty ] -> (tel, Some ty)
+            | _ -> fatal (Anomaly "invalid notation arguments for data"))
+        | _ -> (Term tel, None) in
+      let c, tel_args = constr_tel (Term tel) [] in
       match Abwd.find_opt c.value constrs with
       | Some _ -> fatal ?loc:c.loc (Duplicate_constructor_in_data c.value)
       | None ->
           let dc = process_dataconstr ctx tel_args ty in
-          let (Term { loc = tloc; _ }) = tel in
           process_data
-            (Abwd.add c.value ({ value = dc; loc = tloc } : n dataconstr located) constrs)
+            (Abwd.add c.value ({ value = dc; loc = tel.loc } : n dataconstr located) constrs)
             ctx obs loc)
-  | _ :: _ -> fatal (Anomaly "invalid notation arguments for data")
 
 let () = set_processor data { process = (fun ctx obs loc _ -> process_data Emp ctx obs loc) }
 
@@ -1165,34 +1174,31 @@ let rec pp_data_constrs ppf obs ws =
       let wsrbrack, ws = take RBracket ws in
       taken_last ws;
       wsrbrack
-  | varcon :: body :: obs ->
+  | constr :: obs ->
       pp_open_hvbox ppf 2;
       let wsbar, ws = take (Op "|") ws in
       pp_tok ppf (Op "|");
       pp_ws `Nobreak ppf wsbar;
-      pp_term `Break ppf varcon;
-      let wscolon, ws = take Colon ws in
-      pp_tok ppf Colon;
-      pp_ws `Nobreak ppf wscolon;
-      pp_close_box ppf ();
-      if List.is_empty obs then
-        if style () = `Compact then pp_term `Nobreak ppf body else pp_term `Break ppf body
+      if List.is_empty obs then (
+        if style () = `Compact then pp_term `Nobreak ppf constr else pp_term `Break ppf constr;
+        pp_close_box ppf ())
       else (
-        pp_term `Break ppf body;
+        pp_term `Break ppf constr;
+        pp_close_box ppf ();
         (* I don't understand why this seems to be necessary.  The `Break in the previous line should insert a break, and it does in the case of codata, but for some reason not here. *)
         pp_print_cut ppf ());
       pp_data_constrs ppf obs ws
-  | _ :: _ -> fatal (Anomaly "invalid notation arguments for data")
 
 let pp_data space ppf obs ws =
   pp_open_vbox ppf 0;
-  let wscodata, ws = take Data ws in
+  let wsdata, ws = take Data ws in
   pp_tok ppf Data;
-  pp_ws `Nobreak ppf wscodata;
+  pp_ws `Nobreak ppf wsdata;
   let wslbrack, ws = take LBracket ws in
   pp_tok ppf LBracket;
   pp_ws `Break ppf wslbrack;
-  let ws = must_start_with (Op "|") ws in
+  (* We can't use "must_start_with" since there are no operators inside other than "|", so we compare lengths to make sure there are the right *number* of "|"s. *)
+  let ws = if List.length ws <= List.length obs then (Token.Op "|", []) :: ws else ws in
   let wsrbrack = pp_data_constrs ppf obs ws in
   pp_tok ppf RBracket;
   pp_ws space ppf wsrbrack;

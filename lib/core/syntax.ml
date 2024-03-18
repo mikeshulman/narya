@@ -62,7 +62,7 @@ module Raw = struct
         * 'ab check located
         -> 'a branch
 
-  and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located -> 'a dataconstr
+  and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
 
   (* A normal codatatype binds one more "self" variable in the types of its fields.  A normal record type does the same, except that the user doesn't have a name for that variable and instead accesses it by lexical variables that postprocess to its fields using Varscope. *)
   and (_, _) codata_vars =
@@ -81,7 +81,7 @@ module Raw = struct
     | Synth (Pi (x, dom, cod)) ->
         let (Dataconstr (tel, out)) = dataconstr_of_pi cod in
         Dataconstr (Ext (x, dom, tel), out)
-    | _ -> Dataconstr (Emp, ty)
+    | _ -> Dataconstr (Emp, Some ty)
 end
 
 (* ******************** Names ******************** *)

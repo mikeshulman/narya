@@ -541,12 +541,11 @@ sig (
   )
 
 data [
-| one. : blah blah blah blah
-           blah blah blah
-           blah blah
-           → blah 
-| two. : me
-]
+| one.
+  : blah blah blah blah blah
+      blah blah blah blah
+      → blah 
+| two. : me ]
 
 
 --------------------
@@ -757,9 +756,9 @@ sig (
   tail : Stream A)
 
 data [
-| one. : blah blah blah blah
-           blah blah blah
-           blah blah
-           → blah 
+| one.
+  : blah blah blah blah blah
+      blah blah blah blah
+      → blah 
 | two. : me ]
 

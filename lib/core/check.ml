@@ -552,9 +552,9 @@ and check_data :
   | (c, { value = Dataconstr (args, output); loc }) :: raw_constrs, Potential (head, current_apps, _)
     -> (
       with_loc loc @@ fun () ->
-      match Constr.Map.find_opt c checked_constrs with
-      | Some _ -> fatal (Duplicate_constructor_in_data c)
-      | None -> (
+      match (Constr.Map.find_opt c checked_constrs, output) with
+      | Some _, _ -> fatal (Duplicate_constructor_in_data c)
+      | None, Some output -> (
           let (Checked_tel (args, newctx)) = check_tel ctx args in
           let coutput = check Kinetic newctx output (universe D.zero) in
           match Ctx.eval_term newctx coutput with
@@ -573,7 +573,15 @@ and check_data :
                     (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
                     fatal (Anomaly "length of indices mismatch")
               else fatal ?loc:output.loc (Invalid_constructor_type c)
-          | _ -> fatal ?loc:output.loc (Invalid_constructor_type c)))
+          | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
+      | None, None -> (
+          match N.compare num_indices N.zero with
+          | Eq ->
+              let (Checked_tel (args, _)) = check_tel ctx args in
+              check_data status ctx ty N.zero
+                (checked_constrs |> Constr.Map.add c (Term.Dataconstr { args; indices = Emp }))
+                raw_constrs
+          | _ -> fatal (Missing_constructor_type c)))
 
 and get_indices :
     type a b.

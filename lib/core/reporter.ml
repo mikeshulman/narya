@@ -117,6 +117,7 @@ module Code = struct
     | Canonical_type_outside_case_tree : string -> t
     | Wrong_boundary_of_record : int -> t
     | Invalid_constructor_type : Constr.t -> t
+    | Missing_constructor_type : Constr.t -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -204,6 +205,7 @@ module Code = struct
     | Canonical_type_outside_case_tree _ -> Error
     | Wrong_boundary_of_record _ -> Error
     | Invalid_constructor_type _ -> Error
+    | Missing_constructor_type _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -289,6 +291,7 @@ module Code = struct
     | Duplicate_constructor_in_data _ -> "E1504"
     | Wrong_boundary_of_record _ -> "E1505"
     | Invalid_constructor_type _ -> "E1506"
+    | Missing_constructor_type _ -> "E1507"
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
@@ -507,6 +510,8 @@ module Code = struct
     | Invalid_constructor_type c ->
         textf "invalid type for constructor %s: must be current datatype instance"
           (Constr.to_string c)
+    | Missing_constructor_type c ->
+        textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
 end
 
 include Asai.StructuredReporter.Make (Code)

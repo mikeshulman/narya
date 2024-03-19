@@ -5,13 +5,13 @@ notation 0 prod : A "><" B := prod A B
 def Σ (A : Type) (B : A → Type) : Type ≔ sig (fst : A, snd : B fst)
 def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig x ⤇ ( ungel : R x.0 x.1 )
 
-{` First we postulate an equality type, with congruence, transitivity, reversal, and transport. `}
-axiom eq : (X:Type) → X → X → Type
-axiom eqr : (X:Type) (x:X) → eq X x x
-axiom cong : (X Y : Type) (f : X → Y) (x y : X) (e : eq X x y) → eq Y (f x) (f y)
-axiom trans : (X:Type) (x y z : X) (p : eq X x y) (q : eq X y z) → eq X x z
-axiom rev : (X:Type) (x y : X) (p : eq X x y) → eq X y x
-axiom tr : (X:Type) (P : X → Type) (x y : X) (p : eq X x y) → (P x) → (P y)
+{` First we define a Martin-Lof equality type, with congruence, transitivity, reversal, and transport. `}
+def eq (X:Type) (x:X) : X → Type ≔ data [ rfl. : eq X x x ]
+def eqr (X:Type) (x:X) : eq X x x ≔ rfl.
+def cong (X Y : Type) (f : X → Y) (x y : X) (e : eq X x y) : eq Y (f x) (f y) ≔ match e [ rfl. ↦ rfl. ]
+def trans (X:Type) (x y z : X) (p : eq X x y) (q : eq X y z) : eq X x z ≔ match q [ rfl. ↦ p ]
+def rev (X:Type) (x y : X) (p : eq X x y) : eq X y x ≔ match p [ rfl. ↦ rfl. ]
+def tr (X:Type) (P : X → Type) (x y : X) (p : eq X x y) : (P x) → (P y) ≔ match p [ rfl. ↦ u ↦ u ]
 
 {` Now we define the Church-encoded natural numbers. `}
 

@@ -2,11 +2,8 @@
    ￫ info[I0000]
    ￮ Constant Gel defined
   
-   ￫ info[I0001]
-   ￮ Axiom eq assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom eqr assumed
+   ￫ info[I0000]
+   ￮ Constant eq defined
   
    ￫ info[I0001]
    ￮ Axiom f assumed

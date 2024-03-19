@@ -11,23 +11,23 @@
    ￫ info[I0000]
    ￮ Constant Gel defined
   
-   ￫ info[I0001]
-   ￮ Axiom eq assumed
+   ￫ info[I0000]
+   ￮ Constant eq defined
   
-   ￫ info[I0001]
-   ￮ Axiom eqr assumed
+   ￫ info[I0000]
+   ￮ Constant eqr defined
   
-   ￫ info[I0001]
-   ￮ Axiom cong assumed
+   ￫ info[I0000]
+   ￮ Constant cong defined
   
-   ￫ info[I0001]
-   ￮ Axiom trans assumed
+   ￫ info[I0000]
+   ￮ Constant trans defined
   
-   ￫ info[I0001]
-   ￮ Axiom rev assumed
+   ￫ info[I0000]
+   ￮ Constant rev defined
   
-   ￫ info[I0001]
-   ￮ Axiom tr assumed
+   ￫ info[I0000]
+   ￮ Constant tr defined
   
    ￫ info[I0000]
    ￮ Constant cnat defined

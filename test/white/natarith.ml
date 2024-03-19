@@ -2,8 +2,25 @@ open Testutil.Pmp
 
 let () =
   run @@ fun () ->
-  Types.Nat.install ();
-  Testutil.Repl.nat_install_ops ();
+  Testutil.Repl.(
+    def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
+    def "O" "ℕ" "zero.";
+    def "S" "ℕ → ℕ" "n ↦ suc. n";
+    def "plus" "ℕ → ℕ → ℕ"
+      "m n ↦ match n [
+       | zero. ↦ m
+       | suc. n ↦ suc. (plus m n)
+     ]";
+    def "times" "ℕ → ℕ → ℕ"
+      "m n ↦ match n [
+       | zero. ↦ zero.
+       | suc. n ↦ plus (times m n) m
+     ]";
+    def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
+      "P z s n ↦ match n [
+       | zero. ↦ z
+       | suc. n ↦ s n (ℕ_ind P z s n)
+     ]");
   let nat, _ = synth !~"ℕ" in
   let raw0 = !."zero" in
   let zero = check raw0 nat in

@@ -29,21 +29,34 @@ let () =
   def "exp" "unat → unat → unat" "m n Y f x ↦ n (Y→Y) (m Y) f x";
   print "exp";
   print "exp utwo uthree";
-  Types.Nat.install ();
-  Testutil.Repl.nat_install_ops ();
+  def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
+  def "plus" "ℕ → ℕ → ℕ"
+    "m n ↦ match n [
+       | zero. ↦ m
+       | suc. n ↦ suc. (plus m n)
+     ]";
+  cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
+  def "times" "ℕ → ℕ → ℕ"
+    "m n ↦ match n [
+       | zero. ↦ zero.
+       | suc. n ↦ plus (times m n) m
+     ]";
+  cmd ~quiet:true "notation 1 times : m \"*\" n … ≔ times m n";
   assume "f" "ℕ → ℕ";
   print "f 1";
   print "refl f 1 1 1";
   print "refl (refl f) 1 1 1 1 1 1 1 1 1";
-  Types.Sigma.install ();
-  print "(fst := 0,snd := 0) : ℕ × ℕ";
-  print "(0,0) : ℕ × ℕ";
-  print "(fst := 1, 2) : ℕ × ℕ";
-  print "(snd := 1, 2) : ℕ × ℕ";
-  print "(0,(0,0)) : ℕ × ℕ × ℕ";
-  print "((0,0),0) : (ℕ × ℕ) × ℕ";
-  print "(fst ≔ x ↦ x, snd ≔ 2) : (ℕ → ℕ) × ℕ";
-  assume "s" "(ℕ → ℕ) × ℕ";
+  Testutil.Repl.(
+    def "Σ" "(A : Type) → (A → Type) → Type" "A B ↦ sig ( fst : A, snd : B fst)";
+    def "ℕ×ℕ" "Type" "Σ ℕ (_ ↦ ℕ)");
+  print "(fst := 0,snd := 0) : ℕ×ℕ";
+  print "(0,0) : ℕ×ℕ";
+  print "(fst := 1, 2) : ℕ×ℕ";
+  print "(snd := 1, 2) : ℕ×ℕ";
+  print "(0,(0,0)) : Σ ℕ (_ ↦ ℕ×ℕ)";
+  print "((0,0),0) : Σ (ℕ×ℕ) (_ ↦ ℕ)";
+  print "(fst ≔ x ↦ x, snd ≔ 2) : Σ (ℕ → ℕ) (_ ↦ ℕ)";
+  assume "s" "Σ (ℕ → ℕ) (_ ↦ ℕ)";
   print "s .fst 3";
   Testutil.Repl.gel_install ();
   assume "B" "Type";
@@ -60,7 +73,7 @@ let () =
   (* Evaluation and readback reorders fields to the order they appear in the record type definition. *)
   print "[ .tail |-> zz | .head |-> 0 ] : Stream N";
 *)
-  Types.Lst.install ();
+  def "List" "Type → Type" "A ↦ data [ nil. | cons. (x:A) (xs:List A) ]";
   print "nil. : List ℕ";
   print "cons. 2 nil. : List ℕ";
   print "cons. 4 (cons. 2 nil.) : List ℕ";

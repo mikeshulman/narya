@@ -153,14 +153,6 @@ let () =
       Terminal.display ~output:stderr d;
       exit 1)
   @@ fun () ->
-  Types.Nat.install ();
-  Types.Sigma.install ();
-  Types.Empty.install ();
-  Types.Sum.install ();
-  Types.Lst.install ();
-  Types.Blst.install ();
-  Types.Vec.install ();
-  Types.Covec.install ();
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
   Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
   (if !use_stdin then

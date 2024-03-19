@@ -1,5 +1,8 @@
 {` Uniqueness of iteration for Church encoded Nat from parametricity (from Thorsten) `}
 
+def prod (A B : Type) : Type ≔ sig (fst : A, snd : B)
+notation 0 prod : A "><" B := prod A B
+def Σ (A : Type) (B : A → Type) : Type ≔ sig (fst : A, snd : B fst)
 def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig x ⤇ ( ungel : R x.0 x.1 )
 
 {` First we postulate an equality type, with congruence, transitivity, reversal, and transport. `}

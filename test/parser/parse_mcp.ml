@@ -72,8 +72,8 @@ let () =
   let cien = parse_term Varscope.empty (cnat 100) in
 
   (* Parsing church numerals starts to take a noticable fraction of a second around 2000. *)
-  let () = Types.Sigma.install () in
-  let sigab, _ = synth "(x:A) × B x" in
+  Testutil.Repl.def "Σ" "(A : Type) → (A → Type) → Type" "A B ↦ sig ( fst : A, snd : B fst)";
+  let sigab, _ = synth "Σ A B" in
   let s = assume "s" sigab in
   let s1, s1ty = synth "s .fst" in
   let () = equal s1ty aa in
@@ -84,13 +84,13 @@ let () =
   let b0 = assume "b₀" ba0 in
   let ab0 = check "( fst ≔ a₀, snd := b₀ )" sigab in
   let () = uncheck "( fst ≔ a₁, snd := b₀ )" sigab in
-  let a0', _ = synth "(( fst ≔ a₀, snd ≔ b₀ ) : (x:A) × B x) .fst" in
+  let a0', _ = synth "(( fst ≔ a₀, snd ≔ b₀ ) : Σ A B) .fst" in
   let () = equal a0 a0' in
-  let b0', _ = synth "((fst ≔ a₀, snd ≔ b₀ ) : (x:A) × B x) .snd" in
+  let b0', _ = synth "((fst ≔ a₀, snd ≔ b₀ ) : Σ A B) .snd" in
   let () = equal b0 b0' in
   let ab0' = check "(a₀ , b₀)" sigab in
   let ab0'' = check "(_ ≔ a₀ , b₀)" sigab in
-  let a0'', _ = synth "((a₀ , b₀) : (x:A) × B x) .fst" in
+  let a0'', _ = synth "((a₀ , b₀) : Σ A B) .fst" in
   let () = equal a0 a0'' in
 
   (* 1-tuples *)
@@ -104,46 +104,18 @@ let () =
   let rax' = check "(_ ≔ r)" ax in
   let () = uncheck "(r)" ax in
 
-  (* Right-associativity of prod and comma *)
+  (* Non-associativity of prod and comma *)
   let dd = assume "D" uu in
   let ee = assume "E" uu in
   let a = assume "a" aa in
   let d = assume "d" dd in
   let e = assume "e" ee in
-  let aaddee, _ = synth "A × D × E" in
-  let aaddee', _ = synth "A × (D × E)" in
-  let aaddee'', _ = synth "(A × D) × E" in
-  let () = equal aaddee aaddee' in
-  let () = unequal aaddee aaddee'' in
-  (* TODO: Can we recover a sort of associativity for comma? *)
+  let aaddee, _ = synth "Σ A (_ ↦ Σ D (_ ↦ E))" in
+  let aaddee', _ = synth "Σ (Σ A (_ ↦ D)) (_ ↦ E)" in
+  let () = unequal aaddee aaddee' in
   let ade = check "(a , (d , e))" aaddee in
-  let () = uncheck "(a , (d , e))" aaddee'' in
-
-  (* Interaction of prod and arrow *)
-  let t, _ = synth "(x:A) → (y:D) × E" in
-  let x = assume "x" t in
-  let _ = check "x a .fst" dd in
-  let _ = unsynth "(u:A) × (v:D) → E" in
-  let _ = synth "(x:A) × ((y:D) → E)" in
-  let t, _ = synth "(x:A) → D × E" in
-  let x = assume "x" t in
-  let _ = check "x a .fst" dd in
-  let t, _ = synth "(u:A) × D → E" in
-  let x = assume "x" t in
-  let _ = check "x (fst≔a,snd≔d)" ee in
-  let t, _ = synth "A → (y:D) × E" in
-  let x = assume "x" t in
-  let _ = check "x a .fst" dd in
-  let _ = synth "A × ((y:D) → E)" in
-  let t, _ = synth "A → D × E" in
-  let x = assume "x" t in
-  let _ = check "x a .fst" dd in
-  let t, _ = synth "A × D → E" in
-  let x = assume "x" t in
-  let _ = check "x (fst ≔ a,snd ≔d)" ee in
-
-  (* Sigmas could also have an ambiguity bug. *)
-  let _ = synth "(A:Type) × (A:Type) × A" in
+  let () = uncheck "(a , (d , e))" aaddee' in
+  let () = uncheck "(a , d , e)" aaddee in
 
   (* Let's try some comments *)
   let _ = synth "(x : A) → ` a line comment
@@ -175,8 +147,22 @@ nest `}
   in
 
   (* Precedence and associativity *)
-  let () = Types.Nat.install () in
-  Testutil.Repl.nat_install_ops ();
+  Testutil.Repl.(
+    def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
+    def "O" "ℕ" "zero.";
+    def "S" "ℕ → ℕ" "n ↦ suc. n";
+    def "plus" "ℕ → ℕ → ℕ"
+      "m n ↦ match n [
+       | zero. ↦ m
+       | suc. n ↦ suc. (plus m n)
+     ]";
+    cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
+    def "times" "ℕ → ℕ → ℕ"
+      "m n ↦ match n [
+       | zero. ↦ zero.
+       | suc. n ↦ plus (times m n) m
+     ]";
+    cmd ~quiet:true "notation 1 times : m \"*\" n … ≔ times m n");
   let nat, _ = synth "ℕ" in
   let onetwothree, _ = synth "S O + S (S O) + S (S (S O))" in
   let six, _ = synth "S (S (S (S (S (S O)))))" in

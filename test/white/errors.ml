@@ -57,11 +57,13 @@ let () =
   let () = unsynth ~print:() "[ | | .head |-> 0 | .tail |-> f ]" ~code:Parse_error in
 
   (* Records and datatypes *)
-  let () = Types.Sigma.install () in
-  let () = Types.Nat.install () in
+  Testutil.Repl.(
+    def "Σ" "(A : Type) → (A → Type) → Type" "A B ↦ sig ( fst : A, snd : B fst)";
+    def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
+    def "Nat" "Type" "ℕ");
   let atou = check "A→Type" uu in
   let bb = assume "B" atou in
-  let sigab = check "(x:A)× B x" uu in
+  let sigab = check "Σ A B" uu in
   let () =
     uncheck ~print:() "( fst ≔ a )" sigab ~code:(Missing_field_in_tuple (Core.Field.intern "snd"))
   in
@@ -69,20 +71,15 @@ let () =
   let nat = check "ℕ" uu in
   let () = uncheck ~print:() "( fst ≔ a )" nat ~short:"E0900" in
   let s = assume "s" sigab in
-  let () =
-    unsynth ~print:() "s .third"
-      ~code:
-        (No_such_field
-           (`Record (Core.Reporter.PConstant Types.Sigma.sigma), Core.Field.intern_ori "third"))
-  in
+  let () = unsynth ~print:() "s .third" ~short:"E0800" in
   let () = uncheck ~print:() "zero." sigab ~short:"E1000" in
   let () = uncheck ~print:() "two." nat ~short:"E1000" in
   let () =
     uncheck ~print:() "zero. a" nat
-      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.zero, 1)) in
+      ~code:(Wrong_number_of_arguments_to_constructor (Core.Constr.intern "zero", 1)) in
   let () =
     uncheck ~print:() "suc." nat
-      ~code:(Wrong_number_of_arguments_to_constructor (Types.Nat.suc, -1)) in
+      ~code:(Wrong_number_of_arguments_to_constructor (Core.Constr.intern "suc", -1)) in
   let () =
     uncheck ~print:() "4.2" nat ~code:(Unsupported_numeral (Q.make (Z.of_int 21) (Z.of_int 5)))
   in

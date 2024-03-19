@@ -26,7 +26,7 @@ let () =
   roundtrip_ok four nat;
 
   (* And some pairs *)
-  Types.Sigma.install ();
+  Testutil.Repl.def "Σ" "(A : Type) → (A → Type) → Type" "A B ↦ sig ( fst : A, snd : B fst)";
   let swapty, _ = synth "(A B : Type) → Σ A (_ ↦ B) → Σ B (_ ↦ A)" in
   let swap = check "A B x ↦ (fst ≔ x .snd , snd ≔ x .fst)" swapty in
   roundtrip_ok swap swapty;

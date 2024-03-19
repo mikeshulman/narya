@@ -1,5 +1,0 @@
-(library
-  (name types)
-  (libraries util dim core parser)
-	(instrumentation (backend landmarks --auto)))
-(env (_ (flags (:standard -w -37 -w -30))))

@@ -1,5 +1,14 @@
   $ narya -v churchnat_uniqueness.ny
    ￫ info[I0000]
+   ￮ Constant prod defined
+  
+   ￫ info[I0002]
+   ￮ Notation prod defined
+  
+   ￫ info[I0000]
+   ￮ Constant Σ defined
+  
+   ￫ info[I0000]
    ￮ Constant Gel defined
   
    ￫ info[I0001]

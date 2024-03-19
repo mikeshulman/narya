@@ -2,8 +2,8 @@ open Testutil.Repl
 
 let () =
   run @@ fun () ->
-  Types.Sigma.install ();
-  def "pair" "(A:Type) → (B : A → Type) → (x:A) → B x → ((x:A) × B x)" "A B a b ↦ (a,b)";
+  def "Σ" "(A : Type) → (A → Type) → Type" "A B ↦ sig ( fst : A, snd : B fst)";
+  def "pair" "(A:Type) → (B : A → Type) → (x:A) → B x → Σ A B" "A B a b ↦ (a,b)";
   assume "A" "Type";
   assume "B" "A → Type";
   (* Pairs and tuples have the correct type and are equal to each other *)
@@ -64,7 +64,7 @@ let () =
   assume "x22" "Id ((x y ↦ Id X x y) : X → X → Type) x00 x01 x02 x10 x11 x12 x20 x21";
   assume "Y" "Type";
   assume "y" "Y";
-  assume "s" "(Id ((x y ↦ Id X x y) : X → X → Type) x00 x01 x02 x10 x11 x12 x20 x21) × Y";
+  assume "s" "Σ (Id ((x y ↦ Id X x y) : X → X → Type) x00 x01 x02 x10 x11 x12 x20 x21) (_ ↦ Y)";
   Testutil.Mcp.unsynth "sym s";
   def "s1s" "Id ((x y ↦ Id X x y) : X → X → Type) x00 x10 x20 x01 x11 x21 x02 x12" "sym (s .fst)";
 

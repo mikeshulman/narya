@@ -2,9 +2,22 @@ open Testutil.Mcp
 
 let () =
   run @@ fun () ->
-  Types.Vec.install ();
-  Testutil.Repl.nat_install_ops ();
-  Testutil.Repl.vec_install_ops ();
+  Testutil.Repl.(
+    def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
+    def "Nat" "Type" "ℕ";
+    def "Vec" "Type → ℕ → Type"
+      "A ↦ data [ nil. : Vec A 0 | cons. : (n:ℕ) → A → Vec A n → Vec A (suc. n) ]";
+    def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
+      "P z s n ↦ match n [
+       | zero. ↦ z
+       | suc. n ↦ s n (ℕ_ind P z s n)
+     ]";
+    def "Vec_ind"
+      "(A:Type) (P : (n:ℕ) → Vec A n → Type) (pn : P zero. nil.) (pc : (n:ℕ) (a:A) (v:Vec A n) → P n v → P (suc. n) (cons. n a v)) (n:ℕ) (v:Vec A n) → P n v"
+      "A P pn pc n v ↦ match v [
+    | nil. ↦ pn
+    | cons. n a v ↦ pc n a v (Vec_ind A P pn pc n v)
+  ]");
   let uu, _ = synth "Type" in
   let aa = assume "A" uu in
   let a = assume "a" aa in

@@ -34,7 +34,7 @@ let () =
     "s ↦ [ .head ↦ refl (s .head) | .tail ↦ ∞eta_bisim (s .tail) ]";
 
   (* We construct a stream of natural numbers and check its first few elements *)
-  Types.Nat.install ();
+  def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
   def "nats" "Stream ℕ" "corec ℕ ℕ (x ↦ x) (x ↦ suc. x) 0";
   equal_at "nats .head" "0" "ℕ";
   equal_at "nats .tail .head" "1" "ℕ";
@@ -42,8 +42,14 @@ let () =
   equal_at "nats .tail .tail .tail .head" "3" "ℕ";
 
   (* Now we construct the stream of fibonacci numbers and check the first few of its elements *)
-  Testutil.Repl.nat_install_ops ();
-  Types.Sigma.install ();
+  def "plus" "ℕ → ℕ → ℕ"
+    "m n ↦ match n [
+       | zero. ↦ m
+       | suc. n ↦ suc. (plus m n)
+     ]";
+  cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
+  def "prod" "Type → Type → Type" "A B ↦ sig (fst : A, snd : B)";
+  cmd ~quiet:true "notation 0 prod : A \"×\" B ≔ prod A B";
   def "fib" "Stream ℕ"
     "corec ℕ (ℕ × ℕ) (x ↦ x .fst) (x ↦ ( fst ≔ x .snd , snd ≔ x .fst + x .snd )) (fst ≔ 1, snd ≔ 1)";
   equal_at "fib .head" "1" "ℕ";

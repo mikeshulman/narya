@@ -72,7 +72,9 @@ let def (name : string) (ty : string) (tm : string) : unit =
   | _ -> fatal (Invalid_constant_name name)
 
 (* For other commands, we piggyback on ordinary parsing.  *)
-let cmd (str : string) : unit = parse_and_execute_command str
+let cmd ?(quiet = false) (str : string) : unit =
+  if quiet then Reporter.try_with ~emit:(fun _ -> ()) @@ fun () -> parse_and_execute_command str
+  else parse_and_execute_command str
 
 let undef (name : string) : unit =
   match Scope.lookup [ name ] with
@@ -131,42 +133,26 @@ let rec run f =
 
 (* Some operations on natural numbers and vectors, for white-box testing. *)
 
-let nat_install_ops () =
-  Reporter.try_with ~emit:(fun _ -> ()) @@ fun () ->
-  def "O" "ℕ" "zero.";
-  def "S" "ℕ → ℕ" "n ↦ suc. n";
-  def "plus" "ℕ → ℕ → ℕ" "m n ↦ match n [ 
-    | zero. ↦ m
-    | suc. n ↦ suc. (plus m n)
-  ]";
-  cmd "notation 0 plus : m \"+\" n … ≔ plus m n";
-  def "times" "ℕ → ℕ → ℕ"
-    "m n ↦ match n [
-    | zero. ↦ zero.
-    | suc. n ↦ plus (times m n) m
-  ]";
-  cmd "notation 1 times : m \"*\" n … ≔ times m n";
-  def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
-    "P z s n ↦ match n [
-    | zero. ↦ z
-    | suc. n ↦ s n (ℕ_ind P z s n)
-  ]"
-
-let lst_install_ops () =
-  def "List_ind"
-    "(A:Type) (P : List A → Type) (pn : P nil.) (pc : (a:A) (l:List A) → P l → P (cons. a l)) (l:List A) → P l"
-    "A P pn pc l ↦ match l [
-    | nil. ↦ pn
-    | cons. a l ↦ pc a l (List_ind A P pn pc l)
-  ]"
-
-let vec_install_ops () =
-  def "Vec_ind"
-    "(A:Type) (P : (n:ℕ) → Vec A n → Type) (pn : P zero. nil.) (pc : (n:ℕ) (a:A) (v:Vec A n) → P n v → P (suc. n) (cons. n a v)) (n:ℕ) (v:Vec A n) → P n v"
-    "A P pn pc n v ↦ match v [
-    | nil. ↦ pn
-    | cons. n a v ↦ pc n a v (Vec_ind A P pn pc n v)
-  ]"
+(* let nat_install_ops () =
+     Reporter.try_with ~emit:(fun _ -> ()) @@ fun () ->
+     def "O" "ℕ" "zero.";
+     def "S" "ℕ → ℕ" "n ↦ suc. n";
+     def "plus" "ℕ → ℕ → ℕ" "m n ↦ match n [
+       | zero. ↦ m
+       | suc. n ↦ suc. (plus m n)
+     ]";
+     cmd "notation 0 plus : m \"+\" n … ≔ plus m n";
+     def "times" "ℕ → ℕ → ℕ"
+       "m n ↦ match n [
+       | zero. ↦ zero.
+       | suc. n ↦ plus (times m n) m
+     ]";
+     cmd "notation 1 times : m \"*\" n … ≔ times m n";
+     def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
+       "P z s n ↦ match n [
+       | zero. ↦ z
+       | suc. n ↦ s n (ℕ_ind P z s n)
+     ]" *)
 
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

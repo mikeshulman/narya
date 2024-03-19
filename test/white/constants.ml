@@ -19,15 +19,15 @@ let () =
   equal_at "ctimes two two" "four" "CN";
 
   (* Sigma-types *)
-  Types.Sigma.install ();
-  def "zero_zero" "CN × CN" "( zero, zero )";
+  def "Σ" "(A : Type) → (A → Type) → Type" "A B ↦ sig ( fst : A, snd : B fst)";
+  def "zero_zero" "Σ CN (_ ↦ CN)" "( zero, zero )";
   equal_at "zero_zero .fst" "zero" "CN";
   equal_at "zero_zero .snd" "zero" "CN";
   assume "A" "Type";
   assume "B" "A → Type";
   assume "a" "A";
   assume "b" "B a";
-  def "ab" "(x:A) × B x" "(fst ≔ a, snd ≔ b)";
+  def "ab" "Σ A B" "(fst ≔ a, snd ≔ b)";
   equal_at "ab .fst" "a" "A";
   equal_at "ab .snd" "b" "B a";
   equal_at "ab .0" "a" "A";
@@ -35,12 +35,12 @@ let () =
   (match Global.find_definition_opt (Option.get (Parser.Scope.lookup [ "ab" ])) with
   | Some (Defined _) -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));
-  def "zero_zero'" "CN × CN" "( fst ≔ zero , snd ≔ zero )";
-  equal_at "zero_zero" "zero_zero'" "CN × CN";
+  def "zero_zero'" "Σ CN (_ ↦ CN)" "( fst ≔ zero , snd ≔ zero )";
+  equal_at "zero_zero" "zero_zero'" "Σ CN (_ ↦ CN)";
 
   (* Pi-types *)
-  (* These are built in, of course, but we also have a named constant for them. *)
-  Types.Pi.install ();
+  (* These are built in, of course, but we can also have a named constant for them. *)
+  def "Π" "(A:Type) → (A → Type) → Type" "A B ↦ (x:A) → B x";
   equal_at "(x:A) → B x" "Π A B" "Type";
 
   (* In particular, this gives a way for the user to write higher-dimensional Π-types. *)
@@ -65,11 +65,23 @@ let () =
     "s ↦ [ .head ↦ refl (s .head) | .tail ↦ ∞eta_bisim (s .tail) ]";
 
   (* Natural numbers *)
-  Types.Nat.install ();
-  Testutil.Repl.nat_install_ops ();
+  def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
+  def "Nat" "Type" "ℕ";
+  def "plus" "ℕ → ℕ → ℕ"
+    "m n ↦ match n [
+       | zero. ↦ m
+       | suc. n ↦ suc. (plus m n)
+     ]";
+  cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
+  def "times" "ℕ → ℕ → ℕ"
+    "m n ↦ match n [
+       | zero. ↦ zero.
+       | suc. n ↦ plus (times m n) m
+     ]";
+  cmd ~quiet:true "notation 1 times : m \"*\" n … ≔ times m n";
 
   (* Lists *)
-  Types.Lst.install ();
+  def "List" "Type → Type" "A ↦ data [ nil. | cons. (x:A) (xs:List A) ]";
   def "append" "(A:Type) -> List A -> List A -> List A"
     "A xs ys ↦ match xs [
       | nil.       ↦ ys
@@ -79,7 +91,8 @@ let () =
     "List ℕ";
 
   (* Vectors *)
-  Types.Vec.install ();
+  def "Vec" "Type → ℕ → Type"
+    "A ↦ data [ nil. : Vec A 0 | cons. : (n:ℕ) → A → Vec A n → Vec A (suc. n) ]";
   def "lplus" "ℕ -> ℕ -> ℕ" "m n ↦ match m [
     | zero. ↦ n
     | suc. m ↦ suc. (lplus m n)
@@ -102,7 +115,7 @@ let () =
   equal_at "exp2 2 3" "8" "ℕ";
 
   (* Empty type *)
-  Types.Empty.install ();
+  def "∅" "Type" "data []";
   def "abort1" "(A:Type) → ∅ → A" "A ↦ [ ]";
   def "abort2" "(A:Type) → ∅ → A" "A x ↦ match x [ ]";
 
@@ -169,13 +182,14 @@ let () =
     "e f n0 n1 n2 ↦ match n0 [ zero. ↦ match e [ ] | suc. _ ↦ refl f n0 n1 n2 ]";
 
   (* Matching inside a tuple *)
-  def "mtchtup" "ℕ → ((X : Type) × (X → X))" "n ↦ ( match n [ zero. ↦ ℕ | suc. _ ↦ ℕ ], x ↦ x )";
-  def "mtchtup2" "ℕ → (x:ℕ) × Id ℕ x 0"
+  def "mtchtup" "ℕ → Σ Type (X ↦ (X → X))" "n ↦ ( match n [ zero. ↦ ℕ | suc. _ ↦ ℕ ], x ↦ x )";
+  def "mtchtup2" "ℕ → Σ ℕ (x ↦ Id ℕ x 0)"
     "n ↦ ( fst := match n [ zero. |-> 0 | suc. _ |-> 0 ],
             snd := match n [ zero. |-> refl (0:Nat) | suc. _ |-> refl (0:Nat) ])";
 
   (* Covectors (canonical types defined inside a match) *)
-  Types.Covec.install ();
+  def "Covec" "Type → ℕ → Type"
+    "A n ↦ match n [ zero. ↦ sig () | suc. n ↦ sig ( car : A, cdr : Covec A n ) ]";
   def "nil" "Covec ℕ 0" "()";
   def "onetwo" "Covec ℕ 2" "(1,(2,()))";
   equal_at "onetwo .0" "1" "ℕ";

@@ -1,9 +1,8 @@
 open Testutil
 open Showparse
-open Parser
 
 let () =
-  Builtins.run @@ fun () ->
+  Repl.run @@ fun () ->
   assert (
     parse "(x : y) -> z"
     = Notn
@@ -176,7 +175,9 @@ let () =
             Term (Notn ("coloneq", [ Term (Ident [ "a" ]); Term (Ident [ "b" ]) ]));
           ] ));
 
-  Types.Sigma.install_notations () (*  *);
+  Testutil.Repl.(
+    def "prod" "Type → Type → Type" "A B ↦ sig (fst : A, snd : B)";
+    cmd ~quiet:true "notation 0 prod : A \"><\" B … ≔ prod A B");
 
   assert (parse "A><B" = Notn ("prod", [ Term (Ident [ "A" ]); Term (Ident [ "B" ]) ]));
 
@@ -187,45 +188,4 @@ let () =
           [
             Term (Ident [ "A" ]);
             Term (Notn ("prod", [ Term (Ident [ "B" ]); Term (Ident [ "C" ]) ]));
-          ] ));
-
-  assert (
-    parse "(x:A) >< B x"
-    = Notn
-        ( "prod",
-          [
-            Term
-              (Notn
-                 ( "parens",
-                   [ Term (Notn ("ascription", [ Term (Ident [ "x" ]); Term (Ident [ "A" ]) ])) ] ));
-            Term (App (Ident [ "B" ], Ident [ "x" ]));
-          ] ));
-
-  assert (
-    parse "(x:A) >< (y:B x) >< C x y"
-    = Notn
-        ( "prod",
-          [
-            Term
-              (Notn
-                 ( "parens",
-                   [ Term (Notn ("ascription", [ Term (Ident [ "x" ]); Term (Ident [ "A" ]) ])) ] ));
-            Term
-              (Notn
-                 ( "prod",
-                   [
-                     Term
-                       (Notn
-                          ( "parens",
-                            [
-                              Term
-                                (Notn
-                                   ( "ascription",
-                                     [
-                                       Term (Ident [ "y" ]);
-                                       Term (App (Ident [ "B" ], Ident [ "x" ]));
-                                     ] ));
-                            ] ));
-                     Term (App (App (Ident [ "C" ], Ident [ "x" ]), Ident [ "y" ]));
-                   ] ));
           ] ))

@@ -2,7 +2,7 @@ open Testutil.Mcp
 
 let () =
   run @@ fun () ->
-  Types.Lst.install ();
+  Testutil.Repl.def "List" "Type → Type" "A ↦ data [ nil. | cons. (x:A) (xs:List A) ]";
   let uu, _ = synth "Type" in
   let aa = assume "A" uu in
   let a = assume "a" aa in
@@ -19,7 +19,12 @@ let () =
   let eq22 = check "cons. (refl a) (cons. (refl a) nil.)" id22 in
 
   (* Check that the induction principle has the right type *)
-  Testutil.Repl.lst_install_ops ();
+  Testutil.Repl.def "List_ind"
+    "(A:Type) (P : List A → Type) (pn : P nil.) (pc : (a:A) (l:List A) → P l → P (cons. a l)) (l:List A) → P l"
+    "A P pn pc l ↦ match l [
+    | nil. ↦ pn
+    | cons. a l ↦ pc a l (List_ind A P pn pc l)
+  ]";
   let _, indty = synth "List_ind" in
 
   let indty', _ =

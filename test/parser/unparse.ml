@@ -6,15 +6,15 @@ let () =
   def "nat" "Type" "(A → A) → (A → A)";
   def "zero" "nat" "f x ↦ x";
   def "one" "nat" "f x ↦ f x";
-  print "one";
+  print "(f x ↦ one f x) : nat";
   def "two" "nat" "f x ↦ f (f x)";
   def "three" "nat" "f x ↦ f (f (f x))";
   def "cplus" "nat → nat → nat" "m n f x ↦ (m f) (n f x)";
-  print "cplus one one";
-  print "cplus two three";
+  print "(f x ↦ cplus one one f x) : nat";
+  print "(f x ↦ cplus two three f x) : nat";
   def "ctimes" "nat → nat → nat" "m n f x ↦ m (n f) x";
-  print "ctimes one one";
-  print "ctimes two three";
+  print "(f x ↦ ctimes one one f x) : nat";
+  print "(f x ↦ ctimes two three f x) : nat";
   print "nat";
   print "(X:Type) → X → X";
   print "(X:Type)(_: X) → X";
@@ -24,11 +24,11 @@ let () =
   def "uone" "unat" "_ f x ↦ f x";
   def "utwo" "unat" "_ f x ↦ f (f x)";
   def "uthree" "unat" "_ f x ↦ f (f (f x))";
-  print "uzero";
-  print "uone";
+  print "(X f x ↦ uzero X f x) : unat";
+  print "(X f x ↦ uone X f x) : unat";
   def "exp" "unat → unat → unat" "m n Y f x ↦ n (Y→Y) (m Y) f x";
-  print "exp";
-  print "exp utwo uthree";
+  print "(m n Y f x ↦ exp m n Y f x) : unat → unat → unat";
+  print "(Y f x ↦ exp utwo uthree Y f x) : unat";
   def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
   def "plus" "ℕ → ℕ → ℕ"
     "m n ↦ match n [

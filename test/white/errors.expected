@@ -176,7 +176,7 @@
  ￫ error[E1000]
  ￭ user-supplied term
  1 | zero.
-   ^ non-datatype Σ A (x ↦ B x) has no constructor named zero
+   ^ non-datatype Σ A B has no constructor named zero
 
  ￫ error[E1000]
  ￭ user-supplied term

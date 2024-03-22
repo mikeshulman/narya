@@ -7,9 +7,9 @@ f x ↦ f (f (f (f (f (f x)))))
 (X : Type) → X → X
 (X : Type) → X → X
 (x : A) (y : A) → A → (z : A) → A
-_ _ x ↦ x
-_ f x ↦ f x
-m n Y f x ↦ n (Y → Y) (x0 x1 ↦ m Y (x2 ↦ x0 x2) x1) (x0 ↦ f x0) x
+X f x ↦ x
+X f x ↦ f x
+m n Y f x ↦ n (Y → Y) (m Y) f x
 Y f x ↦ f (f (f (f (f (f (f (f x)))))))
 f 1
 refl f 1 1 1

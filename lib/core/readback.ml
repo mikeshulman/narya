@@ -10,9 +10,7 @@ open Domvars
 open Norm
 open Printable
 
-(* Eta-expanding readback of values to terms.  Closely follows eta-expanding equality-testing in equal.ml, so most comments are omitted. *)
-
-(* TODO: Do we really want readback to eta-expand?  Equality-testing does eta-expanding already, so it shouldn't be necessary here, and in practice the user will probably prefer things to not get eta-expanded unnecessarily.  Not eta-expanding would mean that constants defined as case trees that are just an abstracted leaf wouldn't get printed as their bodies but just as constants, unless the user eta-expands them.  Maybe the user should be able to set a flag indicating whether to print case trees. *)
+(* Readback of values to terms.  Closely follows equality-testing in equal.ml, so most comments are omitted.  However, unlike equality-testing and the "readback" in theoretical NbE, this readback does *not* eta-expand functions and tuples.  It is used for (1) displaying terms to the user, who will usually prefer not to see things eta-expanded, and (2) turning values into terms so that we can re-evaluate them in a new environment, for which purpose eta-expansion is irrelevant. *)
 
 let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =
  fun n x -> readback_at n x.tm x.ty
@@ -20,91 +18,57 @@ let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =
 and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a, kinetic) term =
  fun ctx tm ty ->
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
-  match uty with
-  | Pi (x, doms, cods) -> (
+  match (uty, tm) with
+  | Pi (_, doms, cods), Lam (x, body) -> (
       let k = CubeOf.dim doms in
-      match compare (TubeOf.inst tyargs) k with
-      | Neq -> fatal (Dimension_mismatch ("reading back pi", TubeOf.inst tyargs, k))
-      | Eq -> (
+      let l = dim_binder body in
+      match (compare (TubeOf.inst tyargs) k, compare k l) with
+      | Neq, _ | _, Neq -> fatal (Dimension_mismatch ("reading back at pi", TubeOf.inst tyargs, k))
+      | Eq, Eq ->
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
-          let newctx = Ctx.vis ctx (`Cube x) newnfs in
+          let newctx = Ctx.vis ctx x newnfs in
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
-          (* If the term is already an abstraction, we pick up its variable(s). *)
-          match tm with
-          | Lam (`Cube x, _) -> Term.Lam (k, `Cube x, body)
-          | Lam (`Normal x, _) -> (
-              match compare (CubeOf.dim x) k with
-              | Eq -> Term.Lam (k, `Normal x, body)
-              | Neq -> fatal (Dimension_mismatch ("variables reading back pi", CubeOf.dim x, k)))
-          (* Also if it's a partial application of a constant that's defined as a case tree, we pick up variables from the case tree. *)
-          | Uninst (Neu { head = Const { name; _ }; args; alignment = _ }, _) -> (
-              match Global.find_definition_opt name with
-              | Some (Defined tree) -> (
-                  match nth_var tree args with
-                  | Some (Any (`Cube x)) -> Term.Lam (k, `Cube x, body)
-                  | Some (Any (`Normal x)) -> (
-                      match compare (CubeOf.dim x) k with
-                      | Eq -> Term.Lam (k, `Normal x, body)
-                      | Neq ->
-                          (* This can happen for degenerated constants, which are at higher dimension than their case trees.  TODO: Ideally, we'd like some kind of "partially-cube" variable here. *)
-                          Term.Lam (k, `Cube (CubeOf.find_top x), body))
-                  (* Otherwise, we use the variable(s) from the type.  However, in this case we insist that the variable has a name, since we are (probably?) doing an eta-expansion and so the variable *will* appear in the body even if the pi-type is non-dependent. *)
-                  | None -> Term.Lam (k, singleton_named_variables k x, body))
-              | _ -> Term.Lam (k, singleton_named_variables k x, body))
-          | _ -> Term.Lam (k, singleton_named_variables k x, body)))
-  | Neu { alignment = Lawful (Codata { eta = Eta; fields = _; _ }); _ } -> (
-      match tm with
-      | Struct (tmflds, tmins) ->
-          let fields =
-            Abwd.mapi
-              (fun fld (fldtm, l) ->
-                match Lazy.force fldtm with
-                | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
-              tmflds in
-          Act (Struct (Eta, fields), perm_of_ins tmins)
-      | _ ->
-          (* Eta-expanding readback should really do this, but it probably isn't what the user wants to see when printing terms, and in practice that's what we use readback for (equality-testing is a separate thing). *)
-          (* Struct
-               ( Eta,
-                 Abwd.mapi
-                   (fun fld _ -> (readback_at ctx (field tm fld) (tyof_field tm ty fld), `Labeled))
-                   fields ) *)
-          readback_val ctx tm)
-  | Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ } -> (
-      match tm with
-      | Constr (xconstr, xn, xargs) -> (
-          let (Dataconstr { env; args = argtys; indices = _ }) =
-            match Constr.Map.find_opt xconstr constrs with
-            | Some x -> x
-            | None -> fatal (Anomaly "constr not found in readback") in
-          match (compare xn (TubeOf.inst tyargs), compare (TubeOf.inst tyargs) (dim_env env)) with
-          | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
-          | _, Neq ->
-              fatal (Dimension_mismatch ("reading back constrs", TubeOf.inst tyargs, dim_env env))
-          | Eq, Eq ->
-              let tyarg_args =
-                TubeOf.mmap
-                  {
-                    map =
-                      (fun _ [ tm ] ->
-                        match tm.tm with
-                        | Constr (tmname, _, tmargs) ->
-                            if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
-                            else fatal (Anomaly "inst arg wrong constr in readback at datatype")
-                        | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
-                  }
-                  [ tyargs ] in
-              Constr
-                ( xconstr,
-                  dim_env env,
-                  Bwd.of_list
-                    (readback_at_tel ctx env
-                       (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                       argtys
-                       (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ]))
-                ))
-      | _ -> readback_val ctx tm)
+          Term.Lam (k, x, body))
+  | Neu { alignment = Lawful (Codata { eta = Eta; fields = _; _ }); _ }, Struct (tmflds, tmins) ->
+      let fields =
+        Abwd.mapi
+          (fun fld (fldtm, l) ->
+            match Lazy.force fldtm with
+            | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
+          tmflds in
+      Act (Struct (Eta, fields), perm_of_ins tmins)
+  | ( Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ },
+      Constr (xconstr, xn, xargs) ) -> (
+      let (Dataconstr { env; args = argtys; indices = _ }) =
+        match Constr.Map.find_opt xconstr constrs with
+        | Some x -> x
+        | None -> fatal (Anomaly "constr not found in readback") in
+      match (compare xn (TubeOf.inst tyargs), compare (TubeOf.inst tyargs) (dim_env env)) with
+      | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
+      | _, Neq ->
+          fatal (Dimension_mismatch ("reading back constrs", TubeOf.inst tyargs, dim_env env))
+      | Eq, Eq ->
+          let tyarg_args =
+            TubeOf.mmap
+              {
+                map =
+                  (fun _ [ tm ] ->
+                    match tm.tm with
+                    | Constr (tmname, _, tmargs) ->
+                        if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
+                        else fatal (Anomaly "inst arg wrong constr in readback at datatype")
+                    | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
+              }
+              [ tyargs ] in
+          Constr
+            ( xconstr,
+              dim_env env,
+              Bwd.of_list
+                (readback_at_tel ctx env
+                   (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                   argtys
+                   (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ])) ))
   | _ -> readback_val ctx tm
 
 and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =

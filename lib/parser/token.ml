@@ -31,7 +31,6 @@ type t =
   | Sig
   | Data
   | Codata
-  | Section
   | Notation
   | Let
   | In
@@ -155,7 +154,6 @@ let to_string = function
   | Sig -> "sig"
   | Data -> "data"
   | Codata -> "codata"
-  | Section -> "section"
   | Notation -> "notation"
   | Let -> "let"
   | In -> "in"

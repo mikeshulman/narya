@@ -194,7 +194,6 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "sig" -> return Sig
   | "data" -> return Data
   | "codata" -> return Codata
-  | "section" -> return Section
   | "notation" -> return Notation
   | "." -> return Dot
   | "..." -> return Ellipsis

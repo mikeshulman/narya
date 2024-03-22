@@ -559,18 +559,18 @@ type any_sface = Any_sface : ('n, 'k) sface -> any_sface
 
 let rec string_of_sface : type n k. (n, k) sface -> string = function
   | Zero -> ""
-  | End (fa, e) -> string_of_sface fa ^ Endpoints.to_string (Some e)
-  | Mid fa -> string_of_sface fa ^ Endpoints.to_string None
+  | End (fa, e) -> Endpoints.to_string (Some e) ^ string_of_sface fa
+  | Mid fa -> Endpoints.to_string None ^ string_of_sface fa
 
 let sface_of_string : string -> any_sface option =
  fun str ->
-  String.fold_left
-    (fun fa x ->
+  String.fold_right
+    (fun x fa ->
       match (fa, Endpoints.of_char x) with
       | None, _ | _, Error _ -> None
       | Some (Any_sface fa), Ok (Some e) -> Some (Any_sface (End (fa, e)))
       | Some (Any_sface fa), Ok None -> Some (Any_sface (Mid fa)))
-    (Some (Any_sface Zero)) str
+    str (Some (Any_sface Zero))
 
 (* ********** Backwards faces ********** *)
 

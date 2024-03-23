@@ -1,11 +1,13 @@
-# Narya
+# Narya: A proof assistant for higher-dimensional type theory
 
-Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Parametric, Higher Observational Type Theory.  However, a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with binary Id/Bridge types, with Gel types for internal parametricity as an option.  The alternative option of transport and univalence is not yet implemented, nor are any other modalities included.
+Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Directional, Higher Parametric/Displayed/Observational Type Theory, but a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with binary Id/Bridge types satisfying internal parametricity.  There is a parser with user-definable mixfix notations, and user-definable record types, inductive datatypes and type families, and coinductive codatatypes, with functions definable by pattern- and copattern-matching.
 
 Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  But on the other side of the coin, feedback on anything and everything is welcome.
 
 
-## Compilation
+## Top level interface
+
+### Compilation
 
 Narya requires OCaml version 5.1.0 (or later) and various libraries.
 
@@ -22,68 +24,22 @@ dune install
 This will make the executable `narya` available in a directory such as `~/.opam/5.1.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly with `dune exec narya`.  In this case, to pass arguments to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
 
-## Parsing
+### Execution
 
-The parser supports arbitrary mixfix operations with associativities and precedences.  We prefer to say "tightness" instead of "precedence", to make it clear that higher numbers bind more tightly.  Tightnesses are *dyadic rational numbers*, including ω and −ω that are reserved for internal use.  Notations can be either left-closed or left-open, and either right-closed or right-open, and tightness and associativity are only relevant on the open side(s).  An infix notation is one that is open on both sides; a prefix notation is closed on the left and open on the right; a postfix notation is open on the left and closed on the right; and a "closed" or "outfix" notation is closed on both sides, and has no tightness.  The built-in notations are:
+When the Narya executable is run, it loads and typechecks all the files given on its command line, in order.  As usual, the special filename `-` refers to standard input.  It then does the same for any strings supplied on the command line with `-e`.  Finally, if `-i` was given, it enters interactive mode.
 
-- `( M )` – Parentheses for grouping (outfix).
-- `Type` – The unique universe (currently we have type-in-type).
-- `M N` – Function application (left-associative).
-- `x ↦ M` – Lambda-abstraction.  The unicode ↦ can be replaced by ASCII `|->`.
-- `x y z ↦ M` – Iterated lambda-abstraction.
-- `x ⤇ M` – Higher-dimensional lambda-abstraction (see below).
-- `(x : M) → N` – Pi-type.  The unicode → can be replaced by ASCII `->`.
-- `(x : M) (y z : N) (w : P) → Q` – Multivariable Pi-type.
-- `M → N` – Non-dependent function-type (right-associative).
-- `M .fld` – Field access of a record (left-associative), or method call on a codatatype.
-- `(fld1 ≔ M, fld2 ≔ N)` – Anonymous record (structure).  The unicode ≔ can be replaced by ASCII `:=`.  Checks, doesn't synthesize.
-- `(M, N)` – Record with unlabeled fields.  Labeled and unlabeled fields can also be mixed (see below).
-- `constr. M N` – Constructor of a datatype, applied to arguments (but not parameters).  Checks, doesn't synthesize.  The postfix period is admittedly unusual; the intent is to emphasize the duality between constructors of a datatype and destructors (fields) of a codatatype/record.
-- `M : N` – Type ascription.  Necessary if you want to apply an abstraction to an argument (i.e. manually write a beta-redex) or similarly access a field of a tuple, since the typechecker is bidirectional.
-- `let x ≔ M in N` – Local binding.  Computationally equivalent to `(x ↦ N) M`, but also binds `x` to `M` while typechecking `N`, which is stronger in the presence of dependent types.  As before, ≔ can be replaced by `:=`, and `let x ≔ (M : A) in N` (commonly needed since `M` must synthesize) can be abbreviated `let x : A ≔ M in N`.
-- `match x [ constr1. a b ↦ M | constr2. c d ↦ N ]` – Match against datatype constructors.  Only valid in a top-level case tree when `x` is a variable (see below).  The first constructor may optionally also begin with a `|`.
-- `[ constr1. a b ↦ M | constr2. c d ↦ N ]` – Abstract over a variable and immediately match against it, i.e. pattern-matching lambda.  Essentially a notational variant of `x ↦ match x [ constr1. a b ↦ M | constr2. c d ↦ N ]` without needing to choose a dummy name for the variable.  The initial `|` after the empty variable location can also be included.
-- `[ .fld1 ↦ M | .fld2 ↦ N ]` – Copattern match against a codatatype.
-- `"string"` – Quoted string.  Currently only used when specifying new notations.
-- `Id M X Y` – Homogeneous identity/bridge type.  In fact this is equivalent to `refl M X Y`, and `Id` is just a synonym for `refl`.
-- `refl M` – Reflexivity term.
-- `sym M` – Symmetry of a two-dimensional square.
-- `M⁽¹⁰²⁾` – General degeneracy (combination of higher reflexivities and symmetries).  Can also be written `M^(102)`.
+There is currently no importing or exporting: all definitions from all sources go into the same flat namespace, so for instance in interactive mode you can refer to definitions made in files that were loaded previously.  There is also no compilation or caching: everything must be typechecked and loaded anew at every invocation.
 
-Function application and field access can be thought of as left-associative infix operations with zero infix symbols and tightness +ω (although they are implemented specially internally).  In particular, a nonassociative prefix notation of tightness +ω, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  There are no such notations currently, but future possibilities include explicification of implicit functions and universe lifting.
+Each file or `-e` argument is a sequence of commands (see below), while in interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
 
-Abstraction, ascription, and let-bindings have tightness −ω, so they bind more loosely than anything except each other.  Type ascription is non-associative, so `M : N : P` is a parse error.  Abstraction and let-binding are right-associative, so that `x ↦ y ↦ M` parses correctly (though it can also be abbreviated as `x y ↦ M`).  In particular, this means that `x ↦ M : A` parses as `x ↦ (M : A)`, and similarly `let x ≔ M in N : A` parses as `let x ≔ M in (N : A)`.  Pi-types and function-types have tightness 0, and are right-associative.
 
-The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: `(x : A) → B` could be a dependent function type, but it could also be a *non-dependent* function type whose domain `x` is ascribed to type `A` (which would therefore have to be a type universe).  Narya resolves this in favor of the dependent function type, which is nearly always what is intended.  If you really mean the other you can write it as `((x : A)) → B` or `((x) : A) → B`, but you should never need to do this since the only possible ambiguity is when `x` is a variable (or a list of variables), and variables and constants (and application spines of such) always synthesize their type anyway and thus don't need to be ascribed.
+### Commands
 
-A line comment starts with a backquote \` and extends to the end of the line.  A block comment starts with {\` and ends with \`}.  Block comments can be nested.
-
-As in Agda, mixfix notations can involve arbitrary Unicode characters (a source file is expected to be UTF-8), most of which must be surrounded by spaces to prevent them from being interpreted as part of an identifier.  However, in Narya this has the following exceptions:
-
-- The characters `( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ …`, which either have built-in meaning or are reserved for future built-in meanings, are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in Agda, but the others are different: in Narya you can write `A→B` without spaces.  The non-ASCII characters in this group all have ASCII-sequence substitutes that are completely interchangeable: `-> |-> |=> := ::= += ...`.
-- A nonempty string consisting of the characters `~ ! @ # $ % & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for parentheses (grouping), curly braces (structures and, later, implicit arguments), backquote (comments), period (fields, constructors, and namespaces), underscore (allowed in identifiers, and for unnamed variables and, later, inferred arguments), double quote (later, string literals) and single quote (allowed in identifiers, for primes on variable names).  In particular:
-  - Ordinary algebraic operations like `+` and `*` can be defined so that `x+y` and `x*y` are valid.
-  - This includes the colon, so you can write `(x:A) → B`, and similarly for the comma `,` in a record and the bar `|` in a match or comatch.  But the user can also use these characters in other operators, such as `::` for list cons.  (Or you can use the Unicode ∷ and require spacing around it.)
-  - The ASCII substitutes for the single-token Unicode characters also fall into this category, so you can write for instance `A->B`.
-  - The ASCII hyphen `-` is in this category; in addition to its being part of `->` and `|->`, this allows a subtraction operator `x-y` to be written without spaces.  (Note, though, that the current parser does not permit a binary subtraction to coexist with a unary negation using the same character.)  Therefore, unlike in Agda, the hyphen is not allowed in identifiers.
-
-  This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing but also arbitrary unicode operators, while keeping the lexer rules simple and unchanging as new operators are defined.  If it turns out to be too unintuitive, it may be changed.
-
-- A nonempty string consisting of the Unicode superscript symbols `ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ𐞥ʳˢᵗᵘᵛʷˣʸᶻ⁽⁰¹²³⁴⁵⁶⁷⁸⁹⁾⁺⁻⁼` is treated as a single token and applied as a "superscript" operator to whatever immediately precedes it, binding more tightly than anything (tightness of "ω+1").  At present the only meaning of this is generic degeneracies (see below).  In addition, a caret `^` followed by a nonempty string of the corresponding ASCII characters `abcdefghijklmnopqrstuvwxyz(0123456789)+-=` (no internal spaces!) has exactly the same meaning.
-
-Identifiers (variables and constant names) can be any string of non-whitespace characters, other than the ASCII operators and superscript characters listed above, that does not start or end with a period or an underscore.  In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation).  Field names, which must be identifiers, are prefixed a period when accessed, and dually constructor names are postfixed a period when applied.  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names, field names, or constructor names, none of which are namespaced.
-
-Numerals are strings consisting of digits, possibly containing a period but *not* starting or ending with one.  You must write `0.5` rather than `.5`, since the latter could be mistaken for a field projection.  Currently, only natural number numerals are implemented, and are parsed into applications of the constructors `suc` and `zero`, e.g. `3` becomes `suc. (suc. (suc. zero.))`.  They therefore typecheck (but don't synthesize) at any datatype (see below) having a nullary constructor `zero` and a unary recursive constructor `suc`, including of course the usual natural numbers.
-
-Similarly, the forwards list notation `[> 1, 2, 3 >]` is automatically parsed as `cons. 1 (cons. 2 (cons. 3 nil.))`, while the backwards list notation `[< 1, 2, 3 <]` is parsed as `snoc. (snoc. (snoc. emp. 1) 2) 3`.  Thus, the first typechecks at any datatype having suitably typed constructors `nil` and `cons`, while the latter typechecks at any datatype having suitably typed constructors `emp` and `snoc`.  Of course, these include the usual types of forwards and backwards lists respectively.  (Since `[` and `]` are always their own tokens, it is also possible to put spaces in it like `[ > 1, 2, 3 > ]`, but this is not recommended.)  The infix binary operators `:>` and `<:` are also bound to `cons` and `snoc`, respectively, the first right-associative and the latter left-associative; thus `[> 1, 2, 3 >]` is also `1 :> 2 :> 3:> nil.`, and `[< 1, 2, 3 <]` is also `emp. <: 1 <: 2 <: 3`.
-
-## Files and commands
-
-A Narya file is a sequence of commands.  Conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  So far, the available commands are:
+In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
 
 1. `def NAME [PARAMS] : TYPE ≔ TERM`
 
-   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier, while `TYPE` must parse and typecheck at type `Type`, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree (see below).  The optional list of `PARAMS` consists of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` over these parameters, and its value is the abstraction of `TERM` over them.
+   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below), while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree or canonical type declaration (see below).  The optional list of `PARAMS` consists of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`. 
 
 2. `axiom NAME [PARAMS] : TYPE`
 
@@ -91,156 +47,625 @@ A Narya file is a sequence of commands.  Conventionally each command begins on a
 
 3. `echo TERM`
 
-   Normalize `TERM` and print its value to standard output.  Note that `TERM` must synthesize a type; if it is a checking term you must ascribe it. 
+   Normalize `TERM` and print its value to standard output.  Note that `TERM` must synthesize a type (see below); if it is a checking term you must ascribe it.  In interactive mode, if you enter a term instead of a command, Narya assumes you mean to `echo` that term.
 
 4. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
-   Declare a new mixfix notation.  The `TIGHTNESS` must be a finite dyadic rational number, written in decimal notation; it must be present for infix, prefix, and postfix notations, and absent for outfix notations (those that both start and end with a symbol).  Every notation must then have a `NAME`, which is an identifier like the name of a constant and is entered in the global namespace as `notation.NAME`; this is used to identify it in error messages, and will eventually be used for importing and exporting notations.
-
-   The `PATTERN` of a notation is a list of interspersed distinct local variable names and double-quoted symbols, such as `x "+" y` for addition or `Γ "⊢" x "⦂" A` for a typing judgment.  Each quoted symbol must be exactly one token; any two variables must be separated by a symbol (but two symbols can follow each other without a variable in between); and there must be at least one symbol.  If a pattern starts with a variable, it may be preceded by an ellipsis, indicating that it is left-associative; and dually if it ends with a variable, it may be followed by an ellipsis, indicating that it is right-associative (but not both).
+   Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is a list of interspersed distinct local variable names and double-quoted symbols, such as `x "+" y` for addition or `Γ "⊢" x "⦂" A` for a typing judgment.  Each quoted symbol must be exactly one token (see below); any two variables must be separated by a symbol (but two symbols can follow each other without a variable in between); and there must be at least one symbol.  If the pattern starts with a variable, it may be preceded by an ellipsis `…`, indicating that it is left-associative; and dually if it ends with a variable, it may be followed by an ellipsis, indicating that it is right-associative (but not both).  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
    
-   The value of a notation consists of a `HEAD`, which is either a previously defined constant or a constructor, followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, in some order.  This restriction ensures that the notation can be used for printing as well as parsing; in the future it may be relaxed.
 
-When the Narya executable is run, it executes all the files given on its command line, in order.  As usual, the special filename `-` refers to standard input.  It then executes any strings supplied on the command line with `-e`.  Finally, if `-i` was given, it enters interactive mode.
+## Built-in types
 
-## Interactive mode
+### The universe
 
-In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  The result of the commands is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit.
+Currently there is only one universe `Type` that contains all types, including itself, making the type theory inconsistent.  In the future it is planned to incorporate universe levels using [mugen](https://github.com/redPRL/mugen).
 
-In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it.
 
-## Records, datatypes, and codatatypes
+### Functions and function-types
 
-The three basic families of "canonical" types are records, datatypes, and codatatypes.  When a type family is declared, instead of being defined or assumed as an axiom it can be given a definition as one of these three kinds of type.  (Currently, this is only possible with direct OCaml coding, not yet by commands in an ordinary file.  The programmer is thus required and trusted to write these definitions by hand in abstract syntax with De Bruijn indices.)
+Apart from the universe, the only predefined type is a dependent function-type, written `(x:A) → B x` as in NuPRL and Agda.  As usual, if `B` does not depend on `x` one can simplify this to `A → B`, and iterated function-types can be combined, including combining multiple variables with the same type, as in `(x y : A) (z : B x y) → C x y z`.  Also as usual, this notation is right-associative, so `A → B → C` means `A → (B → C)`.  The unicode → appearing here is interchangeable with the ASCII `->`.
 
-### Record types and tuples
+Again as usual, functions are applied by juxtaposition; if `f : (x:A) → B x` and `a : A` then `f a : B a`.  And this is left-associative, so if `f : A → B → C` then `f a b : C`.
 
-A constant that is a type family can be declared to be a *record type*, by giving a list of its fields with their types.  The fields themselves are *not* constants; they belong to a separate name domain.  (They can be thought of as analogous to "methods" in an object-oriented programming language.)  Then an element of an instance of that family can have its fields projected out with the postfix syntax `M .fld`.  For instance, Σ-types are implemented as a record: the type `Σ A B`, also written `(x : A) × B x`, has two fields `fst : A` and `snd : B fst`.  The unicode × can be replaced by the ASCII `><`, and in the non-dependent case we can write `A × B` or `A >< B`.
+Functions are introduced by abstraction, which in Narya is written (somewhat unusually) as `x ↦ M`, or `x y z ↦ M` to abstract multiple variables at once.  The unicode ↦ is interchangeable with the ASCII `|->`.
 
-Elements of a record type (i.e. records) are constructed as tuples, inside parentheses and with field values separated by commas.  The elements of a tuple can be either unlabeled, as in `(a,b)`, or labeled, as in the equivalent `(fst ≔ a, snd ≔ b)`.  Note that the labels in a tuple omit the initial period in a field name.  In the unlabeled case, the values are assigned to fields in the order they were declared in the record, while in the labeled case they can be given in any order, e.g. `(snd ≔ b, fst ≔ a)` is equivalent to `(fst ≔ a, snd ≔ b)`.  It is also possible to label some values and not others; in this case the unlabeled values are assigned to the fields of the record type that don't have a labeled value, in the order they were declared in the record.  For instance, `(a,b)` can also be written as `(fst ≔ a, b)`, `(a, snd ≔ b)`, or even `(snd ≔ b, a)`.  An field labeled with an underscore is treated the same as an unlabeled field, e.g. `(_ ≔ a, b)` is the same as `(a,b)`.
+The variable in a function-type or an abstraction can be replaced by an underscore `_`, indicating that that variable is not used and thus needs no name.  For types this is equivalent to a non-dependent function-type: `(_ : A) → B` means the same as `A → B`.  For abstractions, `_ ↦ M` defines a constant function, whose value doesn't depend on its input.
 
-Field accesses can also be positional rather than named: `M .0` refers to the zeroth field, `M .1` to the next one and so on.  However, it's important to note that this is in reference to the order in which fields were declared in the record *type*, not in the tuple, even if labels were used in the tuple to give the components in a different order.  For instance, `((snd ≔ b, fst ≔ a) : A × B) .0` equals `a`.
 
-Tuples are an "outfix" notation that includes the parentheses, rather than an infix meaning of the comma; thus the parentheses are always required.  Tuples are not associative: neither `(a, (b, c))` nor `((a, b), c)` can be written as `(a,b,c)`.  The latter is applicable only to a record type with three fields, whereas the former two apply to a record type with two fields, one of which is itself a record type with two fields.  (This aligns with the behavior of functional programming languages such as Haskell and OCaml.)
+## Names and notations
 
-A record type can have zero fields, yielding a unit type.  Its unique element is thus written `()`.  A record type can also have exactly one field, in which case it is isomorphic to the type of that field.  However, the element of a 1-tuple must be labeled, since an unlabeled 1-tuple `(a)` would look just like `a` inside ordinary parentheses.  Note that you can still write `(_ ≔ a)` to avoid naming the field in a 1-tuple, and `M .0` to access the unique field.
+### Mixfix notations
 
-Tuples are checking, not synthesizing: the same term `(a,b)` can check at many different record types.  Since the argument of a field projection is synthesizing, this means that a tuple must be ascribed in order to immediately project out a field: `(a,b) .fst` doesn't typecheck, but `((a,b) : A × B) .fst` does.  Note in particular that different record types can share the same field names, so from `x .fst` or `(fst ≔ a, snd ≔ b)` the typechecker can't even guess what record type family we are talking about without knowing the type of `x`, in the first case, or the type being checked at, in the second case.
+The parser supports arbitrary mixfix operations with associativities and precedences, although we prefer to say "tightness" instead of "precedence", to make it clear that higher numbers bind more tightly.  Tightnesses are *dyadic rational numbers* (i.e. having denominator a power of 2), written in decimal notation.  Tightnesses +ω and −ω also exist, but are reserved for internal use.  Users can declare new notations with the `notation` command, while some notations are built-in.
 
-Record types satisfy eta-conversion, meaning that two elements of the type are equal if all their fields are equal, even if they are not both syntactically tuples.
+A notation which starts and ends with a variable is called "infix"; one that starts with a symbol and ends with a variable is called "prefix"; one that starts with a variable and ends with a symbol is called "postfix"; and one that starts and ends with a symbol is called "outfix".  An outfix notation *may not* have a tightness (it always behaves as if it has tightness +ω).  All other notations must have a tightness, which is relevant only on the side(s) where they are "open" (both sides for an infix notation, the right for a prefix one, and the left for a postfix one).
 
-### Datatypes and pattern-matching
+We have already mentioned the right-associative function-type notation `A → B`; this has tightness 0.  Function abstraction `x ↦ M` is also right-associative, so you can write `x ↦ y → M` (which can also be abbreviated as `x y ↦ M`), and has tightness −ω.  Application `M N` is implemented specially since an ordinary notation cannot have two variables next to each other without a symbol in between, but it behaves as though it is left-associative with tightness +ω.  (In particular, a nonassociative prefix notation of tightness +ω, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  However, there are no such notations yet.)
 
-A constant that is a type family can also be declared to be a *datatype*, by giving a list of its constructors with their types.  Like fields, constructors belong to a separate name domain, and they are always written with an ending period.  (This use of a separate syntax can be compared with functional programming languages such as Haskell and OCaml, where datatype constructors also have a separate syntax — beginning with a capital letter is common.)  The type of each constructor must be a function-type whose codomain is an instance of the datatype, and whose domain can involve instances of the datatype itself.  The latter occurrences ought to be strictly positive, but currently there is no check for that.
+In addition, parentheses `( M )` are defined as an outfix notation, hence with effective tightness +ω.  This emphasizes that notations of any tightness, even −ω, can appear in "internal" locations of a notation, meaning those with notation symbols on both sides.  Tightness and associativity only control what other notations can appear in the "external" locations that are only delimited by a notation symbol on one side.
 
-The arguments of a datatype family are divided into parameters and indices, the difference being that the output of each constructor must be fully general in the parameters.  (This includes the case of so-called "non-uniform parameters" for which the recursive *inputs* need not be fully general.)  Accordingly, when constructors are applied like functions to their arguments, we omit the parameters; instead the typechecker takes the parameters from the type at which the constructor is being checked.  For example, a sum-type `sum A B` contains elements `inl. a` and `inr. b`, where we don't write `A` and `B` as arguments of the constructors since they are parameters.  Note that this means constructors don't synthesize: from `inl. a` the typechecker can't guess what the type `B` should be unless it is ascribed or in a context where the type is known.  (In fact it's even worse than that: because all constructors inhabit the same flat name domain, and different datatypes can have constructors with the same name, the typechecker can't even guess what datatype family `inl. a` should belong to.)
 
-There is not yet a syntax for the user to define new datatypes; they have to be done in OCaml code, as for record types.  Datatypes currently available include an empty type `∅`, binary sum-types `sum A B` with constructors `inl` and `inr`, natural numbers `ℕ` or `Nat` with constructors `zero` and `suc`, forwards lists `List A` with constructors `nil` and `cons`, backwards lists `Bwd A` with constructors `emp` and `snoc`, and length-indexed vectors `Vec A n` with constructors `nil` and `cons`.  (Since implicit arguments are not yet implemented, the `cons` of `Vec` has to take the previous length as an additional argument, so we have to write `cons. 2 a (cons. 1 b (cons. 0 c nil.))` and the syntax `[> a, b, c >]` is not yet available for vectors.)
+### Comments and strings
+
+There are two kinds of comments.  A line comment starts with a backquote `` ` `` and extends to the end of the line.  A block comment starts with `` {` `` and ends with `` `} ``.  Block comments can be nested and can contain line comments, but cannot start inside a line comment.
+
+String literals are surrounded by double-quotes, as in `"hello, world"`.  At present the only use of string literals is in the `notation` command for defining user notations.
+
+
+### Tokens
+
+A Narya source file is expected to be UTF-8 encoded and can contain arbitrary Unicode.  As usual, the code is first *lexed* by separating it into "tokens", and then the sequence of tokens is *parsed* into an abstract syntax tree of notations.  Both identifiers (variable and constant names) and the symbols in a mixfix notation are tokens.  Whitespace (including comments) always creates a token boundary.  And since notation symbols can be made of the same characters that might be in an identifier, whitespace is sometimes necessary to separate identifiers from symbols.  For instance, if `⋆` is defined as a binary operator, we cannot write `x⋆y` (or even `1⋆1`) since that would be lexed as a single token.
+
+However, in Narya there are the following exceptions to this, where whitespace is not needed to separate tokens:
+
+- The characters `( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ …`, which either have built-in meaning or are reserved for future built-in meanings, are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in Agda, but the others are different: in Narya you can write `A→B` without spaces.  The non-ASCII characters in this group all have ASCII-sequence substitutes that are completely interchangeable: `-> |-> |=> := ::= += ...`.  Additional characters may be added to this list in the future.
+- A nonempty string consisting of the characters `~ ! @ # $ % & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Moreover, such tokens may only be notation symbols, not identifiers.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for those that already have another meaning (parentheses, backquote, double quote, curly braces) or are allowed in identifiers (period, underscore, and single quote).  In particular:
+  - Ordinary algebraic operations like `+` and `*` can be defined so that `x+y` and `x*y` are valid.
+  - This includes the colon, so you can write `(x:A) → B`, and similarly for the comma `,` in a tuple and the bar `|` in a match or comatch (see below).  But the user can also use these characters in other operators.
+  - The ASCII substitutes for the single-token Unicode characters also fall into this category, so you can write for instance `A->B`.
+  - The ASCII hyphen `-` is in this category; in addition to its being part of `->` and `|->`, this allows a subtraction operator `x-y` to be written without spaces.  (Note, though, that the current parser does not permit a binary subtraction to coexist with a unary negation using the same character.)  Therefore, unlike in Agda, the hyphen is not allowed in identifiers.
+
+  This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing but also arbitrary unicode operators, while keeping the lexer rules simple and unchanging as new operators are defined.  However, feedback is welcome!
+
+- A nonempty string consisting of the Unicode superscript symbols `ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ𐞥ʳˢᵗᵘᵛʷˣʸᶻ⁽⁰¹²³⁴⁵⁶⁷⁸⁹⁾⁺⁻⁼` is treated as a single token and applied as a "superscript" operator to whatever immediately precedes it, binding more tightly than anything (tightness of "ω+1").  At present the only meaning of this is generic degeneracies (see below).  In addition, a caret `^` followed by a nonempty string of the corresponding ASCII characters `abcdefghijklmnopqrstuvwxyz(0123456789)+-=` (no internal spaces!) has exactly the same meaning.  (Unicode subscript characters are not treated specially; thus they may appear freely in identifiers or symbols.)
+
+
+### Identifiers
+
+Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
+```
+let in def axiom echo notation match sig data codata
+```
+In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
+
+
+### Namespaces
+
+Narya uses [yuujinchou](https://redprl.org/yuujinchou/yuujinchou/) for hierarchical namespacing, with periods to separate namespaces.  Thus `nat.plus` is a potential name for a constant in the `nat` namespace, which can be defined directly with `def nat.plus` or could, in theory, be defined with `def plus` inside a "section" named `nat`, and would become available as simply `plus` if `nat` were imported.  However, Narya does not yet expose the import, export, and sectioning operations of yuujinchou to the user.
+
+
+## Typechecking details
+
+### Bidirectionality
+
+Narya's typechecker is bidirectional.  This means that some terms *synthesize* a type, and hence can be used even in a place where the "expected" type of a term is not known, whereas other terms *check* against a type, and hence can only be used where there is an "expected" type for them to check against.  Of the terms we have mentioned so far:
+
+- Function application `M N` synthesizes, by first requiring `M` to synthesize a function-type `(x:A) → B`, then checking `N` against the input type `A`, and finally synthesizing the corresponding output `B[N/x]`.
+
+- Function abstraction `x ↦ M` checks against a function-type `(x:A) → B` by checking `M` against `B` in a context extended by a variable `x:A`.  In particular, this means that the same abstraction term can mean different things depending on what type it is checked against.  For instance, `x ↦ x` checks against *any* endo-function type `A → A`.
+
+- Type-forming operators such as `Type` and `(x:A) → B` synthesize, after requiring their inputs to synthesize.  This might be modified later after universe levels are introduced.
+
+- Variables and constants synthesize their declared types.
+
+
+### Ascription
+
+If you want to use a checking term in a synthesizing position, you have to *ascribe* it to a particular type by writing `M : A` (or `M:A` by the lexer rules discussed above).  This *checks* `M` against the supplied type `A`, and then itself *synthesizes* that type.  For example, you cannot directly apply an abstraction to an argument to create a redex as in `(x ↦ M) N`, since the abstraction only checkes whereas a function being applied must synthesize, but you can if you ascribe it as in `((x ↦ M) : A → B) N`.  In general, ascription tends only to be needed when explicitly writing a redex or something similar.
+
+The ascription notation has tightness −ω, and is non-associative, so that `M : N : P` is a parse error.  However, the right-associativity of `↦` and the fact that they share the same tightness means that `x ↦ M : A` is parsed as `x ↦ (M : A)`, hence the placement of parentheses in the above example redex.
+
+
+### Let-binding
+
+Writing `let x ≔ M in N` binds the local variable `x` to the value `M` while typechecking and evaluating `N`.  The unicode ≔ is interchangeable with the ASCII `:=`.  Computationally, `let x ≔ M in N` is equivalent to `(x ↦ N) M`, but it also binds `x` to the value `M` while typechecking `N`, which in a dependent type theory is stronger.
+
+Both `M` and `N` are required to synthesize, and the let-binding then synthesizes the same type as `N`.  The idiom `let x ≔ M : A in N` can be written alternatively as `let x : A ≔ M in N`.  The let-binding notation is right-associative with tightness −ω.
+
+*Side note:* The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: `(x : A) → B` could be a dependent function type, but it could also be a *non-dependent* function type whose domain `x` is ascribed to type `A` (which would therefore have to be a type universe).  Narya resolves this in favor of the dependent function type, which is nearly always what is intended.  If you really mean the other you can write it as `((x : A)) → B` or `((x) : A) → B`; but I can't imagine why you would need to do this, since the only possible ambiguity is when `x` is a variable (or a list of variables), and variables and constants (and application spines of such) always synthesize their type anyway and thus don't need to be ascribed.
+
+
+### Eta-conversion and function constants
+
+Functions satisfy undirected η-conversion as well as directed β-reduction.  That is, while neither of `x ↦ f x` or `f` simplifies to the other, they are considered equal for the purposes of typechecking (they are "convertible").
+
+In addition, constants defined as functions do not reduce until they are applied to all of their arguments, including both those declared as parameters and those not so declared.  (This behavior is a special case of "case trees", discussed below.)  For instance, if we define addition of Church numerals as
+```
+def cplus (A:Type) (m n : (A → A) → (A → A)) : (A → A) → (A → A) ≔
+  f x ↦ m f (n f x)
+```
+then `cplus A (f x ↦ f x) (f x ↦ f x)` (i.e. "1 + 1") doesn't reduce to `(f x ↦ f (f x))` because it is not fully applied, whereas `cplus A (f x ↦ f x) (f x ↦ f x) f x` does reduce to `f (f x)`.  However, `cplus A (f x ↦ f x) (f x ↦ f x)` is still *convertible* with `(f x ↦ f (f x))` because equality-checking does η-conversion.  If you want to display the body of a constant defined as a function, you must manually η-expand it, which means it has to be ascribed as well:
+```
+echo (A f x ↦ cplus A (f x ↦ f x) (f x ↦ f x) f x)
+  : (A:Type) → (A → A) → (A → A)
+  
+A f x ↦ f (f x)
+```
+If there is significant demand for displaying function bodies, we may add an option to ask for η-expansion.
+
+
+## Record types and tuples
+
+### Defining record types
+
+A record type is defined by a number of *fields*, each with a declared type.  A constant of type `Type` can be defined to be a record type in a `def` statement by using the keyword `sig` and listing the fields with their types in parentheses, separated by commas.  For instance, we could bundle a type with an operation on it:
+```
+def Magma : Type ≔ sig (
+  t : Type,
+  op : t → t → t,
+)
+```
+The trailing comma after the last field is optional.  (By the lexing rules above, no space is required around the commas.)  Note that later fields can depend on the values of previous fields, by name.  The names of fields must be identifiers, except that they may not contain periods.
+
+Although this command may look like it is defining `Magma` to equal a pre-existing type denoted `sig (t:Type, op:t→t→t)`, in fact it declares `Magma` to be a *new* type that didn't previously exist and doesn't reduce to anything else.  In particular, therefore, declaring another identical-looking type:
+```
+def Magma' : Type ≔ sig (
+  t : Type,
+  op : t → t → t,
+)
+```
+will yield a different result: `Magma` and `Magma'` are not convertible.
+
+Like any definition, record types can have parameters.  For example, Σ-types are just a record type that can be defined by the user, if you wish:
+```
+def Σ (A : Type) (B : A → Type) : Type ≔ sig (
+  fst : A,
+  snd : B fst,
+)
+```
+However, we consider it better style in general to use specialized record types rather than generic Σ-types, as it provides better error-checking and documentation of the meaning of the fields.  It is also probably more efficient to use one record type with a lot of fields than an iterated Σ-type.  In the future we plan to implement metaprogramming-like capabilities for proving theorems about arbitrary record types, so that using them in preference to generic Σ-types does not entail a loss of expressivity.
+
+Currently user notations cannot bind variables, so it is not possible to define a binding notation such as `(x : A) × B x` for Σ-types.  But if we define a non-dependent product type, we can give it an infix notation:
+```
+def prod (A B : Type) : Type ≔ sig (
+  fst : A,
+  snd : B,
+)
+
+notation 1 prod : A "×" B ≔ prod A B
+```
+
+The fact that parameters can equivalently be abstracted over in the type and the term applies also to record type declarations.  That is, the above definition of Σ-types is entirely equivalent to
+```
+def Σ : (A:Type) → (A → Type) → Type ≔ A B ↦ sig (
+  fst : A,
+  snd : B fst,
+)
+```
+
+A record type can have only one field:
+```
+def wrapped_nat : Type ≔ sig ( unwrap : ℕ )
+```
+or even zero fields:
+```
+def ⊤ := Type ≔ sig ()
+```
+
+
+### Tuples
+
+To define an element of a record type we use a *tuple*, which consists of components separated by commas inside parentheses.  The most explicit kind of tuple labels each component by name, for instance:
+```
+def nat.magma : Magma ≔ (
+  t ≔ ℕ,
+  op ≔ plus,
+)
+```
+Again, the trailing comma is optional, the Unicode ≔ can be replaced by ASCII `:=`, and none of them requires surrounding space.  In this explicit version, the order of the fields doesn't matter: the above is equivalent to
+```
+def nat.magma : Magma ≔ (
+  op ≔ plus,
+  t ≔ ℕ,
+)
+```
+However, the names of the fields can also be replaced by underscores or omitted entirely, and in this case the fields are taken from the type definition *in the order given there*.  If some fields are named and others are not, the unnamed fields are matched up with the fields in the type that aren't named explicitly in the tuple, again in order.  Thus, we can also write the above tuple as any of the following:
+```
+(ℕ, plus)
+(_ ≔ ℕ, _ ≔ plus)
+(ℕ, op ≔ plus)
+(t ≔ ℕ, plus)
+(op ≔ plus, ℕ)
+(plus, t ≔ ℕ)
+```
+but not, of course, `(plus, ℕ)` since that would try to interpret `plus` as the value of the field `t`.  Unlabeled tuples are convenient for small examples, including familiar cases such as `(0,0) : ℝ × ℝ`, but for records with large numbers of fields they are discouraged as being hard to understand and brittle.
+
+As this discussion suggests, tuples *check*, and do not synthesize.  In particular, this means the same tuple can mean different things when checked at different types.  An unlabeled tuple `(a,b)` can check at *any* record type with two fields for which `a` checks at the type of the first field and `b` at the type of the second.  A labeled one such as `(fst ≔ a, snd ≔ b)` can likewise check at any such record type for which the names of the two fields are `fst` and `snd`.  *Field names are not scoped or namespaced*: they belong to a flat global name domain, distinct from that of constants and variables.
+
+Like record types, tuples can have zero fields:
+```
+def ⋆ : ⊤ ≔ ()
+```
+They can also have only one field, although in this case the field must be labeled (if only with an underscore), since an unlabeled 1-tuple would look just like an ordinary parenthesized term:
+```
+def wrapped_zero : wrapped_nat ≔ (_ ≔ zero)
+```
+
+Syntactically, tuples are an outfix notation that includes the parentheses, rather than an infix meaning of the comma; thus the parentheses are always required.  Tuples are not associative: neither `(a, (b, c))` nor `((a, b), c)` can be written as `(a,b,c)`.  The latter belongs to a record type with three fields, whereas the former two belong to a record type with two fields, one of which is itself a record type with two fields.  (This aligns with the behavior of functional programming languages such as Haskell and OCaml.)
+
+
+### Accessing fields
+
+If `M` belongs to a record type that has a field named `fld`, then `M .fld` extracts the value of this field.  In particular, if `M` is a tuple, then this reduces to the corresponding component.  Note the space in `M .fld`, which distinguishes it from a single identifier named `M.fld` in the namespace `M`.
+
+It is sometimes helpful to think of an element of a record type as a "function" and of `M .fld` as "applying" it to the field name as an "argument".  Syntactically, at least, they are parsed exactly the same way, except that the field name is prefixed by a period.  That is, field projections behave like a symbol-free left-associative infix operator of tightness +ω, and can therefore be interspersed with ordinary applications: `f a .fld b` means `((f a) .fld) b`.
+
+A field projection `M .fld` requires `M` to synthesize a record type, and then synthesizes the value of the field `fld` in that record type.  Thus, if you want to write a "record redex" that creates a tuple and then immediately projects out one of its fields, you need to ascribe the tuple: `((a, b) : Σ A B) .fst`.
+
+Finally, like unlabeled tuples that default to the order in which fields were declared in the record type, fields can also be projected out by index: `M .0` means the zeroth field declared in the record type, `M .1` means the first field, and so on.  It's important to note that this is in reference to the order in which fields were declared in the record *type*, not in the tuple, even if labels were used in the tuple to give the components in a different order.  For instance, `((snd ≔ b, fst ≔ a) : Σ A B) .0` equals `a`.  As with tuples, positional field access is convenient for small examples, but confusing and brittle when there are many fields.
+
+
+### Eta-conversion and reduction
+
+Records satisfy η-conversion: two elements of a record type whose components are field-wise convertible are themselves convertible.  For instance, if `M : Σ A B`, then `M` is convertible with `(M .fst, M .snd)`, although neither reduces to the other.  In particular, if a record type has zero fields, then any two of its elements are convertible; and if it has only one field, it is definitionally isomorphic to the type of that field.
+
+In addition, a constant that is defined to directly equal a tuple, or an abstracted tuple, does not *reduce* to that tuple directly: it only reduces when a field is projected.  For instance, if we have
+```
+def pair (a:A) (b:B a) : Σ A B ≔ (a,b)
+```
+then `pair a b` doesn't reduce to `(a,b)`.  But `pair a b .fst` does reduce to `a` and `pair a b .snd` does reduce to `b`, which in turn means (by η-conversion) that `pair a b` is *convertible* with `(a,b)`.  (This behavior is a special case of "case trees", discussed below.)  It does not apply (indeed, it cannot) to tuples that appear more deeply nested inside a term, such as the `(a,b)` in
+```
+def curry (f : A × B → C) (a:A) (b:B) : C ≔ f (a,b)
+```
+
+
+## Inductive datatypes and matching
+
+### Defining datatypes
+
+An inductive datatype is defined by a number of *constructors*, each with a declared type that must be an iterated function-type whose eventual codomain is the datatype itself.  A constant of type `Type` can be defined to be a datatype in a `def` statement by using the keyword `data` and listing the constructors with their types in square brackets, separated by bars.  For instance, we can define the booleans:
+```
+def Bool : Type ≔ data [
+| true. : Bool
+| false. : Bool
+]
+```
+The `|` before the first constructor is optional, and no spaces are required around the brackets and bar.
+
+Note that each constructor ends with a period.  This is intentionally dual to the fact that record fields and codata methods (see below) *begin* with a period, and reminds us that constructors, like fields and records, are not namespaced but belong to a separate flat name domain.  (OCaml programmers should think of polymorphic variants, not regular variants.)  The use of separate syntax distinguishing constructors from variables and functions is also familiar from functional programming, although the specific use of a dot suffix is novel (capitalization is more common).
+
+Also as with record types, this is not defining `Bool` to equal a pre-existing thing, but declaring it to be a new type that didn't previously exist and doesn't reduce to anything else.
+
+Datatypes can have parameters:
+```
+def Sum (A B : Type) : Type ≔ data [
+| inl. : A → Sum A B
+| inr. : B → Sum A B
+]
+```
+As with records, this is equivalent to
+```
+def Sum : Type → Type → Type ≔ A B ↦ data [
+| inl. : A → Sum A B
+| inr. : B → Sum A B
+]
+```
+When there are parameters, the output type must be the datatype applied to those same parameters.
+
+The arguments of each constructor can also be written as parameters before its colon:
+```
+def Sum (A B : Type) : Type ≔ data [
+| inl. (a : A) : Sum A B
+| inr. (b : B) : Sum A B
+]
+```
+When all the arguments are written this way, the output type can be omitted since we know what it must be (the datatype being defined):
+```
+def Sum (A B : Type) : Type ≔ data [
+| inl. (a : A)
+| inr. (b : B)
+]
+```
+
+Datatypes can be recursive, meaning the inputs of a constructor can involve the datatype itself.  For instance, we have the natural numbers:
+```
+def ℕ : Type ≔ data [
+| zero.
+| suc. (_ : ℕ)
+]
+```
+and the type of lists:
+```
+def List (A:Type) : Type ≔ data [
+| nil.
+| cons. (x : A) (xs: List A)
+]
+```
+For consistency, such occurrences should be strictly positive, but this is not yet checked.  The parameters of a recursive datatype can be "non-uniform", meaning that occurrences of the datatype in the inputs of a constructor (as opposed to the output) can be applied to different parameters.
+
+A datatype can have zero fields, yielding an empty type:
+```
+def ∅ : Type ≔ data [ ]
+```
+
+Finally, a datatype can also have *indices*, which are arguments of its type that are not abstracted over (either as parameters or after the ≔) before issuing the `data` keyword.  In this case, all the constructors must include an explicit output type that specifies the values of the indices for that constructor.  For instance, we have vectors (length-indexed lists):
+```
+def Vec (A:Type) : ℕ → Type ≔ data [
+| nil. : Vec A zero.
+| cons. : (n:ℕ) → A → Vec A n → Vec A (suc. n)
+]
+```
+This is equivalent to 
+```
+def Vec : Type → ℕ → Type ≔ A ↦ data [
+| nil. : Vec A zero.
+| cons. : (n:ℕ) → A → Vec A n → Vec A (suc. n)
+]
+```
+In particular, in the latter case `A` is still a parameter in the datatype sense, even though it does not appear to the left of the typing colon for `Vec`, because it is abstracted over before the `data` keyword.
+
+The other classic example of a datatype with an index is the Martin-Löf "Jdentity" type:
+```
+def Jd (A:Type) (a:A) : A → Type ≔ data [
+| rfl. : Jd A a a
+]
+```
+
+
+### Applying constructors
+
+A constructor, meaning an identifier ending with a period but containing no internal periods, can be applied to some number of arguments like a function, and then typechecked at a datatype that contains such a constructor.  For instance, `zero.` and `suc. zero.` and `suc. (suc. zero.)` all typecheck at `ℕ`.
+
+Constructors check rather than synthesizing.  As usual with checking terms, one constructor application can check at many different datatypes.  As a simple and common example, `nil.` typechecks at `List A` for *any* type `A`.  This makes it clear that a constructor application cannot synthesize, as there is no way to guess from `nil.` what the type `A` should be.  Moreover, unlike in some other languages, the parameter `A` is not even an "implicit argument" of the constructor; the only way to make `nil.` synthesize is to ascribe it as `nil. : List A`.  Similarly, `inl. a` typechecks at `Sum A B` for any type `B`.
+
+Constructors must always be applied to all of their arguments.  For instance, one cannot write `cons. x : List A → List A`.  The solution is to η-expand it: `(xs ↦ cons. x xs) : List A → List A`.
+
+
+### Numeral and list notations
+
+Natural number literals such as `0`, `7`, and `23` are expanded at parse time into applications of the constructors `suc.` and `zero.`.  There is no built-in datatype with these constructors, but of course the user can define `ℕ` as above, in which case for instance `3 : ℕ` is equivalent to `suc. (suc. (suc. zero.))`.  But numerals will also typecheck at any other datatype having constructors of the same name.
+
+There is a similar syntax for lists that expands to applications of the constructors `nil.` and `cons.`: a list like `[> x, y, z >]` expands to `cons. x (cons. y (cons. z nil.))`.  Thus this typechecks at `List A`, as defined above, if `x`, `y`, and `z` belong to `A`.
+
+The arrows `>` in the notation indicate that this is a "forwards" list.  There is a dual notation `[< x, y, z <]` for backwards lists that expands to `snoc. (snoc. (snoc. emp. x) y) z`, which therefore typechecks at a type of [backwards lists](https://github.com/RedPRL/ocaml-bwd) defined as
+```
+def Bwd (A:Type) : Type ≔ data [
+| emp.
+| snoc. (xs : Bwd A) (x : A)
+]
+```
+(Since `[` and `]` are always their own tokens, it is also possible to put spaces in these notations, such as `[ > 1, 2, 3 > ]`, but this is not recommended.)
+
+### Pattern-matching
 
 When a new constant is defined as a function containing datatypes in its domain, it can pattern-match on such an argument.  For instance, the function that swaps the elements of a binary sum can be written as
 ```
-def swap : (A B : Type) → sum A B → sum B A
-  ≔ A B x ↦
-  match x [
-    | inl. a ↦ inr. a
-    | inr. b ↦ inl. b
-  ]
-```
-By omitting the variable name, it is possible to abstract over a variable and simultaneously match against it (pattern-matching lambda abstraction).  Thus, the above can equivalently be written
-```
-def swap : (A B : Type) → sum A B → sum B A ≔ A B ↦
-  [ | inl. a ↦ inr. a
-    | inr. b ↦ inl. b
-  ]
-```
-
-At present, at least, it is only possible to match on a variable argument of the function, not on an arbitrary term; this allows the output type of the function to be refined in each branch without additional annotations.  It is also only possible to match on one argument at a time; but each branch of the match can proceed to match again on a different argument, or on one of the pattern variables (arguments of the constructor).  When matching against a datatype with indices, the indices in the type of the match variable must currently also be distinct free variables (this is even less general than Agda's `--without-K` matching and hence also ensures consistency with univalence).
-
-Finally, a function defined by pattern-matching can also be recursive, calling itself on smaller arguments in each branch.  (Actually, currently there is no termination-checking, so the arguments don't even have to be smaller.  But there is coverage-checking: all the constructors of a datatype must be present in the match.  So you can write infinite loops, but your programs shouldn't get stuck.)
-
-### Codatatypes and copattern-matching
-
-A *codatatype* is superficially similar to a record type: it has a list of fields (which in this case we sometimes call *methods*), each with a type, which are projected out using the same syntax `x .fld`.  The primary differences are:
-
-1. Codatatypes can be (co)recursive: the output type of each method can involve the codatatype itself.  (Such occurrences ought to be strictly positive, but currently there is no check for that.)
-2. Codatatypes do not satisfy eta-conversion (this being undecidable in the recursive case).
-3. Elements of codatatypes are defined by copattern-matching rather than with tuples.
-
-Copattern-matching is similar to tupling, but the syntax is different (more like pattern-matching); all the methods must be labeled, including their initial periods; and a constant defined by copattern-matching can be corecursive, referring to itself in the (co)branches.  As an example, the type `Stream A` (where `A` is a parameter) has two methods, `head` of type `A`, and `tail` of type `Stream A`.  For example, the infinite stream `nats n` of all natural numbers starting at `n` can then be defined by copattern-matching as
-```
-def nats : ℕ → Stream ℕ
-  ≔ n ↦ [
-  | .head ↦ n
-  | .tail ↦ nats (suc. n)
+def Sum.swap (A B : Type) (x : Sum A B) : Sum B A ≔ match x [
+| inl. a ↦ inr. a
+| inr. b ↦ inl. b
 ]
 ```
-The empty (co)match `[ ]` is ambiguous: it could denote a pattern-matching lambda on a datatype with no constructors, or a copattern-match into a codatatype with no methods.  Fortunately, since both possibilities are checking rather than synthesizing, the ambiguity is resolved by bidirectional typechecking.
-
-Computationally, it is suggested to think of a codatatype as an object-oriented *interface*, and a function defined by copattern-matching as an (immutable) *object* that implements that interface, with the arguments of the function being its "member variables".  In particular, an "object" of this sort does not compute to anything until a field is accessed (method is called).  For instance, `nats 0 .tail .tail .tail .head` evaluates to `3`, but `nats 0` itself does not evaluate to anything.  This is very different from a tuple, which should be thought of as a *data structure* that contains a collection of values; in particular, it explains why records have eta-conversion and codatatypes do not.
-
-### Case trees
-
-Tuples can occur anywhere in a term, but pattern-matches and copattern-matches can (currently) only occur at a top level definition of a constant.  However, all three (as well as lambda-abstractions) can be arbitrarily deeply nested in a top-level definition: we can start with a pattern-match, then in one branch (where the output type is a codatatype) proceed to a copattern-match, while another branch proceeds to match on a different argument belonging to another datatype, and so on.  This is called a *case tree*: it is composed of nested abstractions, tuples, pattern matches against constructors, and copattern comatches against fields, until it reaches a "leaf" which is an arbitrary term (in the context of the variables introduced so far by the abstractions and pattern matches).  A degenerate version of a case tree is just a leaf, which simply defines the constant to equal some given term.
-
-This means that defining a constant to equal something like "`x y ↦ ( fld1 ≔ M, fld2 ≔ N )`" appears ambiguous as to whether it is just a leaf or whether it is a case tree involving abstractions and a tuple.  The rule to resolve this ambiguity is that *as much as possible of a definition is included in the case tree*.  This is usually what you want.
-
-A constant defined by a case tree does not compute unless the tree can be followed all the way down to a leaf.  In particular, a match or comatch is never exposed as part of a term.  Moreover, this means that when defining a constant to equal a given term, by putting the abstractions into the case tree rather than the term we ensure that it must be applied to all its arguments in order to compute, rather than immediately evaluating to an abstraction.  Again, this is usually what you want.  It more or less aligns with the behavior of functions defined by (co)pattern-matching in Agda, whereas Coq has to mimic it with `simpl nomatch` annotations.
-
-As noted, case trees can include tuples as well as matches and comatches.  Thus it is also possible to define constructors of records by case trees, in addition to as tuples.  These have the advantage that they synthesize, but the disadvantage that they must be applied explicitly to all the parameters.  For example, with Σ-types we can define
+The `|` before the first branch is optional.  Each branch consists of one of the constructors of the datatype applied to distinct new "pattern variables" that are then bound in the body of that branch.  The body can then proceed to match again on these variables or on other variables.  For instance, we have associativity of sums:
 ```
-def pair : (A : Type) (B : A → Type) (a : A) (b : B a) → Σ A B
-  ≔ A B a b ↦ (a,b)
+def Sum.assoc (A B C : Type) (x : Sum (Sum A B) C) : Sum A (Sum B C) ≔ match x [
+| inl. y ↦ match y [
+  | inl. a ↦ inl. a
+  | inr. b ↦ inr. (inl. b)
+  ]
+| inr. c ↦ inr. (inr. c)
+]
 ```
-and then we can write `pair A B a b` instead of `(a,b) : Σ A B`.
+By omitting the keyword `match` and the variable name, it is possible to abstract over a variable and simultaneously match against it (pattern-matching lambda abstraction).  Thus, `Sum.swap` can equivalently be defined as
+```
+def Sum.swap (A B : Type) : Sum A B → Sum B A ≔ [
+| inl. a ↦ inr. a
+| inr. b ↦ inl. b 
+]
+```
 
-Note that case trees are generally considered the internal implementation of pattern-matching definitions, e.g. Agda compiles its definitions internally to case trees.  I believe it is better to expose the case tree to the user explicitly.  In some cases, this can make code more concise, since all the arguments of the function no longer have to be written again in every branch and sub-branch.  But more importantly, the order in which matches are performed, and hence the way in which the function actually computes, is this way obvious to the reader, and can be specified explicitly by the programmer, in particular eliminating the confusion surrounding Agda's `--exact-split` option.  So I have no plans to implement Agda-style pattern matching syntax.
+However, even with the explicit `match` syntax, it is only possible to match against a *variable*, not an arbitrary term; and pattern-matching can only occur at top level in a definition, or inside abstractions, tuples, or other pattern-matches (or comatches, see below).  This aligns with the behavior of pattern-matching definitions in Haskell and Agda, although languages such as Coq and ML that have an explicit `match` keyword usually allow matching against arbitrary terms and in arbitrary places in a term.  One advantage of matching against variables only is that then the output type of the function can be refined automatically in each branch without additional annotations.  To match against an arbitrary term, define a helper function.
 
-There are other enhancements to matching that could be done, however, such as implementing something closer to Agda's `--without-K` unification-based matching.  It should also be possible to allow matches inside arbitrary terms by lifting them to toplevel and defining a new internal constant.  And it might be possible to implement a version of Coq/ML-style simultaneous matches like `match x, y with ...`, since the order of the variables indicates the order in which they are matched.  Similarly, some kind of deep matching such as `[ zero. ↦ ... | suc. zero. ↦ ... | suc. (suc. n) ↦ ... ]` may be possible.
+It is also only possible to match on one argument at a time: the definition of `Sum.assoc` cannot be condensed to have branches like `inl. (inl. a) ↦ inl. a`.  This makes the syntax a little more verbose, but it also eliminates any ambiguity regarding the order in which matching occurs, preventing issues such as those surrounding Agda's `--exact-split` flag.
+
+A function defined by pattern-matching can also be recursive, calling itself in each branch.  For instance, we have addition of natural numbers (in one of the possible ways):
+```
+def ℕ.plus (m n : ℕ) : ℕ ≔ match m [
+| zero. ↦ n
+| suc. m ↦ suc. (ℕ.plus m n)
+]
+```
+For termination and consistency, the recursive calls should be on structurally smaller arguments.  But currently there is no checking for this, so it is possible to write infinite loops.  In fact this is possible even without matching:
+```
+def oops : ∅ ≔ oops
+```
+However, there is coverage-checking: all the constructors of a datatype must be present in the match.  So while you can write infinite loops, your programs shouldn't get stuck.
+
+When matching against a datatype with indices, the indices in the type of the match variable must also be *distinct free variables* that don't occur in any parameters.  Thus, for instance, we can define appending of vectors:
+```
+def Vec.append (A : Type) (m n : ℕ) (v : Vec A m) (w : Vec A n) : Vec A (ℕ.plus m n) ≔ match v [
+| nil. ↦ w
+| cons. k a u ↦ cons. (ℕ.plus k n) a (Vec.append A k n u w)
+]
+```
+Here the match against `v` is allowed because the index `m` of its type `Vec A m` is a free variable.  Then in the two branches, that variable `m` is specialized to the index value associated to that constructor, namely `zero.` in the first branch and `suc. k` in the second.  (Note that the body of the second branch typechecks because `ℕ.plus (suc. k) n` reduces to `suc. (ℕ.plus k n)`, which is why we defined addition of natural numbers as we did.  The other addition of natural numbers, by recursion on the second argument, instead matches appending of *backwards* vectors.)
+
+The fact that the indices cannot occur in the parameters prevents us, for instance, from proving Axiom K.  Thus it is even less general than Agda's `--without-K` matching, and hence also ensures consistency with univalence.  In the future we may implement a more general unification-based condition like Agda's.
+
+## Case trees
+
+### Functions defined by case trees
+
+Functions defined by pattern-matching do not reduce unless enough of their arguments are constructors to make it all the way through all the matches.  For instance, `Sum.swap x` does not reduce unless `x` is a constructor, and similarly for `Sum.assoc (inl. x)`.  Thus, functions defined by pattern-matching are not equal to each other even if their definitions are identical.  For instance, if we define
+```
+def neg : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
+def neg' : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
+```
+then `neg` and `neg'` are not convertible.  By η-expansion, when trying to convert them we do automatically introduce a new variable `x` and try to compare `neg x` with `neg' x`, but neither of these terms reduce since `x` is not a constructor.  (In particular, datatypes do not satisfy any kind of η-conversion themselves.)
+
+In fact, there is nothing that these terms *could* reduce to, because `match` is not actually syntax for any kind of *term* at all.  Instead, it represents a node in a *case tree*.  A case tree is built out of abstractions, matches, and tuples (and comatches, see below), eventually reaching ordinary terms in the innermost bodies.  In fact *every* defined constant in Narya is actually defined to equal a case tree, which in degenerate cases might only consist of some abstractions or even only a single body.  The general rule, subsuming the others mentioned above for abstractions, tuples, and matching, is that a constant defined as a case tree does not reduce to anything until it is applied to enough arguments or field projections, and enough of the arguments are constructor forms, to ensure that it can reduce to one of the innermost body terms.
+
+The fact that abstractions and tuples (unlike matches) *can* also occur at arbitrary positions in a term means that there is some potential ambiguity in a definition containing only those: are they part of the case tree, or part of a unique body term?  The rule to resolve this is that the case tree includes *as much as possible*; this gives rise to the rules for reduction of functions and tuples mentioned above.
+
+This is usually what you want.  It more or less aligns with the behavior of functions defined by pattern-matching in Agda, whereas Coq has to mimic it with `simpl nomatch` annotations.  However, if you really want to define a constant that reduces to an abstraction before it receives an argument, or a tuple before a field is projected out, you can wrap it in a no-op redex:
+```
+def swap (A B : Type) : A × B → B × A ≔
+  ((x ↦ x) : (A × B → B × A) → (A × B → B × A)) (u ↦ (u .snd, u .fst))
+```
+Since a function application cannot be part of a case tree, it goes into the body term, including the abstraction over `u`.  Thus `swap A B` will reduce to `u ↦ (u .snd, u .fst)`.  If there is significant demand for it, we may implement a less kludgy way to force an abstraction or tuple to lie in the body rather than the case tree.
+
+Note that case trees are generally considered the internal implementation of Agda-style pattern-matching definitions.  The philosophy of Narya is that it is better to expose the case tree to the user explicitly.  Sometimes this makes the code more verbose; but other times it actually makes it more concise, since all the arguments of the function no longer have to be written again in every branch and sub-branch.  But more importantly, the order in which matches are performed, and hence the way in which the function actually computes, is this way obvious to the reader, and can be specified explicitly by the programmer.  So we have no plans to implement Agda-style pattern matching syntax.
+
+
+### Canonical types defined by case trees
+
+By a *canonical type* we mean a universe, function-type, record type, datatype, or codatatype (see below), of which the first two are built in and the latter three are all user-defined.  So far, all our definitions of new canonical types (record types and datatypes) may have been abstracted over parameters, but otherwise the keyword `sig` or `data` has occurred immediately after the ≔.
+
+However, in fact a canonical type declaration can appear anywhere in a case tree!  For example, here is another definition of length-indexed lists, which we call "covectors".  Now instead of the length being an index, it is a *parameter* over which we recurse:
+```
+def Covec (A:Type) (n:ℕ) : Type ≔ match n [
+| zero. ↦ sig ()
+| suc. n ↦ sig (
+  car : A,
+  cdr : Covec A n
+)]
+```
+Thus, `Covec A 0` is a unit type, `Covec A 1` is isomorphic to `A` (definitionally! since record types have η-conversion), `Covec A 2` is isomorphic to `A × A`, and so on.
+
+This is very similar, but subtly different from, the following definition that could be given in Coq or Agda:
+```
+def Covec' (A:Type) (n:ℕ) : Type ≔ match n [
+| zero. ↦ ⊤
+| suc. n ↦ A × Covec' A n
+]
+```
+The two are definitionally isomorphic; the difference is that `Covec' A n` reduces when `n` is a constructor; while `Covec A n` is already a canonical type no matter what `n` is, it's just that when `n` is a constructor we know how it *behaves*.  For instance, `Covec' A 2` reduces to `A × (A × ⊤)`, whereas `Covec A 2` does not reduce but we can still typecheck `(a, (b, ()))` at it.  This sort of "recursively defined canonical type" helps maintain information about the meaning of a type, just like using a custom record type rather than a nested Σ-type; eventually we hope it will be helpful for unification and typeclass inference.
+
+As another example, once we have an identity type `Id` (which could be `Jd`) we can define the homotopy-theoretic tower of truncation levels:
+```
+def trunc_index : Type ≔ data [ minustwo. | suc. (_ : trunc_index) ]
+
+def IsTrunc (n:ℕ) (A:Type) : Type ≔ match n [
+| minustwo. ↦ sig ( center : A, contr : (x:A) → Id A center x )
+| suc. n ↦ sig ( trunc_id : (x y : A) → IsTrunc n (Id A x y) )
+]
+```
+
+
+## Codatatypes and copattern-matching
+
+A *codatatype* is superficially similar to a record type: it has a list of fields (which in this case we sometimes call *methods*), each with a type, which are projected out (or "called") using the same syntax `x .method`.  The primary differences are:
+
+1. Codatatypes can be (co)recursive: the output type of each method can involve the codatatype itself.  (Such occurrences ought to be strictly positive, but currently there is no check for that.  In fact, there is not yet even a check that rules out recursion in record types, but there will be.)
+2. Codatatypes do not satisfy η-conversion (this being undecidable in the recursive case).
+3. To emphasize these differences, the syntax for defining codatatypes and their elements (the latter called copattern-matching) is more akin to that of datatypes and pattern-matching than to that of records and tuples.
+
+For example, here is a corecursive definition of the codatatype of infinite streams:
+```
+def Stream (A:Type) : Type ≔ codata [
+| x .head : A
+| x .tail : Stream A
+]
+```
+That is, we use brackets and bars instead of parentheses and commas.  Moreover, instead of writing field names like variables as in a record type, we write them as method calls *applied to a variable*.  This variable is then bound in the body to belong to the codatatype, and the values of previous fields are be accessed through it.  For instance, a codata version of Σ-types would be written
+```
+def codata-Σ (A : Type) (B : A → Type) : Type ≔ codata [
+| x .fst : A
+| x .snd : B (x .fst)
+]
+```
+
+It is often helpful to think of a codatatype as akin to an *interface* in an object-oriented programming language, in which case the variable `x` is like the `this` or `self` pointer by which an object refers to itself.  Of course an interface in a simply-typed language does not need a self-pointer to specify the *types* of its methods, but in a dependently typed language it does.  In higher-dimensional type theories, the presence of this variable can be used in other ways than simply accessing previously declared methods, such as in the coinductive definition of [semi-simplicial types](https://arxiv.org/abs/2311.18781).
+
+Elements of coinductive types are introduced by copattern-matches, which are like tuples except for the syntax and the fact that they can be (co)recursive:
+```
+def Fibonacci (a b : ℕ) : Stream ℕ ≔ [
+| .head ↦ a
+| .tail ↦ Fibonacci b (ℕ.plus a b)
+]
+```
+In addition, unlike tuples, copattern-matches are a part of case trees but not of ordinary terms.  Thus, they never evaluate to anything until a method is called.  This is essential to ensure termination in the presence of corecursion; otherwise `Fibonacci 1 1` would spin forever computing the entire infinite sequence.  (It is also why codatatypes do not have [η-conversion](http://strictlypositive.org/Ripley.pdf).)  It is often helpful to think of a constant defined by copattern-matching as an ([immutable](https://dev.realworldocaml.org/objects.html)) *object* implementing an interface, with the parameters of that constant being its "private member variables".
+
+(As a bit of syntactic trivia, note that `[]` is ambiguous: it could denote either a pattern-matching lambda on a datatype with no constructors, or a copattern-match into a codatatype with no methods.  Fortunately, since both possibilities are checking rather than synthesizing, the ambiguity is resolved by bidirectional typechecking.)
 
 
 ## Parametric Observational Type Theory
 
-Every type `A` has a binary identity/bridge type denoted `Id A x y`, and each term `x:A` has a reflexivity term `refl x : Id A x x`.  (The argument of `refl` must synthesize.)  Elements of the identity type of the universe include, at least, a binary correspondence, which is instantiated by application syntax; so from `A₂ : Id Type A₀ A₁`, if `a₀:A₀` and `a₁:A₁` we have `A₂ a₀ a₁ : Type`.  In particular, `Id A x y` is an instance of this syntax, as we have `Id A : Id Type A A`, and indeed `Id A` is just a notational variant of `refl A`.
+Eventually we expect there to be many possible "directions" in which a type theory can be higher-dimensional.  One dimension may be homotopy-theoretic, another may be internally parametric, and another may be [displayed](https://arxiv.org/abs/2311.18781) (like internal parametricity, but guarded by a modality for semantic generality and consistency with classical axioms).  Each direction also has an "arity": homotopy theory is almost always binary, parametricity is usually unary or binary, display is so far mainly unary.  The internal architecture of Narya is set up to hopefully eventually permit the user to mix and match different directions of higher-dimensionality, but currently this is not realized.  At the moment there is only one built-in direction, which is binary and behaves like internal parametricity.
 
-Iterating `Id` or `refl` multiple times produces higher-dimensional cube types and cubes.  There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions; its argument must also synthesize.  Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies: `M⁽¹ʳ²⁾` or `M^(1r2)` where the superscript represents the degeneracy, with `r` denoting a degenerate dimension and nonzero digits denoting a permutation.  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and `r` with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.
+### Identity/bridge types of canonical types
 
-The identity/bridge type of a pi-type computes to another pi-type.  In Narya this computation is "up to definitional isomorphism", meaning that the following two types are isomorphic:
-```
-id (A → B) f g
-(x₀ : A) (x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)
-```
-However, in most cases we can pretend that these two types are literally the same, because the typechecker allows lambda-abstractions matching the structure of the second to also typecheck at the first, and likewise elements of the first can be applied to arguments as if they were functions belonging to the second.
+Specifically, therefore, every type `A` has a binary identity/bridge type denoted `Id A x y`, and each term `x:A` has a reflexivity term `refl x : Id A x x`.  (The argument of `refl` must synthesize.)  There is no "transport" for these types (hence "bridge" is really a more appropriate name).  But they are "observational" in the sense that the identity/bridge type of a canonical type is another canonical type of the same sort.
 
-There is no unifier yet, so such an abstraction or application must include both endpoints `x₀` and `x₁` explicitly as well as the identity `x₂`.  However, there is a shorthand syntax for such higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M` (or `x |=> M` in ASCII).  This binds `x` as a "family" or "cube" of variables whose names are suffixed with face names in ternary notation: `x.0` and `x.1` and `x.2`, or in higher dimensions `x.00` through `x.22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`", but rather there are really *three different variables* that just happen to have the names `x.0` and `x.1` and `x.2`.  (There is no potential for collision with user-defined names, since ordinary local variable names cannot contain internal periods.)
+For example, `Id (A → B) f g` is a function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`.  In particular, `refl f` is a function of a type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (f x₁)`, witnessing that all functions preserve "equalities" or "relatedness".  Thus the operation traditionally denoted `ap` in homotopy type theory is just `refl` applied to a function (although since the argument of `refl` must synthesize, if the function is an abstraction it must be ascribed).  Similarly, `Id (A × B) u v` is a type of pairs of identities, so if we have `p : Id A (u .fst) (v .fst)` and `q : Id B (u .snd) (v .snd)` we can form `(p,q) : Id (A × B) u v`, and so on for other record types, datatypes, and codatatypes.
 
-There is no need for an additional primitive `ap`; it is accessed by applying `refl` to a function.  That is, if `f : A → B`, then `refl f x₀ x₁ x₂` relates `f x₀` to `f x₁` in `B`.  Likewise, identity types can be obtained by applying `refl` to a type: `Id A X Y` is just a convenient abbreviation of `refl A X Y`.
+However, in Narya `Id (A → B) f g` does not *reduce* to the *ordinary* function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`: instead it simply *behaves* like it, in the sense that its elements can be applied like functions and we can define elements of its as abstractions.  This should be compared with how `Covec A 2` doesn't reduce to `A × (A × ⊤)` but behaves like it in terms of what its elements are and what we can do with them.  In particular, `Id (A → B) f g` and `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)` are definitionally isomorphic, with the functions in both directions being η-expansions `f ↦ (x₀ x₁ x₂ ↦ f x₀ x₁ x₂)`.  For most purposes this behavior is just as good as a reduction, and it retains more information about the type, which as before is useful for many purposes.  (In fact, with our current understanding, it appears to be *essential* for Narya's normalization and typechecking algorithms.)
 
-Heterogeneous identity/bridge types are similarly obtained from `refl` of a type family: if `B : A → Type`, then `refl B x₀ x₁ x₂` is a identification/bridge in `Type` between `B x₀` and `B x₁`.  Given elements `y₀ : B x₀` and `y₁ : B x₁`, we can "instantiate" this identification at them to obtain a type of heterogeneous identifications.  This is also written as function application, `refl B x₀ x₁ x₂ y₀ y₁`.  Such heterogeneous identity/bridge types are used in the computation (up to definitional isomorphism) of dependent function types: the following type types are isomorphic.
+The same is true for other canonical types, e.g. `Id (A × B) u v` does not reduce to `Id A (u .fst) (v .fst) × Id B (u .snd) (v .snd)`, but it is *a* record type that is definitionally isomorphic to it.  Similarly, identity types of codatatypes behave like types of bisimulations: `Id (Stream A) s t` is a codatatype that behaves as if it were defined by
 ```
-id ((x:A) → B x) f g
-(x₀ : A) (x₁ : A) (x₂ : Id A x₀ x₁) → refl B x₀ x₁ x₂ (f x₀) (g x₁)
+codata [
+| _ .head : Id A (s .head) (t .head)
+| _ .tail : Id (Stream A) (s. tail) (t .tail)
+]
+```
+Individual bisimulations, i.e. elements of `Id (Stream A) s t`, can then be constructed by copattern-matching.
+
+In general, the fields, constructors, or methods of the identity/bridge type of a record type, datatype, or codatatype have the *same names* as those of the original type, and their types are the identity/bridge types of those of the original.
+
+In the case of datatypes, the boundary (endpoints) of the identity/bridge type behave like *indices*.  Thus, for instance, `Id ℕ` behaves like an indexed datatype defined by
+```
+data [
+| zero. : Id ℕ zero. zero.
+| suc. : (n₀ n₁ : ℕ) (n₂ : Id ℕ n₀ n₁) → Id ℕ (suc. n₀) (suc. n₁)
+]
 ```
 
-The identity/bridge type of a record type is another record type, which uses the same field names as the original.  For instance, `Id ((x:A) × B) X Y` is a record type with fields `fst` and `snd`, where for `s : Id ((x:A) × B) X Y` we have
-```
-s .fst  :  Id A (X .fst) (Y .fst)
-s .snd  :  refl B (X .fst) (Y .fst) (s .fst) (X .snd) (Y .snd)
-```
-Since it also satisfies eta-conversion, this record is definitionally isomorphic (but not equal) to another Sigma-type
-```
-(p : Id A (X .fst) (Y .fst)) × refl B (X .fst) (Y .fst) p (X .snd) (Y .snd)
-```
-Similarly to the case with function-types, since the fields of `Id ((x:A) × B) X Y` are again named `fst` and `snd`, in most cases one can pretend it is actually equal to the latter Sigma-type, including constructing elements of it with `( fst ≔ P, snd ≔ Q )`.
 
-Codatatypes behave similarly: their identity/bridge types are thus coinductive types of bisimulations.  Such bisimulations can be defined using corecursion, with a copattern-matching case tree.
+### Identity/bridge types of the universe
 
-The identity/bridge type of a datatype is itself another datatype, with constructors of the same name applied to higher-dimensional elements to construct their elements (with the boundary treated like indices).  Case trees are also allowed to match on these higher constructors, binding "cubes" of variables as above.
+According to internal parametricity, we morally think of `Id Type A B` as being the type `A → B → Type` of correspondences.  (We avoid the word "relation" since it erroneously suggests proposition-valued.)  However, according to the above principles, we should expect `Id Type A B` to only *behave* like `A → B → Type`, in that we can apply its elements to a pair of arguments in `A` and `B` to get a type, and define its elements by similarly abstracting.
 
-Internal parametricity is currently implemented by a constant `Gel`, defined with `Types.Gel.install ()`, whose type is
+The first is literally true: given `R : Id Type A B` and `a:A`, `b:B` we have `R a b : Type`.  We refer to this as *instantiating* the higher-dimensional type `R`.  In fact, `Id A x y` itself is an instantiation, as we have `Id A : Id Type A A`, which moreover is really just a notational variant of `refl A`.
+
+For the second there is another wrinkle: we can define elements of `Id Type A B` by abstracting, but the body of the abstraction must be a *newly declared canonical type* rather than a pre-existing one.  This also seems to be essential to deal with symmetries (see below) in the normalization and typechecking algorithm.  Moreover, the current implementation only allows this body to be a *record* type, and it does not permit other case tree operations in between such as pattern-matching.  The current syntax also reflects this restriction: instead of the expected `x y ↦ sig (⋯)` we write `sig x y ↦ (⋯)`.
+
+We plan to lift this restriction in the future, but in practice it is not very onerous.  For most applications it suffices to define a single "Gel" record type:
 ```
-(A : Type) (B : Type) (R : (x:A) (y:B) → Type) → Id Type A B
+def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig a b ↦ ( ungel : R a b )
 ```
-As above, since `Gel A B R` is a bridge in the universe, it can be further instantiated at elements `a : A` and `b : B` to obtain a type `Gel A B R a b`.  This type is isomorphic to the original `R a b`.  In fact, `Gel` is declared as a special kind of "one-dimensional record type" (in contrast to the usual zero-dimensional ones) with eta-conversion, with a single field `ungel` of type `R a b`.  Thus the isomorphism is implemented by, on the one hand, accessing this field `M .ungel`, and on the other by building a record `(ungel ≔ M)`.  As with other unary records, these can also be written `M .0` and `(_ ≔ M)`.
+and simply use it everywhere, rather than declaring new higher-dimensional types all the time.  Note that because record-types satisfy η-conversion, `Gel A B R a b` is definitionally isomorphic to `R a b`.  Thus, `Id Type A B` contains `A → B → Type` as a "retract up to definitional isomorphism".  This appears to be sufficient for all applications of internal parametricity.  (`Id Type` does not itself satisfy any η-conversion rule.)
+
+
+### Heterogeneous identity/bridge types
+
+If `B : A → Type`, then `refl B x₀ x₁ x₂ : Id Type (B x₀) (B x₁)`.  Thus, given `y₀ : B x₀` and `y₁ : B x₁`, we can instantiate this identification at them to obtain a type `refl B x₀ x₁ x₂ y₀ y₁`. of *heterogeneous* identifications/bridges relating `y₀` and `y₁` "along" or "over" `x₂`.
+
+Such heterogeneous identity/bridge types are used in the computation (up to definitional isomorphism) of identity/bridge types of *dependent* function types.  Specifically, `Id ((x:A) → B x) f g` acts like a function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → refl B x₀ x₁ x₂ (f x₀) (g x₁)`.  They also appear in identity/bridge types of other canonical types, such as when one field of a record type depends on previous ones.  For instance, `Id (Σ A B) u v` behaves like a record type
+```
+sig (
+  fst : Id A (u .fst) (v .fst),
+  snd : refl B (u .fst) (v .fst) fst (u .snd) (v .snd),
+)
+```
+
+
+### Higher-dimensional cubes and degeneracies
+
+Iterating `Id` or `refl` multiple times produces higher-dimensional cube types and cubes.  For instance, since `Id A` acts like a function `A → A → Type`, *its* identity type or reflexivity type `Id (Id A)` acts as a function-type
+```
+(x₀₀ : A) (x₀₁ : A) (x₀₂ : Id A x₀₀ x₀₁)
+  → (x₁₀ : A) (x₁₁ : A) (x₁₂ : Id A x₁₀ x₁₁)
+  → (x₂₀ : Id A x₀₀ x₁₀) (x₂₁ : Id A x₀₁ x₁₁) → Type
+```
+We can view this as assigning to any boundary for a 2-dimensional square a type of fillers for that square.  Similarly, `Id (Id (Id A))` yields a type of 3-dumensional cubes, and so on.
+
+There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions.  Like `refl`, the argument of `sym` must also synthesize, but in this case it must synthesize a "2-dimensional" type.  (The need to be able to "detect" 2-dimensionality here is roughly what imposes the requirements on our normalization/typechecking algorithm mentioned above.)  
+
+Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies: `M⁽¹ʳ²⁾` or `M^(1r2)` where the superscript represents the degeneracy, with `r` denoting a degenerate dimension and nonzero digits denoting a permutation.  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and `r` with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.
+
+
+### Cubes of variables
+
+Since there is no unifier and no implicit arguments yet, all the arguments of higher-dimensional cubes and functions must be given explicitly.  However, there is a shorthand syntax for higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M` (or `x |=> M` in ASCII).  This binds `x` as a "family" or "cube" of variables whose names are suffixed with face names in ternary notation: `x.0` and `x.1` and `x.2`, or in higher dimensions `x.00` through `x.22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`", but rather there are really *three different variables* that just happen to have the names `x.0` and `x.1` and `x.2`.  (There is no potential for collision with user-defined names, since ordinary local variable names cannot contain internal periods.)
+
+These "cube variables" also appear automatically when pattern-matching against a higher-dimensional version of a datatype.  For instance, we can do an encode-decode proof for the natural numbers by pattern-matching directly on `Id ℕ` (using pattern-matching abstractions):
+```
+def code : ℕ → ℕ → Type ≔
+[ zero. ↦ [ zero. ↦ sig ()
+          | suc. n ↦ data [] ]
+| suc. m ↦ [ zero. ↦ data []
+           | suc. n ↦ sig ( uncode : code m n ) ]]
+
+def decode : (m n : ℕ) → code m n → Id ℕ m n ≔
+[ zero. ↦ [ zero. ↦ _ ↦ zero.
+          | suc. n ↦ [] ]
+| suc. m ↦ [ zero. ↦ []
+           | suc. n ↦ p ↦ suc. (decode m n (p .0)) ]]
+
+def encode (m n : ℕ) : Id ℕ m n → code m n ≔
+[ zero. ↦ ()
+| suc. p ↦ (_ ≔ encode p.0 p.1 p.2)]
+```
+Here in the definition of `encode`, the pattern variable `p` of the `suc.` branch is automatically made into a 1-dimensional cube of variables since we are matching against an element of `Id ℕ`, so in the body we can refer to `p.0`, `p.1`, and `p.2`.  In the future, we may implement a dual syntax for simultaneously *applying* a function to a whole cube of variables of this sort as well.
 
 
 ## Remarks on implementation

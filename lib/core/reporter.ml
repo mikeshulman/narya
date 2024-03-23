@@ -178,7 +178,7 @@ module Code = struct
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
-    | No_permutation -> Bug
+    | No_permutation -> Error
     | No_such_level _ -> Bug
     | Constant_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
@@ -213,7 +213,6 @@ module Code = struct
     | Anomaly _ -> "E0000"
     | No_such_level _ -> "E0001"
     | Error_printing_error _ -> "E0002"
-    | No_permutation -> "E0003"
     (* Unimplemented future features *)
     | Unimplemented _ -> "E0100"
     | Unsupported_numeral _ -> "E0101"
@@ -276,6 +275,7 @@ module Code = struct
     | Duplicate_constructor_in_match _ -> "E1302"
     | Wrong_number_of_arguments_to_pattern _ -> "E1303"
     | Index_variable_in_index_value -> "E1304"
+    | No_permutation -> "E1305"
     (* Comatches *)
     | Comatching_at_noncodata _ -> "E1400"
     | Comatching_at_degenerated_codata _ -> "E1401"
@@ -437,7 +437,7 @@ module Code = struct
           pp_printed (print ty)
     | Invalid_match_index tm ->
         textf
-          "@[<hv 0>match variable has invalid or duplicate index@;<1 2>%a@ match indices must be distinct free variables without degeneracies@]"
+          "@[<hv 0>match variable has invalid or duplicate index:@;<1 2>%a@ match indices must be distinct free variables without degeneracies@]"
           pp_printed (print tm)
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
@@ -464,7 +464,9 @@ module Code = struct
     | No_such_level (names, i) ->
         textf "@[<hov 2>no level variable@ %a@ in context@ %a@]" pp_printed (print i) pp_printed
           (print names)
-    | No_permutation -> text "unable to find a consistent permutation of the context"
+    | No_permutation ->
+        textf
+          "unable to find a consistent permutation of the context;@ this probably indicates a cyclic dependency among index terms@ or an attempt to prove a version of Axiom K"
     | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"

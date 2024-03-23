@@ -276,13 +276,13 @@ let rec check :
                   let is_fresh x =
                     match x.tm with
                     | Uninst (Neu { head = Var { level; deg }; args = Emp; alignment = True }, _) ->
-                        let () = is_id_deg deg <|> Invalid_match_index (PVal (ctx, x.tm)) in
+                        let () = is_id_deg deg <|> Invalid_match_index (PNormal (ctx, x)) in
                         if Hashtbl.mem seen level then
-                          fatal (Invalid_match_index (PVal (ctx, x.tm)))
+                          fatal (Invalid_match_index (PNormal (ctx, x)))
                         else (
                           Hashtbl.add seen level ();
                           level)
-                    | _ -> fatal (Invalid_match_index (PVal (ctx, x.tm))) in
+                    | _ -> fatal (Invalid_match_index (PNormal (ctx, x))) in
                   let index_vars =
                     Bwv.map
                       (fun tm -> CubeOf.mmap { map = (fun _ [ x ] -> is_fresh x) } [ tm ])

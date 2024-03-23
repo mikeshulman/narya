@@ -524,7 +524,7 @@ let () =
   Reporter.printer :=
     fun pr ->
       Reporter.try_with ~fatal:(fun d ->
-          if true then Reporter.emit (Error_printing_error d.message);
+          Reporter.emit (Error_printing_error d.message);
           Printed ((fun ppf () -> Format.pp_print_string ppf "PRINTING_ERROR"), ()))
       @@ fun () ->
       match pr with

@@ -24,12 +24,22 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
       let l = dim_binder body in
       match (compare (TubeOf.inst tyargs) k, compare k l) with
       | Neq, _ | _, Neq -> fatal (Dimension_mismatch ("reading back at pi", TubeOf.inst tyargs, k))
-      | Eq, Eq ->
+      | Eq, Eq -> (
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
-          let newctx = Ctx.vis ctx x newnfs in
-          let output = tyof_app cods tyargs args in
-          let body = readback_at newctx (apply_term tm args) output in
-          Term.Lam (k, x, body))
+          match x with
+          | `Cube x ->
+              let newctx = Ctx.vis ctx x newnfs in
+              let output = tyof_app cods tyargs args in
+              let body = readback_at newctx (apply_term tm args) output in
+              Term.Lam (k, `Cube x, body)
+          | `Normal x ->
+              let (Faces dom_faces) = count_faces k in
+              let f = faces_out dom_faces in
+              let (Plus af) = N.plus f in
+              let newctx = Ctx.split ctx dom_faces af x newnfs in
+              let output = tyof_app cods tyargs args in
+              let body = readback_at newctx (apply_term tm args) output in
+              Term.Lam (k, `Normal x, body)))
   | Neu { alignment = Lawful (Codata { eta = Eta; fields = _; _ }); _ }, Struct (tmflds, tmins) ->
       let fields =
         Abwd.mapi
@@ -98,7 +108,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
             {
               build =
                 (fun fa ->
-                  let sctx = Ctx.vis ctx (`Cube x) (CubeOf.subcube fa newnfs) in
+                  let sctx = Ctx.vis ctx x (CubeOf.subcube fa newnfs) in
                   let sargs = CubeOf.subcube fa args in
                   readback_val sctx (apply_binder_term (BindCube.find cods fa) sargs));
             } )

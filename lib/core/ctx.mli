@@ -16,7 +16,7 @@ end
 
 type (_, _) t
 
-val vis : ('a, 'b) t -> 'n variables -> ('n, Binding.t) CubeOf.t -> ('a N.suc, ('b, 'n) snoc) t
+val vis : ('a, 'b) t -> string option -> ('n, Binding.t) CubeOf.t -> ('a N.suc, ('b, 'n) snoc) t
 val invis : ('a, 'b) t -> ('n, Binding.t) CubeOf.t -> ('a, ('b, 'n) snoc) t
 
 val split :

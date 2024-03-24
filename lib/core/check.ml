@@ -52,7 +52,7 @@ let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
       | Eq ->
           let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
           let output = tyof_app cods tyargs newargs in
-          1 + typefam (Ctx.vis ctx (`Cube x) newnfs) output
+          1 + typefam (Ctx.vis ctx x newnfs) output
       | Neq -> fatal (Dimension_mismatch ("typefam", TubeOf.inst tyargs, CubeOf.dim doms)))
   | _ -> fatal (Checking_canonical_at_nonuniverse ("datatype", PVal (ctx, ty)))
 
@@ -160,7 +160,7 @@ let rec check :
             | `Cube ->
                 let status = mkstatus status m (`Cube x) newnfs in
                 (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
-                (`Cube x, check status (Ctx.vis ctx (`Cube x) newnfs) body output) in
+                (`Cube x, check status (Ctx.vis ctx x newnfs) body output) in
           Term.Lam (m, xs, cbody))
   | Lam _, _, _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty)))
   | Struct (Noeta, _), _, Kinetic ->
@@ -643,7 +643,7 @@ and check_codata :
              (CubeOf.singleton prev_ety)) in
       match cube with
       | Cube x ->
-          let newctx = Ctx.vis ctx (`Cube x) domvars in
+          let newctx = Ctx.vis ctx x domvars in
           let cty = check Kinetic newctx rty (universe D.zero) in
           let checked_fields = Snoc (checked_fields, (fld, cty)) in
           check_codata status ctx eta tyargs checked_fields cube raw_fields
@@ -1015,6 +1015,6 @@ and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) che
       let cty = check Kinetic ctx ty (universe D.zero) in
       let ety = Ctx.eval_term ctx cty in
       let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
-      let ctx = Ctx.vis ctx (`Cube x) newnfs in
+      let ctx = Ctx.vis ctx x newnfs in
       let (Checked_tel (ctys, ctx)) = check_tel ctx tys in
       Checked_tel (Ext (x, cty, ctys), ctx)

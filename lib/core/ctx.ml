@@ -69,7 +69,7 @@ end
 (* A context is a list of "entries", which have various possibilities depending on the raw visibility. *)
 type (_, _) entry =
   (* Add a cube of internal variables that are visible to the parser as a cube of variables. *)
-  | Vis : 'n variables * ('n, Binding.t) CubeOf.t -> (N.one, 'n) entry
+  | Vis : string option * ('n, Binding.t) CubeOf.t -> (N.one, 'n) entry
   (* Add a cube of internal variables that are not visible to the parser. *)
   | Invis : ('n, Binding.t) CubeOf.t -> (N.zero, 'n) entry
   (* Add a cube of internal variables that are visible to the parser as a list of ordinary variables. *)
@@ -96,7 +96,7 @@ module Ordered = struct
     | Snoc : ('a, 'b) t * ('x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) snoc) t
 
   let vis :
-      type a b n. (a, b) t -> n variables -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
+      type a b n. (a, b) t -> string option -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
    fun ctx xs vars -> Snoc (ctx, Vis (xs, vars), Suc Zero)
 
   let invis : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (a, (b, n) snoc) t =
@@ -251,17 +251,16 @@ module Ordered = struct
   let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) snoc) t =
    fun ctx x ty ->
     let n = length ctx in
-    vis ctx (singleton_variables D.zero x)
-      (CubeOf.singleton (Binding.make (Some (n, 0)) { tm = var (n, 0) ty; ty }))
+    vis ctx x (CubeOf.singleton (Binding.make (Some (n, 0)) { tm = var (n, 0) ty; ty }))
 
   (* Extend a context by one new variable with an assigned value. *)
   let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t =
-   fun ctx x v -> vis ctx (singleton_variables D.zero x) (CubeOf.singleton (Binding.make None v))
+   fun ctx x v -> vis ctx x (CubeOf.singleton (Binding.make None v))
 
   (* Extract all the names in a context. *)
   let rec names : type a b. (a, b) t -> b Names.t = function
     | Emp -> Names.empty
-    | Snoc (ctx, Vis (name, _), _) -> snd (Names.add (names ctx) name)
+    | Snoc (ctx, Vis (name, _), _) -> snd (Names.add (names ctx) (`Cube name))
     | Snoc (ctx, Invis _, _) -> snd (Names.add_cube (names ctx) None)
     | Snoc (ctx, Split (_, name, _), _) -> snd (Names.add (names ctx) (`Normal name))
 
@@ -273,7 +272,7 @@ module Ordered = struct
    fun ctx tree ->
     match ctx with
     | Emp -> tree
-    | Snoc (ctx, Vis (xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
+    | Snoc (ctx, Vis (xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, `Cube xs, tree))
     | Snoc (ctx, Invis vars, _) -> lam ctx (Lam (CubeOf.dim vars, `Cube None, tree))
     | Snoc (ctx, Split (_, xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, `Normal xs, tree))
 
@@ -327,7 +326,7 @@ module Ordered = struct
       match ctx with
       | Emp -> ()
       | Snoc (ctx, Vis (x, lvls), _) ->
-          fprintf ppf "%a%a" (pp true) ctx pp_variables (x, lvls);
+          fprintf ppf "%a%a" (pp true) ctx pp_variables (`Cube x, lvls);
           if comma then fprintf ppf ",@ "
       | Snoc (ctx, Invis lvls, _) ->
           fprintf ppf "%a%a" (pp true) ctx pp_variables (`Cube (Some "-"), lvls);

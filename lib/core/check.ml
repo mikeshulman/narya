@@ -76,7 +76,7 @@ let vars_of_list m names =
                 return x);
       }
       names in
-  `Normal names
+  names
 
 (* Slurp up an entire application spine.  Returns the function, the locations of all the applications (e.g. in "f x y" returns the locations of "f x" and "f x y") and all the arguments. *)
 let spine :
@@ -155,8 +155,8 @@ let rec check :
                 let (Plus af) = N.plus f in
                 let names, body = lambdas None af tm in
                 let names = vars_of_list m names in
-                let status = mkstatus status m names newnfs in
-                (names, check status (Ctx.split ctx dom_faces af names newnfs) body output)
+                let status = mkstatus status m (`Normal names) newnfs in
+                (`Normal names, check status (Ctx.split ctx dom_faces af names newnfs) body output)
             | `Cube ->
                 let status = mkstatus status m (`Cube x) newnfs in
                 (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)

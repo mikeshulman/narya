@@ -23,7 +23,7 @@ val split :
   ('a, 'b) t ->
   ('n, 'f) count_faces ->
   ('a, 'f, 'af) N.plus ->
-  'n variables ->
+  ('n, string option) CubeOf.t ->
   ('n, Binding.t) CubeOf.t ->
   ('af, ('b, 'n) snoc) t
 

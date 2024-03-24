@@ -73,7 +73,9 @@ type (_, _) entry =
   (* Add a cube of internal variables that are not visible to the parser. *)
   | Invis : ('n, Binding.t) CubeOf.t -> (N.zero, 'n) entry
   (* Add a cube of internal variables that are visible to the parser as a list of ordinary variables. *)
-  | Split : ('n, 'f) count_faces * 'n variables * ('n, Binding.t) CubeOf.t -> ('f, 'n) entry
+  | Split :
+      ('n, 'f) count_faces * ('n, string option) CubeOf.t * ('n, Binding.t) CubeOf.t
+      -> ('f, 'n) entry
 
 let raw_entry : type f n. (f, n) entry -> f N.t = function
   | Vis _ -> N.one
@@ -105,7 +107,7 @@ module Ordered = struct
       (a, b) t ->
       (n, f) count_faces ->
       (a, f, af) N.plus ->
-      n variables ->
+      (n, string option) CubeOf.t ->
       (n, Binding.t) CubeOf.t ->
       (af, (b, n) snoc) t =
    fun ctx af pf name vars -> Snoc (ctx, Split (af, name, vars), pf)
@@ -261,7 +263,7 @@ module Ordered = struct
     | Emp -> Names.empty
     | Snoc (ctx, Vis (name, _), _) -> snd (Names.add (names ctx) name)
     | Snoc (ctx, Invis _, _) -> snd (Names.add_cube (names ctx) None)
-    | Snoc (ctx, Split (_, name, _), _) -> snd (Names.add (names ctx) name)
+    | Snoc (ctx, Split (_, name, _), _) -> snd (Names.add (names ctx) (`Normal name))
 
   let lookup_name : type a b. (a, b) t -> b index -> string list =
    fun ctx x -> Names.lookup (names ctx) x
@@ -273,7 +275,7 @@ module Ordered = struct
     | Emp -> tree
     | Snoc (ctx, Vis (xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
     | Snoc (ctx, Invis vars, _) -> lam ctx (Lam (CubeOf.dim vars, `Cube None, tree))
-    | Snoc (ctx, Split (_, xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, xs, tree))
+    | Snoc (ctx, Split (_, xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, `Normal xs, tree))
 
   (* Pretty-printing.  At the moment this is not fully user-level, e.g. it prints De Bruijn levels instead of types. *)
 
@@ -331,7 +333,7 @@ module Ordered = struct
           fprintf ppf "%a%a" (pp true) ctx pp_variables (`Cube (Some "-"), lvls);
           if comma then fprintf ppf ",@ "
       | Snoc (ctx, Split (_, x, lvls), _) ->
-          fprintf ppf "%a%a" (pp true) ctx pp_variables (x, lvls);
+          fprintf ppf "%a%a" (pp true) ctx pp_variables (`Normal x, lvls);
           if comma then fprintf ppf ",@ " in
     fprintf ppf "@[<hv 2>(%a)@]" (pp false) ctx
 

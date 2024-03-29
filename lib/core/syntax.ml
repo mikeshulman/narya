@@ -86,21 +86,19 @@ end
 
 (* ******************** Names ******************** *)
 
-type 'n variables = [ `Normal of ('n, string option) CubeOf.t | `Cube of string option ]
+type _ variables =
+  | Variables : 'm D.t * ('m, 'n, 'mn) D.plus * ('n, string option) CubeOf.t -> 'mn variables
+
 type any_variables = Any : 'n variables -> any_variables
 
-let singleton_variables : type n. n D.t -> string option -> n variables =
- fun n x ->
-  match compare n D.zero with
-  | Eq -> `Normal (CubeOf.singleton x)
-  | Neq -> `Cube x
+let dim_variables : type m. m variables -> m D.t = function
+  | Variables (m, mn, _) -> D.plus_out m mn
 
-let singleton_named_variables : type n. n D.t -> string option -> n variables =
- fun n x ->
-  let x = Option.value x ~default:"x" in
-  match compare n D.zero with
-  | Eq -> `Normal (CubeOf.singleton (Some x))
-  | Neq -> `Cube (Some x)
+let singleton_variables : type m. m D.t -> string option -> m variables =
+ fun m x -> Variables (m, D.plus_zero m, CubeOf.singleton x)
+
+let singleton_named_variables : type m. m D.t -> string option -> m variables =
+ fun m x -> singleton_variables m (Some (Option.value x ~default:"x"))
 
 (* ******************** Typechecked terms ******************** *)
 
@@ -137,7 +135,7 @@ module rec Term : sig
     | Let :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
         -> ('a, kinetic) term
-    | Lam : 'n D.t * 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
+    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
     | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
     | Realize : ('a, kinetic) term -> ('a, potential) term
@@ -196,7 +194,7 @@ end = struct
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
         -> ('a, kinetic) term
     (* Abstractions and structs can appear in any kind of term. *)
-    | Lam : 'n D.t * 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
+    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms. *)
     | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
@@ -241,7 +239,7 @@ open Term
 let rec nth_var : type a b s. (a, s) term -> b Bwd.t -> any_variables option =
  fun tr args ->
   match tr with
-  | Lam (_, x, body) -> (
+  | Lam (x, body) -> (
       match args with
       | Emp -> Some (Any x)
       | Snoc (args, _) -> nth_var body args)
@@ -269,7 +267,7 @@ module Telescope = struct
    fun doms body ->
     match doms with
     | Emp -> body
-    | Ext (x, _, doms) -> Lam (D.zero, singleton_variables D.zero x, lams doms body)
+    | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
 end
 
 (* ******************** Values ******************** *)

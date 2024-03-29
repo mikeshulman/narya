@@ -77,7 +77,7 @@ let ext_tel :
           match x with
           | Some x -> Some x
           | None -> x' in
-        let newctx = Ctx.vis ctx x newnfs in
+        let newctx = Ctx.cube_vis ctx x newnfs in
         ext_tel newctx
           (Ext (env, CubeOf.singleton newvars))
           xs rest ac (Tbwd.snocs_suc ec)

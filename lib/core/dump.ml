@@ -108,7 +108,7 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
   | Pi (_, _, _) -> fprintf ppf "Pi (?, ?, ?)"
   | App (fn, _) -> fprintf ppf "App (%a, ?)" term fn
-  | Lam (_, _, body) -> fprintf ppf "Lam (?, ?, %a)" term body
+  | Lam (_, body) -> fprintf ppf "Lam (?, %a)" term body
   | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
   | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"

@@ -25,12 +25,11 @@ let lookup : type n. n t -> n index -> string list =
     match (ctx, x) with
     | Emp, _ -> .
     | Snoc (ctx, _), Pop x -> lookup ctx x
-    | Snoc (_, `Cube (Some x)), Top fa -> cubevar x fa
-    | Snoc (_, `Cube None), Top _ -> fatal (Anomaly "Reference to anonymous variable")
-    | Snoc (_, `Normal xs), Top fa -> (
-        match CubeOf.find xs fa with
-        | Some x -> [ x ]
-        | None -> fatal (Anomaly "Reference to anonymous variable")) in
+    | Snoc (_, Variables (_, mn, xs)), Top fa -> (
+        let (SFace_of_plus (_, fb, fc)) = sface_of_plus mn fa in
+        match CubeOf.find xs fc with
+        | Some x -> cubevar x fb
+        | None -> fatal (Anomaly "reference to anonymous variable")) in
   lookup ctx x
 
 (* Make a variable name unique, adding the new one to the list of used variables and returning it. *)
@@ -64,44 +63,37 @@ let uniquifies :
   let open CubeOf.Monadic (M) in
   mmapM { map = (fun _ [ name ] used -> uniquify name used) } [ names ] used
 
-let add_cube : 'b t -> string option -> string option * ('b, 'n) snoc t =
- fun { ctx; used } name ->
+let add_cube : type n b. n D.t -> b t -> string option -> string option * (b, n) snoc t =
+ fun n { ctx; used } name ->
   let name, used = uniquify name used in
-  (name, { ctx = Snoc (ctx, `Cube name); used })
+  (name, { ctx = Snoc (ctx, Variables (n, D.plus_zero n, CubeOf.singleton name)); used })
 
 let add_normals :
-    'b t -> ('n, string option) CubeOf.t -> ('n, string option) CubeOf.t * ('b, 'n) snoc t =
+    type n b. b t -> (n, string option) CubeOf.t -> (n, string option) CubeOf.t * (b, n) snoc t =
  fun { ctx; used } names ->
   let names, used = uniquifies names used in
-  (names, { ctx = Snoc (ctx, `Normal names); used })
+  let n = CubeOf.dim names in
+  (names, { ctx = Snoc (ctx, Variables (D.zero, D.zero_plus n, names)); used })
 
 let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t =
- fun vars name ->
-  match name with
-  | `Cube name ->
-      let name, vars = add_cube vars name in
-      (`Cube name, vars)
-  | `Normal name ->
-      let name, vars = add_normals vars name in
-      (`Normal name, vars)
+ fun { ctx; used } (Variables (m, mn, names)) ->
+  let names, used = uniquifies names used in
+  let vars = Variables (m, mn, names) in
+  (vars, { ctx = Snoc (ctx, vars); used })
 
 let pp_variables : type n. Format.formatter -> n variables -> unit =
- fun ppf x ->
+ fun ppf (Variables (_, _, x)) ->
   let open Format in
-  match x with
-  | `Cube x -> pp_print_string ppf (Option.value x ~default:"_")
-  | `Normal x ->
-      fprintf ppf "@[<hv 2>(";
-      CubeOf.miter
-        {
-          it =
-            (fun fa [ x ] ->
-              if Option.is_some (is_id_sface fa) then
-                pp_print_string ppf (Option.value x ~default:"_")
-              else fprintf ppf "%s,@ " (Option.value x ~default:"_"));
-        }
-        [ x ];
-      fprintf ppf ")@]"
+  fprintf ppf "@[<hv 2>(";
+  CubeOf.miter
+    {
+      it =
+        (fun fa [ x ] ->
+          if Option.is_some (is_id_sface fa) then pp_print_string ppf (Option.value x ~default:"_")
+          else fprintf ppf "%s,@ " (Option.value x ~default:"_"));
+    }
+    [ x ];
+  fprintf ppf ")@]"
 
 let pp_names : type b. Format.formatter -> b t -> unit =
  fun ppf vars ->

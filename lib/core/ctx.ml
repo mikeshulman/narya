@@ -68,25 +68,26 @@ end
 
 (* A context is a list of "entries", which have various possibilities depending on the raw visibility. *)
 type (_, _) entry =
-  (* Add a cube of internal variables that are visible to the parser as a cube of variables. *)
-  | Vis : string option * ('n, Binding.t) CubeOf.t -> (N.one, 'n) entry
+  (* Add a cube of internal variables that are visible to the parser as a list of cubes of variables, the list-of-cubes being obtained by decomposing the dimension not just as a sum but by an insertion that permutes things.  Note that the division into a cube and non-cube part, and the insertion, are only relevant for looking up *raw* indices: they are invisible to the checked world, whose indices store the total face of mn. *)
+  | Vis :
+      'm D.t
+      * ('m, 'n, 'mn) D.plus
+      * ('n, 'f) count_faces
+      * ('n, string option) CubeOf.t
+      * ('mn, Binding.t) CubeOf.t
+      -> ('f, 'mn) entry
   (* Add a cube of internal variables that are not visible to the parser. *)
   | Invis : ('n, Binding.t) CubeOf.t -> (N.zero, 'n) entry
-  (* Add a cube of internal variables that are visible to the parser as a list of ordinary variables. *)
-  | Split :
-      ('n, 'f) count_faces * ('n, string option) CubeOf.t * ('n, Binding.t) CubeOf.t
-      -> ('f, 'n) entry
 
 let raw_entry : type f n. (f, n) entry -> f N.t = function
-  | Vis _ -> N.one
+  | Vis (_, _, f, _, _) -> faces_out f
   | Invis _ -> N.zero
-  | Split (f, _, _) -> faces_out f
 
 let _dim_entry : type f n. (f, n) entry -> n D.t = function
-  | Vis (_, x) | Invis x | Split (_, _, x) -> CubeOf.dim x
+  | Vis (_, _, _, _, x) | Invis x -> CubeOf.dim x
 
 let app_entry : type f n. (f, n) entry -> app = function
-  | Vis (_, b) | Invis b | Split (_, _, b) ->
+  | Vis (_, _, _, _, b) | Invis b ->
       let n = CubeOf.dim b in
       App (Arg (CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ b ]), ins_zero n)
 
@@ -96,21 +97,25 @@ module Ordered = struct
     | Snoc : ('a, 'b) t * ('x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) snoc) t
 
   let vis :
-      type a b n. (a, b) t -> string option -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
-   fun ctx xs vars -> Snoc (ctx, Vis (xs, vars), Suc Zero)
-
-  let invis : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (a, (b, n) snoc) t =
-   fun ctx vars -> Snoc (ctx, Invis vars, Zero)
-
-  let split :
-      type a b n f af.
+      type a b f af m n mn.
       (a, b) t ->
+      m D.t ->
+      (m, n, mn) D.plus ->
       (n, f) count_faces ->
       (a, f, af) N.plus ->
       (n, string option) CubeOf.t ->
-      (n, Binding.t) CubeOf.t ->
-      (af, (b, n) snoc) t =
-   fun ctx af pf name vars -> Snoc (ctx, Split (af, name, vars), pf)
+      (mn, Binding.t) CubeOf.t ->
+      (af, (b, mn) snoc) t =
+   fun ctx m mn f af xs vars -> Snoc (ctx, Vis (m, mn, f, xs, vars), af)
+
+  let cube_vis :
+      type a b n. (a, b) t -> string option -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
+   fun ctx x vars ->
+    let m = CubeOf.dim vars in
+    vis ctx m (D.plus_zero m) faces_zero (Suc Zero) (CubeOf.singleton x) vars
+
+  let invis : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (a, (b, n) snoc) t =
+   fun ctx vars -> Snoc (ctx, Invis vars, Zero)
 
   let rec checked_length : type a b. (a, b) t -> b Tbwd.t = function
     | Emp -> Emp
@@ -137,76 +142,51 @@ module Ordered = struct
     | Emp -> (
         match k with
         | _ -> .)
-    | Snoc (ctx, Vis (_, x), Suc Zero) -> (
-        match k with
-        | Top, None ->
-            (* If the raw index variable doesn't have a specified face, it means the top face. *)
-            let n = CubeOf.dim x in
-            let x = CubeOf.find_top x in
-            (Binding.level x, Binding.value x, Top (id_sface n))
-        | Top, Some (Any_sface fa) -> (
-            match compare (cod_sface fa) (CubeOf.dim x) with
-            | Eq ->
-                let x = CubeOf.find x fa in
-                (Binding.level x, Binding.value x, Top fa)
-            | Neq -> fatal (Invalid_variable_face (CubeOf.dim x, fa)))
-        | Pop k, fa ->
-            let j, x, v = lookup ctx (k, fa) in
-            (j, x, Pop v))
+    | Snoc (ctx, Vis (m, mn, af, _, xs), pf) -> lookup_face pf (sfaces af) ctx m mn xs k
     | Snoc (ctx, Invis _, Zero) ->
         let j, x, v = lookup ctx k in
         (j, x, Pop v)
-    | Snoc (ctx, Split (af, _, xs), pf) -> lookup_face pf (sfaces af) ctx xs k
 
   and lookup_face :
-      type a f af b n.
+      type a f af b m n mn.
       (a, f, af) N.plus ->
       (n sface_of, f) Bwv.t ->
       (a, b) t ->
-      (n, Binding.t) CubeOf.t ->
+      m D.t ->
+      (m, n, mn) D.plus ->
+      (mn, Binding.t) CubeOf.t ->
       af Raw.index ->
-      level option * normal * (b, n) snoc index =
-   fun pf sf ctx xs k ->
+      level option * normal * (b, mn) snoc index =
+   fun pf sf ctx m mn xs k ->
     match (pf, sf) with
     | Zero, Emp ->
         let i, x, v = lookup ctx k in
         (i, x, Pop v)
     | Suc pf, Snoc (sf, SFace_of fb) -> (
         match k with
-        | Pop k, fa -> lookup_face pf sf ctx xs (k, fa)
+        | Pop k, fa -> lookup_face pf sf ctx m mn xs (k, fa)
         | Top, None ->
-            let x = CubeOf.find xs fb in
-            (Binding.level x, Binding.value x, Top fb)
-        | Top, Some (Any_sface fa) -> fatal (Invalid_variable_face (D.zero, fa)))
-
-  (* We can also look up a possibly-invisible variable in a context, in which case the only things to return are the possible-level and value.  This does not seem to be currently used. *)
-  let rec _lookup_invis : type a b. (a, b) t -> b index -> Binding.t =
-   fun ctx k ->
-    match ctx with
-    | Emp -> (
-        match k with
-        | _ -> .)
-    | Snoc (ctx, Vis (_, x), Suc Zero) -> (
-        match k with
-        | Top fa -> CubeOf.find x fa
-        | Pop k -> _lookup_invis ctx k)
-    | Snoc (ctx, Invis x, Zero) -> (
-        match k with
-        | Top fa -> CubeOf.find x fa
-        | Pop k -> _lookup_invis ctx k)
-    | Snoc (ctx, Split (_, _, x), _) -> (
-        match k with
-        | Top fa -> CubeOf.find x fa
-        | Pop k -> _lookup_invis ctx k)
+            let fa = id_sface m in
+            let (Plus kl) = D.plus (dom_sface fb) in
+            let fab = sface_plus_sface fa mn kl fb in
+            let x = CubeOf.find xs fab in
+            (Binding.level x, Binding.value x, Top fab)
+        | Top, Some (Any_sface fa) -> (
+            match compare (cod_sface fa) m with
+            | Eq ->
+                let (Plus kl) = D.plus (dom_sface fb) in
+                let fab = sface_plus_sface fa mn kl fb in
+                let x = CubeOf.find xs fab in
+                (Binding.level x, Binding.value x, Top fab)
+            | Neq -> fatal (Invalid_variable_face (D.zero, fa))))
 
   (* Look up a De Bruijn level in a context and find the corresponding possibly-invisible index, if one exists. *)
   let rec find_level : type a b. (a, b) t -> level -> b index option =
    fun ctx i ->
     match ctx with
     | Emp -> None
-    | Snoc (ctx, Vis (_, vars), Suc Zero) -> find_level_in_cube ctx vars i
+    | Snoc (ctx, Vis (_, _, _, _, vars), _) -> find_level_in_cube ctx vars i
     | Snoc (ctx, Invis vars, Zero) -> find_level_in_cube ctx vars i
-    | Snoc (ctx, Split (_, _, vars), _) -> find_level_in_cube ctx vars i
 
   and find_level_in_cube :
       type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> level -> (b, n) snoc index option =
@@ -227,9 +207,8 @@ module Ordered = struct
   (* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with any boundaries. *)
   let rec env : type a b. (a, b) t -> (D.zero, b) env = function
     | Emp -> Emp D.zero
-    | Snoc (ctx, Vis (_, v), Suc Zero) -> env_entry ctx v
+    | Snoc (ctx, Vis (_, _, _, _, v), _) -> env_entry ctx v
     | Snoc (ctx, Invis v, Zero) -> env_entry ctx v
-    | Snoc (ctx, Split (_, _, v), _) -> env_entry ctx v
 
   and env_entry : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (D.zero, (b, n) snoc) env =
    fun ctx v ->
@@ -251,18 +230,18 @@ module Ordered = struct
   let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) snoc) t =
    fun ctx x ty ->
     let n = length ctx in
-    vis ctx x (CubeOf.singleton (Binding.make (Some (n, 0)) { tm = var (n, 0) ty; ty }))
+    cube_vis ctx x (CubeOf.singleton (Binding.make (Some (n, 0)) { tm = var (n, 0) ty; ty }))
 
   (* Extend a context by one new variable with an assigned value. *)
   let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t =
-   fun ctx x v -> vis ctx x (CubeOf.singleton (Binding.make None v))
+   fun ctx x v -> cube_vis ctx x (CubeOf.singleton (Binding.make None v))
 
   (* Extract all the names in a context. *)
   let rec names : type a b. (a, b) t -> b Names.t = function
     | Emp -> Names.empty
-    | Snoc (ctx, Vis (name, _), _) -> snd (Names.add (names ctx) (`Cube name))
-    | Snoc (ctx, Invis _, _) -> snd (Names.add_cube (names ctx) None)
-    | Snoc (ctx, Split (_, name, _), _) -> snd (Names.add (names ctx) (`Normal name))
+    | Snoc (ctx, Vis (m, mn, _, name, _), _) ->
+        snd (Names.add (names ctx) (Variables (m, mn, name)))
+    | Snoc (ctx, Invis xs, Zero) -> snd (Names.add_cube (CubeOf.dim xs) (names ctx) None)
 
   let lookup_name : type a b. (a, b) t -> b index -> string list =
    fun ctx x -> Names.lookup (names ctx) x
@@ -272,9 +251,10 @@ module Ordered = struct
    fun ctx tree ->
     match ctx with
     | Emp -> tree
-    | Snoc (ctx, Vis (xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, `Cube xs, tree))
-    | Snoc (ctx, Invis vars, _) -> lam ctx (Lam (CubeOf.dim vars, `Cube None, tree))
-    | Snoc (ctx, Split (_, xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, `Normal xs, tree))
+    | Snoc (ctx, Vis (m, mn, _, xs, _), _) -> lam ctx (Lam (Variables (m, mn, xs), tree))
+    | Snoc (ctx, Invis vars, _) ->
+        let n = CubeOf.dim vars in
+        lam ctx (Lam (singleton_variables n None, tree))
 
   (* Ordinary contexts are "backwards" lists.  Following Cockx's thesis, in this file we call the forwards version "telescopes", since they generally are going to get appended to a "real", backwards, context.  A telescope has *three* indices:
 
@@ -416,15 +396,12 @@ module Ordered = struct
    fun i binder f ~oldctx ~newctx e ->
     let open Monad.Ops (Monad.Maybe) in
     match e with
-    | Vis (vars, x) ->
+    | Vis (m, mn, faces, vars, x) ->
         let* x = bind_some_normal_cube i binder f ~oldctx ~newctx x in
-        return (Vis (vars, x))
+        return (Vis (m, mn, faces, vars, x))
     | Invis x ->
         let* x = bind_some_normal_cube i binder f ~oldctx ~newctx x in
         return (Invis x)
-    | Split (faces, vars, x) ->
-        let* x = bind_some_normal_cube i binder f ~oldctx ~newctx x in
-        return (Split (faces, vars, x))
 
   (* This seems an appropriate place to comment about the "insert" and "append_permute" data being returned from (go_)go_bind_some.  The issue is that in addition to a permuted context, we need to compute the permutation relating it to the original context.  In fact we need *two* permutations, one for the raw indices and one for the checked indices.
 
@@ -549,13 +526,15 @@ type ('a, 'b) t = Permute : ('a, 'i) N.perm * ('i, 'b) Ordered.t -> ('a, 'b) t
 
 (* Nearly all the operations on ordered contexts are lifted to either ignore the permutations or add identities on the right. *)
 
-let vis (Permute (p, ctx)) xs vars = Permute (Insert (p, Top), Ordered.vis ctx xs vars)
+let vis (Permute (p, ctx)) m mn faces af xs vars =
+  let (Plus bf) = N.plus (N.plus_right af) in
+  Permute (N.perm_plus p af bf, Ordered.vis ctx m mn faces bf xs vars)
+
+let cube_vis ctx x vars =
+  let m = CubeOf.dim vars in
+  vis ctx m (D.plus_zero m) faces_zero (Suc Zero) (CubeOf.singleton x) vars
+
 let invis (Permute (p, ctx)) vars = Permute (p, Ordered.invis ctx vars)
-
-let split (Permute (p, ctx)) af pf name vars =
-  let (Plus qf) = N.plus (faces_out af) in
-  Permute (N.perm_plus p pf qf, Ordered.split ctx af qf name vars)
-
 let raw_length (Permute (p, ctx)) = N.perm_dom (Ordered.raw_length ctx) p
 let length (Permute (_, ctx)) = Ordered.length ctx
 let empty = Permute (N.id_perm N.zero, Ordered.empty)

@@ -52,7 +52,7 @@ let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
       | Eq ->
           let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
           let output = tyof_app cods tyargs newargs in
-          1 + typefam (Ctx.vis ctx x newnfs) output
+          1 + typefam (Ctx.cube_vis ctx x newnfs) output
       | Neq -> fatal (Dimension_mismatch ("typefam", TubeOf.inst tyargs, CubeOf.dim doms)))
   | _ -> fatal (Checking_canonical_at_nonuniverse ("datatype", PVal (ctx, ty)))
 
@@ -136,8 +136,7 @@ let rec check :
         | Potential (c, args, hyp) ->
             let xs = CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ] in
             Potential
-              (c, Snoc (args, App (Arg xs, ins_zero m)), fun tm -> hyp (Term.Lam (m, names, tm)))
-      in
+              (c, Snoc (args, App (Arg xs, ins_zero m)), fun tm -> hyp (Term.Lam (names, tm))) in
       match compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
       | Eq ->
@@ -155,13 +154,18 @@ let rec check :
                 let (Plus af) = N.plus f in
                 let names, body = lambdas None af tm in
                 let names = vars_of_list m names in
-                let status = mkstatus status m (`Normal names) newnfs in
-                (`Normal names, check status (Ctx.split ctx dom_faces af names newnfs) body output)
+                let xs = Variables (D.zero, D.zero_plus m, names) in
+                let status = mkstatus status m xs newnfs in
+                ( xs,
+                  check status
+                    (Ctx.vis ctx D.zero (D.zero_plus m) dom_faces af names newnfs)
+                    body output )
             | `Cube ->
-                let status = mkstatus status m (`Cube x) newnfs in
+                let xs = singleton_variables m x in
+                let status = mkstatus status m xs newnfs in
                 (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
-                (`Cube x, check status (Ctx.vis ctx x newnfs) body output) in
-          Term.Lam (m, xs, cbody))
+                (xs, check status (Ctx.cube_vis ctx x newnfs) body output) in
+          Term.Lam (xs, cbody))
   | Lam _, _, _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty)))
   | Struct (Noeta, _), _, Kinetic ->
       fatal (Unimplemented "Comatching in terms (rather than case trees)")
@@ -643,7 +647,7 @@ and check_codata :
              (CubeOf.singleton prev_ety)) in
       match cube with
       | Cube x ->
-          let newctx = Ctx.vis ctx x domvars in
+          let newctx = Ctx.cube_vis ctx x domvars in
           let cty = check Kinetic newctx rty (universe D.zero) in
           let checked_fields = Snoc (checked_fields, (fld, cty)) in
           check_codata status ctx eta tyargs checked_fields cube raw_fields
@@ -651,7 +655,10 @@ and check_codata :
           let (Faces faces) = count_faces dim in
           match N.compare (faces_out faces) (N.plus_right ac) with
           | Eq ->
-              let newctx = Ctx.split ctx faces ac (vars_of_list dim (Bwv.to_list xs)) domvars in
+              let newctx =
+                Ctx.vis ctx D.zero (D.zero_plus dim) faces ac
+                  (vars_of_list dim (Bwv.to_list xs))
+                  domvars in
               let cty = check Kinetic newctx rty (universe D.zero) in
               let checked_fields = Snoc (checked_fields, (fld, cty)) in
               check_codata status ctx eta tyargs checked_fields cube raw_fields
@@ -1015,6 +1022,6 @@ and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) che
       let cty = check Kinetic ctx ty (universe D.zero) in
       let ety = Ctx.eval_term ctx cty in
       let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
-      let ctx = Ctx.vis ctx x newnfs in
+      let ctx = Ctx.cube_vis ctx x newnfs in
       let (Checked_tel (ctys, ctx)) = check_tel ctx tys in
       Checked_tel (Ext (x, cty, ctys), ctx)

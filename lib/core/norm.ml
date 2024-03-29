@@ -127,15 +127,12 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
           Val (inst newtm newargs))
-  | Lam (n, x, body) -> (
-      match compare (dim_env env) D.zero with
-      | Eq -> Val (Lam (x, eval_binder env (D.zero_plus n) body))
-      | Neq -> (
-          let (Plus mn) = D.plus n in
-          match x with
-          | `Cube x -> Val (Lam (`Cube x, eval_binder env mn body))
-          (* TODO: Ideally this could be a "partially-cube" variable. *)
-          | `Normal x -> Val (Lam (`Cube (CubeOf.find_top x), eval_binder env mn body))))
+  | Lam (Variables (n, n_k, vars), body) ->
+      let m = dim_env env in
+      let (Plus m_nk) = D.plus (D.plus_out n n_k) in
+      let (Plus m_n) = D.plus n in
+      let mn_k = D.plus_assocl m_n n_k m_nk in
+      Val (Lam (Variables (D.plus_out m m_n, mn_k, vars), eval_binder env m_nk body))
   | App (fn, args) ->
       (* First we evaluate the function. *)
       let (Val efn) = eval env fn in

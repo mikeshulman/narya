@@ -16,17 +16,20 @@ end
 
 type (_, _) t
 
-val vis : ('a, 'b) t -> string option -> ('n, Binding.t) CubeOf.t -> ('a N.suc, ('b, 'n) snoc) t
-val invis : ('a, 'b) t -> ('n, Binding.t) CubeOf.t -> ('a, ('b, 'n) snoc) t
-
-val split :
+val vis :
   ('a, 'b) t ->
+  'm D.t ->
+  ('m, 'n, 'mn) D.plus ->
   ('n, 'f) count_faces ->
   ('a, 'f, 'af) N.plus ->
   ('n, string option) CubeOf.t ->
-  ('n, Binding.t) CubeOf.t ->
-  ('af, ('b, 'n) snoc) t
+  ('mn, Binding.t) CubeOf.t ->
+  ('af, ('b, 'mn) snoc) t
 
+val cube_vis :
+  ('a, 'b) t -> string option -> ('n, Binding.t) CubeOf.t -> ('a N.suc, ('b, 'n) snoc) t
+
+val invis : ('a, 'b) t -> ('n, Binding.t) CubeOf.t -> ('a, ('b, 'n) snoc) t
 val raw_length : ('a, 'b) t -> 'a N.t
 val length : ('a, 'b) t -> int
 val empty : (N.zero, emp) t

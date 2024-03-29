@@ -21,23 +21,25 @@ let deg_plus_to : type m n nk. ?on:string -> ?err:Code.t -> (m, n) deg -> nk D.t
       let sk = deg_plus s nk mk in
       Of sk
 
+(* When acting on a cube of variables that's at least partially split up into normal variables, we have a problem if the degeneracy mixes up the dimensions that are normal with the dimensions that are cube.  We could get around this by storing an 'insertion' rather than a D.plus in a 'variables', but we wouldn't be able to *use* that usefully anywhere, since there's no way to create a partially-cube variable in syntax.  So instead, if the dimensions get mixed up we just give up the split and make it fully-cube using only the previous top variable.  *)
 let act_variables : type m n. n variables -> (m, n) deg -> m variables =
- fun vars s ->
-  match vars with
-  | `Cube x -> `Cube x
-  | `Normal x -> (
-      match compare (dom_deg s) (cod_deg s) with
-      | Eq ->
-          `Normal
-            (CubeOf.build (dom_deg s)
-               {
-                 build =
-                   (fun fa ->
-                     let (Op (fb, _)) = deg_sface s fa in
-                     CubeOf.find x fb);
-               })
-      (* TODO: Ideally this could be a "partially-cube" variable. *)
-      | Neq -> `Cube (CubeOf.find_top x))
+ fun (Variables (_, nk, vars)) s ->
+  match deg_perm_of_plus nk s with
+  | None_deg_perm_of_plus ->
+      let m = dom_deg s in
+      Variables (m, D.plus_zero m, CubeOf.singleton (CubeOf.find_top vars))
+  (* If the degeneracy doesn't mix up the normal and cube dimensions, it still might permute the normal ones.  I'm not positive that it makes sense to throw away the degeneracy part here and the permutation part below, but this is the best I can think of.  If it doesn't end up making sense, we may have to revert to making it fully-cube as above. *)
+  | Deg_perm_of_plus (mk, s, p) ->
+      let m = dom_deg s in
+      let vars =
+        CubeOf.build (CubeOf.dim vars)
+          {
+            build =
+              (fun fa ->
+                let (Face (fb, _)) = perm_sface p fa in
+                CubeOf.find vars fb);
+          } in
+      Variables (m, mk, vars)
 
 (* Acting on a binder and on other sorts of closures will be unified by the function 'act_closure', but its return value involves an existential type, so it has to be a GADT. *)
 type (_, _, _) act_closure =

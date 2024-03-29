@@ -209,7 +209,7 @@ let rec unparse :
   | Let (x, tm, body) -> (
       let tm = unparse vars tm Interval.entire Interval.entire in
       (* If a let-in doesn't fit in its interval, we have to parenthesize it. *)
-      let x, vars = Names.add_cube vars x in
+      let x, vars = Names.add_cube D.zero vars x in
       match Interval.contains ri No.minus_omega with
       | Some right_ok ->
           let body = unparse vars body Interval.entire ri in
@@ -225,7 +225,12 @@ let rec unparse :
                (prefix ~notn:letin ~ws:[]
                   ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
                   ~last:body ~right_ok)))
-  | Lam (_, cube, _) -> unparse_lam cube vars Emp tm li ri
+  | Lam (Variables (m, _, _), _) ->
+      let cube =
+        match compare m D.zero with
+        | Eq -> `Normal
+        | Neq -> `Cube in
+      unparse_lam cube vars Emp tm li ri
   | Struct (Eta, fields) ->
       unlocated
         (outfix ~notn:parens ~ws:[]
@@ -361,10 +366,10 @@ and unparse_field :
       let right_ok = No.le_refl No.plus_omega in
       parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))
 
-(* For unparsing an iterated abstraction, we group together the normal variables and cube variables, since they have different notations.  We recursively descend through the structure of the term, storing in 'cube' which kind of variable we are picking up and continuing until we find either a non-abstraction or an abstraction of the wrong type.  *)
+(* For unparsing an iterated abstraction, we group together the fully-normal variables and at-least-partially-cube variables, since they have different notations.  There is no notation for partially-cube variables, so we make them fully cube.  We recursively descend through the structure of the term, storing in 'cube' which kind of variable we are picking up and continuing until we find either a non-abstraction or an abstraction of the wrong type.  *)
 and unparse_lam :
-    type m n lt ls rt rs.
-    m variables ->
+    type n lt ls rt rs.
+    [ `Cube | `Normal ] ->
     n Names.t ->
     string option Bwd.t ->
     (n, kinetic) term ->
@@ -372,34 +377,49 @@ and unparse_lam :
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
-  match (cube, body) with
-  | `Cube _, Lam (_, `Cube x, inner) ->
-      let x, vars = Names.add_cube vars x in
-      unparse_lam cube vars (Snoc (xs, x)) inner li ri
-  | `Normal _, Lam (_, `Normal x, inner) ->
-      let x, vars = Names.add_normals vars x in
-      unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
-  | _ -> (
-      (* We pick the appropriate notation to use for the abstraction, depending on the kind of variables.  Note that both are (un)parsed as binary operators whose left-hand argument is an "application spine" of variables, produced here by unparse_abs. *)
-      let notn =
-        match cube with
-        | `Cube _ -> cubeabs
-        | `Normal _ -> abs in
-      (* Of course, if we don't fit in the tightness interval, we have to parenthesize. *)
-      match (Interval.contains li No.minus_omega, Interval.contains ri No.minus_omega) with
-      | Some left_ok, Some right_ok ->
-          let li_ok = No.lt_trans Any_strict left_ok No.minusomega_lt_plusomega in
-          let first = unparse_abs xs li li_ok No.minusomega_lt_plusomega in
-          let last = unparse vars body Interval.entire ri in
-          unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok)
-      | _ ->
-          let first =
-            unparse_abs xs Interval.entire (No.le_plusomega No.minus_omega)
-              No.minusomega_lt_plusomega in
-          let last = unparse vars body Interval.entire Interval.entire in
-          let left_ok = No.le_refl No.minus_omega in
-          let right_ok = No.le_refl No.minus_omega in
-          parenthesize (unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok)))
+  match body with
+  | Lam (Variables (m, m_n, boundvars), inner) -> (
+      match (cube, compare m D.zero) with
+      | `Normal, Eq ->
+          let Eq = D.plus_uniq m_n (D.zero_plus (D.plus_right m_n)) in
+          let x, vars = Names.add_normals vars boundvars in
+          unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
+      | `Cube, Neq ->
+          let x, vars = Names.add_cube (D.plus_out m m_n) vars (CubeOf.find_top boundvars) in
+          unparse_lam cube vars (Snoc (xs, x)) inner li ri
+      | _ -> unparse_lam_done cube vars xs body li ri)
+  | _ -> unparse_lam_done cube vars xs body li ri
+
+(* Once we hit either a non-abstraction or a different kind of abstraction, we pick the appropriate notation to use for the abstraction, depending on the kind of variables.  Note that both are (un)parsed as binary operators whose left-hand argument is an "application spine" of variables, produced here by unparse_abs. *)
+and unparse_lam_done :
+    type n lt ls rt rs.
+    [ `Cube | `Normal ] ->
+    n Names.t ->
+    string option Bwd.t ->
+    (n, kinetic) term ->
+    (lt, ls) Interval.tt ->
+    (rt, rs) Interval.tt ->
+    (lt, ls, rt, rs) parse located =
+ fun cube vars xs body li ri ->
+  let notn =
+    match cube with
+    | `Cube -> cubeabs
+    | `Normal -> abs in
+  (* Of course, if we don't fit in the tightness interval, we have to parenthesize. *)
+  match (Interval.contains li No.minus_omega, Interval.contains ri No.minus_omega) with
+  | Some left_ok, Some right_ok ->
+      let li_ok = No.lt_trans Any_strict left_ok No.minusomega_lt_plusomega in
+      let first = unparse_abs xs li li_ok No.minusomega_lt_plusomega in
+      let last = unparse vars body Interval.entire ri in
+      unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok)
+  | _ ->
+      let first =
+        unparse_abs xs Interval.entire (No.le_plusomega No.minus_omega) No.minusomega_lt_plusomega
+      in
+      let last = unparse vars body Interval.entire Interval.entire in
+      let left_ok = No.le_refl No.minus_omega in
+      let right_ok = No.le_refl No.minus_omega in
+      parenthesize (unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok))
 
 and unparse_act :
     type n lt ls rt rs a b.

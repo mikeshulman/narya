@@ -57,4 +57,3 @@ val bind_some : eval_readback -> (level -> normal option) -> ('a, 'e) t -> ('a, 
 val names : ('a, 'b) t -> 'b Names.t
 val lookup_name : ('a, 'b) t -> 'b index -> string list
 val lam : ('a, 'b) t -> ('b, potential) term -> (emp, potential) term
-val pp_ctx : Format.formatter -> ('a, 'b) t -> unit

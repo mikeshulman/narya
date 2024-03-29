@@ -129,7 +129,7 @@ and readback_head : type a k z h. (z, a) Ctx.t -> h head -> (a, kinetic) term =
   | Var { level; deg } -> (
       match Ctx.find_level ctx level with
       | Some x -> Act (Var x, deg)
-      | None -> fatal (No_such_level (PCtx ctx, PLevel level)))
+      | None -> fatal (No_such_level (PLevel level)))
   | Const { name; ins } ->
       let dim = cod_left_ins ins in
       let perm = deg_of_ins ins (plus_of_ins ins) in

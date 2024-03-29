@@ -91,7 +91,7 @@ module Code = struct
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
     | No_permutation : t
-    | No_such_level : printable * printable -> t
+    | No_such_level : printable -> t
     | Constant_already_defined : string -> t
     | Invalid_constant_name : string -> t
     | Too_many_commands : t
@@ -461,9 +461,7 @@ module Code = struct
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
-    | No_such_level (names, i) ->
-        textf "@[<hov 2>no level variable@ %a@ in context@ %a@]" pp_printed (print i) pp_printed
-          (print names)
+    | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
     | No_permutation ->
         textf
           "unable to find a consistent permutation of the context;@ this probably indicates a cyclic dependency among index terms@ or an attempt to prove a version of Axiom K"

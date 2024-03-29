@@ -276,66 +276,6 @@ module Ordered = struct
     | Snoc (ctx, Invis vars, _) -> lam ctx (Lam (CubeOf.dim vars, `Cube None, tree))
     | Snoc (ctx, Split (_, xs, vars), _) -> lam ctx (Lam (CubeOf.dim vars, `Normal xs, tree))
 
-  (* Pretty-printing.  At the moment this is not fully user-level, e.g. it prints De Bruijn levels instead of types. *)
-
-  open Format
-
-  let pp_lvlopt ppf = function
-    | Some (i, j) -> fprintf ppf "(%d,%d)" i j
-    | None -> fprintf ppf "-"
-
-  let pp_variables : type n. Format.formatter -> n variables * (n, Binding.t) CubeOf.t -> unit =
-   fun ppf (x, lvls) ->
-    match x with
-    | `Cube x ->
-        fprintf ppf "%s = @[<hv 2>%s" (Option.value x ~default:"_")
-          (match compare (CubeOf.dim lvls) D.zero with
-          | Eq -> ""
-          | Neq -> "(");
-        CubeOf.miter
-          {
-            it =
-              (fun fa [ b ] ->
-                let i = Binding.level b in
-                if Option.is_some (is_id_sface fa) then pp_lvlopt ppf i
-                else fprintf ppf "%a,@ " pp_lvlopt i);
-          }
-          [ lvls ];
-        (match compare (CubeOf.dim lvls) D.zero with
-        | Eq -> ()
-        | Neq -> pp_print_string ppf ")");
-        fprintf ppf "@]"
-    | `Normal x ->
-        fprintf ppf "@[<hv 2>(";
-        CubeOf.miter
-          {
-            it =
-              (fun fa [ x; b ] ->
-                let i = Binding.level b in
-                if Option.is_some (is_id_sface fa) then
-                  fprintf ppf "%s = %a" (Option.value x ~default:"_") pp_lvlopt i
-                else fprintf ppf "%s = %a,@ " (Option.value x ~default:"_") pp_lvlopt i);
-          }
-          [ x; lvls ];
-        fprintf ppf ")@]"
-
-  let pp_ctx : type a b. Format.formatter -> (a, b) t -> unit =
-   fun ppf ctx ->
-    let rec pp : type a b. bool -> formatter -> (a, b) t -> unit =
-     fun comma ppf ctx ->
-      match ctx with
-      | Emp -> ()
-      | Snoc (ctx, Vis (x, lvls), _) ->
-          fprintf ppf "%a%a" (pp true) ctx pp_variables (`Cube x, lvls);
-          if comma then fprintf ppf ",@ "
-      | Snoc (ctx, Invis lvls, _) ->
-          fprintf ppf "%a%a" (pp true) ctx pp_variables (`Cube (Some "-"), lvls);
-          if comma then fprintf ppf ",@ "
-      | Snoc (ctx, Split (_, x, lvls), _) ->
-          fprintf ppf "%a%a" (pp true) ctx pp_variables (`Normal x, lvls);
-          if comma then fprintf ppf ",@ " in
-    fprintf ppf "@[<hv 2>(%a)@]" (pp false) ctx
-
   (* Ordinary contexts are "backwards" lists.  Following Cockx's thesis, in this file we call the forwards version "telescopes", since they generally are going to get appended to a "real", backwards, context.  A telescope has *three* indices:
 
      1. A raw length that is a forwards natural number, like the backwards natural numbers that are the raw indices of contexts.
@@ -673,4 +613,3 @@ let bind_some (f : eval_readback) g (Permute (p, ctx)) =
 let names (Permute (_, ctx)) = Ordered.names ctx
 let lookup_name (Permute (_, ctx)) i = Ordered.lookup_name ctx i
 let lam (Permute (_, ctx)) tm = Ordered.lam ctx tm
-let pp_ctx ppf (Permute (_, ctx)) = Ordered.pp_ctx ppf ctx

@@ -53,6 +53,14 @@ val perm_equiv : 'm perm -> 'n perm -> unit option
 val switch_perm : 'm D.t -> ('m, 'n, 'mn) D.plus -> 'mn perm
 val perm_inv : 'm perm -> 'm perm
 
+type (_, _, _) deg_perm_of_plus =
+  | Deg_perm_of_plus :
+      ('m, 'k, 'mk) D.plus * ('m, 'n) deg * 'k perm
+      -> ('mk, 'n, 'k) deg_perm_of_plus
+  | None_deg_perm_of_plus : ('mk, 'n, 'k) deg_perm_of_plus
+
+val deg_perm_of_plus : ('n, 'k, 'nk) D.plus -> ('mk, 'nk) deg -> ('mk, 'n, 'k) deg_perm_of_plus
+
 type _ deg_of = Of : ('m, 'n) deg -> 'n deg_of
 type _ deg_of_plus = Of : ('n, 'k, 'nk) D.plus * ('m, 'nk) deg -> 'n deg_of_plus
 

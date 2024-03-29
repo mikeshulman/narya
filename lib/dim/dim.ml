@@ -273,6 +273,27 @@ let rec perm_inv : type m. m perm -> m perm = function
   | Zero z -> Zero z
   | Suc (p, i) -> coinsert (perm_inv p) i
 
+(* A degeneracy with codomain a sum of dimensions might decompose as a sum of a degeneracy and a permutation. *)
+type (_, _, _) deg_perm_of_plus =
+  | Deg_perm_of_plus :
+      ('m, 'k, 'mk) D.plus * ('m, 'n) deg * 'k perm
+      -> ('mk, 'n, 'k) deg_perm_of_plus
+  | None_deg_perm_of_plus : ('mk, 'n, 'k) deg_perm_of_plus
+
+let rec deg_perm_of_plus :
+    type mk n k nk. (n, k, nk) D.plus -> (mk, nk) deg -> (mk, n, k) deg_perm_of_plus =
+ fun nk s ->
+  match nk with
+  | Zero -> Deg_perm_of_plus (Zero, s, Zero N.zero)
+  | Suc nk -> (
+      let (Suc (s, i)) = s in
+      match deg_perm_of_plus nk s with
+      | None_deg_perm_of_plus -> None_deg_perm_of_plus
+      | Deg_perm_of_plus (mk, s, p) -> (
+          match N.index_in_plus (Suc mk) i with
+          | Left _ -> None_deg_perm_of_plus
+          | Right j -> Deg_perm_of_plus (Suc mk, s, Suc (p, j))))
+
 (* ********** Variable degeneracies ********** *)
 
 type _ deg_of = Of : ('m, 'n) deg -> 'n deg_of

@@ -415,7 +415,8 @@ val comp_op_deg_of_plus : ('m, 'n) op -> 'm deg_of_plus -> 'n op_of_plus
 
 type (_, _, _) insertion
 
-val zero_ins : 'a D.t -> ('a, 'a, D.zero) insertion
+val ins_zero : 'a D.t -> ('a, 'a, D.zero) insertion
+val zero_ins : 'a D.t -> ('a, D.zero, 'a) insertion
 
 type (_, _) id_ins = Id_ins : ('ab, 'a, 'b) insertion -> ('a, 'b) id_ins
 
@@ -428,6 +429,13 @@ val deg_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val perm_of_ins : ('a, 'b, 'c) insertion -> 'a perm
 val is_id_ins : ('a, 'b, 'c) insertion -> unit option
 val deg_of_plus_of_ins : ('a, 'b, 'c) insertion -> 'b deg_of_plus
+
+val plus_ins :
+  'a D.t ->
+  ('a, 'b, 'ab) D.plus ->
+  ('a, 'bc, 'abc) D.plus ->
+  ('bc, 'b, 'c) insertion ->
+  ('abc, 'ab, 'c) insertion
 
 type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('ac, 'b, 'c) insfact
 

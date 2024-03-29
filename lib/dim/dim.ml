@@ -1975,7 +1975,15 @@ type (_, _, _) insertion =
   | Zero : 'a D.t -> ('a, 'a, D.zero) insertion
   | Suc : ('a, 'b, 'c) insertion * 'a D.suc D.index -> ('a D.suc, 'b, 'c D.suc) insertion
 
-let zero_ins : type a. a D.t -> (a, a, D.zero) insertion = fun a -> Zero a
+let ins_zero : type a. a D.t -> (a, a, D.zero) insertion = fun a -> Zero a
+
+let rec zero_ins : type a. a D.t -> (a, D.zero, a) insertion =
+ fun a ->
+  match a with
+  | Nat Zero -> Zero a
+  | Nat (Suc a) ->
+      let ins = zero_ins (Nat a) in
+      Suc (ins, Top)
 
 type (_, _) id_ins = Id_ins : ('ab, 'a, 'b) insertion -> ('a, 'b) id_ins
 
@@ -2021,6 +2029,24 @@ let is_id_ins : type a b c. (a, b, c) insertion -> unit option = fun s -> is_id_
 
 let deg_of_plus_of_ins : type a b c. (a, b, c) insertion -> b deg_of_plus =
  fun ins -> Of (plus_of_ins ins, perm_of_ins ins)
+
+(* We can extend an insertion by the identity on the left *)
+
+let rec plus_ins :
+    type a b c ab bc abc.
+    a D.t ->
+    (a, b, ab) D.plus ->
+    (a, bc, abc) D.plus ->
+    (bc, b, c) insertion ->
+    (abc, ab, c) insertion =
+ fun a ab abc ins ->
+  match ins with
+  | Zero _ ->
+      let Eq = D.plus_uniq ab abc in
+      Zero (D.plus_out a ab)
+  | Suc (ins, i) ->
+      let (Suc abc') = abc in
+      Suc (plus_ins a ab abc' ins, D.plus_index abc i)
 
 (* Any degeneracy with a decomposition of its codomain factors as an insertion followed by a whiskered degeneracy. *)
 

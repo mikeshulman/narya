@@ -136,7 +136,7 @@ let rec check :
         | Potential (c, args, hyp) ->
             let xs = CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ] in
             Potential
-              (c, Snoc (args, App (Arg xs, zero_ins m)), fun tm -> hyp (Term.Lam (m, names, tm)))
+              (c, Snoc (args, App (Arg xs, ins_zero m)), fun tm -> hyp (Term.Lam (m, names, tm)))
       in
       match compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
@@ -631,7 +631,7 @@ and check_codata :
       Global.run_with_definition name
         (Defined (hyp (Term.Canonical (Codata (eta, dim, checked_fields)))))
       @@ fun () ->
-      let head = Value.Const { name; ins = zero_ins dim } in
+      let head = Value.Const { name; ins = ins_zero dim } in
       let (Id_ins ins) = id_ins D.zero dim in
       let alignment = Lawful (Codata { eta; env = Ctx.env ctx; ins; fields = checked_fields }) in
       let prev_ety =
@@ -704,13 +704,13 @@ and check_fields :
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
  fun status eta ctx ty dim fields tms etms ctms ->
-  let str = Value.Struct (etms, zero_ins dim) in
+  let str = Value.Struct (etms, ins_zero dim) in
   match (fields, status) with
   | [], _ -> (tms, ctms)
   | fld :: fields, Potential (name, args, hyp) ->
       (* Temporarily bind the current constant to the up-until-now value. *)
       Global.run_with_definition name (Defined (hyp (Term.Struct (eta, ctms)))) @@ fun () ->
-      let head = Value.Const { name; ins = zero_ins dim } in
+      let head = Value.Const { name; ins = ins_zero dim } in
       let prev_etm = Uninst (Neu { head; args; alignment = Chaotic str }, Lazy.from_val ty) in
       check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
   | fld :: fields, Kinetic -> check_field status eta ctx ty dim fld fields str tms etms ctms

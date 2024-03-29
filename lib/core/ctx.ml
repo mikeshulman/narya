@@ -88,7 +88,7 @@ let _dim_entry : type f n. (f, n) entry -> n D.t = function
 let app_entry : type f n. (f, n) entry -> app = function
   | Vis (_, b) | Invis b | Split (_, _, b) ->
       let n = CubeOf.dim b in
-      App (Arg (CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ b ]), zero_ins n)
+      App (Arg (CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ b ]), ins_zero n)
 
 module Ordered = struct
   type (_, _) t =

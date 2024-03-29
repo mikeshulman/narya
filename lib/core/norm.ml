@@ -63,7 +63,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                       | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                       | _ -> fatal (Anomaly "eval of lower-dim constant not neutral/canonical"));
                 })) in
-      let head = Const { name; ins = zero_ins dim } in
+      let head = Const { name; ins = ins_zero dim } in
       match Global.find_definition_opt name with
       | Some (Defined tree) -> (
           match eval (Emp dim) tree with
@@ -164,7 +164,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       Val (field etm fld)
   | Struct (_, fields) ->
       Val
-        (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, zero_ins (dim_env env)))
+        (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins_zero (dim_env env)))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -312,7 +312,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
               match tm with
               | Neu { head; args; alignment } -> (
-                  let args = Snoc (args, App (Arg newarg, zero_ins k)) in
+                  let args = Snoc (args, App (Arg newarg, ins_zero k)) in
                   match alignment with
                   | True -> Val (Uninst (Neu { head; args; alignment = True }, ty))
                   | Chaotic tm -> (
@@ -383,7 +383,7 @@ and field : kinetic value -> Field.t -> kinetic value =
       x
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
       let newty = lazy (tyof_field tm ty fld) in
-      let args = Snoc (args, App (Field fld, zero_ins D.zero)) in
+      let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
       match alignment with
       | True -> Uninst (Neu { head; args; alignment = True }, newty)
       | Chaotic (Struct (fields, _)) -> (

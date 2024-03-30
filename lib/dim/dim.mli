@@ -370,8 +370,6 @@ module Tube (F : Fam) : sig
 
   val build :
     'n D.t -> ('n, 'k, 'nk) D.plus -> ('n, 'k, 'nk, 'b) IdM.builderM -> ('n, 'k, 'nk, 'b) t
-
-  val pair : (D.zero, 'b) F.t -> (D.zero, 'b) F.t -> (D.zero, one, one, 'b) t
 end
 
 module TubeOf : sig

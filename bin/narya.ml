@@ -19,11 +19,13 @@ let typecheck = ref true
 let input_strings = ref Emp
 let use_stdin = ref false
 let interactive = ref false
+let proofgeneral = ref false
 
 let speclist =
   [
     ("-interactive", Arg.Set interactive, "Enter interactive mode (also -i)");
     ("-i", Arg.Set interactive, "");
+    ("-proofgeneral", Arg.Set proofgeneral, "Enter proof general interaction mode");
     ( "-exec",
       Arg.String (fun str -> input_strings := Snoc (!input_strings, str)),
       "Execute a string, after all files loaded (also -e)" );
@@ -43,7 +45,11 @@ let speclist =
 let () =
   Arg.parse speclist anon_arg usage_msg;
   if
-    Bwd.is_empty !input_files && (not !use_stdin) && Bwd.is_empty !input_strings && not !interactive
+    Bwd.is_empty !input_files
+    && (not !use_stdin)
+    && Bwd.is_empty !input_strings
+    && (not !interactive)
+    && not !proofgeneral
   then (
     Printf.fprintf stderr "No input files specified\n";
     Arg.usage speclist usage_msg;
@@ -133,6 +139,17 @@ let interact () =
           let* () = LTerm_history.save history history_file in
           Lwt.fail exn)
 
+let rec interact_pg () =
+  print_endline "[narya]";
+  try
+    let str = read_line () in
+    Reporter.try_with
+      ~emit:(fun d -> Terminal.display ~output:stdout d)
+      ~fatal:(fun d -> Terminal.display ~output:stdout d)
+      (fun () -> parse_and_execute_command str);
+    interact_pg ()
+  with End_of_file -> ()
+
 let () =
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
@@ -161,4 +178,4 @@ let () =
   Mbwd.miter
     (fun [ content ] -> execute (`String { content; title = Some "command-line exec string" }))
     [ !input_strings ];
-  if !interactive then Lwt_main.run (interact ())
+  if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()

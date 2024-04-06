@@ -155,8 +155,14 @@ let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
 
 and pp_superscript ppf str =
   match chars () with
-  | `Unicode -> pp_utf_8 ppf (Token.to_super str)
-  | `ASCII -> pp_utf_8 ppf str
+  | `Unicode ->
+      pp_utf_8 ppf Token.super_lparen_string;
+      pp_utf_8 ppf (Token.to_super str);
+      pp_utf_8 ppf Token.super_rparen_string
+  | `ASCII ->
+      pp_utf_8 ppf "^(";
+      pp_utf_8 ppf str;
+      pp_utf_8 ppf ")"
 
 and pp_notn_case :
     type left tight right.

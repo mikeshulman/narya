@@ -92,17 +92,14 @@ let rec process :
                 | _ -> fatal (Unbound_variable (String.concat "." parts))))))
   | Constr (ident, _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, Emp); loc }
   | Field _ -> fatal (Anomaly "field is head")
-  | Superscript (Some x, str, _) ->
-      let len = String.length str in
-      if str.[0] = '(' && str.[len - 1] = ')' then
-        match deg_of_string (String.sub str 1 (len - 2)) with
-        | Some (Any s) -> (
-            let body = process ctx x in
-            match body.value with
-            | Synth arg -> { value = Synth (Act (str, s, { value = arg; loc = body.loc })); loc }
-            | _ -> fatal ?loc:body.loc (Nonsynthesizing "argument of degeneracy"))
-        | None -> fatal (Invalid_degeneracy str)
-      else fatal (Unimplemented "non-degeneracy superscripts (degeneracies must be parenthesized)")
+  | Superscript (Some x, str, _) -> (
+      match deg_of_string str with
+      | Some (Any s) -> (
+          let body = process ctx x in
+          match body.value with
+          | Synth arg -> { value = Synth (Act (str, s, { value = arg; loc = body.loc })); loc }
+          | _ -> fatal ?loc:body.loc (Nonsynthesizing "argument of degeneracy"))
+      | None -> fatal (Invalid_degeneracy str))
   | Superscript (None, _, _) -> fatal (Anomaly "degeneracy is head")
 
 and process_deg :

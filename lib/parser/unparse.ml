@@ -435,9 +435,7 @@ and unparse_act :
   | None -> (
       match name_of_deg s with
       | Some str -> unparse_spine vars (`Degen str) (Snoc (Emp, tm)) li ri
-      | None ->
-          unlocated
-            (Superscript (Some (tm.unparse li Interval.empty), "(" ^ string_of_deg s ^ ")", [])))
+      | None -> unlocated (Superscript (Some (tm.unparse li Interval.empty), string_of_deg s, [])))
 
 (* We group together all the 0-dimensional dependent pi-types in a notation, so we recursively descend through the term picking those up until we find a non-pi-type, a higher-dimensional pi-type, or a non-dependent pi-type, in which case we pass it off to unparse_pis_final. *)
 and unparse_pis :

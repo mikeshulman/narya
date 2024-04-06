@@ -87,16 +87,20 @@ let supers =
     ("ˣ", 0x2e3, 'x');
     ("ʸ", 0x2b8, 'y');
     ("ᶻ", 0x1dbb, 'z');
-    ("⁽", 0x207d, '(');
-    ("⁾", 0x207e, ')');
-    ("⁺", 0x207a, '+');
     ("⁻", 0x207b, '-');
-    ("⁼", 0x207c, '=');
+    (* ("⁽", 0x207d, '('); *)
+    (* ("⁾", 0x207e, ')'); *)
+    (* ("⁺", 0x207a, '+'); *)
+    (* ("⁼", 0x207c, '='); *)
   |]
 
 let super_strings = Array.map (fun (x, _, _) -> x) supers
 let super_uchars = Array.map (fun (_, c, _) -> Uchar.of_int c) supers
 let unsupers = Array.map (fun (_, _, s) -> s) supers
+let super_lparen_uchar = Uchar.of_int 0x207d
+let super_rparen_uchar = Uchar.of_int 0x207e
+let super_lparen_string = "⁽"
+let super_rparen_string = "⁾"
 
 (* Convert a string of ASCII characters to a corresponding Unicode superscript. *)
 let to_super (s : string) : string =

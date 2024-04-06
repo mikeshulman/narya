@@ -153,19 +153,28 @@ let digits_dot = "0123456789."
 let is_digit_or_dot c = String.exists (fun x -> x = c) digits_dot
 let is_numeral s = String.for_all is_digit_or_dot s
 
-(* A superscript is either a nonempty string of Unicode superscript characters... *)
+(* A superscript is either a string of Unicode superscript numbers and letters between superscript parentheses... *)
 let utf8_superscript =
+  let* _ = uchar Token.super_lparen_uchar in
   let* s =
     uword
       (fun c -> Array.mem c Token.super_uchars)
       (fun c -> Array.mem c Token.super_uchars)
       "utf-8 superscript" in
+  let* _ = uchar Token.super_rparen_uchar in
   return (Superscript (Token.of_super s))
 
-(* ...or a caret followed (without any space) by a string of valid superscript chararcters.  (Later, the string is required to be nonempty.) *)
+(* ...or a caret followed (without any space) by a string of numbers and letters between parentheses.  (Later, the string is required to be nonempty.) *)
 let caret_superscript =
-  let* s = word (fun c -> c = '^') (fun x -> Array.mem x Token.unsupers) "caret superscript" in
-  return (Superscript (String.sub s 1 (String.length s - 1)))
+  let* _ = char '^' in
+  let* _ = char '(' in
+  let* s =
+    word
+      (fun x -> Array.mem x Token.unsupers)
+      (fun x -> Array.mem x Token.unsupers)
+      "caret superscript" in
+  let* _ = char ')' in
+  return (Superscript s)
 
 let superscript = utf8_superscript </> caret_superscript
 
@@ -177,6 +186,7 @@ let specials =
       ascii_symbol_uchars;
       onechar_uchars;
       Array.map Uchar.of_char [| '^'; ' '; '\t'; '\n'; '\r' |];
+      [| Token.super_lparen_uchar; Token.super_rparen_uchar |];
     ]
 
 let other_char : string t =

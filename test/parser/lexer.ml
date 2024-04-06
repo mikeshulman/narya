@@ -148,4 +148,13 @@ let () = assert (lexbof " " = [ (Bof, []) ])
 let () = assert (lexbof "\n" = [ (Bof, [ `Newlines 1 ]) ])
 let () = assert (lexbof "` line comment\n" = [ (Bof, [ `Line " line comment" ]) ])
 let () = assert (lexbof "` line comment" = [ (Bof, [ `Line " line comment" ]) ])
-let () = assert (lex "x^(1-2)" = [ (Ident [ "x" ], []); (Superscript "(1-2)", []) ])
+let () = assert (lex "x^(1-2)" = [ (Ident [ "x" ], []); (Superscript "1-2", []) ])
+
+let () =
+  assert (
+    lex "(x^(1-2))" = [ (LParen, []); (Ident [ "x" ], []); (Superscript "1-2", []); (RParen, []) ])
+
+let () = assert (lex "x⁽¹⁻²⁾" = [ (Ident [ "x" ], []); (Superscript "1-2", []) ])
+
+let () =
+  assert (lex "x⁽¹⁾⁽²⁾" = [ (Ident [ "x" ], []); (Superscript "1", []); (Superscript "2", []) ])

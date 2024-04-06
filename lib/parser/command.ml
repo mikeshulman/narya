@@ -25,7 +25,7 @@ type t =
       wsname : Whitespace.t list;
       parameters : Parameter.t list;
       wscolon : Whitespace.t list;
-      ty : observation;
+      ty : observation option;
       wscoloneq : Whitespace.t list;
       tm : observation;
     }
@@ -61,7 +61,7 @@ let execute : t -> unit = function
       let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty));
       emit (Constant_assumed (PConstant const))
-  | Def { name; parameters; ty = Term ty; tm = Term tm; _ } ->
+  | Def { name; parameters; ty; tm = Term tm; _ } ->
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
@@ -71,7 +71,14 @@ let execute : t -> unit = function
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
-      Core.Command.execute (Def (const, params, process ctx ty, process ctx tm));
+      (match ty with
+      | Some (Term ty) ->
+          Core.Command.execute (Def (const, params, `Check (process ctx ty, process ctx tm)))
+      | None -> (
+          match process ctx tm with
+          | { value = Synth tm; loc } ->
+              Core.Command.execute (Def (const, params, `Synth { value = tm; loc }))
+          | _ -> fatal (Nonsynthesizing "body of def without specified type")));
       emit (Constant_defined (PConstant const))
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Varscope.empty tm in
@@ -191,9 +198,12 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_utf_8 ppf (String.concat "." name);
       pp_ws `Break ppf wsname;
       List.iter (pp_parameter ppf) parameters;
-      pp_tok ppf Colon;
-      pp_ws `Nobreak ppf wscolon;
-      pp_term `Break ppf ty;
+      (match ty with
+      | Some ty ->
+          pp_tok ppf Colon;
+          pp_ws `Nobreak ppf wscolon;
+          pp_term `Break ppf ty
+      | None -> ());
       pp_tok ppf Coloneq;
       pp_ws `Nobreak ppf wscoloneq;
       let tm, rest = split_ending_whitespace tm in

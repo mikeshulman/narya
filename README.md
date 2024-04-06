@@ -37,9 +37,9 @@ Each file or `-e` argument is a sequence of commands (see below), while in inter
 
 In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
 
-1. `def NAME [PARAMS] : TYPE ≔ TERM`
+1. `def NAME [PARAMS] [: TYPE] ≔ TERM`
 
-   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below), while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  In addition, `TERM` can be a case tree or canonical type declaration (see below).  The optional list of `PARAMS` consists of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`. 
+   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below), while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.
 
 2. `axiom NAME [PARAMS] : TYPE`
 

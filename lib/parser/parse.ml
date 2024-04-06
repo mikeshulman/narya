@@ -483,10 +483,16 @@ module Parse_command = struct
     let* wsdef = token Def in
     let* name, wsname = ident in
     let* parameters = zero_or_more parameter in
-    let* wscolon = token Colon in
-    let* ty = C.term [ Coloneq ] in
-    let* wscoloneq = token Coloneq in
-    let* tm = C.term [] in
+    let* wscolon, ty, wscoloneq, tm =
+      (let* wscolon = token Colon in
+       let* ty = C.term [ Coloneq ] in
+       let* wscoloneq = token Coloneq in
+       let* tm = C.term [] in
+       return (wscolon, Some ty, wscoloneq, tm))
+      </>
+      let* wscoloneq = token Coloneq in
+      let* tm = C.term [] in
+      return ([], None, wscoloneq, tm) in
     return (Command.Def { wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm })
 
   let echo =

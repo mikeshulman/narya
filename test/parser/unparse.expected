@@ -13,7 +13,7 @@ m n Y f x ↦ n (Y → Y) (m Y) f x
 Y f x ↦ f (f (f (f (f (f (f (f x)))))))
 f 1
 refl f 1 1 1
-f⁽ʳʳ⁾ 1 1 1 1 1 1 1 1 1
+f⁽ᵉᵉ⁾ 1 1 1 1 1 1 1 1 1
 ( fst ≔ 0, snd ≔ 0 )
 ( 0, 0 )
 ( fst ≔ 1, 2 )
@@ -29,8 +29,8 @@ s .fst 3
 0
 refl a
 a ↦ refl a
-a⁽ʳʳ⁾
-a⁽ʳʳʳ⁾
+a⁽ᵉᵉ⁾
+a⁽ᵉᵉᵉ⁾
 sym a22
 sym a222
 a222⁽¹³²⁾

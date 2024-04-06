@@ -12,7 +12,7 @@ let () =
   let idx01', _ = synth "refl X x0 x1" in
   equal idx01 idx01';
   (* We also have a standard degeneracy notation *)
-  let idx01'', _ = synth "X^(r) x0 x1" in
+  let idx01'', _ = synth "X^(e) x0 x1" in
   equal idx01 idx01'';
   let x2 = assume "x2" idx01 in
   let xtox, _ = synth "X → X" in
@@ -98,12 +98,12 @@ let () =
 
   (* The two degenerate squares associated to an identification have unequal types, although each has a standard degeneracy notation. *)
   let r1x2, r1x2ty = synth "refl x2" in
-  let r1x2', r1x2ty' = synth "x2⁽ʳ¹⁾" in
+  let r1x2', r1x2ty' = synth "x2⁽ᵉ¹⁾" in
   let () = equal r1x2ty r1x2ty' in
   let () = equal r1x2 r1x2' in
 
   let r2x2, r2x2ty = synth "refl ((x ↦ refl x) : (x:X) → Id X x x) x0 x1 x2" in
-  let r2x2', r2x2ty' = synth "x2⁽¹ʳ⁾" in
+  let r2x2', r2x2ty' = synth "x2⁽¹ᵉ⁾" in
   let () = equal r2x2ty r2x2ty' in
   let () = equal r2x2 r2x2' in
 
@@ -114,7 +114,7 @@ let () =
   equal sr1x2ty r2x2ty;
   equal sr1x2 r2x2;
 
-  let sr1x2', sr1x2ty' = synth "x2^(r)^(21)" in
+  let sr1x2', sr1x2ty' = synth "x2^(e)^(21)" in
   equal sr1x2ty sr1x2ty';
   equal sr1x2 sr1x2';
 
@@ -126,7 +126,7 @@ let () =
   equal r1reflx0ty r2reflx0ty;
   equal r1reflx0 r2reflx0;
 
-  let r1reflx0', r1reflx0ty' = synth "x0⁽ʳʳ⁾" in
+  let r1reflx0', r1reflx0ty' = synth "x0⁽ᵉᵉ⁾" in
   equal r1reflx0ty r1reflx0ty';
   equal r1reflx0 r1reflx0';
 

@@ -21,4 +21,4 @@ let of_char : char -> (t option, unit) result = function
   | '2' -> Ok None
   | _ -> Error ()
 
-let refl_char = 'r'
+let refl_char = 'e'

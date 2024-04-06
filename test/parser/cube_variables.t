@@ -25,11 +25,11 @@ Testing parsing and printing of cube variables
   $ narya cube_vars.ny
   x0 x1 x2 ↦ refl b
   
-  x00 x01 x02 x10 x11 x12 x20 x21 x22 ↦ b⁽ʳʳ⁾
+  x00 x01 x02 x10 x11 x12 x20 x21 x22 ↦ b⁽ᵉᵉ⁾
   
   x ⤇ refl b
   
-  x ⤇ b⁽ʳʳ⁾
+  x ⤇ b⁽ᵉᵉ⁾
   
   x0 x1 x2 ↦ h x0
   

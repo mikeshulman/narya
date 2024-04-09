@@ -375,7 +375,7 @@ and field : kinetic value -> Field.t -> kinetic value =
       let xv =
         match Abwd.find_opt fld fields with
         | Some xv -> xv
-        | None -> fatal (Anomaly "missing field in eval") in
+        | None -> fatal (Anomaly ("missing field in eval struct: " ^ Field.to_string fld)) in
       let (Val x) = Lazy.force (fst xv) in
       x
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
@@ -384,15 +384,16 @@ and field : kinetic value -> Field.t -> kinetic value =
       match alignment with
       | True -> Uninst (Neu { head; args; alignment = True }, newty)
       | Chaotic (Struct (fields, _)) -> (
-          let x =
-            match Abwd.find_opt fld fields with
-            | Some x -> x
-            | None -> fatal (Anomaly "missing field in eval") in
-          match Lazy.force (fst x) with
-          | Realize x -> x
-          | Val x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
-          | Unrealized -> Uninst (Neu { head; args; alignment = True }, newty)
-          | Canonical c -> Uninst (Neu { head; args; alignment = Lawful c }, newty))
+          match Abwd.find_opt fld fields with
+          | None ->
+              (* This can happen correctly during checking a recursive case tree, where the body of one field refers to its not-yet-defined self or other not-yet-defined fields. *)
+              Uninst (Neu { head; args; alignment = True }, newty)
+          | Some x -> (
+              match Lazy.force (fst x) with
+              | Realize x -> x
+              | Val x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
+              | Unrealized -> Uninst (Neu { head; args; alignment = True }, newty)
+              | Canonical c -> Uninst (Neu { head; args; alignment = Lawful c }, newty)))
       | Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree")
       | Lawful _ -> fatal (Anomaly "field projection of canonical type"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))

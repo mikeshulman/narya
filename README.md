@@ -185,7 +185,7 @@ def Magma : Type ≔ sig (
   op : t → t → t,
 )
 ```
-The trailing comma after the last field is optional.  (By the lexing rules above, no space is required around the commas.)  Note that later fields can depend on the values of previous fields, by name.  The names of fields must be identifiers, except that they may not contain periods.
+The trailing comma after the last field is optional.  (By the lexing rules above, no space is required around the commas, unless they follow a type that is expressed using a notation that ends with another special ASCII character.)  Note that later fields can depend on the values of previous fields, by name.  The names of fields must be identifiers, except that they may not contain periods.
 
 Although this command may look like it is defining `Magma` to equal a pre-existing type denoted `sig (t:Type, op:t→t→t)`, in fact it declares `Magma` to be a *new* type that didn't previously exist and doesn't reduce to anything else.  In particular, therefore, declaring another identical-looking type:
 ```
@@ -242,14 +242,16 @@ def nat.magma : Magma ≔ (
   op ≔ plus,
 )
 ```
-Again, the trailing comma is optional, the Unicode ≔ can be replaced by ASCII `:=`, and none of them requires surrounding space.  In this explicit version, the order of the fields doesn't matter: the above is equivalent to
+Again, the trailing comma is optional, the Unicode ≔ can be replaced by ASCII `:=`, and neither of them normally requires surrounding space.  In this explicit version, the order of the fields doesn't matter: the above is equivalent to
 ```
 def nat.magma : Magma ≔ (
   op ≔ plus,
   t ≔ ℕ,
 )
 ```
-However, the names of the fields can also be replaced by underscores or omitted entirely, and in this case the fields are taken from the type definition *in the order given there*.  If some fields are named and others are not, the unnamed fields are matched up with the fields in the type that aren't named explicitly in the tuple, again in order.  Thus, we can also write the above tuple as any of the following:
+Note that whatever order they are written in a tuple, the fields will always be *typechecked* in the order specified in the *record type declaration*.  This is necessary because the types of later fields can depend on the values of earlier ones.
+
+The names of the fields in a tuple can also be replaced by underscores or omitted entirely, and in this case the fields are taken from the type definition *in the order given there*.  If some fields are named and others are not, the unnamed fields are matched up with the fields in the type that aren't named explicitly in the tuple, again in order.  Thus, we can also write the above tuple as any of the following:
 ```
 (ℕ, plus)
 (_ ≔ ℕ, _ ≔ plus)
@@ -258,7 +260,7 @@ However, the names of the fields can also be replaced by underscores or omitted 
 (op ≔ plus, ℕ)
 (plus, t ≔ ℕ)
 ```
-but not, of course, `(plus, ℕ)` since that would try to interpret `plus` as the value of the field `t`.  Unlabeled tuples are convenient for small examples, including familiar cases such as `(0,0) : ℝ × ℝ`, but for records with large numbers of fields they are discouraged as being hard to understand and brittle.
+but not, of course, `(plus, ℕ)` since that would try to interpret `plus` as the value of the field `t`.  Unlabeled tuples are convenient for small examples, including familiar cases such as `(0,0) : ℝ × ℝ`, but for records with large numbers of fields they are discouraged as being hard to understand and brittle.  (But some mathematicians do like to write, for instance, `(G,m,e,i,a,l,r) : Group`, and that is allowed.)
 
 As this discussion suggests, tuples *check*, and do not synthesize.  In particular, this means the same tuple can mean different things when checked at different types.  An unlabeled tuple `(a,b)` can check at *any* record type with two fields for which `a` checks at the type of the first field and `b` at the type of the second.  A labeled one such as `(fst ≔ a, snd ≔ b)` can likewise check at any such record type for which the names of the two fields are `fst` and `snd`.  *Field names are not scoped or namespaced*: they belong to a flat global name domain, distinct from that of constants and variables.
 
@@ -282,12 +284,12 @@ It is sometimes helpful to think of an element of a record type as a "function" 
 
 A field projection `M .fld` requires `M` to synthesize a record type, and then synthesizes the value of the field `fld` in that record type.  Thus, if you want to write a "record redex" that creates a tuple and then immediately projects out one of its fields, you need to ascribe the tuple: `((a, b) : Σ A B) .fst`.
 
-Finally, like unlabeled tuples that default to the order in which fields were declared in the record type, fields can also be projected out by index: `M .0` means the zeroth field declared in the record type, `M .1` means the first field, and so on.  It's important to note that this is in reference to the order in which fields were declared in the record *type*, not in the tuple, even if labels were used in the tuple to give the components in a different order.  For instance, `((snd ≔ b, fst ≔ a) : Σ A B) .0` equals `a`.  As with tuples, positional field access is convenient for small examples, but confusing and brittle when there are many fields.
+Finally, like unlabeled tuples that default to the order in which fields were declared in the record type, fields can also be projected out by index: `M .0` means the zeroth field declared in the record type, `M .1` means the first field, and so on.  It's important to note that this is in reference to the order in which fields were declared in the record *type*, not in the tuple, even if labels were used in the tuple to give the components in a different order.  For instance, `((snd ≔ b, fst ≔ a) : Σ A B) .0` equals `a`.  As with tuples, positional field access is convenient for small examples (especially when using positional tuples as well), but confusing and brittle when there are many fields.
 
 
 ### Eta-conversion and reduction
 
-Records satisfy η-conversion: two elements of a record type whose components are field-wise convertible are themselves convertible.  For instance, if `M : Σ A B`, then `M` is convertible with `(M .fst, M .snd)`, although neither reduces to the other.  In particular, if a record type has zero fields, then any two of its elements are convertible; and if it has only one field, it is definitionally isomorphic to the type of that field.
+Records satisfy η-conversion: two elements of a record type whose components are field-wise convertible are themselves convertible.  For instance, if `M : Σ A B`, then `M` is convertible with `(M .fst, M .snd)`, although neither reduces to the other.  In particular, if a record type has zero fields, then it has a unique element `()` up to convertibility; and if it has only one field, it is definitionally isomorphic to the type of that field.
 
 In addition, a constant that is defined to directly equal a tuple, or an abstracted tuple, does not *reduce* to that tuple directly: it only reduces when a field is projected.  For instance, if we have
 ```
@@ -310,9 +312,9 @@ def Bool : Type ≔ data [
 | false. : Bool
 ]
 ```
-The `|` before the first constructor is optional, and no spaces are required around the brackets and bar.
+The `|` before the first constructor is optional, and no spaces are required around the brackets and bar (unless, as usual, they are adjacent to a notation involving other special ASCII symbols).
 
-Note that each constructor ends with a period.  This is intentionally dual to the fact that record fields and codata methods (see below) *begin* with a period, and reminds us that constructors, like fields and records, are not namespaced but belong to a separate flat name domain.  (OCaml programmers should think of polymorphic variants, not regular variants.)  The use of separate syntax distinguishing constructors from variables and functions is also familiar from functional programming, although the specific use of a dot suffix is novel (capitalization is more common).
+Note that each constructor ends with a period.  This is intentionally dual to the fact that record fields and codata methods (see below) *begin* with a period, and reminds us that constructors, like fields and records, are not namespaced but belong to a separate flat name domain.  (OCaml programmers should think of polymorphic variants, not regular variants, although there is no subtyping yet.)  The use of separate syntax distinguishing constructors from variables and functions is also familiar from functional programming, although the specific use of a dot suffix is novel (capitalization is more common).
 
 Also as with record types, this is not defining `Bool` to equal a pre-existing thing, but declaring it to be a new type that didn't previously exist and doesn't reduce to anything else.
 
@@ -339,7 +341,7 @@ def Sum (A B : Type) : Type ≔ data [
 | inr. (b : B) : Sum A B
 ]
 ```
-When all the arguments are written this way, the output type can be omitted since we know what it must be (the datatype being defined):
+When all the arguments (if any) are written this way, the output type can be omitted since we know what it must be (the datatype being defined):
 ```
 def Sum (A B : Type) : Type ≔ data [
 | inl. (a : A)
@@ -368,14 +370,14 @@ A datatype can have zero fields, yielding an empty type:
 def ∅ : Type ≔ data [ ]
 ```
 
-Finally, a datatype can also have *indices*, which are arguments of its type that are not abstracted over (either as parameters or after the ≔) before issuing the `data` keyword.  In this case, all the constructors must include an explicit output type that specifies the values of the indices for that constructor.  For instance, we have vectors (length-indexed lists):
+Finally, a datatype can also have *indices*, which are arguments of its type that are not abstracted over (either as parameters or after the ≔) before issuing the `data` keyword.  In this case, all the constructors must include an explicit output type that specifies the values of the indices for that constructor (and also includes all the parameters explicitly, although these cannot differ between constructors).  For instance, we have vectors (length-indexed lists):
 ```
 def Vec (A:Type) : ℕ → Type ≔ data [
 | nil. : Vec A zero.
 | cons. : (n:ℕ) → A → Vec A n → Vec A (suc. n)
 ]
 ```
-This is equivalent to 
+As always for parameters of `def`, this is equivalent to 
 ```
 def Vec : Type → ℕ → Type ≔ A ↦ data [
 | nil. : Vec A zero.
@@ -518,7 +520,7 @@ def Covec' (A:Type) (n:ℕ) : Type ≔ match n [
 | suc. n ↦ A × Covec' A n
 ]
 ```
-The two are definitionally isomorphic; the difference is that `Covec' A n` reduces when `n` is a constructor; while `Covec A n` is already a canonical type no matter what `n` is, it's just that when `n` is a constructor we know how it *behaves*.  For instance, `Covec' A 2` reduces to `A × (A × ⊤)`, whereas `Covec A 2` does not reduce but we can still typecheck `(a, (b, ()))` at it.  This sort of "recursively defined canonical type" helps maintain information about the meaning of a type, just like using a custom record type rather than a nested Σ-type; eventually we hope it will be helpful for unification and typeclass inference.
+The two are definitionally isomorphic.  The difference is that `Covec' A n` reduces when `n` is a constructor, while `Covec A n` is already a canonical type no matter what `n` is; it's just that when `n` is a constructor we know how it *behaves*.  For instance, `Covec' A 2` reduces to `A × (A × ⊤)`, whereas `Covec A 2` does not reduce but we can still typecheck `(a, (b, ()))` at it.  This sort of "recursively defined canonical type" helps maintain information about the meaning of a type, just like using a custom record type rather than a nested Σ-type; eventually we hope it will be helpful for unification and typeclass inference.
 
 As another example, once we have an identity type `Id` (which could be `Jd`) we can define the homotopy-theoretic tower of truncation levels:
 ```
@@ -566,6 +568,104 @@ def Fibonacci (a b : ℕ) : Stream ℕ ≔ [
 In addition, unlike tuples, copattern-matches are a part of case trees but not of ordinary terms.  Thus, they never evaluate to anything until a method is called.  This is essential to ensure termination in the presence of corecursion; otherwise `Fibonacci 1 1` would spin forever computing the entire infinite sequence.  (It is also why codatatypes do not have [η-conversion](http://strictlypositive.org/Ripley.pdf).)  It is often helpful to think of a constant defined by copattern-matching as an ([immutable](https://dev.realworldocaml.org/objects.html)) *object* implementing an interface, with the parameters of that constant being its "private member variables".
 
 (As a bit of syntactic trivia, note that `[]` is ambiguous: it could denote either a pattern-matching lambda on a datatype with no constructors, or a copattern-match into a codatatype with no methods.  Fortunately, since both possibilities are checking rather than synthesizing, the ambiguity is resolved by bidirectional typechecking.)
+
+
+## Mutual definitions
+
+There is not yet an explicit syntax for families of mutually recursive, inductive, or coinductive definitions.  However, they can be encoded as single definitions using record-types.
+
+
+### Mutual recursion
+
+In the case of mutual recursion, this sort of encoding is well-known.  For example, we can define the Boolean predicates `even` and `odd` on the natural numbers as follows:
+```
+def even_odd : (ℕ → Bool) × (ℕ → Bool) ≔ (
+  [ zero. ↦ true.  | suc. n ↦ even_odd .1 n ],
+  [ zero. ↦ false. | suc. n ↦ even_odd .0 n ],
+)
+def even ≔ even_odd .0
+def odd  ≔ even_odd .1
+```
+Thus, for instance, `even 4` reduces to `true.`  In more extensive cases, it may be helpful to define a custom record-type first in which the bundled family of mutually recursive functions lives.
+
+
+### Mutual induction
+
+The fact that canonical type declarations can appear as part of case trees means that we can use the same trick to define mutually *inductive* type families.  For instance, the Type-valued predicates `Even` and `Odd` can be defined similarly:
+```
+def Even_Odd : (ℕ → Type) × (ℕ → Type) ≔ (
+  data [
+  | even_zero. : Even_Odd .0 zero.
+  | even_suc. : (n:ℕ) → Even_Odd .1 n → Even_Odd .0 (suc. n)
+  ],
+  data [
+  | odd_suc. : (n:ℕ) → Even_Odd .0 n → Even_Odd .1 (suc. n)
+  ],
+)
+def Even ≔ Even_Odd .0
+def Odd  ≔ Even_Odd .1
+```
+Now `Even 4` doesn't reduce to anything, but it belongs to an indexed inductive type family, and can be inhabited by the term `even_suc. 3 (odd_suc. 2 (even_suc. 1 (odd_suc. 0 even_zero.)))`.
+
+Recall that in Narya a third possibility is a recursive definition of families of canonical types:
+```
+def Even_Odd' : (ℕ → Type) × (ℕ → Type) ≔ (
+  [
+  | zero. ↦ sig ()
+  | suc. n ↦ sig (even_suc : Even_Odd' .1 n)
+  ],
+  [
+  | zero. ↦ data []
+  | suc. n ↦ sig (odd_suc : Even_Odd' .0 n)
+  ],
+)
+def Even' ≔ Even_Odd' .0
+def Odd'  ≔ Even_Odd' .1
+```
+In this case, `Even' 4` doesn't reduce to anything, but it is definitionally a singleton, with unique inhabitant `(_ ≔ (_ ≔ (_ ≔ (_ ≔ ()))))`.
+
+
+### Inductive-inductive families
+
+The same trick can be used to define inductive-inductive type families.  For instance, here is a definition of the bare bones of the syntax of type theory (contexts and types) that often appears as an example of induction-induction:
+```
+def ctx_ty_type : Type ≔ sig (
+  ctx : Type,
+  ty : ctx → Type,
+)
+
+def ctx_ty : ctx_ty_type ≔ (
+  ctx ≔ data [
+  | empty.
+  | ext. (Γ : ctx_ty .ctx) (A : ctx_ty .ty Γ) ],
+  ty ≔ Γ ↦ data [
+  | base.
+  | pi. (A : ctx_ty .ty Γ) (B : ctx_ty .ty (ext. Γ A)) ]
+)
+```
+Note that the context Γ is a non-uniform parameter of the datatype `ctx_ty .ty`.
+
+
+### Inductive-recursive definitions
+
+Finally, because a case tree can include canonical type declarations in some branches and ordinary (co)recursive definitions in other branches, we can also encode inductive-recursive definitions.  For instance, here is an inductive-recursive universe that contains the Booleans and is closed under Π-types
+```
+def uu_el_type : Type ≔ sig (
+  uu : Type,
+  el : uu → Type,
+)
+
+def uu_el : uu_el_type ≔ (
+  uu ≔ data [
+  | bool.
+  | pi. (A : uu_el .uu) (B : uu_el .el A → uu_el .uu)
+  ],
+  el ≔ [
+  | bool. ↦ Bool
+  | pi. A B ↦ (x : uu_el .el A) → uu_el .el (B x)
+  ],
+)
+```
 
 
 ## Parametric Observational Type Theory

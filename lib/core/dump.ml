@@ -114,5 +114,19 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
   | Struct (_, _) -> fprintf ppf "Struct (?,?)"
   | Match (_, _, _) -> fprintf ppf "Match (?,?,?)"
-  | Realize tm -> fprintf ppf "Realize %a" term tm
-  | Canonical _ -> fprintf ppf "Canonical ?"
+  | Realize tm -> fprintf ppf "Realize (%a)" term tm
+  | Canonical c -> fprintf ppf "Canonical (%a)" canonical c
+
+and canonical : type b. formatter -> b canonical -> unit =
+ fun ppf c ->
+  match c with
+  | Data (i, constrs) ->
+      fprintf ppf "Data (%d, (%s))" (N.to_int i)
+        (String.concat ","
+           (List.map (fun (c, _) -> Constr.to_string c) (Constr.Map.bindings constrs)))
+  | Codata (eta, _dim, fields) ->
+      fprintf ppf "Codata (%s, ?, (%s))"
+        (match eta with
+        | Eta -> "Eta"
+        | Noeta -> "Noeta")
+        (String.concat "," (List.map (fun (f, _) -> Field.to_string f) (Bwd.to_list fields)))

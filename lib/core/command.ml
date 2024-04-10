@@ -26,7 +26,7 @@ let execute : t -> unit = function
       let cty = check Kinetic ctx ty (universe D.zero) in
       let ety = Ctx.eval_term ctx cty in
       let cty = Telescope.pis params cty in
-      (* We temporarily define the constant as an axiom, so that its type can be used recursively in typechecking its definition.  This doesn't preclude some branches of the definition depending on the value of other branches (e.g. as in matching against a HIT), but it means that such dependence must be incorporated explicitly by the typechecker. *)
+      (* We temporarily define the constant as an axiom, so that its type can be used recursively in typechecking its definition.  In some cases, later on this temporary definition will be refined by adding branches of a case tree, constructors of a datatype, or fields of a record or codatatype, so that later parts of the definition can depend on earlier parts. *)
       let tree =
         Global.run_with const cty Axiom @@ fun () ->
         Ctx.lam ctx (check (Potential (const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in

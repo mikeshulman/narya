@@ -553,9 +553,13 @@ and check_data :
  fun status ctx ty num_indices checked_constrs raw_constrs ->
   match (raw_constrs, status) with
   | [], _ -> Canonical (Data (num_indices, checked_constrs))
-  | (c, { value = Dataconstr (args, output); loc }) :: raw_constrs, Potential (head, current_apps, _)
-    -> (
+  | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
+      Potential (head, current_apps, hyp) ) -> (
       with_loc loc @@ fun () ->
+      (* Temporarily bind the current constant to the up-until-now value. *)
+      Global.run_with_definition head
+        (Defined (hyp (Term.Canonical (Data (num_indices, checked_constrs)))))
+      @@ fun () ->
       match (Constr.Map.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
       | None, Some output -> (

@@ -750,7 +750,10 @@ and check_field :
     match status with
     | Kinetic -> Kinetic
     | Potential (c, args, hyp) ->
-        Potential (c, args, fun tm -> hyp (Term.Struct (eta, Snoc (ctms, (fld, (tm, lbl)))))) in
+        Potential
+          ( c,
+            Snoc (args, App (Field fld, ins_zero dim)),
+            fun tm -> hyp (Term.Struct (eta, Snoc (ctms, (fld, (tm, lbl))))) ) in
   let ety = tyof_field prev_etm ty fld in
   match Abwd.find_opt (Some fld) tms with
   | Some tm ->

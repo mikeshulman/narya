@@ -574,7 +574,9 @@ In addition, unlike tuples, copattern-matches are a part of case trees but not o
 
 A block of constants can be defined mutually.  This means that first all of their *types* are checked, in order, so that the types of later constants in the block may refer to earlier constants (but using only their types, not their definitions).  Then their definitions are checked, again in order, so that the definitions of later constants may use the definitions of earlier ones (as well as the types of arbitrary ones).  Because datatypes are just a kind of definition, the same syntax for mutual definitions encompasses mutually recursive functions, mutually inductive types, inductive-inductive types, and even inductive-recursive types.  Furthermore, all these kinds of mutual definitions can be encoded as single definitions using record-types (but the explicit mutual syntax is usually more congenial).
 
-The syntax for a mutual block of definitions looks just like a sequence of ordinary `def` commands, except that the second and later ones use the keyword `and` instead of `def`.  (This is similar to the syntax of ML-like programming languages.)  The entire block is then treated as a single command, since it is impossible to typecheck any part of it individually.  It is nevertheless usual to put a blank line in between the definitions in a mutual block, although note that this cannot be done in interactive mode since a blank line ends the command.
+The syntax for a mutual block of definitions looks just like a sequence of ordinary `def` commands, except that the second and later ones use the keyword `and` instead of `def`.  This is similar to the syntax of ML-like programming languages and Coq, and in contrast to Agda's style in which declarations and definitions can be mixed arbitrarily as long as each constant is declared before it is defined.  We prefer to keep the declaration of the type of each constant next to its definition, and make it clear textually which blocks of constants are defined mutually, at the price of allowing the definition of a constant to refer to others whose type is declared later textually in the same block.
+
+An entire mutual block constitutes a single command, since it is impossible to typecheck any part of it individually.  It is nevertheless usual to put a blank line in between the definitions in a mutual block, although note that this cannot be done in interactive mode since a blank line ends the command.
 
 Like any definition, the constants in a mutual block can be defined using the synthesizing form of `def` that omits their type.  However, this is of limited usefulness, since then they cannot be used while typechecking other constants in the block, as their types are not yet known at that point.
 
@@ -695,6 +697,18 @@ def uu_el : Σ Type (X ↦ (X → Type)) ≔ (
   | bool. ↦ Bool
   | pi. A B ↦ (x : uu_el .1 A) → uu_el .1 (B x) ])
 ```
+
+
+### Here be dragons
+
+As can be seen from these examples, Narya's facility for mutual definitions is comparable to Agda's in flexibility and power.  It also permits even more radical things such as nested datatypes:
+```
+def Bush (A:Type) : Type ≔ data [
+| leaf.
+| cons. (_ : A) (_ : Bush (Bush A))
+]
+```
+and poorly understood things such as mutual families of definitions including both inductive and coinductive types and both recursive and corecursive functions.  As noted above we have not yet implemented positivity, termination, or productivity checkers, so it is easy to create inconsistencies even without these more radical features.  Eventually, we intend the default to be a "safe mode" that restricts mutual definitions to combinations that are known to be consistent and have understood semantics, although this could be turned off by a flag.
 
 
 ## Parametric Observational Type Theory

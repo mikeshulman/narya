@@ -199,6 +199,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "in" -> return In
   | "axiom" -> return Axiom
   | "def" -> return Def
+  | "and" -> return And
   | "echo" -> return Echo
   | "match" -> return Match
   | "sig" -> return Sig

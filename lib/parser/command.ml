@@ -1,3 +1,4 @@
+open Bwd
 open Dim
 open Util
 open List_extra
@@ -10,6 +11,17 @@ open Uuseg_string
 open Print
 open Reporter
 
+type def = {
+  wsdef : Whitespace.t list;
+  name : Scope.Trie.path;
+  wsname : Whitespace.t list;
+  parameters : Parameter.t list;
+  wscolon : Whitespace.t list;
+  ty : observation option;
+  wscoloneq : Whitespace.t list;
+  tm : observation;
+}
+
 type t =
   | Axiom of {
       wsaxiom : Whitespace.t list;
@@ -19,16 +31,7 @@ type t =
       wscolon : Whitespace.t list;
       ty : observation;
     }
-  | Def of {
-      wsdef : Whitespace.t list;
-      name : Scope.Trie.path;
-      wsname : Whitespace.t list;
-      parameters : Parameter.t list;
-      wscolon : Whitespace.t list;
-      ty : observation option;
-      wscoloneq : Whitespace.t list;
-      tm : observation;
-    }
+  | Def of def list
   | Echo of { wsecho : Whitespace.t list; tm : observation }
   | Notation : {
       fixity : ('left, 'tight, 'right) fixity;
@@ -48,6 +51,23 @@ type t =
   | Bof of Whitespace.t list
   | Eof
 
+let rec defs_to_core :
+    (Constant.t * def) list -> Core.Command.defconst Bwd.t -> Core.Command.defconst Bwd.t =
+ fun defs cores ->
+  match defs with
+  | [] -> cores
+  | (const, { parameters; ty; tm = Term tm; _ }) :: defs -> (
+      let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
+      match ty with
+      | Some (Term ty) ->
+          defs_to_core defs
+            (Snoc (cores, Core.Command.Def_check (const, params, process ctx ty, process ctx tm)))
+      | None -> (
+          match process ctx tm with
+          | { value = Synth tm; loc } ->
+              defs_to_core defs (Snoc (cores, Def_synth (const, params, { value = tm; loc })))
+          | _ -> fatal (Nonsynthesizing "body of def without specified type")))
+
 let execute : t -> unit = function
   | Axiom { name; parameters; ty = Term ty; _ } ->
       if Option.is_some (Scope.lookup name) then
@@ -61,25 +81,26 @@ let execute : t -> unit = function
       let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty));
       emit (Constant_assumed (PConstant const))
-  | Def { name; parameters; ty; tm = Term tm; _ } ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
-      let const = Scope.define name in
+  | Def defs ->
+      let [ names; cdefs; printables ] =
+        Mlist.pmap
+          (fun [ d ] ->
+            if Option.is_some (Scope.lookup d.name) then
+              emit (Constant_already_defined (String.concat "." d.name));
+            let c = Scope.define d.name in
+            [ d.name; (c, d); PConstant c ])
+          [ defs ] (Cons (Cons (Cons Nil))) in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          List.iter
+            (fun c ->
+              Scope.S.modify_visible (Yuujinchou.Language.except c);
+              Scope.S.modify_export (Yuujinchou.Language.except c))
+            names;
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
-      (match ty with
-      | Some (Term ty) ->
-          Core.Command.execute (Def (const, params, `Check (process ctx ty, process ctx tm)))
-      | None -> (
-          match process ctx tm with
-          | { value = Synth tm; loc } ->
-              Core.Command.execute (Def (const, params, `Synth { value = tm; loc }))
-          | _ -> fatal (Nonsynthesizing "body of def without specified type")));
-      emit (Constant_defined (PConstant const))
+      let defs = defs_to_core cdefs Emp in
+      Core.Command.execute (Def (Bwd.to_list defs));
+      emit (Constant_defined printables)
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Varscope.empty tm in
       match rtm.value with
@@ -175,6 +196,31 @@ let pp_parameter : formatter -> Parameter.t -> unit =
   pp_tok ppf RParen;
   pp_ws `Break ppf wsrparen
 
+let rec pp_defs : formatter -> Token.t -> Whitespace.t list -> def list -> Whitespace.t list =
+ fun ppf tok ws defs ->
+  match defs with
+  | [] -> ws
+  | { wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm = Term tm } :: defs ->
+      pp_ws `None ppf ws;
+      pp_open_hvbox ppf 2;
+      pp_tok ppf tok;
+      pp_ws `Nobreak ppf wsdef;
+      pp_utf_8 ppf (String.concat "." name);
+      pp_ws `Break ppf wsname;
+      List.iter (pp_parameter ppf) parameters;
+      (match ty with
+      | Some ty ->
+          pp_tok ppf Colon;
+          pp_ws `Nobreak ppf wscolon;
+          pp_term `Break ppf ty
+      | None -> ());
+      pp_tok ppf Coloneq;
+      pp_ws `Nobreak ppf wscoloneq;
+      let tm, rest = split_ending_whitespace tm in
+      pp_term `None ppf (Term tm);
+      pp_close_box ppf ();
+      pp_defs ppf And rest defs
+
 let pp_command : formatter -> t -> Whitespace.t list =
  fun ppf cmd ->
   match cmd with
@@ -191,25 +237,7 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_term `None ppf (Term ty);
       pp_close_box ppf ();
       rest
-  | Def { wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm = Term tm } ->
-      pp_open_hvbox ppf 2;
-      pp_tok ppf Def;
-      pp_ws `Nobreak ppf wsdef;
-      pp_utf_8 ppf (String.concat "." name);
-      pp_ws `Break ppf wsname;
-      List.iter (pp_parameter ppf) parameters;
-      (match ty with
-      | Some ty ->
-          pp_tok ppf Colon;
-          pp_ws `Nobreak ppf wscolon;
-          pp_term `Break ppf ty
-      | None -> ());
-      pp_tok ppf Coloneq;
-      pp_ws `Nobreak ppf wscoloneq;
-      let tm, rest = split_ending_whitespace tm in
-      pp_term `None ppf (Term tm);
-      pp_close_box ppf ();
-      rest
+  | Def defs -> pp_defs ppf Def [] defs
   | Echo { wsecho; tm = Term tm } ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Echo;

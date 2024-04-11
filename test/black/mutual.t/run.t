@@ -85,3 +85,52 @@
    ￫ info[I0000]
    ￮ Constant uu_el defined
   
+
+  $ narya -v even_odd_and.ny
+   ￫ info[I0000]
+   ￮ Constant ℕ defined
+  
+   ￫ info[I0000]
+   ￮ Constants defined mutually:
+       even
+       odd
+  
+   ￫ info[I0000]
+   ￮ Constant sum defined
+  
+   ￫ info[I0000]
+   ￮ Constant even_or_odd_suc defined
+  
+   ￫ info[I0000]
+   ￮ Constant all_even_or_odd defined
+  
+
+  $ narya -v ctx_el_and.ny
+   ￫ info[I0000]
+   ￮ Constants defined mutually:
+       ctx
+       ty
+  
+   ￫ warning[E2100]
+   ￮ redefining constant: ctx
+  
+   ￫ warning[E2100]
+   ￮ redefining constant: ty
+  
+   ￫ info[I0000]
+   ￮ Constants defined mutually:
+       ctx
+       ty
+       tm
+  
+
+  $ narya -v univ_and.ny
+   ￫ info[I0000]
+   ￮ Constant bool defined
+  
+   ￫ info[I0000]
+   ￮ Constants defined mutually:
+       uu
+       el
+  
+

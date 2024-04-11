@@ -26,6 +26,7 @@ type t =
   | Internal of string (* Starting or ending with _ *)
   | Axiom
   | Def
+  | And
   | Echo
   | Match
   | Sig
@@ -153,6 +154,7 @@ let to_string = function
   | Internal s -> s
   | Axiom -> "axiom"
   | Def -> "def"
+  | And -> "and"
   | Echo -> "echo"
   | Match -> "match"
   | Sig -> "sig"

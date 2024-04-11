@@ -479,8 +479,8 @@ module Parse_command = struct
     let* ty = C.term [] in
     return (Command.Axiom { wsaxiom; name; wsname; parameters; wscolon; ty })
 
-  let def =
-    let* wsdef = token Def in
+  let def tok =
+    let* wsdef = token tok in
     let* name, wsname = ident in
     let* parameters = zero_or_more parameter in
     let* wscolon, ty, wscoloneq, tm =
@@ -493,7 +493,12 @@ module Parse_command = struct
       let* wscoloneq = token Coloneq in
       let* tm = C.term [] in
       return ([], None, wscoloneq, tm) in
-    return (Command.Def { wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm })
+    return ({ wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm } : Command.def)
+
+  let def_and =
+    let* first = def Def in
+    let* rest = zero_or_more (def And) in
+    return (Command.Def (first :: rest))
 
   let echo =
     let* wsecho = token Echo in
@@ -598,7 +603,7 @@ module Parse_command = struct
     return Command.Eof
 
   let command : unit -> Command.t C.Basic.t =
-   fun () -> bof </> axiom </> def </> echo </> notation </> eof
+   fun () -> bof </> axiom </> def_and </> echo </> notation </> eof
 
   let command_or_echo : unit -> Command.t C.Basic.t =
    fun () ->

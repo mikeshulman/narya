@@ -108,7 +108,7 @@ module Code = struct
     | Unbound_variable_in_notation : string list -> t
     | Head_already_has_notation : string -> t
     | Constant_assumed : printable -> t
-    | Constant_defined : printable -> t
+    | Constant_defined : printable list -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
@@ -485,7 +485,15 @@ module Code = struct
     | Head_already_has_notation name ->
         textf "replacing printing notation for %s (previous notation will still be parseable)" name
     | Constant_assumed name -> textf "Axiom %a assumed" pp_printed (print name)
-    | Constant_defined name -> textf "Constant %a defined" pp_printed (print name)
+    | Constant_defined names -> (
+        match names with
+        | [] -> textf "Anomaly: no constant defined"
+        | [ name ] -> textf "Constant %a defined" pp_printed (print name)
+        | _ ->
+            textf "@[<v 2>Constants defined mutually:@,%a@]"
+              (fun ppf names ->
+                pp_print_list (fun ppf name -> pp_printed ppf (print name)) ppf names)
+              names)
     | Notation_defined name -> textf "Notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
     | Comment_end_in_string ->

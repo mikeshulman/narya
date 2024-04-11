@@ -37,9 +37,9 @@ Each file or `-e` argument is a sequence of commands (see below), while in inter
 
 In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
 
-1. `def NAME [PARAMS] [: TYPE] ≔ TERM`
+1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
-   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below), while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.
+   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below), while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.  Finally, a family of constants can be defined mutually by using the `and` keyword to introduce the second and later ones (see below).
 
 2. `axiom NAME [PARAMS] : TYPE`
 
@@ -114,7 +114,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let in def axiom echo notation match sig data codata
+let in def and axiom echo notation match sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 
@@ -572,99 +572,128 @@ In addition, unlike tuples, copattern-matches are a part of case trees but not o
 
 ## Mutual definitions
 
-There is not yet an explicit syntax for families of mutually recursive, inductive, or coinductive definitions.  However, they can be encoded as single definitions using record-types.
+A block of constants can be defined mutually.  This means that first all of their *types* are checked, in order, so that the types of later constants in the block may refer to earlier constants (but using only their types, not their definitions).  Then their definitions are checked, again in order, so that the definitions of later constants may use the definitions of earlier ones (as well as the types of arbitrary ones).  Because datatypes are just a kind of definition, the same syntax for mutual definitions encompasses mutually recursive functions, mutually inductive types, inductive-inductive types, and even inductive-recursive types.  Furthermore, all these kinds of mutual definitions can be encoded as single definitions using record-types (but the explicit mutual syntax is usually more congenial).
+
+The syntax for a mutual block of definitions looks just like a sequence of ordinary `def` commands, except that the second and later ones use the keyword `and` instead of `def`.  (This is similar to the syntax of ML-like programming languages.)  The entire block is then treated as a single command, since it is impossible to typecheck any part of it individually.  It is nevertheless usual to put a blank line in between the definitions in a mutual block, although note that this cannot be done in interactive mode since a blank line ends the command.
+
+Like any definition, the constants in a mutual block can be defined using the synthesizing form of `def` that omits their type.  However, this is of limited usefulness, since then they cannot be used while typechecking other constants in the block, as their types are not yet known at that point.
+
+We now give a few examples to illustrate the possibilities of mutual definitions, along with their encodings using records.
 
 
 ### Mutual recursion
 
-In the case of mutual recursion, this sort of encoding is well-known.  For example, we can define the Boolean predicates `even` and `odd` on the natural numbers as follows:
+We can define the Boolean predicates `even` and `odd` on the natural numbers:
+```
+def even : ℕ → Bool ≔ [
+| zero.  ↦ true.
+| suc. n ↦ odd n 
+]
+
+and odd : ℕ → Bool ≔ [
+| zero.  ↦ false.
+| suc. n ↦ even n 
+]
+```
+Thus, for instance, `even 4` reduces to `true.`
+
+Encoded as a single definition, this looks like the following.
 ```
 def even_odd : (ℕ → Bool) × (ℕ → Bool) ≔ (
   [ zero. ↦ true.  | suc. n ↦ even_odd .1 n ],
-  [ zero. ↦ false. | suc. n ↦ even_odd .0 n ],
-)
-def even ≔ even_odd .0
-def odd  ≔ even_odd .1
+  [ zero. ↦ false. | suc. n ↦ even_odd .0 n ])
 ```
-Thus, for instance, `even 4` reduces to `true.`  In more extensive cases, it may be helpful to define a custom record-type first in which the bundled family of mutually recursive functions lives.
+Here we have used a binary product type, but in more complicated cases when doing such encoding, it may be helpful to define a custom record-type first in which the bundled family of mutually recursive functions lives.
 
 
 ### Mutual induction
 
-The fact that canonical type declarations can appear as part of case trees means that we can use the same trick to define mutually *inductive* type families.  For instance, the Type-valued predicates `Even` and `Odd` can be defined similarly:
+The Type-valued predicates `Even` and `Odd` can be defined similarly:
+```
+def Even : ℕ → Type ≔ data [
+| even_zero. : Even zero.
+| even_suc. : (n:ℕ) → Odd n → Even (suc. n)
+]
+
+and Odd : ℕ → Type ≔ data [
+| odd_suc. : (n:ℕ) → Even n → Odd (suc. n)
+]
+```
+Now `Even 4` doesn't reduce to anything, but it belongs to an indexed inductive type family, and can be inhabited by the term `even_suc. 3 (odd_suc. 2 (even_suc. 1 (odd_suc. 0 even_zero.)))`.
+
+The fact that canonical type declarations can appear as part of case trees means that these can also be encoded as a single definition:
 ```
 def Even_Odd : (ℕ → Type) × (ℕ → Type) ≔ (
   data [
   | even_zero. : Even_Odd .0 zero.
-  | even_suc. : (n:ℕ) → Even_Odd .1 n → Even_Odd .0 (suc. n)
-  ],
+  | even_suc. : (n:ℕ) → Even_Odd .1 n → Even_Odd .0 (suc. n) ],
   data [
-  | odd_suc. : (n:ℕ) → Even_Odd .0 n → Even_Odd .1 (suc. n)
-  ],
-)
-def Even ≔ Even_Odd .0
-def Odd  ≔ Even_Odd .1
+  | odd_suc. : (n:ℕ) → Even_Odd .0 n → Even_Odd .1 (suc. n) ])
 ```
-Now `Even 4` doesn't reduce to anything, but it belongs to an indexed inductive type family, and can be inhabited by the term `even_suc. 3 (odd_suc. 2 (even_suc. 1 (odd_suc. 0 even_zero.)))`.
 
 Recall that in Narya a third possibility is a recursive definition of families of canonical types:
 ```
-def Even_Odd' : (ℕ → Type) × (ℕ → Type) ≔ (
-  [
-  | zero. ↦ sig ()
-  | suc. n ↦ sig (even_suc : Even_Odd' .1 n)
-  ],
-  [
-  | zero. ↦ data []
-  | suc. n ↦ sig (odd_suc : Even_Odd' .0 n)
-  ],
-)
-def Even' ≔ Even_Odd' .0
-def Odd'  ≔ Even_Odd' .1
+def Even' : ℕ → Type ≔ [
+| zero. ↦ sig ()
+| suc. n ↦ sig (even_suc : Odd' n)
+]
+and Odd' : ℕ → Type ≔ [
+| zero. ↦ data []
+| suc. n ↦ sig (odd_suc : Even' n)
+]
 ```
 In this case, `Even' 4` doesn't reduce to anything, but it is definitionally a singleton, with unique inhabitant `(_ ≔ (_ ≔ (_ ≔ (_ ≔ ()))))`.
 
 
 ### Inductive-inductive families
 
-The same trick can be used to define inductive-inductive type families.  For instance, here is a definition of the bare bones of the syntax of type theory (contexts and types) that often appears as an example of induction-induction:
+Here is a definition of the bare bones of the syntax of type theory (contexts and types) that often appears as an example of induction-induction:
 ```
-def ctx_ty_type : Type ≔ sig (
-  ctx : Type,
-  ty : ctx → Type,
-)
+def ctx : Type ≔ data [
+| empty.
+| ext. (Γ : ctx) (A : ty Γ)
+]
 
-def ctx_ty : ctx_ty_type ≔ (
+and ty (Γ : ctx) : Type ≔ data [
+| base.
+| pi. (A : ty Γ) (B : ty (ext. Γ A))
+]
+```
+Note that the context Γ is a non-uniform parameter of the datatype `ty`.  And its encoding:
+```
+def ctx_ty : Σ Type (X ↦ (X → Type)) ≔ (
   ctx ≔ data [
   | empty.
-  | ext. (Γ : ctx_ty .ctx) (A : ctx_ty .ty Γ) ],
+  | ext. (Γ : ctx_ty .0) (A : ctx_ty .1 Γ) ],
   ty ≔ Γ ↦ data [
   | base.
-  | pi. (A : ctx_ty .ty Γ) (B : ctx_ty .ty (ext. Γ A)) ]
-)
+  | pi. (A : ctx_ty .1 Γ) (B : ctx_ty .1 (ext. Γ A)) ])
 ```
-Note that the context Γ is a non-uniform parameter of the datatype `ctx_ty .ty`.
 
 
 ### Inductive-recursive definitions
 
-Finally, because a case tree can include canonical type declarations in some branches and ordinary (co)recursive definitions in other branches, we can also encode inductive-recursive definitions.  For instance, here is an inductive-recursive universe that contains the Booleans and is closed under Π-types
+Finally, because a case tree can include canonical type declarations in some branches and ordinary (co)recursive definitions in other branches, we can also encode inductive-recursive definitions.  For instance, here is an inductive-recursive universe that contains the Booleans and is closed under Π-types:
 ```
-def uu_el_type : Type ≔ sig (
-  uu : Type,
-  el : uu → Type,
-)
+def uu : Type ≔ data [
+| bool.
+| pi. (A : uu) (B : el A → uu)
+]
 
-def uu_el : uu_el_type ≔ (
+and el : uu → Type ≔ [
+| bool. ↦ Bool
+| pi. A B ↦ (x : el A) → el (B x)
+]
+```
+and its encoding:
+```
+def uu_el : Σ Type (X ↦ (X → Type)) ≔ (
   uu ≔ data [
   | bool.
-  | pi. (A : uu_el .uu) (B : uu_el .el A → uu_el .uu)
-  ],
+  | pi. (A : uu_el .0) (B : uu_el .1 A → uu_el .0) ],
   el ≔ [
   | bool. ↦ Bool
-  | pi. A B ↦ (x : uu_el .el A) → uu_el .el (B x)
-  ],
-)
+  | pi. A B ↦ (x : uu_el .1 A) → uu_el .1 (B x) ])
 ```
 
 

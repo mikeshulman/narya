@@ -1,4 +1,3 @@
-open Bwd
 open Dim
 open Util
 open List_extra
@@ -51,23 +50,6 @@ type t =
   | Bof of Whitespace.t list
   | Eof
 
-let rec defs_to_core :
-    (Constant.t * def) list -> Core.Command.defconst Bwd.t -> Core.Command.defconst Bwd.t =
- fun defs cores ->
-  match defs with
-  | [] -> cores
-  | (const, { parameters; ty; tm = Term tm; _ }) :: defs -> (
-      let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
-      match ty with
-      | Some (Term ty) ->
-          defs_to_core defs
-            (Snoc (cores, Core.Command.Def_check (const, params, process ctx ty, process ctx tm)))
-      | None -> (
-          match process ctx tm with
-          | { value = Synth tm; loc } ->
-              defs_to_core defs (Snoc (cores, Def_synth (const, params, { value = tm; loc })))
-          | _ -> fatal (Nonsynthesizing "body of def without specified type")))
-
 let execute : t -> unit = function
   | Axiom { name; parameters; ty = Term ty; _ } ->
       if Option.is_some (Scope.lookup name) then
@@ -98,8 +80,20 @@ let execute : t -> unit = function
             names;
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      let defs = defs_to_core cdefs Emp in
-      Core.Command.execute (Def (Bwd.to_list defs));
+      let defs =
+        List.map
+          (function
+            | const, { parameters; ty; tm = Term tm; _ } -> (
+                let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
+                match ty with
+                | Some (Term ty) ->
+                    Core.Command.Def_check (const, params, process ctx ty, process ctx tm)
+                | None -> (
+                    match process ctx tm with
+                    | { value = Synth tm; loc } -> Def_synth (const, params, { value = tm; loc })
+                    | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
+          cdefs in
+      Core.Command.execute (Def defs);
       emit (Constant_defined printables)
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Varscope.empty tm in

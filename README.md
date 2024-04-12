@@ -589,12 +589,12 @@ We can define the Boolean predicates `even` and `odd` on the natural numbers:
 ```
 def even : ℕ → Bool ≔ [
 | zero.  ↦ true.
-| suc. n ↦ odd n 
+| suc. n ↦ odd n
 ]
 
 and odd : ℕ → Bool ≔ [
 | zero.  ↦ false.
-| suc. n ↦ even n 
+| suc. n ↦ even n
 ]
 ```
 Thus, for instance, `even 4` reduces to `true.`

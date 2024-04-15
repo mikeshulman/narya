@@ -131,28 +131,5 @@ let rec run f =
   Builtins.run @@ fun () ->
   Global.run_empty @@ fun () -> Scope.run f
 
-(* Some operations on natural numbers and vectors, for white-box testing. *)
-
-(* let nat_install_ops () =
-     Reporter.try_with ~emit:(fun _ -> ()) @@ fun () ->
-     def "O" "ℕ" "zero.";
-     def "S" "ℕ → ℕ" "n ↦ suc. n";
-     def "plus" "ℕ → ℕ → ℕ" "m n ↦ match n [
-       | zero. ↦ m
-       | suc. n ↦ suc. (plus m n)
-     ]";
-     cmd "notation 0 plus : m \"+\" n … ≔ plus m n";
-     def "times" "ℕ → ℕ → ℕ"
-       "m n ↦ match n [
-       | zero. ↦ zero.
-       | suc. n ↦ plus (times m n) m
-     ]";
-     cmd "notation 1 times : m \"*\" n … ≔ times m n";
-     def "ℕ_ind" "(P : ℕ → Type) (z : P zero.) (s : (n:ℕ) → P n → P (suc. n)) (n : ℕ) → P n"
-       "P z s n ↦ match n [
-       | zero. ↦ z
-       | suc. n ↦ s n (ℕ_ind P z s n)
-     ]" *)
-
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

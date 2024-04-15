@@ -1,5 +1,4 @@
 open Testutil.Mcp
-open Dim
 
 let () =
   Parser.Unparse.install ();
@@ -132,5 +131,5 @@ let () =
       ~code:(No_such_field (`Degenerated_record, Core.Field.intern_ori "ungel")) in
 
   (* Cube variables *)
-  let () = uncheck ~print:() "x ↦ x.0" atoa ~code:(Invalid_variable_face (D.zero, zero_sface_one)) in
+  let () = uncheck ~print:() "x ↦ x.0" atoa ~short:"E0506" in
   ()

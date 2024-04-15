@@ -5,9 +5,6 @@ open Monoid
 module D : MonoidPos
 
 val to_int : 'a D.t -> int
-
-type one
-
 val compare : 'm D.t -> 'n D.t -> ('m, 'n) compare
 
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
@@ -456,10 +453,9 @@ type (_, _, _) insfact_comp =
 val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k, 'a) insfact_comp
 
 (*  *)
+type one
+
 val one : one D.t
-val refl : (one, D.zero) deg
-val zero_sface_one : (D.zero, one) sface
-val one_sface_one : (D.zero, one) sface
 
 type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
 

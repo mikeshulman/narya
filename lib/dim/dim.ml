@@ -20,8 +20,6 @@ type one = D.one
 
 let one = D.one
 let refl : (one, D.zero) deg = Zero D.one
-let zero_sface_one : (D.zero, one) sface = End (Zero, Pop Top)
-let one_sface_one : (D.zero, one) sface = End (Zero, Top)
 
 type two = D.two
 

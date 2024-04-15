@@ -1,7 +1,6 @@
 open Util
 
-(* This should ideally be abstract. *)
-type len = N.two
+type len
 type t = len N.index
 
 val len : len N.t

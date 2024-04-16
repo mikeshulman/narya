@@ -159,9 +159,11 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
   | Field (tm, fld) ->
       let (Val etm) = eval env tm in
       Val (field etm fld)
-  | Struct (_, fields) ->
+  | Struct (_, m, fields) ->
+      let (Plus mn) = D.plus (dim_env env) in
       Val
-        (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins_zero (dim_env env)))
+        (Struct
+           (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins_zero (D.plus_out m mn)))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in

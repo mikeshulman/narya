@@ -231,7 +231,7 @@ let rec unparse :
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (Eta, fields) ->
+  | Struct (Eta, _, fields) ->
       unlocated
         (outfix ~notn:parens ~ws:[]
            ~inner:

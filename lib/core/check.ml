@@ -175,12 +175,12 @@ let rec check :
         { head = Const { name; _ }; alignment = Lawful (Codata { eta = Noeta; ins; fields; _ }); _ },
       Potential _ ) ->
       let () = is_id_perm (perm_of_ins ins) <|> Comatching_at_degenerated_codata (PConstant name) in
-      check_struct status Noeta ctx tms ty fields
+      check_struct status Noeta ctx tms ty (cod_left_ins ins) fields
   | ( Struct (Eta, tms),
       Neu { head = Const { name; _ }; alignment = Lawful (Codata { eta = Eta; ins; fields; _ }); _ },
       _ ) ->
       is_id_ins ins <|> Checking_tuple_at_degenerated_record (PConstant name);
-      check_struct status Eta ctx tms ty fields
+      check_struct status Eta ctx tms ty (cod_left_ins ins) fields
   | Struct (Noeta, _), _, _ -> fatal (Comatching_at_noncodata (PUninst (ctx, uty)))
   | Struct (Eta, _), _, _ -> fatal (Checking_tuple_at_nonrecord (PUninst (ctx, uty)))
   | ( Constr ({ value = constr; loc = constr_loc }, args),
@@ -671,24 +671,26 @@ and check_codata :
           ))
 
 and check_struct :
-    type a b c s anything.
+    type a b c s m n.
     (b, s) status ->
     s eta ->
     (a, b) Ctx.t ->
     (Field.t option, a check located) Abwd.t ->
     kinetic value ->
-    (Field.t, anything) Abwd.t ->
+    m D.t ->
+    (Field.t, ((c, n) snoc, kinetic) term) Abwd.t ->
     (b, s) term =
- fun status eta ctx tms ty fields ->
+ fun status eta ctx tms ty dim fields ->
   (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
   let tms, ctms =
-    check_fields status eta ctx ty
+    check_fields status eta ctx ty dim
       (* We convert the backwards alist of fields and values into a forwards list of field names only. *)
       (Bwd.fold_right (fun (fld, _) flds -> fld :: flds) fields [])
       tms Emp Emp in
   (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
   Term.Struct
     ( eta,
+      dim,
       Bwd.map
         (function
           | Some fld, _ -> (
@@ -699,35 +701,39 @@ and check_struct :
         tms )
 
 and check_fields :
-    type a b s.
+    type a b s n.
     (b, s) status ->
     s eta ->
     (a, b) Ctx.t ->
     kinetic value ->
+    n D.t ->
     Field.t list ->
     (Field.t option, a check located) Abwd.t ->
     (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
- fun status eta ctx ty fields tms etms ctms ->
-  let str = Value.Struct (etms, ins_zero D.zero) in
+ fun status eta ctx ty dim fields tms etms ctms ->
+  (* The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
+  let str = Value.Struct (etms, ins_zero dim) in
   match (fields, status) with
   | [], _ -> (tms, ctms)
   | fld :: fields, Potential (name, args, hyp) ->
       (* Temporarily bind the current constant to the up-until-now value. *)
-      Global.run_with_definition name (Defined (hyp (Term.Struct (eta, ctms)))) @@ fun () ->
+      Global.run_with_definition name (Defined (hyp (Term.Struct (eta, dim, ctms)))) @@ fun () ->
+      (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = Value.Const { name; ins = ins_zero D.zero } in
       let prev_etm = Uninst (Neu { head; args; alignment = Chaotic str }, Lazy.from_val ty) in
-      check_field status eta ctx ty fld fields prev_etm tms etms ctms
-  | fld :: fields, Kinetic -> check_field status eta ctx ty fld fields str tms etms ctms
+      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
+  | fld :: fields, Kinetic -> check_field status eta ctx ty dim fld fields str tms etms ctms
 
 and check_field :
-    type a b s.
+    type a b s n.
     (b, s) status ->
     s eta ->
     (a, b) Ctx.t ->
     kinetic value ->
+    n D.t ->
     Field.t ->
     Field.t list ->
     kinetic value ->
@@ -736,7 +742,7 @@ and check_field :
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
- fun status eta ctx ty fld fields prev_etm tms etms ctms ->
+ fun status eta ctx ty dim fld fields prev_etm tms etms ctms ->
   (* Once again we need a helper function with a declared polymorphic type in order to munge the status.  *)
   let mkstatus :
       type b s.
@@ -752,7 +758,7 @@ and check_field :
         Potential
           ( c,
             Snoc (args, App (Field fld, ins_zero D.zero)),
-            fun tm -> hyp (Term.Struct (eta, Snoc (ctms, (fld, (tm, lbl))))) ) in
+            fun tm -> hyp (Term.Struct (eta, dim, Snoc (ctms, (fld, (tm, lbl))))) ) in
   let ety = tyof_field prev_etm ty fld in
   match Abwd.find_opt (Some fld) tms with
   | Some tm ->
@@ -760,7 +766,7 @@ and check_field :
       let ctm = check field_status ctx tm ety in
       let etms = Abwd.add fld (lazy (Ctx.eval ctx ctm), `Labeled) etms in
       let ctms = Snoc (ctms, (fld, (ctm, `Labeled))) in
-      check_fields status eta ctx ty fields tms etms ctms
+      check_fields status eta ctx ty dim fields tms etms ctms
   | None -> (
       let field_status = mkstatus status eta ctms `Unlabeled in
       match Abwd.find_opt_and_update_key None (Some fld) tms with
@@ -768,7 +774,7 @@ and check_field :
           let ctm = check field_status ctx tm ety in
           let etms = Abwd.add fld (lazy (Ctx.eval ctx ctm), `Unlabeled) etms in
           let ctms = Snoc (ctms, (fld, (ctm, `Unlabeled))) in
-          check_fields status eta ctx ty fields tms etms ctms
+          check_fields status eta ctx ty dim fields tms etms ctms
       | None -> fatal (Missing_field_in_tuple fld))
 
 and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kinetic value =

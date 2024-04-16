@@ -40,7 +40,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
             match Lazy.force fldtm with
             | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
           tmflds in
-      Act (Struct (Eta, fields), perm_of_ins tmins)
+      Act (Struct (Eta, cod_left_ins tmins, fields), perm_of_ins tmins)
   | ( Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ },
       Constr (xconstr, xn, xargs) ) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =

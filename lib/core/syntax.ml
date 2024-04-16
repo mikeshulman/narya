@@ -136,7 +136,9 @@ module rec Term : sig
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
         -> ('a, kinetic) term
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
-    | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
+    | Struct :
+        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
+        -> ('a, 's) term
     | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
     | Realize : ('a, kinetic) term -> ('a, potential) term
     | Canonical : 'a canonical -> ('a, potential) term
@@ -193,10 +195,12 @@ end = struct
     | Let :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
         -> ('a, kinetic) term
-    (* Abstractions and structs can appear in any kind of term. *)
+    (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
-    | Struct : 's eta * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t -> ('a, 's) term
-    (* Matches can only appear in non-kinetic terms. *)
+    | Struct :
+        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
+        -> ('a, 's) term
+    (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
     | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
     (* A potential term is "realized" by kinetic terms, or canonical types, at its leaves. *)
     | Realize : ('a, kinetic) term -> ('a, potential) term
@@ -438,7 +442,7 @@ end = struct
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t Bwd.t -> kinetic value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * ('k, 's) binder -> 's value
-    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application.  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
+    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
     | Struct :
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
         -> 's value

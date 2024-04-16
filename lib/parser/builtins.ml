@@ -620,8 +620,6 @@ let () =
    Comatches
    ******************** *)
 
-(* The notations for matches and comatches are very similar.  The differences are (1) comatches label each branch by a field, while matches label it by a constructor applied to pattern variables, and (2) matches can begin with a variable to match against (if not, it is a matching lambda).  This means in particular that a comatch and a matching lambda with no branches are both denoted "[]".  This is okay because both are checking, not synthesizing, so the ambiguity is resolved by whether we are checking against a function or a codatatype.  But it means we have to be careful parsing them to avoid collisions.  We define the basic notation trees for both of them to exclude the empty case, and then give a separate notation for the empty one that parses into Empty_co_match that's disambiguated later.  *)
-
 let comatch = make "comatch" Outfix
 
 let rec comatch_fields () =
@@ -682,34 +680,36 @@ let () =
 
 let mtch = make "match" Outfix
 
-let rec mtch_branches bar_ok end_ok =
+let rec mtch_branches notn bar_ok end_ok =
   Inner
     {
       empty_branch with
       ops =
         TokMap.of_list
-          ((if end_ok then [ ((RBracket : Token.t), Done_closed mtch) ] else [])
-          @ if bar_ok then [ (Op "|", mtch_branches false false) ] else []);
+          ((if end_ok then [ ((RBracket : Token.t), Done_closed notn) ] else [])
+          @ if bar_ok then [ (Op "|", mtch_branches notn false false) ] else []);
       term =
         Some
           (TokMap.singleton Mapsto
              (terms
-                [ (Op "|", Lazy (lazy (mtch_branches false false))); (RBracket, Done_closed mtch) ]));
+                [
+                  (Op "|", Lazy (lazy (mtch_branches notn false false)));
+                  (RBracket, Done_closed notn);
+                ]));
     }
 
 let () =
   set_tree mtch
     (Closed_entry
-       (eops
-          [
-            (LBracket, mtch_branches true false);
-            ( Match,
-              Inner
-                {
-                  empty_branch with
-                  term = Some (TokMap.singleton LBracket (mtch_branches true true));
-                } );
-          ]))
+       (eop Match
+          (Inner
+             {
+               empty_branch with
+               term = Some (TokMap.singleton LBracket (mtch_branches mtch true true));
+             })))
+
+let mtchlam = make "matchlam" Outfix
+let () = set_tree mtchlam (Closed_entry (eop LBracket (mtch_branches mtchlam true false)))
 
 let rec get_pattern :
     type n lt1 ls1 rt1 rs1.
@@ -732,7 +732,7 @@ let rec process_branches : type n. n Varscope.t -> observation list -> n Raw.bra
       let c, vars = get_pattern pat [] in
       let (Bappend_plus (ab, xs, ectx)) = Varscope.bappend_plus ctx vars in
       Branch (c, xs, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
-  | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
+  | _ -> fatal (Anomaly "invalid notation arguments for (co)match 1")
 
 let () =
   set_processor mtch
@@ -740,7 +740,7 @@ let () =
       process =
         (fun ctx obs loc _ ->
           match obs with
-          (* If the first thing is a valid local variable or cube variable, then it's the match variable. *)
+          (* The first thing must be a valid local variable or cube variable to match against. *)
           | Term { value = Ident ([ ident ], _); _ } :: obs -> (
               match Varscope.find ident ctx with
               | `None -> fatal (Unbound_variable ident)
@@ -751,17 +751,24 @@ let () =
               | `Var x, Some fa -> { value = Match ((x, Some fa), process_branches ctx obs); loc }
               | `None, _ -> fatal (Unbound_variable ident)
               | _ -> fatal Parse_error)
-          (* Otherwise, it's a matching lambda. *)
-          | _ ->
-              let branches = process_branches (Varscope.ext ctx None) obs in
-              {
-                value =
-                  Lam
-                    ( { value = None; loc = None },
-                      `Normal,
-                      { value = Match ((Top, None), branches); loc } );
-                loc;
-              });
+          | Term { loc; _ } :: _ -> fatal ?loc Parse_error
+          | [] -> fatal Parse_error);
+    }
+
+let () =
+  set_processor mtchlam
+    {
+      process =
+        (fun ctx obs loc _ ->
+          let branches = process_branches (Varscope.ext ctx None) obs in
+          {
+            value =
+              Lam
+                ( { value = None; loc = None },
+                  `Normal,
+                  { value = Match ((Top, None), branches); loc } );
+            loc;
+          });
     }
 
 let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist -> Whitespace.t list
@@ -807,7 +814,7 @@ let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist 
       let wsrbrack, ws = take RBracket ws in
       taken_last ws;
       wsrbrack
-  | _ -> fatal (Anomaly "invalid notation arguments for (co)match")
+  | _ -> fatal (Anomaly "invalid notation arguments for (co)match 2")
 
 and pp_match box space ppf obs ws =
   let style = style () in
@@ -847,6 +854,7 @@ and pp_match box space ppf obs ws =
 (* Matches and comatches are only valid in case trees. *)
 let () =
   set_print_as_case mtch (pp_match true);
+  set_print_as_case mtchlam (pp_match true);
   set_print_as_case comatch (pp_match true);
   set_print_as_case empty_co_match (pp_match true)
 
@@ -1398,6 +1406,7 @@ let builtins =
     |> State.add coloneq
     |> State.add comatch
     |> State.add mtch
+    |> State.add mtchlam
     |> State.add empty_co_match
     |> State.add codata
     |> State.add record

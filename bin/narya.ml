@@ -20,6 +20,18 @@ let input_strings = ref Emp
 let use_stdin = ref false
 let interactive = ref false
 let proofgeneral = ref false
+let arity = ref 2
+let refl_char = ref 'e'
+let refl_strings = ref [ "refl"; "Id" ]
+
+let set_refls str =
+  match String.split_on_char ',' str with
+  | [] -> raise (Failure "Empty direction names")
+  | c :: _ when String.length c <> 1 || c.[0] < 'a' || c.[0] > 'z' ->
+      raise (Failure "Direction name must be a single lowercase letter")
+  | c :: names ->
+      refl_char := c.[0];
+      refl_strings := names
 
 let speclist =
   [
@@ -38,6 +50,17 @@ let speclist =
     ("-compact", Arg.Set compact, "Reformat code compactly");
     ("-unicode", Arg.Set unicode, "Reformat code using Unicode for built-ins (default)");
     ("-ascii", Arg.Clear unicode, "Reformat code using ASCII for built-ins");
+    ("-arity", Arg.Set_int arity, "Arity of parametricity (default = 2)");
+    ( "-direction",
+      Arg.String set_refls,
+      "Names for parametricity direction and reflexivity (default = e,refl,Id)" );
+    ( "-dtt",
+      Unit
+        (fun () ->
+          arity := 1;
+          refl_char := 'd';
+          refl_strings := []),
+      "Abbreviation for -arity 1 -direction d" );
     ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Set use_stdin, "");
   ]
@@ -151,7 +174,9 @@ let rec interact_pg () =
   with End_of_file -> ()
 
 let () =
-  Dim.Endpoints.set_len 2;
+  Dim.Endpoints.set_len !arity;
+  Dim.Endpoints.set_char !refl_char;
+  Dim.Endpoints.set_names !refl_strings;
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->

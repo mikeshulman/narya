@@ -422,7 +422,7 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
       | Neq ->
           fatal ?severity (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
       | Eq -> (
-          (* The type of the field projection comes from the type associated to that field name in general, evaluated at the supplied parameters along with the term itself and its boundaries. *)
+          (* The type of the field projection comes from the type associated to that field name in general, evaluated at the stored environment extended by the term itself and its boundaries. *)
           let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
           let entries =
             CubeOf.build n

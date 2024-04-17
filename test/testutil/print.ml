@@ -4,6 +4,7 @@ open Print
 open Core
 open Parse
 
+let () = Dim.Endpoints.set_len 2
 let margin = ref 80
 let set_margin n = margin := n
 

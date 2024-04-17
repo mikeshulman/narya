@@ -151,6 +151,7 @@ let rec interact_pg () =
   with End_of_file -> ()
 
 let () =
+  Dim.Endpoints.set_len 2;
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->

@@ -10,7 +10,7 @@ let id_face : type n. n D.t -> (n, n) face = fun n -> Face (id_sface n, id_perm 
 (* Faces are closed under composition, by way of a distributive law between permutations and strict faces.  To define this we need a similar sort of "residual" of a strict face and an index, which picks out the image of that index and the strict face with that index and its image (if any) removed. *)
 
 type (_, _) sface_residual =
-  | End : ('m, 'n) sface * Endpoints.t -> ('m, 'n D.suc) sface_residual
+  | End : ('m, 'n) sface * 'l Endpoints.t -> ('m, 'n D.suc) sface_residual
   | Mid : ('m, 'n) sface * 'm D.suc D.index -> ('m D.suc, 'n D.suc) sface_residual
 
 let rec sface_residual : type m n. (m, n) sface -> n D.index -> (m, n) sface_residual =

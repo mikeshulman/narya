@@ -20,7 +20,7 @@ val vis :
   ('a, 'b) t ->
   'm D.t ->
   ('m, 'n, 'mn) D.plus ->
-  ('n, 'f) count_faces ->
+  ('l, 'n, 'f) count_faces ->
   ('a, 'f, 'af) N.plus ->
   ('n, string option) CubeOf.t ->
   ('mn, Binding.t) CubeOf.t ->

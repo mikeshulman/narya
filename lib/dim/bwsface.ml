@@ -4,7 +4,7 @@ open Sface
 
 type (_, _) bwsface =
   | Zero : (D.zero, D.zero) bwsface
-  | End : Endpoints.t * ('m, 'n) bwsface -> ('m, 'n D.suc) bwsface
+  | End : 'l Endpoints.t * ('m, 'n) bwsface -> ('m, 'n D.suc) bwsface
   | Mid : ('m, 'n) bwsface -> ('m D.suc, 'n D.suc) bwsface
 
 let rec dom_bwsface : type m n. (m, n) bwsface -> m D.t = function

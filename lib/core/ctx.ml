@@ -72,7 +72,7 @@ type (_, _) entry =
   | Vis :
       'm D.t
       * ('m, 'n, 'mn) D.plus
-      * ('n, 'f) count_faces
+      * ('l, 'n, 'f) count_faces
       * ('n, string option) CubeOf.t
       * ('mn, Binding.t) CubeOf.t
       -> ('f, 'mn) entry
@@ -97,11 +97,11 @@ module Ordered = struct
     | Snoc : ('a, 'b) t * ('x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) snoc) t
 
   let vis :
-      type a b f af m n mn.
+      type a b f af m n mn l.
       (a, b) t ->
       m D.t ->
       (m, n, mn) D.plus ->
-      (n, f) count_faces ->
+      (l, n, f) count_faces ->
       (a, f, af) N.plus ->
       (n, string option) CubeOf.t ->
       (mn, Binding.t) CubeOf.t ->
@@ -112,7 +112,8 @@ module Ordered = struct
       type a b n. (a, b) t -> string option -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
    fun ctx x vars ->
     let m = CubeOf.dim vars in
-    vis ctx m (D.plus_zero m) faces_zero (Suc Zero) (CubeOf.singleton x) vars
+    let (Wrap l) = Endpoints.wrapped () in
+    vis ctx m (D.plus_zero m) (faces_zero l) (Suc Zero) (CubeOf.singleton x) vars
 
   let invis : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (a, (b, n) snoc) t =
    fun ctx vars -> Snoc (ctx, Invis vars, Zero)
@@ -532,7 +533,8 @@ let vis (Permute (p, ctx)) m mn faces af xs vars =
 
 let cube_vis ctx x vars =
   let m = CubeOf.dim vars in
-  vis ctx m (D.plus_zero m) faces_zero (Suc Zero) (CubeOf.singleton x) vars
+  let (Wrap l) = Endpoints.wrapped () in
+  vis ctx m (D.plus_zero m) (faces_zero l) (Suc Zero) (CubeOf.singleton x) vars
 
 let invis (Permute (p, ctx)) vars = Permute (p, Ordered.invis ctx vars)
 let raw_length (Permute (p, ctx)) = N.perm_dom (Ordered.raw_length ctx) p

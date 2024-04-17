@@ -5,7 +5,7 @@ open Sface
 
 type (_, _, _, _) tface =
   | End :
-      ('m, 'nk) sface * ('n, 'k, 'nk) D.plus * Endpoints.t
+      ('m, 'nk) sface * ('n, 'k, 'nk) D.plus * 'l Endpoints.t
       -> ('m, 'n, 'k D.suc, 'nk D.suc) tface
   | Mid : ('m, 'n, 'k, 'nk) tface -> ('m D.suc, 'n, 'k D.suc, 'nk D.suc) tface
 
@@ -40,8 +40,8 @@ let rec codr_tface : type m n k nk. (m, n, k, nk) tface -> k D.t = function
 let cod_tface : type m n k nk. (m, n, k, nk) tface -> nk D.t =
  fun d -> D.plus_out (codl_tface d) (cod_plus_of_tface d)
 
-let tface_end : type m n k nk. (m, n, k, nk) tface -> Endpoints.t -> (m, n, k D.suc, nk D.suc) tface
-    =
+let tface_end :
+    type l m n k nk. (m, n, k, nk) tface -> l Endpoints.t -> (m, n, k D.suc, nk D.suc) tface =
  fun d e -> End (sface_of_tface d, cod_plus_of_tface d, e)
 
 let rec tface_plus :

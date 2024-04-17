@@ -17,7 +17,7 @@ module Cube (F : Fam) = struct
   type (_, _, _) gt =
     | Leaf : ('n, 'b) F.t -> (D.zero, 'n, 'b) gt
     | Branch :
-        (('m, 'n, 'b) gt, Endpoints.len) Bwv.t * ('m, 'n D.suc, 'b) gt
+        'l Endpoints.len * (('m, 'n, 'b) gt, 'l) Bwv.t * ('m, 'n D.suc, 'b) gt
         -> ('m D.suc, 'n D.suc, 'b) gt
 
   (* Now a cube of dimension 'n with parameter 'b is obtained by coinciding the labeling dimension and the height. *)
@@ -28,7 +28,7 @@ module Cube (F : Fam) = struct
   (* For instance, we can compute the dimension of a cube. *)
   let rec gdim : type m n b. (m, n, b) gt -> m D.t = function
     | Leaf _ -> D.zero
-    | Branch (_, br) -> D.suc (gdim br)
+    | Branch (_, _, br) -> D.suc (gdim br)
 
   let dim : type n b. (n, b) t -> n D.t = fun tr -> gdim tr
 
@@ -47,12 +47,13 @@ module Cube (F : Fam) = struct
         let Zero = km in
         let Zero = nm in
         x
-    | Branch (br, _), End (d, e) ->
+    | Branch (l1, br, _), End (d, (l2, e)) ->
         let (Le km') = plus_of_sface d in
         let Eq = D.minus_uniq' (dom_sface d) (Suc km') km in
         let (Suc nm') = nm in
+        let Eq = Endpoints.uniq l1 l2 in
         gfind (Bwv.nth e br) km' nm' d
-    | Branch (_, br), Mid d ->
+    | Branch (_, _, br), Mid d ->
         let (Suc km) = N.plus_suc km in
         gfind br km nm d
 
@@ -63,7 +64,7 @@ module Cube (F : Fam) = struct
 
   let rec gfind_top : type k n b. (k, n, b) gt -> (n, b) F.t = function
     | Leaf x -> x
-    | Branch (_, br) -> gfind_top br
+    | Branch (_, _, br) -> gfind_top br
 
   let find_top : type n b. (n, b) t -> (n, b) F.t = fun tr -> gfind_top tr
 
@@ -120,19 +121,24 @@ module Cube (F : Fam) = struct
       | Leaf x :: xs -> x :: lab xs
 
     type (_, _, _) ends =
-      | Ends : ('m, 'n, 'bs, 'hs) hgts * ('hs, Endpoints.len) Bwv.Heter.ht -> ('m, 'n, 'bs) ends
+      | Ends :
+          'l Endpoints.len * ('m, 'n, 'bs, 'hs) hgts * ('hs, 'l) Bwv.Heter.ht
+          -> ('m, 'n, 'bs) ends
 
     let rec ends : type m n bs. (m D.suc, n D.suc, bs) hgt -> (m, n, bs) ends =
      fun xss ->
       match xss with
-      | [] -> Ends (Nil, [])
-      | Branch (es, _) :: xs ->
-          let (Ends (hs, ess)) = ends xs in
-          Ends (Cons hs, es :: ess)
+      | [] ->
+          let (Wrap l) = Endpoints.wrapped () in
+          Ends (l, Nil, [])
+      | Branch (l1, es, _) :: xs ->
+          let (Ends (l2, hs, ess)) = ends xs in
+          let Eq = Endpoints.uniq l1 l2 in
+          Ends (l2, Cons hs, es :: ess)
 
     let rec mid : type m n bs. (m D.suc, n D.suc, bs) hgt -> (m, n D.suc, bs) hgt = function
       | [] -> []
-      | Branch (_, m) :: xs -> m :: mid xs
+      | Branch (_, _, m) :: xs -> m :: mid xs
 
     (* Construct an hlist of gt's as leaves or branches.  *)
     let rec leaf : type n bs. (n, bs) hft -> (D.zero, n, bs) hgt = function
@@ -140,15 +146,16 @@ module Cube (F : Fam) = struct
       | x :: xs -> Leaf x :: leaf xs
 
     let rec branch :
-        type m n bs hs.
+        type l m n bs hs.
+        l Endpoints.len ->
         (m, n, bs, hs) hgts ->
-        (hs, Endpoints.len) Bwv.Heter.ht ->
+        (hs, l) Bwv.Heter.ht ->
         (m, n D.suc, bs) hgt ->
         (m D.suc, n D.suc, bs) hgt =
-     fun hs endss mids ->
+     fun l hs endss mids ->
       match (hs, endss, mids) with
       | Nil, [], [] -> []
-      | Cons hs, ends :: endss, mid :: mids -> Branch (ends, mid) :: branch hs endss mids
+      | Cons hs, ends :: endss, mid :: mids -> Branch (l, ends, mid) :: branch l hs endss mids
   end
 
   (* OCaml can't always tell from context what [x ; xs] should be; in particular it often fails to notice hfts.  So we also give a different syntax that is unambiguous.  *)
@@ -186,9 +193,9 @@ module Cube (F : Fam) = struct
           let Zero, Zero = (km, lm) in
           let* x = g.map (sface_of_bw d) (Heter.lab trs) in
           return (Heter.leaf x)
-      | Branch (_, _) :: _ ->
+      | Branch (_, _, _) :: _ ->
           let (Suc km') = km in
-          let (Ends (hs, ends)) = Heter.ends trs in
+          let (Ends (l, hs, ends)) = Heter.ends trs in
           let mid = Heter.mid trs in
           let (Hgts newhs) = Heter.hgts_of_tlist cst in
           let* newends =
@@ -197,9 +204,9 @@ module Cube (F : Fam) = struct
                 let* xs =
                   gpmapM km' (D.suc_plus lm) (End (e, d)) g (Heter.hgt_of_hlist hs brs) cst in
                 return (Heter.hlist_of_hgt newhs xs))
-              (Endpoints.indices :: ends) (Heter.tlist_hgts newhs cst) in
+              (Endpoints.indices l :: ends) (Heter.tlist_hgts newhs cst) in
           let* newmid = gpmapM (D.suc_plus km) (D.suc_plus lm) (Mid d) g mid cst in
-          return (Heter.branch newhs newends newmid)
+          return (Heter.branch l newhs newends newmid)
 
     (* And the actual one for a t, which we can henceforth restrict our attention to. *)
     let pmapM :
@@ -270,12 +277,13 @@ module Cube (F : Fam) = struct
           return (Leaf x)
       | Nat (Suc m) ->
           let (Suc mk') = D.plus_suc mk in
+          let (Wrap l) = Endpoints.wrapped () in
           let* ends =
             BwvM.mapM
               (fun e -> gbuildM (Nat m) mk' (D.plus_suc ml) (End (e, d)) g)
-              Endpoints.indices in
+              (Endpoints.indices l) in
           let* mid = gbuildM (Nat m) (D.plus_suc mk) (D.plus_suc ml) (Mid d) g in
-          return (Branch (ends, mid))
+          return (Branch (l, ends, mid))
 
     let buildM : type n b. n D.t -> (n, b) builderM -> (n, b) t M.t =
      fun n g -> gbuildM n (D.plus_zero n) (D.plus_zero n) Zero g
@@ -335,9 +343,9 @@ module CubeOf = struct
    fun n12 tr ->
     match tr with
     | Leaf x -> Leaf x
-    | Branch (ends, mid) ->
+    | Branch (l, ends, mid) ->
         let (Suc n12') = N.plus_suc n12 in
-        Branch (Bwv.map (fun t -> lift n12' t) ends, lift n12 mid)
+        Branch (l, Bwv.map (fun t -> lift n12' t) ends, lift n12 mid)
 
   let rec lower :
       type m k n1 n2 n12 b.
@@ -346,51 +354,57 @@ module CubeOf = struct
     match (tr, n12) with
     | Leaf x, _ -> Leaf x
     | _, Zero -> tr
-    | Branch (ends, mid), Suc n12' ->
+    | Branch (l, ends, mid), Suc n12' ->
         let mk' = N.plus_suc mk in
         let (Suc mk'') = mk' in
-        Branch (Bwv.map (fun t -> lower mk'' (N.plus_suc n12') t) ends, lower mk' n12 mid)
+        Branch (l, Bwv.map (fun t -> lower mk'' (N.plus_suc n12') t) ends, lower mk' n12 mid)
 
   (* We can also extract the elements of a cube and append them to a Bwv. *)
 
   let rec gflatten_append :
-      type k m km n b l len f lenf.
+      type k m km n b l len f lenf el.
       (k, m, km) D.plus ->
       (l, m, n) D.plus ->
       (k, l) bwsface ->
       (b, len) Bwv.t ->
       (m, km, b) gt ->
-      (m, f) count_faces ->
+      (el, m, f) count_faces ->
       (len, f, lenf) N.plus ->
       (b, lenf) Bwv.t =
    fun km lm d acc tr mf lenf ->
     match tr with
     | Leaf x ->
         let Zero, Zero = (km, lm) in
-        let Eq = faces_uniq faces_zero mf in
+        let Eq = faces_uniq (faces_zero (fst mf)) mf in
         let (Suc Zero) = lenf in
         Snoc (acc, x)
-    | Branch (ends, mid) ->
+    | Branch (l, ends, mid) ->
+        let Eq = Endpoints.uniq (fst mf) l in
         let (Suc km') = km in
-        let (Suc (mf', Suc (ft, pq))) = mf in
+        let _, Suc (mf', Suc (ft, pq)) = mf in
         let (Plus lenf') = N.plus (N.times_out ft) in
         let lenff = N.plus_assocl lenf' pq lenf in
         let acc =
-          Bwv.fold_left2_bind_append ft lenf' acc Endpoints.indices ends
+          Bwv.fold_left2_bind_append ft lenf' acc (Endpoints.indices l) ends
             {
               append =
-                (fun pq cx e br -> gflatten_append km' (D.suc_plus lm) (End (e, d)) cx br mf' pq);
+                (fun pq cx e br ->
+                  gflatten_append km' (D.suc_plus lm) (End (e, d)) cx br (l, mf') pq);
             } in
-        gflatten_append (D.suc_plus km) (D.suc_plus lm) (Mid d) acc mid mf' lenff
+        gflatten_append (D.suc_plus km) (D.suc_plus lm) (Mid d) acc mid (l, mf') lenff
 
   let flatten_append :
-      type n b len f lenf.
-      (b, len) Bwv.t -> (n, b) t -> (n, f) count_faces -> (len, f, lenf) N.plus -> (b, lenf) Bwv.t =
+      type n b len f lenf el.
+      (b, len) Bwv.t ->
+      (n, b) t ->
+      (el, n, f) count_faces ->
+      (len, f, lenf) N.plus ->
+      (b, lenf) Bwv.t =
    fun acc tr mf lenf ->
     let n = dim tr in
     gflatten_append (D.zero_plus n) (D.zero_plus n) Zero acc tr mf lenf
 
-  let flatten : type n b f. (n, b) t -> (n, f) count_faces -> (b, f) Bwv.t =
+  let flatten : type n b f el. (n, b) t -> (el, n, f) count_faces -> (b, f) Bwv.t =
    fun tr mf ->
     let n = dim tr in
     gflatten_append (D.zero_plus n) (D.zero_plus n) Zero Emp tr mf (N.zero_plus (faces_out mf))

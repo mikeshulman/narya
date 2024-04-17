@@ -675,7 +675,8 @@ f
 [ | .fst ↦ [ | .foo ↦ bar | .baz ↦ qux ] 
   | .snd ↦ [ | .poo ↦ [ | .bah ↦ bum ] ] ]
 
-[ | fst. ↦ [ | foo. ↦ bar | baz. ↦ qux ] 
+[ | fst. ↦ [ | foo. ↦ bar 
+             | baz. ↦ qux ] 
   | snd. ↦ [ | poo. ↦ [ | bah. ↦ bum ] ] ]
 
 match x [ 
@@ -727,11 +728,11 @@ match x [
     | .flub ↦
       zoo zo zoo zo zzo zo ] ]
 
-[ | con. a b ↦ [ 
-    | foo. x ↦ ba ba ba 
-    | bar. y z ↦ y ] 
-  | str. u v ↦ [ 
-    | baz. ↦ bluh bluh ] ]
+[ | con. a b ↦
+    [ | foo. x ↦ ba ba ba 
+      | bar. y z ↦ y ] 
+  | str. u v ↦
+    [ | baz. ↦ bluh bluh ] ]
 
 (match x [ 
    | poo. ↦ bah ])

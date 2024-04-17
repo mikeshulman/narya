@@ -4,6 +4,16 @@ open Tlist
 open Monoid
 module D : MonoidPos
 
+module Endpoints : sig
+  type 'l len
+  type wrapped = Wrap : 'l len -> wrapped
+
+  val set_len : int -> unit
+  val set_char : char -> unit
+  val set_names : string list -> unit
+  val wrapped : unit -> wrapped
+end
+
 val to_int : 'a D.t -> int
 val compare : 'm D.t -> 'n D.t -> ('m, 'n) compare
 
@@ -108,28 +118,22 @@ type (_, _, _) sface_of_plus =
 
 val sface_of_plus : ('n, 'k, 'nk) D.plus -> ('ml, 'nk) sface -> ('ml, 'n, 'k) sface_of_plus
 
-type ('n, 'f) count_faces
-type _ has_faces = Faces : ('n, 'f) count_faces -> 'n has_faces
+type ('l, 'n, 'f) count_faces
+type _ has_faces = Faces : ('l, 'n, 'f) count_faces -> 'n has_faces
 
 val count_faces : 'n D.t -> 'n has_faces
-val faces_zero : (D.zero, N.one) count_faces
-val dim_faces : ('n, 'f) count_faces -> 'n D.t
-val faces_pos : ('n, 'f) count_faces -> 'f N.pos
-val faces_out : ('n, 'f) count_faces -> 'f N.t
-val faces_uniq : ('n, 'f1) count_faces -> ('n, 'f2) count_faces -> ('f1, 'f2) Monoid.eq
-val sfaces : ('n, 'f) count_faces -> ('n sface_of, 'f) Bwv.t
+val faces_zero : 'l Endpoints.len -> ('l, D.zero, N.one) count_faces
+val dim_faces : ('l, 'n, 'f) count_faces -> 'n D.t
+val faces_out : ('l, 'n, 'f) count_faces -> 'f N.t
+val faces_uniq : ('l, 'n, 'f1) count_faces -> ('l, 'n, 'f2) count_faces -> ('f1, 'f2) Monoid.eq
+val sfaces : ('l, 'n, 'f) count_faces -> ('n sface_of, 'f) Bwv.t
 (* val sface_int : ('n, 'f) count_faces -> 'n sface_of -> int *)
-
-type _ dbl_sfaces_of =
-  | DblOf : ('m, 'f) count_faces * ('m sface_of, 'f) Bwv.t * ('m, 'n) sface -> 'n dbl_sfaces_of
-
-val dbl_sfaces : ('n, 'f) count_faces -> ('n dbl_sfaces_of, 'f) Bwv.t
 
 val sfaces_plus :
   ('m, 'n, 'mn) D.plus ->
-  ('m, 'fm) count_faces ->
-  ('n, 'fn) count_faces ->
-  ('mn, 'fmn) count_faces ->
+  ('l, 'm, 'fm) count_faces ->
+  ('l, 'n, 'fn) count_faces ->
+  ('l, 'mn, 'fmn) count_faces ->
   ('a -> 'b -> 'c) ->
   ('a, 'fm) Bwv.t ->
   ('b, 'fn) Bwv.t ->
@@ -228,11 +232,11 @@ module CubeOf : sig
   val flatten_append :
     ('b, 'len) Bwv.t ->
     ('n, 'b) t ->
-    ('n, 'f) count_faces ->
+    ('l, 'n, 'f) count_faces ->
     ('len, 'f, 'lenf) N.plus ->
     ('b, 'lenf) Bwv.t
 
-  val flatten : ('n, 'b) t -> ('n, 'f) count_faces -> ('b, 'f) Bwv.t
+  val flatten : ('n, 'b) t -> ('l, 'n, 'f) count_faces -> ('b, 'f) Bwv.t
   val append_bwd : 'a Bwd.t -> ('n, 'a) t -> 'a Bwd.t
 end
 

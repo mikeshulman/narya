@@ -223,6 +223,15 @@ let iter : type a n. (a -> unit) -> (a, n) t -> unit = fun f xs -> miter (fun [ 
 let iter2 : type a b n. (a -> b -> unit) -> (a, n) t -> (b, n) t -> unit =
  fun f xs ys -> miter (fun [ x; y ] -> f x y) [ xs; ys ]
 
+(* Generating *)
+
+(* List all the De Bruijn indices for a given nat. *)
+let rec all_indices : type n. n N.t -> (n N.index, n) t = function
+  | Nat Zero -> Emp
+  | Nat (Suc n) ->
+      let xs = all_indices (Nat n) in
+      Snoc (map (fun i -> N.Pop i) xs, Top)
+
 (* Searching *)
 
 (* Find an element in one Bwv satisfying a predicate, if one exists, and return a function of the element and length of the remaining vector at the same (backwards) index of another, possibly longer, Bwv. *)

@@ -1,8 +1,6 @@
 open Util
 open Arith
 
-let refl_string = String.make 1 Endpoints.refl_char
-
 (* ********** Degeneracies ********** *)
 
 (* Degeneracies are defined inductively by insertion: a degeneracy of 0 is given by adding any dimension, and a degeneracy of n+1 is one of length n together with a location at which to insert the n+1st (rightmost) element. *)
@@ -260,7 +258,7 @@ let is_id_any_deg : any_deg -> unit option = function
 (* ******************** Printing and parsing ******************** *)
 
 let rec strings_of_deg : type a b. (a, b) deg -> (string, a) Bwv.t = function
-  | Zero a -> Bwv.init a (fun _ -> refl_string)
+  | Zero a -> Bwv.init a (fun _ -> Endpoints.refl_string ())
   | Suc (s, k) -> Bwv.insert k (string_of_int (D.to_int (cod_deg s) + 1)) (strings_of_deg s)
 
 let string_of_deg : type a b. (a, b) deg -> string =
@@ -273,7 +271,7 @@ let rec deg_of_strings :
     type n. ([ `Int of int | `Str of string ], n) Bwv.t -> int -> n deg_to option =
  fun xs i ->
   if i <= 0 then
-    if Bwv.fold_right (fun x b -> x = `Str refl_string && b) xs true then
+    if Bwv.fold_right (fun x b -> x = `Str (Endpoints.refl_string ()) && b) xs true then
       Some (To (Zero (Bwv.length xs)))
     else None
   else

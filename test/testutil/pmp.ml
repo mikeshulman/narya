@@ -5,6 +5,7 @@ open Value
 open Parser
 open Asai.Range
 
+let () = Dim.Endpoints.set_len 2
 let unlocated (value : 'a) : 'a located = { value; loc = None }
 
 (* Poor man's parser, reusing the OCaml parser to make a vaguely usable syntax *)

@@ -49,8 +49,8 @@ let speclist =
     ("-reformat", Arg.Set reformat, "Display reformatted code on stdout");
     ("-noncompact", Arg.Clear compact, "Reformat code noncompactly (default)");
     ("-compact", Arg.Set compact, "Reformat code compactly");
-    ("-unicode", Arg.Set unicode, "Reformat code using Unicode for built-ins (default)");
-    ("-ascii", Arg.Clear unicode, "Reformat code using ASCII for built-ins");
+    ("-unicode", Arg.Set unicode, "Display and reformat code using Unicode for built-ins (default)");
+    ("-ascii", Arg.Clear unicode, "Display and reformat code using ASCII for built-ins");
     ("-arity", Arg.Set_int arity, "Arity of parametricity (default = 2)");
     ( "-direction",
       Arg.String set_refls,

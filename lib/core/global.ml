@@ -2,6 +2,7 @@
 
 open Util
 open Tbwd
+open Reporter
 open Syntax
 open Term
 
@@ -12,23 +13,25 @@ type definition = Axiom | Defined of (emp, potential) term
 
 module ConstantMap = Map.Make (Constant)
 
-type data = { types : (emp, kinetic) term ConstantMap.t; definitions : definition ConstantMap.t }
+type data = { constants : ((emp, kinetic) term * definition) ConstantMap.t; locked : bool }
 
-let empty = { types = ConstantMap.empty; definitions = ConstantMap.empty }
+let empty = { constants = ConstantMap.empty; locked = false }
 
 module State = Algaeff.State.Make (struct
   type t = data
 end)
 
-let find_type_opt c = ConstantMap.find_opt c (State.get ()).types
-let find_definition_opt c = ConstantMap.find_opt c (State.get ()).definitions
+let find_type_opt c =
+  let d = State.get () in
+  match (ConstantMap.find_opt c d.constants, d.locked) with
+  | Some (_, Axiom), true -> fatal (Locked_axiom (PConstant c))
+  | Some (ty, _), _ -> Some ty
+  | None, _ -> None
 
-let add_to c ty df d =
-  { types = d.types |> ConstantMap.add c ty; definitions = d.definitions |> ConstantMap.add c df }
-
-let remove_from c d =
-  { types = d.types |> ConstantMap.remove c; definitions = d.definitions |> ConstantMap.remove c }
-
+let find_definition_opt c = Option.map snd (ConstantMap.find_opt c (State.get ()).constants)
+let locked () = (State.get ()).locked
+let add_to c ty df d = { d with constants = d.constants |> ConstantMap.add c (ty, df) }
+let remove_from c d = { d with constants = d.constants |> ConstantMap.remove c }
 let add c ty df = State.modify @@ add_to c ty df
 let remove c = State.modify @@ remove_from c
 let run_empty f = State.run ~init:empty f
@@ -39,4 +42,14 @@ let run_with c ty df f =
 
 let run_with_definition c df f =
   let d = State.get () in
-  State.run ~init:{ types = d.types; definitions = d.definitions |> ConstantMap.add c df } f
+  State.run
+    ~init:
+      {
+        d with
+        constants = d.constants |> ConstantMap.update c (Option.map (fun (ty, _) -> (ty, df)));
+      }
+    f
+
+let run_locked f =
+  let d = State.get () in
+  State.run ~init:{ d with locked = true } f

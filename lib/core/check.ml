@@ -806,7 +806,9 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
       let sfn, sty = synth ctx fn in
       synth_apps ctx { value = sfn; loc = fn.loc } sty locs args
   | Act (str, fa, x) ->
-      let sx, ety = synth (if locking fa then Ctx.lock ctx else ctx) x in
+      let sx, ety =
+        if locking fa then Global.run_locked (fun () -> synth (Ctx.lock ctx) x) else synth ctx x
+      in
       let ex = Ctx.eval_term ctx sx in
       ( Act (sx, fa),
         with_loc x.loc @@ fun () ->

@@ -157,3 +157,11 @@
      ^ variable locked behind external degeneracy
   
   [1]
+
+  $ narya -dtt -e "axiom A : Type" -e "echo A^(d)"
+   ￫ error[E0303]
+   ￭ command-line exec string
+   1 | echo A^(d)
+     ^ axiom A locked behind external degeneracy
+  
+  [1]

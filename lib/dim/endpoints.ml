@@ -13,12 +13,12 @@ module type Data_sig = sig
 end
 
 module Data_unset = struct
-  let wrapped : unit -> wrapped = fun _ -> raise (Failure "arity unset wrapped")
+  let wrapped : unit -> wrapped = fun _ -> raise (Failure "arity unset (wrapped)")
 
   let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Monoid.eq =
-   fun _ _ -> raise (Failure "arity unset uniq")
+   fun _ _ -> raise (Failure "arity unset (uniq)")
 
-  let len : type l. l len -> l N.t = fun _ -> raise (Failure "arity unset len")
+  let len : type l. l len -> l N.t = fun _ -> raise (Failure "arity unset (len)")
 end
 
 module type Nat = sig
@@ -108,3 +108,8 @@ let set_char c =
 let set_names strs = refl_names_data := strs
 let refl_string () = !refl_string_data
 let refl_names () = !refl_names_data
+
+(*  *)
+let internal_data : (unit -> bool) ref = ref (fun () -> raise (Failure "internality unset"))
+let internal () = !internal_data ()
+let set_internal i = internal_data := fun () -> i

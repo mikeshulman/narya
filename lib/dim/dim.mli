@@ -12,6 +12,8 @@ module Endpoints : sig
   val set_char : char -> unit
   val set_names : string list -> unit
   val wrapped : unit -> wrapped
+  val internal : unit -> bool
+  val set_internal : bool -> unit
 end
 
 val to_int : 'a D.t -> int
@@ -466,3 +468,6 @@ type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
 val suc_pos : 'n D.pos -> 'n is_suc
 val deg_of_name : string -> any_deg option
 val name_of_deg : ('a, 'b) deg -> string option
+
+(*  *)
+val locking : ('a, 'b) deg -> bool

@@ -17,7 +17,9 @@ open Raw
 open Parse
 open Asai.Range
 
-let () = Dim.Endpoints.set_len 2
+let () =
+  Dim.Endpoints.set_len 2;
+  Dim.Endpoints.set_internal true
 
 let parse_term (tm : string) : N.zero check located =
   let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in

@@ -17,3 +17,7 @@ val set_char : char -> unit
 val set_names : string list -> unit
 val refl_string : unit -> string
 val refl_names : unit -> string list
+
+(*  *)
+val internal : unit -> bool
+val set_internal : bool -> unit

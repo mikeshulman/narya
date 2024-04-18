@@ -4,7 +4,10 @@ open Print
 open Core
 open Parse
 
-let () = Dim.Endpoints.set_len 2
+let () =
+  Dim.Endpoints.set_len 2;
+  Dim.Endpoints.set_internal true
+
 let margin = ref 80
 let set_margin n = margin := n
 

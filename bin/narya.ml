@@ -177,6 +177,7 @@ let () =
   Dim.Endpoints.set_len !arity;
   Dim.Endpoints.set_char !refl_char;
   Dim.Endpoints.set_names !refl_strings;
+  Dim.Endpoints.set_internal true;
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->

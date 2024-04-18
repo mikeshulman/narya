@@ -1,7 +1,9 @@
 open Parser
 open Parse
 
-let () = Dim.Endpoints.set_len 2
+let () =
+  Dim.Endpoints.set_len 2;
+  Dim.Endpoints.set_internal true
 
 (* Translate a parse observation into something that shows the names of notations rather than their internal abstract representations, for easier inspection and testing.  Note that since we intercept the parse tree before the "compilation" step, there is no name resolution, so this doesn't need to be run inside a Yuujinchou handler and can use unbound variables. *)
 

@@ -310,3 +310,11 @@ let deg_of_string : string -> any_deg option =
     | None -> None
     | Some (To s) -> Some (Any s)
   with Failure _ -> None
+
+(* A degeneracy is "locking" if it has degenerate external directions. *)
+let rec locking : type a b. (a, b) deg -> bool = function
+  | Suc (s, _) -> locking s
+  | Zero x -> (
+      match compare x D.zero with
+      | Eq -> false
+      | Neq -> true && not (Endpoints.internal ()))

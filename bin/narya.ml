@@ -178,10 +178,6 @@ let rec interact_pg () =
   with End_of_file -> ()
 
 let () =
-  Dim.Endpoints.set_len !arity;
-  Dim.Endpoints.set_char !refl_char;
-  Dim.Endpoints.set_names !refl_strings;
-  Dim.Endpoints.set_internal !internal;
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
@@ -201,6 +197,11 @@ let () =
       Terminal.display ~output:stderr d;
       exit 1)
   @@ fun () ->
+  if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
+  Dim.Endpoints.set_len !arity;
+  Dim.Endpoints.set_char !refl_char;
+  Dim.Endpoints.set_names !refl_strings;
+  Dim.Endpoints.set_internal !internal;
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
   Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
   (if !use_stdin then

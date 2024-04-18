@@ -23,6 +23,7 @@ let proofgeneral = ref false
 let arity = ref 2
 let refl_char = ref 'e'
 let refl_strings = ref [ "refl"; "Id" ]
+let internal = ref true
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -54,13 +55,16 @@ let speclist =
     ( "-direction",
       Arg.String set_refls,
       "Names for parametricity direction and reflexivity (default = e,refl,Id)" );
+    ("-internal", Arg.Set internal, "Set parametricity to internal (default)");
+    ("-external", Arg.Clear internal, "Set parametricity to external");
     ( "-dtt",
       Unit
         (fun () ->
           arity := 1;
           refl_char := 'd';
-          refl_strings := []),
-      "Abbreviation for -arity 1 -direction d" );
+          refl_strings := [];
+          internal := false),
+      "Abbreviation for -arity 1 -direction d -external" );
     ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Set use_stdin, "");
   ]
@@ -177,7 +181,7 @@ let () =
   Dim.Endpoints.set_len !arity;
   Dim.Endpoints.set_char !refl_char;
   Dim.Endpoints.set_names !refl_strings;
-  Dim.Endpoints.set_internal true;
+  Dim.Endpoints.set_internal !internal;
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->

@@ -137,7 +137,7 @@
    ￫ info[I0000]
    ￮ Constant sst.copair defined
   
-  $ narya -arity 2 -direction p -v sct.ny
+  $ narya -arity 2 -direction p -external -v sct.ny
    ￫ info[I0000]
    ￮ Constant SCT defined
   
@@ -150,3 +150,10 @@
    ￫ info[I0000]
    ￮ Constant 2s defined
   
+  $ narya -dtt -e "def foo (X:Type) : Type^(d) X := X^(d)"
+   ￫ error[E0302]
+   ￭ command-line exec string
+   1 | def foo (X:Type) : Type^(d) X := X^(d)
+     ^ variable locked behind external degeneracy
+  
+  [1]

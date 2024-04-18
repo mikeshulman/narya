@@ -95,6 +95,8 @@ module Ordered = struct
   type (_, _) t =
     | Emp : (N.zero, emp) t
     | Snoc : ('a, 'b) t * ('x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) snoc) t
+    (* A locked context permits no access to the variables behind it. *)
+    | Lock : ('a, 'b) t -> ('a, 'b) t
 
   let vis :
       type a b f af m n mn l.
@@ -118,23 +120,29 @@ module Ordered = struct
   let invis : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (a, (b, n) snoc) t =
    fun ctx vars -> Snoc (ctx, Invis vars, Zero)
 
+  let lock : type a b. (a, b) t -> (a, b) t = fun ctx -> Lock ctx
+
   let rec checked_length : type a b. (a, b) t -> b Tbwd.t = function
     | Emp -> Emp
     | Snoc (ctx, _, _) -> Snoc (checked_length ctx)
+    | Lock ctx -> checked_length ctx
 
   let rec raw_length : type a b. (a, b) t -> a N.t = function
     | Emp -> N.zero
     | Snoc (ctx, _, ax) -> N.plus_out (raw_length ctx) ax
+    | Lock ctx -> raw_length ctx
 
   let rec length : type a b. (a, b) t -> int = function
     | Emp -> 0
     | Snoc (ctx, _, _) -> length ctx + 1
+    | Lock ctx -> length ctx
 
   let empty : (N.zero, emp) t = Emp
 
   let rec apps : type a b. (a, b) t -> app Bwd.t = function
     | Emp -> Emp
     | Snoc (ctx, e, _) -> Snoc (apps ctx, app_entry e)
+    | Lock ctx -> apps ctx
 
   (* When we look up a visible variable in a context, we find the level (if any), the value, and the corresponding possibly-invisible variable. *)
   let rec lookup : type a b n. (a, b) t -> a Raw.index -> level option * normal * b index =
@@ -147,6 +155,7 @@ module Ordered = struct
     | Snoc (ctx, Invis _, Zero) ->
         let j, x, v = lookup ctx k in
         (j, x, Pop v)
+    | Lock _ -> fatal Locked_variable
 
   and lookup_face :
       type a f af b m n mn.
@@ -188,6 +197,7 @@ module Ordered = struct
     | Emp -> None
     | Snoc (ctx, Vis (_, _, _, _, vars), _) -> find_level_in_cube ctx vars i
     | Snoc (ctx, Invis vars, Zero) -> find_level_in_cube ctx vars i
+    | Lock ctx -> find_level ctx i
 
   and find_level_in_cube :
       type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> level -> (b, n) snoc index option =
@@ -210,6 +220,7 @@ module Ordered = struct
     | Emp -> Emp D.zero
     | Snoc (ctx, Vis (_, _, _, _, v), _) -> env_entry ctx v
     | Snoc (ctx, Invis v, Zero) -> env_entry ctx v
+    | Lock ctx -> env ctx
 
   and env_entry : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (D.zero, (b, n) snoc) env =
    fun ctx v ->
@@ -243,6 +254,7 @@ module Ordered = struct
     | Snoc (ctx, Vis (m, mn, _, name, _), _) ->
         snd (Names.add (names ctx) (Variables (m, mn, name)))
     | Snoc (ctx, Invis xs, Zero) -> snd (Names.add_cube (CubeOf.dim xs) (names ctx) None)
+    | Lock ctx -> names ctx
 
   let lookup_name : type a b. (a, b) t -> b index -> string list =
    fun ctx x -> Names.lookup (names ctx) x
@@ -256,6 +268,7 @@ module Ordered = struct
     | Snoc (ctx, Invis vars, _) ->
         let n = CubeOf.dim vars in
         lam ctx (Lam (singleton_variables n None, tree))
+    | Lock ctx -> lam ctx tree
 
   (* Ordinary contexts are "backwards" lists.  Following Cockx's thesis, in this file we call the forwards version "telescopes", since they generally are going to get appended to a "real", backwards, context.  A telescope has *three* indices:
 
@@ -267,11 +280,13 @@ module Ordered = struct
     | Cons :
         ('x, 'n) entry * ('a, 'f, 'b) tel * ('x, 'a, 'xa) Fwn.fplus
         -> ('xa, ('x, 'f) cons, ('n, 'b) cons) tel
+    | Lock : ('i, 'f, 'a) tel -> ('i, 'f, 'a) tel
 
   (* The second index does in fact flatten to the first. *)
   let rec tel_flatten : type i f a. (i, f, a) tel -> (f, i) Tlist.flatten = function
     | Nil -> Flat_nil
     | Cons (_, tel, xa) -> Flat_cons (xa, tel_flatten tel)
+    | Lock tel -> tel_flatten tel
 
   (* Split a (backwards) context into a (backwards) context prefix and a (forwards) telescope suffix, given a way to split the checked indices.  Outputs a corresponding way to split the raw indices.  The opposite way wouldn't make as much sense, since if there were invisible variables at the split point it wouldn't specify which side to put them on. *)
   type (_, _, _) split_tel =
@@ -279,15 +294,25 @@ module Ordered = struct
         ('i, 'j, 'ij) Fwn.bplus * ('i, 'b) t * ('j, 'ff, 'c) tel
         -> ('ij, 'b, 'c) split_tel
 
+  let rec split_tel_step :
+      type i j ij i b j ff c x.
+      (i, j, ij) Fwn.bplus -> (i, (b, x) snoc) t -> (j, ff, c) tel -> (ij, b, (x, c) cons) split_tel
+      =
+   fun ij_k newctx newtel ->
+    match newctx with
+    | Snoc (newctx, x, ij) ->
+        let (Fplus jk) = Fwn.fplus (N.plus_right ij) in
+        let i_jk = Fwn.assocr ij jk ij_k in
+        Split_tel (i_jk, newctx, Cons (x, newtel, jk))
+    | Lock newctx -> split_tel_step ij_k newctx (Lock newtel)
+
   let rec split_tel : type ij b c bc. (ij, bc) t -> (b, c, bc) Tbwd.append -> (ij, b, c) split_tel =
    fun ctx b ->
     match b with
     | Append_nil -> Split_tel (Zero, ctx, Nil)
     | Append_cons b ->
-        let (Split_tel (ij_k, Snoc (newctx, x, ij), newtel)) = split_tel ctx b in
-        let (Fplus jk) = Fwn.fplus (N.plus_right ij) in
-        let i_jk = Fwn.assocr ij jk ij_k in
-        Split_tel (i_jk, newctx, Cons (x, newtel, jk))
+        let (Split_tel (ij_k, newctx, newtel)) = split_tel ctx b in
+        split_tel_step ij_k newctx newtel
 
   (* In particular, we can convert an entire context to a telescope.  (This is what we really care about, but to do it we had to strengthen the inductive hypothesis and define all of split_tel.) *)
   type (_, _) to_tel =
@@ -295,11 +320,18 @@ module Ordered = struct
         (N.zero, 'j, 'i) Fwn.bplus * (emp, 'c, 'b) Tbwd.append * ('j, 'ff, 'c) tel
         -> ('i, 'b) to_tel
 
+  let rec bplus_emp :
+      type i j ij ff c. (i, j, ij) Fwn.bplus -> (i, emp) t -> (N.zero, j, ij) Fwn.bplus =
+   fun ij ctx ->
+    match ctx with
+    | Emp -> ij
+    | Lock ctx -> bplus_emp ij ctx
+
   let to_tel : type i b. (i, b) t -> (i, b) to_tel =
    fun ctx ->
     let (To_tlist (_, bc)) = Tbwd.to_tlist (checked_length ctx) in
-    let (Split_tel (ij, Emp, tel)) = split_tel ctx bc in
-    To_tel (ij, bc, tel)
+    let (Split_tel (ij, newctx, tel)) = split_tel ctx bc in
+    To_tel (bplus_emp ij newctx, bc, tel)
 
   (* Now we begin the suite of helper functions for bind_some.  This is an operation that happens during typechecking a pattern match, when the match variable along with all its indices have to be replaced by values determined by the constructor of each branch.  This requires the context to be re-sorted at the same time to maintain a consistent dependency structure, with each type and value depending only on the variables to its left.
 
@@ -449,6 +481,7 @@ module Ordered = struct
                     fins = Later fins;
                   }
             | Nil | None -> None))
+    | Lock tel -> go_go_bind_some binder f ~oldctx ~newctx tel
 
   type (_, _, _, _, _, _) go_bind_some =
     | Go_bind_some : {
@@ -537,6 +570,7 @@ let cube_vis ctx x vars =
   vis ctx m (D.plus_zero m) (faces_zero l) (Suc Zero) (CubeOf.singleton x) vars
 
 let invis (Permute (p, ctx)) vars = Permute (p, Ordered.invis ctx vars)
+let lock (Permute (p, ctx)) = Permute (p, Ordered.lock ctx)
 let raw_length (Permute (p, ctx)) = N.perm_dom (Ordered.raw_length ctx) p
 let length (Permute (_, ctx)) = Ordered.length ctx
 let empty = Permute (N.id_perm N.zero, Ordered.empty)

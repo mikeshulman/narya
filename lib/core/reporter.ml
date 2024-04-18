@@ -118,6 +118,7 @@ module Code = struct
     | Wrong_boundary_of_record : int -> t
     | Invalid_constructor_type : Constr.t -> t
     | Missing_constructor_type : Constr.t -> t
+    | Locked_variable : t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -206,6 +207,7 @@ module Code = struct
     | Wrong_boundary_of_record _ -> Error
     | Invalid_constructor_type _ -> Error
     | Missing_constructor_type _ -> Error
+    | Locked_variable -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -230,6 +232,7 @@ module Code = struct
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
+    | Locked_variable -> "E0302"
     (* Bidirectional typechecking *)
     | Nonsynthesizing _ -> "E0400"
     | Unequal_synthesized_type _ -> "E0401"
@@ -520,6 +523,7 @@ module Code = struct
           (Constr.to_string c)
     | Missing_constructor_type c ->
         textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
+    | Locked_variable -> text "variable locked behind external degeneracy"
 end
 
 include Asai.StructuredReporter.Make (Code)

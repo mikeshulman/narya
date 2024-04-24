@@ -66,9 +66,15 @@ end = struct
     | Delayed (i, x) -> b := Known (i, x)
 end
 
-(* A context is a list of "entries", which have various possibilities depending on the raw visibility. *)
+(* Test whether all the variables in a cube of bindings are free (none are let-bound). *)
+let all_free : type n. (n, Binding.t) CubeOf.t -> bool =
+ fun b ->
+  let open CubeOf.Monadic (Monad.Maybe) in
+  Option.is_some (mmapM { map = (fun _ [ x ] -> Option.map (fun _ -> ()) (Binding.level x)) } [ b ])
+
+(* A context is a list of "entries", which can be either visible or invisible in the raw world.  An (f,n) entry contains f raw variables and an n-dimensional cube of checked variables. *)
 type (_, _) entry =
-  (* Add a cube of internal variables that are visible to the parser as a list of cubes of variables, the list-of-cubes being obtained by decomposing the dimension not just as a sum but by an insertion that permutes things.  Note that the division into a cube and non-cube part, and the insertion, are only relevant for looking up *raw* indices: they are invisible to the checked world, whose indices store the total face of mn. *)
+  (* Add a cube of internal variables that are visible to the parser as a list of cubes of variables, the list-of-cubes being obtained by decomposing the dimension  as a sum.  Note that the division into a cube and non-cube part, and the sum of dimensions, are only relevant for looking up *raw* indices: they are invisible to the checked world, whose indices store the total face of mn. *)
   | Vis :
       'm D.t
       * ('m, 'n, 'mn) D.plus
@@ -259,15 +265,19 @@ module Ordered = struct
   let lookup_name : type a b. (a, b) t -> b index -> string list =
    fun ctx x -> Names.lookup (names ctx) x
 
-  (* Generate a case tree consisting of a sequence of abstractions corresponding to the (checked) variables in a context. *)
+  (* Generate a case tree consisting of a sequence of abstractions corresponding to the (checked) variables in a context.  The context must contain NO LET-BOUND VARIABLES since abstracting over them would not be well-defined.  (In general, we couldn't just omit them, because some of the variables in a cube could be bound but not others, and cubes in the context yield cube abstractions.  However, at least when this comment was written, this function was only used for contexts consisting entirely of 0-dimensional cubes without let-bound variables.) *)
   let rec lam : type a b. (a, b) t -> (b, potential) term -> (emp, potential) term =
    fun ctx tree ->
     match ctx with
     | Emp -> tree
-    | Snoc (ctx, Vis (m, mn, _, xs, _), _) -> lam ctx (Lam (Variables (m, mn, xs), tree))
+    | Snoc (ctx, Vis (m, mn, _, xs, vars), _) ->
+        if all_free vars then lam ctx (Lam (Variables (m, mn, xs), tree))
+        else fatal (Anomaly "let-bound variable in Ctx.lam")
     | Snoc (ctx, Invis vars, _) ->
-        let n = CubeOf.dim vars in
-        lam ctx (Lam (singleton_variables n None, tree))
+        if all_free vars then
+          let n = CubeOf.dim vars in
+          lam ctx (Lam (singleton_variables n None, tree))
+        else fatal (Anomaly "let-bound variable in Ctx.lam")
     | Lock ctx -> lam ctx tree
 
   (* Ordinary contexts are "backwards" lists.  Following Cockx's thesis, in this file we call the forwards version "telescopes", since they generally are going to get appended to a "real", backwards, context.  A telescope has *three* indices:

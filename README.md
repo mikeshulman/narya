@@ -9,7 +9,7 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ### Compilation
 
-Narya requires OCaml version 5.1.0 (or later) and various libraries.
+Narya requires OCaml version 5.1.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
 
 ```
 opam switch create 5.1.0
@@ -21,12 +21,12 @@ dune runtest
 dune install
 ```
 
-This will make the executable `narya` available in a directory such as `~/.opam/5.1.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass arguments to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
+This will make the executable `narya` available in a directory such as `~/.opam/5.1.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
 
-### Command-line arguments
+### Command-line flags
 
-The Narya executable accepts at least the following command-line arguments.
+The Narya executable accepts at least the following command-line flags.
 
 #### Execution behavior
 
@@ -173,14 +173,14 @@ If you want to use a checking term in a synthesizing position, you have to *ascr
 
 The ascription notation has tightness −ω, and is non-associative, so that `M : N : P` is a parse error.  However, the right-associativity of `↦` and the fact that they share the same tightness means that `x ↦ M : A` is parsed as `x ↦ (M : A)`, hence the placement of parentheses in the above example redex.
 
+*Side note:* The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: `(x : A) → B` could be a dependent function type, but it could also be a *non-dependent* function type whose domain `x` is ascribed to type `A` (which would therefore have to be a type universe).  Narya resolves this in favor of the dependent function type, which is nearly always what is intended.  If you really mean the other you can write it as `((x : A)) → B` or `((x) : A) → B`; but I can't imagine why you would need to do this, since the only possible ambiguity is when `x` is a variable (or a list of variables), and variables and constants (and application spines of such) always synthesize their type anyway and thus don't need to be ascribed.
+
 
 ### Let-binding
 
 Writing `let x ≔ M in N` binds the local variable `x` to the value `M` while typechecking and evaluating `N`.  The unicode ≔ is interchangeable with the ASCII `:=`.  Computationally, `let x ≔ M in N` is equivalent to `(x ↦ N) M`, but it also binds `x` to the value `M` while typechecking `N`, which in a dependent type theory is stronger.
 
 Both `M` and `N` are required to synthesize, and the let-binding then synthesizes the same type as `N`.  The idiom `let x ≔ M : A in N` can be written alternatively as `let x : A ≔ M in N`.  The let-binding notation is right-associative with tightness −ω.
-
-*Side note:* The coexistence of type ascription and NuPRL/Agda-style dependent function-types leads to a potential ambiguity: `(x : A) → B` could be a dependent function type, but it could also be a *non-dependent* function type whose domain `x` is ascribed to type `A` (which would therefore have to be a type universe).  Narya resolves this in favor of the dependent function type, which is nearly always what is intended.  If you really mean the other you can write it as `((x : A)) → B` or `((x) : A) → B`; but I can't imagine why you would need to do this, since the only possible ambiguity is when `x` is a variable (or a list of variables), and variables and constants (and application spines of such) always synthesize their type anyway and thus don't need to be ascribed.
 
 
 ### Eta-conversion and function constants
@@ -866,7 +866,7 @@ The combination `-arity 1 -direction d -external` is a version of [displayed typ
 
 1. Narya currently has no modalities, so display can only be applied to closed terms rather than to the more general □-modal ones.
 2. Narya has symmetries, which in particular (as noted in the paper) makes `SST⁽ᵈ⁾` (see below) actually usable.
-3. As noted above, display in Narya computes only up to isomorphism, and in the case of `Type` only up to definitional retract.
+3. As noted above, display in Narya computes only up to isomorphism, and in the case of `Type` only up to retract up to isomorphism.
 4. (A syntactic difference only) Generic degeneracies in Narya must be parenthesized, so we write `A⁽ᵈ⁾` instead of `Aᵈ`.
 
 ### Higher datatypes and codatatypes

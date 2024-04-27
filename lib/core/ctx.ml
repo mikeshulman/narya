@@ -92,10 +92,13 @@ let raw_entry : type f n. (f, n) entry -> f N.t = function
 let _dim_entry : type f n. (f, n) entry -> n D.t = function
   | Vis (_, _, _, _, x) | Invis x -> CubeOf.dim x
 
+(* Given an entry containing no let-bound variables, produce an "app" that says how to apply a function to its cube of (free) variables. *)
 let app_entry : type f n. (f, n) entry -> app = function
   | Vis (_, _, _, _, b) | Invis b ->
-      let n = CubeOf.dim b in
-      App (Arg (CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ b ]), ins_zero n)
+      if all_free b then
+        let n = CubeOf.dim b in
+        App (Arg (CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ b ]), ins_zero n)
+      else fatal (Anomaly "let-bound variable in Ctx.apps")
 
 module Ordered = struct
   type (_, _) t =

@@ -80,29 +80,3 @@ let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t =
   let names, used = uniquifies names used in
   let vars = Variables (m, mn, names) in
   (vars, { ctx = Snoc (ctx, vars); used })
-
-let pp_variables : type n. Format.formatter -> n variables -> unit =
- fun ppf (Variables (_, _, x)) ->
-  let open Format in
-  fprintf ppf "@[<hv 2>(";
-  CubeOf.miter
-    {
-      it =
-        (fun fa [ x ] ->
-          if Option.is_some (is_id_sface fa) then pp_print_string ppf (Option.value x ~default:"_")
-          else fprintf ppf "%s,@ " (Option.value x ~default:"_"));
-    }
-    [ x ];
-  fprintf ppf ")@]"
-
-let pp_names : type b. Format.formatter -> b t -> unit =
- fun ppf vars ->
-  let open Format in
-  let rec pp : type b. bool -> formatter -> b ctx -> unit =
-   fun comma ppf vars ->
-    match vars with
-    | Emp -> ()
-    | Snoc (vars, x) ->
-        fprintf ppf "%a%a" (pp true) vars pp_variables x;
-        if comma then fprintf ppf ",@ " in
-  fprintf ppf "@[<hv 2>(%a)@]" (pp false) vars.ctx

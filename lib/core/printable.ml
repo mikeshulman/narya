@@ -11,4 +11,3 @@ type printable +=
   | PVal : ('a, 'b) Ctx.t * kinetic value -> printable
   | PNormal : ('a, 'b) Ctx.t * normal -> printable
   | PUninst : ('a, 'b) Ctx.t * uninst -> printable
-  | PNames : 'b Names.t -> printable

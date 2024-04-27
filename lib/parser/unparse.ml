@@ -570,7 +570,6 @@ let () =
               Term
                 (unparse (Ctx.names ctx) (Readback.readback_uninst ctx tm) Interval.entire
                    Interval.entire) )
-      | PNames vars -> Printed (Core.Names.pp_names, vars)
       | PConstant name ->
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)

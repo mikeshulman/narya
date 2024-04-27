@@ -17,7 +17,7 @@ module SemanticError = struct
   type t =
     (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because applications are implemented specially in the parser and not as an actual Notation. *)
     | No_relative_precedence of Asai.Range.t * string * string
-    | Empty_degeneracy of Position.range
+    | Invalid_degeneracy of Position.range * string
 end
 
 (* The functor that defines all the term-parsing combinators. *)
@@ -179,8 +179,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
          located
            (step (fun state rng (tok, ws) ->
                 match tok with
-                | Superscript "" -> Some (Error (SemanticError.Empty_degeneracy rng), state)
                 | Superscript s -> Some (Ok (s, ws), state)
+                | Invalid_superscript s ->
+                    Some (Error (SemanticError.Invalid_degeneracy (rng, s)), state)
                 | _ -> None)) in
        match res with
        | Ok (s, ws) -> return (loc, s, ws)
@@ -406,7 +407,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     else if has_failed_semantic p then
       match failed_semantic p with
       | No_relative_precedence (loc, n1, n2) -> fatal ~loc (No_relative_precedence (n1, n2))
-      | Empty_degeneracy rng -> fatal ~loc:(Range.convert rng) (Invalid_degeneracy "")
+      | Invalid_degeneracy (rng, str) -> fatal ~loc:(Range.convert rng) (Invalid_degeneracy str)
     else if has_succeeded p then p
     else if needs_more p then fatal (Anomaly "parser needs more")
     else fatal (Anomaly "what")

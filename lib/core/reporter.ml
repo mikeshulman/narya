@@ -332,8 +332,7 @@ module Code = struct
     | Invalid_constr str -> textf "invalid constructor name: %s" str
     | Invalid_numeral str -> textf "invalid numeral: %s" str
     | Invalid_degeneracy str ->
-        if str = "" then text "missing degeneracy ('^' must not be followed by a space)"
-        else textf "invalid degeneracy: %s" str
+        if str = "" then text "missing degeneracy" else textf "invalid degeneracy: %s" str
     | Invalid_variable_face (k, fa) ->
         textf "invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
     | No_relative_precedence (n1, n2) ->

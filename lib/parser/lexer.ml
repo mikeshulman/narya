@@ -153,28 +153,37 @@ let digits_dot = "0123456789."
 let is_digit_or_dot c = String.exists (fun x -> x = c) digits_dot
 let is_numeral s = String.for_all is_digit_or_dot s
 
-(* A superscript is either a string of Unicode superscript numbers and letters between superscript parentheses... *)
+(* A Unicode superscript is a string of Unicode superscript numbers and letters between superscript parentheses.  We don't ever want to fail lexing, so any string starting with a superscript left parenthesis that *doesn't* look like this, or a superscript right parenthesis occurring before a superscript left parenthesis, is lexed as an "invalid superscript". *)
 let utf8_superscript =
-  let* _ = uchar Token.super_lparen_uchar in
-  let* s =
-    uword
-      (fun c -> Array.mem c Token.super_uchars)
-      (fun c -> Array.mem c Token.super_uchars)
-      "utf-8 superscript" in
-  let* _ = uchar Token.super_rparen_uchar in
-  return (Superscript (Token.of_super s))
+  (let* _ = uchar Token.super_lparen_uchar in
+   (let* s =
+      uword
+        (fun c -> Array.mem c Token.super_uchars)
+        (fun c -> Array.mem c Token.super_uchars)
+        "utf-8 superscript" in
+    (let* _ = uchar Token.super_rparen_uchar in
+     return (Superscript (Token.of_super s)))
+    </> return (Invalid_superscript (Token.of_super s)))
+   </> (let* _ = uchar Token.super_rparen_uchar in
+        return (Invalid_superscript ""))
+   </> return (Invalid_superscript ""))
+  </> let* _ = uchar Token.super_rparen_uchar in
+      return (Invalid_superscript "")
 
-(* ...or a caret followed (without any space) by a string of numbers and letters between parentheses.  (Later, the string is required to be nonempty.) *)
+(* An ASCII superscript is a caret followed (without any space) by a string of numbers and letters between parentheses.  We don't ever want to fail lexing, so any string starting with a caret that doesn't look like this is lexed as an "invalid superscript". *)
 let caret_superscript =
   let* _ = char '^' in
-  let* _ = char '(' in
-  let* s =
-    word
-      (fun x -> Array.mem x Token.unsupers)
-      (fun x -> Array.mem x Token.unsupers)
-      "caret superscript" in
-  let* _ = char ')' in
-  return (Superscript s)
+  (let* _ = char '(' in
+   (let* s =
+      word
+        (fun x -> Array.mem x Token.unsupers)
+        (fun x -> Array.mem x Token.unsupers)
+        "caret superscript" in
+    (let* _ = char ')' in
+     return (Superscript s))
+    </> return (Invalid_superscript s))
+   </> return (Invalid_superscript ""))
+  </> return (Invalid_superscript "")
 
 let superscript = utf8_superscript </> caret_superscript
 

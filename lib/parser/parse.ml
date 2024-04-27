@@ -507,13 +507,14 @@ module Parse_command = struct
 
   let tightness_and_name :
       (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
-    let* tight_or_name = ident in
+    let* tloc, tight_or_name = located ident in
     (let* name, wsname = ident in
      let tight, wstight = tight_or_name in
      let tight = String.concat "." tight in
      match No.of_rat (Q.of_string tight) with
      | Some tight -> return (Some tight, wstight, name, wsname)
-     | None -> fatal (Invalid_tightness tight))
+     | None | (exception Invalid_argument _) ->
+         fatal ~loc:(Range.convert tloc) (Invalid_tightness tight))
     </>
     let name, wsname = tight_or_name in
     return (None, [], name, wsname)

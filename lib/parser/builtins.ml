@@ -480,7 +480,10 @@ let () =
  ******************** *)
 
 let coloneq = make "coloneq" (Infixr No.minus_omega)
-let () = set_tree coloneq (Open_entry (eop Coloneq (done_open coloneq)))
+
+let () =
+  set_tree coloneq (Open_entry (eop Coloneq (done_open coloneq)));
+  set_processor coloneq { process = (fun _ _ _ _ -> fatal Parse_error) }
 
 (* The notation for tuples is "( x ≔ M, y ≔ N, z ≔ P )".  The parentheses don't conflict with ordinary parentheses, since ≔ and , are not term-forming operators all by themselves.  The 0-ary tuple "()" is included, and also doesn't conflict since ordinary parentheses must contain a term.  We also allow some of the components of the tuple to be unlabeled, as in "(M, N, P)"; these are assigned to the fields that don't have a corresponding labeled component in the order they appear in the record type.  The only thing that's not allowed is an unlabeled 1-tuple "(M)" since that would conflict with ordinary parentheses.  (TODO: We could essentially allow that by making the tupling and projection of a 1-ary record type implicit coercions.) *)
 

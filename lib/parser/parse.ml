@@ -652,13 +652,16 @@ module Parse_command = struct
   let has_consumed_end p = C.Lex_and_parse.has_consumed_end p
 end
 
-let parse_and_execute_command (content : string) : unit =
+let parse_single_command (content : string) : Whitespace.t list * Command.t option =
   let src : Asai.Range.source = `String { content; title = Some "interactive input" } in
   let p, src = Parse_command.start_parse ~or_echo:true src in
-  let _bof = Parse_command.final p in
-  let p, src = Parse_command.restart_parse ~or_echo:true p src in
-  let cmd = Parse_command.final p in
-  if cmd <> Eof then
-    let p, _ = Parse_command.restart_parse ~or_echo:true p src in
-    let eof = Parse_command.final p in
-    if eof = Eof then Command.execute cmd else Core.Reporter.fatal Too_many_commands
+  match Parse_command.final p with
+  | Bof ws ->
+      let p, src = Parse_command.restart_parse ~or_echo:true p src in
+      let cmd = Parse_command.final p in
+      if cmd <> Eof then
+        let p, _ = Parse_command.restart_parse ~or_echo:true p src in
+        let eof = Parse_command.final p in
+        if eof = Eof then (ws, Some cmd) else Core.Reporter.fatal Too_many_commands
+      else (ws, None)
+  | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")

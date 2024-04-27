@@ -139,7 +139,16 @@ let rec repl terminal history buf =
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d -> Terminal.display ~output:stdout d)
-          (fun () -> parse_and_execute_command str);
+          (fun () ->
+            match parse_single_command str with
+            | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
+            | ws, Some cmd ->
+                if !typecheck then Parser.Command.execute cmd;
+                if !reformat then (
+                  Print.pp_ws `None std_formatter ws;
+                  let last = Parser.Command.pp_command std_formatter cmd in
+                  Print.pp_ws `None std_formatter last;
+                  Format.pp_print_newline std_formatter ()));
         LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
       else (
@@ -173,7 +182,15 @@ let rec interact_pg () =
     Reporter.try_with
       ~emit:(fun d -> Terminal.display ~output:stdout d)
       ~fatal:(fun d -> Terminal.display ~output:stdout d)
-      (fun () -> parse_and_execute_command str);
+      (fun () ->
+        match parse_single_command str with
+        | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
+        | ws, Some cmd ->
+            if !typecheck then Parser.Command.execute cmd;
+            if !reformat then (
+              Print.pp_ws `None std_formatter ws;
+              let last = Parser.Command.pp_command std_formatter cmd in
+              Print.pp_ws `None std_formatter last));
     interact_pg ()
   with End_of_file -> ()
 

@@ -76,6 +76,11 @@ let def (name : string) (ty : string) (tm : string) : unit =
   | _ -> fatal (Invalid_constant_name name)
 
 (* For other commands, we piggyback on ordinary parsing.  *)
+let parse_and_execute_command str =
+  match parse_single_command str with
+  | _, Some cmd -> Command.execute cmd
+  | _, None -> ()
+
 let cmd ?(quiet = false) (str : string) : unit =
   if quiet then Reporter.try_with ~emit:(fun _ -> ()) @@ fun () -> parse_and_execute_command str
   else parse_and_execute_command str

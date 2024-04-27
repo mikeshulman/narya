@@ -182,10 +182,11 @@ let superscript = utf8_superscript </> caret_superscript
 let specials =
   Array.concat
     [
-      Token.super_uchars;
       ascii_symbol_uchars;
       onechar_uchars;
+      (* Carets are not allowed to mean anything except a superscript. *)
       Array.map Uchar.of_char [| '^'; ' '; '\t'; '\n'; '\r' |];
+      (* We only include the superscript parentheses: other superscript characters without parentheses are allowed in identifiers. *)
       [| Token.super_lparen_uchar; Token.super_rparen_uchar |];
     ]
 

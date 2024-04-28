@@ -138,10 +138,10 @@ module Heter = struct
     | x :: xs -> head' x :: head xs
 end
 
-(* Now we can define the general monadic heterogeneous traversal. *)
+(* Now we can define the general heterogeneous traversal. *)
 
-module Monadic (M : Monad.Plain) = struct
-  open Monad.Ops (M)
+module Applicatic (M : Applicative.Plain) = struct
+  open Applicative.Ops (M)
 
   let rec pmapM :
       type x xs ys n.
@@ -153,33 +153,32 @@ module Monadic (M : Monad.Plain) = struct
     match xss with
     | Emp :: _ -> return (Heter.emp ys)
     | Snoc (xs, x) :: xss ->
-        let* fxs = pmapM f (xs :: Heter.head xss) ys in
-        let* fx = f (x :: Heter.tail xss) in
-        return (Heter.snoc fxs fx)
+        let+ fxs = pmapM f (xs :: Heter.head xss) ys and+ fx = f (x :: Heter.tail xss) in
+        Heter.snoc fxs fx
 
   (* With specializations to simple arity possibly-monadic maps and iterators.  *)
 
   let miterM :
       type x xs n. ((x, xs) cons hlist -> unit M.t) -> ((x, xs) cons, n) Heter.ht -> unit M.t =
    fun f xss ->
-    let* [] =
+    let+ [] =
       pmapM
         (fun x ->
-          let* () = f x in
-          return [])
+          let+ () = f x in
+          [])
         xss Nil in
-    return ()
+    ()
 
   let mmapM :
       type x xs y n. ((x, xs) cons hlist -> y M.t) -> ((x, xs) cons, n) Heter.ht -> (y, n) t M.t =
    fun f xss ->
-    let* [ ys ] =
+    let+ [ ys ] =
       pmapM
         (fun x ->
-          let* y = f x in
-          return [ y ])
+          let+ y = f x in
+          [ y ])
         xss (Cons Nil) in
-    return ys
+    ys
 
   let mapM : type x y n. (x -> y M.t) -> (x, n) t -> (y, n) t M.t =
    fun f xs -> mmapM (fun [ x ] -> f x) [ xs ]
@@ -192,6 +191,11 @@ module Monadic (M : Monad.Plain) = struct
 
   let iterM2 : type x y n. (x -> y -> unit M.t) -> (x, n) t -> (y, n) t -> unit M.t =
    fun f xs ys -> miterM (fun [ x; y ] -> f x y) [ xs; ys ]
+end
+
+module Monadic (M : Monad.Plain) = struct
+  module A = Applicative.OfMonad (M)
+  include Applicatic (A)
 end
 
 let pmap :

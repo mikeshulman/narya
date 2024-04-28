@@ -168,16 +168,16 @@ module Cube (F : Fam) = struct
 
   open Infix
 
-  module Monadic (M : Monad.Plain) = struct
-    open Monad.Ops (M)
-    module BwvM = Bwv.Monadic (M)
+  module Applicatic (M : Applicative.Plain) = struct
+    open Applicative.Ops (M)
+    module BwvM = Bwv.Applicatic (M)
 
     (* The function that we apply on a generic traversal must be polymorphic over the domain dimension of the face, so we wrap it in a record. *)
     type ('n, 'bs, 'cs) pmapperM = {
       map : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> ('m, 'cs) Heter.hft M.t;
     }
 
-    (* Finally, here is the generic monadic traversal of a gt. *)
+    (* Finally, here is the generic traversal of a gt. *)
     let rec gpmapM :
         type k m km n b bs cs l.
         (k, m, km) D.plus ->
@@ -191,22 +191,22 @@ module Cube (F : Fam) = struct
       match trs with
       | Leaf _ :: _ ->
           let Zero, Zero = (km, lm) in
-          let* x = g.map (sface_of_bw d) (Heter.lab trs) in
-          return (Heter.leaf x)
+          let+ x = g.map (sface_of_bw d) (Heter.lab trs) in
+          Heter.leaf x
       | Branch (_, _, _) :: _ ->
           let (Suc km') = km in
           let (Ends (l, hs, ends)) = Heter.ends trs in
           let mid = Heter.mid trs in
           let (Hgts newhs) = Heter.hgts_of_tlist cst in
-          let* newends =
+          let+ newends =
             BwvM.pmapM
               (fun (e :: brs) ->
-                let* xs =
+                let+ xs =
                   gpmapM km' (D.suc_plus lm) (End (e, d)) g (Heter.hgt_of_hlist hs brs) cst in
-                return (Heter.hlist_of_hgt newhs xs))
-              (Endpoints.indices l :: ends) (Heter.tlist_hgts newhs cst) in
-          let* newmid = gpmapM (D.suc_plus km) (D.suc_plus lm) (Mid d) g mid cst in
-          return (Heter.branch l newhs newends newmid)
+                Heter.hlist_of_hgt newhs xs)
+              (Endpoints.indices l :: ends) (Heter.tlist_hgts newhs cst)
+          and+ newmid = gpmapM (D.suc_plus km) (D.suc_plus lm) (Mid d) g mid cst in
+          Heter.branch l newhs newends newmid
 
     (* And the actual one for a t, which we can henceforth restrict our attention to. *)
     let pmapM :
@@ -228,33 +228,33 @@ module Cube (F : Fam) = struct
         type n b bs c.
         (n, (b, bs) cons, c) mmapperM -> (n, n, (b, bs) cons) Heter.hgt -> (n, c) t M.t =
      fun g xs ->
-      let* [ ys ] =
+      let+ [ ys ] =
         pmapM
           {
             map =
               (fun fa x ->
-                let* y = g.map fa x in
+                let+ y = g.map fa x in
                 (* Apparently writing [y] is insufficiently polymorphic *)
-                return (y @: []));
+                y @: []);
           }
           xs (Cons Nil) in
-      return ys
+      ys
 
     type ('n, 'bs) miteratorM = { it : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> unit M.t }
 
     let miterM :
         type n b bs. (n, (b, bs) cons) miteratorM -> (n, n, (b, bs) cons) Heter.hgt -> unit M.t =
      fun g xs ->
-      let* [] =
+      let+ [] =
         pmapM
           {
             map =
               (fun fa x ->
-                let* () = g.it fa x in
-                return hnil);
+                let+ () = g.it fa x in
+                hnil);
           }
           xs Nil in
-      return ()
+      ()
 
     (* The builder function isn't quite a special case of the generic traversal, since it needs to maintain different information when constructing a cube from scratch. *)
 
@@ -273,23 +273,28 @@ module Cube (F : Fam) = struct
       | Nat Zero ->
           let Eq = D.plus_uniq mk (D.zero_plus (dom_bwsface d)) in
           let Eq = D.plus_uniq ml (D.zero_plus (cod_bwsface d)) in
-          let* x = g.build (sface_of_bw d) in
-          return (Leaf x)
+          let+ x = g.build (sface_of_bw d) in
+          Leaf x
       | Nat (Suc m) ->
           let (Suc mk') = D.plus_suc mk in
           let (Wrap l) = Endpoints.wrapped () in
-          let* ends =
+          let+ ends =
             BwvM.mapM
               (fun e -> gbuildM (Nat m) mk' (D.plus_suc ml) (End (e, d)) g)
-              (Endpoints.indices l) in
-          let* mid = gbuildM (Nat m) (D.plus_suc mk) (D.plus_suc ml) (Mid d) g in
-          return (Branch (l, ends, mid))
+              (Endpoints.indices l)
+          and+ mid = gbuildM (Nat m) (D.plus_suc mk) (D.plus_suc ml) (Mid d) g in
+          Branch (l, ends, mid)
 
     let buildM : type n b. n D.t -> (n, b) builderM -> (n, b) t M.t =
      fun n g -> gbuildM n (D.plus_zero n) (D.plus_zero n) Zero g
   end
 
-  (* Now we can specialize all of them to the identity modality. *)
+  module Monadic (M : Monad.Plain) = struct
+    module A = Applicative.OfMonad (M)
+    include Applicatic (A)
+  end
+
+  (* Now we can specialize all of them to the identity monad. *)
 
   module IdM = Monadic (Monad.Identity)
 

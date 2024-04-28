@@ -177,7 +177,7 @@ module Cube (F : Fam) : sig
     val ( @: ) : ('n, 'x) F.t -> ('n, 'xs) Heter.hft -> ('n, ('x, 'xs) cons) Heter.hft
   end
 
-  module Monadic (M : Monad.Plain) : sig
+  module Applicatic (M : Applicative.Plain) : sig
     type ('n, 'bs, 'cs) pmapperM = {
       map : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> ('m, 'cs) Heter.hft M.t;
     }
@@ -202,6 +202,11 @@ module Cube (F : Fam) : sig
     type ('n, 'b) builderM = { build : 'm. ('m, 'n) sface -> ('m, 'b) F.t M.t }
 
     val buildM : 'n D.t -> ('n, 'b) builderM -> ('n, 'b) t M.t
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
   end
 
   module IdM : module type of Monadic (Monad.Identity)
@@ -318,7 +323,7 @@ module Tube (F : Fam) : sig
 
   module Infix : module type of C.Infix
 
-  module Monadic (M : Monad.Plain) : sig
+  module Applicatic (M : Applicative.Plain) : sig
     type ('n, 'k, 'nk, 'bs, 'cs) pmapperM = {
       map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> ('m, 'cs) C.Heter.hft M.t;
     }
@@ -351,6 +356,11 @@ module Tube (F : Fam) : sig
 
     val buildM :
       'n D.t -> ('n, 'k, 'nk) D.plus -> ('n, 'k, 'nk, 'b) builderM -> ('n, 'k, 'nk, 'b) t M.t
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
   end
 
   module IdM : module type of Monadic (Monad.Identity)

@@ -49,8 +49,8 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
 and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth located =
  fun ctx -> function
   | Var x -> (
-      match Bwv.find x ctx with
-      | Some v -> unlocated (Raw.Var (v, None))
+      match Bwv.find_opt (fun y -> x = y) ctx with
+      | Some (_, v) -> unlocated (Raw.Var (v, None))
       | None -> Reporter.fatal (Unbound_variable x))
   | Const x -> (
       match Scope.lookup [ x ] with

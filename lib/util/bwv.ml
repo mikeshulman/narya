@@ -69,10 +69,11 @@ let of_list : type a mn. mn N.t -> a list -> ((a, mn) t * a list) option =
   of_list (N.zero_plus n) Emp ys
 
 (* Find the rightmost occurrence of an element in a vector, if any, and return its De Bruijn index. *)
-let rec find : type a n. a -> (a, n) t -> n N.index option =
- fun y -> function
+let rec find_opt : type a n. (a -> bool) -> (a, n) t -> (a * n N.index) option =
+ fun test -> function
   | Emp -> None
-  | Snoc (xs, x) -> if x = y then Some Top else Option.map (fun z -> N.Pop z) (find y xs)
+  | Snoc (xs, x) ->
+      if test x then Some (x, Top) else Option.map (fun (y, z) -> (y, N.Pop z)) (find_opt test xs)
 
 (* Find the rightmost occurrence of an element and return its De Bruijn index, along with the vector with that element removed. *)
 let rec find_remove : type a n. a -> (a, n N.suc) t -> ((a, n) t * n N.suc N.index) option =

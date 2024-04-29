@@ -45,7 +45,7 @@ let rec comp_sface : type m n k. (n, k) sface -> (m, n) sface -> (m, k) sface =
   | Mid a', Mid b' -> Mid (comp_sface a' b')
 
 (* Zero has only the trivial strict face *)
-let sface_zero : type n. (n, D.zero) sface -> (n, D.zero) Monoid.eq = function
+let sface_zero : type n. (n, D.zero) sface -> (n, D.zero) Eq.t = function
   | Zero -> Eq
 
 (* Concatenate two strict faces left-to-right. *)
@@ -107,8 +107,7 @@ let faces_zero : type l. l Endpoints.len -> (l, D.zero, N.one) count_faces = fun
 let dim_faces : type l n f. (l, n, f) count_faces -> n D.t = fun (_, c) -> D.pow_right c
 let faces_out : type l n f. (l, n, f) count_faces -> f N.t = fun (_, c) -> D.pow_out c
 
-let faces_uniq :
-    type l n f1 f2. (l, n, f1) count_faces -> (l, n, f2) count_faces -> (f1, f2) Monoid.eq =
+let faces_uniq : type l n f1 f2. (l, n, f1) count_faces -> (l, n, f2) count_faces -> (f1, f2) Eq.t =
  fun (_, f1) (_, f2) -> N.pow_uniq f1 f2
 
 let rec sfaces : type l n f. (l, n, f) count_faces -> (n sface_of, f) Bwv.t = function

@@ -17,13 +17,13 @@ module Endpoints : sig
 end
 
 val to_int : 'a D.t -> int
-val compare : 'm D.t -> 'n D.t -> ('m, 'n) compare
+val compare : 'm D.t -> 'n D.t -> ('m, 'n) Eq.compare
 
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
 
 val factor : 'nk D.t -> 'n D.t -> ('nk, 'n) factor option
-val epi : 'k D.t -> ('k, 'm, 'l) D.plus -> ('k, 'n, 'l) D.plus -> ('m, 'n) Monoid.eq
-val zero_uniq : 'm D.t -> ('m, 'z, 'm) D.plus -> ('z, D.zero) Monoid.eq
+val epi : 'k D.t -> ('k, 'm, 'l) D.plus -> ('k, 'n, 'l) D.plus -> ('m, 'n) Eq.t
+val zero_uniq : 'm D.t -> ('m, 'z, 'm) D.plus -> ('z, D.zero) Eq.t
 
 type (_, _) pushout = Pushout : ('a, 'c, 'p) D.plus * ('b, 'd, 'p) D.plus -> ('a, 'b) pushout
 
@@ -97,7 +97,7 @@ val dom_sface : ('m, 'n) sface -> 'm D.t
 val cod_sface : ('m, 'n) sface -> 'n D.t
 val is_id_sface : ('m, 'n) sface -> unit option
 val comp_sface : ('n, 'k) sface -> ('m, 'n) sface -> ('m, 'k) sface
-val sface_zero : ('n, D.zero) sface -> ('n, D.zero) Monoid.eq
+val sface_zero : ('n, D.zero) sface -> ('n, D.zero) Eq.t
 
 val sface_plus_sface :
   ('k, 'm) sface ->
@@ -127,7 +127,7 @@ val count_faces : 'n D.t -> 'n has_faces
 val faces_zero : 'l Endpoints.len -> ('l, D.zero, N.one) count_faces
 val dim_faces : ('l, 'n, 'f) count_faces -> 'n D.t
 val faces_out : ('l, 'n, 'f) count_faces -> 'f N.t
-val faces_uniq : ('l, 'n, 'f1) count_faces -> ('l, 'n, 'f2) count_faces -> ('f1, 'f2) Monoid.eq
+val faces_uniq : ('l, 'n, 'f1) count_faces -> ('l, 'n, 'f2) count_faces -> ('f1, 'f2) Eq.t
 val sfaces : ('l, 'n, 'f) count_faces -> ('n sface_of, 'f) Bwv.t
 (* val sface_int : ('n, 'f) count_faces -> 'n sface_of -> int *)
 

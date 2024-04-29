@@ -1,7 +1,5 @@
 (* "Forwards" natural numbers.  Backwards natural numbers are the natural lengths of backwards lists, while forwards natural numbers are the natural lengths of forwards lists.  This module should not be opened, but used qualified. *)
 
-open Monoid
-
 type zero = private Dummy_zero
 type 'n suc = private Dummy_suc
 
@@ -23,7 +21,7 @@ let rec bplus_out : type a b ab. a N.t -> (a, b, ab) bplus -> ab N.t =
   | Zero -> a
   | Suc ab -> bplus_out (N.suc a) ab
 
-let rec bplus_uniq : type a b ab ab'. (a, b, ab) bplus -> (a, b, ab') bplus -> (ab, ab') Monoid.eq =
+let rec bplus_uniq : type a b ab ab'. (a, b, ab) bplus -> (a, b, ab') bplus -> (ab, ab') Eq.t =
  fun ab ab' ->
   match (ab, ab') with
   | Zero, Zero -> Eq
@@ -48,7 +46,7 @@ let rec fplus_left : type a b ab. (a, b, ab) fplus -> a N.t = function
   | Zero -> N.zero
   | Suc ab -> N.suc (fplus_left ab)
 
-let rec fplus_uniq : type a b ab ab'. (a, b, ab) fplus -> (a, b, ab') fplus -> (ab, ab') Monoid.eq =
+let rec fplus_uniq : type a b ab ab'. (a, b, ab) fplus -> (a, b, ab') fplus -> (ab, ab') Eq.t =
  fun ab ab' ->
   match (ab, ab') with
   | Zero, Zero -> Eq
@@ -86,7 +84,7 @@ let of_bwn : type c. c N.t -> c of_bwn =
   go c Zero Zero
 
 (* Compare two forwards nats *)
-let rec compare : type a b. a t -> b t -> (a, b) Monoid.compare =
+let rec compare : type a b. a t -> b t -> (a, b) Eq.compare =
  fun a b ->
   match (a, b) with
   | Zero, Zero -> Eq

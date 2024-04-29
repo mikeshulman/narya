@@ -36,7 +36,7 @@ type (_, _) has_strict_trans =
   | Strict_trans : ('s1, 's2, 's3) strict_trans -> ('s1, 's2) has_strict_trans
 
 val strict_trans : 's1 strictness -> 's2 strictness -> ('s1, 's2) has_strict_trans
-val equal : 'a t -> 'b t -> ('a, 'b) Monoid.compare
+val equal : 'a t -> 'b t -> ('a, 'b) Eq.compare
 val equalb : 'a t -> 'b t -> bool
 
 val lt_trans :

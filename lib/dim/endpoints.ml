@@ -8,14 +8,14 @@ type 'l t = 'l len * 'l N.index
 
 module type Data_sig = sig
   val wrapped : unit -> wrapped
-  val uniq : 'l1 'l2. 'l1 len -> 'l2 len -> ('l1, 'l2) Monoid.eq
+  val uniq : 'l1 'l2. 'l1 len -> 'l2 len -> ('l1, 'l2) Eq.t
   val len : 'l len -> 'l N.t
 end
 
 module Data_unset = struct
   let wrapped : unit -> wrapped = fun _ -> raise (Failure "arity unset (wrapped)")
 
-  let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Monoid.eq =
+  let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Eq.t =
    fun _ _ -> raise (Failure "arity unset (uniq)")
 
   let len : type l. l len -> l N.t = fun _ -> raise (Failure "arity unset (len)")
@@ -51,7 +51,7 @@ module Data (X : Nat) = struct
 
   let wrapped () = Wrap Len
 
-  let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Monoid.eq =
+  let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Eq.t =
    fun l1 l2 ->
     match (l1, l2) with
     | Len, Len -> Eq

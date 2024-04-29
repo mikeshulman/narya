@@ -6,7 +6,7 @@ type 'l t = 'l len * 'l N.index
 
 val set_len : int -> unit
 val wrapped : unit -> wrapped
-val uniq : 'l1 len -> 'l2 len -> ('l1, 'l2) Monoid.eq
+val uniq : 'l1 len -> 'l2 len -> ('l1, 'l2) Eq.t
 val len : 'l len -> 'l N.t
 val indices : 'l len -> ('l t, 'l) Bwv.t
 val to_string : 'l t option -> string

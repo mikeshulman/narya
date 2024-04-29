@@ -1,7 +1,5 @@
 (* Type-level dyadic rationals, represeted as surreal sign-sequences, plus +ω and -ω. *)
 
-open Monoid
-
 type zero = Dummy_zero
 type 'a plus = Dummy_plus
 type 'a minus = Dummy_minus
@@ -160,7 +158,7 @@ let rec lt_trans :
   | Minusomega_fin _, Minusomega_fin _, _ -> .
   | Fin_plusomega _, Fin_plusomega _, _ -> .
 
-let rec equal_fin : type a b. a fin -> b fin -> (a, b) compare =
+let rec equal_fin : type a b. a fin -> b fin -> (a, b) Eq.compare =
  fun x y ->
   match (x, y) with
   | Zero, Zero -> Eq
@@ -174,7 +172,7 @@ let rec equal_fin : type a b. a fin -> b fin -> (a, b) compare =
       | Neq -> Neq)
   | _ -> Neq
 
-let equal : type a b. a t -> b t -> (a, b) compare =
+let equal : type a b. a t -> b t -> (a, b) Eq.compare =
  fun x y ->
   match (x, y) with
   | Fin x, Fin y -> equal_fin x y
@@ -357,7 +355,7 @@ type (_, _, _) prepend =
   | Plus : ('a, 'b plus, 'c) prepend -> ('a then_plus, 'b, 'c) prepend
   | Minus : ('a, 'b minus, 'c) prepend -> ('a then_minus, 'b, 'c) prepend
 
-let rec prepend_uniq : type a b c c'. (a, b, c) prepend -> (a, b, c') prepend -> (c, c') eq =
+let rec prepend_uniq : type a b c c'. (a, b, c) prepend -> (a, b, c') prepend -> (c, c') Eq.t =
  fun ab ab' ->
   match (ab, ab') with
   | Zero, Zero -> Eq

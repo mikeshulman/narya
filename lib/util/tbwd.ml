@@ -194,7 +194,7 @@ module Tbwd = struct
     | Flat_snoc : ('ns, 'm) flatten * ('m, 'n, 'mn) N.plus -> (('ns, 'n) snoc, 'mn) flatten
 
   (* This is a partial function. *)
-  let rec flatten_uniq : type ns m n. (ns, m) flatten -> (ns, n) flatten -> (m, n) Monoid.eq =
+  let rec flatten_uniq : type ns m n. (ns, m) flatten -> (ns, n) flatten -> (m, n) Eq.t =
    fun m n ->
     match (m, n) with
     | Flat_emp, Flat_emp -> Eq

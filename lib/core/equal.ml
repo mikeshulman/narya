@@ -6,7 +6,6 @@ open Value
 open Inst
 open Domvars
 open Norm
-open Monoid
 open Monad.ZeroOps (Monad.Maybe)
 open Bwd
 module ListM = Mlist.Monadic (Monad.Maybe)

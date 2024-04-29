@@ -2,7 +2,7 @@ open Util
 
 (* We consider the addition in D to represent composition in the delooping of the dimension category, in diagrammatic order. *)
 
-let compare : type m n. m D.t -> n D.t -> (m, n) Monoid.compare =
+let compare : type m n. m D.t -> n D.t -> (m, n) Eq.compare =
  fun m n ->
   match N.compare m n with
   | Eq -> Eq
@@ -25,7 +25,7 @@ let rec factor : type nk n. nk D.t -> n D.t -> (nk, n) factor option =
           return (Factor (Suc n_k)))
 
 (* And we prove that it is unique. *)
-let rec zero_uniq : type m z. m D.t -> (m, z, m) D.plus -> (z, D.zero) Monoid.eq =
+let rec zero_uniq : type m z. m D.t -> (m, z, m) D.plus -> (z, D.zero) Eq.t =
  fun m mz ->
   match m with
   | Nat Zero ->
@@ -36,7 +36,7 @@ let rec zero_uniq : type m z. m D.t -> (m, z, m) D.plus -> (z, D.zero) Monoid.eq
       let Eq = zero_uniq (Nat m) mz in
       Eq
 
-let rec epi : type m n k l. k D.t -> (k, m, l) D.plus -> (k, n, l) D.plus -> (m, n) Monoid.eq =
+let rec epi : type m n k l. k D.t -> (k, m, l) D.plus -> (k, n, l) D.plus -> (m, n) Eq.t =
  fun k km kn ->
   match (km, kn) with
   | Zero, _ ->

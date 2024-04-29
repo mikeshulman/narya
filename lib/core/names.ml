@@ -52,7 +52,7 @@ let uniquify : string option -> int StringMap.t -> string option * int StringMap
           (Some namen, used |> StringMap.add namen 0 |> StringMap.add name (n + 1)))
 
 (* Do the same thing to a whole cube of variable names. *)
-let uniquifies :
+let uniquify_cube :
     type n.
     (n, string option) CubeOf.t -> int StringMap.t -> (n, string option) CubeOf.t * int StringMap.t
     =
@@ -68,15 +68,8 @@ let add_cube : type n b. n D.t -> b t -> string option -> string option * (b, n)
   let name, used = uniquify name used in
   (name, { ctx = Snoc (ctx, Variables (n, D.plus_zero n, CubeOf.singleton name)); used })
 
-let add_normals :
-    type n b. b t -> (n, string option) CubeOf.t -> (n, string option) CubeOf.t * (b, n) snoc t =
- fun { ctx; used } names ->
-  let names, used = uniquifies names used in
-  let n = CubeOf.dim names in
-  (names, { ctx = Snoc (ctx, Variables (D.zero, D.zero_plus n, names)); used })
-
 let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t =
  fun { ctx; used } (Variables (m, mn, names)) ->
-  let names, used = uniquifies names used in
+  let names, used = uniquify_cube names used in
   let vars = Variables (m, mn, names) in
   (vars, { ctx = Snoc (ctx, vars); used })

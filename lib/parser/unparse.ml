@@ -378,15 +378,11 @@ and unparse_lam :
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
   match body with
-  | Lam (Variables (m, m_n, boundvars), inner) -> (
+  | Lam ((Variables (m, _, _) as boundvars), inner) -> (
       match (cube, compare m D.zero) with
-      | `Normal, Eq ->
-          let Eq = D.plus_uniq m_n (D.zero_plus (D.plus_right m_n)) in
-          let x, vars = Names.add_normals vars boundvars in
+      | `Normal, Eq | `Cube, Neq ->
+          let Variables (_, _, x), vars = Names.add vars boundvars in
           unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
-      | `Cube, Neq ->
-          let x, vars = Names.add_cube (D.plus_out m m_n) vars (CubeOf.find_top boundvars) in
-          unparse_lam cube vars (Snoc (xs, x)) inner li ri
       | _ -> unparse_lam_done cube vars xs body li ri)
   | _ -> unparse_lam_done cube vars xs body li ri
 
@@ -451,7 +447,7 @@ and unparse_pis :
   | Pi (x, doms, cods) -> (
       match (x, compare (CubeOf.dim doms) D.zero) with
       | Some x, Eq ->
-          let x, newvars = Names.add_normals vars (CubeOf.singleton (Some x)) in
+          let Variables (_, _, x), newvars = Names.add vars (singleton_variables D.zero (Some x)) in
           unparse_pis newvars
             (Snoc
                ( accum,
@@ -464,7 +460,7 @@ and unparse_pis :
                  } ))
             (CodCube.find_top cods) li ri
       | None, Eq ->
-          let _, newvars = Names.add_normals vars (CubeOf.singleton None) in
+          let _, newvars = Names.add vars (singleton_variables D.zero None) in
           unparse_pis_final vars accum
             {
               unparse =

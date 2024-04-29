@@ -43,10 +43,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
   | Var v -> Val (lookup env v)
   | Const name -> (
       let dim = dim_env env in
-      let cty =
-        match Global.find_type_opt name with
-        | Some cty -> cty
-        | None -> fatal (Undefined_constant (PConstant name)) in
+      let cty = Global.find_type_opt name <|> Undefined_constant (PConstant name) in
       (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
       let ty =
         lazy
@@ -375,9 +372,8 @@ and field : kinetic value -> Field.t -> kinetic value =
   (* TODO: Is it okay to ignore the insertion here? *)
   | Struct (fields, _) ->
       let xv =
-        match Abwd.find_opt fld fields with
-        | Some xv -> xv
-        | None -> fatal (Anomaly ("missing field in eval struct: " ^ Field.to_string fld)) in
+        Abwd.find_opt fld fields <|> Anomaly ("missing field in eval struct: " ^ Field.to_string fld)
+      in
       let (Val x) = Lazy.force (fst xv) in
       x
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (

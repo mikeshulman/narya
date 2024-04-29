@@ -551,3 +551,9 @@ let duplicate_field eta fld =
   match eta with
   | `Eta -> Duplicate_field_in_tuple fld
   | `Noeta -> Duplicate_method_in_comatch fld
+
+let ( <|> ) : type a b. a option -> Code.t -> a =
+ fun x e ->
+  match x with
+  | Some x -> x
+  | None -> fatal e

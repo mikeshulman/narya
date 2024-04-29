@@ -16,12 +16,6 @@ open Readback
 open Printable
 open Asai.Range
 
-let ( <|> ) : type a b. a option -> Code.t -> a =
- fun x e ->
-  match x with
-  | Some x -> x
-  | None -> fatal e
-
 (* Look through a specified number of lambdas to find an inner body.  TODO: Here 'b should really be a Fwn and the result should be a Vec, which suggests that faces should be counted in a Fwn, which would unfortunately be a massive change. *)
 let rec lambdas :
     type a b ab.

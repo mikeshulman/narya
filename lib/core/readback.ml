@@ -44,9 +44,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
   | ( Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ },
       Constr (xconstr, xn, xargs) ) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
-        match Constr.Map.find_opt xconstr constrs with
-        | Some x -> x
-        | None -> fatal (Anomaly "constr not found in readback") in
+        Constr.Map.find_opt xconstr constrs <|> Anomaly "constr not found in readback" in
       match (compare xn (TubeOf.inst tyargs), compare (TubeOf.inst tyargs) (dim_env env)) with
       | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
       | _, Neq ->
@@ -119,10 +117,9 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
 and readback_head : type a k z h. (z, a) Ctx.t -> h head -> (a, kinetic) term =
  fun ctx h ->
   match h with
-  | Var { level; deg } -> (
-      match Ctx.find_level ctx level with
-      | Some x -> Act (Var x, deg)
-      | None -> fatal (No_such_level (PLevel level)))
+  | Var { level; deg } ->
+      let x = Ctx.find_level ctx level <|> No_such_level (PLevel level) in
+      Act (Var x, deg)
   | Const { name; ins } ->
       let dim = cod_left_ins ins in
       let perm = deg_of_ins ins (plus_of_ins ins) in

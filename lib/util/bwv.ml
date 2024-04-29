@@ -99,6 +99,15 @@ let rec insert : type a n. n N.suc N.index -> a -> (a, n) t -> (a, n N.suc) t =
           | _ -> .)
       | Snoc (xs, y) -> Snoc (insert i x xs, y))
 
+(* Apply a permutation *)
+let rec permute : type a m n. (a, m) t -> (m, n) N.perm -> (a, n) t =
+ fun xs p ->
+  match (xs, p) with
+  | _, Id -> xs
+  | Snoc (xs, x), Insert (p, i) ->
+      let ys = permute xs p in
+      insert i x ys
+
 (* Fill a new vector with the return values of a function. *)
 let rec init : type a n. n N.t -> (n N.index -> a) -> (a, n) t =
  fun n f ->

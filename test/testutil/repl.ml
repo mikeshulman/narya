@@ -85,11 +85,6 @@ let cmd ?(quiet = false) (str : string) : unit =
   if quiet then Reporter.try_with ~emit:(fun _ -> ()) @@ fun () -> parse_and_execute_command str
   else parse_and_execute_command str
 
-let undef (name : string) : unit =
-  match Scope.lookup [ name ] with
-  | Some const -> Global.remove const
-  | None -> raise (Failure ("Can't undefine undefined constant " ^ name))
-
 let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   let rty = parse_term ty in
   let rtm1 = parse_term tm1 in

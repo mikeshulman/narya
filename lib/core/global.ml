@@ -31,9 +31,7 @@ let find_type_opt c =
 let find_definition_opt c = Option.map snd (ConstantMap.find_opt c (State.get ()).constants)
 let locked () = (State.get ()).locked
 let add_to c ty df d = { d with constants = d.constants |> ConstantMap.add c (ty, df) }
-let remove_from c d = { d with constants = d.constants |> ConstantMap.remove c }
 let add c ty df = State.modify @@ add_to c ty df
-let remove c = State.modify @@ remove_from c
 let run_empty f = State.run ~init:empty f
 
 let run_with c ty df f =

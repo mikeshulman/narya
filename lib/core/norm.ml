@@ -43,7 +43,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
   | Var v -> Val (lookup env v)
   | Const name -> (
       let dim = dim_env env in
-      let cty = Global.find_type_opt name <|> Undefined_constant (PConstant name) in
+      let cty, defn = Global.find_opt name <|> Undefined_constant (PConstant name) in
       (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
       let ty =
         lazy
@@ -61,16 +61,15 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                       | _ -> fatal (Anomaly "eval of lower-dim constant not neutral/canonical"));
                 })) in
       let head = Const { name; ins = ins_zero dim } in
-      match Global.find_definition_opt name with
-      | Some (Defined tree) -> (
+      match defn with
+      | Defined tree -> (
           match eval (Emp dim) tree with
           | Realize x -> Val x
           | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
           | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
           (* Since a top-level case tree is in the empty context, it doesn't have't anything to stuck-match against. *)
           | Unrealized -> fatal (Anomaly "true neutral case tree in empty context"))
-      | Some _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty))
-      | None -> fatal (Undefined_constant (PConstant name)))
+      | Axiom -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in

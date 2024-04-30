@@ -32,8 +32,8 @@ let () =
   equal_at "ab .snd" "b" "B a";
   equal_at "ab .0" "a" "A";
   equal_at "ab .1" "b" "B a";
-  (match Global.find_definition_opt (Option.get (Parser.Scope.lookup [ "ab" ])) with
-  | Some (Defined _) -> ()
+  (match Global.find_opt (Option.get (Parser.Scope.lookup [ "ab" ])) with
+  | Some (_, Defined _) -> ()
   | _ -> raise (Failure "pair wasn't defined to be a tree"));
   def "zero_zero'" "Σ CN (_ ↦ CN)" "( fst ≔ zero , snd ≔ zero )";
   equal_at "zero_zero" "zero_zero'" "Σ CN (_ ↦ CN)";

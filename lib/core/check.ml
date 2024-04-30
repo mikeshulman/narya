@@ -779,7 +779,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
       let _, x, v = Ctx.lookup ctx i in
       (Term.Var v, x.ty)
   | Const name ->
-      let ty = Global.find_type_opt name <|> Undefined_constant (PConstant name) in
+      let ty, _ = Global.find_opt name <|> Undefined_constant (PConstant name) in
       (Const name, eval_term (Emp D.zero) ty)
   | Field (tm, fld) ->
       let stm, sty = synth ctx tm in

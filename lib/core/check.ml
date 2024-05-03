@@ -37,12 +37,12 @@ let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
   match uty with
   | UU m -> (
-      match compare m D.zero with
+      match D.compare m D.zero with
       | Eq -> 0
       | Neq -> fatal (Unimplemented "higher-dimensional datatypes"))
   | Pi (x, doms, cods) -> (
       (* In practice, these dimensions will always be zero also if the function succeeds, otherwise the eventual output would have to be higher-dimensional too.  But it doesn't hurt to be more general, and will require less change if we eventually implement higher-dimensional datatypes. *)
-      match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
+      match D.compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
       | Eq ->
           let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
           let output = tyof_app cods tyargs newargs in
@@ -131,7 +131,7 @@ let rec check :
             let xs = CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ] in
             Potential
               (c, Snoc (args, App (Arg xs, ins_zero m)), fun tm -> hyp (Term.Lam (names, tm))) in
-      match compare (TubeOf.inst tyargs) m with
+      match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
@@ -194,7 +194,7 @@ let rec check :
             with_loc constr_loc @@ fun () ->
             fatal (No_such_constructor (`Data (PConstant name), constr)) in
       (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
-      match compare (TubeOf.inst tyargs) dim with
+      match D.compare (TubeOf.inst tyargs) dim with
       | Neq -> fatal (Dimension_mismatch ("checking constr", dim_env env, dim))
       | Eq -> (
           let tyarg_args =
@@ -208,7 +208,7 @@ let rec check :
                           fatal (Missing_instantiation_constructor (constr, `Constr tmname))
                         else
                           (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
-                          let _ = compare n (dom_tface fa) in
+                          let _ = D.compare n (dom_tface fa) in
                           Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) tmargs []
                     | _ ->
                         fatal
@@ -265,7 +265,7 @@ let rec check :
                 args = varty_args;
                 alignment = Lawful (Data { dim; indices; missing = Zero; constrs });
               } -> (
-              match compare dim (TubeOf.inst inst_args) with
+              match D.compare dim (TubeOf.inst inst_args) with
               | Neq -> fatal (Dimension_mismatch ("match", dim, TubeOf.inst inst_args))
               | Eq ->
                   (* In our simple version of pattern-matching, the "indices" and all their boundaries must be distinct free variables with no degeneracies, so that in the branch for each constructor they can be set equal to the computed value of that index for that constructor (and in which they cannot occur).  This is a special case of the unification algorithm described in CDP "Pattern-matching without K" where the only allowed rule is "Solution".  Later we can try to enhance it with their full unification algorithm, at least for non-higher datatypes.  In addition, for a higher-dimensional match, the instantiation arguments must also all be distinct variables, distinct from the indices. *)
@@ -350,7 +350,7 @@ let rec check :
                                              (Bwd.fold_left
                                                 (fun f -> function
                                                   | Value.App (Arg arg, _) -> (
-                                                      match compare (CubeOf.dim arg) dim with
+                                                      match D.compare (CubeOf.dim arg) dim with
                                                       | Eq ->
                                                           apply_term f
                                                             (val_of_norm_cube
@@ -382,7 +382,7 @@ let rec check :
                             | Neu { alignment = Lawful (Data { dim = constrdim; indices; _ }); _ }
                               -> (
                                 match
-                                  ( compare constrdim dim,
+                                  ( D.compare constrdim dim,
                                     N.compare (Bwv.length index_vars) (Bwv.length indices) )
                                 with
                                 | Eq, Eq -> (
@@ -523,7 +523,7 @@ let rec check :
         ty
   | Empty_co_match, _, _ -> check status ctx { value = Struct (Noeta, Abwd.empty); loc = tm.loc } ty
   | Codata (eta, cube, fields), UU m, Potential _ -> (
-      match compare (TubeOf.inst tyargs) m with
+      match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking codata", TubeOf.inst tyargs, m))
       | Eq -> check_codata status ctx eta tyargs Emp cube (Bwd.to_list fields))
   | Codata _, _, Potential _ ->
@@ -605,7 +605,7 @@ and get_indices :
           | Value.App (Arg arg, ins) -> (
               match is_id_ins ins with
               | Some () -> (
-                  match compare (CubeOf.dim arg) D.zero with
+                  match D.compare (CubeOf.dim arg) D.zero with
                   | Eq -> readback_nf ctx (CubeOf.find_top arg)
                   | Neq -> fatal (Invalid_constructor_type c))
               | None -> fatal (Invalid_constructor_type c))
@@ -659,7 +659,7 @@ and check_codata :
               let cty = check Kinetic newctx rty (universe D.zero) in
               let checked_fields = Snoc (checked_fields, (fld, cty)) in
               check_codata status ctx eta tyargs checked_fields cube raw_fields
-          | Lt _ | Gt _ ->
+          | Neq ->
               fatal ?loc
                 (Wrong_boundary_of_record (N.to_int (N.plus_right ac) - N.to_int (faces_out faces)))
           ))
@@ -855,7 +855,7 @@ and synth_app :
   (* The obvious thing we can "apply" is an element of a pi-type. *)
   | Pi (_, doms, cods) -> (
       (* Ensure that the pi-type is (fully) instantiated at the right dimension. *)
-      match compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
+      match D.compare (TubeOf.inst tyargs) (CubeOf.dim doms) with
       | Neq -> fatal (Dimension_mismatch ("applying function", TubeOf.inst tyargs, CubeOf.dim doms))
       | Eq ->
           (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
@@ -897,7 +897,7 @@ and synth_app :
   (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
   | UU n -> (
       (* Ensure that the universe is (fully) instantiated at the right dimension. *)
-      match compare (TubeOf.inst tyargs) n with
+      match D.compare (TubeOf.inst tyargs) n with
       | Neq -> fatal (Dimension_mismatch ("instantiating type", TubeOf.inst tyargs, n))
       | Eq -> (
           match D.compare_zero n with

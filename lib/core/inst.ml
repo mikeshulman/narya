@@ -13,11 +13,11 @@ let full_inst ?severity (ty : kinetic value) (err : string) : full_inst =
   match ty with
   (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
   | Uninst (ty, (lazy (Uninst (UU n, _)))) -> (
-      match compare n D.zero with
+      match D.compare n D.zero with
       | Eq -> Fullinst (ty, TubeOf.empty D.zero)
       | Neq -> fatal ?severity (Type_not_fully_instantiated err))
   | Inst { tm = ty; dim = _; args; tys = _ } -> (
-      match compare (TubeOf.uninst args) D.zero with
+      match D.compare (TubeOf.uninst args) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           Fullinst (ty, args)
@@ -34,7 +34,7 @@ let rec inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kine
       match tm with
       | Lazy (lazy tm) -> inst tm args2
       | Inst { tm; dim = _; args = args1; tys = tys1 } -> (
-          match compare (TubeOf.out args2) (TubeOf.uninst args1) with
+          match D.compare (TubeOf.out args2) (TubeOf.uninst args1) with
           | Neq ->
               fatal
                 (Dimension_mismatch
@@ -52,7 +52,7 @@ let rec inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kine
           let (Fullinst (ty, tyargs)) = full_inst ty "inst" in
           match ty with
           | UU k -> (
-              match (compare k (TubeOf.out args2), compare k (TubeOf.out tyargs)) with
+              match (D.compare k (TubeOf.out args2), D.compare k (TubeOf.out tyargs)) with
               | Neq, _ ->
                   fatal
                     (Dimension_mismatch ("instantiating an uninstantiated type", k, TubeOf.out args2))
@@ -104,11 +104,11 @@ type inst_tys = Inst_tys : (D.zero, 'n, 'n, kinetic value) TubeOf.t -> inst_tys
 
 let inst_tys : kinetic value -> inst_tys = function
   | Uninst (_, (lazy (Uninst (UU z, _)))) -> (
-      match compare z D.zero with
+      match D.compare z D.zero with
       | Eq -> Inst_tys (TubeOf.empty D.zero)
       | Neq -> fatal (Anomaly "higher universe must be instantiated to be a type"))
   | Uninst (_, (lazy (Inst { tm = UU _; dim = _; args = tys; tys = _ }))) -> (
-      match compare (TubeOf.uninst tys) D.zero with
+      match D.compare (TubeOf.uninst tys) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (D.zero_plus (TubeOf.inst tys)) (TubeOf.plus tys) in
           Inst_tys (val_of_norm_tube tys)

@@ -29,7 +29,7 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
   | Pi (_, doms, cods) -> (
       let k = CubeOf.dim doms in
       (* The pi-type must be instantiated at the correct dimension. *)
-      match compare (TubeOf.inst tyargs) k with
+      match D.compare (TubeOf.inst tyargs) k with
       | Neq -> fatal (Dimension_mismatch ("equality at pi", TubeOf.inst tyargs, k))
       | Eq ->
           (* Create variables for all the boundary domains. *)
@@ -75,9 +75,9 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
             | None -> fatal (Anomaly "constr not found in equality-check") in
           let* () = guard (xconstr = yconstr) in
           match
-            ( compare xn yn,
-              compare xn (TubeOf.inst tyargs),
-              compare (TubeOf.inst tyargs) (dim_env env) )
+            ( D.compare xn yn,
+              D.compare xn (TubeOf.inst tyargs),
+              D.compare (TubeOf.inst tyargs) (dim_env env) )
           with
           | Neq, _, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, yn))
           | _, Neq, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
@@ -119,7 +119,8 @@ and equal_val : int -> kinetic value -> kinetic value -> unit option =
       let* () = equal_uninst n tm1 tm2 in
       (* If tm1 and tm2 are equal and have the same type, that type must be an instantiation of a universe of the same dimension, itself instantiated at the same arguments.  So for the instantiations to be equal (including their types), it suffices for the instantiation dimensions and arguments to be equal. *)
       match
-        (compare (TubeOf.inst a1) (TubeOf.inst a2), compare (TubeOf.uninst a1) (TubeOf.uninst a2))
+        ( D.compare (TubeOf.inst a1) (TubeOf.inst a2),
+          D.compare (TubeOf.uninst a1) (TubeOf.uninst a2) )
       with
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus a1) (TubeOf.plus a2) in
@@ -137,7 +138,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
   match (x, y) with
   | UU m, UU n -> (
       (* Two universes are equal precisely when they have the same dimension, in which case they also automatically have the same type (a standard instantiation of a (higher) universe of that same dimension). *)
-      match compare m n with
+      match D.compare m n with
       | Eq -> return ()
       | _ -> fail)
   | ( Neu { head = head1; args = args1; alignment = _ },
@@ -149,7 +150,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
   | Pi (_, dom1s, cod1s), Pi (_, dom2s, cod2s) -> (
       (* If two pi-types have the same dimension, equal domains, and equal codomains, they are equal and have the same type (an instantiation of the universe of that dimension at pi-types formed from the lower-dimensional domains and codomains). *)
       let k = CubeOf.dim dom1s in
-      match compare (CubeOf.dim dom2s) k with
+      match D.compare (CubeOf.dim dom2s) k with
       | Eq ->
           let open CubeOf.Monadic (Monad.Maybe) in
           let* () = miterM { it = (fun _ [ x; y ] -> equal_val lvl x y) } [ dom1s; dom2s ] in
@@ -177,7 +178,7 @@ and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
       deg_equiv d1 d2
   | Const { name = c1; ins = i1 }, Const { name = c2; ins = i2 } -> (
       let* () = guard (c1 = c2) in
-      match compare (cod_left_ins i1) (cod_left_ins i2) with
+      match D.compare (cod_left_ins i1) (cod_left_ins i2) with
       | Eq ->
           let d1 = deg_of_ins i1 (plus_of_ins i1) in
           let d2 = deg_of_ins i2 (plus_of_ins i2) in
@@ -202,7 +203,7 @@ and equal_arg : int -> app -> app -> unit option =
   let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
   match (a1, a2) with
   | Arg a1, Arg a2 -> (
-      match compare (CubeOf.dim a1) (CubeOf.dim a2) with
+      match D.compare (CubeOf.dim a1) (CubeOf.dim a2) with
       | Eq ->
           let open CubeOf.Monadic (Monad.Maybe) in
           miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]

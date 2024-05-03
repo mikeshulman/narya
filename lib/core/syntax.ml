@@ -529,7 +529,7 @@ let rec args_of_apps : type n. ?degerr:Code.t -> n D.t -> app Bwd.t -> (n, norma
   | Emp -> Emp
   | Snoc (xs, App (Arg arg, ins)) ->
       if Option.is_some (is_id_ins ins) then
-        match compare (CubeOf.dim arg) n with
+        match D.compare (CubeOf.dim arg) n with
         (* We DON'T pass on ?degerr to the recursive call, since any insertions deeper in the application spine are bugs. *)
         | Eq -> Snoc (args_of_apps n xs, arg)
         | Neq -> fatal (Dimension_mismatch ("args_of_apps", CubeOf.dim arg, n))

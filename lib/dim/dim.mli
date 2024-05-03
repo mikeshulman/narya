@@ -17,7 +17,6 @@ module Endpoints : sig
 end
 
 val to_int : 'a D.t -> int
-val compare : 'm D.t -> 'n D.t -> ('m, 'n) Eq.compare
 
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
 

@@ -230,22 +230,30 @@ let rec index_in_plus : type m n mn. (m, n, mn) plus -> mn index -> (m index, n 
 
 (* We can compare two natural numbers, in such a way that equality identifies their types, and inequality is witnessed by addition. *)
 
-type (_, _) compare =
-  | Eq : ('n, 'n) compare
-  | Lt : ('m, 'n suc, 'mn) plus -> ('m, 'mn) compare
-  | Gt : ('m, 'n suc, 'mn) plus -> ('mn, 'm) compare
+type (_, _) trichotomy =
+  | Eq : ('n, 'n) trichotomy
+  | Lt : ('m, 'n suc, 'mn) plus -> ('m, 'mn) trichotomy
+  | Gt : ('m, 'n suc, 'mn) plus -> ('mn, 'm) trichotomy
 
-let rec compare : type m n. m t -> n t -> (m, n) compare =
+let rec trichotomy : type m n. m t -> n t -> (m, n) trichotomy =
  fun m n ->
   match (m, n) with
   | Nat Zero, Nat Zero -> Eq
   | Nat Zero, Nat (Suc n) -> Lt (zero_plus (Nat (Suc n)))
   | Nat (Suc m), Nat Zero -> Gt (zero_plus (Nat (Suc m)))
   | Nat (Suc m), Nat (Suc n) -> (
-      match compare (Nat m) (Nat n) with
+      match trichotomy (Nat m) (Nat n) with
       | Eq -> Eq
       | Lt p -> Lt (suc_plus_eq_suc p)
       | Gt p -> Gt (suc_plus_eq_suc p))
+
+(* In particular, we can compare for equality and inequality. *)
+
+let compare : type m n. m t -> n t -> (m, n) Eq.compare =
+ fun m n ->
+  match trichotomy m n with
+  | Eq -> Eq
+  | _ -> Neq
 
 (* Similarly, we can compare two additions.  We are lazy and don't record the evidence for Lt and Gt. *)
 

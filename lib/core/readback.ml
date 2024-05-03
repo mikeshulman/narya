@@ -22,7 +22,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
   | Pi (_, doms, cods), Lam ((Variables (m, mn, xs) as x), body) -> (
       let k = CubeOf.dim doms in
       let l = dim_binder body in
-      match (compare (TubeOf.inst tyargs) k, compare k l) with
+      match (D.compare (TubeOf.inst tyargs) k, D.compare k l) with
       | Neq, _ | _, Neq -> fatal (Dimension_mismatch ("reading back at pi", TubeOf.inst tyargs, k))
       | Eq, Eq ->
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
@@ -45,7 +45,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
       Constr (xconstr, xn, xargs) ) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
         Constr.Map.find_opt xconstr constrs <|> Anomaly "constr not found in readback" in
-      match (compare xn (TubeOf.inst tyargs), compare (TubeOf.inst tyargs) (dim_env env)) with
+      match (D.compare xn (TubeOf.inst tyargs), D.compare (TubeOf.inst tyargs) (dim_env env)) with
       | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
       | _, Neq ->
           fatal (Dimension_mismatch ("reading back constrs", TubeOf.inst tyargs, dim_env env))

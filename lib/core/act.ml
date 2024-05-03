@@ -181,7 +181,7 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
   | Lazy (lazy tmty) -> act_ty ?err tm tmty s
   | Inst { tm = ty; dim; args; tys = _ } -> (
       (* A type must be fully instantiated, so in particular tys is trivial. *)
-      match compare (TubeOf.uninst args) D.zero with
+      match D.compare (TubeOf.uninst args) D.zero with
       | Neq -> fatal (Anomaly "act_ty applied to non-fully-instantiated term")
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
@@ -203,13 +203,13 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
   | Uninst (ty, (lazy uu)) -> (
       (* This is just the case when dim = 0, so it is the same except simpler. *)
       let fa = s in
-      match (compare (cod_deg fa) D.zero, uu) with
+      match (D.compare (cod_deg fa) D.zero, uu) with
       (* This can also be a user error, e.g. symmetrizing a 0-dimensional thing, so we allow the caller to provide a different error code. *)
       | Neq, _ ->
           fatal
             (Option.value ~default:(Anomaly "invalid degeneracy action on uninstantiated type") err)
       | Eq, Uninst (UU z, _) -> (
-          match compare z D.zero with
+          match D.compare z D.zero with
           | Neq -> fatal (Anomaly "acting on non-fully-instantiated type as a type")
           | Eq -> (
               match D.compare_zero (dom_deg fa) with

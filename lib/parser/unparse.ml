@@ -227,7 +227,7 @@ let rec unparse :
                   ~last:body ~right_ok)))
   | Lam (Variables (m, _, _), _) ->
       let cube =
-        match compare m D.zero with
+        match D.compare m D.zero with
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
@@ -379,7 +379,7 @@ and unparse_lam :
  fun cube vars xs body li ri ->
   match body with
   | Lam ((Variables (m, _, _) as boundvars), inner) -> (
-      match (cube, compare m D.zero) with
+      match (cube, D.compare m D.zero) with
       | `Normal, Eq | `Cube, Neq ->
           let Variables (_, _, x), vars = Names.add vars boundvars in
           unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
@@ -445,7 +445,7 @@ and unparse_pis :
  fun vars accum tm li ri ->
   match tm with
   | Pi (x, doms, cods) -> (
-      match (x, compare (CubeOf.dim doms) D.zero) with
+      match (x, D.compare (CubeOf.dim doms) D.zero) with
       | Some x, Eq ->
           let Variables (_, _, x), newvars = Names.add vars (singleton_variables D.zero (Some x)) in
           unparse_pis newvars

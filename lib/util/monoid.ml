@@ -4,6 +4,8 @@ module type Monoid = sig
   (* The elements of the monoid are the types that satisfy this predicate. *)
   type 'a t
 
+  val compare : 'a t -> 'b t -> ('a, 'b) Eq.compare
+
   (* Addition defined as a relation *)
   type ('a, 'b, 'c) plus
 

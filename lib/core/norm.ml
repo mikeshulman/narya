@@ -29,7 +29,7 @@ let lookup : type n b. (n, b) env -> b index -> kinetic value =
     | Ext (_, entry), Top fa -> (
         (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
         let (Op (f, s)) = op in
-        match compare (cod_sface fa) (CubeOf.dim entry) with
+        match D.compare (cod_sface fa) (CubeOf.dim entry) with
         | Eq -> act_value (CubeOf.find (CubeOf.find entry fa) f) s
         | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry)))
     | Ext (env, _), Pop v -> lookup env v op
@@ -87,7 +87,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let mn_k' = D.plus_out mn' mn_k in
       (* tys is a complete m+n+k tube *)
       let (Inst_tys tys) = inst_tys newtm in
-      match compare (TubeOf.inst tys) mn_k' with
+      match D.compare (TubeOf.inst tys) mn_k' with
       | Neq -> fatal (Dimension_mismatch ("evaluation instantiation", TubeOf.inst tys, mn_k'))
       | Eq ->
           (* used_tys is an m+n+k tube with m+n uninstantiated and k instantiated.  These are the types that we must instantiate to give the types of the added instantiation arguments. *)
@@ -244,7 +244,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                       (Constr.to_string name)))
           | Some (Branch (plus, perm, body)) -> (
               let (Plus mn) = D.plus n in
-              match compare dim (D.plus_out m mn) with
+              match D.compare dim (D.plus_out m mn) with
               | Eq ->
                   (* If we have a branch with a matching constant, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
                   let env = take_args env mn dargs plus in
@@ -282,7 +282,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
   (* If the function is a lambda-abstraction, we check that it has the correct dimension and then beta-reduce, adding the arguments to the environment. *)
   | Lam (_, body) -> (
       let m = CubeOf.dim arg in
-      match compare (dim_binder body) m with
+      match D.compare (dim_binder body) m with
       | Neq -> fatal (Dimension_mismatch ("applying a lambda", dim_binder body, m))
       | Eq -> apply_binder body arg)
   (* If it is a neutral application... *)
@@ -293,7 +293,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
       | Pi (_, doms, cods) -> (
           (* ... and that the pi-type and its instantiation have the correct dimension. *)
           let k = CubeOf.dim doms in
-          match (compare (TubeOf.inst tyargs) k, compare (CubeOf.dim arg) k) with
+          match (D.compare (TubeOf.inst tyargs) k, D.compare (CubeOf.dim arg) k) with
           | Neq, _ ->
               fatal (Dimension_mismatch ("applying a neutral function", TubeOf.inst tyargs, k))
           | _, Neq ->
@@ -317,7 +317,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
                       | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
                       | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
                   | Lawful (Data { dim; indices; missing = Suc _ as ij; constrs }) -> (
-                      match compare dim k with
+                      match D.compare dim k with
                       | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
                       | Eq ->
                           let indices, missing = (Bwv.Snoc (indices, newarg), N.suc_plus ij) in
@@ -413,7 +413,7 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
       let n = cod_right_ins ins in
       let mn = plus_of_ins ins in
       let mn' = D.plus_out m mn in
-      match compare (TubeOf.inst tyargs) mn' with
+      match D.compare (TubeOf.inst tyargs) mn' with
       | Neq ->
           fatal ?severity (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
       | Eq -> (

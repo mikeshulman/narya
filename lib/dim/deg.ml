@@ -89,7 +89,7 @@ let plus_deg :
 (* Check whether a degeneracy is an identity *)
 let rec is_id_deg : type m n. (m, n) deg -> unit option = function
   | Zero n -> (
-      match compare n D.zero with
+      match N.compare n D.zero with
       | Eq -> Some ()
       | Neq -> None)
   | Suc (p, Top) -> is_id_deg p
@@ -122,7 +122,7 @@ let rec deg_is_idext :
 (* We consider two degeneracies "equivalent" if they differ by an identity extension on the right (i.e. post-whiskering with an identity). *)
 let deg_equiv : type m n k l. (m, n) deg -> (k, l) deg -> unit option =
  fun s1 s2 ->
-  match N.compare (cod_deg s1) (cod_deg s2) with
+  match N.trichotomy (cod_deg s1) (cod_deg s2) with
   | Eq -> deg_equal s1 s2
   | Lt nl -> deg_is_idext nl s1 s2
   | Gt nl -> deg_is_idext nl s2 s1
@@ -271,6 +271,6 @@ let deg_of_string : string -> any_deg option =
 let rec locking : type a b. (a, b) deg -> bool = function
   | Suc (s, _) -> locking s
   | Zero x -> (
-      match compare x D.zero with
+      match N.compare x D.zero with
       | Eq -> false
       | Neq -> true && not (Endpoints.internal ()))

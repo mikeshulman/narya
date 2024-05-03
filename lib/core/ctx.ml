@@ -191,7 +191,7 @@ module Ordered = struct
             let x = CubeOf.find xs fab in
             (Binding.level x, Binding.value x, Top fab)
         | Top, Some (Any_sface fa) -> (
-            match compare (cod_sface fa) m with
+            match D.compare (cod_sface fa) m with
             | Eq ->
                 let (Plus kl) = D.plus (dom_sface fb) in
                 let fab = sface_plus_sface fa mn kl fb in

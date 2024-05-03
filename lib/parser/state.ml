@@ -19,17 +19,17 @@ end
 module PrintMap = Map.Make (PrintKey)
 
 module EntryPair = struct
-  type 'a t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
+  type ('x, 'a) t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
 end
 
-module EntryMap = No.MapMake (EntryPair)
+module EntryMap = No.Map.Make (EntryPair)
 
 type permuted_notation = { notn : Notation.t; pat_vars : string list; val_vars : string list }
 
 (* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation state", which can be used for parsing, and let other modules manipulate those states by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a state, remove some, and then create a new state with just those.) *)
 type t = {
   (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval.  In particular, for the empty interval (+ω,+ω] this contains only the left-closed trees, and for the entire interval [-ω,+ω] it contains all notation trees. *)
-  tighters : EntryMap.t;
+  tighters : unit EntryMap.t;
   (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  If there is more than one left-open notation starting with the same token, we store the loosest such interval. *)
   left_opens : Interval.t TokMap.t;
   (* For unparsing we also store backwards maps turning constants and constructors into notations.  Since the arguments of a notation can occur in a different order from those of the constant or constructor, we store lists of the argument names in the order they occur in the pattern and in the term value.  Note that these permutations are only used for printing; when parsing, the postprocessor function must ALSO incorporate the inverse permutation. *)
@@ -252,11 +252,11 @@ module Current = struct
    fun name fixity pattern key val_vars -> S.modify (add_user name fixity pattern key val_vars)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
-   fun () -> (Option.get (EntryMap.find (S.get ()).tighters No.plus_omega)).strict
+   fun () -> (Option.get (EntryMap.find_opt No.plus_omega (S.get ()).tighters)).strict
 
   let tighters : type strict tight. (tight, strict) Interval.tt -> (tight, strict) entry =
    fun { strictness; endpoint } ->
-    let ep = Option.get (EntryMap.find (S.get ()).tighters endpoint) in
+    let ep = Option.get (EntryMap.find_opt endpoint (S.get ()).tighters) in
     match strictness with
     | Nonstrict -> ep.nonstrict
     | Strict -> ep.strict

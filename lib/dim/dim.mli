@@ -1,8 +1,10 @@
 open Bwd
 open Util
+open Signatures
 open Tlist
 open Monoid
 module D : MonoidPos
+module Dmap : MAP_MAKER with module Key := D
 
 module Endpoints : sig
   type 'l len
@@ -114,11 +116,7 @@ type any_sface = Any_sface : ('n, 'k) sface -> any_sface
 val string_of_sface : ('n, 'k) sface -> string
 val sface_of_string : string -> any_sface option
 
-module type Fam = sig
-  type ('a, 'b) t
-end
-
-module Cube (F : Fam) : sig
+module Cube (F : Fam2) : sig
   type ('m, 'n, 'b) gt
   type ('n, 'b) t = ('n, 'n, 'b) gt
 
@@ -259,7 +257,7 @@ type (_, _, _) pface_of_plus =
 
 val pface_of_plus : ('m, 'n, 'k, 'nk) tface -> ('m, 'n, 'k) pface_of_plus
 
-module Tube (F : Fam) : sig
+module Tube (F : Fam2) : sig
   module C : module type of Cube (F)
 
   type ('n, 'k, 'nk, 'm, 'b) gt

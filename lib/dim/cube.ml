@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Signatures
 open Tlist
 open Hlist
 open Sface
@@ -7,12 +8,7 @@ open Bwsface
 
 (* A cube of dimension 'm is a data structure that records one object for each strict face of 'm, in a ternary tree so that they can be accessed randomly by strict face as well as sequentially.  We allow the *type* of each object to depend on the *domain* of the strict face that indexes it, by parametrizing the notion with a functor.  We also allow an extra dependence on some additional type, so that an individual functor application can be parametric. *)
 
-module type Fam = sig
-  (* 'a is the domain of the strict face, 'b is an extra parameter. *)
-  type ('a, 'b) t
-end
-
-module Cube (F : Fam) = struct
+module Cube (F : Fam2) = struct
   (* First we define an auxiliary data structure.  An ('m, 'n, 'b) gt is a ternary tree of height 'm whose interior nodes have their last branch special, and whose leaves are labeled by an element of F(n-k,b) , where k is the number of non-special branches taken to lead to the leaf.  Thus there is exactly one element of type F(n,b), 2*m elements of type F(n-1,b), down to 2^m elements of type F(n-m,b).  *)
   type (_, _, _) gt =
     | Leaf : ('n, 'b) F.t -> (D.zero, 'n, 'b) gt

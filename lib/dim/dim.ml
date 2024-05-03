@@ -1,4 +1,5 @@
 module D = D
+module Dmap = Util.Nmap
 
 let to_int = D.to_int
 

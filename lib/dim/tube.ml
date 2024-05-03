@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Signatures
 open Tlist
 open Hlist
 open Cube
@@ -10,7 +11,7 @@ open Bwtface
 
 (* Tube data structures *)
 
-module Tube (F : Fam) = struct
+module Tube (F : Fam2) = struct
   module C = Cube (F)
   open C.Infix
 

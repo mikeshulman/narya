@@ -168,7 +168,7 @@ let rec check :
       Neu
         { head = Const { name; _ }; alignment = Lawful (Codata { eta = Noeta; ins; fields; _ }); _ },
       Potential _ ) ->
-      let () = is_id_perm (perm_of_ins ins) <|> Comatching_at_degenerated_codata (PConstant name) in
+      let () = is_id_ins ins <|> Comatching_at_degenerated_codata (PConstant name) in
       check_struct status Noeta ctx tms ty (cod_left_ins ins) fields
   | ( Struct (Eta, tms),
       Neu { head = Const { name; _ }; alignment = Lawful (Codata { eta = Eta; ins; fields; _ }); _ },

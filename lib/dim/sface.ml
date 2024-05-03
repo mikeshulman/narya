@@ -120,27 +120,6 @@ let rec sfaces : type l n f. (l, n, f) count_faces -> (n sface_of, f) Bwv.t = fu
              fun (SFace_of f) -> SFace_of (Mid f) ))
         (fun g -> Bwv.map g fmn)
 
-(* This is very inefficient!  But at least it is correct. *)
-(* let sface_int : type n f. (n, f) count_faces -> n sface_of -> int = *)
-(*  fun nf f -> N.to_int (faces_out nf) - N.int_index (Option.get (Bwv.index f (sfaces nf))) - 1 *)
-
-(* The strict faces of a sum of dimensions are the pairs of strict faces of the summands.  We implement this as an assembly function on backwards vectors, so that its interface doesn't depend on the ordering. *)
-
-let sfaces_plus :
-    type l m n mn fm fn fmn a b c.
-    (m, n, mn) D.plus ->
-    (l, m, fm) count_faces ->
-    (l, n, fn) count_faces ->
-    (l, mn, fmn) count_faces ->
-    (a -> b -> c) ->
-    (a, fm) Bwv.t ->
-    (b, fn) Bwv.t ->
-    (c, fmn) Bwv.t =
- fun mn (l, fm) (_, fn) (_, fmn) g xs ys ->
-  let fm_times_fn = N.pow_plus (D.suc (Endpoints.len l)) fm fn mn fmn in
-  (* However, its implementation for this dimension theory does depend on the ternary ordering of strict faces of cubes. *)
-  Bwv.bind fm_times_fn ys (fun y -> Bwv.map (fun x -> g x y) xs)
-
 type (_, _) d_le = Le : ('m, 'n, 'mn) D.plus -> ('m, 'mn) d_le
 
 let rec plus_of_sface : type m mn. (m, mn) sface -> (m, mn) d_le = function

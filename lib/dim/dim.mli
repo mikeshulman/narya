@@ -22,12 +22,6 @@ val compare : 'm D.t -> 'n D.t -> ('m, 'n) Eq.compare
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
 
 val factor : 'nk D.t -> 'n D.t -> ('nk, 'n) factor option
-val epi : 'k D.t -> ('k, 'm, 'l) D.plus -> ('k, 'n, 'l) D.plus -> ('m, 'n) Eq.t
-val zero_uniq : 'm D.t -> ('m, 'z, 'm) D.plus -> ('z, D.zero) Eq.t
-
-type (_, _) pushout = Pushout : ('a, 'c, 'p) D.plus * ('b, 'd, 'p) D.plus -> ('a, 'b) pushout
-
-val pushout : 'a D.t -> 'b D.t -> ('a, 'b) pushout
 
 type (_, _) deg
 
@@ -51,15 +45,6 @@ val deg_zero : 'a D.t -> ('a, D.zero) deg
 
 type 'n perm = ('n, 'n) deg
 
-val dim_perm : 'n perm -> 'n D.t
-val id_perm : 'n D.t -> 'n perm
-val comp_perm : 'a perm -> 'a perm -> 'a perm
-val perm_plus : 'm perm -> ('m, 'k, 'mk) D.plus -> 'mk perm
-val perm_plus_perm : 'm perm -> ('m, 'n, 'mn) D.plus -> 'n perm -> 'mn perm
-val plus_perm : 'm D.t -> ('m, 'n, 'mn) D.plus -> 'n perm -> 'mn perm
-val is_id_perm : 'n perm -> unit option
-val perm_equiv : 'm perm -> 'n perm -> unit option
-val switch_perm : 'm D.t -> ('m, 'n, 'mn) D.plus -> 'mn perm
 val perm_inv : 'm perm -> 'm perm
 
 type (_, _, _) deg_perm_of_plus =
@@ -74,7 +59,6 @@ type _ deg_of = Of : ('m, 'n) deg -> 'n deg_of
 type _ deg_of_plus = Of : ('n, 'k, 'nk) D.plus * ('m, 'nk) deg -> 'n deg_of_plus
 
 val comp_deg_of_plus : ('m, 'n) deg -> 'm deg_of_plus -> 'n deg_of_plus
-val reduce_deg_of_plus : 'n deg_of_plus -> 'n deg_of_plus
 
 type (_, _) deg_extending =
   | DegExt : ('k, 'j, 'kj) D.plus * ('n, 'i, 'ni) D.plus * ('kj, 'ni) deg -> ('k, 'n) deg_extending
@@ -83,10 +67,6 @@ val comp_deg_extending : ('m, 'n) deg -> ('k, 'l) deg -> ('k, 'n) deg_extending
 
 type any_deg = Any : ('m, 'n) deg -> any_deg
 
-val comp_deg_of_plus_any : 'n deg_of_plus -> any_deg -> 'n deg_of_plus
-val any_deg_plus : any_deg -> 'k D.t -> any_deg
-val any_of_deg_of_plus : 'n deg_of_plus -> any_deg
-val is_id_any_deg : any_deg -> unit option
 val string_of_deg : ('a, 'b) deg -> string
 val deg_of_string : string -> any_deg option
 
@@ -129,17 +109,6 @@ val dim_faces : ('l, 'n, 'f) count_faces -> 'n D.t
 val faces_out : ('l, 'n, 'f) count_faces -> 'f N.t
 val faces_uniq : ('l, 'n, 'f1) count_faces -> ('l, 'n, 'f2) count_faces -> ('f1, 'f2) Eq.t
 val sfaces : ('l, 'n, 'f) count_faces -> ('n sface_of, 'f) Bwv.t
-(* val sface_int : ('n, 'f) count_faces -> 'n sface_of -> int *)
-
-val sfaces_plus :
-  ('m, 'n, 'mn) D.plus ->
-  ('l, 'm, 'fm) count_faces ->
-  ('l, 'n, 'fn) count_faces ->
-  ('l, 'mn, 'fmn) count_faces ->
-  ('a -> 'b -> 'c) ->
-  ('a, 'fm) Bwv.t ->
-  ('b, 'fn) Bwv.t ->
-  ('c, 'fmn) Bwv.t
 
 type any_sface = Any_sface : ('n, 'k) sface -> any_sface
 
@@ -222,10 +191,6 @@ module Cube (F : Fam) : sig
 
   val miter : ('n, ('b, 'bs) cons) IdM.miteratorM -> ('n, 'n, ('b, 'bs) cons) Heter.hgt -> unit
   val build : 'n D.t -> ('n, 'b) IdM.builderM -> ('n, 'b) t
-
-  type ('n, 'c, 'b) fold_lefter = { fold : 'm. 'c -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c }
-
-  val fold_left : ('n, 'c, 'b) fold_lefter -> 'c -> ('n, 'b) t -> 'c
   val subcube : ('m, 'n) sface -> ('n, 'b) t -> ('m, 'b) t
 end
 

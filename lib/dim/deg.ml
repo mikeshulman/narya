@@ -149,13 +149,6 @@ let plus_perm : type m n mn. m D.t -> (m, n, mn) D.plus -> n perm -> mn perm =
  fun m mn s -> plus_deg m mn mn s
 
 let is_id_perm : type n. n perm -> unit option = fun p -> is_id_deg p
-let perm_equiv : type m n. m perm -> n perm -> unit option = fun s t -> deg_equiv s t
-
-(* The permutation that switches m and n side by side. *)
-let rec switch_perm : type m n mn. m D.t -> (m, n, mn) D.plus -> mn perm =
- fun m -> function
-  | Zero -> id_perm m
-  | Suc mn -> Suc (switch_perm m mn, D.switch_index m (Suc mn))
 
 (* The inverse of a permutation *)
 
@@ -202,13 +195,6 @@ let comp_deg_of_plus : type m n. (m, n) deg -> m deg_of_plus -> n deg_of_plus =
   let s2k = deg_plus s2 nk mk in
   Of (nk, comp_deg s2k s1)
 
-let rec reduce_deg_of_plus : type n. n deg_of_plus -> n deg_of_plus =
- fun s ->
-  match s with
-  | Of (Zero, _) -> s
-  | Of (Suc nk, Suc (s', Top)) -> reduce_deg_of_plus (Of (nk, s'))
-  | Of (Suc _, Suc (_, Pop _)) -> s
-
 type (_, _) deg_extending =
   | DegExt : ('k, 'j, 'kj) D.plus * ('n, 'i, 'ni) D.plus * ('kj, 'ni) deg -> ('k, 'n) deg_extending
 
@@ -224,36 +210,6 @@ let comp_deg_extending : type m n l k. (m, n) deg -> (k, l) deg -> (k, n) deg_ex
   DegExt (kj, ni, comp_deg (deg_plus a ni mi) (deg_plus b lj kj))
 
 type any_deg = Any : ('m, 'n) deg -> any_deg
-
-let comp_deg_any : type m n. (m, n) deg -> any_deg -> n deg_of_plus =
- fun a (Any b) ->
-  (* let k = dom_deg b in *)
-  let l = cod_deg b in
-  let m = dom_deg a in
-  (* let n = cod_deg a in *)
-  let (Pushout (mi, lj)) = pushout m l in
-  let (Plus kj) = D.plus (Nat lj) in
-  let (Plus ni) = D.plus (Nat mi) in
-  Of (ni, comp_deg (deg_plus a ni mi) (deg_plus b lj kj))
-
-let comp_deg_of_plus_any : type n. n deg_of_plus -> any_deg -> n deg_of_plus =
- fun (Of (nk, a)) b ->
-  let (Of (nk_l, s)) = comp_deg_any a b in
-  let (Plus kl) = D.plus (D.plus_right nk_l) in
-  let n_kl = D.plus_assocr nk kl nk_l in
-  Of (n_kl, s)
-
-let any_deg_plus : type k. any_deg -> k D.t -> any_deg =
- fun (Any deg) k ->
-  let (Plus mk) = D.plus k in
-  let (Plus nk) = D.plus k in
-  Any (deg_plus deg mk nk)
-
-let any_of_deg_of_plus : type n. n deg_of_plus -> any_deg = function
-  | Of (_, s) -> Any s
-
-let is_id_any_deg : any_deg -> unit option = function
-  | Any s -> is_id_deg s
 
 (* ******************** Printing and parsing ******************** *)
 

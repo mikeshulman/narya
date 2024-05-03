@@ -2,4 +2,4 @@
   (names errors idrefl sym symsym gel natarith sigma stream letin readback lst vec constants degconst)
 	(libraries core parser testutil zarith)
 	(instrumentation (backend landmarks --auto)))
-(env (_ (flags (:standard -w -37 -w -30 -w -32 -w -26 -w -27))))
+(env (_ (flags (:standard -w -26 -w -27))))

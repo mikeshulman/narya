@@ -318,17 +318,6 @@ module Cube (F : Fam) = struct
   let build : type n b. n D.t -> (n, b) IdM.builderM -> (n, b) t =
    fun n g -> IdM.buildM n { build = (fun fa -> g.build fa) }
 
-  (* Folds.  As with lists and bwvs, the ordinary left fold can be defined as a special case of the generic traversal. *)
-
-  type ('n, 'c, 'b) fold_lefter = { fold : 'm. 'c -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c }
-
-  let fold_left : type n b c. (n, c, b) fold_lefter -> c -> (n, b) t -> c =
-   fun g acc tr ->
-    let open Monadic (Monad.State (struct
-      type t = c
-    end)) in
-    snd (miterM { it = (fun fa [ x ] c -> ((), g.fold c fa x)) } [ tr ] acc)
-
   (* A "subcube" of a cube of dimension n, determined by a face of n with dimension k, is the cube of dimension k consisting of the elements indexed by faces that factor through the given one. *)
   let subcube : type m n b. (m, n) sface -> (n, b) t -> (m, b) t =
    fun fa tr -> build (dom_sface fa) { build = (fun fb -> find tr (comp_sface fa fb)) }

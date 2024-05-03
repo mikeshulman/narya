@@ -10,7 +10,7 @@ This directory contains a number of utilities used in Narya that in principle co
 
 1. Remain purely functional as much as possible.  In particular, nothing in this directory produces any side effects.  We instead incorporate monads in appropriate places, e.g. in the generic traversal functions.
 
-Here is a listing of the files in this directory, as of March 3, 2024, with brief descriptions:
+Here is a listing of the files in this directory, as of May 2, 2024, with brief descriptions:
 
 ## Generic utilities
 
@@ -18,7 +18,8 @@ Here is a listing of the files in this directory, as of March 3, 2024, with brie
 - [Bwd_extra](bwd_extra.ml): Extra utility functions involving bwds (backward lists)
 - [Abwd](abwd.ml): Backward association lists, i.e. bwds of pairs used to look up their first element and return their second element.  Use instead of Map when retaining the order of entries matters.
 - [Monad](monad.ml): Module signatures and implementations for monads and monadic operations.
-- [Sorry](sorry.ml): A generic way to leave a "hole" in an unfinished function.
+- [Applicative](applicative.ml): Similarly, signatures and implementations for applicative (a.k.a. lax monoidal) functors.
+- [Sorry](sorry.ml): A generic way to leave a "hole" in an unfinished function and still allow the file to compile (but throw an exception when executed).
 
 ## Generic traversals
 
@@ -27,6 +28,7 @@ Here is a listing of the files in this directory, as of March 3, 2024, with brie
 
 ## Type-level arithemtic
 
+- [Eq](eq.ml): Type equality.
 - [Monoid](monoid.ml): Module signatures for type-level monoids.
 - [N](n.ml): Type-level natural numbers.
 - [Fwn](fwn.ml): Type-level "forward" natural numbers.  We call the usual ones "backward" because they are the natural lengths of backward lists, while the forward ones are the natural lengths of forward lists.  (The difference is in which argument the definition of addition recurses on.)

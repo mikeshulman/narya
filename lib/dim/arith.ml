@@ -24,31 +24,6 @@ let rec factor : type nk n. nk D.t -> n D.t -> (nk, n) factor option =
           let* (Factor n_k) = factor (Nat nk) n in
           return (Factor (Suc n_k)))
 
-(* And we prove that it is unique. *)
-let rec zero_uniq : type m z. m D.t -> (m, z, m) D.plus -> (z, D.zero) Eq.t =
- fun m mz ->
-  match m with
-  | Nat Zero ->
-      let Zero = mz in
-      Eq
-  | Nat (Suc m) ->
-      let (Suc mz) = D.plus_suc mz in
-      let Eq = zero_uniq (Nat m) mz in
-      Eq
-
-let rec epi : type m n k l. k D.t -> (k, m, l) D.plus -> (k, n, l) D.plus -> (m, n) Eq.t =
- fun k km kn ->
-  match (km, kn) with
-  | Zero, _ ->
-      let Eq = zero_uniq k kn in
-      Eq
-  | _, Zero ->
-      let Eq = zero_uniq k km in
-      Eq
-  | Suc km, Suc kn ->
-      let Eq = epi k km kn in
-      Eq
-
 (* Compute the pushout of a span of dimensions, if it exists.  In practice we only need pushouts of spans that can be completed to some commutative square (equivalently, pushouts in slice categories), but in our primary examples all pushouts exist, so we don't bother putting an option on it yet. *)
 
 type (_, _) pushout = Pushout : ('a, 'c, 'p) D.plus * ('b, 'd, 'p) D.plus -> ('a, 'b) pushout

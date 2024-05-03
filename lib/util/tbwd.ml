@@ -36,7 +36,7 @@ module Tbwd = struct
         let (Snocs p) = snocs b in
         Snocs (Suc p)
 
-  (* ('a, 'n, 'b) insert says that 'b is obtained by inserting a dimension 'n somewhere in 'a.  Or, put differently, 'a is obtained from 'b by deleting a dimension 'n from somewhere. *)
+  (* ('a, 'n, 'b) insert says that 'b is obtained by inserting a type 'n somewhere in 'a.  Or, put differently, 'a is obtained from 'b by deleting a type 'n in a specified location. *)
   type (_, _, _) insert =
     | Now : ('a, 'n, ('a, 'n) snoc) insert
     | Later : ('a, 'n, 'b) insert -> (('a, 'k) snoc, 'n, ('b, 'k) snoc) insert

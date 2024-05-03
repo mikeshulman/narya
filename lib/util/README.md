@@ -17,6 +17,7 @@ Here is a listing of the files in this directory, as of May 2, 2024, with brief 
 - [List_extra](list_extra.ml): Extra utility functions involving (forward) lists
 - [Bwd_extra](bwd_extra.ml): Extra utility functions involving bwds (backward lists)
 - [Abwd](abwd.ml): Backward association lists, i.e. bwds of pairs used to look up their first element and return their second element.  Use instead of Map when retaining the order of entries matters.
+- [Signatures](signatures.ml): Module types for intrinsically well-typed maps.
 - [Monad](monad.ml): Module signatures and implementations for monads and monadic operations.
 - [Applicative](applicative.ml): Similarly, signatures and implementations for applicative (a.k.a. lax monoidal) functors.
 - [Sorry](sorry.ml): A generic way to leave a "hole" in an unfinished function and still allow the file to compile (but throw an exception when executed).
@@ -32,7 +33,9 @@ Here is a listing of the files in this directory, as of May 2, 2024, with brief 
 - [Monoid](monoid.ml): Module signatures for type-level monoids.
 - [N](n.ml): Type-level natural numbers.
 - [Fwn](fwn.ml): Type-level "forward" natural numbers.  We call the usual ones "backward" because they are the natural lengths of backward lists, while the forward ones are the natural lengths of forward lists.  (The difference is in which argument the definition of addition recurses on.)
-- [No](no.ml): Type-level dyadic rationals plus ±ω, represented as surreal numbers.
+- [Nmap](nmap.ml): Intrinsically well-typed maps over `N`.
+- [No](no.ml): Type-level dyadic rationals plus ±ω, represented as surreal numbers, including an intrinsically well-typed map.
+- [Word](word.ml): Type-level free monoids on an arbitrary set of generators, including an intrinsically well-typed map.
 
 ## Lists and vectors
 

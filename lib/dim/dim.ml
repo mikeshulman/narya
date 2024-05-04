@@ -12,6 +12,7 @@ include Cube
 include Tface
 include Bwtface
 include Tube
+include Icube
 include Face
 include Op
 include Insertion

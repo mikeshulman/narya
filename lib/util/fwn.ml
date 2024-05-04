@@ -11,6 +11,11 @@ type (_, _, _) bplus =
 
 type _ t = Zero : zero t | Suc : 'a t -> 'a suc t
 
+let zero : zero t = Zero
+
+let suc : type n. n t -> n suc t = function
+  | n -> Suc n
+
 let rec bplus_right : type a b ab. (a, b, ab) bplus -> b t = function
   | Zero -> Zero
   | Suc ab -> Suc (bplus_right ab)

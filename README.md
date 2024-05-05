@@ -887,3 +887,17 @@ As is common for normalization-by-evaluation, the implementation uses De Bruijn 
 This approach does have the drawback that it requires a fair amount of arithmetic on the natural numbers to ensure well-typedness, which is not only tedious but some of it also ends up happening at run-time.  Since type-level natural numbers are represented in unary, this could be a source of inefficiency in the future.  However, it has so far proven very effective at avoiding bugs!
 
 Another interesting tool used in the implementation is a technique for writing generic traversal functions for data structures.  With heterogeneous type-indexed lists, we can write a single traversal function that can be called with arbitrarily many data structures as input and arbitrarily many as output, thus including in particular `map`, `map2`, `iter` (the 0-output case), `iter2`, and so on.  If this generic traversal is parametrized over a monad, or more generally an applicative functor, then it also includes both left and right folds, possibly combined with maps, and so on.  For a simple data structure like lists this is overkill, of course, but for some of the complicated data structures we use (like n-dimensional cubes that are statically guaranteed to have exactly the right number of elements, accessed by giving a face) it saves a lot of work to be able to implement only one traversal.
+
+The source code is organized in directories as follows:
+
+* [lib/](lib/): Most of the code
+  * [lib/util/](lib/util/): Utilities that could in principle be generic libraries
+  * [lib/dim/](lib/dim/): Definition of the dimension theory (cube category)
+  * [lib/core/](lib/core/): Syntax, normalization, type-checking, etc.
+  * [lib/parser/](lib/parser/): Parsing and printing
+* [bin/](bin/): The main executable
+* [test/](test/): Unit tests
+  * [test/testutil/](test/testutil/): Utilities used only for white-box testing
+  * [test/white/](test/white/): White-box tests of the core
+  * [test/parser/](test/parser/): White-box tests of parsing and printing
+  * [test/black/](test/black/): Black-box tests of the executable

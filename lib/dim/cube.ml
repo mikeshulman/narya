@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Signatures
 open Tlist
@@ -348,65 +347,4 @@ module CubeOf = struct
         let mk' = N.plus_suc mk in
         let (Suc mk'') = mk' in
         Branch (l, Bwv.map (fun t -> lower mk'' (N.plus_suc n12') t) ends, lower mk' n12 mid)
-
-  (* We can also extract the elements of a cube and append them to a Bwv. *)
-
-  let rec gflatten_append :
-      type k m km n b l len f lenf el.
-      (k, m, km) D.plus ->
-      (l, m, n) D.plus ->
-      (k, l) bwsface ->
-      (b, len) Bwv.t ->
-      (m, km, b) gt ->
-      (el, m, f) count_faces ->
-      (len, f, lenf) N.plus ->
-      (b, lenf) Bwv.t =
-   fun km lm d acc tr mf lenf ->
-    match tr with
-    | Leaf x ->
-        let Zero, Zero = (km, lm) in
-        let Eq = faces_uniq (faces_zero (fst mf)) mf in
-        let (Suc Zero) = lenf in
-        Snoc (acc, x)
-    | Branch (l, ends, mid) ->
-        let Eq = Endpoints.uniq (fst mf) l in
-        let (Suc km') = km in
-        let _, Suc (mf', Suc (ft, pq)) = mf in
-        let (Plus lenf') = N.plus (N.times_out ft) in
-        let lenff = N.plus_assocl lenf' pq lenf in
-        let acc =
-          Bwv.fold_left2_bind_append ft lenf' acc (Endpoints.indices l) ends
-            {
-              append =
-                (fun pq cx e br ->
-                  gflatten_append km' (D.suc_plus lm) (End (e, d)) cx br (l, mf') pq);
-            } in
-        gflatten_append (D.suc_plus km) (D.suc_plus lm) (Mid d) acc mid (l, mf') lenff
-
-  let flatten_append :
-      type n b len f lenf el.
-      (b, len) Bwv.t ->
-      (n, b) t ->
-      (el, n, f) count_faces ->
-      (len, f, lenf) N.plus ->
-      (b, lenf) Bwv.t =
-   fun acc tr mf lenf ->
-    let n = dim tr in
-    gflatten_append (D.zero_plus n) (D.zero_plus n) Zero acc tr mf lenf
-
-  let flatten : type n b f el. (n, b) t -> (el, n, f) count_faces -> (b, f) Bwv.t =
-   fun tr mf ->
-    let n = dim tr in
-    gflatten_append (D.zero_plus n) (D.zero_plus n) Zero Emp tr mf (N.zero_plus (faces_out mf))
-
-  (* Or, more simply, to a Bwd. *)
-  let append_bwd : type a n. a Bwd.t -> (n, a) t -> a Bwd.t =
-   fun start xs ->
-    let module S = struct
-      type t = a Bwd.t
-    end in
-    let module M = Monad.State (S) in
-    let open Monadic (M) in
-    let (), xs = miterM { it = (fun _ [ x ] xs -> ((), Snoc (xs, x))) } [ xs ] start in
-    xs
 end

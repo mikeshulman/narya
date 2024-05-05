@@ -59,6 +59,10 @@ let rec fplus_uniq : type a b ab ab'. (a, b, ab) fplus -> (a, b, ab') fplus -> (
       let Eq = fplus_uniq ab ab' in
       Eq
 
+let rec suc_fplus : type a b ab. (a, b, ab) fplus -> (a N.suc, b, ab suc) fplus = function
+  | Zero -> Suc Zero
+  | Suc ab -> Suc (suc_fplus ab)
+
 type (_, _) has_fplus = Fplus : ('a, 'b, 'ab) fplus -> ('a, 'b) has_fplus
 
 let rec fplus : type a b. a N.t -> (a, b) has_fplus = function

@@ -26,10 +26,8 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
       | Neq, _ | _, Neq -> fatal (Dimension_mismatch ("reading back at pi", TubeOf.inst tyargs, k))
       | Eq, Eq ->
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
-          let (Faces dom_faces) = count_faces (D.plus_right mn) in
-          let f = faces_out dom_faces in
-          let (Plus af) = N.plus f in
-          let newctx = Ctx.vis ctx m mn dom_faces af xs newnfs in
+          let (Plus af) = N.plus (NICubeOf.out N.zero xs) in
+          let newctx = Ctx.vis ctx m mn af xs newnfs in
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))

@@ -164,9 +164,15 @@ let rec get_spine :
  fun tm ->
   match tm with
   | App (fn, arg) -> (
+      let module M = CubeOf.Monadic (Monad.State (struct
+        type t = (n, kinetic) term Bwd.t
+      end)) in
+      (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
+      let append_bwd args =
+        snd (M.miterM { it = (fun _ [ x ] s -> ((), Snoc (s, x))) } [ arg ] args) in
       match get_spine fn with
-      | `App (head, args) -> `App (head, CubeOf.append_bwd args arg)
-      | `Field (head, fld, args) -> `Field (head, fld, CubeOf.append_bwd args arg))
+      | `App (head, args) -> `App (head, append_bwd args)
+      | `Field (head, fld, args) -> `Field (head, fld, append_bwd args))
   | Field (head, fld) -> `Field (head, fld, Emp)
   (* We have to look through identity degeneracies here. *)
   | Act (body, s) -> (
@@ -382,7 +388,18 @@ and unparse_lam :
       match (cube, D.compare m D.zero) with
       | `Normal, Eq | `Cube, Neq ->
           let Variables (_, _, x), vars = Names.add vars boundvars in
-          unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
+          let module Fold = NICubeOf.Traverse (struct
+            type 'acc t = string option Bwd.t
+          end) in
+          (* Apparently we need to define the folding function explicitly with a type to make it come out sufficiently polymorphic. *)
+          let folder :
+              type m left right.
+              string option Bwd.t -> (left, m, string option, right) NFamOf.t -> string option Bwd.t
+              =
+           fun acc (NFamOf x) -> Snoc (acc, x) in
+          unparse_lam cube vars
+            (Fold.fold_left { fold = (fun _ acc x -> folder acc x) } xs x)
+            inner li ri
       | _ -> unparse_lam_done cube vars xs body li ri)
   | _ -> unparse_lam_done cube vars xs body li ri
 
@@ -455,7 +472,7 @@ and unparse_pis :
                    unparse =
                      (fun _ _ ->
                        unparse_pi_dom
-                         (Option.get (CubeOf.find_top x))
+                         (Option.get (NICubeOf.find_top x))
                          (unparse vars (CubeOf.find_top doms) (interval_right asc) Interval.entire));
                  } ))
             (CodCube.find_top cods) li ri

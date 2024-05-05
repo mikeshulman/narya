@@ -733,7 +733,7 @@ let rec process_branches : type n. n Varscope.t -> observation list -> n Raw.bra
   | [] -> []
   | Term pat :: Term body :: obs ->
       let c, vars = get_pattern pat [] in
-      let (Bappend_plus (ab, xs, ectx)) = Varscope.bappend_plus ctx vars in
+      let (Append_plus (Zero, ab, xs, ectx)) = Varscope.append_plus [] ctx vars in
       Branch (c, xs, { value = ab; loc = pat.loc }, process ectx body) :: process_branches ctx obs
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match 1")
 
@@ -1024,10 +1024,10 @@ let () =
               match obs with
               | Term x :: obs ->
                   with_loc x.loc @@ fun () ->
-                  let (Append_plus (ac, vars, ctx)) =
-                    Varscope.append_plus ctx (List.map fst (process_var_list x [])) in
+                  let (Append_plus (Suc Zero, ac, vars, ctx)) =
+                    Varscope.append_plus [ None ] ctx (List.map fst (process_var_list x [])) in
                   process_record Emp ctx
-                    (Normal ({ value = Suc ac; loc = x.loc }, Snoc (vars, None)))
+                    (Normal ({ value = ac; loc = x.loc }, vars))
                     None Emp obs loc
               | _ -> fatal (Anomaly "invalid notation arguments for record"))
           | None -> (
@@ -1040,7 +1040,7 @@ let () =
                   | _ -> fatal (Anomaly "invalid notation arguments for record"))
               | None ->
                   process_record Emp ctx
-                    (Normal ({ value = Suc Zero; loc }, Snoc (Emp, None)))
+                    (Normal ({ value = Suc Zero; loc }, [ None ]))
                     None Emp obs loc));
     }
 

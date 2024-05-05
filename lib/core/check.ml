@@ -16,21 +16,6 @@ open Readback
 open Printable
 open Asai.Range
 
-(* Look through a specified number of lambdas to find an inner body.  TODO: Here 'b should really be a Fwn and the result should be a Vec, which suggests that faces should be counted in a Fwn, which would unfortunately be a massive change. *)
-let rec lambdas :
-    type a b ab.
-    Asai.Range.t option ->
-    (a, b, ab) N.plus ->
-    a check located ->
-    string option list * ab check located =
- fun loc ab tm ->
-  match (ab, tm.value) with
-  | Zero, _ -> ([], tm)
-  | Suc _, Lam ({ value = x; loc }, `Normal, body) ->
-      let names, body = lambdas loc (N.suc_plus ab) body in
-      (x :: names, body)
-  | _ -> fatal ?loc (Not_enough_lambdas (N.to_int (N.plus_right ab)))
-
 (* Check that a given value is a zero-dimensional type family (something where an indexed datatype could live) and return the length of its domain telescope (the number of indices).  Unfortunately I don't see an easy way to do this without essentially going through all the same steps of extending the context that we would do to check something at that type family. *)
 let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
  fun ctx ty ->
@@ -50,27 +35,40 @@ let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
       | Neq -> fatal (Dimension_mismatch ("typefam", TubeOf.inst tyargs, CubeOf.dim doms)))
   | _ -> fatal (Checking_canonical_at_nonuniverse ("datatype", PVal (ctx, ty)))
 
-(* Convert a list of variable names to a cube of them.  TODO: I believe that in all places where we use this, we could in theory statically guarantee that there are the correct number of names.  But it would be most natural to have them in a Vec, which suggests that faces should be counted in a Fwn rather than a N, which would unfortunately be a massive change.  *)
-let vars_of_list m names =
-  let module S = Monad.State (struct
-    type t = string option list
-  end) in
-  let open CubeOf.Monadic (S) in
-  let names, _ =
-    buildM m
+type (_, _, _) vars_of_vec =
+  | Vars :
+      ('a, 'b, 'abc) N.plus * (N.zero, 'n, string option, 'b) NICubeOf.t
+      -> ('a, 'abc, 'n) vars_of_vec
+
+let vars_of_vec :
+    type a c abc n.
+    Asai.Range.t option ->
+    n D.t ->
+    (a, c, abc) Fwn.bplus ->
+    (string option, c) Vec.t ->
+    (a, abc, n) vars_of_vec =
+ fun loc dim abc xs ->
+  let module S = struct
+    type 'b t =
+      | Ok : (a, 'b, 'ab) N.plus * ('ab, 'c, abc) Fwn.bplus * (string option, 'c) Vec.t -> 'b t
+      | Missing of int
+  end in
+  let module Build = NICubeOf.Traverse (S) in
+  match
+    Build.build dim
       {
         build =
-          (fun _ ->
-            let open Monad.Ops (S) in
-            let* names = S.get in
-            match names with
-            | [] -> fatal (Anomaly "missing name")
-            | x :: xs ->
-                let* () = S.put xs in
-                return x);
+          (fun _ -> function
+            | Ok (ab, Suc abc, x :: xs) -> Fwrap (NFamOf x, Ok (Suc ab, abc, xs))
+            | Ok _ -> Fwrap (NFamOf None, Missing (-1))
+            | Missing j -> Fwrap (NFamOf None, Missing (j - 1)));
       }
-      names in
-  names
+      (Ok (Zero, abc, xs))
+  with
+  | Wrap (names, Ok (ab, Zero, [])) -> Vars (ab, names)
+  | Wrap (_, Ok (_, abc, _)) ->
+      fatal ?loc (Wrong_boundary_of_record (Fwn.to_int (Fwn.bplus_right abc)))
+  | Wrap (_, Missing j) -> fatal ?loc (Wrong_boundary_of_record j)
 
 (* Slurp up an entire application spine.  Returns the function, the locations of all the applications (e.g. in "f x y" returns the locations of "f x" and "f x y") and all the arguments. *)
 let spine :
@@ -141,23 +139,37 @@ let rec check :
           let output = tyof_app cods tyargs newargs in
           let xs, cbody =
             match cube with
-            | `Normal ->
-                (* Slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them. *)
-                let (Faces dom_faces) = count_faces m in
-                let f = faces_out dom_faces in
-                let (Plus af) = N.plus f in
-                let names, body = lambdas None af tm in
-                let names = vars_of_list m names in
-                let xs = Variables (D.zero, D.zero_plus m, names) in
-                let status = mkstatus status m xs newnfs in
-                ( xs,
-                  check status
-                    (Ctx.vis ctx D.zero (D.zero_plus m) dom_faces af names newnfs)
-                    body output )
+            (* If the abstraction is a cube, we slurp up the right number of lambdas for the dimension of the pi-type, and pick up the body inside them.  We do this by building a cube of variables of the right dimension while maintaining the current term as an indexed state.  We also build a sum of raw lengths, since we need that to extend the context.  Note that we never need to manually "count" how many faces there are in a cube of any dimension, or discuss how to put them in order: the counting and ordering is handled automatically by iterating through a cube. *)
+            | `Normal -> (
+                let module S = struct
+                  type 'b t =
+                    | Ok : Asai.Range.t option * (a, 'b, 'ab) N.plus * 'ab check located -> 'b t
+                    | Missing of Asai.Range.t option * int
+                end in
+                let module Build = NICubeOf.Traverse (S) in
+                match
+                  Build.build m
+                    {
+                      build =
+                        (fun _ -> function
+                          | Ok (_, ab, { value = Lam ({ value = x; loc }, `Normal, body); _ }) ->
+                              Fwrap (NFamOf x, Ok (loc, Suc ab, body))
+                          | Ok (loc, _, _) -> Fwrap (NFamOf None, Missing (loc, 1))
+                          | Missing (loc, j) -> Fwrap (NFamOf None, Missing (loc, j + 1)));
+                    }
+                    (Ok (None, Zero, tm))
+                with
+                | Wrap (names, Ok (_, af, body)) ->
+                    let xs = Variables (D.zero, D.zero_plus m, names) in
+                    let status = mkstatus status m xs newnfs in
+                    ( xs,
+                      check status (Ctx.vis ctx D.zero (D.zero_plus m) af names newnfs) body output
+                    )
+                | Wrap (_, Missing (loc, j)) -> fatal ?loc (Not_enough_lambdas j))
             | `Cube ->
+                (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
                 let xs = singleton_variables m x in
                 let status = mkstatus status m xs newnfs in
-                (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
                 (xs, check status (Ctx.cube_vis ctx x newnfs) body output) in
           Term.Lam (xs, cbody))
   | Lam _, _, _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty)))
@@ -648,21 +660,12 @@ and check_codata :
           let cty = check Kinetic newctx rty (universe D.zero) in
           let checked_fields = Snoc (checked_fields, (fld, cty)) in
           check_codata status ctx eta tyargs checked_fields cube raw_fields
-      | Normal ({ value = ac; loc }, xs) -> (
-          let (Faces faces) = count_faces dim in
-          match N.compare (faces_out faces) (N.plus_right ac) with
-          | Eq ->
-              let newctx =
-                Ctx.vis ctx D.zero (D.zero_plus dim) faces ac
-                  (vars_of_list dim (Bwv.to_list xs))
-                  domvars in
-              let cty = check Kinetic newctx rty (universe D.zero) in
-              let checked_fields = Snoc (checked_fields, (fld, cty)) in
-              check_codata status ctx eta tyargs checked_fields cube raw_fields
-          | Neq ->
-              fatal ?loc
-                (Wrong_boundary_of_record (N.to_int (N.plus_right ac) - N.to_int (faces_out faces)))
-          ))
+      | Normal ({ value = abc; loc }, xs) ->
+          let (Vars (ab, names)) = vars_of_vec loc dim abc xs in
+          let newctx = Ctx.vis ctx D.zero (D.zero_plus dim) ab names domvars in
+          let cty = check Kinetic newctx rty (universe D.zero) in
+          let checked_fields = Snoc (checked_fields, (fld, cty)) in
+          check_codata status ctx eta tyargs checked_fields cube raw_fields)
 
 and check_struct :
     type a b c s m n.

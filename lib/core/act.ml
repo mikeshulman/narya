@@ -27,18 +27,22 @@ let act_variables : type m n. n variables -> (m, n) deg -> m variables =
   match deg_perm_of_plus nk s with
   | None_deg_perm_of_plus ->
       let m = dom_deg s in
-      Variables (m, D.plus_zero m, CubeOf.singleton (CubeOf.find_top vars))
+      Variables (m, D.plus_zero m, NICubeOf.singleton (NICubeOf.find_top vars))
   (* If the degeneracy doesn't mix up the normal and cube dimensions, it still might permute the normal ones.  I'm not positive that it makes sense to throw away the degeneracy part here and the permutation part below, but this is the best I can think of.  If it doesn't end up making sense, we may have to revert to making it fully-cube as above. *)
   | Deg_perm_of_plus (mk, s, p) ->
       let m = dom_deg s in
-      let vars =
-        CubeOf.build (CubeOf.dim vars)
+      let module Build = NICubeOf.Traverse (struct
+        type 'acc t = unit
+      end) in
+      let (Wrap (vars, _)) =
+        Build.build (NICubeOf.dim vars)
           {
             build =
-              (fun fa ->
+              (fun fa () ->
                 let (Face (fb, _)) = perm_sface p fa in
-                CubeOf.find vars fb);
-          } in
+                Fwrap (NFamOf (NICubeOf.find vars fb), ()));
+          }
+          () in
       Variables (m, mk, vars)
 
 (* Acting on a binder and on other sorts of closures will be unified by the function 'act_closure', but its return value involves an existential type, so it has to be a GADT. *)

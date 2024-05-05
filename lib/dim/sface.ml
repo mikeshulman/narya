@@ -92,34 +92,6 @@ let rec sface_of_plus :
           let (SFace_of_plus (ml, f1, f2)) = sface_of_plus nk f in
           SFace_of_plus (Suc ml, f1, Mid f2))
 
-(* The strict faces of any dimension can be enumerated.  For efficiency, this could be memoized. *)
-
-type ('l, 'n, 'f) count_faces = 'l Endpoints.len * ('l D.suc, 'n, 'f) D.pow
-type _ has_faces = Faces : ('l, 'n, 'f) count_faces -> 'n has_faces
-
-let count_faces : type n. n D.t -> n has_faces =
- fun n ->
-  let (Wrap l) = Endpoints.wrapped () in
-  let (Has_pow f) = D.pow (D.suc (Endpoints.len l)) n in
-  Faces (l, f)
-
-let faces_zero : type l. l Endpoints.len -> (l, D.zero, N.one) count_faces = fun l -> (l, Zero)
-let dim_faces : type l n f. (l, n, f) count_faces -> n D.t = fun (_, c) -> D.pow_right c
-let faces_out : type l n f. (l, n, f) count_faces -> f N.t = fun (_, c) -> D.pow_out c
-
-let faces_uniq : type l n f1 f2. (l, n, f1) count_faces -> (l, n, f2) count_faces -> (f1, f2) Eq.t =
- fun (_, f1) (_, f2) -> N.pow_uniq f1 f2
-
-let rec sfaces : type l n f. (l, n, f) count_faces -> (n sface_of, f) Bwv.t = function
-  | _, Zero -> Snoc (Emp, SFace_of Zero)
-  | l, Suc (mn, mnm) ->
-      let fmn = sfaces (l, mn) in
-      Bwv.bind mnm
-        (Snoc
-           ( Bwv.map (fun e (SFace_of f) -> SFace_of (End (f, e))) (Endpoints.indices l),
-             fun (SFace_of f) -> SFace_of (Mid f) ))
-        (fun g -> Bwv.map g fmn)
-
 type (_, _) d_le = Le : ('m, 'n, 'mn) D.plus -> ('m, 'mn) d_le
 
 let rec plus_of_sface : type m mn. (m, mn) sface -> (m, mn) d_le = function

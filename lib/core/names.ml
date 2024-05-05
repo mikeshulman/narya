@@ -27,7 +27,7 @@ let lookup : type n. n t -> n index -> string list =
     | Snoc (ctx, _), Pop x -> lookup ctx x
     | Snoc (_, Variables (_, mn, xs)), Top fa -> (
         let (SFace_of_plus (_, fb, fc)) = sface_of_plus mn fa in
-        match CubeOf.find xs fc with
+        match NICubeOf.find xs fc with
         | Some x -> cubevar x fb
         | None -> fatal (Anomaly "reference to anonymous variable")) in
   lookup ctx x
@@ -53,20 +53,29 @@ let uniquify : string option -> int StringMap.t -> string option * int StringMap
 
 (* Do the same thing to a whole cube of variable names. *)
 let uniquify_cube :
-    type n.
-    (n, string option) CubeOf.t -> int StringMap.t -> (n, string option) CubeOf.t * int StringMap.t
-    =
+    type n left right.
+    (left, n, string option, right) NICubeOf.t ->
+    int StringMap.t ->
+    (left, n, string option, right) NICubeOf.t * int StringMap.t =
  fun names used ->
-  let module M = Monad.State (struct
+  (* Apparently we need to define the iteration function with an explicit type so that it ends up sufficiently polymorphic. *)
+  let uniquify_nfamof :
+      type m left right.
+      (left, m, string option, right) NFamOf.t ->
+      int StringMap.t ->
+      (left, m, string option, right) NFamOf.t * int StringMap.t =
+   fun (NFamOf name) used ->
+    let name, used = uniquify name used in
+    (NFamOf name, used) in
+  let open NICubeOf.Applicatic (Applicative.OfMonad (Monad.State (struct
     type t = int StringMap.t
-  end) in
-  let open CubeOf.Monadic (M) in
-  mmapM { map = (fun _ [ name ] used -> uniquify name used) } [ names ] used
+  end))) in
+  mapM { map = (fun _ name used -> uniquify_nfamof name used) } names used
 
 let add_cube : type n b. n D.t -> b t -> string option -> string option * (b, n) snoc t =
  fun n { ctx; used } name ->
   let name, used = uniquify name used in
-  (name, { ctx = Snoc (ctx, Variables (n, D.plus_zero n, CubeOf.singleton name)); used })
+  (name, { ctx = Snoc (ctx, Variables (n, D.plus_zero n, NICubeOf.singleton name)); used })
 
 let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t =
  fun { ctx; used } (Variables (m, mn, names)) ->

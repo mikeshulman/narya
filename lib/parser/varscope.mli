@@ -9,12 +9,9 @@ val ext_fields : 'n t -> string option -> (string, Field.t) Abwd.t -> 'n N.suc t
 val find : string -> 'n t -> [ `Var of 'n N.index | `Field of 'n N.index * Field.t | `None ]
 val top : 'n N.suc t -> 'n t * string option
 
-type _ bappend_plus =
-  | Bappend_plus : ('n, 'm, 'nm) Fwn.bplus * (string option, 'm) Vec.t * 'nm t -> 'n bappend_plus
+type (_, _) append_plus =
+  | Append_plus :
+      ('nm, 'k, 'nmk) Fwn.bplus * ('n, 'mk, 'nmk) Fwn.bplus * (string option, 'mk) Vec.t * 'nm t
+      -> ('n, 'k) append_plus
 
-val bappend_plus : 'n t -> string option list -> 'n bappend_plus
-
-type _ append_plus =
-  | Append_plus : ('n, 'm, 'nm) N.plus * (string option, 'm) Bwv.t * 'nm t -> 'n append_plus
-
-val append_plus : 'n t -> string option list -> 'n append_plus
+val append_plus : (string option, 'k) Vec.t -> 'n t -> string option list -> ('n, 'k) append_plus

@@ -101,16 +101,6 @@ type (_, _, _) sface_of_plus =
 
 val sface_of_plus : ('n, 'k, 'nk) D.plus -> ('ml, 'nk) sface -> ('ml, 'n, 'k) sface_of_plus
 
-type ('l, 'n, 'f) count_faces
-type _ has_faces = Faces : ('l, 'n, 'f) count_faces -> 'n has_faces
-
-val count_faces : 'n D.t -> 'n has_faces
-val faces_zero : 'l Endpoints.len -> ('l, D.zero, N.one) count_faces
-val dim_faces : ('l, 'n, 'f) count_faces -> 'n D.t
-val faces_out : ('l, 'n, 'f) count_faces -> 'f N.t
-val faces_uniq : ('l, 'n, 'f1) count_faces -> ('l, 'n, 'f2) count_faces -> ('f1, 'f2) Eq.t
-val sfaces : ('l, 'n, 'f) count_faces -> ('n sface_of, 'f) Bwv.t
-
 type any_sface = Any_sface : ('n, 'k) sface -> any_sface
 
 val string_of_sface : ('n, 'k) sface -> string
@@ -195,19 +185,7 @@ module FamOf : sig
   type ('a, 'b) t = 'b
 end
 
-module CubeOf : sig
-  include module type of Cube (FamOf)
-
-  val flatten_append :
-    ('b, 'len) Bwv.t ->
-    ('n, 'b) t ->
-    ('l, 'n, 'f) count_faces ->
-    ('len, 'f, 'lenf) N.plus ->
-    ('b, 'lenf) Bwv.t
-
-  val flatten : ('n, 'b) t -> ('l, 'n, 'f) count_faces -> ('b, 'f) Bwv.t
-  val append_bwd : 'a Bwd.t -> ('n, 'a) t -> 'a Bwd.t
-end
+module CubeOf : module type of Cube (FamOf)
 
 type (_, _, _, _) tface
 

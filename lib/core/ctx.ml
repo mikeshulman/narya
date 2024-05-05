@@ -74,27 +74,27 @@ let all_free : type n. (n, Binding.t) CubeOf.t -> bool =
 
 (* A context is a list of "entries", which can be either visible or invisible in the raw world.  An (f,n) entry contains f raw variables and an n-dimensional cube of checked variables. *)
 type (_, _) entry =
-  (* Add a cube of internal variables that are visible to the parser as a list of cubes of variables, the list-of-cubes being obtained by decomposing the dimension  as a sum.  Note that the division into a cube and non-cube part, and the sum of dimensions, are only relevant for looking up *raw* indices: they are invisible to the checked world, whose indices store the total face of mn. *)
+  (* Add a cube of internal variables that are visible to the parser as a list of cubes of variables, the list-of-cubes being obtained by decomposing the dimension as a sum.  Note that the division into a cube and non-cube part, and the sum of dimensions, are only relevant for looking up *raw* indices: they are invisible to the checked world, whose indices store the total face of mn. *)
   | Vis :
       'm D.t
       * ('m, 'n, 'mn) D.plus
-      * ('l, 'n, 'f) count_faces
-      * ('n, string option) CubeOf.t
+      (* We use an indexed cube to automatically count how many raw variables appear, by starting with zero and incrementing it for each entry in the cube.  It's tempting to want to start instead from the previous raw length of the context, thereby eliminating the "plus" parameter of Snoc, below; but this causes problems with telescopes (forwards contexts), below, whose raw indices are forwards natural numbers instead. *)
+      * (N.zero, 'n, string option, 'f) NICubeOf.t
       * ('mn, Binding.t) CubeOf.t
       -> ('f, 'mn) entry
   (* Add a cube of internal variables that are not visible to the parser. *)
   | Invis : ('n, Binding.t) CubeOf.t -> (N.zero, 'n) entry
 
 let raw_entry : type f n. (f, n) entry -> f N.t = function
-  | Vis (_, _, f, _, _) -> faces_out f
+  | Vis (_, _, xs, _) -> NICubeOf.out N.zero xs
   | Invis _ -> N.zero
 
 let _dim_entry : type f n. (f, n) entry -> n D.t = function
-  | Vis (_, _, _, _, x) | Invis x -> CubeOf.dim x
+  | Vis (_, _, _, x) | Invis x -> CubeOf.dim x
 
 (* Given an entry containing no let-bound variables, produce an "app" that says how to apply a function to its cube of (free) variables. *)
 let app_entry : type f n. (f, n) entry -> app = function
-  | Vis (_, _, _, _, b) | Invis b ->
+  | Vis (_, _, _, b) | Invis b ->
       if all_free b then
         let n = CubeOf.dim b in
         App (Arg (CubeOf.mmap { map = (fun _ [ x ] -> Binding.value x) } [ b ]), ins_zero n)
@@ -108,23 +108,21 @@ module Ordered = struct
     | Lock : ('a, 'b) t -> ('a, 'b) t
 
   let vis :
-      type a b f af m n mn l.
+      type a b f af m n mn.
       (a, b) t ->
       m D.t ->
       (m, n, mn) D.plus ->
-      (l, n, f) count_faces ->
       (a, f, af) N.plus ->
-      (n, string option) CubeOf.t ->
+      (N.zero, n, string option, f) NICubeOf.t ->
       (mn, Binding.t) CubeOf.t ->
       (af, (b, mn) snoc) t =
-   fun ctx m mn f af xs vars -> Snoc (ctx, Vis (m, mn, f, xs, vars), af)
+   fun ctx m mn af xs vars -> Snoc (ctx, Vis (m, mn, xs, vars), af)
 
   let cube_vis :
       type a b n. (a, b) t -> string option -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
    fun ctx x vars ->
     let m = CubeOf.dim vars in
-    let (Wrap l) = Endpoints.wrapped () in
-    vis ctx m (D.plus_zero m) (faces_zero l) (Suc Zero) (CubeOf.singleton x) vars
+    vis ctx m (D.plus_zero m) (Suc Zero) (NICubeOf.singleton x) vars
 
   let invis : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (a, (b, n) snoc) t =
    fun ctx vars -> Snoc (ctx, Invis vars, Zero)
@@ -153,58 +151,77 @@ module Ordered = struct
     | Snoc (ctx, e, _) -> Snoc (apps ctx, app_entry e)
     | Lock ctx -> apps ctx
 
-  (* When we look up a visible variable in a context, we find the level (if any), the value, and the corresponding possibly-invisible variable. *)
-  let rec lookup : type a b n. (a, b) t -> a Raw.index -> level option * normal * b index =
-   fun ctx k ->
-    match ctx with
-    | Emp -> (
-        match k with
-        | _ -> .)
-    | Snoc (ctx, Vis (m, mn, af, _, xs), pf) -> lookup_face pf (sfaces af) ctx m mn xs k
-    | Snoc (ctx, Invis _, Zero) ->
-        let j, x, v = lookup ctx k in
-        (j, x, Pop v)
-    | Lock _ -> fatal Locked_variable
+  (* When we look up a visible variable in a context, we find the level (if any), the value, and the corresponding possibly-invisible variable.  To do this we have to iterate through each cube of variables from right-to-left as we decrement the raw index looking for the corresponding face.  So we need an auxiliary type family to keep track of where we are in that iteration and what result type we're expecting. *)
 
-  and lookup_face :
-      type a f af b m n mn.
-      (a, f, af) N.plus ->
-      (n sface_of, f) Bwv.t ->
-      (a, b) t ->
+  type (_, _, _, _) lookup =
+    | Unfound : ('a, 'right, 'rest) N.plus * 'rest Raw.index -> ('a, 'right, 'b, 'n) lookup
+    | Found : level option * normal * ('b, 'n) snoc index -> ('a, 'right, 'b, 'n) lookup
+
+  (* This function is called on every step of that iteration through a cube.  It appears that we have to define it with an explicit type signature in order for it to end up sufficiently polymorphic. *)
+  let lookup_folder :
+      type left right l m n mn a b.
       m D.t ->
       (m, n, mn) D.plus ->
       (mn, Binding.t) CubeOf.t ->
+      (l, n) sface ->
+      (left, l, string option, right) NFamOf.t ->
+      (a, right, b, mn) lookup ->
+      (a, left, b, mn) lookup =
+   fun m mn xs fb (NFamOf _) acc ->
+    let found_it fa =
+      let (Plus kl) = D.plus (dom_sface fb) in
+      let fab = sface_plus_sface fa mn kl fb in
+      let x = CubeOf.find xs fab in
+      Found (Binding.level x, Binding.value x, Top fab) in
+    match acc with
+    | Found (i, x, v) -> Found (i, x, v)
+    | Unfound (Suc p, (Pop k, fa)) -> Unfound (p, (k, fa))
+    | Unfound (_, (Top, None)) -> found_it (id_sface m)
+    | Unfound (_, (Top, Some (Any_sface fa))) -> (
+        match D.compare (cod_sface fa) m with
+        | Eq -> found_it fa
+        | Neq -> fatal (Invalid_variable_face (D.zero, fa)))
+
+  (* Finally, the lookup function iterates through entries, and for each entry it iterates through the cube of names. *)
+
+  let rec lookup : type a b. (a, b) t -> a Raw.index -> level option * normal * b index =
+   fun ctx k ->
+    match (ctx, k) with
+    | Emp, _ -> .
+    | Snoc (ctx, e, pf), _ -> lookup_entry ctx e pf k
+    | Lock _, _ -> fatal Locked_variable
+
+  and lookup_entry :
+      type a b f af n.
+      (a, b) t ->
+      (f, n) entry ->
+      (a, f, af) N.plus ->
       af Raw.index ->
-      level option * normal * (b, mn) snoc index =
-   fun pf sf ctx m mn xs k ->
-    match (pf, sf) with
-    | Zero, Emp ->
-        let i, x, v = lookup ctx k in
-        (i, x, Pop v)
-    | Suc pf, Snoc (sf, SFace_of fb) -> (
-        match k with
-        | Pop k, fa -> lookup_face pf sf ctx m mn xs (k, fa)
-        | Top, None ->
-            let fa = id_sface m in
-            let (Plus kl) = D.plus (dom_sface fb) in
-            let fab = sface_plus_sface fa mn kl fb in
-            let x = CubeOf.find xs fab in
-            (Binding.level x, Binding.value x, Top fab)
-        | Top, Some (Any_sface fa) -> (
-            match D.compare (cod_sface fa) m with
-            | Eq ->
-                let (Plus kl) = D.plus (dom_sface fb) in
-                let fab = sface_plus_sface fa mn kl fb in
-                let x = CubeOf.find xs fab in
-                (Binding.level x, Binding.value x, Top fab)
-            | Neq -> fatal (Invalid_variable_face (D.zero, fa))))
+      level option * normal * (b, n) snoc index =
+   fun ctx e pf k ->
+    match e with
+    | Vis (m, mn, names, xs) -> (
+        let module Fold = NICubeOf.Traverse (struct
+          type 'right t = (a, 'right, b, n) lookup
+        end) in
+        match
+          Fold.fold_right { fold = (fun fb -> lookup_folder m mn xs fb) } names (Unfound (pf, k))
+        with
+        | Unfound (Zero, k) ->
+            let i, x, v = lookup ctx k in
+            (i, x, Pop v)
+        | Found (j, x, v) -> (j, x, v))
+    | Invis _ ->
+        let Zero = pf in
+        let j, x, v = lookup ctx k in
+        (j, x, Pop v)
 
   (* Look up a De Bruijn level in a context and find the corresponding possibly-invisible index, if one exists. *)
   let rec find_level : type a b. (a, b) t -> level -> b index option =
    fun ctx i ->
     match ctx with
     | Emp -> None
-    | Snoc (ctx, Vis (_, _, _, _, vars), _) -> find_level_in_cube ctx vars i
+    | Snoc (ctx, Vis (_, _, _, vars), _) -> find_level_in_cube ctx vars i
     | Snoc (ctx, Invis vars, Zero) -> find_level_in_cube ctx vars i
     | Lock ctx -> find_level ctx i
 
@@ -227,7 +244,7 @@ module Ordered = struct
   (* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with any boundaries. *)
   let rec env : type a b. (a, b) t -> (D.zero, b) env = function
     | Emp -> Emp D.zero
-    | Snoc (ctx, Vis (_, _, _, _, v), _) -> env_entry ctx v
+    | Snoc (ctx, Vis (_, _, _, v), _) -> env_entry ctx v
     | Snoc (ctx, Invis v, Zero) -> env_entry ctx v
     | Lock ctx -> env ctx
 
@@ -260,8 +277,7 @@ module Ordered = struct
   (* Extract all the names in a context. *)
   let rec names : type a b. (a, b) t -> b Names.t = function
     | Emp -> Names.empty
-    | Snoc (ctx, Vis (m, mn, _, name, _), _) ->
-        snd (Names.add (names ctx) (Variables (m, mn, name)))
+    | Snoc (ctx, Vis (m, mn, name, _), _) -> snd (Names.add (names ctx) (Variables (m, mn, name)))
     | Snoc (ctx, Invis xs, Zero) -> snd (Names.add_cube (CubeOf.dim xs) (names ctx) None)
     | Lock ctx -> names ctx
 
@@ -273,7 +289,7 @@ module Ordered = struct
    fun ctx tree ->
     match ctx with
     | Emp -> tree
-    | Snoc (ctx, Vis (m, mn, _, xs, vars), _) ->
+    | Snoc (ctx, Vis (m, mn, xs, vars), _) ->
         if all_free vars then lam ctx (Lam (Variables (m, mn, xs), tree))
         else fatal (Anomaly "let-bound variable in Ctx.lam")
     | Snoc (ctx, Invis vars, _) ->
@@ -442,9 +458,9 @@ module Ordered = struct
    fun i binder f ~oldctx ~newctx e ->
     let open Monad.Ops (Monad.Maybe) in
     match e with
-    | Vis (m, mn, faces, vars, x) ->
+    | Vis (m, mn, vars, x) ->
         let* x = bind_some_normal_cube i binder f ~oldctx ~newctx x in
-        return (Vis (m, mn, faces, vars, x))
+        return (Vis (m, mn, vars, x))
     | Invis x ->
         let* x = bind_some_normal_cube i binder f ~oldctx ~newctx x in
         return (Invis x)
@@ -573,14 +589,13 @@ type ('a, 'b) t = Permute : ('a, 'i) N.perm * ('i, 'b) Ordered.t -> ('a, 'b) t
 
 (* Nearly all the operations on ordered contexts are lifted to either ignore the permutations or add identities on the right. *)
 
-let vis (Permute (p, ctx)) m mn faces af xs vars =
+let vis (Permute (p, ctx)) m mn af xs vars =
   let (Plus bf) = N.plus (N.plus_right af) in
-  Permute (N.perm_plus p af bf, Ordered.vis ctx m mn faces bf xs vars)
+  Permute (N.perm_plus p af bf, Ordered.vis ctx m mn bf xs vars)
 
 let cube_vis ctx x vars =
   let m = CubeOf.dim vars in
-  let (Wrap l) = Endpoints.wrapped () in
-  vis ctx m (D.plus_zero m) (faces_zero l) (Suc Zero) (CubeOf.singleton x) vars
+  vis ctx m (D.plus_zero m) (Suc Zero) (NICubeOf.singleton x) vars
 
 let invis (Permute (p, ctx)) vars = Permute (p, Ordered.invis ctx vars)
 let lock (Permute (p, ctx)) = Permute (p, Ordered.lock ctx)

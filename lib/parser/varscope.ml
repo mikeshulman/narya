@@ -30,29 +30,25 @@ let rec find : type n. string -> n t -> [ `Var of n N.index | `Field of n N.inde
 let top : type n. n N.suc t -> n t * string option = function
   | Snoc (ctx, (x, _)) -> (ctx, x)
 
-(* Versions of Bwv.append_plus.  Unfortunately we currently need two of them, for appending a Vec and a Bwv.  It should really be only Vec, like Bwv.append_plus, but that would require converting some more things to Fwns. *)
+(* Given a list of variable names, we can append them to a Varscope while simultaneously extracting them into a vector whose (Fwn) length is the change in the length of the Varscope.  More generally, we can *prepend* them to a supplied vector, and record any needed arithmetic relations between the lengths. *)
 
-type _ bappend_plus =
-  | Bappend_plus : ('n, 'm, 'nm) Fwn.bplus * (string option, 'm) Vec.t * 'nm t -> 'n bappend_plus
+type (_, _) append_plus =
+  | Append_plus :
+      (* These aren't currently needed. *)
+      (* ('m, 'k, 'mk) Fwn.fplus * ('n, 'm, 'nm) N.plus * *)
+      ('nm, 'k, 'nmk) Fwn.bplus
+      * ('n, 'mk, 'nmk) Fwn.bplus
+      * (string option, 'mk) Vec.t
+      * 'nm t
+      -> ('n, 'k) append_plus
 
-let rec bappend_plus : type n. n t -> string option list -> n bappend_plus =
- fun ctx vars ->
+let rec append_plus :
+    type n k. (string option, k) Vec.t -> n t -> string option list -> (n, k) append_plus =
+ fun last ctx vars ->
   match vars with
-  | [] -> Bappend_plus (Zero, [], ctx)
+  | [] ->
+      let (Bplus nmk) = Fwn.bplus (Vec.length last) in
+      Append_plus ((*Zero, Zero, *) nmk, nmk, last, ctx)
   | x :: xs ->
-      let (Bappend_plus (nm, ys, ctx)) = bappend_plus (ext ctx x) xs in
-      Bappend_plus (Suc nm, x :: ys, ctx)
-
-type _ append_plus =
-  | Append_plus : ('n, 'm, 'nm) N.plus * (string option, 'm) Bwv.t * 'nm t -> 'n append_plus
-
-let append_plus : type n. n t -> string option list -> n append_plus =
- fun ctx vars ->
-  let rec go :
-      type n m nm.
-      (n, m, nm) N.plus -> (string option, m) Bwv.t -> nm t -> string option list -> n append_plus =
-   fun nm xs ctx vars ->
-    match vars with
-    | [] -> Append_plus (nm, xs, ctx)
-    | x :: rest -> go (Suc nm) (Snoc (xs, x)) (ext ctx x) rest in
-  go Zero Emp ctx vars
+      let (Append_plus ((* mk, nm,*) nm_k, n_mk, xs, ctx)) = append_plus last (ext ctx x) xs in
+      Append_plus ((*Fwn.suc_fplus mk, N.plus_suc nm, *) nm_k, Suc n_mk, x :: xs, ctx)

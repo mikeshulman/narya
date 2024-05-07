@@ -409,34 +409,7 @@ let rec check :
                                           [ vs; cs ])
                                       index_vars indices;
                                     (* Now we let-bind the match variable to the constructor applied to these new variables, the "index_vars" to the index values, and the inst_vars to the boundary constructor values.  The operation Ctx.bind_some automatically substitutes these new values into the types and values of other variables in the context, and reorders it if necessary so that each variable only depends on previous ones. *)
-                                    match
-                                      Ctx.bind_some
-                                        {
-                                          nf =
-                                            (fun ~oldctx ~newctx nf ->
-                                              Reporter.try_with ~fatal:(fun d ->
-                                                  match d.message with
-                                                  | No_such_level _ -> None
-                                                  | _ -> fatal_diagnostic d)
-                                              @@ fun () ->
-                                              let tm = readback_nf oldctx nf in
-                                              let ty = readback_val oldctx nf.ty in
-                                              let (Val etm) = Ctx.eval newctx tm in
-                                              let (Val ety) = Ctx.eval newctx ty in
-                                              Some { tm = etm; ty = ety });
-                                          ty =
-                                            (fun ~oldctx ~newctx ty ->
-                                              Reporter.try_with ~fatal:(fun d ->
-                                                  match d.message with
-                                                  | No_such_level _ -> None
-                                                  | _ -> fatal_diagnostic d)
-                                              @@ fun () ->
-                                              let ty = readback_val oldctx ty in
-                                              let (Val ety) = Ctx.eval newctx ty in
-                                              Some ety);
-                                        }
-                                        (Hashtbl.find_opt new_vals) newctx
-                                    with
+                                    match Bindsome.bind_some (Hashtbl.find_opt new_vals) newctx with
                                     | None -> fatal No_permutation
                                     | Bind_some { checked_perm; oldctx; newctx } ->
                                         (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence. *)

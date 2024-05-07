@@ -342,7 +342,7 @@ let rec check :
                                     })
                                 index_terms in
                             (* Assemble a term consisting of the constructor applied to the new variables, along with its boundary, and their types.  To compute their types, we have to extract the datatype applied to its parameters only, pass to boundaries if necessary, and then re-apply it to the new indices. *)
-                            let params, _ = Bwv.unappend_bwd (Bwv.length indices) varty_args in
+                            let params, _ = Bwv.take_bwd (Bwv.length indices) varty_args in
                             let argtbl = Hashtbl.create 10 in
                             let constr_nfs =
                               CubeOf.build dim

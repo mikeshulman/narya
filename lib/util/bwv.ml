@@ -424,20 +424,13 @@ let rec of_bwd : type a n. a Bwd.t -> n N.t -> (a, n) t option =
       Some (Snoc (xs', x))
   | _ -> None
 
-(* As befits backwards vectors and lists, this takes n elements from the *right* of a Bwd to form a Bwv. *)
-let rec take_bwd : type a n. n N.t -> a Bwd.t -> (a, n) t =
- fun n xs ->
-  match (n, xs) with
-  | Nat Zero, _ -> Emp
-  | Nat (Suc n), Snoc (xs, x) -> Snoc (take_bwd (Nat n) xs, x)
-  | _ -> raise Not_found
-
-let rec unappend_bwd : type a n. n N.t -> a Bwd.t -> a Bwd.t * (a, n) t =
+(* As befits backwards vectors and lists, this takes n elements from the *right* of a Bwd to form a Bwv, returning the remaining elements along with the Bwv. *)
+let rec take_bwd : type a n. n N.t -> a Bwd.t -> a Bwd.t * (a, n) t =
  fun n xs ->
   match (n, xs) with
   | Nat Zero, _ -> (xs, Emp)
   | Nat (Suc n), Snoc (xs, x) ->
-      let rest, taken = unappend_bwd (Nat n) xs in
+      let rest, taken = take_bwd (Nat n) xs in
       (rest, Snoc (taken, x))
   | _ -> raise Not_found
 

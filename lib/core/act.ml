@@ -35,7 +35,7 @@ let act_variables : type m n. n variables -> (m, n) deg -> m variables =
         type 'acc t = unit
       end) in
       let (Wrap (vars, _)) =
-        Build.build (NICubeOf.dim vars)
+        Build.build_left (NICubeOf.dim vars)
           {
             build =
               (fun fa () ->

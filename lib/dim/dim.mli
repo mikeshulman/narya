@@ -373,19 +373,34 @@ module Icube (F : Fam4) : sig
     val fold_right :
       ('n, 'b) right_folder -> ('left, 'n, 'b, 'right) t -> 'right Acc.t -> 'left Acc.t
 
-    type (_, _, _) fwrap =
-      | Fwrap : ('left, 'm, 'b, 'right) F.t * 'right Acc.t -> ('left, 'm, 'b) fwrap
+    type (_, _, _) fwrap_left =
+      | Fwrap : ('left, 'm, 'b, 'right) F.t * 'right Acc.t -> ('left, 'm, 'b) fwrap_left
 
-    type (_, _, _, _) gwrap =
-      | Wrap : ('left, 'm, 'mk, 'b, 'right) gt * 'right Acc.t -> ('left, 'm, 'mk, 'b) gwrap
+    type (_, _, _, _) gwrap_left =
+      | Wrap : ('left, 'm, 'mk, 'b, 'right) gt * 'right Acc.t -> ('left, 'm, 'mk, 'b) gwrap_left
 
-    type ('left, 'm, 'b) wrap = ('left, 'm, 'm, 'b) gwrap
+    type ('left, 'm, 'b) wrap_left = ('left, 'm, 'm, 'b) gwrap_left
 
-    type ('n, 'b) builderM = {
-      build : 'left 'm. ('m, 'n) sface -> 'left Acc.t -> ('left, 'm, 'b) fwrap;
+    type ('n, 'b) builder_leftM = {
+      build : 'left 'm. ('m, 'n) sface -> 'left Acc.t -> ('left, 'm, 'b) fwrap_left;
     }
 
-    val build : 'n D.t -> ('n, 'b) builderM -> 'left Acc.t -> ('left, 'n, 'b) wrap
+    val build_left : 'n D.t -> ('n, 'b) builder_leftM -> 'left Acc.t -> ('left, 'n, 'b) wrap_left
+
+    type (_, _, _) fwrap_right =
+      | Fwrap : 'left Acc.t * ('left, 'm, 'b, 'right) F.t -> ('m, 'b, 'right) fwrap_right
+
+    type (_, _, _, _) gwrap_right =
+      | Wrap : 'left Acc.t * ('left, 'm, 'mk, 'b, 'right) gt -> ('m, 'mk, 'b, 'right) gwrap_right
+
+    type ('m, 'b, 'right) wrap_right = ('m, 'm, 'b, 'right) gwrap_right
+
+    type ('n, 'b) builder_rightM = {
+      build : 'right 'm. ('m, 'n) sface -> 'right Acc.t -> ('m, 'b, 'right) fwrap_right;
+    }
+
+    val build_right :
+      'n D.t -> ('n, 'b) builder_rightM -> 'right Acc.t -> ('n, 'b, 'right) wrap_right
   end
 
   type (_, _) fbiwrap = Fbiwrap : ('left, 'n, 'b, 'right) F.t -> ('n, 'b) fbiwrap

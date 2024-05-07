@@ -55,7 +55,7 @@ let vars_of_vec :
   end in
   let module Build = NICubeOf.Traverse (S) in
   match
-    Build.build dim
+    Build.build_left dim
       {
         build =
           (fun _ -> function
@@ -148,7 +148,7 @@ let rec check :
                 end in
                 let module Build = NICubeOf.Traverse (S) in
                 match
-                  Build.build m
+                  Build.build_left m
                     {
                       build =
                         (fun _ -> function

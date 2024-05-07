@@ -1,5 +1,4 @@
 open Util
-open Core
 
 type 'n t
 

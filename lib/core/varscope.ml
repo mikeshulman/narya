@@ -1,7 +1,6 @@
 (* The postprocessor records the variables lexically in scope and their binding to intrinsically well-scoped (raw) De Bruijn indices in a Bwv.  For parsing record-types, we also allow a De Bruijn index to expose its fields as many lexical variables.  This module should not be opened, but used qualified. *)
 
 open Util
-open Core
 
 type 'n t = (string option * (string, Field.t) Abwd.t, 'n) Bwv.t
 

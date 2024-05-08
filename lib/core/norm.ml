@@ -53,8 +53,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                   build =
                     (fun fa ->
                       (* To compute those lower-dimensional versions, we recursively evaluate the same constant in lower-dimensional contexts. *)
-                      let (Val tm) =
-                        eval (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
+                      let tm = eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
                       (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a normal term it had to be annotated with its type. *)
                       match tm with
                       | Uninst (Neu _, (lazy ty)) -> { tm; ty }
@@ -70,6 +69,39 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           (* Since a top-level case tree is in the empty context, it doesn't have't anything to stuck-match against. *)
           | Unrealized -> fatal (Anomaly "true neutral case tree in empty context"))
       | Axiom -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
+  | Meta meta -> (
+      match Galaxy1.find meta <|> Undefined_metavariable (PMeta meta) with
+      | { tm = Some tm; _ } -> eval env tm
+      (* If a potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
+      | { tm = None; energy = Potential; _ } -> Unrealized
+      | { tm = None; ty; energy = Kinetic } ->
+          let dim = dim_env env in
+          (* As with constants, we need to instantiate the type at the same meta evaluated at lower dimensions. *)
+          let ty =
+            lazy
+              (inst (eval_term env ty)
+                 (TubeOf.build D.zero (D.zero_plus dim)
+                    {
+                      build =
+                        (fun fa ->
+                          let tm =
+                            eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Meta meta) in
+                          match tm with
+                          | Uninst (Neu _, (lazy ty)) -> { tm; ty }
+                          | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
+                    })) in
+          Val
+            (Uninst
+               ( Neu
+                   {
+                     head = Value.Meta { meta; env; ins = ins_zero dim };
+                     args = Emp;
+                     alignment = True;
+                   },
+                 ty )))
+  | MetaEnv (meta, metaenv) ->
+      let (Plus m_n) = D.plus (dim_term_env metaenv) in
+      eval (eval_env env m_n metaenv) (Term.Meta meta)
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -250,6 +282,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                   let env = take_args env mn dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
                   eval (permute_env perm env) body
+              (* TODO: Is this case actually a bug, or can it happen? *)
               | _ -> Unrealized))
       | _ -> Unrealized)
   | Realize tm ->
@@ -512,6 +545,29 @@ and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
  fun env tm ->
   let (Val v) = eval env tm in
   v
+
+and eval_env :
+    type a m n mn b. (m, a) env -> (m, n, mn) D.plus -> (a, n, b) Term.env -> (mn, b) Value.env =
+ fun env m_n tmenv ->
+  let mn = D.plus_out (dim_env env) m_n in
+  match tmenv with
+  | Emp _ -> Emp mn
+  | Ext (tmenv, xss) ->
+      Ext
+        ( eval_env env m_n tmenv,
+          CubeOf.mmap
+            {
+              map =
+                (fun _ [ xs ] ->
+                  CubeOf.build mn
+                    {
+                      build =
+                        (fun fab ->
+                          let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
+                          eval_term (Act (env, op_of_sface fa)) (CubeOf.find xs fb));
+                    });
+            }
+            [ xss ] )
 
 let apply_term : kinetic value -> ('n, kinetic value) CubeOf.t -> kinetic value =
  fun fn arg ->

@@ -92,6 +92,10 @@ type (_, _) status =
       Constant.t * app Bwd.t * (('b, potential) term -> (emp, potential) term)
       -> ('b, potential) status
 
+let energy : type b s. (b, s) status -> s energy = function
+  | Kinetic -> Kinetic
+  | Potential _ -> Potential
+
 (* The output of checking a telescope includes an extended context. *)
 type (_, _) checked_tel =
   | Checked_tel : ('b, 'd, 'bd) Telescope.t * ('ac, 'bd) Ctx.t -> ('ac, 'b) checked_tel
@@ -198,17 +202,12 @@ let rec check :
           _;
         },
       _ ) -> (
-      (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  ty_indices contains the *values* of the indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype. *)
-      let (Dataconstr { env; args = constr_arg_tys; indices = constr_indices }) =
-        match Constr.Map.find_opt constr constrs with
-        | Some c -> c
-        | None ->
-            with_loc constr_loc @@ fun () ->
-            fatal (No_such_constructor (`Data (PConstant name), constr)) in
-      (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists. *)
-      match D.compare (TubeOf.inst tyargs) dim with
-      | Neq -> fatal (Dimension_mismatch ("checking constr", dim_env env, dim))
-      | Eq -> (
+      (* We don't need the *types* of the parameters or indices, which are stored in the type of the constant name.  The variable ty_indices (defined above) contains the *values* of the indices of this instance of the datatype, while tyargs (defined by full_inst, way above) contains the instantiation arguments of this instance of the datatype.  We check that the dimensions agree, and find our current constructor in the datatype definition. *)
+      match (D.compare (TubeOf.inst tyargs) dim, Constr.Map.find_opt constr constrs) with
+      | _, None -> fatal ?loc:constr_loc (No_such_constructor (`Data (PConstant name), constr))
+      | Neq, _ -> fatal (Dimension_mismatch ("checking constr", TubeOf.inst tyargs, dim))
+      | Eq, Some (Dataconstr { env; args = constr_arg_tys; indices = constr_indices }) -> (
+          (* To typecheck a higher-dimensional instance of our constructor constr at the datatype, all the instantiation arguments must also be applications of lower-dimensional versions of that same constructor.  We check this, and extract the arguments of those lower-dimensional constructors as a tube of lists in the variable "tyarg_args". *)
           let tyarg_args =
             TubeOf.mmap
               {
@@ -227,7 +226,11 @@ let rec check :
                           (Missing_instantiation_constructor (constr, `Nonconstr (PNormal (ctx, tm)))));
               }
               [ tyargs ] in
-          (* Now we evaluate each argument *type* of the constructor at (the parameters and) the previous evaluated argument *values*, check each argument value against the corresponding argument type, and then evaluate it and add it to the environment (to substitute into the subsequent types, and also later to the indices). *)
+          (* Now, for each argument of the constructor, we:
+             1. Evaluate the argument *type* of the constructor (which are assembled in the telescope constr_arg_tys) at the parameters (which are in the environment already) and the previous evaluated argument *values* (which get added to the environment as we go throurgh check_at_tel);
+             2. Instantiate the result at the corresponding arguments of the lower-dimensional versions of the constructor, from tyarg_args;
+             3. Check the coressponding argument *value*, supplied by the user, against this type;
+             4. Evaluate this argument value and add it to the environment, to substitute into the subsequent types, and also later to the indices. *)
           let env, newargs =
             check_at_tel constr ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
           (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
@@ -518,6 +521,14 @@ let rec check :
       let (Plus_something num_indices) = N.plus_of_int (typefam ctx ty) in
       check_data status ctx ty (Nat num_indices) Constr.Map.empty (Bwd.to_list constrs)
   | Data _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "datatype")
+  | Hole varscope, _, _ ->
+      let energy = energy status in
+      let meta = Meta.make `Hole (Ctx.dbwd ctx) energy in
+      let ty = readback_val ctx ty in
+      let termctx = readback_ctx ctx in
+      Galaxy.add meta (Data { varscope; termctx; ty; tm = None; energy });
+      emit (Hole_generated (meta, Termctx.PHole (varscope, termctx, ty)));
+      Meta meta
 
 and check_data :
     type a b i bi.
@@ -932,14 +943,17 @@ and synth_app :
       with_loc sfn.loc @@ fun () ->
       fatal (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PUninst (ctx, fnty)))
 
-(* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube. *)
+(* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube.  See description in context of the call to it above during typechecking of a constructor. *)
 and check_at_tel :
     type n a b c bc e.
     Constr.t ->
     (a, e) Ctx.t ->
     (n, b) env ->
+    (* This list of terms to check must have the same length *)
     a check located list ->
+    (* as this telescope (namely, the Fwn 'c') *)
     (b, c, bc) Telescope.t ->
+    (* and as all the lists in this tube. *)
     (D.zero, n, n, kinetic value list) TubeOf.t ->
     (n, bc) env * (n, (e, kinetic) term) CubeOf.t list =
  fun c ctx env tms tys tyargs ->
@@ -992,8 +1006,7 @@ and check_at_tel :
         (Wrong_number_of_arguments_to_constructor
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
-(* Given a raw telescope and a context, we can check it to produce a checked telescope and also a new context extended by that telescope. *)
-
+(* Given a context and a raw telescope, we can check it to produce a checked telescope and also a new context extended by that telescope. *)
 and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel =
  fun ctx tel ->
   match tel with

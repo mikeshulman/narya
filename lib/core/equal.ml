@@ -170,7 +170,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
 
 (* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)
 and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
- fun _ x y ->
+ fun lvl x y ->
   match (x, y) with
   | Var { level = l1; deg = d1 }, Var { level = l2; deg = d2 } ->
       (* Two equal variables with the same degeneracy applied are equal, including their types because that variable has only one type. *)
@@ -184,6 +184,13 @@ and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
           let d2 = deg_of_ins i2 (plus_of_ins i2) in
           deg_equiv d1 d2
       | Neq -> fail)
+  | Meta { meta = meta1; env = env1; ins = i1 }, Meta { meta = meta2; env = env2; ins = i2 } -> (
+      match (Meta.compare meta1 meta2, D.compare (cod_left_ins i1) (cod_left_ins i2)) with
+      | Eq, Eq ->
+          let (Data { termctx; _ }) =
+            Galaxy.find_opt meta1 <|> Undefined_metavariable (PMeta meta1) in
+          equal_env lvl env1 env2 termctx
+      | _ -> fail)
   | _, _ -> fail
 
 (* Check that the arguments of two entire application spines of equal functions are equal.  This is basically a left fold, but we make sure to iterate from left to right, and fail rather than raising an exception if the lists have different lengths.  *)
@@ -261,3 +268,51 @@ and equal_at_tel :
         (Ext (env, CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x))))
         xs ys tys tyargs
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
+
+and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.t -> unit option =
+ fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
+
+and equal_ordered_env :
+    type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.Ordered.t -> unit option =
+ fun lvl env1 env2 envctx ->
+  (* Copied from readback_ordered_env *)
+  match envctx with
+  | Emp -> Some ()
+  | Lock envctx -> equal_ordered_env lvl env1 env2 envctx
+  | Snoc (envctx, entry, _) -> (
+      let open Monad.Ops (Monad.Maybe) in
+      let open CubeOf.Monadic (Monad.Maybe) in
+      let (Ext (env1', xss1)) = Permute.env_top env1 in
+      let (Ext (env2', xss2)) = Permute.env_top env2 in
+      let* () = equal_ordered_env lvl env1' env2' envctx in
+      match entry with
+      | Vis (_, _, _, bindings) | Invis bindings ->
+          let* _ =
+            mmapM
+              {
+                map =
+                  (fun fa [ xs1; xs2 ] ->
+                    let ty = (CubeOf.find bindings fa).ty in
+                    let xtytbl = Hashtbl.create 10 in
+                    mmapM
+                      {
+                        map =
+                          (fun fb [ tm1; tm2 ] ->
+                            let k = dom_sface fb in
+                            let ty =
+                              inst
+                                (eval_term (Act (env1, op_of_sface fb)) ty)
+                                (TubeOf.build k (D.plus_zero k)
+                                   {
+                                     build =
+                                       (fun fc ->
+                                         Hashtbl.find xtytbl
+                                           (SFace_of (comp_sface fb (sface_of_tface fc))));
+                                   }) in
+                            Hashtbl.add xtytbl (SFace_of fb) { tm = tm1; ty };
+                            equal_at lvl tm1 tm2 ty);
+                      }
+                      [ xs1; xs2 ]);
+              }
+              [ xss1; xss2 ] in
+          return ())

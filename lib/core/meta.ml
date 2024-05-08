@@ -1,9 +1,16 @@
+(* This module should not be opened, but used qualified. *)
+
 open Util
 open Signatures
 open Dimbwd
 open Energy
 
+(* Metavariables, such as holes and unification variables. *)
+
+(* At present the only sort of metavariable is a hole. *)
 type sort = [ `Hole ]
+
+(* A metavariable has an autonumber identity, like a constant.  It also stores its sort, and is parametrized by its checked context length and its energy (kinetic or potential). *)
 type ('b, 's) t = { number : int; sort : sort; len : 'b Dbwd.t; energy : 's energy }
 
 let counter = ref (-1)
@@ -17,6 +24,19 @@ let name : type b s. (b, s) t -> string =
  fun x ->
   match x.sort with
   | `Hole -> Printf.sprintf "?%d" x.number
+
+let compare : type b1 s1 b2 s2. (b1, s1) t -> (b2, s2) t -> (b1 * s1, b2 * s2) Eq.compare =
+ fun x y ->
+  match
+    ( x.number = y.number,
+      x.sort = y.sort,
+      Dbwd.compare x.len y.len,
+      Energy.compare x.energy y.energy )
+  with
+  | true, true, Eq, Eq -> Eq
+  | _ -> Neq
+
+(* Since metavariables are parametrized by context length and energy, an intrinsically well-typed map must incorporate those as well. *)
 
 module IntMap = Map.Make (Int)
 

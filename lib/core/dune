@@ -2,4 +2,4 @@
   (name core)
   (libraries zarith util dim bwd asai uuseg)
 	(instrumentation (backend landmarks --auto)))
-(env (_ (flags (:standard -w -37))))
+(env (_ (flags (:standard -w -37 -w -30))))

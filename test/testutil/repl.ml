@@ -133,6 +133,7 @@ let rec run f =
   @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
   Builtins.run @@ fun () ->
+  Galaxy.run_empty @@ fun () ->
   Global.run_empty @@ fun () -> Scope.run f
 
 let gel_install () =

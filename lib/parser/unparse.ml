@@ -193,6 +193,9 @@ let rec unparse :
   match tm with
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> unlocated (Ident (Scope.name_of c, []))
+  | Meta v -> unlocated (Ident ([ Meta.name v ], []))
+  (* NB: We don't currently print the arguments of a metavariable. *)
+  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ], []))
   (* TODO: Can we associate notations to fields, like to constants? *)
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
@@ -586,6 +589,7 @@ let () =
       | PConstant name ->
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)
+      | PMeta v -> Printed (Uuseg_string.pp_utf_8, Meta.name v)
       | Dump.Val tm -> Printed (Dump.value, tm)
       | Dump.Uninst tm -> Printed (Dump.uninst, tm)
       | Dump.Head h -> Printed (Dump.head, h)

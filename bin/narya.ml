@@ -195,6 +195,7 @@ let rec interact_pg () =
   with End_of_file -> ()
 
 let () =
+  Galaxy.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->

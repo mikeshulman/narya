@@ -151,7 +151,7 @@
    ￮ Constant 2s defined
   
   $ narya -dtt -e "def foo (X:Type) : Type^(d) X := X^(d)"
-   ￫ error[E0302]
+   ￫ error[E0310]
    ￭ command-line exec string
    1 | def foo (X:Type) : Type^(d) X := X^(d)
      ^ variable locked behind external degeneracy
@@ -159,7 +159,7 @@
   [1]
 
   $ narya -dtt -e "axiom A : Type" -e "echo A^(d)"
-   ￫ error[E0303]
+   ￫ error[E0311]
    ￭ command-line exec string
    1 | echo A^(d)
      ^ axiom A locked behind external degeneracy

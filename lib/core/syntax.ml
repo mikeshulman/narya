@@ -38,6 +38,8 @@ module Raw = struct
     | Codata :
         potential eta * ('a, 'ac) codata_vars * (Field.t, 'ac check located) Abwd.t
         -> 'a check
+    (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data. *)
+    | Hole : 'a Varscope.t -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
@@ -72,6 +74,7 @@ end
 
 (* ******************** Names ******************** *)
 
+(* An element of "mn variables" is an mn-dimensional cube of variables where mn = m + n and the user specified names for n dimensions, with the other m dimensions being named with face suffixes.  *)
 type _ variables =
   | Variables :
       'm D.t * ('m, 'n, 'mn) D.plus * (N.zero, 'n, string option, 'f) NICubeOf.t
@@ -111,6 +114,8 @@ module rec Term : sig
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
+    | Meta : ('a, 's) Meta.t -> ('a, 's) term
+    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -154,6 +159,12 @@ module rec Term : sig
     | Ext :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
         -> ('a, 'b Fwn.suc, 'ab) tel
+
+  and (_, _, _) env =
+    | Emp : 'n D.t -> ('a, 'n, emp) env
+    | Ext :
+        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        -> ('a, 'n, ('b, 'k) snoc) env
 end = struct
   module CodFam = struct
     type ('k, 'a) t = (('a, 'k) snoc, kinetic) Term.term
@@ -170,6 +181,9 @@ end = struct
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
+    | Meta : ('a, 's) Meta.t -> ('a, 's) term
+    (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
+    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -223,6 +237,13 @@ end = struct
     | Ext :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
         -> ('a, 'b Fwn.suc, 'ab) tel
+
+  (* A version of an environment (see below) that involves terms rather than values.  Used mainly when reading back metavariables. *)
+  and (_, _, _) env =
+    | Emp : 'n D.t -> ('a, 'n, emp) env
+    | Ext :
+        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        -> ('a, 'n, ('b, 'k) snoc) env
 end
 
 open Term
@@ -262,6 +283,10 @@ module Telescope = struct
     | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
 end
 
+let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
+  | Emp n -> n
+  | Ext (e, _) -> dim_term_env e
+
 (* ******************** Values ******************** *)
 
 (* A De Bruijn level is a pair of integers: one for the position (counting in) of the cube-variable-bundle in the context, and one that counts through the faces of that bundle. *)
@@ -280,10 +305,17 @@ module rec Value : sig
 
   type var
   type const
+  type meta
 
   type 'h head =
     | Var : { level : level; deg : ('m, 'n) deg } -> var head
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
+    | Meta : {
+        meta : ('b, kinetic) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> meta head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
@@ -368,6 +400,7 @@ end = struct
 
   type var = private Dummy_var
   type const = private Dummy_const
+  type meta = private Dummy_meta
 
   (* The head of an elimination spine is either a variable or a constant.  We define this type to be parametrized over a pair of dummy indices indicating which it is, so that most of the time we can treat them equally by parametrizing over the index, but in some places (e.g. alignment) we can specify that only one kind of head is allowed. *)
   type _ head =
@@ -375,6 +408,14 @@ end = struct
     | Var : { level : level; deg : ('m, 'n) deg } -> var head
     (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial. *)
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
+    (* A metavariable (i.e. flexible) head stores the metavariable along with a delayed substitution applied to it. *)
+    | Meta : {
+        (* Only kinetic metavariables can appear in values; potential ones just cause the case tree they appear in to be stuck. *)
+        meta : ('b, kinetic) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> meta head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =

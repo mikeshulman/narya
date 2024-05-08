@@ -242,10 +242,14 @@ and act_head : type a b h. h head -> (a, b) deg -> h head =
   | Var { level; deg } ->
       let (DegExt (_, _, deg)) = comp_deg_extending deg s in
       Var { level; deg }
-  (* To act on a constant, we push as much of the degeneracy through the insertion as possible. *)
+  (* To act on a constant, we push as much of the degeneracy through the insertion as possible.  The actual degeneracy that gets pushed through doesn't matter, since it just raises the constant to an even higher dimension, and that dimension is stored in the insertion. *)
   | Const { name; ins } ->
       let (Insfact_comp (_, ins, _, _)) = insfact_comp ins s in
       Const { name; ins }
+  (* Acting on a metavariable is similar to a constant, but now the inner degeneracy acts on the stored environment. *)
+  | Meta { meta; env; ins } ->
+      let (Insfact_comp (deg, ins, _, _)) = insfact_comp ins s in
+      Meta { meta; env = Act (env, op_of_deg deg); ins }
 
 (* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)
 and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =

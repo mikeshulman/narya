@@ -85,116 +85,143 @@ module Icube (F : Fam4) = struct
 
     let mapM :
         type n b c left right.
-        (n, b, c) mapperM -> (left, n, n, b, right) gt -> (left, n, n, c, right) gt M.t =
+        (n, b, c) mapperM -> (left, n, b, right) t -> (left, n, c, right) t M.t =
      fun g x ->
       let n = dim x in
       gmapM (D.zero_plus n) (D.zero_plus n) Zero g x
   end
+
+  module IdM = Applicatic (Applicative.OfMonad (Monad.Identity))
+
+  let map :
+      type n b c left right. (n, b, c) IdM.mapperM -> (left, n, b, right) t -> (left, n, c, right) t
+      =
+   fun g x -> IdM.mapM g x
 
   (* ********** Traversals with indexed state ********** *)
 
   (* The natural way to traverse or build an indexed cube is to maintain an accumulator that's indexed by the intermediate types.  Thus, for instance, from a plain cube regarded as one of these cubes, we can append all of its entries to some Bwv. *)
 
   module Traverse (Acc : Fam) = struct
-    type ('n, 'b) left_folder = {
-      fold :
+    type ('n, 'b, 'c) left_folder = {
+      foldmap :
         'left 'right 'm.
-        ('m, 'n) sface -> 'left Acc.t -> ('left, 'm, 'b, 'right) F.t -> 'right Acc.t;
+        ('m, 'n) sface ->
+        'left Acc.t ->
+        ('left, 'm, 'b, 'right) F.t ->
+        ('left, 'm, 'c, 'right) F.t * 'right Acc.t;
     }
 
-    let rec gfold_left :
-        type k m km n b l left right.
+    let rec gfold_map_left :
+        type k m km n b c l left right.
         (k, m, km) D.plus ->
         (l, m, n) D.plus ->
         (k, l) bwsface ->
-        (n, b) left_folder ->
+        (n, b, c) left_folder ->
         left Acc.t ->
         (left, m, km, b, right) gt ->
-        right Acc.t =
+        (left, m, km, c, right) gt * right Acc.t =
      fun km lm d g acc tr ->
       match tr with
       | Leaf x ->
           let Zero, Zero = (km, lm) in
-          g.fold (sface_of_bw d) acc x
+          let x, acc = g.foldmap (sface_of_bw d) acc x in
+          (Leaf x, acc)
       | Branch (l, ends, mid) ->
           let (Suc km') = km in
-          let acc = gfold_left_branches km' (D.suc_plus lm) d g (Endpoints.indices l) acc ends in
-          gfold_left (D.suc_plus km) (D.suc_plus lm) (Mid d) g acc mid
+          let ends, acc =
+            gfold_left_map_branches km' (D.suc_plus lm) d g (Endpoints.indices l) acc ends in
+          let mid, acc = gfold_map_left (D.suc_plus km) (D.suc_plus lm) (Mid d) g acc mid in
+          (Branch (l, ends, mid), acc)
 
-    and gfold_left_branches :
-        type k m km n b l len len' left right.
+    and gfold_left_map_branches :
+        type k m km n b c l len len' left right.
         (k, m, km) D.plus ->
         (l N.suc, m, n) D.plus ->
         (k, l) bwsface ->
-        (n, b) left_folder ->
+        (n, b, c) left_folder ->
         (len Endpoints.t, len') Bwv.t ->
         left Acc.t ->
         (left, len', m, km, b, right) branches ->
-        right Acc.t =
+        (left, len', m, km, c, right) branches * right Acc.t =
      fun km lm d g ixs acc brs ->
       match (brs, ixs) with
-      | Emp, Emp -> acc
+      | Emp, Emp -> (Emp, acc)
       | Snoc (brs, br), Snoc (ixs, e) ->
-          let acc = gfold_left_branches km lm d g ixs acc brs in
-          gfold_left km lm (End (e, d)) g acc br
+          let brs, acc = gfold_left_map_branches km lm d g ixs acc brs in
+          let br, acc = gfold_map_left km lm (End (e, d)) g acc br in
+          (Snoc (brs, br), acc)
 
-    let fold_left :
-        type n b left right.
-        (n, b) left_folder -> left Acc.t -> (left, n, n, b, right) gt -> right Acc.t =
+    let fold_map_left :
+        type n b c left right.
+        (n, b, c) left_folder ->
+        left Acc.t ->
+        (left, n, n, b, right) gt ->
+        (left, n, n, c, right) gt * right Acc.t =
      fun g acc x ->
       let n = dim x in
-      gfold_left (D.zero_plus n) (D.zero_plus n) Zero g acc x
+      gfold_map_left (D.zero_plus n) (D.zero_plus n) Zero g acc x
 
     (* And dually on the right. *)
 
-    type ('n, 'b) right_folder = {
-      fold :
+    type ('n, 'b, 'c) right_folder = {
+      foldmap :
         'left 'right 'm.
-        ('m, 'n) sface -> ('left, 'm, 'b, 'right) F.t -> 'right Acc.t -> 'left Acc.t;
+        ('m, 'n) sface ->
+        ('left, 'm, 'b, 'right) F.t ->
+        'right Acc.t ->
+        'left Acc.t * ('left, 'm, 'c, 'right) F.t;
     }
 
-    let rec gfold_right :
-        type k m km n b l left right.
+    let rec gfold_map_right :
+        type k m km n b c l left right.
         (k, m, km) D.plus ->
         (l, m, n) D.plus ->
         (k, l) bwsface ->
-        (n, b) right_folder ->
+        (n, b, c) right_folder ->
         (left, m, km, b, right) gt ->
         right Acc.t ->
-        left Acc.t =
+        left Acc.t * (left, m, km, c, right) gt =
      fun km lm d g tr acc ->
       match tr with
       | Leaf x ->
           let Zero, Zero = (km, lm) in
-          g.fold (sface_of_bw d) x acc
+          let acc, x = g.foldmap (sface_of_bw d) x acc in
+          (acc, Leaf x)
       | Branch (l, ends, mid) ->
           let (Suc km') = km in
-          let acc = gfold_right (D.suc_plus km) (D.suc_plus lm) (Mid d) g mid acc in
-          gfold_right_branches km' (D.suc_plus lm) d g (Endpoints.indices l) ends acc
+          let acc, mid = gfold_map_right (D.suc_plus km) (D.suc_plus lm) (Mid d) g mid acc in
+          let acc, ends =
+            gfold_right_map_branches km' (D.suc_plus lm) d g (Endpoints.indices l) ends acc in
+          (acc, Branch (l, ends, mid))
 
-    and gfold_right_branches :
-        type k m km n b l len len' left right.
+    and gfold_right_map_branches :
+        type k m km n b c l len len' left right.
         (k, m, km) D.plus ->
         (l N.suc, m, n) D.plus ->
         (k, l) bwsface ->
-        (n, b) right_folder ->
+        (n, b, c) right_folder ->
         (len Endpoints.t, len') Bwv.t ->
         (left, len', m, km, b, right) branches ->
         right Acc.t ->
-        left Acc.t =
+        left Acc.t * (left, len', m, km, c, right) branches =
      fun km lm d g ixs brs acc ->
       match (brs, ixs) with
-      | Emp, Emp -> acc
+      | Emp, Emp -> (acc, Emp)
       | Snoc (brs, br), Snoc (ixs, e) ->
-          let acc = gfold_right km lm (End (e, d)) g br acc in
-          gfold_right_branches km lm d g ixs brs acc
+          let acc, br = gfold_map_right km lm (End (e, d)) g br acc in
+          let acc, brs = gfold_right_map_branches km lm d g ixs brs acc in
+          (acc, Snoc (brs, br))
 
-    let fold_right :
-        type n b left right.
-        (n, b) right_folder -> (left, n, b, right) t -> right Acc.t -> left Acc.t =
+    let fold_map_right :
+        type n b c left right.
+        (n, b, c) right_folder ->
+        (left, n, b, right) t ->
+        right Acc.t ->
+        left Acc.t * (left, n, c, right) t =
      fun g x acc ->
       let n = dim x in
-      gfold_right (D.zero_plus n) (D.zero_plus n) Zero g x acc
+      gfold_map_right (D.zero_plus n) (D.zero_plus n) Zero g x acc
 
     (* Similarly for building. *)
 
@@ -381,7 +408,7 @@ module Icube (F : Fam4) = struct
    fun tr -> gfind_top tr
 end
 
-(* The most important case of indexed cubes is when the indices are type-level natural numbers that simply count how many entries there are in the cube. *)
+(* The most important case of indexed cubes is when the indices are type-level natural numbers that simply count how many entries there are in the cube.  In fact, as of May 8, 2024 this is the only case we are using.  TODO: Would it be easier to implement this case directly rather than as a special case of the more general version above, and if so would it simplify other things?  E.g. require fewer type annotations in uses?  It might also allow generic traversals to work. *)
 
 module NFamOf = struct
   type (_, _, _, _) t = NFamOf : 'b -> ('left, 'n, 'b, 'left N.suc) t
@@ -395,11 +422,15 @@ module NICubeOf = struct
   module NFold = Traverse (N)
 
   let nfold :
-      type left m n b right. (m, n) sface -> left N.t -> (left, m, b, right) NFamOf.t -> right N.t =
-   fun _ n (NFamOf _) -> N.suc n
+      type left m n b right.
+      (m, n) sface ->
+      left N.t ->
+      (left, m, b, right) NFamOf.t ->
+      (left, m, unit, right) NFamOf.t * right N.t =
+   fun _ n (NFamOf _) -> (NFamOf (), N.suc n)
 
   let out : type left m b right. left N.t -> (left, m, b, right) t -> right N.t =
-   fun l b -> NFold.fold_left { fold = nfold } l b
+   fun l b -> snd (NFold.fold_map_left { foldmap = nfold } l b)
 
   let find : type n k b left right. (left, n, b, right) t -> (k, n) sface -> b =
    fun tr fa ->

@@ -355,23 +355,40 @@ module Icube (F : Fam4) : sig
     val mapM : ('n, 'b, 'c) mapperM -> ('left, 'n, 'b, 'right) t -> ('left, 'n, 'c, 'right) t M.t
   end
 
+  module IdM : module type of Applicatic (Applicative.OfMonad (Monad.Identity))
+
+  val map : ('n, 'b, 'c) IdM.mapperM -> ('left, 'n, 'b, 'right) t -> ('left, 'n, 'c, 'right) t
+
   module Traverse : functor (Acc : Util.Signatures.Fam) -> sig
-    type ('n, 'b) left_folder = {
-      fold :
+    type ('n, 'b, 'c) left_folder = {
+      foldmap :
         'left 'right 'm.
-        ('m, 'n) sface -> 'left Acc.t -> ('left, 'm, 'b, 'right) F.t -> 'right Acc.t;
+        ('m, 'n) sface ->
+        'left Acc.t ->
+        ('left, 'm, 'b, 'right) F.t ->
+        ('left, 'm, 'c, 'right) F.t * 'right Acc.t;
     }
 
-    val fold_left : ('n, 'b) left_folder -> 'left Acc.t -> ('left, 'n, 'b, 'right) t -> 'right Acc.t
+    val fold_map_left :
+      ('n, 'b, 'c) left_folder ->
+      'left Acc.t ->
+      ('left, 'n, 'b, 'right) t ->
+      ('left, 'n, 'c, 'right) t * 'right Acc.t
 
-    type ('n, 'b) right_folder = {
-      fold :
+    type ('n, 'b, 'c) right_folder = {
+      foldmap :
         'left 'right 'm.
-        ('m, 'n) sface -> ('left, 'm, 'b, 'right) F.t -> 'right Acc.t -> 'left Acc.t;
+        ('m, 'n) sface ->
+        ('left, 'm, 'b, 'right) F.t ->
+        'right Acc.t ->
+        'left Acc.t * ('left, 'm, 'c, 'right) F.t;
     }
 
-    val fold_right :
-      ('n, 'b) right_folder -> ('left, 'n, 'b, 'right) t -> 'right Acc.t -> 'left Acc.t
+    val fold_map_right :
+      ('n, 'b, 'c) right_folder ->
+      ('left, 'n, 'b, 'right) t ->
+      'right Acc.t ->
+      'left Acc.t * ('left, 'n, 'c, 'right) t
 
     type (_, _, _) fwrap_left =
       | Fwrap : ('left, 'm, 'b, 'right) F.t * 'right Acc.t -> ('left, 'm, 'b) fwrap_left

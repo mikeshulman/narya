@@ -401,7 +401,7 @@ and unparse_lam :
               =
            fun acc (NFamOf x) -> Snoc (acc, x) in
           unparse_lam cube vars
-            (Fold.fold_left { fold = (fun _ acc x -> folder acc x) } xs x)
+            (snd (Fold.fold_map_left { foldmap = (fun _ acc x -> folder acc x) } xs x))
             inner li ri
       | _ -> unparse_lam_done cube vars xs body li ri)
   | _ -> unparse_lam_done cube vars xs body li ri

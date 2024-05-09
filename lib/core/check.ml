@@ -526,7 +526,7 @@ let rec check :
       let meta = Meta.make `Hole (Ctx.dbwd ctx) energy in
       let ty = readback_val ctx ty in
       let termctx = readback_ctx ctx in
-      Galaxy.add meta (Data { varscope; termctx; ty; tm = None; energy });
+      Galaxy.add meta varscope termctx ty energy;
       emit (Hole_generated (meta, Termctx.PHole (varscope, termctx, ty)));
       Meta meta
 

@@ -127,6 +127,7 @@ module Code = struct
     | Locked_variable : t
     | Locked_axiom : printable -> t
     | Hole_generated : ('b, 's) Meta.t * printable -> t
+    | Open_holes : t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -219,6 +220,7 @@ module Code = struct
     | Locked_variable -> Error
     | Locked_axiom _ -> Error
     | Hole_generated _ -> Info
+    | Open_holes -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -326,6 +328,8 @@ module Code = struct
     | Notation_variable_used_twice _ -> "E2209"
     | Unbound_variable_in_notation _ -> "E2210"
     | Head_already_has_notation _ -> "E2211"
+    (* Interactive proof *)
+    | Open_holes -> "E3000"
     (* Information *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -541,6 +545,7 @@ module Code = struct
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
     | Hole_generated (n, ty) ->
         textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
+    | Open_holes -> text "There are open holes"
 end
 
 include Asai.StructuredReporter.Make (Code)

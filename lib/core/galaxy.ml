@@ -25,17 +25,25 @@ end
 module M = Meta.Map.Make (Data)
 
 module S = Algaeff.State.Make (struct
-  type t = unit M.t
+  type t = unit M.t * [ `Solved | `Unsolved ]
 end)
 
-let find_opt v = M.find_opt (MetaKey v) (S.get ())
-let add v x = S.modify (M.add (MetaKey v) x)
-let update v f = S.modify (M.update (MetaKey v) f)
+let find_opt meta = M.find_opt (MetaKey meta) (fst (S.get ()))
+
+let add :
+    type a b s.
+    (b, s) Meta.t -> a Varscope.t -> (a, b) Termctx.t -> (b, kinetic) term -> s energy -> unit =
+ fun meta varscope termctx ty energy ->
+  S.modify (fun (map, _) ->
+      (M.add (MetaKey meta) (Data { varscope; termctx; ty; tm = None; energy }) map, `Unsolved))
+
+let unsolved () = snd (S.get ()) = `Unsolved
+let _update meta f = S.modify (fun (map, s) -> (M.update (MetaKey meta) f map, s))
 
 (* When running in a new Galactic state, we also trap the temporary lookup effect from Galaxy1 and turn it into an actual lookup. *)
 let run_empty f =
   let open Effect.Deep in
-  S.run ~init:M.empty @@ fun () ->
+  S.run ~init:(M.empty, `Solved) @@ fun () ->
   try_with f ()
     {
       effc =

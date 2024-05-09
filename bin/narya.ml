@@ -86,7 +86,7 @@ module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let rec batch first ws p src =
   let cmd = Parse_command.final p in
-  if cmd = Eof then ws
+  if cmd = Eof then if Galaxy.unsolved () then Reporter.fatal Open_holes else ws
   else (
     if !typecheck then Parser.Command.execute cmd;
     let ws =

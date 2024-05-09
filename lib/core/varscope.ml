@@ -10,6 +10,8 @@ let ext (ctx : 'n t) (x : string option) : 'n N.suc t = Snoc (ctx, (x, Emp))
 let ext_fields (ctx : 'n t) (x : string option) (flds : (string, Field.t) Abwd.t) : 'n N.suc t =
   Snoc (ctx, (x, flds))
 
+let permute : type a m n. m t -> (m, n) N.perm -> n t = fun vars p -> Bwv.permute vars p
+
 let rec find : type n. string -> n t -> [ `Var of n N.index | `Field of n N.index * Field.t | `None ]
     =
  fun x ctx ->

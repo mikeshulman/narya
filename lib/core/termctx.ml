@@ -79,4 +79,4 @@ let eval : type a b. (a, b) t -> (a, b) Ctx.t = function
   | Permute (p, ctx) -> Permute (p, Ordered.eval ctx)
 
 (* When printing a hole we also uses a Termctx, since that's what we store anyway, and we would also have to read back a value context anyway in order to unparse it. *)
-type printable += PHole : ('a, 'b) t * ('b, kinetic) term -> printable
+type printable += PHole : 'a Varscope.t * ('a, 'b) t * ('b, kinetic) term -> printable

@@ -88,9 +88,6 @@ let dim_variables : type m. m variables -> m D.t = function
 let singleton_variables : type m. m D.t -> string option -> m variables =
  fun m x -> Variables (m, D.plus_zero m, NICubeOf.singleton x)
 
-let singleton_named_variables : type m. m D.t -> string option -> m variables =
- fun m x -> singleton_variables m (Some (Option.value x ~default:"x"))
-
 (* ******************** Typechecked terms ******************** *)
 
 (* Typechecked, but unevaluated, terms.  Use De Bruijn indices that are intrinsically well-scoped by hctxs, but are no longer separated into synthesizing and checking; hence without type ascriptions.  Note that extending an hctx by a dimension 'k means adding a whole cube of new variables, which are indexed by the position of that dimension together with a strict face of it.  (At user-level, those variables may all be accessed as faces of one "cube variable", or they may have independent names, but internally there is no difference.)

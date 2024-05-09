@@ -172,16 +172,16 @@ module Ordered = struct
       (l, n) sface ->
       (left, l, string option, right) NFamOf.t ->
       (a, right, b, mn) lookup ->
-      (a, left, b, mn) lookup =
+      (a, left, b, mn) lookup * (left, l, unit, right) NFamOf.t =
    fun m mn xs fb (NFamOf _) acc ->
     let found_it fa =
       let (Plus kl) = D.plus (dom_sface fb) in
       let fab = sface_plus_sface fa mn kl fb in
       let x = CubeOf.find xs fab in
-      Found (Binding.level x, Binding.value x, Top fab) in
+      (Found (Binding.level x, Binding.value x, Top fab), NFamOf.NFamOf ()) in
     match acc with
-    | Found (i, x, v) -> Found (i, x, v)
-    | Unfound (Suc p, (Pop k, fa)) -> Unfound (p, (k, fa))
+    | Found (i, x, v) -> (Found (i, x, v), NFamOf ())
+    | Unfound (Suc p, (Pop k, fa)) -> (Unfound (p, (k, fa)), NFamOf ())
     | Unfound (_, (Top, None)) -> found_it (id_sface m)
     | Unfound (_, (Top, Some (Any_sface fa))) -> (
         match D.compare (cod_sface fa) m with
@@ -211,12 +211,15 @@ module Ordered = struct
           type 'right t = (a, 'right, b, n) lookup
         end) in
         match
-          Fold.fold_right { fold = (fun fb -> lookup_folder m mn xs fb) } names (Unfound (pf, k))
+          Fold.fold_map_right
+            { foldmap = (fun fb -> lookup_folder m mn xs fb) }
+            names
+            (Unfound (pf, k))
         with
-        | Unfound (Zero, k) ->
+        | Unfound (Zero, k), _ ->
             let i, x, v = lookup ctx k in
             (i, x, Pop v)
-        | Found (j, x, v) -> (j, x, v))
+        | Found (j, x, v), _ -> (j, x, v))
     | Invis _ ->
         let Zero = pf in
         let j, x, v = lookup ctx k in

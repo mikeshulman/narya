@@ -13,11 +13,11 @@ let unparse str =
 let att = make "at" (Prefix No.plus_omega)
 let () = set_tree att (Closed_entry (eop (Op "@") (Done_closed att)))
 
-(* And also postfix notations ! and ? of tightness +∞, one left-associative and one not. *)
+(* And also postfix notations ! and !! of tightness +∞, one left-associative and one not. *)
 let bang = make "bang" (Postfix No.plus_omega)
 let () = set_tree bang (Open_entry (eop (Op "!") (done_open bang)))
 let query = make "query" (Postfixl No.plus_omega)
-let () = set_tree query (Open_entry (eop (Op "?") (done_open query)))
+let () = set_tree query (Open_entry (eop (Op "!!") (done_open query)))
 
 let () =
   Builtins.run @@ fun () ->
@@ -56,9 +56,9 @@ let () =
   unparse "f @ .x" (* Now we experiment with the postfix ones *);
 
   assert (parse "x !" = Notn ("bang", [ Term (Ident [ "x" ]) ]));
-  assert (parse "x ?" = Notn ("query", [ Term (Ident [ "x" ]) ]));
+  assert (parse "x !!" = Notn ("query", [ Term (Ident [ "x" ]) ]));
 
-  assert (parse "f x ?" = Notn ("query", [ Term (App (Ident [ "f" ], Ident [ "x" ])) ]))
+  assert (parse "f x !!" = Notn ("query", [ Term (App (Ident [ "f" ], Ident [ "x" ])) ]))
   (* It's not possible to get "f x !" to parse as "f (x !)", since function application is not right-associative and nothing is strictly tighter than it. *);
 
   unparse "f x !"
@@ -66,10 +66,10 @@ let () =
 
   assert (parse "f ! x" = App (Notn ("bang", [ Term (Ident [ "f" ]) ]), Ident [ "x" ]));
 
-  assert (parse "f ? x" = App (Notn ("query", [ Term (Ident [ "f" ]) ]), Ident [ "x" ]));
+  assert (parse "f !! x" = App (Notn ("query", [ Term (Ident [ "f" ]) ]), Ident [ "x" ]));
 
   assert (
-    parse "f ? x ?"
+    parse "f !! x !!"
     = Notn ("query", [ Term (App (Notn ("query", [ Term (Ident [ "f" ]) ]), Ident [ "x" ])) ]))
 
 (* We define nonassociative prefix, infix, and postfix operators of the same tightness. *)

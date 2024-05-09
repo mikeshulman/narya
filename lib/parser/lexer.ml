@@ -90,6 +90,7 @@ let onechar_ops =
     (0x5D, RBracket);
     (0x7B, LBrace);
     (0x7D, RBrace);
+    (0x3F, Query);
     (0x21A6, Mapsto);
     (0x2907, DblMapsto);
     (0x2192, Arrow);
@@ -110,26 +111,7 @@ let onechar_op : Token.t t =
 (* Any sequence consisting entirely of these characters is its own token. *)
 let ascii_symbols =
   [|
-    '~';
-    '!';
-    '@';
-    '#';
-    '$';
-    '%';
-    '&';
-    '*';
-    '/';
-    '?';
-    '=';
-    '+';
-    '\\';
-    '|';
-    ',';
-    '<';
-    '>';
-    ':';
-    ';';
-    '-';
+    '~'; '!'; '@'; '#'; '$'; '%'; '&'; '*'; '/'; '='; '+'; '\\'; '|'; ','; '<'; '>'; ':'; ';'; '-';
   |]
 
 let ascii_symbol_uchars = Array.map Uchar.of_char ascii_symbols

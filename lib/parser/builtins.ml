@@ -1393,6 +1393,31 @@ let () =
       pp_close_box ppf ())
 
 (* ********************
+   Holes
+ ******************** *)
+
+let hole = make "hole" Outfix
+
+let () =
+  set_tree hole (Closed_entry (eop Query (Done_closed hole)));
+  set_processor hole
+    {
+      process =
+        (fun ctx obs loc _ ->
+          match obs with
+          | [] -> { value = Hole ctx; loc }
+          | _ -> fatal (Anomaly "invalid notation arguments for hole"));
+    };
+  set_print hole @@ fun space ppf obs ws ->
+  match obs with
+  | [] ->
+      let wshole, ws = take Query ws in
+      taken_last ws;
+      pp_print_string ppf "?";
+      pp_ws space ppf wshole
+  | _ -> fatal (Anomaly (Printf.sprintf "invalid notation arguments for hole: %d" (List.length ws)))
+
+(* ********************
    Generating the state
  ******************** *)
 
@@ -1423,6 +1448,7 @@ let builtins =
     |> State.add_user "snoc" (Infixl No.zero)
          [ `Var ("xs", `Break, []); `Op (Op "<:", `Nobreak, []); `Var ("x", `None, []) ]
          (`Constr (Constr.intern "snoc"))
-         [ "xs"; "x" ])
+         [ "xs"; "x" ]
+    |> State.add hole)
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

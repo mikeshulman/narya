@@ -12,6 +12,7 @@ type t =
   | RBracket (* ] *)
   | LBrace (* { *)
   | RBrace (* } *)
+  | Query (* ? *)
   | Arrow (* Both -> and → *)
   | Mapsto (* Both |-> and ↦ *)
   | DblMapsto (* Both |=> and ⤇ *)
@@ -141,6 +142,7 @@ let to_string = function
   | RBracket -> "]"
   | LBrace -> "{"
   | RBrace -> "}"
+  | Query -> "?"
   | Arrow -> alt_char "→" "->"
   | Mapsto -> alt_char "↦" "|->"
   | DblMapsto -> alt_char "⤇" "|=>"

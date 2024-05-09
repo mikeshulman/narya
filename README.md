@@ -2,7 +2,7 @@
 
 Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Directional, Higher/Parametric/Displayed Observational Type Theory, but a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with Id/Bridge types satisfying parametricity, of variable arity and internality.  There is a parser with user-definable mixfix notations, and user-definable record types, inductive datatypes and type families, and coinductive codatatypes, with functions definable by matching and comatching case trees.
 
-Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  But on the other side of the coin, feedback on anything and everything is welcome.
+Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  But on the other side of the coin, feedback on anything and everything is welcome.  In particular, please report all crashes, bugs, unexpected errors, and other unexpected, surprising, or unintuitive behavior.
 
 
 ## Top level interface
@@ -56,7 +56,7 @@ When the Narya executable is run, it loads and typechecks all the files given on
 
 There is currently no importing or exporting: all definitions from all sources go into the same flat namespace, so for instance in interactive mode you can refer to definitions made in files that were loaded previously.  There is also no compilation or caching: everything must be typechecked and loaded anew at every invocation.
 
-Each file or `-e` argument is a sequence of commands (see below), while in interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
+In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit interactive mode.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
 
 
 ### Commands
@@ -126,8 +126,8 @@ A Narya source file is expected to be UTF-8 encoded and can contain arbitrary Un
 
 However, in Narya there are the following exceptions to this, where whitespace is not needed to separate tokens:
 
-- The characters `( ) [ ] { } → ↦ ⤇ ≔ ⩴ ⩲ …`, which either have built-in meaning or are reserved for future built-in meanings, are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in most languages, but in Narya you can also write, e.g., `A→B` without spaces.  The non-ASCII characters in this group all have ASCII-sequence substitutes that are completely interchangeable: `-> |-> |=> := ::= += ...`.  Additional characters may be added to this list in the future.
-- A nonempty string consisting of the characters `~ ! @ # $ % & * / ? = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Moreover, such tokens may only be notation symbols, not identifiers.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for those that already have another meaning (parentheses, backquote, double quote, curly braces) or are allowed in identifiers (period, underscore, and single quote).  In particular:
+- The characters `( ) [ ] { } ? → ↦ ⤇ ≔ ⩴ ⩲ …`, which either have built-in meaning or are reserved for future built-in meanings, are always treated as single tokens.  Thus, they do not need to be surrounded by whitespace.  This is the case for parentheses and braces in most languages, but in Narya you can also write, e.g., `A→B` without spaces.  The non-ASCII characters in this group all have ASCII-sequence substitutes that are completely interchangeable: `-> |-> |=> := ::= += ...`.  Additional characters may be added to this list in the future.
+- A nonempty string consisting of the characters `~ ! @ # $ % & * / = + \ | , < > : ; -` is always treated as a single token, and does not need to be surrounded by whitespace.  Moreover, such tokens may only be notation symbols, not identifiers.  Note that this is most of the non-alphanumeric characters that appear on a standard US keyboard except for those that already have another meaning (parentheses, backquote, double quote, curly braces) or are allowed in identifiers (period, underscore, and single quote).  In particular:
   - Ordinary algebraic operations like `+` and `*` can be defined so that `x+y` and `x*y` are valid.
   - This includes the colon, so you can write `(x:A) → B`, and similarly for the comma `,` in a tuple and the bar `|` in a match or comatch (see below).  But the user can also use these characters in other operators.
   - The ASCII substitutes for the single-token Unicode characters also fall into this category, so you can write for instance `A->B`.
@@ -200,6 +200,19 @@ echo (A f x ↦ cplus A (f x ↦ f x) (f x ↦ f x) f x)
 A f x ↦ f (f x)
 ```
 If there is significant demand for displaying function bodies, we may add an option to ask for η-expansion.
+
+
+## Interactive proof
+
+There is no truly interactive proof or term-construction mode yet, but there is the ability to leave *holes* in terms.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever, and emits a message showing the type it is being checked against, and all the variables in the context with their types (and definitions, if any).  There is not yet any way to go back and fill a hole *after* it is created, but you can get something of the same effect by just editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.
+
+A command containing one or more holes will succeed as long as the term typechecks without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts.  In other words, it will succeed if the term would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself.  (This will be improved in the future.)
+
+If a command containing one or more holes succeeds, you can continue to issue other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N` where `N` is the sequential number of the hole.  Unlike the printing of most terms, this is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N`.  This may be improved in future, but it is ameliorated somewhat by the fact that "case tree holes" (see below) never appear in terms.
+
+Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.
+
+When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.
 
 
 ## Record types and tuples
@@ -565,6 +578,10 @@ def IsTrunc (n:ℕ) (A:Type) : Type ≔ match n [
 | suc. n ↦ sig ( trunc_id : (x y : A) → IsTrunc n (Id A x y) )
 ]
 ```
+
+### Holes in case trees
+
+A hole `?` left in a place where a case tree would be valid to continue is a "case tree hole", and is treated a bit differently than an ordinary hole.  Obviously, once it is possible to "fill" holes, a case tree hole will be fillable with a case tree rather than just a term.  But currently, the main difference is that evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would be the substitution applied to a term hole, and hence not currently printed).
 
 
 ## Codatatypes and comatching

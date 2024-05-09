@@ -202,7 +202,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             get =
               (fun _ ->
                 match arg.get Interval.empty with
-                | Ok x -> Ok { value = Superscript (Some x, s, ws); loc = Some loc }
+                | Ok x ->
+                    Ok
+                      {
+                        value = Superscript (Some x, s, ws);
+                        (* TODO: This merge doesn't seem to be working: the reported location for the superscripted term is just the superscript, not including the body. *)
+                        loc = Range.merge_opt x.loc (Some loc);
+                      }
                 | Error e -> Error e);
           }
           sups

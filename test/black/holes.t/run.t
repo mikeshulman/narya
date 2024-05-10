@@ -180,8 +180,7 @@
       ^ hole ?12 generated:
         
         H : foo (not in scope)
-        bar ≔ H .bar 
-        baz ≔ H .baz 
+        bar : ℕ
         ----------------------------------------------------------------------
         Type
   

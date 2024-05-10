@@ -520,7 +520,7 @@ let rec check :
   | Record (abc, xs, fields), UU m, Potential _ -> (
       match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking record", TubeOf.inst tyargs, m))
-      | Eq -> check_record status ctx tyargs Emp abc xs (Bwd.to_list fields))
+      | Eq -> check_record status ctx tyargs abc xs fields)
   | Record _, _, Potential _ ->
       fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty)))
   | Record _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "record type")
@@ -662,26 +662,27 @@ and check_codata :
       check_codata status ctx tyargs checked_fields raw_fields
 
 and check_record :
-    type a c ac b n.
+    type a c ac d acd b n.
     (b, potential) status ->
     (a, b) Ctx.t ->
     (D.zero, n, n, normal) TubeOf.t ->
-    (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
     (a, c, ac) Fwn.bplus located ->
     (string option, c) Vec.t ->
-    (Field.t * ac check located) list ->
+    (ac, d, acd) Raw.tel ->
     (b, potential) term =
- fun status ctx tyargs checked_fields abc xs raw_fields ->
+ fun status ctx tyargs abc xs raw_fields ->
   let dim = TubeOf.inst tyargs in
-  match raw_fields with
-  | [] -> Canonical (Codata (Eta, dim, checked_fields))
-  | (fld, rty) :: raw_fields ->
-      check_codata_or_record status Eta ctx dim tyargs checked_fields @@ fun domvars ->
-      let (Vars (ab, names)) = vars_of_vec abc.loc dim abc.value xs in
-      let newctx = Ctx.vis ctx D.zero (D.zero_plus dim) ab names domvars in
-      let cty = check Kinetic newctx rty (universe D.zero) in
-      let checked_fields = Snoc (checked_fields, (fld, cty)) in
-      check_record status ctx tyargs checked_fields abc xs raw_fields
+  check_codata_or_record status Eta ctx dim tyargs Emp @@ fun domvars ->
+  let (Vars (ab, names)) = vars_of_vec abc.loc dim abc.value xs in
+  let newctx = Ctx.vis ctx D.zero (D.zero_plus dim) ab names domvars in
+  let (Checked_tel (checked_fields, _)) = check_tel newctx raw_fields in
+  match (Ctx.Binding.value (CubeOf.find_top domvars)).tm with
+  | Uninst (Neu { head; _ }, _) ->
+      let evaluated_fields = eval_sig_tel (Ctx.env newctx) head checked_fields in
+      let checked_fields =
+        Bwd.map (fun (fld, ty) -> (fld, readback_val newctx ty)) evaluated_fields in
+      Term.Canonical (Codata (Eta, dim, checked_fields))
+  | _ -> fatal (Anomaly "non-neutral head of new variable in check_record")
 
 and check_struct :
     type a b c s m n.

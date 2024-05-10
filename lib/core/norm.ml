@@ -578,3 +578,33 @@ let apply_binder_term : ('n, kinetic) binder -> ('n, kinetic value) CubeOf.t -> 
  fun b arg ->
   let (Val v) = apply_binder b arg in
   v
+
+(* Evaluate a telescope, regarding it as the types constituting a record type, binding each variable to the corresponding field of a specified value (generally a previous unnamed variable) when evaluating the subsequent types. *)
+let eval_sig_tel :
+    type n a c ac h.
+    (D.zero, a) env -> h head -> (a, c, ac) Term.tel -> (Field.t, kinetic value) Abwd.t =
+ fun env head tel ->
+  let rec go :
+      type n a c ac.
+      (D.zero, a) env ->
+      (a, c, ac) Term.tel ->
+      (Field.t, kinetic value) Abwd.t ->
+      (Field.t, kinetic value) Abwd.t =
+   fun env tel result ->
+    match tel with
+    | Emp -> result
+    | Ext (None, _, _) -> fatal (Anomaly "unnamed field in eval_sig_tel")
+    | Ext (Some name, ty, tel) ->
+        let ety = eval_term env ty in
+        let fld = Field.intern name in
+        let args = Snoc (Emp, App (Field fld, zero_ins D.zero)) in
+        go
+          (Ext
+             ( env,
+               CubeOf.singleton
+                 (CubeOf.singleton
+                    (* We can't use the generic operation "field" to compute this term because that expects the input term (here the 'head') to have a type that's a record or codatatype whose field types are known globally, but we don't know that yet when this function is called while typechecking a record type.  But fortunately we *know* the type that this term should have, since we just computed it! *)
+                    (Uninst (Neu { head; args; alignment = True }, Lazy.from_val ety))) ))
+          tel
+          (Snoc (result, (fld, ety))) in
+  go env tel Emp

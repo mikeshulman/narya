@@ -42,10 +42,10 @@ def pp : Σ Type (X ↦ X) ≔ ( ? , ? )
 {` But if we break the case tree, then the type of the second hole is the first hole. `}
 def pp' : Σ Type (X ↦ X) ≔ ( id ? , ? )
 
-{` The display of this hole looks a little weird, but at least it indicates the meanings of the variables.  TODO: It would be better not to have 'baz' show as in scope for itself, since it isn't in scope. `}
+{` The out-of-scope variable "H" that appears here is because record types are stored internally like codatatypes with all fields depending on a single variable, so we have to introduce that variable during typechecking. `}
 def foo : Type ≔ sig (
   bar : ℕ,
-  {` It's important for to be its own token, so that it can be followed immediately by a comma. `}
+  {` It's important for ? to be its own token, so that it can be followed immediately by a comma. `}
   baz : ?,
 )
 

@@ -10,6 +10,7 @@ open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
 open Printconfig
+module StringSet = Set.Make (String)
 
 type 'a located = 'a Asai.Range.located
 
@@ -983,27 +984,18 @@ let () =
                term = Some (TokMap.of_list [ (Mapsto, op LParen (record_fields ())) ]);
              })))
 
-let rec process_record :
-    type a c ac.
-    (Field.t, ac N.suc check located) Abwd.t ->
-    ac Varscope.t ->
-    (a, c, ac N.suc) Fwn.bplus located ->
-    (string option, c) Vec.t ->
-    (string, Field.t) Abwd.t ->
-    observation list ->
-    Asai.Range.t option ->
-    a check located =
- fun flds ctx abc xs vars obs loc ->
+type _ any_tel = Any_tel : ('a, 'c, 'ac) Raw.tel -> 'a any_tel
+
+let rec process_tel : type a. a Varscope.t -> StringSet.t -> observation list -> a any_tel =
+ fun ctx seen obs ->
   match obs with
-  | [] -> { value = Raw.Record (abc, xs, flds); loc }
-  | Term { value = Ident ([ fldname ], _); loc = fldloc } :: Term ty :: obs -> (
-      let fld = Field.intern fldname in
-      let vars = Snoc (vars, (fldname, fld)) in
-      match Abwd.find_opt fld flds with
-      | Some _ -> fatal ?loc:fldloc (Duplicate_field_in_record fld)
-      | None ->
-          let ty = process (Varscope.ext_fields ctx None vars) ty in
-          process_record (Abwd.add fld ty flds) ctx abc xs vars obs loc)
+  | [] -> Any_tel Emp
+  | Term { value = Ident ([ name ], _); loc } :: Term ty :: obs ->
+      if StringSet.mem name seen then fatal ?loc (Duplicate_field_in_record (Field.intern name));
+      let ty = process ctx ty in
+      let ctx = Varscope.ext ctx (Some name) in
+      let (Any_tel tel) = process_tel ctx (StringSet.add name seen) obs in
+      Any_tel (Ext (Some name, ty, tel))
   | _ :: _ :: _ -> fatal Parse_error
   | _ :: [] -> fatal (Anomaly "invalid notation arguments for record")
 
@@ -1014,15 +1006,20 @@ let () =
         (fun ctx obs loc ws ->
           let _, ws = take Sig ws in
           match take_opt Mapsto ws with
+          | None ->
+              let ctx = Varscope.ext ctx None in
+              let (Any_tel tel) = process_tel ctx StringSet.empty obs in
+              { value = Record ({ value = Suc Zero; loc }, [ None ], tel); loc }
           | Some _ -> (
               match obs with
               | Term x :: obs ->
                   with_loc x.loc @@ fun () ->
-                  let (Append_plus (Suc Zero, ac, vars, ctx)) =
-                    Varscope.append_plus [ None ] ctx (List.map fst (process_var_list x [])) in
-                  process_record Emp ctx { value = ac; loc = x.loc } vars Emp obs loc
-              | _ -> fatal (Anomaly "invalid notation arguments for record"))
-          | None -> process_record Emp ctx { value = Suc Zero; loc } [ None ] Emp obs loc);
+                  let (Append_plus (Zero, ac, vars, ctx)) =
+                    Varscope.append_plus [] ctx (List.map fst (process_var_list x [ (None, []) ]))
+                  in
+                  let (Any_tel tel) = process_tel ctx StringSet.empty obs in
+                  Range.locate (Record ({ value = ac; loc = x.loc }, vars, tel)) loc
+              | _ -> fatal (Anomaly "invalid notation arguments for record")));
     }
 
 let rec pp_record_fields ppf obs ws =

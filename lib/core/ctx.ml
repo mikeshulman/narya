@@ -283,16 +283,6 @@ module Ordered = struct
   let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t =
    fun ctx x v -> cube_vis ctx x (CubeOf.singleton (Binding.make None v))
 
-  (* Extract all the names in a context. *)
-  let rec names : type a b. (a, b) t -> b Names.t = function
-    | Emp -> Names.empty
-    | Snoc (ctx, Vis (m, mn, name, _), _) -> snd (Names.add (names ctx) (Variables (m, mn, name)))
-    | Snoc (ctx, Invis xs, Zero) -> snd (Names.add_cube (CubeOf.dim xs) (names ctx) None)
-    | Lock ctx -> names ctx
-
-  let lookup_name : type a b. (a, b) t -> b index -> string list =
-   fun ctx x -> Names.lookup (names ctx) x
-
   (* Generate a case tree consisting of a sequence of abstractions corresponding to the (checked) variables in a context.  The context must contain NO LET-BOUND VARIABLES since abstracting over them would not be well-defined.  (In general, we couldn't just omit them, because some of the variables in a cube could be bound but not others, and cubes in the context yield cube abstractions.  However, at least when this comment was written, this function was only used for contexts consisting entirely of 0-dimensional cubes without let-bound variables.) *)
   let rec lam : type a b. (a, b) t -> (b, potential) term -> (emp, potential) term =
    fun ctx tree ->
@@ -338,8 +328,6 @@ let eval (Permute (_, ctx)) tm = Ordered.eval ctx tm
 let eval_term (Permute (_, ctx)) tm = Ordered.eval_term ctx tm
 let ext (Permute (p, ctx)) xs ty = Permute (Insert (p, Top), Ordered.ext ctx xs ty)
 let ext_let (Permute (p, ctx)) xs tm = Permute (Insert (p, Top), Ordered.ext_let ctx xs tm)
-let names (Permute (_, ctx)) = Ordered.names ctx
-let lookup_name (Permute (_, ctx)) i = Ordered.lookup_name ctx i
 let lam (Permute (_, ctx)) tm = Ordered.lam ctx tm
 
 (* Augment an ordered context by the identity permutation *)

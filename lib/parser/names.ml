@@ -2,6 +2,7 @@ open Bwd
 open Util
 open Tbwd
 open Dim
+open Core
 open Syntax
 open Term
 open Reporter
@@ -98,6 +99,16 @@ let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t =
   let names, used = uniquify_cube names used in
   let vars = Variables (m, mn, names) in
   (vars, { ctx = Snoc (ctx, vars); used })
+
+(* Extract all the names in a context. *)
+let rec of_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> b t = function
+  | Emp -> empty
+  | Snoc (ctx, Vis (m, mn, name, _), _) -> snd (add (of_ordered_ctx ctx) (Variables (m, mn, name)))
+  | Snoc (ctx, Invis xs, Zero) -> snd (add_cube (CubeOf.dim xs) (of_ordered_ctx ctx) None)
+  | Lock ctx -> of_ordered_ctx ctx
+
+let of_ctx : type a b. (a, b) Ctx.t -> b t = function
+  | Permute (_, ctx) -> of_ordered_ctx ctx
 
 let unsafe_add : 'b t -> 'n variables -> ('b, 'n) snoc t =
  fun { ctx; used } vars -> { ctx = Snoc (ctx, vars); used }

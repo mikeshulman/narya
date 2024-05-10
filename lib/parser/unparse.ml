@@ -690,24 +690,25 @@ let () =
       | PLevel i -> Printed ((fun ppf i -> Format.fprintf ppf "(%d,%d)" (fst i) (snd i)), i)
       | PTerm (ctx, tm) ->
           Printed
-            (Print.pp_term `None, Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
+            ( Print.pp_term `None,
+              Term (unparse (Names.of_ctx ctx) tm Interval.entire Interval.entire) )
       | PVal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
+                (unparse (Names.of_ctx ctx) (Readback.readback_val ctx tm) Interval.entire
                    Interval.entire) )
       | PNormal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Ctx.names ctx) (Readback.readback_nf ctx tm) Interval.entire
+                (unparse (Names.of_ctx ctx) (Readback.readback_nf ctx tm) Interval.entire
                    Interval.entire) )
       | PUninst (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Ctx.names ctx) (Readback.readback_uninst ctx tm) Interval.entire
+                (unparse (Names.of_ctx ctx) (Readback.readback_uninst ctx tm) Interval.entire
                    Interval.entire) )
       | PConstant name ->
           Printed

@@ -2,6 +2,7 @@ open Bwd
 open Util
 open Tbwd
 open Dim
+open Core
 open Syntax
 open Term
 module StringMap : module type of Map.Make (String)
@@ -13,6 +14,7 @@ val lookup : 'n t -> 'n index -> string list
 val add_cube : 'n D.t -> 'b t -> string option -> string option * ('b, 'n) snoc t
 val add_cube_autogen : 'n D.t -> 'b t -> string * ('b, 'n) snoc t
 val add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t
+val of_ctx : ('a, 'b) Ctx.t -> 'b t
 
 val uniquify_varscope :
   'a Varscope.t ->

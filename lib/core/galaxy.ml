@@ -1,5 +1,6 @@
 (* This module should not be opened, but used qualified. *)
 
+open Util
 open Syntax
 open Term
 
@@ -7,7 +8,7 @@ open Term
 
 type (_, _) data =
   | Data : {
-      varscope : 'a Varscope.t;
+      vars : (string option, 'a) Bwv.t;
       (* TODO: Global state. *)
       termctx : ('a, 'b) Termctx.t;
       ty : ('b, kinetic) term;
@@ -32,10 +33,15 @@ let find_opt meta = M.find_opt (MetaKey meta) (fst (S.get ()))
 
 let add :
     type a b s.
-    (b, s) Meta.t -> a Varscope.t -> (a, b) Termctx.t -> (b, kinetic) term -> s energy -> unit =
- fun meta varscope termctx ty energy ->
+    (b, s) Meta.t ->
+    (string option, a) Bwv.t ->
+    (a, b) Termctx.t ->
+    (b, kinetic) term ->
+    s energy ->
+    unit =
+ fun meta vars termctx ty energy ->
   S.modify (fun (map, _) ->
-      (M.add (MetaKey meta) (Data { varscope; termctx; ty; tm = None; energy }) map, `Unsolved))
+      (M.add (MetaKey meta) (Data { vars; termctx; ty; tm = None; energy }) map, `Unsolved))
 
 let unsolved () = snd (S.get ()) = `Unsolved
 let _update meta f = S.modify (fun (map, s) -> (M.update (MetaKey meta) f map, s))

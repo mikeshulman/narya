@@ -260,14 +260,14 @@ let rec find2l :
 
 (* Appending *)
 
-(* Amusingly, appending *reversed* vectors is a closer match to addition of natural numbers defined by recursion on its right argument that appending non-reversed vectors would be. *)
-let rec append : type a m n mn. (m, n, mn) N.plus -> (a, m) t -> (a, n) t -> (a, mn) t =
+(* The natural operation is to append a forwards vector to a backwards one. *)
+let rec append : type a m n mn. (m, n, mn) Fwn.bplus -> (a, m) t -> (a, n) Vec.t -> (a, mn) t =
  fun mn xs ys ->
   match (mn, ys) with
-  | Zero, Emp -> xs
-  | Suc mn, Snoc (ys, y) -> Snoc (append mn xs ys, y)
+  | Zero, [] -> xs
+  | Suc mn, y :: ys -> append mn (Snoc (xs, y)) ys
 
-(* Conversely, we can split a vector of length m+n into one of length m and one of length n. *)
+(* We can split a Bwv of length m+n into one of length m and one of length n. *)
 let rec unappend : type a m n mn. (m, n, mn) N.plus -> (a, mn) t -> (a, m) t * (a, n) t =
  fun mn xys ->
   match mn with
@@ -330,13 +330,6 @@ let rec fold_left2_map_append :
   | Suc mn, Snoc (xs, x), Snoc (ys, y) ->
       let zs = fold_left2_map_append mn f start xs ys in
       Snoc (zs, f.fold zs x y)
-
-(* Constant-length bind: given a vector of elements of 'a of length n, and a function mapping 'a to vectors of type 'b of length m, we get a vector of type 'b of length m*n.  *)
-let rec bind : type a b m n mn. (m, n, mn) N.times -> (a, n) t -> (a -> (b, m) t) -> (b, mn) t =
- fun mn xs f ->
-  match (mn, xs) with
-  | Zero _, Emp -> Emp
-  | Suc (mn, mnm), Snoc (xs, x) -> append mnm (bind mn xs f) (f x)
 
 let rec fold_left_bind_append :
     type k m n mn k_mn a c.
@@ -461,6 +454,9 @@ let rec append_list_map : type a b n. (a -> b) -> (b, n) t -> a list -> b wrappe
   | y :: ys -> append_list_map f (Snoc (xs, f y)) ys
 
 let of_list_map : type a b n. (a -> b) -> a list -> b wrapped = fun f ys -> append_list_map f Emp ys
+
+let append_list : type a n. (a, n) t -> a list -> a wrapped =
+ fun xs ys -> append_list_map (fun x -> x) xs ys
 
 type (_, _) append_plus =
   | Append_plus : ('n, 'm, 'nm) Fwn.bplus * ('a, 'm) Vec.t * ('a, 'nm) t -> ('a, 'n) append_plus

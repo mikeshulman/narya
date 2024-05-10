@@ -528,13 +528,13 @@ let rec check :
       let (Plus_something num_indices) = N.plus_of_int (typefam ctx ty) in
       check_data status ctx ty (Nat num_indices) Constr.Map.empty (Bwd.to_list constrs)
   | Data _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "datatype")
-  | Hole varscope, _, _ ->
+  | Hole vars, _, _ ->
       let energy = energy status in
       let meta = Meta.make `Hole (Ctx.dbwd ctx) energy in
       let ty = readback_val ctx ty in
       let termctx = readback_ctx ctx in
-      Galaxy.add meta varscope termctx ty energy;
-      emit (Hole_generated (meta, Termctx.PHole (varscope, termctx, ty)));
+      Galaxy.add meta vars termctx ty energy;
+      emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
       Meta meta
 
 and check_data :

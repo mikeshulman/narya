@@ -555,14 +555,12 @@ and unparse_pi_dom :
                       ~inner:Emp ~last:dom ~left_ok:(No.le_refl No.minus_omega)
                       ~right_ok:(No.le_refl No.minus_omega))) )))
 
-(* Unparse a term context, given a vector of variable names obtained by uniquifying a varscope and an empty list of names that remembers the variables in that vector.  Yields not only the list of unparsed terms/types, but a corresponding list of names that can be used to unparse further objects in that context. *)
+(* Unparse a term context, given a vector of variable names obtained by uniquifying a variable list, and an empty list of names that remembers the variables in that vector.  Yields not only the list of unparsed terms/types, but a corresponding list of names that can be used to unparse further objects in that context. *)
 let rec unparse_ctx :
     type a b.
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
-    ( string * [ `Original | `Renamed ] * (string * [ `Original | `Renamed ] * Field.t) Bwd.t,
-      a )
-    Bwv.t ->
+    (string * [ `Original | `Renamed ], a) Bwv.t ->
     (a, b) Termctx.Ordered.t ->
     b Names.t
     * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
@@ -594,14 +592,9 @@ let rec unparse_ctx :
             M.miterM { it = (fun _ [ b ] res -> do_binding b res) } [ bindings ] result in
           (names, result)
       | Vis (m, mn, ys, bindings) ->
-          (* First we assemble the variable names we got from the uniquified varscope into a cube, iterating backwards so that the indices match those of the Bwv.  We ignore the variable names given in the context, but we use their cube to ensure statically that we got the right number of uniquified names.  *)
+          (* First we assemble the variable names we got from the uniquified variable list into a cube, iterating backwards so that the indices match those of the Bwv.  We ignore the variable names given in the context, but we use their cube to ensure statically that we got the right number of uniquified names.  *)
           let module T = struct
-            type 'n t =
-              ( string
-                * [ `Original | `Renamed ]
-                * (string * [ `Original | `Renamed ] * Field.t) Bwd.t,
-                'n )
-              Bwv.t
+            type 'n t = (string * [ `Original | `Renamed ], 'n) Bwv.t
           end in
           let module Fold = NICubeOf.Traverse (T) in
           let do_var :
@@ -609,29 +602,16 @@ let rec unparse_ctx :
               (m, n) sface ->
               (left, m, string option, right) NFamOf.t ->
               right T.t ->
-              left T.t
-              * ( left,
-                  m,
-                  string
-                  * [ `Original | `Renamed ]
-                  * (string * [ `Original | `Renamed ] * Field.t) Bwd.t,
-                  right )
-                NFamOf.t =
+              left T.t * (left, m, string * [ `Original | `Renamed ], right) NFamOf.t =
            fun _ (NFamOf _) (Snoc (xs, x)) -> (xs, NFamOf x) in
           let _, vardata = Fold.fold_map_right { foldmap = do_var } ys xs in
           (* Then we project out the variable names alone, and add them to the Names.t.  TODO: Can we do this as part of the same iteration?  It would require a two-output version of the traversal.  *)
           let projector :
               type left right m n.
               (m, n) sface ->
-              ( left,
-                m,
-                string
-                * [ `Original | `Renamed ]
-                * (string * [ `Original | `Renamed ] * Field.t) Bwd.t,
-                right )
-              NFamOf.t ->
+              (left, m, string * [ `Original | `Renamed ], right) NFamOf.t ->
               (left, m, string option, right) NFamOf.t =
-           fun _ (NFamOf (x, _, _)) -> NFamOf (Some x) in
+           fun _ (NFamOf (x, _)) -> NFamOf (Some x) in
           let xs = NICubeOf.map { map = projector } vardata in
           let names = Names.unsafe_add names (Variables (m, mn, xs)) in
           (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
@@ -648,29 +628,9 @@ let rec unparse_ctx :
               match lock with
               | `Locked -> fun _ -> `Locked
               | `Unlocked -> fun o -> (o :> [ `Original | `Renamed | `Locked ]) in
-            let x, orig, flds = NICubeOf.find vardata fb in
+            let x, orig = NICubeOf.find vardata fb in
             let x = add_fa x in
             let res = Snoc (res, (x, merge_orig orig, tm, Some ty)) in
-            let res =
-              Bwd.fold_left
-                (fun res (n, o, f) ->
-                  Snoc
-                    ( res,
-                      ( add_fa n,
-                        merge_orig o,
-                        Some
-                          (Term
-                             (unlocated
-                                (App
-                                   {
-                                     (* We trust here that uniquify_varscope assigned an actual name to everything. *)
-                                     fn = unlocated (Ident ([ x ], []));
-                                     arg = unlocated (Field (Field.to_string f, []));
-                                     left_ok = No.minusomega_lt_plusomega;
-                                     right_ok = No.minusomega_lt_plusomega;
-                                   }))),
-                        None ) ))
-                res flds in
             ((), res) in
           let _, result =
             M.miterM { it = (fun fab [ b ] res -> do_binding fab b res) } [ bindings ] result in
@@ -717,7 +677,7 @@ let () =
       | Termctx.PHole (vars, Permute (p, ctx), ty) ->
           Printed
             ( (fun ppf (ctx, ty) -> Print.pp_hole ppf ctx ty),
-              let vars, names = Names.uniquify_varscope vars in
+              let vars, names = Names.uniquify_vars vars in
               let names, ctx = unparse_ctx names `Unlocked (Bwv.permute vars p) ctx in
               let ty = unparse names ty Interval.entire Interval.entire in
               (ctx, Term ty) )

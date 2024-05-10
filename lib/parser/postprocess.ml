@@ -35,7 +35,8 @@ let process_numeral loc (n : Q.t) =
 (* Now the master postprocessing function.  Note that this function calls the "process" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
 let rec process :
-    type n lt ls rt rs. n Varscope.t -> (lt, ls, rt, rs) parse located -> n check located =
+    type n lt ls rt rs.
+    (string option, n) Bwv.t -> (lt, ls, rt, rs) parse located -> n check located =
  fun ctx res ->
   let loc = res.loc in
   with_loc loc @@ fun () ->
@@ -66,17 +67,13 @@ let rec process :
       let open Monad.Ops (Monad.Maybe) in
       match
         match parts with
-        | [ x ] -> (
-            match Varscope.find x ctx with
-            | `Var n -> Some (Synth (Var (n, None)))
-            | `Field (n, fld) -> Some (Synth (Field ({ value = Var (n, None); loc }, `Name fld)))
-            | `None -> None)
-        | [ x; face ] -> (
-            match Varscope.find x ctx with
-            | `Var v ->
-                let* fa = sface_of_string face in
-                return (Synth (Var (v, Some fa)))
-            | `Field _ | `None -> None)
+        | [ x ] ->
+            let* _, n = Bwv.find_opt (fun y -> y = Some x) ctx in
+            Some (Synth (Var (n, None)))
+        | [ x; face ] ->
+            let* _, v = Bwv.find_opt (fun y -> y = Some x) ctx in
+            let* fa = sface_of_string face in
+            return (Synth (Var (v, Some fa)))
         | _ -> None
       with
       | Some tm -> { value = tm; loc }
@@ -103,7 +100,8 @@ let rec process :
   | Superscript (None, _, _) -> fatal (Anomaly "degeneracy is head")
 
 and process_deg :
-    type n lt ls rt rs. n Varscope.t -> string -> (lt, ls, rt, rs) parse located -> n check option =
+    type n lt ls rt rs.
+    (string option, n) Bwv.t -> string -> (lt, ls, rt, rs) parse located -> n check option =
  fun ctx str arg ->
   match deg_of_name str with
   | Some (Any s) -> (
@@ -112,9 +110,10 @@ and process_deg :
       | { loc; _ } -> fatal ?loc (Nonsynthesizing "argument of degeneracy"))
   | None -> None
 
-type _ processed_tel = Processed_tel : ('n, 'k, 'nk) Raw.tel * 'nk Varscope.t -> 'n processed_tel
+type _ processed_tel =
+  | Processed_tel : ('n, 'k, 'nk) Raw.tel * (string option, 'nk) Bwv.t -> 'n processed_tel
 
-let rec process_tel : type n. n Varscope.t -> Parameter.t list -> n processed_tel =
+let rec process_tel : type n. (string option, n) Bwv.t -> Parameter.t list -> n processed_tel =
  fun ctx parameters ->
   match parameters with
   | [] -> Processed_tel (Emp, ctx)
@@ -122,12 +121,15 @@ let rec process_tel : type n. n Varscope.t -> Parameter.t list -> n processed_te
 
 and process_vars :
     type n b.
-    n Varscope.t -> (string option * b) list -> observation -> Parameter.t list -> n processed_tel =
+    (string option, n) Bwv.t ->
+    (string option * b) list ->
+    observation ->
+    Parameter.t list ->
+    n processed_tel =
  fun ctx names (Term ty) parameters ->
   match names with
   | [] -> process_tel ctx parameters
   | (name, _) :: names ->
       let pty = process ctx ty in
-      let (Processed_tel (tel, ctx)) =
-        process_vars (Varscope.ext ctx name) names (Term ty) parameters in
+      let (Processed_tel (tel, ctx)) = process_vars (Bwv.snoc ctx name) names (Term ty) parameters in
       Processed_tel (Ext (name, pty, tel), ctx)

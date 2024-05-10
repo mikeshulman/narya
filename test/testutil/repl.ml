@@ -24,7 +24,7 @@ let () =
 let parse_term (tm : string) : N.zero check located =
   let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
   let (Term tm) = Parse_term.final p in
-  Postprocess.process Varscope.empty tm
+  Postprocess.process Emp tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 

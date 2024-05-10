@@ -42,7 +42,7 @@ module Raw = struct
         ('a, 'c, 'ac) Fwn.bplus located * (string option, 'c) Vec.t * ('ac, 'd, 'acd) tel
         -> 'a check
     (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data. *)
-    | Hole : 'a Varscope.t -> 'a check
+    | Hole : (string option, 'a) Bwv.t -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)

@@ -980,13 +980,7 @@ let () =
              {
                empty_branch with
                ops = TokMap.singleton LParen (record_fields ());
-               term =
-                 Some
-                   (TokMap.of_list
-                      [
-                        (Mapsto, op LParen (record_fields ()));
-                        (DblMapsto, op LParen (record_fields ()));
-                      ]);
+               term = Some (TokMap.of_list [ (Mapsto, op LParen (record_fields ())) ]);
              })))
 
 let rec process_record :
@@ -1030,18 +1024,8 @@ let () =
                     (Normal ({ value = ac; loc = x.loc }, vars))
                     None Emp obs loc
               | _ -> fatal (Anomaly "invalid notation arguments for record"))
-          | None -> (
-              match take_opt DblMapsto ws with
-              | Some _ -> (
-                  match obs with
-                  | Term x :: obs ->
-                      let x = get_var x in
-                      process_record Emp ctx (Cube x) x Emp obs loc
-                  | _ -> fatal (Anomaly "invalid notation arguments for record"))
-              | None ->
-                  process_record Emp ctx
-                    (Normal ({ value = Suc Zero; loc }, [ None ]))
-                    None Emp obs loc));
+          | None ->
+              process_record Emp ctx (Normal ({ value = Suc Zero; loc }, [ None ])) None Emp obs loc);
     }
 
 let rec pp_record_fields ppf obs ws =

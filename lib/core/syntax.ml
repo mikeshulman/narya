@@ -35,8 +35,13 @@ module Raw = struct
     (* "[]", which could be either an empty match or an empty comatch *)
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
-    | Codata :
-        potential eta * ('a, 'ac) codata_vars * (Field.t, 'ac check located) Abwd.t
+    (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)
+    | Codata : (Field.t, string option * 'a N.suc check located) Abwd.t -> 'a check
+    (* A record type binds its "self" variable namelessly, exposing it to the user by lexical variables that postprocess to its fields using Varscope.  This can't be "cubeified" as easily, so we allow the user to specify either a single cube variable name (thereby also accidentally giving access to the internal previously unnamed variable) or a list of ordinary variables to be its boundary only.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one. *)
+    | Record :
+        ('a, 'c, 'ac) Fwn.bplus located
+        * (string option, 'c) Vec.t
+        * (Field.t, 'ac check located) Abwd.t
         -> 'a check
     (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data. *)
     | Hole : 'a Varscope.t -> 'a check
@@ -51,12 +56,6 @@ module Raw = struct
         -> 'a branch
 
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
-
-  (* A normal codatatype binds one more "self" variable in the types of its fields.  A normal record type does the same, except that the user doesn't have a name for that variable and instead accesses it by lexical variables that postprocess to its fields using Varscope. *)
-  and (_, _) codata_vars =
-    | Cube : string option -> ('a, 'a N.suc) codata_vars
-    (* A higher-dimensional codatatype simply binds a "self" cube of variables, but unfortunately a higher-dimensional record type doesn't have any variable to make a cube.  So we allow the user to specify either a single cube variable name (thereby also accidentally giving access to the internal previously unnamed variable) or a list of ordinary variables to be its boundary only.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one. *)
-    | Normal : ('a, 'c, 'ac) Fwn.bplus located * (string option, 'c) Vec.t -> ('a, 'ac) codata_vars
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
   and (_, _, _) tel =

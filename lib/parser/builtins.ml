@@ -886,14 +886,14 @@ let () = set_tree codata (Closed_entry (eop Codata (op LBracket (codata_fields t
 
 let rec process_codata :
     type n.
-    (Field.t, n N.suc check located) Abwd.t ->
+    (Field.t, string option * n N.suc check located) Abwd.t ->
     n Varscope.t ->
     observation list ->
     Asai.Range.t option ->
     n check located =
  fun flds ctx obs loc ->
   match obs with
-  | [] -> { value = Raw.Codata (Noeta, Cube None, flds); loc }
+  | [] -> { value = Raw.Codata flds; loc }
   | Term
       {
         value =
@@ -914,7 +914,7 @@ let rec process_codata :
       | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
       | None ->
           let ty = process (Varscope.ext ctx x) ty in
-          process_codata (Abwd.add fld ty flds) ctx obs loc)
+          process_codata (Abwd.add fld (x, ty) flds) ctx obs loc)
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
 
 let () = set_processor codata { process = (fun ctx obs loc _ -> process_codata Emp ctx obs loc) }
@@ -984,26 +984,26 @@ let () =
              })))
 
 let rec process_record :
-    type a ac.
+    type a c ac.
     (Field.t, ac N.suc check located) Abwd.t ->
     ac Varscope.t ->
-    (a, ac N.suc) codata_vars ->
-    string option ->
+    (a, c, ac N.suc) Fwn.bplus located ->
+    (string option, c) Vec.t ->
     (string, Field.t) Abwd.t ->
     observation list ->
     Asai.Range.t option ->
     a check located =
- fun flds ctx cube var vars obs loc ->
+ fun flds ctx abc xs vars obs loc ->
   match obs with
-  | [] -> { value = Raw.Codata (Eta, cube, flds); loc }
+  | [] -> { value = Raw.Record (abc, xs, flds); loc }
   | Term { value = Ident ([ fldname ], _); loc = fldloc } :: Term ty :: obs -> (
       let fld = Field.intern fldname in
       let vars = Snoc (vars, (fldname, fld)) in
       match Abwd.find_opt fld flds with
       | Some _ -> fatal ?loc:fldloc (Duplicate_field_in_record fld)
       | None ->
-          let ty = process (Varscope.ext_fields ctx var vars) ty in
-          process_record (Abwd.add fld ty flds) ctx cube var vars obs loc)
+          let ty = process (Varscope.ext_fields ctx None vars) ty in
+          process_record (Abwd.add fld ty flds) ctx abc xs vars obs loc)
   | _ :: _ :: _ -> fatal Parse_error
   | _ :: [] -> fatal (Anomaly "invalid notation arguments for record")
 
@@ -1020,12 +1020,9 @@ let () =
                   with_loc x.loc @@ fun () ->
                   let (Append_plus (Suc Zero, ac, vars, ctx)) =
                     Varscope.append_plus [ None ] ctx (List.map fst (process_var_list x [])) in
-                  process_record Emp ctx
-                    (Normal ({ value = ac; loc = x.loc }, vars))
-                    None Emp obs loc
+                  process_record Emp ctx { value = ac; loc = x.loc } vars Emp obs loc
               | _ -> fatal (Anomaly "invalid notation arguments for record"))
-          | None ->
-              process_record Emp ctx (Normal ({ value = Suc Zero; loc }, [ None ])) None Emp obs loc);
+          | None -> process_record Emp ctx { value = Suc Zero; loc } [ None ] Emp obs loc);
     }
 
 let rec pp_record_fields ppf obs ws =

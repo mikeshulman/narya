@@ -510,13 +510,20 @@ let rec check :
         }
         ty
   | Empty_co_match, _, _ -> check status ctx { value = Struct (Noeta, Abwd.empty); loc = tm.loc } ty
-  | Codata (eta, cube, fields), UU m, Potential _ -> (
+  | Codata fields, UU m, Potential _ -> (
       match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking codata", TubeOf.inst tyargs, m))
-      | Eq -> check_codata status ctx eta tyargs Emp cube (Bwd.to_list fields))
+      | Eq -> check_codata status ctx tyargs Emp (Bwd.to_list fields))
   | Codata _, _, Potential _ ->
       fatal (Checking_canonical_at_nonuniverse ("codatatype", PVal (ctx, ty)))
   | Codata _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "codatatype")
+  | Record (abc, xs, fields), UU m, Potential _ -> (
+      match D.compare (TubeOf.inst tyargs) m with
+      | Neq -> fatal (Dimension_mismatch ("checking record", TubeOf.inst tyargs, m))
+      | Eq -> check_record status ctx tyargs Emp abc xs (Bwd.to_list fields))
+  | Record _, _, Potential _ ->
+      fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty)))
+  | Record _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "record type")
   | Data constrs, _, Potential _ ->
       let (Plus_something num_indices) = N.plus_of_int (typefam ctx ty) in
       check_data status ctx ty (Nat num_indices) Constr.Map.empty (Bwd.to_list constrs)
@@ -609,47 +616,72 @@ and get_indices :
         output
   | _ -> fatal (Invalid_constructor_type c)
 
+(* The common prefix of checking a codatatype or record type.  Uses CPS since it dynamically binds the current constant to the up-until-now value, and that has to scope over the rest of the functions that are specific to codata or records.  *)
+and check_codata_or_record :
+    type a b n c.
+    (b, potential) status ->
+    potential eta ->
+    (a, b) Ctx.t ->
+    n D.t ->
+    (D.zero, n, n, normal) TubeOf.t ->
+    (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
+    ((n, Ctx.Binding.t) CubeOf.t -> c) ->
+    c =
+ fun (Potential (name, args, hyp)) eta ctx dim tyargs checked_fields cont ->
+  let head = Value.Const { name; ins = ins_zero dim } in
+  let (Id_ins ins) = id_ins D.zero dim in
+  let alignment = Lawful (Codata { eta; env = Ctx.env ctx; ins; fields = checked_fields }) in
+  let prev_ety =
+    Uninst (Neu { head; args; alignment }, Lazy.from_val (inst (universe dim) tyargs)) in
+  let _, domvars =
+    dom_vars (Ctx.length ctx)
+      (TubeOf.plus_cube
+         (TubeOf.mmap { map = (fun _ [ nf ] -> nf.tm) } [ tyargs ])
+         (CubeOf.singleton prev_ety)) in
+  Global.run_with_definition name
+    (Defined (hyp (Term.Canonical (Codata (eta, dim, checked_fields)))))
+  @@ fun () -> cont domvars
+
 and check_codata :
+    type a b n.
+    (b, potential) status ->
+    (a, b) Ctx.t ->
+    (D.zero, n, n, normal) TubeOf.t ->
+    (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
+    (Field.t * (string option * a N.suc check located)) list ->
+    (b, potential) term =
+ fun status ctx tyargs checked_fields raw_fields ->
+  let dim = TubeOf.inst tyargs in
+  match raw_fields with
+  | [] -> Canonical (Codata (Noeta, dim, checked_fields))
+  | (fld, (x, rty)) :: raw_fields ->
+      check_codata_or_record status Noeta ctx dim tyargs checked_fields @@ fun domvars ->
+      let newctx = Ctx.cube_vis ctx x domvars in
+      let cty = check Kinetic newctx rty (universe D.zero) in
+      let checked_fields = Snoc (checked_fields, (fld, cty)) in
+      check_codata status ctx tyargs checked_fields raw_fields
+
+and check_record :
     type a c ac b n.
     (b, potential) status ->
     (a, b) Ctx.t ->
-    potential eta ->
     (D.zero, n, n, normal) TubeOf.t ->
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
-    (a, ac) codata_vars ->
+    (a, c, ac) Fwn.bplus located ->
+    (string option, c) Vec.t ->
     (Field.t * ac check located) list ->
     (b, potential) term =
- fun status ctx eta tyargs checked_fields cube raw_fields ->
+ fun status ctx tyargs checked_fields abc xs raw_fields ->
   let dim = TubeOf.inst tyargs in
-  match (raw_fields, status) with
-  | [], _ -> Canonical (Codata (eta, dim, checked_fields))
-  | (fld, rty) :: raw_fields, Potential (name, args, hyp) -> (
-      (* Temporarily bind the current constant to the up-until-now value. *)
-      Global.run_with_definition name
-        (Defined (hyp (Term.Canonical (Codata (eta, dim, checked_fields)))))
-      @@ fun () ->
-      let head = Value.Const { name; ins = ins_zero dim } in
-      let (Id_ins ins) = id_ins D.zero dim in
-      let alignment = Lawful (Codata { eta; env = Ctx.env ctx; ins; fields = checked_fields }) in
-      let prev_ety =
-        Uninst (Neu { head; args; alignment }, Lazy.from_val (inst (universe dim) tyargs)) in
-      let _, domvars =
-        dom_vars (Ctx.length ctx)
-          (TubeOf.plus_cube
-             (TubeOf.mmap { map = (fun _ [ nf ] -> nf.tm) } [ tyargs ])
-             (CubeOf.singleton prev_ety)) in
-      match cube with
-      | Cube x ->
-          let newctx = Ctx.cube_vis ctx x domvars in
-          let cty = check Kinetic newctx rty (universe D.zero) in
-          let checked_fields = Snoc (checked_fields, (fld, cty)) in
-          check_codata status ctx eta tyargs checked_fields cube raw_fields
-      | Normal ({ value = abc; loc }, xs) ->
-          let (Vars (ab, names)) = vars_of_vec loc dim abc xs in
-          let newctx = Ctx.vis ctx D.zero (D.zero_plus dim) ab names domvars in
-          let cty = check Kinetic newctx rty (universe D.zero) in
-          let checked_fields = Snoc (checked_fields, (fld, cty)) in
-          check_codata status ctx eta tyargs checked_fields cube raw_fields)
+  match raw_fields with
+  | [] -> Canonical (Codata (Eta, dim, checked_fields))
+  | (fld, rty) :: raw_fields ->
+      check_codata_or_record status Eta ctx dim tyargs checked_fields @@ fun domvars ->
+      let (Vars (ab, names)) = vars_of_vec abc.loc dim abc.value xs in
+      let newctx = Ctx.vis ctx D.zero (D.zero_plus dim) ab names domvars in
+      let cty = check Kinetic newctx rty (universe D.zero) in
+      let checked_fields = Snoc (checked_fields, (fld, cty)) in
+      check_record status ctx tyargs checked_fields abc xs raw_fields
 
 and check_struct :
     type a b c s m n.

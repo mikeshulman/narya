@@ -53,6 +53,15 @@ def foo' : Type ≔ sig (
   baz : (x:bar) → ?,
 )
 
+def gel (A B : Type) : Id Type A B ≔ sig x y ↦ (
+  one : ?,
+)
+
+def gel' (A B : Type) : Id Type A B ≔ sig x y ↦ (
+  one : Type,
+  two : ?
+)
+
 axiom C : A → Type
 
 def AC : Type ≔ sig (

@@ -124,7 +124,7 @@ let add : 'b t -> 'n variables -> 'n variables * ('b, 'n) snoc t =
 (* Extract all the names in a context, generating a fresh version of each name from left to right, including field access variables, leaving unnamed variables unnamed. *)
 let rec of_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> b t = function
   | Emp -> empty
-  | Snoc (ctx, Vis { dim; plusdim; vars; bindings = _; fields; fplus = _ }, _) ->
+  | Snoc (ctx, Vis { dim; plusdim; vars; bindings = _; hasfields = _; fields; fplus = _ }, _) ->
       let { ctx; used } = of_ordered_ctx ctx in
       let vars, used = uniquify_cube vars used in
       let module M = Mbwd.Monadic (Monad.State (struct

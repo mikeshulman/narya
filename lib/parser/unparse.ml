@@ -615,7 +615,7 @@ let rec unparse_ctx :
           let _, result =
             M.miterM { it = (fun _ [ b ] res -> do_binding b res) } [ bindings ] result in
           (names, result)
-      | Vis { dim; plusdim; vars; bindings; fields; fplus } ->
+      | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
           (* First we split off the field variables, if any. *)
           let xs, fs = Bwv.unappend fplus xs in
           (* Now we assemble the variable names we got from the uniquified variable list into a cube, iterating backwards so that the indices match those of the Bwv.  We ignore the variable names given in the context, but we use their cube to ensure statically that we got the right number of uniquified names.  *)
@@ -644,18 +644,21 @@ let rec unparse_ctx :
           let names = Names.unsafe_add names (Variables (dim, plusdim, xs)) (Bwv.to_bwd fnames) in
           (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
           let do_binding fab (b : b Termctx.binding) (res : S.t) : unit * S.t =
-            let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
-            let tm =
-              Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
-            in
-            let (SFace_of_plus (_, fa, fb)) = sface_of_plus plusdim fab in
-            let fastr = "." ^ string_of_sface fa in
-            let add_fa =
-              if Option.is_some (is_id_sface fa) then fun y -> y else fun y -> y ^ fastr in
-            let x, orig = NICubeOf.find vardata fb in
-            let x = add_fa x in
-            let res = Snoc (res, (x, merge_orig orig, tm, Some ty)) in
-            ((), res) in
+            match (hasfields, is_id_sface fab) with
+            | Has_fields, Some () -> ((), res)
+            | _ ->
+                let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
+                let tm =
+                  Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
+                in
+                let (SFace_of_plus (_, fa, fb)) = sface_of_plus plusdim fab in
+                let fastr = "." ^ string_of_sface fa in
+                let add_fa =
+                  if Option.is_some (is_id_sface fa) then fun y -> y else fun y -> y ^ fastr in
+                let x, orig = NICubeOf.find vardata fb in
+                let x = add_fa x in
+                let res = Snoc (res, (x, merge_orig orig, tm, Some ty)) in
+                ((), res) in
           let _, result =
             M.miterM { it = (fun fab [ b ] res -> do_binding fab b res) } [ bindings ] result in
           (* Finally, we iterate forwards through the fields as well, unparsing their types and adding them to the result also. *)

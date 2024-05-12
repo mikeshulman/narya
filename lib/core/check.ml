@@ -684,7 +684,7 @@ and check_record :
   | Ext (None, _, _) -> fatal (Anomaly "unnamed field in check_record")
   | Ext (Some name, rty, raw_fields) ->
       with_codata_so_far status Eta ctx dim tyargs checked_fields @@ fun domvars ->
-      let newctx = Ctx.vis_fields ctx D.zero (D.zero_plus dim) vars domvars ctx_fields fplus af in
+      let newctx = Ctx.vis_fields ctx vars domvars ctx_fields fplus af in
       let cty = check Kinetic newctx rty (universe D.zero) in
       let fld = Field.intern name in
       let checked_fields = Snoc (checked_fields, (fld, cty)) in

@@ -19,6 +19,7 @@ type (_, _, _) entry =
       plusdim : ('m, 'n, 'mn) D.plus;
       vars : (N.zero, 'n, string option, 'f1) NICubeOf.t;
       bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
+      hasfields : ('m, 'f2) Ctx.has_fields;
       fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
       fplus : ('f1, 'f2, 'f) N.plus;
     }
@@ -65,10 +66,10 @@ module Ordered = struct
   let eval_entry : type a b f n. (a, b) Ctx.Ordered.t -> (b, f, n) entry -> (f, n) Ctx.entry =
    fun ctx e ->
     match e with
-    | Vis { dim; plusdim; vars; bindings; fields; fplus } ->
+    | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
         let bindings = eval_bindings ctx bindings in
         let fields = Bwv.map (fun (f, x, _) -> (f, x)) fields in
-        Vis { dim; plusdim; vars; bindings; fields; fplus }
+        Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
     | Invis bindings -> Invis (eval_bindings ctx bindings)
 
   let rec eval : type a b. (a, b) t -> (a, b) Ctx.Ordered.t = function

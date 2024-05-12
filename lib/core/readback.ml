@@ -252,7 +252,7 @@ let readback_entry :
     type a b f n. (a, (b, n) snoc) Ctx.t -> (f, n) Ctx.entry -> (b, f, n) Termctx.entry =
  fun ctx e ->
   match e with
-  | Vis { dim; plusdim; vars; bindings; fields; fplus } ->
+  | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
       let top = Binding.value (CubeOf.find_top bindings) in
       let fields =
         Bwv.map
@@ -261,7 +261,7 @@ let readback_entry :
             (f, x, fldty))
           fields in
       let bindings = readback_bindings ctx bindings in
-      Vis { dim; plusdim; vars; bindings; fields; fplus }
+      Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
   | Invis bindings -> Invis (readback_bindings ctx bindings)
 
 let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.Ordered.t = function

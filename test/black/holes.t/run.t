@@ -179,7 +179,6 @@
    48 |   baz : ?,
       ^ hole ?12 generated:
         
-        H : foo (not in scope)
         bar : ℕ
         ----------------------------------------------------------------------
         Type
@@ -192,7 +191,6 @@
    53 |   baz : (x:bar) → ?,
       ^ hole ?13 generated:
         
-        H : foo' (not in scope)
         bar : Type
         x : bar
         ----------------------------------------------------------------------
@@ -200,6 +198,38 @@
   
    ￫ info[I0000]
    ￮ Constant foo' defined
+  
+   ￫ info[I0100]
+   ￭ holes.ny
+   57 |   one : ?,
+      ^ hole ?14 generated:
+        
+        A : Type
+        B : Type
+        x : A
+        y : B
+        ----------------------------------------------------------------------
+        Type
+  
+   ￫ info[I0000]
+   ￮ Constant gel defined
+  
+   ￫ info[I0100]
+   ￭ holes.ny
+   62 |   two : ?
+   63 | )
+      ^ hole ?15 generated:
+        
+        A : Type
+        B : Type
+        x : A
+        y : B
+        one : Type
+        ----------------------------------------------------------------------
+        Type
+  
+   ￫ info[I0000]
+   ￮ Constant gel' defined
   
    ￫ info[I0001]
    ￮ Axiom C assumed
@@ -209,17 +239,17 @@
   
    ￫ info[I0100]
    ￭ holes.ny
-   64 |   a ≔ ?,
-      ^ hole ?14 generated:
+   73 |   a ≔ ?,
+      ^ hole ?16 generated:
         
         ----------------------------------------------------------------------
         ℕ → A
   
    ￫ info[I0100]
    ￭ holes.ny
-   65 |   c ≔ ?
-   66 | )
-      ^ hole ?15 generated:
+   74 |   c ≔ ?
+   75 | )
+      ^ hole ?17 generated:
         
         ----------------------------------------------------------------------
         C (ac .a 0)
@@ -242,8 +272,8 @@
   
    ￫ info[I0100]
    ￭ holes.ny
-   79 | def ideqid'' : Id (A -> A) ida ida := ((x |-> x) : Id (A -> A ) ida ida -> Id (A -> A) ida ida) (u u u |-> ?)
-      ^ hole ?16 generated:
+   88 | def ideqid'' : Id (A -> A) ida ida := ((x |-> x) : Id (A -> A ) ida ida -> Id (A -> A) ida ida) (u u u |-> ?)
+      ^ hole ?18 generated:
         
         u1 : A (not in scope)
         u0 : A (not in scope)
@@ -256,11 +286,11 @@
   
    ￫ info[I0100]
    ￭ holes.ny
-   82 | def afam : Type → Type ≔ X ↦ id ?
-   83 | 
-   84 | {` This requires comparing a metavariable to equal itself when evaluated in equal environments. `}
-   85 | def idafam (X:Type) : afam X → afam X ≔ x ↦ x
-      ^ hole ?17 generated:
+   91 | def afam : Type → Type ≔ X ↦ id ?
+   92 | 
+   93 | {` This requires comparing a metavariable to equal itself when evaluated in equal environments. `}
+   94 | def idafam (X:Type) : afam X → afam X ≔ x ↦ x
+      ^ hole ?19 generated:
         
         X : Type
         ----------------------------------------------------------------------

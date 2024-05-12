@@ -92,6 +92,7 @@ module Code = struct
     | Index_variable_in_index_value : t
     | Matching_on_nondatatype : printable -> t
     | Matching_on_let_bound_variable : printable -> t
+    | Matching_on_record_field : Field.t -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
@@ -186,6 +187,7 @@ module Code = struct
     | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
     | Matching_on_let_bound_variable _ -> Error
+    | Matching_on_record_field _ -> Error
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
@@ -283,6 +285,7 @@ module Code = struct
     (* - Match variable *)
     | Unnamed_variable_in_match -> "E1100"
     | Matching_on_let_bound_variable _ -> "E1101"
+    | Matching_on_record_field _ -> "E1102"
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
     | Matching_datatype_has_degeneracy _ -> "E1201"
@@ -478,6 +481,7 @@ module Code = struct
           (print ty)
     | Matching_on_let_bound_variable name ->
         textf "can't match on let-bound variable %a" pp_printed (print name)
+    | Matching_on_record_field fld -> textf "can't match on record field %s" (Field.to_string fld)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n

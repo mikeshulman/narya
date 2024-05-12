@@ -29,7 +29,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
       | Eq, Eq ->
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
           let (Plus af) = N.plus (NICubeOf.out N.zero xs) in
-          let newctx = Ctx.vis ctx m mn af xs newnfs in
+          let newctx = Ctx.vis ctx m mn xs newnfs af in
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))
@@ -197,7 +197,7 @@ and readback_ordered_env :
       let (Ext (env', xss)) = Permute.env_top env in
       let tmenv = readback_ordered_env ctx env' envctx in
       match entry with
-      | Vis (_, _, _, bindings) | Invis bindings ->
+      | Vis { bindings; _ } | Invis bindings ->
           let tmxss =
             CubeOf.mmap
               {
@@ -230,11 +230,8 @@ and readback_ordered_env :
 
 let readback_bindings :
     type a b n.
-    (a, (b, n) snoc) Ctx.Ordered.t ->
-    (n, Binding.t) CubeOf.t ->
-    (n, (b, n) snoc Termctx.binding) CubeOf.t =
+    (a, (b, n) snoc) Ctx.t -> (n, Binding.t) CubeOf.t -> (n, (b, n) snoc Termctx.binding) CubeOf.t =
  fun ctx vbs ->
-  let ctx = Ctx.of_ordered ctx in
   CubeOf.mmap
     {
       map =
@@ -252,15 +249,25 @@ let readback_bindings :
     [ vbs ]
 
 let readback_entry :
-    type a b f n. (a, (b, n) snoc) Ctx.Ordered.t -> (f, n) Ctx.entry -> (b, f, n) Termctx.entry =
+    type a b f n. (a, (b, n) snoc) Ctx.t -> (f, n) Ctx.entry -> (b, f, n) Termctx.entry =
  fun ctx e ->
   match e with
-  | Vis (m, mn, names, xs) -> Vis (m, mn, names, readback_bindings ctx xs)
-  | Invis xs -> Invis (readback_bindings ctx xs)
+  | Vis { dim; plusdim; vars; bindings; fields; fplus } ->
+      let top = Binding.value (CubeOf.find_top bindings) in
+      let fields =
+        Bwv.map
+          (fun (f, x) ->
+            let fldty = readback_val ctx (tyof_field top.tm top.ty f) in
+            (f, x, fldty))
+          fields in
+      let bindings = readback_bindings ctx bindings in
+      Vis { dim; plusdim; vars; bindings; fields; fplus }
+  | Invis bindings -> Invis (readback_bindings ctx bindings)
 
 let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.Ordered.t = function
   | Emp -> Emp
-  | Snoc (rest, e, af) as ctx -> Snoc (readback_ordered_ctx rest, readback_entry ctx e, af)
+  | Snoc (rest, e, af) as ctx ->
+      Snoc (readback_ordered_ctx rest, readback_entry (Ctx.of_ordered ctx) e, af)
   | Lock ctx -> Lock (readback_ordered_ctx ctx)
 
 let readback_ctx : type a b. (a, b) Ctx.t -> (a, b) Termctx.t = function

@@ -167,7 +167,7 @@ let rec check :
                     let xs = Variables (D.zero, D.zero_plus m, names) in
                     let status = mkstatus status m xs newnfs in
                     ( xs,
-                      check status (Ctx.vis ctx D.zero (D.zero_plus m) af names newnfs) body output
+                      check status (Ctx.vis ctx D.zero (D.zero_plus m) names newnfs af) body output
                     )
                 | Wrap (_, Missing (loc, j)) -> fatal ?loc (Not_enough_lambdas j))
             | `Cube ->
@@ -269,8 +269,9 @@ let rec check :
   | Match (ix, brs), _, Potential _ -> (
       (* The variable must not be let-bound to a value.  Checking that it isn't also gives us its De Bruijn level, its type, and its index in the full context including invisible variables. *)
       match Ctx.lookup ctx ix with
-      | None, _, ix -> fatal (Matching_on_let_bound_variable (PTerm (ctx, Var ix)))
-      | Some lvl, { tm = _; ty = varty }, ix -> (
+      | `Field (_, _, fld) -> fatal (Matching_on_record_field fld)
+      | `Var (None, _, ix) -> fatal (Matching_on_let_bound_variable (PTerm (ctx, Var ix)))
+      | `Var (Some lvl, { tm = _; ty = varty }, ix) -> (
           (* The type of the variable must be a datatype, without any degeneracy applied outside, and at the same dimension as its instantiation. *)
           let (Fullinst (uvarty, inst_args)) = full_inst varty "check_tree (top)" in
           match uvarty with
@@ -520,7 +521,10 @@ let rec check :
   | Record (abc, xs, fields), UU m, Potential _ -> (
       match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking record", TubeOf.inst tyargs, m))
-      | Eq -> check_record status ctx tyargs abc xs fields)
+      | Eq ->
+          let dim = TubeOf.inst tyargs in
+          let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
+          check_record status dim ctx tyargs vars Emp Zero af Emp fields)
   | Record _, _, Potential _ ->
       fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty)))
   | Record _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "record type")
@@ -616,8 +620,8 @@ and get_indices :
         output
   | _ -> fatal (Invalid_constructor_type c)
 
-(* The common prefix of checking a codatatype or record type.  Uses CPS since it dynamically binds the current constant to the up-until-now value, and that has to scope over the rest of the functions that are specific to codata or records.  *)
-and check_codata_or_record :
+(* The common prefix of checking a codatatype or record type, which dynamically binds the current constant to the up-until-now value.  Since this binding has to scope over the rest of the functions that are specific to codata or records, it uses CPS. *)
+and with_codata_so_far :
     type a b n c.
     (b, potential) status ->
     potential eta ->
@@ -655,34 +659,38 @@ and check_codata :
   match raw_fields with
   | [] -> Canonical (Codata (Noeta, dim, checked_fields))
   | (fld, (x, rty)) :: raw_fields ->
-      check_codata_or_record status Noeta ctx dim tyargs checked_fields @@ fun domvars ->
+      with_codata_so_far status Noeta ctx dim tyargs checked_fields @@ fun domvars ->
       let newctx = Ctx.cube_vis ctx x domvars in
       let cty = check Kinetic newctx rty (universe D.zero) in
       let checked_fields = Snoc (checked_fields, (fld, cty)) in
       check_codata status ctx tyargs checked_fields raw_fields
 
 and check_record :
-    type a c ac d acd b n.
+    type a f1 f2 f af d acd b n.
     (b, potential) status ->
+    n D.t ->
     (a, b) Ctx.t ->
     (D.zero, n, n, normal) TubeOf.t ->
-    (a, c, ac) Fwn.bplus located ->
-    (string option, c) Vec.t ->
-    (ac, d, acd) Raw.tel ->
+    (N.zero, n, string option, f1) NICubeOf.t ->
+    (Field.t * string, f2) Bwv.t ->
+    (f1, f2, f) N.plus ->
+    (a, f, af) N.plus ->
+    (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
+    (af, d, acd) Raw.tel ->
     (b, potential) term =
- fun status ctx tyargs abc xs raw_fields ->
-  let dim = TubeOf.inst tyargs in
-  check_codata_or_record status Eta ctx dim tyargs Emp @@ fun domvars ->
-  let (Vars (ab, names)) = vars_of_vec abc.loc dim abc.value xs in
-  let newctx = Ctx.vis ctx D.zero (D.zero_plus dim) ab names domvars in
-  let (Checked_tel (checked_fields, _)) = check_tel newctx raw_fields in
-  match (Ctx.Binding.value (CubeOf.find_top domvars)).tm with
-  | Uninst (Neu { head; _ }, _) ->
-      let evaluated_fields = eval_sig_tel (Ctx.env newctx) head checked_fields in
-      let checked_fields =
-        Bwd.map (fun (fld, ty) -> (fld, readback_val newctx ty)) evaluated_fields in
-      Term.Canonical (Codata (Eta, dim, checked_fields))
-  | _ -> fatal (Anomaly "non-neutral head of new variable in check_record")
+ fun status dim ctx tyargs vars ctx_fields fplus af checked_fields raw_fields ->
+  match raw_fields with
+  | Emp -> Term.Canonical (Codata (Eta, dim, checked_fields))
+  | Ext (None, _, _) -> fatal (Anomaly "unnamed field in check_record")
+  | Ext (Some name, rty, raw_fields) ->
+      with_codata_so_far status Eta ctx dim tyargs checked_fields @@ fun domvars ->
+      let newctx = Ctx.vis_fields ctx D.zero (D.zero_plus dim) vars domvars ctx_fields fplus af in
+      let cty = check Kinetic newctx rty (universe D.zero) in
+      let fld = Field.intern name in
+      let checked_fields = Snoc (checked_fields, (fld, cty)) in
+      let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
+      check_record status dim ctx tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
+        raw_fields
 
 and check_struct :
     type a b c s m n.
@@ -795,9 +803,13 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
  fun ctx tm ->
   with_loc tm.loc @@ fun () ->
   match tm.value with
-  | Var i ->
-      let _, x, v = Ctx.lookup ctx i in
-      (Term.Var v, x.ty)
+  | Var i -> (
+      match Ctx.lookup ctx i with
+      | `Var (_, x, v) -> (Term.Var v, x.ty)
+      | `Field (lvl, x, fld) -> (
+          match Ctx.find_level ctx lvl with
+          | Some v -> (Term.Field (Var v, fld), tyof_field x.tm x.ty fld)
+          | None -> fatal (Anomaly "level not found in field view")))
   | Const name ->
       let ty, _ = Global.find_opt name <|> Undefined_constant (PConstant name) in
       (Const name, eval_term (Emp D.zero) ty)

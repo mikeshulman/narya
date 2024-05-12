@@ -38,7 +38,6 @@ def Σ (A:Type) (B : A → Type) : Type ≔ sig (
 {` Here the type of the second hole is not the first hole but "pp .fst", since the first hole is potential and causes its case tree to be just stuck. `}
 def pp : Σ Type (X ↦ X) ≔ ( ? , ? )
 
-
 {` But if we break the case tree, then the type of the second hole is the first hole. `}
 def pp' : Σ Type (X ↦ X) ≔ ( id ? , ? )
 
@@ -47,6 +46,11 @@ def foo : Type ≔ sig (
   bar : ℕ,
   {` It's important for ? to be its own token, so that it can be followed immediately by a comma. `}
   baz : ?,
+)
+
+def foo' : Type ≔ sig (
+  bar : Type,
+  baz : (x:bar) → ?,
 )
 
 axiom C : A → Type

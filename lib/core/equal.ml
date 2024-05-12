@@ -286,7 +286,7 @@ and equal_ordered_env :
       let (Ext (env2', xss2)) = Permute.env_top env2 in
       let* () = equal_ordered_env lvl env1' env2' envctx in
       match entry with
-      | Vis (_, _, _, bindings) | Invis bindings ->
+      | Vis { bindings; _ } | Invis bindings ->
           let* _ =
             mmapM
               {

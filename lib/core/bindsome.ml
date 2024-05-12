@@ -122,17 +122,18 @@ module Ordered = struct
 
      5. Thus, go_bind_some proceeds by calling go_go_bind_some, adding the returned entries to oldctx and newctx, and then calling itself recursively on the remaining telescope.  If the telescope is emptied, we have succeeded and we return.  But if go_go_bind_some fails on all entries of a nonempty telescope, the whole process fails.  (I think this should never happen and indicates a bug; anything the user might do that would cause that should be caught earlier.)
 
-     6. go_go_bind_some acts on each entry with bind_some_entry, whose real work is done by bind_some_normal_cube that acts on a cube of variables with the binder callback and the readback-eval callback.  Since that function is the one we define first, we now proceed to comment its definition directly. *)
+     6. go_go_bind_some acts on each entry with bind_some_entry, whose real work is done by bind_some_normal_cube that acts on a cube of variables with the binder callback and readback-eval.  Since that function is the one we define first, we now proceed to comment its definition directly. *)
 
   let bind_some_normal_cube :
       type i a n.
       int ->
       (level -> normal option) ->
+      [ `Bindable | `Nonbindable ] ->
       oldctx:(i, a) Ctx.Ordered.t ->
       newctx:(i, a) Ctx.Ordered.t ->
       (n, Binding.t) CubeOf.t ->
       (n, Binding.t) CubeOf.t option =
-   fun i binder ~oldctx ~newctx in_entry ->
+   fun i binder bindable ~oldctx ~newctx in_entry ->
     let open Monad.Ops (Monad.Maybe) in
     let open CubeOf.Monadic (Monad.Maybe) in
     (* The tricky thing we have to deal with is that in a *cube* of variables, when doing readback-eval on each variable, we should be allowed to use the *preceeding* variables in the dependency order of the cube, but not the *subsequent* ones.  Unfortunately we don't have a direct way for a context to contain only "some" of a cube of variables.  Thus, we use the ability of Binder.t to be Unknown or Delayed.  *)
@@ -150,7 +151,7 @@ module Ordered = struct
       miterM
         {
           it =
-            (fun _ [ b; oldb; newb ] ->
+            (fun fa [ b; oldb; newb ] ->
               let new_level = (i, !k) in
               k := !k + 1;
               match Binding.level b with
@@ -165,7 +166,8 @@ module Ordered = struct
               | Some old_level -> (
                   (* For variables that were not let-bound in the old context, we first check whether we're newly binding them. *)
                   match binder old_level with
-                  | Some oldnf ->
+                  (* `Nonbindable means only that the *top* variable is nonbindable. *)
+                  | Some oldnf when bindable = `Bindable || Option.is_none (is_id_sface fa) ->
                       (* If so, then the value returned by the binder callback is in the old context, so we readback-eval it and proceed as before. *)
                       let* newnf = eval_readback_nf ~oldctx ~newctx oldnf in
                       Binding.force oldb;
@@ -179,7 +181,8 @@ module Ordered = struct
                       let newnf = { tm = var new_level newty; ty = newty } in
                       Binding.force oldb;
                       Binding.specify newb (Some new_level) newnf;
-                      return ()));
+                      return ()
+                  | _ -> fatal (Anomaly "attempt to bind variable with field views")));
         }
         [ in_entry; oldentry; newentry ] in
     return newentry
@@ -195,12 +198,16 @@ module Ordered = struct
    fun i binder ~oldctx ~newctx e ->
     let open Monad.Ops (Monad.Maybe) in
     match e with
-    | Vis (m, mn, vars, x) ->
-        let* x = bind_some_normal_cube i binder ~oldctx ~newctx x in
-        return (Ctx.Vis (m, mn, vars, x))
-    | Invis x ->
-        let* x = bind_some_normal_cube i binder ~oldctx ~newctx x in
-        return (Ctx.Invis x)
+    | Vis ({ bindings; fplus = Zero; _ } as v) ->
+        let* bindings = bind_some_normal_cube i binder `Bindable ~oldctx ~newctx bindings in
+        return (Ctx.Vis { v with bindings })
+    | Invis bindings ->
+        let* bindings = bind_some_normal_cube i binder `Bindable ~oldctx ~newctx bindings in
+        return (Ctx.Invis bindings)
+    | Vis ({ bindings; _ } as v) ->
+        (* A variable that has views of its fields can't be bound. *)
+        let* bindings = bind_some_normal_cube i binder `Nonbindable ~oldctx ~newctx bindings in
+        return (Ctx.Vis { v with bindings })
 
   (* This seems an appropriate place to comment about the "insert" and "append_permute" data being returned from (go_)go_bind_some.  The issue is that in addition to a permuted context, we need to compute the permutation relating it to the original context.  In fact we need *two* permutations, one for the raw indices and one for the checked indices.
 

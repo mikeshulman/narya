@@ -14,11 +14,14 @@ module Binding = Ctx.Binding
 type 'b binding = { ty : ('b, kinetic) term; tm : ('b, kinetic) term option }
 
 type (_, _, _) entry =
-  | Vis :
-      'm D.t
-      * ('m, 'n, 'mn) D.plus
-      * (N.zero, 'n, string option, 'f) NICubeOf.t
-      * ('mn, ('b, 'mn) snoc binding) CubeOf.t
+  | Vis : {
+      dim : 'm D.t;
+      plusdim : ('m, 'n, 'mn) D.plus;
+      vars : (N.zero, 'n, string option, 'f1) NICubeOf.t;
+      bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
+      fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
+      fplus : ('f1, 'f2, 'f) N.plus;
+    }
       -> ('b, 'f, 'mn) entry
   | Invis : ('n, ('b, 'n) snoc binding) CubeOf.t -> ('b, N.zero, 'n) entry
 
@@ -62,8 +65,11 @@ module Ordered = struct
   let eval_entry : type a b f n. (a, b) Ctx.Ordered.t -> (b, f, n) entry -> (f, n) Ctx.entry =
    fun ctx e ->
     match e with
-    | Vis (m, mn, names, xs) -> Vis (m, mn, names, eval_bindings ctx xs)
-    | Invis xs -> Invis (eval_bindings ctx xs)
+    | Vis { dim; plusdim; vars; bindings; fields; fplus } ->
+        let bindings = eval_bindings ctx bindings in
+        let fields = Bwv.map (fun (f, x, _) -> (f, x)) fields in
+        Vis { dim; plusdim; vars; bindings; fields; fplus }
+    | Invis bindings -> Invis (eval_bindings ctx bindings)
 
   let rec eval : type a b. (a, b) t -> (a, b) Ctx.Ordered.t = function
     | Emp -> Emp

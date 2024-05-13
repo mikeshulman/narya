@@ -62,6 +62,11 @@ def gel' (A B : Type) : Id Type A B ≔ sig x y ↦ (
   two : ?
 )
 
+def gel'' (A B : Type) : Id Type A B ≔ sig x y ↦ (
+  one : ?,
+  two : ?
+)
+
 axiom C : A → Type
 
 def AC : Type ≔ sig (

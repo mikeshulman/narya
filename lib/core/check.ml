@@ -632,9 +632,10 @@ and with_codata_so_far :
     ((n, Ctx.Binding.t) CubeOf.t -> c) ->
     c =
  fun (Potential (name, args, hyp)) eta ctx dim tyargs checked_fields cont ->
-  let head = Value.Const { name; ins = ins_zero dim } in
-  let (Id_ins ins) = id_ins D.zero dim in
-  let alignment = Lawful (Codata { eta; env = Ctx.env ctx; ins; fields = checked_fields }) in
+  (* We can always create a constant with the (0,0,0) insertion, even if its dimension is actually higher. *)
+  let head = Value.Const { name; ins = zero_ins D.zero } in
+  let alignment =
+    Lawful (Codata { eta; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields }) in
   let prev_ety =
     Uninst (Neu { head; args; alignment }, Lazy.from_val (inst (universe dim) tyargs)) in
   let _, domvars =

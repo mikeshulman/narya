@@ -231,6 +231,35 @@
    ￫ info[I0000]
    ￮ Constant gel' defined
   
+   ￫ info[I0100]
+   ￭ holes.ny
+   66 |   one : ?,
+      ^ hole ?16 generated:
+        
+        A : Type
+        B : Type
+        x : A
+        y : B
+        ----------------------------------------------------------------------
+        Type
+  
+   ￫ info[I0100]
+   ￭ holes.ny
+   67 |   two : ?
+   68 | )
+      ^ hole ?17 generated:
+        
+        A : Type
+        B : Type
+        x : A
+        y : B
+        one : ?16
+        ----------------------------------------------------------------------
+        Type
+  
+   ￫ info[I0000]
+   ￮ Constant gel'' defined
+  
    ￫ info[I0001]
    ￮ Axiom C assumed
   
@@ -239,17 +268,17 @@
   
    ￫ info[I0100]
    ￭ holes.ny
-   73 |   a ≔ ?,
-      ^ hole ?16 generated:
+   78 |   a ≔ ?,
+      ^ hole ?18 generated:
         
         ----------------------------------------------------------------------
         ℕ → A
   
    ￫ info[I0100]
    ￭ holes.ny
-   74 |   c ≔ ?
-   75 | )
-      ^ hole ?17 generated:
+   79 |   c ≔ ?
+   80 | )
+      ^ hole ?19 generated:
         
         ----------------------------------------------------------------------
         C (ac .a 0)
@@ -272,8 +301,8 @@
   
    ￫ info[I0100]
    ￭ holes.ny
-   88 | def ideqid'' : Id (A -> A) ida ida := ((x |-> x) : Id (A -> A ) ida ida -> Id (A -> A) ida ida) (u u u |-> ?)
-      ^ hole ?18 generated:
+   93 | def ideqid'' : Id (A -> A) ida ida := ((x |-> x) : Id (A -> A ) ida ida -> Id (A -> A) ida ida) (u u u |-> ?)
+      ^ hole ?20 generated:
         
         u1 : A (not in scope)
         u0 : A (not in scope)
@@ -286,11 +315,11 @@
   
    ￫ info[I0100]
    ￭ holes.ny
-   91 | def afam : Type → Type ≔ X ↦ id ?
-   92 | 
-   93 | {` This requires comparing a metavariable to equal itself when evaluated in equal environments. `}
-   94 | def idafam (X:Type) : afam X → afam X ≔ x ↦ x
-      ^ hole ?19 generated:
+   96 | def afam : Type → Type ≔ X ↦ id ?
+   97 | 
+   98 | {` This requires comparing a metavariable to equal itself when evaluated in equal environments. `}
+   99 | def idafam (X:Type) : afam X → afam X ≔ x ↦ x
+      ^ hole ?21 generated:
         
         X : Type
         ----------------------------------------------------------------------

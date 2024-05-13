@@ -111,7 +111,7 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | UU n -> fprintf ppf "UU %a" dim n
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
   | Pi (_, _, _) -> fprintf ppf "Pi (?, ?, ?)"
-  | App (fn, _) -> fprintf ppf "App (%a, ?)" term fn
+  | App (fn, arg) -> fprintf ppf "App (%a, (... %a))" term fn term (CubeOf.find_top arg)
   | Lam (_, body) -> fprintf ppf "Lam (?, %a)" term body
   | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)

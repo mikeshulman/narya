@@ -400,7 +400,7 @@ end = struct
   type _ head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
     | Var : { level : level; deg : ('m, 'n) deg } -> var head
-    (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial. *)
+    (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial.  The dimension of a constant is its dimension as a term standing on its own; so in particular if it has any parameters, then it belongs to an ordinary, 0-dimensional, pi-type and therefore is 0-dimensional, even if the eventual codomain of the pi-type is higher-dimensional.  Note also that when nonidentity insertions end up getting stored here, e.g. by Act, the dimension 'c gets extended as necessary; so it is always okay to create a constant with the (0,0,0) insertion to start with, even if you don't know what its actual dimension is. *)
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
     (* A metavariable (i.e. flexible) head stores the metavariable along with a delayed substitution applied to it. *)
     | Meta : {

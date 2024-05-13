@@ -304,8 +304,7 @@ and eval_args :
       build =
         (fun fab ->
           let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-          match eval (Act (env, op_of_sface fa)) (CubeOf.find tms fb) with
-          | Val v -> v);
+          eval_term (Act (env, op_of_sface fa)) (CubeOf.find tms fb));
     }
 
 (* Apply a function value to an argument (with its boundaries). *)

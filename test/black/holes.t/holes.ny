@@ -53,19 +53,24 @@ def foo' : Type ≔ sig (
   baz : (x:bar) → ?,
 )
 
-def gel (A B : Type) : Id Type A B ≔ sig x y ↦ (
+def gel0 (A B : Type) : Id Type A B ≔ sig x y ↦ (
   one : ?,
 )
 
-def gel' (A B : Type) : Id Type A B ≔ sig x y ↦ (
+def gel1 (A B : Type) : Id Type A B ≔ sig x y ↦ (
   one : Type,
   two : ?
 )
 
-def gel'' (A B : Type) : Id Type A B ≔ sig x y ↦ (
+def gel2 (A B : Type) : Id Type A B ≔ sig x y ↦ (
   one : ?,
   two : ?
 )
+
+def gel3 (A B : Type) : Id Type A B ≔ codata [
+| x .one : ?
+| x .two : ?
+]
 
 axiom C : A → Type
 

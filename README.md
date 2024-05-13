@@ -804,13 +804,15 @@ According to internal parametricity, we morally think of `Id Type A B` as being 
 
 The first is literally true: given `R : Id Type A B` and `a:A`, `b:B` we have `R a b : Type`.  We refer to this as *instantiating* the higher-dimensional type `R`.  In fact, `Id A x y` itself is an instantiation, as we have `Id A : Id Type A A`, which moreover is really just a notational variant of `refl A`.
 
-For the second there is another wrinkle: we can define elements of `Id Type A B` by abstracting, but the body of the abstraction must be a *newly declared canonical type* rather than a pre-existing one.  This also seems to be essential to deal with symmetries (see below) in the normalization and typechecking algorithm.  Moreover, the current implementation only allows this body to be a *record* type, and it does not permit other case tree operations in between such as pattern-matching.  The current syntax also reflects this restriction: instead of the expected `x y ↦ sig (⋯)` we write `sig x y ↦ (⋯)`.
+For the second there is another wrinkle: we can define elements of `Id Type A B` by abstracting, but the body of the abstraction must be a *newly declared canonical type* rather than a pre-existing one.  This also seems to be essential to deal with symmetries (see below) in the normalization and typechecking algorithm.  Moreover, the current implementation allows this body to be a *record type* or *codatatype*, but not a *datatype*, and it does not permit other case tree operations in between such as pattern-matching.
 
-We plan to lift this restriction in the future, but in practice it is not very onerous.  For most applications it suffices to define a single "Gel" record type:
+For record types, there is a syntax that reflects this restriction: instead of the expected `x y ↦ sig (⋯)` we write `sig x y ↦ (⋯)`, explicitly binding all the boundary variables as part of the record type syntax.  For example, here is the universal 1-dimensional record type, traditionally called "Gel":
 ```
 def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig a b ↦ ( ungel : R a b )
 ```
-and simply use it everywhere, rather than declaring new higher-dimensional types all the time.  Note that because record-types satisfy η-conversion, `Gel A B R a b` is definitionally isomorphic to `R a b`.  Thus, `Id Type A B` contains `A → B → Type` as a "retract up to definitional isomorphism".  This appears to be sufficient for all applications of internal parametricity.  (`Id Type` does not itself satisfy any η-conversion rule.)
+For codatatypes, we simply use the ordinary syntax, but the "self" variable automatically becomes a cube variable of the appropriate dimension (see below).
+
+We plan to lift this restriction in the future, but in practice it is not very onerous.  For most applications, the above "Gel" record type can simply be defined once and used everywhere, rather than declaring new higher-dimensional types all the time.  Note that because record-types satisfy η-conversion, `Gel A B R a b` is definitionally isomorphic to `R a b`.  Thus, `Id Type A B` contains `A → B → Type` as a "retract up to definitional isomorphism".  This appears to be sufficient for all applications of internal parametricity.  (`Id Type` does not itself satisfy any η-conversion rule.)
 
 
 ### Heterogeneous identity/bridge types
@@ -864,6 +866,12 @@ def encode (m n : ℕ) : Id ℕ m n → code m n ≔
 | suc. p ↦ (_ ≔ encode p.0 p.1 p.2)]
 ```
 Here in the definition of `encode`, the pattern variable `p` of the `suc.` branch is automatically made into a 1-dimensional cube of variables since we are matching against an element of `Id ℕ`, so in the body we can refer to `p.0`, `p.1`, and `p.2`.  In the future, we may implement a dual syntax for simultaneously *applying* a function to a whole cube of variables of this sort as well.
+
+Similarly, when defining a codatatype lying in a higher universe, the "self" variable automatically becomes a cube variable, so that the boundary of the type is accessible through its faces.  For instance, here is a codatatype version of Gel:
+```
+def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ codata [ x .ungel : R x.0 x.1 ]
+```
+
 
 ### Varying the behavior of parametricity
 

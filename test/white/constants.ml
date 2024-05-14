@@ -39,8 +39,7 @@ let () =
   equal_at "zero_zero" "zero_zero'" "Σ CN (_ ↦ CN)";
 
   (* Pi-types *)
-  (* These are built in, of course, but we can also have a named constant for them. *)
-  def "Π" "(A:Type) → (A → Type) → Type" "A B ↦ (x:A) → B x";
+  (* These are built in, of course, but we also have a named constant for them. *)
   equal_at "(x:A) → B x" "Π A B" "Type";
 
   (* In particular, this gives a way for the user to write higher-dimensional Π-types. *)

@@ -135,6 +135,7 @@ let run f =
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
+  Parser.Pi.install ();
   f ()
 
 let gel_install () =

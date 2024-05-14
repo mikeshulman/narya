@@ -97,6 +97,12 @@ Functions are introduced by abstraction, which in Narya is written (somewhat unu
 
 The variable in a function-type or an abstraction can be replaced by an underscore `_`, indicating that that variable is not used and thus needs no name.  For types this is equivalent to a non-dependent function-type: `(_ : A) → B` means the same as `A → B`.  For abstractions, `_ ↦ M` defines a constant function, whose value doesn't depend on its input.
 
+In addition, there is a built-in constant called `Π` that represents dependent function-types.  The type of `Π` is `(X : Type) → (X → Type) → Type`, and `Π A B` reduces to `(x : A) → B x`.  In other words, it behaves as if defined by
+```
+def Π (A : Type) (B : A → Type) : Type ≔ (x : A) → B x
+```
+This is mainly useful for writing and printing higher-dimensional function-types (see below).
+
 
 ## Names and notations
 
@@ -776,7 +782,7 @@ Every type `A` has a binary identity/bridge type denoted `Id A x y`, and each te
 
 For example, `Id (A → B) f g` is a function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`.  In particular, `refl f` is a function of a type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (f x₁)`, witnessing that all functions preserve "equalities" or "relatedness".  Thus the operation traditionally denoted `ap` in homotopy type theory is just `refl` applied to a function (although since the argument of `refl` must synthesize, if the function is an abstraction it must be ascribed).  Similarly, `Id (A × B) u v` is a type of pairs of identities, so if we have `p : Id A (u .fst) (v .fst)` and `q : Id B (u .snd) (v .snd)` we can form `(p,q) : Id (A × B) u v`, and so on for other record types, datatypes, and codatatypes.
 
-However, in Narya `Id (A → B) f g` does not *reduce* to the *ordinary* function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`: instead it simply *behaves* like it, in the sense that its elements can be applied like functions and we can define elements of its as abstractions.  This should be compared with how `Covec A 2` doesn't reduce to `A × (A × ⊤)` but behaves like it in terms of what its elements are and what we can do with them.  In particular, `Id (A → B) f g` and `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)` are definitionally isomorphic, with the functions in both directions being η-expansions `f ↦ (x₀ x₁ x₂ ↦ f x₀ x₁ x₂)`.  For most purposes this behavior is just as good as a reduction, and it retains more information about the type, which as before is useful for many purposes.  (In fact, with our current understanding, it appears to be *essential* for Narya's normalization and typechecking algorithms.)
+However, in Narya `Id (A → B) f g` does not *reduce* to the *ordinary* function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`: instead it simply *behaves* like it, in the sense that its elements can be applied like functions and we can define elements of its as abstractions.  This should be compared with how `Covec A 2` doesn't reduce to `A × (A × ⊤)` but behaves like it in terms of what its elements are and what we can do with them.  In particular, `Id (A → B) f g` and `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)` are definitionally isomorphic, with the functions in both directions being η-expansions `f ↦ (x₀ x₁ x₂ ↦ f x₀ x₁ x₂)`.  For most purposes this behavior is just as good as a reduction, and it retains more information about the type, which, as before, is useful for many purposes.  (In fact, with our current understanding, it appears to be *essential* for Narya's normalization and typechecking algorithms.)
 
 The same is true for other canonical types, e.g. `Id (A × B) u v` does not reduce to `Id A (u .fst) (v .fst) × Id B (u .snd) (v .snd)`, but it is *a* record type that is definitionally isomorphic to it.  Similarly, identity types of codatatypes behave like types of bisimulations: `Id (Stream A) s t` is a codatatype that behaves as if it were defined by
 ```
@@ -826,6 +832,28 @@ sig (
   snd : refl B (u .fst) (v .fst) fst (u .snd) (v .snd),
 )
 ```
+More generally, since `Σ : (A : Type) (B : A → Type) → Type`, we have `refl Σ` whose type is isomorphic to
+```
+(A₀ : Type) (A₁ : Type) (A₂ : Id Type A₀ A₁) (B₀ : A₀ → Type) (B₁ : A₁ → Type)
+  (B₂ : refl ((X ↦ X → Type) : Type → Type) A₀ A₁ A₂ B₀ B₁)
+  (u₀ : Σ A₀ B₀) (u₁ : Σ A₁ B₁) → Type
+```
+and `refl Σ A₀ A₁ A₂ B₀ B₁ B₂ u₀ u₁` behaves like a record type
+```
+sig (
+  fst : A₂ (u₀ .fst) (u₁ .fst),
+  snd : B₂ (u₀ .fst) (u₁ .fst) fst (u₀ .snd) (u₁ .snd),
+)
+```
+Here we have used the fact that the type of `B₂` is similarly isomorphic to
+```
+(x₀ : A₀) (x₁ : A₁) (x₂ : A₂ x₀ x₁) (y₀ : B₀ x₀) (y₁ : B₁ x₁) → Type
+```
+The ascription in the type of `B₂` is necessary since the argument of `refl` must synthesize, which abstractions do not.  This can be annoying to write, so an alternative is to use the built-in constant `Π`:
+```
+B₂ : refl Π A₀ A₁ A₂ (x₀ ↦ Type) (x₁ ↦ Type) (x₀ x₁ x₂ ↦ refl Type) B₀ B₁
+```
+In particular, this is what Narya uses when printing higher-dimensional function-types (although it also uses cube variables, see below).
 
 
 ### Higher-dimensional cubes and degeneracies

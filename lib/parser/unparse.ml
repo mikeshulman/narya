@@ -515,9 +515,35 @@ and unparse_pis :
             }
             li ri
       | _, Neq ->
-          (* TODO *)
-          fatal (Unimplemented "printing higher-dimensional Pi-type")
-          (* unparse_pis_final vars accum0 accum (Sorry.e ()) li ri *))
+          let module S = Monad.State (struct
+            type t = unparser Bwd.t
+          end) in
+          let module MOf = CubeOf.Monadic (S) in
+          let (), args =
+            MOf.miterM
+              { it = (fun _ [ dom ] args -> ((), Snoc (args, make_unparser vars dom))) }
+              [ doms ] Emp in
+          let module MCod = CodCube.Monadic (S) in
+          let (), args =
+            MCod.miterM
+              {
+                it =
+                  (fun fa [ cod ] args ->
+                    ( (),
+                      Snoc
+                        (args, make_unparser vars (Lam (singleton_variables (dom_sface fa) x, cod)))
+                    ));
+              }
+              [ cods ] args in
+          unparse_pis_final vars accum
+            {
+              unparse =
+                (fun li ri ->
+                  unparse_spine vars
+                    (`Term (Act (Const Pi.const, deg_zero (CubeOf.dim doms))))
+                    args li ri);
+            }
+            li ri)
   | _ -> unparse_pis_final vars accum (make_unparser vars tm) li ri
 
 (* The arrow in both kinds of pi-type is (un)parsed as a binary operator.  In the dependent case, its left-hand argument looks like an "application spine" of ascribed variables.  Of course, it may have to be parenthesized. *)

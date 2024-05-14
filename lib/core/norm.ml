@@ -137,7 +137,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                     let pq' = D.plus_out p pq in
                     let Eq = D.plus_uniq (cod_plus_of_tface fcd) nk in
                     (* Thus tm is p+q dimensional. *)
-                    let (Val tm) = eval (Act (env, op_of_sface fb)) (TubeOf.find args fcd) in
+                    let tm = eval_term (Act (env, op_of_sface fb)) (TubeOf.find args fcd) in
                     (* So its type needs to be fully instantiated at that dimension. *)
                     let ty =
                       inst ty
@@ -163,7 +163,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       Val (Lam (Variables (D.plus_out m m_n, mn_k, vars), eval_binder env m_nk body))
   | App (fn, args) ->
       (* First we evaluate the function. *)
-      let (Val efn) = eval env fn in
+      let efn = eval_term env fn in
       (* The environment is m-dimensional and the original application is n-dimensional, so the *substituted* application is m+n dimensional.  Thus must therefore match the dimension of the function being applied. *)
       let m = dim_env env in
       let n = CubeOf.dim args in
@@ -179,14 +179,11 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                 (* ...we decompose it as a sum of a face "fa" of m and a face "fb" of n... *)
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
                 (* ...and evaluate the supplied argument indexed by the face fb of n, in an environment acted on by the face fa of m. *)
-                let (Val v) = eval (Act (env, op_of_sface fa)) (CubeOf.find args fb) in
-                v);
+                eval_term (Act (env, op_of_sface fa)) (CubeOf.find args fb));
           } in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
-  | Field (tm, fld) ->
-      let (Val etm) = eval env tm in
-      Val (field etm fld)
+  | Field (tm, fld) -> Val (field (eval_term env tm) fld)
   | Struct (_, m, fields) ->
       let (Plus mn) = D.plus (dim_env env) in
       Val
@@ -209,8 +206,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
             build =
               (fun fab ->
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                let (Val v) = eval (Act (env, op_of_sface fa)) (CubeOf.find doms fb) in
-                v);
+                eval_term (Act (env, op_of_sface fa)) (CubeOf.find doms fb));
           } in
       let cods =
         BindCube.build mn
@@ -229,7 +225,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               (fun fa ->
                 let k = dom_tface fa in
                 let fa = sface_of_tface fa in
-                let (Val tm) = eval (Act (env, op_of_sface fa)) tm in
+                let tm = eval_term (Act (env, op_of_sface fa)) tm in
                 let ty =
                   inst (universe k)
                     (TubeOf.build D.zero (D.zero_plus k)
@@ -245,13 +241,8 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       Val (Uninst (Pi (x, doms, cods), lazy (inst (universe m) tys)))
   | Let (_, v, body) ->
       let args =
-        CubeOf.build (dim_env env)
-          {
-            build =
-              (fun fa ->
-                let (Val v) = eval (Act (env, op_of_sface fa)) v in
-                v);
-          } in
+        CubeOf.build (dim_env env) { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) v) }
+      in
       eval (Ext (env, CubeOf.singleton args)) body
   (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
   | Act (x, s) ->
@@ -259,8 +250,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Plus km) = D.plus (dom_deg s) in
       let (Plus kn) = D.plus (cod_deg s) in
       let ks = plus_deg k kn km s in
-      let (Val v) = eval env x in
-      Val (act_value v ks)
+      Val (act_value (eval_term env x) ks)
   | Match (ix, n, branches) -> (
       (* Get the argument being inspected *)
       let m = dim_env env in
@@ -285,9 +275,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               (* TODO: Is this case actually a bug, or can it happen? *)
               | _ -> Unrealized))
       | _ -> Unrealized)
-  | Realize tm ->
-      let (Val v) = eval env tm in
-      Realize v
+  | Realize tm -> Realize (eval_term env tm)
   | Canonical c -> Canonical (eval_canonical env c)
 
 (* A helper function that doesn't get the correct types if we define it inline. *)
@@ -377,8 +365,8 @@ and tyof_app :
           (fun fa [ { tm = afn; ty = _ } ] ->
             let fa = sface_of_tface fa in
             let tmargs = CubeOf.subcube fa args in
-            let (Val tm) = apply afn tmargs in
-            let (Val cod) = apply_binder (BindCube.find cods fa) tmargs in
+            let tm = apply_term afn tmargs in
+            let cod = apply_binder_term (BindCube.find cods fa) tmargs in
             let ty =
               inst cod
                 (TubeOf.build D.zero
@@ -393,8 +381,7 @@ and tyof_app :
             out_tm);
       }
       [ fns ] in
-  let (Val out) = apply_binder (BindCube.find_top cods) args in
-  inst out out_args
+  inst (apply_binder_term (BindCube.find_top cods) args) out_args
 
 (* Compute a field of a structure, at a particular dimension. *)
 and field : kinetic value -> Field.t -> kinetic value =
@@ -467,10 +454,9 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
           let env = Value.Ext (env, entries) in
           match Field.find fields fld with
           | Some (fldname, fldty) ->
-              let (Val efldty) = eval env fldty in
               ( fldname,
                 (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
-                inst efldty
+                inst (eval_term env fldty)
                   (TubeOf.mmap
                      {
                        map =
@@ -568,12 +554,13 @@ and eval_env :
             }
             [ xss ] )
 
-let apply_term : kinetic value -> ('n, kinetic value) CubeOf.t -> kinetic value =
+and apply_term : type n. kinetic value -> (n, kinetic value) CubeOf.t -> kinetic value =
  fun fn arg ->
   let (Val v) = apply fn arg in
   v
 
-let apply_binder_term : ('n, kinetic) binder -> ('n, kinetic value) CubeOf.t -> kinetic value =
+and apply_binder_term : type n. (n, kinetic) binder -> (n, kinetic value) CubeOf.t -> kinetic value
+    =
  fun b arg ->
   let (Val v) = apply_binder b arg in
   v

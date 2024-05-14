@@ -14,7 +14,6 @@ open Term
 open Value
 open Inst
 open Raw
-open Parse
 open Asai.Range
 
 let () =
@@ -22,8 +21,8 @@ let () =
   Dim.Endpoints.set_internal true
 
 let parse_term (tm : string) : N.zero check located =
-  let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
-  let (Term tm) = Parse_term.final p in
+  let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
+  let (Term tm) = Parse.Term.final p in
   Postprocess.process Emp tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
@@ -35,8 +34,8 @@ let check_term (rtm : N.zero check located) (ety : kinetic value) : (emp, kineti
   Reporter.trace "when checking term" @@ fun () -> check Kinetic Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
-  let p = Parse_term.parse (`String { title = Some "constant name"; content = name }) in
-  match Parse_term.final p with
+  let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
+  match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
@@ -52,8 +51,8 @@ let assume (name : string) (ty : string) : unit =
   | _ -> fatal (Invalid_constant_name name)
 
 let def (name : string) (ty : string) (tm : string) : unit =
-  let p = Parse_term.parse (`String { title = Some "constant name"; content = name }) in
-  match Parse_term.final p with
+  let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
+  match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       if Option.is_some (Scope.lookup name) then
@@ -77,7 +76,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
 
 (* For other commands, we piggyback on ordinary parsing.  *)
 let parse_and_execute_command str =
-  match parse_single_command str with
+  match Command.parse_single str with
   | _, Some cmd -> Command.execute cmd
   | _, None -> ()
 
@@ -125,16 +124,18 @@ let print (tm : string) : unit =
       Format.pp_print_newline Format.std_formatter ()
   | _ -> fatal (Nonsynthesizing "argument of print")
 
-let rec run f =
+let run f =
+  Parser.Unparse.install ();
+  Galaxy.run_empty @@ fun () ->
+  Global.run_empty @@ fun () ->
+  Scope.run @@ fun () ->
+  Builtins.run @@ fun () ->
+  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      run @@ fun () ->
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
-  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
-  Builtins.run @@ fun () ->
-  Galaxy.run_empty @@ fun () ->
-  Global.run_empty @@ fun () -> Scope.run f
+  f ()
 
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

@@ -6,7 +6,6 @@ open Format
 open React
 open Lwt
 open LTerm_text
-open Parse
 
 let usage_msg = "narya [options] <file1> [<file2> ...]"
 let input_files = ref Emp
@@ -85,7 +84,7 @@ let () =
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let rec batch first ws p src =
-  let cmd = Parse_command.final p in
+  let cmd = Command.Parse.final p in
   if cmd = Eof then if Galaxy.unsolved () then Reporter.fatal Open_holes else ws
   else (
     if !typecheck then Parser.Command.execute cmd;
@@ -95,12 +94,12 @@ let rec batch first ws p src =
         Print.pp_ws `None std_formatter ws;
         Parser.Command.pp_command std_formatter cmd)
       else [] in
-    let p, src = Parse_command.restart_parse p src in
+    let p, src = Command.Parse.restart_parse p src in
     batch false ws p src)
 
 let execute (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
-  let p, src = Parse_command.start_parse source in
+  let p, src = Command.Parse.start_parse source in
   let ws = batch true [] p src in
   if !reformat then (
     let ws = Whitespace.ensure_ending_newlines 2 ws in
@@ -140,7 +139,7 @@ let rec repl terminal history buf =
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d -> Terminal.display ~output:stdout d)
           (fun () ->
-            match parse_single_command str with
+            match Command.parse_single str with
             | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
             | ws, Some cmd ->
                 if !typecheck then Parser.Command.execute cmd;
@@ -183,7 +182,7 @@ let rec interact_pg () =
       ~emit:(fun d -> Terminal.display ~output:stdout d)
       ~fatal:(fun d -> Terminal.display ~output:stdout d)
       (fun () ->
-        match parse_single_command str with
+        match Command.parse_single str with
         | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
         | ws, Some cmd ->
             if !typecheck then Parser.Command.execute cmd;
@@ -195,6 +194,7 @@ let rec interact_pg () =
   with End_of_file -> ()
 
 let () =
+  Parser.Unparse.install ();
   Galaxy.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->

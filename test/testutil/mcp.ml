@@ -3,7 +3,6 @@ open Core
 open Parser
 open Syntax
 open Value
-open Parse
 open Asai.Range
 
 let () =
@@ -20,8 +19,8 @@ let context = ref ectx
 
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check located =
  fun names tm ->
-  let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
-  let (Term tm) = Parse_term.final p in
+  let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
+  let (Term tm) = Parse.Term.final p in
   Postprocess.process names tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
@@ -138,12 +137,4 @@ let unequal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
   if Option.is_none (Equal.equal_val (Ctx.length ctx) tm1 tm2) then ()
   else raise (Failure "Equal terms")
 
-let rec run f =
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      run @@ fun () ->
-      Terminal.display d;
-      raise (Failure "Fatal error"))
-  @@ fun () ->
-  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
-  Builtins.run @@ fun () ->
-  Global.run_empty @@ fun () -> Scope.run f
+let run f = Repl.run f

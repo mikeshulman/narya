@@ -172,10 +172,4 @@ let unequal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
 let ( $$ ) (fn : kinetic value) (arg : kinetic value) : kinetic value =
   Norm.apply_term fn (Dim.CubeOf.singleton arg)
 
-let run f =
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
-      raise (Failure "Fatal error"))
-  @@ fun () ->
-  Parser.Builtins.run @@ fun () ->
-  Global.run_empty @@ fun () -> Scope.run f
+let run f = Repl.run f

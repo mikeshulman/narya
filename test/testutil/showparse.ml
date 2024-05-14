@@ -1,5 +1,4 @@
 open Parser
-open Parse
 
 let () =
   Dim.Endpoints.set_len 2;
@@ -35,6 +34,6 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Superscript (Some x, s, _) -> Superscript (Some (get_tree x.value), s)
 
 let parse tm =
-  let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
-  let (Term tm) = Parse_term.final p in
+  let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
+  let (Term tm) = Parse.Term.final p in
   get_tree tm.value

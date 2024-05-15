@@ -73,7 +73,7 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
 3. `echo TERM`
 
-   Normalize `TERM` and print its value to standard output.  Note that `TERM` must synthesize a type (see below); if it is a checking term you must ascribe it.  In interactive mode, if you enter a term instead of a command, Narya assumes you mean to `echo` that term.
+   Normalize `TERM` and print its value and its type to standard output.  Note that `TERM` must synthesize a type (see below); if it is a checking term you must ascribe it.  In interactive mode, if you enter a term instead of a command, Narya assumes you mean to `echo` that term.
 
 4. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
@@ -204,6 +204,7 @@ echo (A f x ↦ cplus A (f x ↦ f x) (f x ↦ f x) f x)
   : (A:Type) → (A → A) → (A → A)
   
 A f x ↦ f (f x)
+  : (A : Type) → (A → A) → A → A
 ```
 If there is significant demand for displaying function bodies, we may add an option to ask for η-expansion.
 

@@ -324,11 +324,13 @@
    ￮ Constant ideqid defined
   
   u u0 u1 ↦ u1
+    : refl Π A A (refl A) (_ ↦ A) (_ ↦ A) (_ ⤇ refl A) ida ida
   
    ￫ info[I0000]
    ￮ Constant ideqid' defined
   
   u u0 u00 ↦ u00
+    : refl Π A A (refl A) (_ ↦ A) (_ ↦ A) (_ ⤇ refl A) ida ida
   
    ￫ info[I0100]
    ￭ holes.ny

@@ -11,4 +11,5 @@ Printing higher-dimensional pi-types
 
   $ narya hdpi.ny
   refl Π A B E (x ↦ A' x) (x ↦ B' x) (x ⤇ E' x.0 x.1 x.2)
+    : refl Type ((x : A) → A' x) ((x : B) → B' x)
   

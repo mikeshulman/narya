@@ -331,10 +331,19 @@ let execute : Command.t -> unit = function
           let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
+          let bty = Readback.readback_at Ctx.empty ety (Inst.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
-          pp_term `None Format.std_formatter (Term utm);
-          Format.pp_print_newline Format.std_formatter ();
-          Format.pp_print_newline Format.std_formatter ()
+          let uty = unparse Names.empty bty Interval.entire Interval.entire in
+          let ppf = Format.std_formatter in
+          pp_open_vbox ppf 2;
+          pp_term `None ppf (Term utm);
+          pp_print_cut ppf ();
+          pp_tok ppf Colon;
+          pp_print_string ppf " ";
+          pp_term `None ppf (Term uty);
+          pp_close_box ppf ();
+          pp_print_newline ppf ();
+          pp_print_newline ppf ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
       let notation_name = "notation" :: name in

@@ -32,8 +32,8 @@ let lookup : type n. n t -> n index -> string list =
    fun ctx x ->
     match (ctx, x) with
     | Emp, _ -> .
-    | Snoc (ctx, _, _), Pop x -> lookup ctx x
-    | Snoc (_, Variables (_, mn, xs), _), Top fa -> (
+    | Snoc (ctx, _, _), Index (Later x, fa) -> lookup ctx (Index (x, fa))
+    | Snoc (_, Variables (_, mn, xs), _), Index (Now, fa) -> (
         let (SFace_of_plus (_, fb, fc)) = sface_of_plus mn fa in
         match NICubeOf.find xs fc with
         | Some x -> cubevar x fb
@@ -47,8 +47,8 @@ let lookup_field : type n. n t -> n index -> Field.t -> string list option =
    fun ctx x ->
     match (ctx, x) with
     | Emp, _ -> .
-    | Snoc (ctx, _, _), Pop x -> lookup ctx x
-    | Snoc (_, Variables (_, mn, _), fields), Top fa ->
+    | Snoc (ctx, _, _), Index (Later x, fa) -> lookup ctx (Index (x, fa))
+    | Snoc (_, Variables (_, mn, _), fields), Index (Now, fa) ->
         let open Monad.Ops (Monad.Maybe) in
         let (SFace_of_plus (_, fb, fc)) = sface_of_plus mn fa in
         let* () = is_id_sface fc in

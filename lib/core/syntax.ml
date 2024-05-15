@@ -124,9 +124,7 @@ module rec Term : sig
 
   module CodCube : module type of Cube (CodFam)
 
-  type 'a index =
-    | Top : ('k, 'n) sface -> ('a, 'n) snoc index
-    | Pop : 'xs index -> ('xs, 'x) snoc index
+  type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
 
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
@@ -201,10 +199,8 @@ end = struct
 
   module CodCube = Cube (CodFam)
 
-  (* A typechecked De Bruijn index is a well-scoped natural number together with a definite strict face (the top face, if none was supplied explicitly).  Unlike a raw De Bruijn index, the scoping is by an hctx rather than a type-level nat.  This allows the face to also be well-scoped: its codomain must be the dimension appearing in the hctx at that position. *)
-  type 'a index =
-    | Top : ('k, 'n) sface -> ('a, 'n) snoc index
-    | Pop : 'xs index -> ('xs, 'x) snoc index
+  (* A typechecked De Bruijn index is a well-scoped natural number together with a definite strict face (the top face, if none was supplied explicitly).  Unlike a raw De Bruijn index, the scoping is by a tbwd rather than a type-level nat.  This allows the face to also be well-scoped: its codomain must be the dimension appearing in the hctx at that position.  And since we already have defined Tbwd.insert, we can re-use that instead of re-defining this inductively. *)
+  type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
 
   type (_, _) term =
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
@@ -425,6 +421,7 @@ module rec Value : sig
     | Emp : 'n D.t -> ('n, emp) env
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
+    | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 end = struct
   (* Here is the recursive application of the functor Cube.  First we define a module to pass as its argument, with type defined to equal the yet-to-be-defined binder, referred to recursively. *)
   module BindFam = struct
@@ -547,6 +544,7 @@ end = struct
     (* Here the k-cube denotes a "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, while each of them has an n-cube of values representing a value and its boundaries. *)
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
+    | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 end
 
 open Value
@@ -563,6 +561,7 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
   | Emp n -> n
   | Ext (e, _) -> dim_env e
   | Act (_, op) -> dom_op op
+  | Permute (_, e) -> dim_env e
 
 (* And likewise every binder *)
 let dim_binder : type m s. (m, s) binder -> m D.t = function

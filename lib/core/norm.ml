@@ -8,7 +8,6 @@ open Term
 open Value
 open Inst
 open Act
-open Permute
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
@@ -25,15 +24,22 @@ let lookup : type n b. (n, b) env -> b index -> kinetic value =
   let rec lookup : type m n b. (n, b) env -> b index -> (m, n) op -> kinetic value =
    fun env v op ->
     match (env, v) with
+    (* Since there's an index, the environment can't be empty. *)
     | Emp _, _ -> .
-    | Ext (_, entry), Top fa -> (
-        (* When we find our variable, we decompose the accumulated operator into a strict face and degeneracy. *)
+    (* If we encounter an operator action, we accumulate it. *)
+    | Act (env, op'), _ -> lookup env v (comp_op op' op)
+    (* If the environment is permuted, we apply the permutation to the index. *)
+    | Permute (p, env), Index (v, fa) ->
+        let (Permute_insert (v, _)) = Tbwd.permute_insert v p in
+        lookup env (Index (v, fa)) op
+    (* If we encounter a variable that isn't ours, we skip it and proceed. *)
+    | Ext (env, _), Index (Later v, fa) -> lookup env (Index (v, fa)) op
+    (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy. *)
+    | Ext (_, entry), Index (Now, fa) -> (
         let (Op (f, s)) = op in
         match D.compare (cod_sface fa) (CubeOf.dim entry) with
         | Eq -> act_value (CubeOf.find (CubeOf.find entry fa) f) s
-        | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry)))
-    | Ext (env, _), Pop v -> lookup env v op
-    | Act (env, op'), _ -> lookup env v (comp_op op' op) in
+        | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry))) in
   lookup env v (id_op (dim_env env))
 
 (* The master evaluation function. *)
@@ -282,7 +288,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                   (* If we have a branch with a matching constructor, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
                   let env = take_args env plus_dim dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
-                  eval (permute_env perm env) body)
+                  eval (Permute (perm, env)) body)
           (* If this constructor belongs to a refuted case, it must be that we are in an inconsistent context with some neutral belonging to an empty type.  In that case, the match must be stuck. *)
           | Some Refute -> Unrealized)
       (* Otherwise, the case tree doesn't reduce. *)

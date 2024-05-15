@@ -1118,7 +1118,7 @@ and check_empty_match_lam :
               let ctx = Ctx.vis ctx D.zero (D.zero_plus dim) names newnfs af in
               match (fa, first) with
               | Some (SFace_of fa), _ ->
-                  Lam (xs, Match { tm = Var (Top fa); dim; branches = Constr.Map.empty })
+                  Lam (xs, Match { tm = Var (Index (Now, fa)); dim; branches = Constr.Map.empty })
               | None, `Notfirst -> Term.Lam (xs, check_empty_match_lam ctx output `Notfirst)
               | None, `First ->
                   Reporter.try_with

@@ -205,7 +205,7 @@ module Ordered = struct
       let (Plus kl) = D.plus (dom_sface fb) in
       let fab = sface_plus_sface fa mn kl fb in
       let x = CubeOf.find xs fab in
-      (Found (Binding.level x, Binding.value x, Top fab), NFamOf.NFamOf ()) in
+      (Found (Binding.level x, Binding.value x, Index (Now, fab)), NFamOf.NFamOf ()) in
     match acc with
     | Found (i, x, v) -> (Found (i, x, v), NFamOf ())
     | Unfound (Suc p, (Pop k, fa)) -> (Unfound (p, (k, fa)), NFamOf ())
@@ -238,7 +238,7 @@ module Ordered = struct
       [ `Var of level option * normal * (b, n) snoc index | `Field of level * normal * Field.t ] =
    fun ctx e pf k ->
     let pop = function
-      | `Var (i, x, v) -> `Var (i, x, Pop v)
+      | `Var (i, x, Index (v, fa)) -> `Var (i, x, Index (Later v, fa))
       | `Field f -> `Field f in
     match e with
     | Vis { dim; plusdim; vars; bindings; hasfields = _; fields; fplus } -> (
@@ -284,12 +284,14 @@ module Ordered = struct
     match
       miterM
         {
-          it = (fun fa [ x ] s -> if Binding.level x = Some i then ((), Some (Top fa)) else ((), s));
+          it =
+            (fun fa [ x ] s ->
+              if Binding.level x = Some i then ((), Some (Index (Now, fa))) else ((), s));
         }
         [ vars ] None
     with
     | (), Some v -> Some v
-    | (), None -> Option.map (fun v -> Pop v) (find_level ctx i)
+    | (), None -> Option.map (fun (Index (v, fa)) -> Index (Later v, fa)) (find_level ctx i)
 
   (* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with any boundaries. *)
   let rec env : type a b. (a, b) t -> (D.zero, b) env = function

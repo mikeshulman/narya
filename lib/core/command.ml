@@ -53,7 +53,7 @@ let check_defs (defs : defconst list) : unit =
         let cty = check Kinetic ctx ty (universe D.zero) in
         let pi_cty = Telescope.pis params cty in
         (* This temporary definition will be overridden later. *)
-        Global.add const pi_cty Axiom;
+        Global.add const pi_cty (Axiom `Parametric);
         go defs (Snoc (defineds, Defined_check (const, ctx, cty, pi_cty, tm)))
     | Def_synth (const, params, tm) :: defs ->
         let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
@@ -65,5 +65,5 @@ let execute : t -> unit = function
       let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
       let cty = check Kinetic ctx ty (universe D.zero) in
       let cty = Telescope.pis params cty in
-      Global.add const cty Axiom
+      Global.add const cty (Axiom `Nonparametric)
   | Def defs -> check_defs defs

@@ -169,3 +169,9 @@
      ^ axiom A locked behind external degeneracy
   
   [1]
+
+  $ narya -dtt mutual.ny
+   ￫ error[E3000]
+   ￮ There are open holes
+  
+  [1]

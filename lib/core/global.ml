@@ -8,8 +8,8 @@ open Term
 
 (* The global environment of constants. *)
 
-(* Each global constant either is an axiom or has a definition (a case tree).  The latter includes canonical types. *)
-type definition = Axiom | Defined of (emp, potential) term
+(* Each global constant either is an axiom or has a definition (a case tree).  The latter includes canonical types.  An axiom can be either parametric, which means it is always accessible, or nonparametric, which means it is not accessible behind context locks for external parametricity.  (In the future, this should be customizable on a per-direction basis.) *)
+type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term
 
 module ConstantMap = Map.Make (Constant)
 
@@ -24,7 +24,7 @@ end)
 let find_opt c =
   let d = S.get () in
   match (ConstantMap.find_opt c d.constants, d.locked) with
-  | Some (_, Axiom), true -> fatal (Locked_axiom (PConstant c))
+  | Some (_, Axiom `Nonparametric), true -> fatal (Locked_axiom (PConstant c))
   | Some (ty, tm), _ -> Some (ty, tm)
   | None, _ -> None
 

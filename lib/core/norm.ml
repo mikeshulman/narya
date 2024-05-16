@@ -68,7 +68,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
           (* Since a top-level case tree is in the empty context, it doesn't have't anything to stuck-match against. *)
           | Unrealized -> fatal (Anomaly "true neutral case tree in empty context"))
-      | Axiom -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
+      | Axiom _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
   | Meta meta -> (
       match Galaxy1.find meta <|> Undefined_metavariable (PMeta meta) with
       | { tm = Some tm; _ } -> eval env tm

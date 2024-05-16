@@ -3,7 +3,7 @@ open Tbwd
 open Syntax
 open Term
 
-type definition = Axiom | Defined of (emp, potential) term
+type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term
 
 val find_opt : Constant.t -> ((emp, kinetic) term * definition) option
 val locked : unit -> bool

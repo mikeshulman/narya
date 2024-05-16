@@ -11,8 +11,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    7 | def f : A → B ≔ ?
-   8 | 
-   9 | def f' : A → B ≔ x ↦ ?
      ^ hole ?0 generated:
        
        ----------------------------------------------------------------------
@@ -23,14 +21,12 @@
   
    ￫ info[I0100]
    ￭ holes.ny
-    9 | def f' : A → B ≔ x ↦ ?
-   10 | 
-   11 | def ℕ : Type ≔ data [
-      ^ hole ?1 generated:
-        
-        x : A
-        ----------------------------------------------------------------------
-        B
+   9 | def f' : A → B ≔ x ↦ ?
+     ^ hole ?1 generated:
+       
+       x : A
+       ----------------------------------------------------------------------
+       B
   
    ￫ info[I0000]
    ￮ Constant f' defined
@@ -41,7 +37,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    17 | | zero. ↦ ?
-   18 | | suc. n ↦ ?
       ^ hole ?2 generated:
         
         m : ℕ
@@ -52,7 +47,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    18 | | suc. n ↦ ?
-   19 | ]
       ^ hole ?3 generated:
         
         m : ℕ
@@ -70,9 +64,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    23 | def anop : ℕ → ℕ → (x : ℕ) → P x ≔ n n0 n ↦ ?
-   24 | 
-   25 | {` The user's "n0" should not be shadowed by an auto-generated one `}
-   26 | def anop' : ℕ → ℕ → (x : ℕ) → P x ≔ n0 n n ↦ ?
       ^ hole ?4 generated:
         
         n1 : ℕ (not in scope)
@@ -87,8 +78,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    26 | def anop' : ℕ → ℕ → (x : ℕ) → P x ≔ n0 n n ↦ ?
-   27 | 
-   28 | def anop'' : ℕ → ℕ → (x : ℕ) → P x ≔ n _ n ↦ ?
       ^ hole ?5 generated:
         
         n0 : ℕ
@@ -103,9 +92,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    28 | def anop'' : ℕ → ℕ → (x : ℕ) → P x ≔ n _ n ↦ ?
-   29 | 
-   30 | {` Nor the user's H be shadowed by an auto-generated one `}
-   31 | def anop''' : ℕ → ℕ → (x : ℕ) → P x ≔ H _ n ↦ ?
       ^ hole ?6 generated:
         
         n0 : ℕ (not in scope)
@@ -120,8 +106,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    31 | def anop''' : ℕ → ℕ → (x : ℕ) → P x ≔ H _ n ↦ ?
-   32 | 
-   33 | def Σ (A:Type) (B : A → Type) : Type ≔ sig (
       ^ hole ?7 generated:
         
         H : ℕ
@@ -217,7 +201,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    62 |   two : ?
-   63 | )
       ^ hole ?15 generated:
         
         A : Type
@@ -246,7 +229,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    67 |   two : ?
-   68 | )
       ^ hole ?17 generated:
         
         A : Type
@@ -263,7 +245,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    71 | | x .one : ?
-   72 | | x .two : ?
       ^ hole ?18 generated:
         
         A : Type
@@ -277,7 +258,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    72 | | x .two : ?
-   73 | ]
       ^ hole ?19 generated:
         
         A : Type
@@ -308,7 +288,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    84 |   c ≔ ?
-   85 | )
       ^ hole ?21 generated:
         
         ----------------------------------------------------------------------
@@ -349,9 +328,6 @@
    ￫ info[I0100]
    ￭ holes.ny
    101 | def afam : Type → Type ≔ X ↦ id ?
-   102 | 
-   103 | {` This requires comparing a metavariable to equal itself when evaluated in equal environments. `}
-   104 | def idafam (X:Type) : afam X → afam X ≔ x ↦ x
        ^ hole ?23 generated:
          
          X : Type
@@ -385,7 +361,6 @@
    ￫ error[E0401]
    ￭ dtt-holes.ny
    4 | def g (X : Type) : Type⁽ᵈ⁾ X ≔ (f ?)⁽ᵈ⁾
-   5 | 
      ^ term synthesized type
          Type⁽ᵈ⁾ ?0
        but is being checked against type

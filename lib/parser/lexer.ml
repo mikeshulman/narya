@@ -223,11 +223,10 @@ let other : Token.t t =
 
 (* Finally, a token is either a quoted string, a single-character operator, an operator of special ASCII symbols, or something else.  Unlike the built-in 'lexer' function, we include whitespace *after* the token, so that we can save comments occurring after any code. *)
 let token : Located_token.t t =
-  located
-    ((let* tok = quoted_string </> onechar_op </> ascii_op </> superscript </> other in
-      let* ws = whitespace in
-      return (tok, ws))
-    </> expect_end (Eof, []))
+  (let* loc, tok = located (quoted_string </> onechar_op </> ascii_op </> superscript </> other) in
+   let* ws = whitespace in
+   return (loc, (tok, ws)))
+  </> located (expect_end (Eof, []))
 
 (* This means we need a separate combinator to parse any initial whitespace.   *)
 let bof : Located_token.t t =

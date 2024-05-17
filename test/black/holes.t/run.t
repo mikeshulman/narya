@@ -17,7 +17,7 @@
        A → B
   
    ￫ info[I0000]
-   ￮ Constant f defined
+   ￮ Constant f defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -29,7 +29,7 @@
        B
   
    ￫ info[I0000]
-   ￮ Constant f' defined
+   ￮ Constant f' defined, containing 1 hole
   
    ￫ info[I0000]
    ￮ Constant ℕ defined
@@ -56,7 +56,7 @@
         ℕ
   
    ￫ info[I0000]
-   ￮ Constant plus defined
+   ￮ Constant plus defined, containing 2 holes
   
    ￫ info[I0001]
    ￮ Axiom P assumed
@@ -73,7 +73,7 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop defined
+   ￮ Constant anop defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -87,7 +87,7 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop' defined
+   ￮ Constant anop' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -101,7 +101,7 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop'' defined
+   ￮ Constant anop'' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -115,7 +115,7 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop''' defined
+   ￮ Constant anop''' defined, containing 1 hole
   
    ￫ info[I0000]
    ￮ Constant Σ defined
@@ -137,7 +137,7 @@
         pp .fst
   
    ￫ info[I0000]
-   ￮ Constant pp defined
+   ￮ Constant pp defined, containing 2 holes
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -156,7 +156,7 @@
         ?10
   
    ￫ info[I0000]
-   ￮ Constant pp' defined
+   ￮ Constant pp' defined, containing 2 holes
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -168,7 +168,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant foo defined
+   ￮ Constant foo defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -181,7 +181,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant foo' defined
+   ￮ Constant foo' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -196,7 +196,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel0 defined
+   ￮ Constant gel0 defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -212,7 +212,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel1 defined
+   ￮ Constant gel1 defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -240,7 +240,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel2 defined
+   ￮ Constant gel2 defined, containing 2 holes
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -269,7 +269,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel3 defined
+   ￮ Constant gel3 defined, containing 2 holes
   
    ￫ info[I0001]
    ￮ Axiom C assumed
@@ -294,7 +294,7 @@
         C (ac .a 0)
   
    ￫ info[I0000]
-   ￮ Constant ac defined
+   ￮ Constant ac defined, containing 2 holes
   
    ￫ info[I0000]
    ￮ Constant ida defined
@@ -323,7 +323,7 @@
         refl A u1 u0
   
    ￫ info[I0000]
-   ￮ Constant ideqid'' defined
+   ￮ Constant ideqid'' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ holes.ny
@@ -335,7 +335,7 @@
          Type
   
    ￫ info[I0000]
-   ￮ Constant afam defined
+   ￮ Constant afam defined, containing 1 hole
   
    ￫ info[I0000]
    ￮ Constant idafam defined

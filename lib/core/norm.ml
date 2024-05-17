@@ -254,7 +254,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
   | Match (ix, n, branches) -> (
       (* Get the argument being inspected *)
       let m = dim_env env in
-      match lookup env ix with
+      match eval_term env ix with
       (* It must be an application of a constructor *)
       | Constr (name, dim, dargs) -> (
           match Constr.Map.find_opt name branches with

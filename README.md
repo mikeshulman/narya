@@ -152,7 +152,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let in def and axiom echo notation match sig data codata
+let in def and axiom echo quit notation match sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 
@@ -503,7 +503,15 @@ def Sum.swap (A B : Type) : Sum A B → Sum B A ≔ [
 ]
 ```
 
-However, even with the explicit `match` syntax, it is only possible to match against a *variable*, not an arbitrary term; and matching can only occur at top level in a definition, or inside abstractions, tuples, or other matches (or comatches, see below).  This aligns with the behavior of pattern-matching definitions in Haskell and Agda, although languages such as Coq and ML that have an explicit `match` keyword usually allow matching against arbitrary terms and in arbitrary places in a term.  One advantage of matching against variables only is that then the output type of the function can be refined automatically in each branch without additional annotations.  To match against an arbitrary term, define a helper function.
+It is also possible to match against an arbitrary term, not just a variable.  As a simple example, we can show that a contradiction implies anything without a helper function:
+```
+def ⊥ : Type ≔ data [ ]
+
+def efq (A C : Type) (a : A) (na : A → ⊥) : C ≔ match na a [ ]
+```
+Importantly, when matching on a non-variable, *the output type of the function is not refined*.  If the term being matched against appears somewhere in output type, and you want that appearance to be substituted by the constructors in the branches of the match, then you need to define a helper function that is general over a variable belonging to the type of the term you want to match against.  Note that matching against a let-bound variable is equivalent to matching against its value, so this also does not refine the output type.
+
+Matching can only occur at top level in a definition, or inside abstractions, tuples, or other matches (or comatches, see below).  This aligns with the behavior of pattern-matching definitions in Haskell and Agda, although languages such as Coq and ML that have an explicit `match` keyword usually allow matching against arbitrary terms and in arbitrary places in a term.
 
 It is also only possible to match on one argument at a time: the definition of `Sum.assoc` cannot be condensed to have branches like `inl. (inl. a) ↦ inl. a`.  This makes the syntax a little more verbose, but it also eliminates any ambiguity regarding the order in which matching occurs, preventing issues such as those surrounding Agda's `--exact-split` flag.
 

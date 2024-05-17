@@ -748,18 +748,11 @@ let () =
       process =
         (fun ctx obs loc _ ->
           match obs with
-          (* The first thing must be a valid local variable or cube variable to match against. *)
-          | Term { value = Ident ([ ident ], _); _ } :: obs -> (
-              match Bwv.find_opt (fun y -> y = Some ident) ctx with
-              | None -> fatal (Unbound_variable ident)
-              | Some (_, x) -> { value = Match ((x, None), process_branches ctx obs); loc })
-          | Term { value = Ident ([ ident; fld ], _); _ } :: obs -> (
-              match (Bwv.find_opt (fun y -> y = Some ident) ctx, Dim.sface_of_string fld) with
-              | Some (_, x), Some fa ->
-                  { value = Match ((x, Some fa), process_branches ctx obs); loc }
-              | None, _ -> fatal (Unbound_variable ident)
-              | _ -> fatal Parse_error)
-          | Term { loc; _ } :: _ -> fatal ?loc Parse_error
+          | Term tm :: obs -> (
+              match (process ctx tm).value with
+              | Synth value ->
+                  { value = Match ({ value; loc = tm.loc }, process_branches ctx obs); loc }
+              | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match"))
           | [] -> fatal Parse_error);
     }
 
@@ -774,7 +767,7 @@ let () =
               Lam
                 ( { value = None; loc = None },
                   `Normal,
-                  { value = Match ((Top, None), branches); loc } );
+                  { value = Match ({ value = Var (Top, None); loc = None }, branches); loc } );
             loc;
           });
     }

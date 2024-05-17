@@ -187,8 +187,8 @@ module Code = struct
     | Duplicate_constructor_in_data _ -> Error
     | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
-    | Matching_on_let_bound_variable _ -> Error
-    | Matching_on_record_field _ -> Error
+    | Matching_on_let_bound_variable _ -> Hint
+    | Matching_on_record_field _ -> Hint
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
@@ -485,8 +485,9 @@ module Code = struct
         textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
           (print ty)
     | Matching_on_let_bound_variable name ->
-        textf "can't match on let-bound variable %a" pp_printed (print name)
-    | Matching_on_record_field fld -> textf "can't match on record field %s" (Field.to_string fld)
+        textf "matching on let-bound variable %a doesn't refine the type" pp_printed (print name)
+    | Matching_on_record_field fld ->
+        textf "matching on record field %s doesn't refine the type" (Field.to_string fld)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n

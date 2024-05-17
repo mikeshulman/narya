@@ -114,8 +114,8 @@ module Code = struct
     | Notation_variable_used_twice : string -> t
     | Unbound_variable_in_notation : string list -> t
     | Head_already_has_notation : string -> t
-    | Constant_assumed : printable -> t
-    | Constant_defined : printable list -> t
+    | Constant_assumed : printable * int -> t
+    | Constant_defined : printable list * int -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
@@ -514,13 +514,22 @@ module Code = struct
         textf "unbound variable(s) in notation definition: %s" (String.concat ", " xs)
     | Head_already_has_notation name ->
         textf "replacing printing notation for %s (previous notation will still be parseable)" name
-    | Constant_assumed name -> textf "Axiom %a assumed" pp_printed (print name)
-    | Constant_defined names -> (
+    | Constant_assumed (name, h) ->
+        if h > 1 then textf "Axiom %a assumed, containing %d holes" pp_printed (print name) h
+        else if h = 1 then textf "Axiom %a assumed, containing 1 hole" pp_printed (print name)
+        else textf "Axiom %a assumed" pp_printed (print name)
+    | Constant_defined (names, h) -> (
         match names with
         | [] -> textf "Anomaly: no constant defined"
-        | [ name ] -> textf "Constant %a defined" pp_printed (print name)
+        | [ name ] ->
+            if h > 1 then textf "Constant %a defined, containing %d holes" pp_printed (print name) h
+            else if h = 1 then
+              textf "Constant %a defined, containing 1 hole" pp_printed (print name)
+            else textf "Constant %a defined" pp_printed (print name)
         | _ ->
-            textf "@[<v 2>Constants defined mutually:@,%a@]"
+            (if h > 1 then textf "@[<v 2>Constants defined mutually, containing %d holes:@,%a@]" h
+             else if h = 1 then textf "@[<v 2>Constants defined mutually, containing 1 hole:@,%a@]"
+             else textf "@[<v 2>Constants defined mutually:@,%a@]")
               (fun ppf names ->
                 pp_print_list (fun ppf name -> pp_printed ppf (print name)) ppf names)
               names)

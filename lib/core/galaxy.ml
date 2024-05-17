@@ -25,11 +25,15 @@ end
 
 module M = Meta.Map.Make (Data)
 
-module S = Algaeff.State.Make (struct
-  type t = unit M.t * [ `Solved | `Unsolved ]
-end)
+(* We also track whether there are still any unsolved metavariables, and the number of holes created by the current command. *)
 
-let find_opt meta = M.find_opt (MetaKey meta) (fst (S.get ()))
+module D = struct
+  type t = { map : unit M.t; solved : [ `Solved | `Unsolved ]; current : int }
+end
+
+module S = Algaeff.State.Make (D)
+
+let find_opt meta = M.find_opt (MetaKey meta) (S.get ()).map
 
 let add :
     type a b s.
@@ -40,16 +44,20 @@ let add :
     s energy ->
     unit =
  fun meta vars termctx ty energy ->
-  S.modify (fun (map, _) ->
-      (M.add (MetaKey meta) (Data { vars; termctx; ty; tm = None; energy }) map, `Unsolved))
+  S.modify (fun { map; solved = _; current } ->
+      {
+        map = M.add (MetaKey meta) (Data { vars; termctx; ty; tm = None; energy }) map;
+        solved = `Unsolved;
+        current = current + 1;
+      })
 
-let unsolved () = snd (S.get ()) = `Unsolved
-let _update meta f = S.modify (fun (map, s) -> (M.update (MetaKey meta) f map, s))
+let unsolved () = (S.get ()).solved = `Unsolved
+let _update meta f = S.modify (fun data -> { data with map = M.update (MetaKey meta) f data.map })
 
 (* When running in a new Galactic state, we also trap the temporary lookup effect from Galaxy1 and turn it into an actual lookup. *)
 let run_empty f =
   let open Effect.Deep in
-  S.run ~init:(M.empty, `Solved) @@ fun () ->
+  S.run ~init:{ map = M.empty; solved = `Solved; current = 0 } @@ fun () ->
   try_with f ()
     {
       effc =
@@ -63,3 +71,10 @@ let run_empty f =
                   | None -> continue k None)
           | _ -> None);
     }
+
+(* At the end of a command, we get the number of holes that were created by that command, and reset the counter to 0 for the next command. *)
+let end_command () =
+  let data = S.get () in
+  let current = data.current in
+  S.set { data with current = 0 };
+  current

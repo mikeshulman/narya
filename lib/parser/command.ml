@@ -296,7 +296,8 @@ let execute : Command.t -> unit = function
       @@ fun () ->
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty));
-      emit (Constant_assumed (PConstant const))
+      let h = Core.Galaxy.end_command () in
+      emit (Constant_assumed (PConstant const, h))
   | Def defs ->
       let [ names; cdefs; printables ] =
         Mlist.pmap
@@ -328,7 +329,8 @@ let execute : Command.t -> unit = function
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
       Core.Command.execute (Def defs);
-      emit (Constant_defined printables)
+      let h = Core.Galaxy.end_command () in
+      emit (Constant_defined (printables, h))
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
       match rtm.value with

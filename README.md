@@ -78,6 +78,10 @@ In a file, conventionally each command begins on a new line, but this is not tec
 4. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
+
+5. `quit`
+
+   Terminate execution immediately.  Whenever this command is found, loading of the current file or command-line string ceases, no further files or strings will be loaded, and interactive mode will be exited or skipped.  (You can also exit interactive mode by typing Control+D.)
    
 
 ## Built-in types

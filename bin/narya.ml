@@ -137,7 +137,11 @@ let rec repl terminal history buf =
         let* () = Lwt_io.flush Lwt_io.stdout in
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
-          ~fatal:(fun d -> Terminal.display ~output:stdout d)
+          ~fatal:(fun d ->
+            Terminal.display ~output:stdout d;
+            match d.message with
+            | Quit -> exit 0
+            | _ -> ())
           (fun () ->
             match Command.parse_single str with
             | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws

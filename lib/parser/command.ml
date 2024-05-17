@@ -49,6 +49,7 @@ module Command = struct
         args : (string * Whitespace.t list) list;
       }
         -> t
+    | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
 end
@@ -209,6 +210,10 @@ module Parse = struct
            args;
          })
 
+  let quit =
+    let* wsquit = token Quit in
+    return (Command.Quit wsquit)
+
   let bof =
     let* ws = C.bof in
     return (Command.Bof ws)
@@ -217,7 +222,7 @@ module Parse = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command () = bof </> axiom </> def_and </> echo </> notation </> eof
+  let command () = bof </> axiom </> def_and </> echo </> notation </> quit </> eof
 
   let command_or_echo () =
     command ()
@@ -380,6 +385,7 @@ let execute : Command.t -> unit = function
         fatal (Unbound_variable_in_notation (List.map fst unbound));
       State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
       emit (Notation_defined (String.concat "." name))
+  | Quit _ -> fatal Quit
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
@@ -538,5 +544,6 @@ let pp_command : formatter -> t -> Whitespace.t list =
             rest in
       pp_close_box ppf ();
       rest
+  | Quit ws -> ws
   | Bof ws -> ws
   | Eof -> []

@@ -193,6 +193,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "def" -> return Def
   | "and" -> return And
   | "echo" -> return Echo
+  | "quit" -> return Quit
   | "match" -> return Match
   | "sig" -> return Sig
   | "data" -> return Data

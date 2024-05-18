@@ -11,7 +11,7 @@ module Tbwd = struct
   (* ('a, 'b, 'n, 'ab) snocs means that 'a is a tbwd (although this isn't enforced -- it could be any type), 'b is a Fwn.t, and 'ab is the result of adding 'b copies of the dimension 'n at the end of 'a. *)
   type (_, _, _, _) snocs =
     | Zero : ('a, Fwn.zero, 'n, 'a) snocs
-    | Suc : ('a, 'b, 'n, 'ab) snocs -> ('a, 'b Fwn.suc, 'n, ('ab, 'n) snoc) snocs
+    | Suc : (('a, 'n) snoc, 'b, 'n, 'ab) snocs -> ('a, 'b Fwn.suc, 'n, 'ab) snocs
 
   let rec snocs_snoc : type a b c n. (a, b, n, c) snocs -> ((a, n) snoc, b, n, (c, n) snoc) snocs =
     function
@@ -20,7 +20,7 @@ module Tbwd = struct
 
   let snocs_suc : type a b c n. (a, b Fwn.suc, n, c) snocs -> ((a, n) snoc, b, n, c) snocs =
     function
-    | Suc ab -> snocs_snoc ab
+    | Suc ab -> ab
 
   let rec snocs_right : type a b c n. (a, b, n, c) snocs -> b Fwn.t = function
     | Zero -> Zero

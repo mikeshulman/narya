@@ -4,7 +4,6 @@ open Reporter
 open Dim
 open Syntax
 open Value
-open Bwd
 
 (* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  In most situations, the failure of this is a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
 type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
@@ -143,61 +142,38 @@ and norm_of_vals :
       [ tms; tys ] in
   new_tms
 
-(* Require that the supplied Bwd contains exactly b arguments, rearrange each mn-cube argument into an n-cube of m-cubes, and add all of them to the given environment. *)
+(* Require that the supplied list contains exactly b (which is a Fwn) arguments, rearrange each mn-cube argument into an n-cube of m-cubes, and add all of them to the given environment. *)
 let rec take_args :
     type m n mn a b ab.
     (m, a) env ->
     (m, n, mn) D.plus ->
-    (mn, kinetic value) CubeOf.t Bwd.t ->
+    (mn, kinetic value) CubeOf.t list ->
     (a, b, n, ab) Tbwd.snocs ->
     (m, ab) env =
  fun env mn dargs plus ->
   let m = dim_env env in
   let n = D.plus_right mn in
   match (dargs, plus) with
-  | Emp, Zero -> env
-  | Snoc (args, arg), Suc plus ->
-      let env = take_args env mn args plus in
-      Ext
-        ( env,
-          CubeOf.build n
-            {
-              build =
-                (fun fb ->
-                  CubeOf.build m
-                    {
-                      build =
-                        (fun fa ->
-                          let (Plus jk) = D.plus (dom_sface fb) in
-                          let fab = sface_plus_sface fa mn jk fb in
-                          CubeOf.find arg fab);
-                    });
-            } )
+  | [], Zero -> env
+  | arg :: args, Suc plus ->
+      let env =
+        Ext
+          ( env,
+            CubeOf.build n
+              {
+                build =
+                  (fun fb ->
+                    CubeOf.build m
+                      {
+                        build =
+                          (fun fa ->
+                            let (Plus jk) = D.plus (dom_sface fb) in
+                            let fab = sface_plus_sface fa mn jk fb in
+                            CubeOf.find arg fab);
+                      });
+              } ) in
+      take_args env mn args plus
   | _ -> fatal (Anomaly "wrong number of arguments in argument list")
-
-(* A version of take_args that takes some number of actual arguments without insertions from a Bwd, adds a specified number of them to the environment, and returns the others in a Bwv of specified length.  *)
-let rec take_canonical_args :
-    type n a b ab c.
-    (n, a) env ->
-    (n, normal) CubeOf.t Bwd.t ->
-    (a, b, D.zero, ab) Tbwd.snocs ->
-    c N.t ->
-    (n, ab) env * ((n, normal) CubeOf.t, c) Bwv.t =
- fun env args ab c ->
-  match c with
-  | Nat (Suc c) -> (
-      match args with
-      | Snoc (args, arg) ->
-          let env, rest = take_canonical_args env args ab (Nat c) in
-          (env, Snoc (rest, arg))
-      | Emp -> fatal (Anomaly "not enough arguments in canonical argument list"))
-  | Nat Zero -> (
-      match (args, ab) with
-      | Snoc (args, arg), Suc ab ->
-          let env, Emp = take_canonical_args env args ab (Nat Zero) in
-          (Ext (env, CubeOf.singleton (val_of_norm_cube arg)), Emp)
-      | Emp, Zero -> (env, Emp)
-      | _ -> fatal (Anomaly "wrong number of arguments in canonical argument list"))
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
 let rec universe : type n. n D.t -> kinetic value =

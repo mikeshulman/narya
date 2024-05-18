@@ -269,7 +269,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               match D.compare dim (D.plus_out m mn) with
               | Eq ->
                   (* If we have a branch with a matching constant, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
-                  let env = take_args env mn dargs plus in
+                  let env = take_args env mn (Bwd.to_list dargs) plus in
                   (* Then we proceed recursively with the body of that branch. *)
                   eval (permute_env perm env) body
               (* TODO: Is this case actually a bug, or can it happen? *)

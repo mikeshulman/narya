@@ -56,6 +56,7 @@ let check_defs (defs : defconst list) : unit =
         Global.add const pi_cty (Axiom `Parametric);
         go defs (Snoc (defineds, Defined_check (const, ctx, cty, pi_cty, tm)))
     | Def_synth (const, params, tm) :: defs ->
+        Global.add_error const (Synthesizing_recursion (Reporter.PConstant const));
         let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
         go defs (Snoc (defineds, Defined_synth (const, ctx, params, tm))) in
   go defs Emp

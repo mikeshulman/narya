@@ -130,6 +130,7 @@ module Code = struct
     | Hole_generated : ('b, 's) Meta.t * printable -> t
     | Open_holes : t
     | Quit : t
+    | Synthesizing_recursion : printable -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -225,6 +226,7 @@ module Code = struct
     | Hole_generated _ -> Info
     | Open_holes -> Error
     | Quit -> Info
+    | Synthesizing_recursion _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -255,6 +257,7 @@ module Code = struct
     (* Bidirectional typechecking *)
     | Nonsynthesizing _ -> "E0400"
     | Unequal_synthesized_type _ -> "E0401"
+    | Synthesizing_recursion _ -> "E0402"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
@@ -566,6 +569,8 @@ module Code = struct
         textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
     | Open_holes -> text "There are open holes"
     | Quit -> text "Goodbye!"
+    | Synthesizing_recursion c ->
+        textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
 end
 
 include Asai.StructuredReporter.Make (Code)

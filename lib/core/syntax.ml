@@ -30,7 +30,7 @@ module Raw = struct
     | Lam : string option located * [ `Cube | `Normal ] * 'a N.suc check located -> 'a check
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
-    | Constr : Constr.t located * 'a check located Bwd.t -> 'a check
+    | Constr : Constr.t located * 'a check located list -> 'a check
     | Match : 'a synth located * 'a branch list -> 'a check
     (* "[]", which could be either an empty match or an empty comatch *)
     | Empty_co_match : 'a check
@@ -117,7 +117,7 @@ module rec Term : sig
         string option * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
         -> ('a, kinetic) term
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
-    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t Bwd.t -> ('a, kinetic) term
+    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
     | Let :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
@@ -186,7 +186,7 @@ end = struct
         string option * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
         -> ('a, kinetic) term
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
-    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t Bwd.t -> ('a, kinetic) term
+    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
     | Let :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
@@ -255,7 +255,7 @@ let rec nth_var : type a b s. (a, s) term -> b Bwd.t -> any_variables option =
 let pi x dom cod = Pi (x, CubeOf.singleton dom, CodCube.singleton cod)
 let app fn arg = App (fn, CubeOf.singleton arg)
 let apps fn args = List.fold_left app fn args
-let constr name args = Constr (name, D.zero, Bwd.map CubeOf.singleton args)
+let constr name args = Constr (name, D.zero, List.map CubeOf.singleton args)
 
 module Telescope = struct
   type ('a, 'b, 'ab) t = ('a, 'b, 'ab) Term.tel
@@ -341,7 +341,7 @@ module rec Value : sig
         tys : (D.zero, 'n, 'n, kinetic value) TubeOf.t;
       }
         -> kinetic value
-    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t Bwd.t -> kinetic value
+    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
     | Struct :
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
@@ -462,7 +462,7 @@ end = struct
       }
         -> kinetic value
     (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)
-    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t Bwd.t -> kinetic value
+    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * ('k, 's) binder -> 's value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)

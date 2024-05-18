@@ -3,7 +3,6 @@ open Dim
 open Core
 open Syntax
 open Raw
-open Bwd
 open Reporter
 open Notation
 open Asai.Range
@@ -23,11 +22,10 @@ let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse located -> string option 
 let process_numeral loc (n : Q.t) =
   let rec process_nat (n : Z.t) =
     (* TODO: Would be better not to hardcode these. *)
-    if n = Z.zero then { value = Raw.Constr ({ value = Constr.intern "zero"; loc }, Emp); loc }
+    if n = Z.zero then { value = Raw.Constr ({ value = Constr.intern "zero"; loc }, []); loc }
     else
       {
-        value =
-          Raw.Constr ({ value = Constr.intern "suc"; loc }, Snoc (Emp, process_nat (Z.sub n Z.one)));
+        value = Raw.Constr ({ value = Constr.intern "suc"; loc }, [ process_nat (Z.sub n Z.one) ]);
         loc;
       } in
   if n.den = Z.one && n.num >= Z.zero then process_nat n.num else fatal (Unsupported_numeral n)
@@ -43,25 +41,7 @@ let rec process :
   match res.value with
   | Notn n -> (processor (notn n)).process ctx (args n) loc (whitespace n)
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
-  | App { fn; arg; _ } -> (
-      match
-        match fn.value with
-        | Ident ([ str ], _) -> process_deg ctx str arg
-        | _ -> None
-      with
-      | Some tm -> { value = tm; loc }
-      | _ -> (
-          let fn = process ctx fn in
-          match fn.value with
-          | Synth vfn -> (
-              let fn = { value = vfn; loc = fn.loc } in
-              match arg.value with
-              | Field (fld, _) -> { value = Synth (Field (fn, Field.intern_ori fld)); loc }
-              | _ -> { value = Synth (Raw.App (fn, process ctx arg)); loc })
-          | Constr (head, args) ->
-              let arg = process ctx arg in
-              { value = Raw.Constr (head, Snoc (args, arg)); loc }
-          | _ -> fatal ?loc:fn.loc (Nonsynthesizing "application head")))
+  | App { fn; arg; _ } -> process_spine ctx fn [ (Term arg, res.loc) ]
   | Placeholder _ -> fatal (Unimplemented "unification arguments")
   | Ident (parts, _) -> (
       let open Monad.Ops (Monad.Maybe) in
@@ -87,7 +67,7 @@ let rec process :
                 | [ str ] when Option.is_some (deg_of_name str) ->
                     fatal (Missing_argument_of_degeneracy str)
                 | _ -> fatal (Unbound_variable (String.concat "." parts))))))
-  | Constr (ident, _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, Emp); loc }
+  | Constr (ident, _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, []); loc }
   | Field _ -> fatal (Anomaly "field is head")
   | Superscript (Some x, str, _) -> (
       match deg_of_string str with
@@ -99,16 +79,76 @@ let rec process :
       | None -> fatal (Invalid_degeneracy str))
   | Superscript (None, _, _) -> fatal (Anomaly "degeneracy is head")
 
-and process_deg :
+and process_spine :
     type n lt ls rt rs.
-    (string option, n) Bwv.t -> string -> (lt, ls, rt, rs) parse located -> n check option =
- fun ctx str arg ->
-  match deg_of_name str with
-  | Some (Any s) -> (
-      match process ctx arg with
-      | { value = Synth arg; loc } -> Some (Synth (Act (str, s, { value = arg; loc })))
-      | { loc; _ } -> fatal ?loc (Nonsynthesizing "argument of degeneracy"))
-  | None -> None
+    (string option, n) Bwv.t ->
+    (lt, ls, rt, rs) parse located ->
+    (observation * Asai.Range.t option) list ->
+    n check located =
+ fun ctx tm args ->
+  match tm.value with
+  | App { fn; arg; _ } -> process_spine ctx fn ((Term arg, tm.loc) :: args)
+  | _ -> process_apps ctx tm args
+
+and process_apps :
+    type n lt ls rt rs.
+    (string option, n) Bwv.t ->
+    (lt, ls, rt, rs) parse located ->
+    (observation * Asai.Range.t option) list ->
+    n check located =
+ fun ctx tm args ->
+  match process_head ctx tm with
+  | `Deg (str, Any s) -> (
+      match args with
+      | (Term arg, loc) :: args -> (
+          match process ctx arg with
+          | { value = Synth arg; _ } ->
+              process_apply ctx { value = Act (str, s, { value = arg; loc }); loc } args
+          | { loc; _ } -> fatal ?loc (Nonsynthesizing "argument of degeneracy"))
+      | [] -> fatal ?loc:tm.loc (Anomaly "TODO"))
+  | `Constr c ->
+      let c = { value = c; loc = tm.loc } in
+      let loc = ref None in
+      let args =
+        List.map
+          (fun (Term x, l) ->
+            loc := l;
+            process ctx x)
+          args in
+      { value = Raw.Constr (c, args); loc = !loc }
+  | `Fn fn -> process_apply ctx fn args
+
+and process_head :
+    type n lt ls rt rs.
+    (string option, n) Bwv.t ->
+    (lt, ls, rt, rs) parse located ->
+    [ `Deg of string * any_deg | `Constr of Constr.t | `Fn of n synth located ] =
+ fun ctx tm ->
+  let process_fn () =
+    let tm = process ctx tm in
+    match tm.value with
+    | Synth value -> `Fn { value; loc = tm.loc }
+    | _ -> fatal (Anomaly "") in
+  match tm.value with
+  | Constr (ident, _) -> `Constr (Constr.intern ident)
+  | Ident ([ str ], _) -> (
+      match deg_of_name str with
+      | Some s -> `Deg (str, s)
+      | None -> process_fn ())
+  | _ -> process_fn ()
+
+and process_apply :
+    type n.
+    (string option, n) Bwv.t ->
+    n synth located ->
+    (observation * Asai.Range.t option) list ->
+    n check located =
+ fun ctx fn args ->
+  match args with
+  | [] -> { value = Synth fn.value; loc = fn.loc }
+  | (Term { value = Field (fld, _); _ }, loc) :: args ->
+      process_apply ctx { value = Field (fn, Field.intern_ori fld); loc } args
+  | (Term arg, loc) :: args -> process_apply ctx { value = Raw.App (fn, process ctx arg); loc } args
 
 type _ processed_tel =
   | Processed_tel : ('n, 'k, 'nk) Raw.tel * (string option, 'nk) Bwv.t -> 'n processed_tel

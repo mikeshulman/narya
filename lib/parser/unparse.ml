@@ -130,10 +130,9 @@ let unparse_numeral : type n li ls ri rs. (n, kinetic) term -> (li, ls, ri, rs) 
   let rec getsucs tm k =
     match tm with
     (* As in parsing, it would be better not to hardcode the constructor names 'zero' and 'suc'. *)
-    | Term.Constr (c, _, Emp) when c = Constr.intern "zero" ->
+    | Term.Constr (c, _, []) when c = Constr.intern "zero" ->
         Some (Ident (String.split_on_char '.' (Q.to_string (Q.of_int k)), []))
-    | Constr (c, _, Snoc (Emp, arg)) when c = Constr.intern "suc" ->
-        getsucs (CubeOf.find_top arg) (k + 1)
+    | Constr (c, _, [ arg ]) when c = Constr.intern "suc" -> getsucs (CubeOf.find_top arg) (k + 1)
     | _ -> None in
   getsucs tm 0
 
@@ -142,8 +141,8 @@ let rec get_list :
     (n, kinetic) term -> (n, kinetic) term Bwd.t -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
-  | Term.Constr (c, _, Emp) when c = Constr.intern "nil" -> Some elts
-  | Constr (c, _, Snoc (Snoc (Emp, car), cdr)) when c = Constr.intern "cons" ->
+  | Term.Constr (c, _, []) when c = Constr.intern "nil" -> Some elts
+  | Constr (c, _, [ car; cdr ]) when c = Constr.intern "cons" ->
       get_list (CubeOf.find_top cdr) (Snoc (elts, CubeOf.find_top car))
   | _ -> None
 
@@ -152,8 +151,8 @@ let rec get_bwd :
     (n, kinetic) term -> (n, kinetic) term list -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
-  | Term.Constr (c, _, Emp) when c = Constr.intern "emp" -> Some (Bwd.of_list elts)
-  | Constr (c, _, Snoc (Snoc (Emp, rdc), rac)) when c = Constr.intern "snoc" ->
+  | Term.Constr (c, _, []) when c = Constr.intern "emp" -> Some (Bwd.of_list elts)
+  | Constr (c, _, [ rdc; rac ]) when c = Constr.intern "snoc" ->
       get_bwd (CubeOf.find_top rdc) (CubeOf.find_top rac :: elts)
   | _ -> None
 
@@ -301,8 +300,8 @@ let rec unparse :
                       [ args ] in
                   unlocated (outfix ~notn:bwd ~ws:[] ~inner)
               | None ->
-                  let args = Bwd.map CubeOf.find_top args in
-                  unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)))
+                  let args = of_list_map (fun x -> make_unparser vars (CubeOf.find_top x)) args in
+                  unparse_spine vars (`Constr c) args li ri)))
 
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =

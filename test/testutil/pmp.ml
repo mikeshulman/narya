@@ -39,10 +39,12 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
              List.fold_left
                (fun acc (fld, tm) -> Abwd.add (Some (Field.intern fld)) (parse_chk ctx tm) acc)
                Abwd.empty tms ))
-  | Constr c -> unlocated (Raw.Constr (unlocated (Constr.intern c), Emp))
+  | Constr c -> unlocated (Raw.Constr (unlocated (Constr.intern c), []))
   | App (fn, arg) as tm -> (
       match (parse_chk ctx fn).value with
-      | Constr (c, args) -> unlocated (Raw.Constr (c, Snoc (args, parse_chk ctx arg)))
+      | Constr (c, args) ->
+          (* I would never grow a forwards list on the right in real code, but I can't be bothered to do the right thing in this old code that we should get rid of as soon as feasible.  *)
+          unlocated (Raw.Constr (c, args @ [ parse_chk ctx arg ]))
       | _ -> unlocated (Raw.Synth (parse_syn ctx tm).value))
   | tm -> unlocated (Raw.Synth (parse_syn ctx tm).value)
 

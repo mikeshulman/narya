@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Tbwd
 open Dim
@@ -42,7 +41,7 @@ let dom_vars :
 
 (* Extend a context by a finite number of cubes of new visible variables at some dimension, with boundaries, whose types are specified by the evaluation of some telescope in some (possibly higher-dimensional) environment (and hence may depend on the earlier ones).  Also return the new variables in a Bwd of Cubes, and the new environment extended by the *top-dimensional variables only*. *)
 
-let ext_tel :
+let rec ext_tel :
     type a b c ac bc e ec n.
     (a, e) Ctx.t ->
     (n, b) env ->
@@ -51,35 +50,20 @@ let ext_tel :
     (b, c, bc) Telescope.t ->
     (a, c, ac) Fwn.bplus ->
     (e, c, n, ec) Tbwd.snocs ->
-    (ac, ec) Ctx.t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
+    (ac, ec) Ctx.t * (n, bc) env * (n, kinetic value) CubeOf.t list =
  fun ctx env xs tel ac ec ->
-  let rec ext_tel :
-      type a b c ac bc d e ec.
-      (a, e) Ctx.t ->
-      (n, b) env ->
-      (string option, c) Vec.t ->
-      (b, c, bc) Telescope.t ->
-      (a, c, ac) Fwn.bplus ->
-      (e, c, n, ec) Tbwd.snocs ->
-      (n, kinetic value) CubeOf.t Bwd.t ->
-      (ac, ec) Ctx.t * (n, bc) env * (n, kinetic value) CubeOf.t Bwd.t =
-   fun ctx env xs tel ac ec vars ->
-    match (xs, tel, ac) with
-    | [], Emp, Zero ->
-        let Zero, Zero = (ac, ec) in
-        (ctx, env, vars)
-    | x :: xs, Ext (x', rty, rest), Suc ac ->
-        let newvars, newnfs =
-          dom_vars (Ctx.length ctx)
-            (CubeOf.build (dim_env env)
-               { build = (fun fa -> Norm.eval_term (Act (env, op_of_sface fa)) rty) }) in
-        let x =
-          match x with
-          | Some x -> Some x
-          | None -> x' in
-        let newctx = Ctx.cube_vis ctx x newnfs in
-        ext_tel newctx
-          (Ext (env, CubeOf.singleton newvars))
-          xs rest ac (Tbwd.snocs_suc ec)
-          (Snoc (vars, newvars)) in
-  ext_tel ctx env xs tel ac ec Emp
+  match (xs, tel, ac, ec) with
+  | [], Emp, Zero, Zero -> (ctx, env, [])
+  | x :: xs, Ext (x', rty, rest), Suc ac, Suc ec ->
+      let newvars, newnfs =
+        dom_vars (Ctx.length ctx)
+          (CubeOf.build (dim_env env)
+             { build = (fun fa -> Norm.eval_term (Act (env, op_of_sface fa)) rty) }) in
+      let x =
+        match x with
+        | Some x -> Some x
+        | None -> x' in
+      let ctx, env, vars =
+        ext_tel (Ctx.cube_vis ctx x newnfs) (Ext (env, CubeOf.singleton newvars)) xs rest ac ec
+      in
+      (ctx, env, newvars :: vars)

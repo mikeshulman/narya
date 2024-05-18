@@ -57,7 +57,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                   (fun _ [ tm ] ->
                     match tm.tm with
                     | Constr (tmname, _, tmargs) ->
-                        if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
+                        if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
                         else fatal (Anomaly "inst arg wrong constr in readback at datatype")
                     | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
               }
@@ -65,11 +65,10 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           Constr
             ( xconstr,
               dim_env env,
-              Bwd.of_list
-                (readback_at_tel ctx env
-                   (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                   argtys
-                   (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ])) ))
+              readback_at_tel ctx env
+                (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                argtys
+                (TubeOf.mmap { map = (fun _ [ args ] -> args) } [ tyarg_args ]) ))
   | _ -> readback_val ctx tm
 
 and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =

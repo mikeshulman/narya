@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Core
 open Reporter
@@ -195,8 +194,7 @@ let add_user :
                     (Const c) val_vars in
                 Raw.Synth spine
             | `Constr c ->
-                let args =
-                  List.fold_left (fun acc k -> Snoc (acc, StringMap.find k args)) Emp val_vars in
+                let args = List.map (fun k -> StringMap.find k args) val_vars in
                 Raw.Constr ({ value = c; loc }, args) in
           { value; loc });
     };

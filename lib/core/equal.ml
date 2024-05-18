@@ -92,17 +92,17 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
                       (fun _ [ tm ] ->
                         match tm.tm with
                         | Constr (tmname, _, tmargs) ->
-                            if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
+                            if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
                             else fatal (Anomaly "inst arg wrong constr in equality at datatype")
                         | _ -> fatal (Anomaly "inst arg not constr in equality at datatype"));
                   }
                   [ tyargs ] in
               (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
               equal_at_tel ctx env
-                (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
+                (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                (List.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
                 argtys
-                (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ]))
+                (TubeOf.mmap { map = (fun _ [ args ] -> args) } [ tyarg_args ]))
       | Constr _, _ | _, Constr _ -> fail
       | _ -> equal_val ctx x y)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)

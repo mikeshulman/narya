@@ -263,7 +263,7 @@ let rec check :
                         else
                           (* Assuming the instantiation is well-typed, we must have n = dom_tface fa.  I'd like to check that, but for some reason, matching this compare against Eq claims that the type variable n would escape its scope. *)
                           let _ = D.compare n (dom_tface fa) in
-                          Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) tmargs []
+                          List.fold_right (fun a args -> CubeOf.find_top a :: args) tmargs []
                     | _ ->
                         fatal
                           (Missing_instantiation_constructor (constr, `Nonconstr (PNormal (ctx, tm)))));
@@ -274,8 +274,7 @@ let rec check :
              2. Instantiate the result at the corresponding arguments of the lower-dimensional versions of the constructor, from tyarg_args;
              3. Check the coressponding argument *value*, supplied by the user, against this type;
              4. Evaluate this argument value and add it to the environment, to substitute into the subsequent types, and also later to the indices. *)
-          let env, newargs =
-            check_at_tel constr ctx env (Bwd.to_list args) constr_arg_tys tyarg_args in
+          let env, newargs = check_at_tel constr ctx env args constr_arg_tys tyarg_args in
           (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
           let constr_indices =
             Bwv.map
@@ -302,7 +301,7 @@ let rec check :
                   }
                   [ t1s; t2s ])
               [ constr_indices; ty_indices ] in
-          let c = Term.Constr (constr, dim, Bwd.of_list newargs) in
+          let c = Term.Constr (constr, dim, newargs) in
           match status with
           | Potential _ -> Realize c
           | Kinetic -> c))
@@ -444,7 +443,7 @@ and check_match :
                                     Value.Constr
                                       ( constr.value,
                                         dom_sface fa,
-                                        Bwd.map (CubeOf.subcube fa) newvars ) in
+                                        List.map (CubeOf.subcube fa) newvars ) in
                                   let ty =
                                     inst
                                       (Bwv.fold_left

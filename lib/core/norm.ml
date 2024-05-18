@@ -193,7 +193,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
-      let eargs = Bwd.map (eval_args env m_n mn) args in
+      let eargs = List.map (eval_args env m_n mn) args in
       Val (Constr (constr, mn, eargs))
   | Pi (x, doms, cods) ->
       let n = CubeOf.dim doms in
@@ -269,7 +269,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               match D.compare dim (D.plus_out m mn) with
               | Eq ->
                   (* If we have a branch with a matching constant, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
-                  let env = take_args env mn (Bwd.to_list dargs) plus in
+                  let env = take_args env mn dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
                   eval (permute_env perm env) body
               (* TODO: Is this case actually a bug, or can it happen? *)

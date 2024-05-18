@@ -95,7 +95,7 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
         (Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields, new_ins)
   | Constr (name, dim, args) ->
       let (Of fa) = deg_plus_to s dim ~on:"constr" in
-      Constr (name, dom_deg fa, Bwd.map (fun tm -> act_value_cube tm fa) args)
+      Constr (name, dom_deg fa, List.map (fun tm -> act_value_cube tm fa) args)
 
 and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
  fun tm s ->

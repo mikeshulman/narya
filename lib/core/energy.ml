@@ -6,8 +6,8 @@ open Util
    - Case trees are "potential", because they don't compute until enough arguments are applied to reach a leaf of the case tree.  That leaf can be either a kinetic term or information about a canonical type (which is not a computation, just a specification of behavior).
 *)
 
-type kinetic = Dummy_kinetic
-type potential = Dummy_potential
+type kinetic = private Dummy_kinetic
+type potential = private Dummy_potential
 type _ energy = Kinetic : kinetic energy | Potential : potential energy
 
 module Energy = struct

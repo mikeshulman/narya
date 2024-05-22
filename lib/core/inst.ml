@@ -176,32 +176,23 @@ let rec take_args :
   | _ -> fatal (Anomaly "wrong number of arguments in argument list")
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
-let rec universe : type n. n D.t -> kinetic value =
+let rec universe : type n. n D.t -> kinetic value = fun n -> Uninst (UU n, lazy (universe_ty n))
+and universe_nf : type n. n D.t -> normal = fun n -> { tm = universe n; ty = universe_ty n }
+
+and universe_ty : type n. n D.t -> kinetic value =
  fun n ->
   match D.compare_zero n with
-  | Zero ->
-      (* Without lazy this would be an infinite loop *)
-      Uninst (UU D.zero, lazy (universe D.zero))
+  | Zero -> universe D.zero
   | Pos n' ->
-      Uninst
-        ( UU n,
-          lazy
-            (let args =
-               TubeOf.build D.zero (D.zero_plus n)
-                 {
-                   build =
-                     (fun fa ->
-                       let m = dom_tface fa in
-                       universe_nf m);
-                 } in
-             Inst { tm = UU n; dim = n'; args; tys = TubeOf.empty D.zero }) )
-
-and universe_nf : type n. n D.t -> normal =
- fun n ->
-  let uun = universe n in
-  match uun with
-  | Uninst (_, (lazy uunty)) -> { tm = uun; ty = uunty }
-  | _ -> fatal (Anomaly "impossible result from universe")
+      let args =
+        TubeOf.build D.zero (D.zero_plus n)
+          {
+            build =
+              (fun fa ->
+                let m = dom_tface fa in
+                universe_nf m);
+          } in
+      Inst { tm = UU n; dim = n'; args; tys = TubeOf.empty D.zero }
 
 (* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
 let rec tyof_inst :

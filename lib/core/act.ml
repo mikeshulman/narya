@@ -49,7 +49,7 @@ let act_variables : type m n. n variables -> (m, n) deg -> m variables =
 type (_, _, _) act_closure =
   | Act_closure : ('m, 'a) env * ('mn, 'm, 'n) insertion -> ('a, 'mn, 'n) act_closure
 
-(* Since a value is either instantiated or uninstantiated, this function just deals with instantiations and lambda-abstractions and passes everything else off to act_uninst. *)
+(* Acting on a value that could be instantiated or uninstantiated, or an introduction form. *)
 let rec act_value : type m n s. s value -> (m, n) deg -> s value =
  fun v s ->
   match v with

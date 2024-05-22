@@ -31,7 +31,8 @@ let rec value : type s. formatter -> s value -> unit =
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
   | Lam (_, _) -> fprintf ppf "Lam ?"
   | Struct (f, _) -> fprintf ppf "Struct (%a)" fields f
-  | Constr (_, _, _) -> fprintf ppf "Constr ?"
+  | Constr (c, d, args) ->
+      fprintf ppf "Constr (%s, %a, %d)" (Constr.to_string c) dim d (List.length args)
 
 and fields :
     type s. formatter -> (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t -> unit =

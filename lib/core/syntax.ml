@@ -3,7 +3,6 @@ open Util
 open Tbwd
 open Dim
 open Asai.Range
-open Reporter
 include Energy
 
 (* ******************** Raw (unchecked) terms ******************** *)
@@ -545,16 +544,3 @@ let val_of_norm_tube :
     type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
-(* Ensure that a (backwards) list of arguments consists of function applications at a fixed dimension with only identity insertions, and return them.  This is generally used for the arguments of a canonical type.  Takes an optional error code to report instead of an anomaly if the outer insertion is nonidentity, as this can be a user error (e.g. trying to check a tuple at a degenerated Gel-type).  *)
-let rec args_of_apps : type n. ?degerr:Code.t -> n D.t -> app Bwd.t -> (n, normal) CubeOf.t Bwd.t =
- fun ?(degerr = Anomaly "unexpected degeneracy in argument spine") n xs ->
-  match xs with
-  | Emp -> Emp
-  | Snoc (xs, App (Arg arg, ins)) ->
-      if Option.is_some (is_id_ins ins) then
-        match D.compare (CubeOf.dim arg) n with
-        (* We DON'T pass on ?degerr to the recursive call, since any insertions deeper in the application spine are bugs. *)
-        | Eq -> Snoc (args_of_apps n xs, arg)
-        | Neq -> fatal (Dimension_mismatch ("args_of_apps", CubeOf.dim arg, n))
-      else fatal degerr
-  | _ -> fatal (Anomaly "unexpected field projection in argument spine")

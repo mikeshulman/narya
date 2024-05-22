@@ -12,6 +12,8 @@ type printable +=
   | PString : string -> printable
   | PConstant of Constant.t
   | PMeta : ('b, 's) Meta.t -> printable
+  | PField : Field.t -> printable
+  | PConstr : Constr.t -> printable
 
 (* The function that actually does the work of printing a "printable" will be defined in Parser.Unparse.  But we need to be able to "call" that function in this file to define "default_text" that converts structured messages to text.  Thus, in this file we define a mutable global variable to contain that function, starting with a dummy function, and call its value to print "printable"s; then in Parser.Unparse we will set the value of that variable after defining the function it should contain. *)
 

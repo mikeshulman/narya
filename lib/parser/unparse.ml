@@ -708,6 +708,8 @@ let () =
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
       | PString str -> Printed (Uuseg_string.pp_utf_8, str)
+      | PField f -> Printed (Uuseg_string.pp_utf_8, Field.to_string f)
+      | PConstr c -> Printed (Uuseg_string.pp_utf_8, Constr.to_string c)
       | PLevel i -> Printed ((fun ppf i -> Format.fprintf ppf "(%d,%d)" (fst i) (snd i)), i)
       | PTerm (ctx, tm) ->
           Printed

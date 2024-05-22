@@ -135,7 +135,7 @@ module rec Term : sig
         -> ('a, 'n) branch
 
   and _ canonical =
-    | Data : 'i N.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
     | Codata :
         potential eta * 'n D.t * (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t
         -> 'a canonical
@@ -143,7 +143,7 @@ module rec Term : sig
   and (_, _) dataconstr =
     | Dataconstr : {
         args : ('p, 'a, 'pa) tel;
-        indices : (('pa, kinetic) term, 'i) Bwv.t;
+        indices : (('pa, kinetic) term, 'i) Vec.t;
       }
         -> ('p, 'i) dataconstr
 
@@ -210,7 +210,7 @@ end = struct
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =
     (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
-    | Data : 'i N.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
     | Codata :
         potential eta * 'n D.t * (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t
@@ -220,7 +220,7 @@ end = struct
   and (_, _) dataconstr =
     | Dataconstr : {
         args : ('p, 'a, 'pa) tel;
-        indices : (('pa, kinetic) term, 'i) Bwv.t;
+        indices : (('pa, kinetic) term, 'i) Vec.t;
       }
         -> ('p, 'i) dataconstr
 
@@ -356,8 +356,7 @@ module rec Value : sig
   and canonical =
     | Data : {
         dim : 'm D.t;
-        indices : (('m, normal) CubeOf.t, 'i) Bwv.t;
-        missing : ('i, 'j, 'ij) N.plus;
+        indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
         constrs : ('m, 'ij) dataconstr Constr.Map.t;
       }
         -> canonical
@@ -373,7 +372,7 @@ module rec Value : sig
     | Dataconstr : {
         env : ('m, 'a) env;
         args : ('a, 'p, 'ap) Telescope.t;
-        indices : (('ap, kinetic) term, 'ij) Bwv.t;
+        indices : (('ap, kinetic) term, 'ij) Vec.t;
       }
         -> ('m, 'ij) dataconstr
 
@@ -483,8 +482,7 @@ end = struct
     (* A datatype value has a Bwv of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
     | Data : {
         dim : 'm D.t;
-        indices : (('m, normal) CubeOf.t, 'i) Bwv.t;
-        missing : ('i, 'j, 'ij) N.plus;
+        indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
         constrs : ('m, 'ij) dataconstr Constr.Map.t;
       }
         -> canonical
@@ -502,7 +500,7 @@ end = struct
     | Dataconstr : {
         env : ('m, 'a) env;
         args : ('a, 'p, 'ap) Telescope.t;
-        indices : (('ap, kinetic) term, 'ij) Bwv.t;
+        indices : (('ap, kinetic) term, 'ij) Vec.t;
       }
         -> ('m, 'ij) dataconstr
 

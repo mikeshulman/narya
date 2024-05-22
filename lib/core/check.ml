@@ -109,7 +109,7 @@ type (_, _) match_input =
   | Term : ('b, kinetic) term -> ('b, term_match) match_input
 
 type (_, _, _) match_vars =
-  | Var : (('m, level) CubeOf.t, 'i) Bwv.t * ('m, level) CubeOf.t -> ('m, 'i, var_match) match_vars
+  | Var : (('m, level) CubeOf.t, 'i) Vec.t * ('m, level) CubeOf.t -> ('m, 'i, var_match) match_vars
   | Term : ('m, 'i, term_match) match_vars
 
 (* In our simple version of pattern-matching against a variable, the "indices" and all their boundaries must be distinct free variables with no degeneracies, so that in the branch for each constructor they can be set equal to the computed value of that index for that constructor (and in which they cannot occur).  This is a special case of the unification algorithm described in CDP "Pattern-matching without K" where the only allowed rule is "Solution".  Later we can try to enhance it with their full unification algorithm, at least for non-higher datatypes.  In addition, for a higher-dimensional match, the instantiation arguments must also all be distinct variables, distinct from the indices.  In the case of matching against a variable, this function ensures this condition and extracts the level variables being used.
@@ -118,7 +118,7 @@ type (_, _, _) match_vars =
 let get_match_vars :
     type a b m i matcher.
     (a, b) Ctx.t ->
-    ((m, normal) CubeOf.t, i) Bwv.t ->
+    ((m, normal) CubeOf.t, i) Vec.t ->
     (D.zero, m, m, normal) TubeOf.t ->
     (b, matcher) match_input ->
     (m, i, matcher) match_vars =
@@ -136,8 +136,9 @@ let get_match_vars :
               level)
         | _ -> fatal (Invalid_match_index (PNormal (ctx, x))) in
       let index_vars =
-        Bwv.map (fun tm -> CubeOf.mmap { map = (fun _ [ x ] -> is_fresh x) } [ tm ]) var_indices
-      in
+        Vec.mmap
+          (fun [ tm ] -> CubeOf.mmap { map = (fun _ [ x ] -> is_fresh x) } [ tm ])
+          [ var_indices ] in
       let inst_vars = TubeOf.mmap { map = (fun _ [ x ] -> is_fresh x) } [ inst_args ] in
       let constr_vars = TubeOf.plus_cube inst_vars (CubeOf.singleton lvl) in
       Var (index_vars, constr_vars)
@@ -241,7 +242,7 @@ let rec check :
         {
           (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
           head = Const { name; _ };
-          alignment = Lawful (Data { dim; indices = ty_indices; missing = Zero; constrs });
+          alignment = Lawful (Data { dim; indices = Filled ty_indices; constrs });
           _;
         },
       _ ) -> (
@@ -277,13 +278,13 @@ let rec check :
           let env, newargs = check_at_tel constr ctx env args constr_arg_tys tyarg_args in
           (* Now we substitute all those evaluated arguments into the indices, to get the actual (higher-dimensional) indices of our constructor application. *)
           let constr_indices =
-            Bwv.map
-              (fun ix ->
+            Vec.mmap
+              (fun [ ix ] ->
                 CubeOf.build dim { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) ix) })
-              constr_indices in
+              [ constr_indices ] in
           (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, raising an anomaly in case I was wrong about that.  *)
           let () =
-            Bwv.miter
+            Vec.miter
               (fun [ t1s; t2s ] ->
                 CubeOf.miter
                   {
@@ -356,8 +357,8 @@ let rec check :
       fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty)))
   | Record _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "record type")
   | Data constrs, _, Potential _ ->
-      let (Plus_something num_indices) = N.plus_of_int (typefam ctx ty) in
-      check_data status ctx ty (Nat num_indices) Constr.Map.empty (Bwd.to_list constrs)
+      let (Wrap num_indices) = Fwn.of_int (typefam ctx ty) in
+      check_data status ctx ty num_indices Constr.Map.empty (Bwd.to_list constrs)
   | Data _, _, Kinetic -> fatal (Canonical_type_outside_case_tree "datatype")
   | Hole vars, _, _ ->
       let energy = energy status in
@@ -385,7 +386,7 @@ and check_match :
       {
         head = Const { name; _ };
         args = varty_args;
-        alignment = Lawful (Data { dim; indices = var_indices; missing = Zero; constrs });
+        alignment = Lawful (Data { dim; indices = Filled var_indices; constrs });
       } -> (
       match D.compare dim (TubeOf.inst inst_args) with
       | Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
@@ -423,15 +424,15 @@ and check_match :
                     | Var (_, ix), Var (index_vars, constr_vars) -> (
                         (* Evaluate the "index_terms" at the new pattern variables, obtaining what the indices should be for the new term that replaces the match variable in the match body. *)
                         let index_vals =
-                          Bwv.map
-                            (fun ixtm ->
+                          Vec.mmap
+                            (fun [ ixtm ] ->
                               CubeOf.build dim
                                 {
                                   build = (fun fa -> eval_term (Act (newenv, op_of_sface fa)) ixtm);
                                 })
-                            index_terms in
+                            [ index_terms ] in
                         (* Assemble a term consisting of the constructor applied to the new variables, along with its boundary, and their types.  To compute their types, we have to extract the datatype applied to its parameters only, pass to boundaries if necessary, and then re-apply it to the new indices. *)
-                        let params, _ = Bwv.take_bwd (Bwv.length var_indices) varty_args in
+                        let params, _ = Vec.take_bwd (Vec.length var_indices) varty_args in
                         let argtbl = Hashtbl.create 10 in
                         let constr_nfs =
                           CubeOf.build dim
@@ -446,7 +447,7 @@ and check_match :
                                         List.map (CubeOf.subcube fa) newvars ) in
                                   let ty =
                                     inst
-                                      (Bwv.fold_left
+                                      (Vec.fold_left
                                          (fun f a -> apply_term f (CubeOf.subcube fa a))
                                          (Bwd.fold_left
                                             (fun f -> function
@@ -478,22 +479,27 @@ and check_match :
                         (* Since "index_vals" is just a Bwv of Cubes of *values*, we extract the corresponding collection of *normals* from the type.  The main use of this will be to substitute for the index variables, so instead of assembling them into another Bwv of Cubes, we make a hashtable associating those index variables to the corresponding normals.  We also include in the same hashtable the lower-dimensional applications of the same constructor, to be substituted for the instantiation variables. *)
                         let (Fullinst (ucty, _)) = full_inst constr_nf.ty "check_tree (inner)" in
                         match ucty with
-                        | Neu { alignment = Lawful (Data { dim = constrdim; indices; _ }); _ } -> (
+                        | Neu
+                            {
+                              alignment =
+                                Lawful (Data { dim = constrdim; indices = Filled indices; _ });
+                              _;
+                            } -> (
                             match
                               ( D.compare constrdim dim,
-                                N.compare (Bwv.length var_indices) (Bwv.length indices) )
+                                Fwn.compare (Vec.length var_indices) (Vec.length indices) )
                             with
                             | Eq, Eq -> (
                                 let new_vals = Hashtbl.create 10 in
                                 CubeOf.miter
                                   { it = (fun _ [ v; c ] -> Hashtbl.add new_vals v c) }
                                   [ constr_vars; constr_nfs ];
-                                Bwv.iter2
-                                  (fun vs cs ->
+                                Vec.miter
+                                  (fun [ vs; cs ] ->
                                     CubeOf.miter
                                       { it = (fun _ [ v; c ] -> Hashtbl.add new_vals v c) }
                                       [ vs; cs ])
-                                  index_vars indices;
+                                  [ index_vars; indices ];
                                 (* Now we let-bind the match variable to the constructor applied to these new variables, the "index_vars" to the index values, and the inst_vars to the boundary constructor values.  The operation Ctx.bind_some automatically substitutes these new values into the types and values of other variables in the context, and reorders it if necessary so that each variable only depends on previous ones. *)
                                 match Bindsome.bind_some (Hashtbl.find_opt new_vals) newctx with
                                 | None -> fatal No_permutation
@@ -604,7 +610,7 @@ and check_data :
     (b, potential) status ->
     (a, b) Ctx.t ->
     kinetic value ->
-    i N.t ->
+    i Fwn.t ->
     (b, i) Term.dataconstr Constr.Map.t ->
     (Constr.t * a Raw.dataconstr located) list ->
     (b, potential) term =
@@ -630,7 +636,7 @@ and check_data :
                 let (Wrap indices) =
                   get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps) output.loc
                 in
-                match N.compare (Bwv.length indices) num_indices with
+                match Fwn.compare (Vec.length indices) num_indices with
                 | Eq ->
                     check_data status ctx ty num_indices
                       (checked_constrs |> Constr.Map.add c (Term.Dataconstr { args; indices }))
@@ -641,11 +647,11 @@ and check_data :
               else fatal ?loc:output.loc (Invalid_constructor_type c)
           | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
       | None, None -> (
-          match N.compare num_indices N.zero with
+          match Fwn.compare num_indices Fwn.zero with
           | Eq ->
               let (Checked_tel (args, _)) = check_tel ctx args in
-              check_data status ctx ty N.zero
-                (checked_constrs |> Constr.Map.add c (Term.Dataconstr { args; indices = Emp }))
+              check_data status ctx ty Fwn.zero
+                (checked_constrs |> Constr.Map.add c (Term.Dataconstr { args; indices = [] }))
                 raw_constrs
           | _ -> fatal (Missing_constructor_type c)))
 
@@ -656,7 +662,7 @@ and get_indices :
     app list ->
     app list ->
     Asai.Range.t option ->
-    (b, kinetic) term Bwv.wrapped =
+    (b, kinetic) term Vec.wrapped =
  fun ctx c current output loc ->
   with_loc loc @@ fun () ->
   match (current, output) with
@@ -665,7 +671,7 @@ and get_indices :
       | Some () -> get_indices ctx c current output loc
       | None -> fatal (Invalid_constructor_type c))
   | [], _ ->
-      Bwv.of_list_map
+      Vec.of_list_map
         (function
           | Value.App (Arg arg, ins) -> (
               match is_id_ins ins with

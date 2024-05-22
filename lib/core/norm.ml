@@ -336,15 +336,14 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
                       | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
                       | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
                       | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
-                  | Lawful (Data { dim; indices; missing = Suc _ as ij; constrs }) -> (
+                  | Lawful (Data { dim; indices = Unfilled _ as indices; constrs }) -> (
                       match D.compare dim k with
                       | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
                       | Eq ->
-                          let indices, missing = (Bwv.Snoc (indices, newarg), N.suc_plus ij) in
-                          let alignment = Lawful (Data { dim; indices; missing; constrs }) in
+                          let indices = Fillvec.snoc indices newarg in
+                          let alignment = Lawful (Data { dim; indices; constrs }) in
                           Val (Uninst (Neu { head; args; alignment }, ty)))
-                  | Lawful (Codata _) | Lawful (Data { missing = Zero; _ }) ->
-                      fatal (Anomaly "invalid application of type"))
+                  | _ -> fatal (Anomaly "invalid application of type"))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
@@ -521,7 +520,7 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical
         Constr.Map.map
           (fun (Term.Dataconstr { args; indices }) -> Value.Dataconstr { env; args; indices })
           constrs in
-      Data { dim = dim_env env; indices = Emp; missing = N.zero_plus i; constrs }
+      Data { dim = dim_env env; indices = Fillvec.empty i; constrs }
   | Codata (eta, n, fields) ->
       let (Id_ins ins) = id_ins (dim_env env) n in
       Codata { eta; env; ins; fields }

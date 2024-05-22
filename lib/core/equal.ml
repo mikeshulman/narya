@@ -66,7 +66,7 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
       | Struct _, _ | _, Struct _ -> fail
       | _ -> equal_val ctx x y)
   (* At a datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  We require the datatype to be applied to all its indices, and we check the dimension. *)
-  | Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ } -> (
+  | Neu { alignment = Lawful (Data { dim = _; indices = _; constrs }); _ } -> (
       match (x, y) with
       | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
           let (Dataconstr { env; args = argtys; indices = _ }) =

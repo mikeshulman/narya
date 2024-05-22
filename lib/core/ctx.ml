@@ -335,6 +335,27 @@ module Ordered = struct
     | Snoc (ctx, Invis bindings, _) when all_free bindings ->
         lam ctx (Lam (singleton_variables (CubeOf.dim bindings) None, tree))
     | _ -> fatal (Anomaly "let-bound variable in Ctx.lam")
+
+  (* Delete some level variables from a context by making their bindings into "unknown".  This will cause readback to raise No_such_level if it encounters one of those variables, which can then be trapped as an occurs-check. *)
+  let rec forget_levels : type a b. (a, b) t -> (level -> bool) -> (a, b) t =
+   fun ctx forget ->
+    let forget_bindings : type n. (n, Binding.t) CubeOf.t -> (n, Binding.t) CubeOf.t =
+     fun bindings ->
+      CubeOf.mmap
+        {
+          map =
+            (fun _ [ b ] ->
+              match Binding.level b with
+              | Some x when forget x -> Binding.unknown ()
+              | _ -> b);
+        }
+        [ bindings ] in
+    match ctx with
+    | Emp -> Emp
+    | Lock ctx -> Lock (forget_levels ctx forget)
+    | Snoc (ctx, Vis ({ bindings; _ } as e), af) ->
+        Snoc (ctx, Vis { e with bindings = forget_bindings bindings }, af)
+    | Snoc (ctx, Invis bindings, af) -> Snoc (ctx, Invis (forget_bindings bindings), af)
 end
 
 (* Now we define contexts that add a permutation of the raw indices. *)
@@ -371,6 +392,7 @@ let eval_term (Permute (_, ctx)) tm = Ordered.eval_term ctx tm
 let ext (Permute (p, ctx)) xs ty = Permute (Insert (p, Top), Ordered.ext ctx xs ty)
 let ext_let (Permute (p, ctx)) xs tm = Permute (Insert (p, Top), Ordered.ext_let ctx xs tm)
 let lam (Permute (_, ctx)) tm = Ordered.lam ctx tm
+let forget_levels (Permute (p, ctx)) forget = Permute (p, Ordered.forget_levels ctx forget)
 
 (* Augment an ordered context by the identity permutation *)
 let of_ordered ctx = Permute (N.id_perm (Ordered.raw_length ctx), ctx)

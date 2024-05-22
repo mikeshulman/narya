@@ -92,6 +92,18 @@ let of_bwn : type c. c N.t -> c of_bwn =
     | Nat (Suc a) -> go (Nat a) (Suc b) (Suc abc) in
   go c Zero Zero
 
+(* And vice versa *)
+type _ to_bwn = To_bwn : 'a N.t * ('a, zero, 'b) fplus -> 'b to_bwn
+
+let to_bwn : type c. c t -> c to_bwn =
+ fun c ->
+  let rec go : type a b c. a N.t -> b t -> (a, b, c) fplus -> c to_bwn =
+   fun a b abc ->
+    match b with
+    | Zero -> To_bwn (a, abc)
+    | Suc b -> go (N.suc a) b (Suc abc) in
+  go N.zero c Zero
+
 (* Compare two forwards nats *)
 let rec compare : type a b. a t -> b t -> (a, b) Eq.compare =
  fun a b ->
@@ -107,3 +119,13 @@ let rec compare : type a b. a t -> b t -> (a, b) Eq.compare =
 let rec to_int : type a. a t -> int = function
   | Zero -> 0
   | Suc a -> to_int a + 1
+
+type wrapped = Wrap : 'a t -> wrapped
+
+let rec of_int : int -> wrapped =
+ fun n ->
+  if n < 0 then raise (Invalid_argument "Fwn.of_int")
+  else if n = 0 then Wrap Zero
+  else
+    let (Wrap n) = of_int (n - 1) in
+    Wrap (Suc n)

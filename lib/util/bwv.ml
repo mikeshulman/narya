@@ -267,6 +267,13 @@ let rec append : type a m n mn. (m, n, mn) Fwn.bplus -> (a, m) t -> (a, n) Vec.t
   | Zero, [] -> xs
   | Suc mn, y :: ys -> append mn (Snoc (xs, y)) ys
 
+(* Or prepend a backwards vector to a forwards one. *)
+let rec prepend : type a m n mn. (m, n, mn) Fwn.fplus -> (a, m) t -> (a, n) Vec.t -> (a, mn) Vec.t =
+ fun mn xs ys ->
+  match (mn, xs) with
+  | Zero, Emp -> ys
+  | Suc mn, Snoc (xs, x) -> prepend mn xs (x :: ys)
+
 (* We can split a Bwv of length m+n into one of length m and one of length n. *)
 let rec unappend : type a m n mn. (m, n, mn) N.plus -> (a, mn) t -> (a, m) t * (a, n) t =
  fun mn xys ->

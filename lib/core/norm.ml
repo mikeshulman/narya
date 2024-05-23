@@ -197,10 +197,12 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let eargs = List.map (eval_args env m_n mn) args in
       Val (Constr (constr, mn, eargs))
   | Pi (x, doms, cods) ->
+      (* We are starting with an n-dimensional pi-type and evaluating it in an m-dimensional environment, producing an (m+n)-dimensional result. *)
       let n = CubeOf.dim doms in
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
+      (* The basic thing we do is evaluate the cubes of domains and codomains. *)
       let doms =
         CubeOf.build mn
           {
@@ -215,31 +217,33 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
             build =
               (fun fab ->
                 let (SFace_of_plus (k_l, fa, fb)) = sface_of_plus m_n fab in
-                let cod = CodCube.find cods fb in
-                eval_binder (Act (env, op_of_sface fa)) k_l cod);
+                eval_binder (Act (env, op_of_sface fa)) k_l (CodCube.find cods fb));
           } in
-      let tytbl = Hashtbl.create 10 in
-      let tys =
-        TubeOf.build D.zero (D.zero_plus m)
+      (* However, because the result will be an Uninst, we need to know its type as well.  The starting n-dimensional pi-type (which is itself uninstantiated) lies in a full instantiation of the n-dimensional universe at lower-dimensional pi-types formed from subcubes of its domains and codomains.  Accordingly, the resulting (m+n)-dimensional pi-type will like in a full instantiation of the (m+n)-dimensional universe at lower-dimensional pi-types obtained by evaluating these at appropriately split faces.  Since each of them *also* belongs to a universe instantiated similarly, and needs to know its type not just because it is an uninst but because it is a normal, we build the whole cube at once and then take its top. *)
+      let pitbl = Hashtbl.create 10 in
+      let pis =
+        CubeOf.build mn
           {
             build =
-              (fun fa ->
-                let k = dom_tface fa in
-                let fa = sface_of_tface fa in
-                let tm = eval_term (Act (env, op_of_sface fa)) tm in
+              (fun fab ->
+                let kl = dom_sface fab in
                 let ty =
-                  inst (universe k)
-                    (TubeOf.build D.zero (D.zero_plus k)
+                  inst (universe kl)
+                    (TubeOf.build D.zero (D.zero_plus kl)
                        {
                          build =
-                           (fun fb ->
-                             Hashtbl.find tytbl (SFace_of (comp_sface fa (sface_of_tface fb))));
+                           (fun fc ->
+                             Hashtbl.find pitbl (SFace_of (comp_sface fab (sface_of_tface fc))));
                        }) in
+                let tm =
+                  Uninst
+                    (Pi (x, CubeOf.subcube fab doms, BindCube.subcube fab cods), Lazy.from_val ty)
+                in
                 let ntm = { tm; ty } in
-                Hashtbl.add tytbl (SFace_of fa) ntm;
+                Hashtbl.add pitbl (SFace_of fab) ntm;
                 ntm);
           } in
-      Val (Uninst (Pi (x, doms, cods), lazy (inst (universe m) tys)))
+      Val (CubeOf.find_top pis).tm
   | Let (_, v, body) ->
       let args =
         CubeOf.build (dim_env env) { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) v) }

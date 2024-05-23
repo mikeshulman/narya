@@ -2,7 +2,6 @@ open Format
 open Parser
 open Print
 open Core
-open Parse
 
 let () =
   Dim.Endpoints.set_len 2;
@@ -12,8 +11,8 @@ let margin = ref 80
 let set_margin n = margin := n
 
 let reformat content =
-  let p = Parse_term.parse (`String { content; title = Some "user-supplied term" }) in
-  let tr = Parse_term.final p in
+  let p = Parse.Term.parse (`String { content; title = Some "user-supplied term" }) in
+  let tr = Parse.Term.final p in
   pp_set_geometry std_formatter ~margin:!margin ~max_indent:(max (!margin - 12) (!margin / 2));
   pp_open_hovbox std_formatter 0;
   pp_term `None std_formatter tr;

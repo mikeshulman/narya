@@ -1,7 +1,5 @@
 (* Type-level natural numbers.  This module should not be opened, but used qualified.  Natural numbers are types satisfying the predicate 'a N.t. *)
 
-open Monoid
-
 (* ********** Definitions ********** *)
 
 type zero = private Dummy_zero
@@ -80,7 +78,7 @@ let rec plus_left : type m n mn. (m, n, mn) plus -> mn t -> m t =
   | Suc p, Nat (Suc mn) -> plus_left p (Nat mn)
 
 (* Sums are unique *)
-let rec plus_uniq : type m n mn mn'. (m, n, mn) plus -> (m, n, mn') plus -> (mn, mn') eq =
+let rec plus_uniq : type m n mn mn'. (m, n, mn) plus -> (m, n, mn') plus -> (mn, mn') Eq.t =
  fun mn mn' ->
   match (mn, mn') with
   | Zero, Zero -> Eq
@@ -232,22 +230,30 @@ let rec index_in_plus : type m n mn. (m, n, mn) plus -> mn index -> (m index, n 
 
 (* We can compare two natural numbers, in such a way that equality identifies their types, and inequality is witnessed by addition. *)
 
-type (_, _) compare =
-  | Eq : ('n, 'n) compare
-  | Lt : ('m, 'n suc, 'mn) plus -> ('m, 'mn) compare
-  | Gt : ('m, 'n suc, 'mn) plus -> ('mn, 'm) compare
+type (_, _) trichotomy =
+  | Eq : ('n, 'n) trichotomy
+  | Lt : ('m, 'n suc, 'mn) plus -> ('m, 'mn) trichotomy
+  | Gt : ('m, 'n suc, 'mn) plus -> ('mn, 'm) trichotomy
 
-let rec compare : type m n. m t -> n t -> (m, n) compare =
+let rec trichotomy : type m n. m t -> n t -> (m, n) trichotomy =
  fun m n ->
   match (m, n) with
   | Nat Zero, Nat Zero -> Eq
   | Nat Zero, Nat (Suc n) -> Lt (zero_plus (Nat (Suc n)))
   | Nat (Suc m), Nat Zero -> Gt (zero_plus (Nat (Suc m)))
   | Nat (Suc m), Nat (Suc n) -> (
-      match compare (Nat m) (Nat n) with
+      match trichotomy (Nat m) (Nat n) with
       | Eq -> Eq
       | Lt p -> Lt (suc_plus_eq_suc p)
       | Gt p -> Gt (suc_plus_eq_suc p))
+
+(* In particular, we can compare for equality and inequality. *)
+
+let compare : type m n. m t -> n t -> (m, n) Eq.compare =
+ fun m n ->
+  match trichotomy m n with
+  | Eq -> Eq
+  | _ -> Neq
 
 (* Similarly, we can compare two additions.  We are lazy and don't record the evidence for Lt and Gt. *)
 
@@ -276,13 +282,13 @@ let rec minus : type m n mn. mn t -> (m, n, mn) plus -> m t =
   | mn, Zero -> mn
   | Nat (Suc mn), Suc n -> minus (Nat mn) n
 
-let rec minus_uniq : type m1 m2 n mn. (m1, n, mn) plus -> (m2, n, mn) plus -> (m1, m2) eq =
+let rec minus_uniq : type m1 m2 n mn. (m1, n, mn) plus -> (m2, n, mn) plus -> (m1, m2) Eq.t =
  fun n1 n2 ->
   match (n1, n2) with
   | Zero, Zero -> Eq
   | Suc n1, Suc n2 -> minus_uniq n1 n2
 
-let minus_uniq' : type m n1 n2 mn. m t -> (m, n1, mn) plus -> (m, n2, mn) plus -> (n1, n2) eq =
+let minus_uniq' : type m n1 n2 mn. m t -> (m, n1, mn) plus -> (m, n2, mn) plus -> (n1, n2) Eq.t =
  fun m n1 n2 -> minus_uniq (plus_comm m n1) (plus_comm m n2)
 
 (* ********** Converting to and from integers ********** *)
@@ -358,7 +364,7 @@ let rec one_times : type a. a t -> (one, a, a) times = function
   | Nat Zero -> Zero one
   | Nat (Suc a) -> Suc (one_times (Nat a), Suc Zero)
 
-let rec times_uniq : type a b ab ab'. (a, b, ab) times -> (a, b, ab') times -> (ab, ab') eq =
+let rec times_uniq : type a b ab ab'. (a, b, ab) times -> (a, b, ab') times -> (ab, ab') Eq.t =
  fun ab ab' ->
   match (ab, ab') with
   | Zero _, Zero _ -> Eq
@@ -470,7 +476,7 @@ let rec pow : type a b. a t -> b t -> (a, b) has_pow =
       let (Has_times aba) = times (pow_out ab) a in
       Has_pow (Suc (ab, aba))
 
-let rec pow_uniq : type a b ab ab'. (a, b, ab) pow -> (a, b, ab') pow -> (ab, ab') eq =
+let rec pow_uniq : type a b ab ab'. (a, b, ab) pow -> (a, b, ab') pow -> (ab, ab') Eq.t =
  fun ab ab' ->
   match (ab, ab') with
   | Zero, Zero -> Eq
@@ -559,7 +565,7 @@ let rec perm_dom : type a b. b t -> (a, b) perm -> a t =
       suc (perm_dom (Nat b) p)
 
 (* Since our type-level naturals are skeletal, the domain and codomain of a permutation actually have to be equal.  But we never use this, because keeping them as distinct type variables provides better bug-catching type-checking, e.g. it prevents us from forgetting to invert a permutation when necessary. *)
-let rec _perm_eq : type a b. (a, b) perm -> (a, b) Monoid.eq = function
+let rec _perm_eq : type a b. (a, b) perm -> (a, b) Eq.t = function
   | Id -> Eq
   | Insert (p, _) ->
       let Eq = _perm_eq p in

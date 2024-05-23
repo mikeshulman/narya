@@ -17,7 +17,7 @@ module SemanticError = struct
   type t =
     (* These strings are the names of notations.  Arguably we should display their *namespaced* names, which would mean calling out to Yuujinchou.  It would also mean some special-casing, because applications are implemented specially in the parser and not as an actual Notation. *)
     | No_relative_precedence of Asai.Range.t * string * string
-    | Empty_degeneracy of Position.range
+    | Invalid_degeneracy of Position.range * string
 end
 
 (* The functor that defines all the term-parsing combinators. *)
@@ -179,8 +179,9 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
          located
            (step (fun state rng (tok, ws) ->
                 match tok with
-                | Superscript "" -> Some (Error (SemanticError.Empty_degeneracy rng), state)
                 | Superscript s -> Some (Ok (s, ws), state)
+                | Invalid_superscript s ->
+                    Some (Error (SemanticError.Invalid_degeneracy (rng, s)), state)
                 | _ -> None)) in
        match res with
        | Ok (s, ws) -> return (loc, s, ws)
@@ -201,7 +202,13 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
             get =
               (fun _ ->
                 match arg.get Interval.empty with
-                | Ok x -> Ok { value = Superscript (Some x, s, ws); loc = Some loc }
+                | Ok x ->
+                    Ok
+                      {
+                        value = Superscript (Some x, s, ws);
+                        (* TODO: This merge doesn't seem to be working: the reported location for the superscripted term is just the superscript, not including the body. *)
+                        loc = Range.merge_opt x.loc (Some loc);
+                      }
                 | Error e -> Error e);
           }
           sups
@@ -406,7 +413,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     else if has_failed_semantic p then
       match failed_semantic p with
       | No_relative_precedence (loc, n1, n2) -> fatal ~loc (No_relative_precedence (n1, n2))
-      | Empty_degeneracy rng -> fatal ~loc:(Range.convert rng) (Invalid_degeneracy "")
+      | Invalid_degeneracy (rng, str) -> fatal ~loc:(Range.convert rng) (Invalid_degeneracy str)
     else if has_succeeded p then p
     else if needs_more p then fatal (Anomaly "parser needs more")
     else fatal (Anomaly "what")
@@ -420,7 +427,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     term []
 end
 
-module Parse_term = struct
+module Term = struct
   module C = Combinators (ParseTree)
 
   let parse (source : Asai.Range.source) : C.Lex_and_parse.t =
@@ -441,224 +448,3 @@ module Parse_term = struct
   let final p = C.Lex_and_parse.final p
   let has_consumed_end p = C.Lex_and_parse.has_consumed_end p
 end
-
-module Parse_command = struct
-  module C = Combinators (Command)
-  open C.Basic
-
-  let token x = step "" (fun state _ (tok, w) -> if tok = x then Some (w, state) else None)
-
-  let ident =
-    step "" (fun state _ (tok, w) ->
-        match tok with
-        | Ident name -> Some ((name, w), state)
-        | _ -> None)
-
-  let variable =
-    step "" (fun state _ (tok, w) ->
-        match tok with
-        | Ident [ x ] -> Some ((Some x, w), state)
-        | Ident xs -> fatal (Invalid_variable xs)
-        | Underscore -> Some ((None, w), state)
-        | _ -> None)
-
-  let parameter =
-    let* wslparen = token LParen in
-    let* name, names = one_or_more variable in
-    let names = name :: names in
-    let* wscolon = token Colon in
-    let* ty = C.term [ RParen ] in
-    let* wsrparen = token RParen in
-    return ({ wslparen; names; wscolon; ty; wsrparen } : Parameter.t)
-
-  let axiom =
-    let* wsaxiom = token Axiom in
-    let* name, wsname = ident in
-    let* parameters = zero_or_more parameter in
-    let* wscolon = token Colon in
-    let* ty = C.term [] in
-    return (Command.Axiom { wsaxiom; name; wsname; parameters; wscolon; ty })
-
-  let def tok =
-    let* wsdef = token tok in
-    let* name, wsname = ident in
-    let* parameters = zero_or_more parameter in
-    let* wscolon, ty, wscoloneq, tm =
-      (let* wscolon = token Colon in
-       let* ty = C.term [ Coloneq ] in
-       let* wscoloneq = token Coloneq in
-       let* tm = C.term [] in
-       return (wscolon, Some ty, wscoloneq, tm))
-      </>
-      let* wscoloneq = token Coloneq in
-      let* tm = C.term [] in
-      return ([], None, wscoloneq, tm) in
-    return ({ wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm } : Command.def)
-
-  let def_and =
-    let* first = def Def in
-    let* rest = zero_or_more (def And) in
-    return (Command.Def (first :: rest))
-
-  let echo =
-    let* wsecho = token Echo in
-    let* tm = C.term [] in
-    return (Command.Echo { wsecho; tm })
-
-  let tightness_and_name :
-      (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
-    let* tight_or_name = ident in
-    (let* name, wsname = ident in
-     let tight, wstight = tight_or_name in
-     let tight = String.concat "." tight in
-     match No.of_rat (Q.of_string tight) with
-     | Some tight -> return (Some tight, wstight, name, wsname)
-     | None -> fatal (Invalid_tightness tight))
-    </>
-    let name, wsname = tight_or_name in
-    return (None, [], name, wsname)
-
-  let pattern_token =
-    step "" (fun state _ (tok, ws) ->
-        match tok with
-        | String str -> (
-            match Lexer.single str with
-            | Some tok -> Some (`Op (tok, `Nobreak, ws), state)
-            | None -> fatal (Invalid_notation_symbol str))
-        | _ -> None)
-
-  let pattern_var =
-    let* x, ws = ident in
-    match x with
-    | [ x ] -> return (`Var (x, `Break, ws))
-    | _ -> fatal (Invalid_variable x)
-
-  let pattern_ellipsis =
-    let* ws = token Ellipsis in
-    return (`Ellipsis ws)
-
-  let fixity_of_pattern pat tight =
-    match (pat, Bwd.of_list pat, tight) with
-    | `Op _ :: _, Snoc (_, `Op _), None -> (Fixity Outfix, pat, [])
-    | `Op _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Prefix tight), pat, [])
-    | `Op _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
-        (Fixity (Prefixr tight), Bwd.to_list bwd_pat, ws)
-    | `Var _ :: _, Snoc (_, `Op _), Some (No.Wrap tight) -> (Fixity (Postfix tight), pat, [])
-    | `Ellipsis ws :: pat, Snoc (_, `Op _), Some (No.Wrap tight) ->
-        (Fixity (Postfixl tight), pat, ws)
-    | `Var _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infix tight), pat, [])
-    | `Ellipsis ws :: pat, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infixl tight), pat, ws)
-    | `Var _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
-        (Fixity (Infixr tight), Bwd.to_list bwd_pat, ws)
-    | [ `Ellipsis _ ], Snoc (Emp, `Ellipsis _), _ -> fatal Zero_notation_symbols
-    | `Ellipsis _ :: _, Snoc (_, `Ellipsis _), _ -> fatal Ambidextrous_notation
-    | _ -> fatal Fixity_mismatch
-
-  let notation_head =
-    step "" (fun state _ (tok, ws) ->
-        match tok with
-        | Ident name -> Some ((`Constant name, ws), state)
-        | Constr c -> Some ((`Constr c, ws), state)
-        | _ -> None)
-
-  let notation_var =
-    let* x, ws = ident in
-    match x with
-    | [ x ] -> return (x, ws)
-    | _ -> fatal (Invalid_variable x)
-
-  let notation : Command.t C.Basic.t =
-    let* wsnotation = token Notation in
-    let* tight, wstight, name, wsname = tightness_and_name in
-    let* wscolon = token Colon in
-    let* pat, pattern = one_or_more (pattern_token </> pattern_var </> pattern_ellipsis) in
-    let pattern = pat :: pattern in
-    let Fixity fixity, pattern, wsellipsis = fixity_of_pattern pattern tight in
-    let* wscoloneq = token Coloneq in
-    let* head, wshead = notation_head in
-    let* args = zero_or_more notation_var in
-    return
-      (Command.Notation
-         {
-           fixity;
-           wsnotation;
-           wstight;
-           wsellipsis;
-           name;
-           wsname;
-           wscolon;
-           pattern;
-           wscoloneq;
-           head;
-           wshead;
-           args;
-         })
-
-  let bof =
-    let* ws = C.bof in
-    return (Command.Bof ws)
-
-  let eof =
-    let* () = expect_end () in
-    return Command.Eof
-
-  let command : unit -> Command.t C.Basic.t =
-   fun () -> bof </> axiom </> def_and </> echo </> notation </> eof
-
-  let command_or_echo : unit -> Command.t C.Basic.t =
-   fun () ->
-    command ()
-    </> let* tm = C.term [] in
-        return (Command.Echo { wsecho = []; tm })
-
-  type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
-
-  let start_parse ?(or_echo = false) source : C.Lex_and_parse.t * open_source =
-    let (env : Range.Data.t), run =
-      match source with
-      | `String src ->
-          ( { source = `String src; length = Int64.of_int (String.length src.content) },
-            fun p ->
-              let n, p = C.Lex_and_parse.run_on_string_at 0 src.content p in
-              (`String (n, src.content), p) )
-      | `File name ->
-          let ic = In_channel.open_text name in
-          ( { source = `File name; length = In_channel.length ic },
-            fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) ) in
-    Range.run ~env @@ fun () ->
-    let p =
-      C.Lex_and_parse.make Lexer.Parser.start
-        (C.Basic.make_partial () (if or_echo then command_or_echo () else command ())) in
-    let out, p = run p in
-    (C.ensure_success p, (env, out))
-
-  let restart_parse ?(or_echo = false) (p : C.Lex_and_parse.t) ((env, source) : open_source) :
-      C.Lex_and_parse.t * open_source =
-    let run =
-      match source with
-      | `String (n, content) ->
-          fun p ->
-            let n, p = C.Lex_and_parse.run_on_string_at n content p in
-            (`String (n, content), p)
-      | `File ic -> fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) in
-    Range.run ~env @@ fun () ->
-    let p =
-      C.Lex_and_parse.make_next p
-        (C.Basic.make_partial () (if or_echo then command_or_echo () else command ())) in
-    let out, p = run p in
-    (C.ensure_success p, (env, out))
-
-  let final p = C.Lex_and_parse.final p
-  let has_consumed_end p = C.Lex_and_parse.has_consumed_end p
-end
-
-let parse_and_execute_command (content : string) : unit =
-  let src : Asai.Range.source = `String { content; title = Some "interactive input" } in
-  let p, src = Parse_command.start_parse ~or_echo:true src in
-  let _bof = Parse_command.final p in
-  let p, src = Parse_command.restart_parse ~or_echo:true p src in
-  let cmd = Parse_command.final p in
-  if cmd <> Eof then
-    let p, _ = Parse_command.restart_parse ~or_echo:true p src in
-    let eof = Parse_command.final p in
-    if eof = Eof then Command.execute cmd else Core.Reporter.fatal Too_many_commands

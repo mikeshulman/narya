@@ -4,21 +4,7 @@ open Tbwd
 open Dim
 open Asai.Range
 open Reporter
-
-(* ******************** Groups of terms ******************** *)
-
-(* At both the checked and the value level we have actually two different types to define: ordinary terms and case trees.  However, there is some overlap in the types of constructors and operations that these support: they can both contain lambda-abstractions and structs.  Thus, to avoid duplication of code, we actually define both together as one GADT type family, indexed by a two-element type to distinguish them.  We name the two groups after the two kinds of energy:
-
-   - Ordinary terms are "kinetic", because ordinary computation applies directly to them.
-   - Case trees are "potential", because they don't compute until enough arguments are applied to reach a leaf of the case tree.  That leaf can be either a kinetic term or information about a canonical type (which is not a computation, just a specification of behavior).
-*)
-
-type kinetic = Dummy_kinetic
-type potential = Dummy_potential
-type _ energy = Kinetic : kinetic energy | Potential : potential energy
-
-(* Structs can have or lack eta-conversion, but the only kinetic ones are the ones with eta (records). *)
-type _ eta = Eta : 's eta | Noeta : potential eta
+include Energy
 
 (* ******************** Raw (unchecked) terms ******************** *)
 
@@ -44,14 +30,19 @@ module Raw = struct
     | Lam : string option located * [ `Cube | `Normal ] * 'a N.suc check located -> 'a check
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
-    | Constr : Constr.t located * 'a check located Bwd.t -> 'a check
-    | Match : 'a index * 'a branch list -> 'a check
+    | Constr : Constr.t located * 'a check located list -> 'a check
+    | Match : 'a synth located * 'a branch list -> 'a check
     (* "[]", which could be either an empty match or an empty comatch *)
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
-    | Codata :
-        potential eta * ('a, 'ac) codata_vars * (Field.t, 'ac check located) Abwd.t
+    (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)
+    | Codata : (Field.t, string option * 'a N.suc check located) Abwd.t -> 'a check
+    (* A record type binds its "self" variable namelessly, exposing it to the user by additional variables that are bound locally to its fields.  This can't be "cubeified" as easily, so we allow the user to specify either a single cube variable name (thereby also accidentally giving access to the internal previously unnamed variable) or a list of ordinary variables to be its boundary only.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one. *)
+    | Record :
+        ('a, 'c, 'ac) Fwn.bplus located * (string option, 'c) Vec.t * ('ac, 'd, 'acd) tel
         -> 'a check
+    (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data. *)
+    | Hole : (string option, 'a) Bwv.t -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
@@ -63,12 +54,6 @@ module Raw = struct
         -> 'a branch
 
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
-
-  (* A normal codatatype binds one more "self" variable in the types of its fields.  A normal record type does the same, except that the user doesn't have a name for that variable and instead accesses it by lexical variables that postprocess to its fields using Varscope. *)
-  and (_, _) codata_vars =
-    | Cube : string option -> ('a, 'a N.suc) codata_vars
-    (* A higher-dimensional codatatype simply binds a "self" cube of variables, but unfortunately a higher-dimensional record type doesn't have any variable to make a cube.  So we allow the user to specify either a single cube variable name (thereby also accidentally giving access to the internal previously unnamed variable) or a list of ordinary variables to be its boundary only.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one.  (TODO: This Bwv really ought to be a forwards Vec, but that would require changing too much else for now, such as making count_faces return a Fwn.) *)
-    | Normal : ('a, 'c, 'ac) N.plus located * (string option, 'c) Bwv.t -> ('a, 'ac) codata_vars
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
   and (_, _, _) tel =
@@ -86,8 +71,11 @@ end
 
 (* ******************** Names ******************** *)
 
+(* An element of "mn variables" is an mn-dimensional cube of variables where mn = m + n and the user specified names for n dimensions, with the other m dimensions being named with face suffixes.  *)
 type _ variables =
-  | Variables : 'm D.t * ('m, 'n, 'mn) D.plus * ('n, string option) CubeOf.t -> 'mn variables
+  | Variables :
+      'm D.t * ('m, 'n, 'mn) D.plus * (N.zero, 'n, string option, 'f) NICubeOf.t
+      -> 'mn variables
 
 type any_variables = Any : 'n variables -> any_variables
 
@@ -95,10 +83,7 @@ let dim_variables : type m. m variables -> m D.t = function
   | Variables (m, mn, _) -> D.plus_out m mn
 
 let singleton_variables : type m. m D.t -> string option -> m variables =
- fun m x -> Variables (m, D.plus_zero m, CubeOf.singleton x)
-
-let singleton_named_variables : type m. m D.t -> string option -> m variables =
- fun m x -> singleton_variables m (Some (Option.value x ~default:"x"))
+ fun m x -> Variables (m, D.plus_zero m, NICubeOf.singleton x)
 
 (* ******************** Typechecked terms ******************** *)
 
@@ -123,6 +108,8 @@ module rec Term : sig
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
+    | Meta : ('a, 's) Meta.t -> ('a, 's) term
+    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -130,7 +117,7 @@ module rec Term : sig
         string option * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
         -> ('a, kinetic) term
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
-    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t Bwd.t -> ('a, kinetic) term
+    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
     | Let :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
@@ -139,7 +126,7 @@ module rec Term : sig
     | Struct :
         's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
         -> ('a, 's) term
-    | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
+    | Match : ('a, kinetic) term * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
     | Realize : ('a, kinetic) term -> ('a, potential) term
     | Canonical : 'a canonical -> ('a, potential) term
 
@@ -166,6 +153,12 @@ module rec Term : sig
     | Ext :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
         -> ('a, 'b Fwn.suc, 'ab) tel
+
+  and (_, _, _) env =
+    | Emp : 'n D.t -> ('a, 'n, emp) env
+    | Ext :
+        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        -> ('a, 'n, ('b, 'k) snoc) env
 end = struct
   module CodFam = struct
     type ('k, 'a) t = (('a, 'k) snoc, kinetic) Term.term
@@ -182,6 +175,9 @@ end = struct
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
+    | Meta : ('a, 's) Meta.t -> ('a, 's) term
+    (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
+    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -190,7 +186,7 @@ end = struct
         string option * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
         -> ('a, kinetic) term
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
-    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t Bwd.t -> ('a, kinetic) term
+    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
     | Let :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
@@ -201,7 +197,7 @@ end = struct
         's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
-    | Match : 'a index * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
+    | Match : ('a, kinetic) term * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
     (* A potential term is "realized" by kinetic terms, or canonical types, at its leaves. *)
     | Realize : ('a, kinetic) term -> ('a, potential) term
     | Canonical : 'a canonical -> ('a, potential) term
@@ -235,6 +231,13 @@ end = struct
     | Ext :
         string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
         -> ('a, 'b Fwn.suc, 'ab) tel
+
+  (* A version of an environment (see below) that involves terms rather than values.  Used mainly when reading back metavariables. *)
+  and (_, _, _) env =
+    | Emp : 'n D.t -> ('a, 'n, emp) env
+    | Ext :
+        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        -> ('a, 'n, ('b, 'k) snoc) env
 end
 
 open Term
@@ -252,7 +255,7 @@ let rec nth_var : type a b s. (a, s) term -> b Bwd.t -> any_variables option =
 let pi x dom cod = Pi (x, CubeOf.singleton dom, CodCube.singleton cod)
 let app fn arg = App (fn, CubeOf.singleton arg)
 let apps fn args = List.fold_left app fn args
-let constr name args = Constr (name, D.zero, Bwd.map CubeOf.singleton args)
+let constr name args = Constr (name, D.zero, List.map CubeOf.singleton args)
 
 module Telescope = struct
   type ('a, 'b, 'ab) t = ('a, 'b, 'ab) Term.tel
@@ -274,6 +277,10 @@ module Telescope = struct
     | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
 end
 
+let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
+  | Emp n -> n
+  | Ext (e, _) -> dim_term_env e
+
 (* ******************** Values ******************** *)
 
 (* A De Bruijn level is a pair of integers: one for the position (counting in) of the cube-variable-bundle in the context, and one that counts through the faces of that bundle. *)
@@ -292,10 +299,17 @@ module rec Value : sig
 
   type var
   type const
+  type meta
 
   type 'h head =
     | Var : { level : level; deg : ('m, 'n) deg } -> var head
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
+    | Meta : {
+        meta : ('b, kinetic) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> meta head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
@@ -327,7 +341,7 @@ module rec Value : sig
         tys : (D.zero, 'n, 'n, kinetic value) TubeOf.t;
       }
         -> kinetic value
-    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t Bwd.t -> kinetic value
+    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
     | Struct :
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
@@ -380,13 +394,22 @@ end = struct
 
   type var = private Dummy_var
   type const = private Dummy_const
+  type meta = private Dummy_meta
 
   (* The head of an elimination spine is either a variable or a constant.  We define this type to be parametrized over a pair of dummy indices indicating which it is, so that most of the time we can treat them equally by parametrizing over the index, but in some places (e.g. alignment) we can specify that only one kind of head is allowed. *)
   type _ head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
     | Var : { level : level; deg : ('m, 'n) deg } -> var head
-    (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial. *)
+    (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial.  The dimension of a constant is its dimension as a term standing on its own; so in particular if it has any parameters, then it belongs to an ordinary, 0-dimensional, pi-type and therefore is 0-dimensional, even if the eventual codomain of the pi-type is higher-dimensional.  Note also that when nonidentity insertions end up getting stored here, e.g. by Act, the dimension 'c gets extended as necessary; so it is always okay to create a constant with the (0,0,0) insertion to start with, even if you don't know what its actual dimension is. *)
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
+    (* A metavariable (i.e. flexible) head stores the metavariable along with a delayed substitution applied to it. *)
+    | Meta : {
+        (* Only kinetic metavariables can appear in values; potential ones just cause the case tree they appear in to be stuck. *)
+        meta : ('b, kinetic) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> meta head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =
@@ -439,7 +462,7 @@ end = struct
       }
         -> kinetic value
     (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)
-    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t Bwd.t -> kinetic value
+    | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * ('k, 's) binder -> 's value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
@@ -529,7 +552,7 @@ let rec args_of_apps : type n. ?degerr:Code.t -> n D.t -> app Bwd.t -> (n, norma
   | Emp -> Emp
   | Snoc (xs, App (Arg arg, ins)) ->
       if Option.is_some (is_id_ins ins) then
-        match compare (CubeOf.dim arg) n with
+        match D.compare (CubeOf.dim arg) n with
         (* We DON'T pass on ?degerr to the recursive call, since any insertions deeper in the application spine are bugs. *)
         | Eq -> Snoc (args_of_apps n xs, arg)
         | Neq -> fatal (Dimension_mismatch ("args_of_apps", CubeOf.dim arg, n))

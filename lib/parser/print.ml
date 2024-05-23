@@ -1,3 +1,4 @@
+open Bwd
 open Core
 open Format
 open Uuseg_string
@@ -196,3 +197,48 @@ and pp_spine (space : space) (ppf : formatter) (tr : observation) : unit =
       pp_spine `Break ppf (Term fn);
       pp_term space ppf (Term arg)
   | _ -> pp_term space ppf tr
+
+let rec pp_ctx (ppf : formatter)
+    (ctx :
+      (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t)
+    : unit =
+  match ctx with
+  | Emp -> ()
+  | Snoc (ctx, (x, r, tm, ty)) ->
+      pp_ctx ppf ctx;
+      pp_open_hovbox ppf 2;
+      pp_var ppf (Some x);
+      pp_print_space ppf ();
+      (match tm with
+      | Some tm ->
+          pp_tok ppf Coloneq;
+          pp_print_string ppf " ";
+          pp_term `Break ppf tm
+      | None -> ());
+      (match ty with
+      | Some ty -> (
+          pp_tok ppf Colon;
+          pp_print_string ppf " ";
+          match r with
+          | `Original -> pp_term `None ppf ty
+          | `Renamed ->
+              pp_term `Break ppf ty;
+              pp_print_string ppf "(not in scope)"
+          | `Locked ->
+              pp_term `Break ppf ty;
+              pp_print_string ppf "(blocked by modal lock)")
+      | None -> (
+          match r with
+          | `Original -> ()
+          | `Renamed -> pp_print_string ppf " (not in scope)"
+          | `Locked -> pp_print_string ppf " (blocked by modal lock)"));
+      pp_close_box ppf ();
+      pp_print_cut ppf ()
+
+let pp_hole ppf ctx ty =
+  pp_open_vbox ppf 0;
+  pp_ctx ppf ctx;
+  pp_print_string ppf (String.make 70 '-');
+  pp_print_cut ppf ();
+  pp_term `None ppf ty;
+  pp_close_box ppf ()

@@ -6,7 +6,6 @@ open Value
 open Inst
 open Domvars
 open Norm
-open Monoid
 open Monad.ZeroOps (Monad.Maybe)
 open Bwd
 module ListM = Mlist.Monadic (Monad.Maybe)
@@ -30,7 +29,7 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
   | Pi (_, doms, cods) -> (
       let k = CubeOf.dim doms in
       (* The pi-type must be instantiated at the correct dimension. *)
-      match compare (TubeOf.inst tyargs) k with
+      match D.compare (TubeOf.inst tyargs) k with
       | Neq -> fatal (Dimension_mismatch ("equality at pi", TubeOf.inst tyargs, k))
       | Eq ->
           (* Create variables for all the boundary domains. *)
@@ -76,9 +75,9 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
             | None -> fatal (Anomaly "constr not found in equality-check") in
           let* () = guard (xconstr = yconstr) in
           match
-            ( compare xn yn,
-              compare xn (TubeOf.inst tyargs),
-              compare (TubeOf.inst tyargs) (dim_env env) )
+            ( D.compare xn yn,
+              D.compare xn (TubeOf.inst tyargs),
+              D.compare (TubeOf.inst tyargs) (dim_env env) )
           with
           | Neq, _, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, yn))
           | _, Neq, _ -> fatal (Dimension_mismatch ("equality of constrs", xn, TubeOf.inst tyargs))
@@ -93,17 +92,17 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
                       (fun _ [ tm ] ->
                         match tm.tm with
                         | Constr (tmname, _, tmargs) ->
-                            if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
+                            if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
                             else fatal (Anomaly "inst arg wrong constr in equality at datatype")
                         | _ -> fatal (Anomaly "inst arg not constr in equality at datatype"));
                   }
                   [ tyargs ] in
               (* It suffices to compare the top-dimensional faces of the cubes; the others are only there for evaluating case trees.  It would be nice to do this recursion directly on the Bwds, but equal_at_tel is expressed much more cleanly as an operation on lists. *)
               equal_at_tel ctx env
-                (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
+                (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                (List.fold_right (fun a args -> CubeOf.find_top a :: args) yargs [])
                 argtys
-                (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ]))
+                (TubeOf.mmap { map = (fun _ [ args ] -> args) } [ tyarg_args ]))
       | Constr _, _ | _, Constr _ -> fail
       | _ -> equal_val ctx x y)
   (* If the type is not one that has an eta-rule, then we pass off to a synthesizing equality-check, forgetting about our assumption that the two terms had the same type.  This is the equality-checking analogue of the conversion rule for checking a synthesizing term, but since equality requires no evidence we don't have to actually synthesize a type at which they are equal or verify that it equals the type we assumed them to have. *)
@@ -120,7 +119,8 @@ and equal_val : int -> kinetic value -> kinetic value -> unit option =
       let* () = equal_uninst n tm1 tm2 in
       (* If tm1 and tm2 are equal and have the same type, that type must be an instantiation of a universe of the same dimension, itself instantiated at the same arguments.  So for the instantiations to be equal (including their types), it suffices for the instantiation dimensions and arguments to be equal. *)
       match
-        (compare (TubeOf.inst a1) (TubeOf.inst a2), compare (TubeOf.uninst a1) (TubeOf.uninst a2))
+        ( D.compare (TubeOf.inst a1) (TubeOf.inst a2),
+          D.compare (TubeOf.uninst a1) (TubeOf.uninst a2) )
       with
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus a1) (TubeOf.plus a2) in
@@ -138,7 +138,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
   match (x, y) with
   | UU m, UU n -> (
       (* Two universes are equal precisely when they have the same dimension, in which case they also automatically have the same type (a standard instantiation of a (higher) universe of that same dimension). *)
-      match compare m n with
+      match D.compare m n with
       | Eq -> return ()
       | _ -> fail)
   | ( Neu { head = head1; args = args1; alignment = _ },
@@ -150,7 +150,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
   | Pi (_, dom1s, cod1s), Pi (_, dom2s, cod2s) -> (
       (* If two pi-types have the same dimension, equal domains, and equal codomains, they are equal and have the same type (an instantiation of the universe of that dimension at pi-types formed from the lower-dimensional domains and codomains). *)
       let k = CubeOf.dim dom1s in
-      match compare (CubeOf.dim dom2s) k with
+      match D.compare (CubeOf.dim dom2s) k with
       | Eq ->
           let open CubeOf.Monadic (Monad.Maybe) in
           let* () = miterM { it = (fun _ [ x; y ] -> equal_val lvl x y) } [ dom1s; dom2s ] in
@@ -170,7 +170,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
 
 (* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)
 and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
- fun _ x y ->
+ fun lvl x y ->
   match (x, y) with
   | Var { level = l1; deg = d1 }, Var { level = l2; deg = d2 } ->
       (* Two equal variables with the same degeneracy applied are equal, including their types because that variable has only one type. *)
@@ -178,12 +178,19 @@ and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
       deg_equiv d1 d2
   | Const { name = c1; ins = i1 }, Const { name = c2; ins = i2 } -> (
       let* () = guard (c1 = c2) in
-      match compare (cod_left_ins i1) (cod_left_ins i2) with
+      match D.compare (cod_left_ins i1) (cod_left_ins i2) with
       | Eq ->
           let d1 = deg_of_ins i1 (plus_of_ins i1) in
           let d2 = deg_of_ins i2 (plus_of_ins i2) in
           deg_equiv d1 d2
       | Neq -> fail)
+  | Meta { meta = meta1; env = env1; ins = i1 }, Meta { meta = meta2; env = env2; ins = i2 } -> (
+      match (Meta.compare meta1 meta2, D.compare (cod_left_ins i1) (cod_left_ins i2)) with
+      | Eq, Eq ->
+          let (Data { termctx; _ }) =
+            Galaxy.find_opt meta1 <|> Undefined_metavariable (PMeta meta1) in
+          equal_env lvl env1 env2 termctx
+      | _ -> fail)
   | _, _ -> fail
 
 (* Check that the arguments of two entire application spines of equal functions are equal.  This is basically a left fold, but we make sure to iterate from left to right, and fail rather than raising an exception if the lists have different lengths.  *)
@@ -203,7 +210,7 @@ and equal_arg : int -> app -> app -> unit option =
   let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
   match (a1, a2) with
   | Arg a1, Arg a2 -> (
-      match compare (CubeOf.dim a1) (CubeOf.dim a2) with
+      match D.compare (CubeOf.dim a1) (CubeOf.dim a2) with
       | Eq ->
           let open CubeOf.Monadic (Monad.Maybe) in
           miterM { it = (fun _ [ x; y ] -> (equal_nf n) x y) } [ a1; a2 ]
@@ -261,3 +268,51 @@ and equal_at_tel :
         (Ext (env, CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x))))
         xs ys tys tyargs
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
+
+and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.t -> unit option =
+ fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
+
+and equal_ordered_env :
+    type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.Ordered.t -> unit option =
+ fun lvl env1 env2 envctx ->
+  (* Copied from readback_ordered_env *)
+  match envctx with
+  | Emp -> Some ()
+  | Lock envctx -> equal_ordered_env lvl env1 env2 envctx
+  | Snoc (envctx, entry, _) -> (
+      let open Monad.Ops (Monad.Maybe) in
+      let open CubeOf.Monadic (Monad.Maybe) in
+      let (Ext (env1', xss1)) = Permute.env_top env1 in
+      let (Ext (env2', xss2)) = Permute.env_top env2 in
+      let* () = equal_ordered_env lvl env1' env2' envctx in
+      match entry with
+      | Vis { bindings; _ } | Invis bindings ->
+          let* _ =
+            mmapM
+              {
+                map =
+                  (fun fa [ xs1; xs2 ] ->
+                    let ty = (CubeOf.find bindings fa).ty in
+                    let xtytbl = Hashtbl.create 10 in
+                    mmapM
+                      {
+                        map =
+                          (fun fb [ tm1; tm2 ] ->
+                            let k = dom_sface fb in
+                            let ty =
+                              inst
+                                (eval_term (Act (env1, op_of_sface fb)) ty)
+                                (TubeOf.build k (D.plus_zero k)
+                                   {
+                                     build =
+                                       (fun fc ->
+                                         Hashtbl.find xtytbl
+                                           (SFace_of (comp_sface fb (sface_of_tface fc))));
+                                   }) in
+                            Hashtbl.add xtytbl (SFace_of fb) { tm = tm1; ty };
+                            equal_at lvl tm1 tm2 ty);
+                      }
+                      [ xs1; xs2 ]);
+              }
+              [ xss1; xss2 ] in
+          return ())

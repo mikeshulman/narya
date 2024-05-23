@@ -6,7 +6,12 @@ open Uuseg_string
 (* In order to display terms and suchlike in Asai messages, we utilize a double indirection.  Firstly, displaying a term requires "unparsing" it to a parse tree and then printing the parse tree, but parse trees and unparsing aren't defined until the Parser library, which is loaded after Core.  (Displaying a value additionally requires reading it back into a term, which is defined later in Core.)  For this reason, we introduce a wrapper type "printable" that can contain a term, value, etc.  Since terms and values haven't been defined yet in this file, we make "printable" an extensible variant, so they can be added later (in the module Printable) after they are defined.  (They also have to be bundled with their context.) *)
 
 type printable = ..
-type printable += PConstant of Constant.t
+
+type printable +=
+  | PUnit : printable
+  | PString : string -> printable
+  | PConstant of Constant.t
+  | PMeta : ('b, 's) Meta.t -> printable
 
 (* The function that actually does the work of printing a "printable" will be defined in Parser.Unparse.  But we need to be able to "call" that function in this file to define "default_text" that converts structured messages to text.  Thus, in this file we define a mutable global variable to contain that function, starting with a dummy function, and call its value to print "printable"s; then in Parser.Unparse we will set the value of that variable after defining the function it should contain. *)
 
@@ -72,6 +77,7 @@ module Code = struct
     | Unequal_indices : printable * printable -> t
     | Unbound_variable : string -> t
     | Undefined_constant : printable -> t
+    | Undefined_metavariable : printable -> t
     | Nonsynthesizing : string -> t
     | Low_dimensional_argument_of_degeneracy : (string * 'a D.t) -> t
     | Missing_argument_of_degeneracy : string -> t
@@ -86,6 +92,7 @@ module Code = struct
     | Index_variable_in_index_value : t
     | Matching_on_nondatatype : printable -> t
     | Matching_on_let_bound_variable : printable -> t
+    | Matching_on_record_field : Field.t -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
@@ -107,8 +114,8 @@ module Code = struct
     | Notation_variable_used_twice : string -> t
     | Unbound_variable_in_notation : string list -> t
     | Head_already_has_notation : string -> t
-    | Constant_assumed : printable -> t
-    | Constant_defined : printable list -> t
+    | Constant_assumed : printable * int -> t
+    | Constant_defined : printable list * int -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
@@ -120,6 +127,10 @@ module Code = struct
     | Missing_constructor_type : Constr.t -> t
     | Locked_variable : t
     | Locked_axiom : printable -> t
+    | Hole_generated : ('b, 's) Meta.t * printable -> t
+    | Open_holes : t
+    | Quit : t
+    | Synthesizing_recursion : printable -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -157,6 +168,7 @@ module Code = struct
     | Unequal_indices _ -> Error
     | Unbound_variable _ -> Error
     | Undefined_constant _ -> Bug
+    | Undefined_metavariable _ -> Bug
     | No_such_field _ -> Error
     | Nonsynthesizing _ -> Error
     | Low_dimensional_argument_of_degeneracy _ -> Error
@@ -176,7 +188,8 @@ module Code = struct
     | Duplicate_constructor_in_data _ -> Error
     | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
-    | Matching_on_let_bound_variable _ -> Error
+    | Matching_on_let_bound_variable _ -> Hint
+    | Matching_on_record_field _ -> Hint
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
@@ -210,6 +223,10 @@ module Code = struct
     | Missing_constructor_type _ -> Error
     | Locked_variable -> Error
     | Locked_axiom _ -> Error
+    | Hole_generated _ -> Info
+    | Open_holes -> Error
+    | Quit -> Info
+    | Synthesizing_recursion _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -234,11 +251,13 @@ module Code = struct
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
-    | Locked_variable -> "E0302"
-    | Locked_axiom _ -> "E0303"
+    | Undefined_metavariable _ -> "E0302"
+    | Locked_variable -> "E0310"
+    | Locked_axiom _ -> "E0311"
     (* Bidirectional typechecking *)
     | Nonsynthesizing _ -> "E0400"
     | Unequal_synthesized_type _ -> "E0401"
+    | Synthesizing_recursion _ -> "E0402"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
@@ -271,6 +290,7 @@ module Code = struct
     (* - Match variable *)
     | Unnamed_variable_in_match -> "E1100"
     | Matching_on_let_bound_variable _ -> "E1101"
+    | Matching_on_record_field _ -> "E1102"
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
     | Matching_datatype_has_degeneracy _ -> "E1201"
@@ -316,10 +336,16 @@ module Code = struct
     | Notation_variable_used_twice _ -> "E2209"
     | Unbound_variable_in_notation _ -> "E2210"
     | Head_already_has_notation _ -> "E2211"
-    (* Information *)
+    (* Interactive proof *)
+    | Open_holes -> "E3000"
+    (* Command success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
     | Notation_defined _ -> "I0002"
+    (* Events during command execution *)
+    | Hole_generated _ -> "I0100"
+    (* Control of execution *)
+    | Quit -> "I0200"
     (* Debugging *)
     | Show _ -> "I9999"
 
@@ -332,8 +358,7 @@ module Code = struct
     | Invalid_constr str -> textf "invalid constructor name: %s" str
     | Invalid_numeral str -> textf "invalid numeral: %s" str
     | Invalid_degeneracy str ->
-        if str = "" then text "missing degeneracy ('^' must not be followed by a space)"
-        else textf "invalid degeneracy: %s" str
+        if str = "" then text "missing degeneracy" else textf "invalid degeneracy: %s" str
     | Invalid_variable_face (k, fa) ->
         textf "invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
     | No_relative_precedence (n1, n2) ->
@@ -429,6 +454,7 @@ module Code = struct
           pp_printed (print t1) pp_printed (print t2)
     | Unbound_variable c -> textf "unbound variable: %s" c
     | Undefined_constant c -> textf "undefined constant: %a" pp_printed (print c)
+    | Undefined_metavariable v -> textf "undefined metavariable: %a" pp_printed (print v)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
         textf "argument of degeneracy '%s' must be at least %d-dimensional" deg (to_int dim)
@@ -462,7 +488,9 @@ module Code = struct
         textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
           (print ty)
     | Matching_on_let_bound_variable name ->
-        textf "can't match on let-bound variable %a" pp_printed (print name)
+        textf "matching on let-bound variable %a doesn't refine the type" pp_printed (print name)
+    | Matching_on_record_field fld ->
+        textf "matching on record field %s doesn't refine the type" (Field.to_string fld)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
@@ -490,13 +518,22 @@ module Code = struct
         textf "unbound variable(s) in notation definition: %s" (String.concat ", " xs)
     | Head_already_has_notation name ->
         textf "replacing printing notation for %s (previous notation will still be parseable)" name
-    | Constant_assumed name -> textf "Axiom %a assumed" pp_printed (print name)
-    | Constant_defined names -> (
+    | Constant_assumed (name, h) ->
+        if h > 1 then textf "Axiom %a assumed, containing %d holes" pp_printed (print name) h
+        else if h = 1 then textf "Axiom %a assumed, containing 1 hole" pp_printed (print name)
+        else textf "Axiom %a assumed" pp_printed (print name)
+    | Constant_defined (names, h) -> (
         match names with
         | [] -> textf "Anomaly: no constant defined"
-        | [ name ] -> textf "Constant %a defined" pp_printed (print name)
+        | [ name ] ->
+            if h > 1 then textf "Constant %a defined, containing %d holes" pp_printed (print name) h
+            else if h = 1 then
+              textf "Constant %a defined, containing 1 hole" pp_printed (print name)
+            else textf "Constant %a defined" pp_printed (print name)
         | _ ->
-            textf "@[<v 2>Constants defined mutually:@,%a@]"
+            (if h > 1 then textf "@[<v 2>Constants defined mutually, containing %d holes:@,%a@]" h
+             else if h = 1 then textf "@[<v 2>Constants defined mutually, containing 1 hole:@,%a@]"
+             else textf "@[<v 2>Constants defined mutually:@,%a@]")
               (fun ppf names ->
                 pp_print_list (fun ppf name -> pp_printed ppf (print name)) ppf names)
               names)
@@ -528,6 +565,12 @@ module Code = struct
         textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
     | Locked_variable -> text "variable locked behind external degeneracy"
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
+    | Hole_generated (n, ty) ->
+        textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
+    | Open_holes -> text "There are open holes"
+    | Quit -> text "Goodbye!"
+    | Synthesizing_recursion c ->
+        textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
 end
 
 include Asai.StructuredReporter.Make (Code)
@@ -552,3 +595,9 @@ let duplicate_field eta fld =
   match eta with
   | `Eta -> Duplicate_field_in_tuple fld
   | `Noeta -> Duplicate_method_in_comatch fld
+
+let ( <|> ) : type a b. a option -> Code.t -> a =
+ fun x e ->
+  match x with
+  | Some x -> x
+  | None -> fatal e

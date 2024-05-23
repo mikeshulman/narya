@@ -27,6 +27,7 @@
    ￮ Axiom A assumed
   
   A
+    : Type
   
    ￫ info[I0001]
    ￮ Axiom a₀ assumed
@@ -35,6 +36,7 @@
    ￮ Axiom a₁ assumed
   
   Gel A (y ↦ eq A a₀ y) a₁
+    : Type
   
    ￫ info[I0001]
    ￮ Axiom a₀₁ assumed
@@ -50,6 +52,7 @@
   
   Gel⁽ᵈ⁾ A (Gel A (y ↦ eq A a₀ y)) (y ↦ eq A a₁ y)
     (y ⤇ eq⁽ᵈ⁾ A (Gel A (y0 ↦ eq A a₀ y0)) a₁ a₀₁ y.0 y.1) a₂ a₀₂ a₁₂
+    : Type
   
    ￫ info[I0001]
    ￮ Axiom a₀₁₂ assumed
@@ -85,6 +88,7 @@
        (Gel⁽ᵈ⁾ A (Gel A (y0 ↦ eq A a₀ y0)) (y0 ↦ eq A a₁ y0)
           (y0 ⤇ eq⁽ᵈ⁾ A (Gel A (y1 ↦ eq A a₀ y1)) a₁ a₀₁ y0.0 y0.1)) a₂ a₀₂ a₁₂
        a₀₁₂ y.00 y.01 y.10 y.11) a₃ a₀₃ a₁₃ a₀₁₃ a₂₃ a₀₂₃ a₁₂₃
+    : Type
   
    ￫ info[I0000]
    ￮ Constant sst.∅ defined
@@ -151,7 +155,7 @@
    ￮ Constant 2s defined
   
   $ narya -dtt -e "def foo (X:Type) : Type^(d) X := X^(d)"
-   ￫ error[E0302]
+   ￫ error[E0310]
    ￭ command-line exec string
    1 | def foo (X:Type) : Type^(d) X := X^(d)
      ^ variable locked behind external degeneracy
@@ -159,9 +163,15 @@
   [1]
 
   $ narya -dtt -e "axiom A : Type" -e "echo A^(d)"
-   ￫ error[E0303]
+   ￫ error[E0311]
    ￭ command-line exec string
    1 | echo A^(d)
      ^ axiom A locked behind external degeneracy
+  
+  [1]
+
+  $ narya -dtt mutual.ny
+   ￫ error[E3000]
+   ￮ There are open holes
   
   [1]

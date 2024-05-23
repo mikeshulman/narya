@@ -1,6 +1,6 @@
-(* Type-level dyadic rationals, represeted as surreal sign-sequences, plus +ω and -ω. *)
+open Signatures
 
-open Monoid
+(* Type-level dyadic rationals, represeted as surreal sign-sequences, plus +ω and -ω. *)
 
 type zero = Dummy_zero
 type 'a plus = Dummy_plus
@@ -160,7 +160,7 @@ let rec lt_trans :
   | Minusomega_fin _, Minusomega_fin _, _ -> .
   | Fin_plusomega _, Fin_plusomega _, _ -> .
 
-let rec equal_fin : type a b. a fin -> b fin -> (a, b) compare =
+let rec equal_fin : type a b. a fin -> b fin -> (a, b) Eq.compare =
  fun x y ->
   match (x, y) with
   | Zero, Zero -> Eq
@@ -174,7 +174,7 @@ let rec equal_fin : type a b. a fin -> b fin -> (a, b) compare =
       | Neq -> Neq)
   | _ -> Neq
 
-let equal : type a b. a t -> b t -> (a, b) compare =
+let equal : type a b. a t -> b t -> (a, b) Eq.compare =
  fun x y ->
   match (x, y) with
   | Fin x, Fin y -> equal_fin x y
@@ -357,7 +357,7 @@ type (_, _, _) prepend =
   | Plus : ('a, 'b plus, 'c) prepend -> ('a then_plus, 'b, 'c) prepend
   | Minus : ('a, 'b minus, 'c) prepend -> ('a then_minus, 'b, 'c) prepend
 
-let rec prepend_uniq : type a b c c'. (a, b, c) prepend -> (a, b, c') prepend -> (c, c') eq =
+let rec prepend_uniq : type a b c c'. (a, b, c) prepend -> (a, b, c') prepend -> (c, c') Eq.t =
  fun ab ab' ->
   match (ab, ab') with
   | Zero, Zero -> Eq
@@ -421,350 +421,406 @@ let then_plus_minus_gt' : type a b c. b fin -> (a, b minus, c) prepend -> (a the
 
 (* We define a notion of intrinsically well-typed immutable map, associating to some numbers 'a an element of 'a F.t. *)
 
-module type Fam = sig
-  type 'a t
-end
+module Map = struct
+  module Make (F : Fam2) = struct
+    module Key = struct
+      type nonrec 'a t = 'a t
+    end
 
-module MapMake (F : Fam) = struct
-  type 'a no = 'a t
+    (* First we define a map for finite numbers, then add the two omegas.  An element of "a fin_t" is a piece of a map indexed by a backwards sign-sequence a, in which the forward sign-sequence b acts as an index for something parametrized by the prepending of a onto b. *)
 
-  (* First we define a map for finite numbers, then add the two omegas.  An element of "a fin_t" is a piece of a map indexed by a backwards sign-sequence a, in which the forward sign-sequence b acts as an index for something parametrized by the prepending of a onto b. *)
+    type (_, _) node =
+      | None : ('x, 'a) node
+      | Some : (('a, zero, 'b) prepend * ('x, 'b) F.t) -> ('x, 'a) node
 
-  type _ node = None : 'a node | Some : (('a, zero, 'b) prepend * 'b F.t) -> 'a node
+    type (_, _) fin_t =
+      | Emp : ('x, 'a) fin_t
+      | Node :
+          ('x, 'a) node * ('x, 'a then_minus) fin_t * ('x, 'a then_plus) fin_t
+          -> ('x, 'a) fin_t
 
-  type _ fin_t =
-    | Emp : 'a fin_t
-    | Node : 'a node * 'a then_minus fin_t * 'a then_plus fin_t -> 'a fin_t
+    type 'x t = {
+      fin : ('x, then_zero) fin_t;
+      minus_omega : ('x, minus_omega) F.t option;
+      plus_omega : ('x, plus_omega) F.t option;
+    }
 
-  type t = {
-    fin : then_zero fin_t;
-    minus_omega : minus_omega F.t option;
-    plus_omega : plus_omega F.t option;
-  }
+    (* The empty map *)
+    let empty = { fin = Emp; minus_omega = None; plus_omega = None }
 
-  (* The empty map *)
-  let empty = { fin = Emp; minus_omega = None; plus_omega = None }
+    (* 'find' looks up a number in the map and returns its associated value, if any.  (So this is like find_opt for ordinary maps.) *)
 
-  (* 'find' looks up a number in the map and returns its associated value, if any.  (So this is like find_opt for ordinary maps.) *)
-
-  let rec fin_find : type a b c. a fin_t -> b fin -> (a, b, c) prepend -> c F.t option =
-   fun map x ab ->
-    match map with
-    | Emp -> None
-    | Node (y, mmap, pmap) -> (
-        match x with
-        | Zero -> (
-            match y with
-            | None -> None
-            | Some (aa, y) ->
-                let Eq = prepend_uniq ab aa in
-                Some y)
-        | Minus x -> fin_find mmap x (Minus ab)
-        | Plus x -> fin_find pmap x (Plus ab))
-
-  let find : type a. t -> a no -> a F.t option =
-   fun map x ->
-    match x with
-    | Fin x -> fin_find map.fin x Zero
-    | Minus_omega -> map.minus_omega
-    | Plus_omega -> map.plus_omega
-
-  (* 'add' adds an entry to the map, replacing any existing entry for that number. *)
-
-  let rec fin_add : type a b c. a fin_t -> b fin -> (a, b, c) prepend -> c F.t -> a fin_t =
-   fun map x ab y ->
-    match (x, map) with
-    | Zero, Emp -> Node (Some (ab, y), Emp, Emp)
-    | Zero, Node (_, mmap, pmap) -> Node (Some (ab, y), mmap, pmap)
-    | Minus x, Emp -> Node (None, fin_add Emp x (Minus ab) y, Emp)
-    | Minus x, Node (z, mmap, pmap) -> Node (z, fin_add mmap x (Minus ab) y, pmap)
-    | Plus x, Emp -> Node (None, Emp, fin_add Emp x (Plus ab) y)
-    | Plus x, Node (z, mmap, pmap) -> Node (z, mmap, fin_add pmap x (Plus ab) y)
-
-  let add : type a. a no -> a F.t -> t -> t =
-   fun x y map ->
-    match x with
-    | Fin x -> { map with fin = fin_add map.fin x Zero y }
-    | Minus_omega -> { map with minus_omega = Some y }
-    | Plus_omega -> { map with plus_omega = Some y }
-
-  (* 'remove' removes an entry from the map. *)
-
-  let rec fin_remove : type a b. b fin -> a fin_t -> a fin_t =
-   fun x map ->
-    match map with
-    | Emp -> Emp
-    | Node (z, mmap, pmap) -> (
-        match x with
-        | Zero -> Node (None, mmap, pmap)
-        | Minus x -> Node (z, fin_remove x mmap, pmap)
-        | Plus x -> Node (z, mmap, fin_remove x pmap))
-
-  let remove : type a. a no -> t -> t =
-   fun x map ->
-    match x with
-    | Fin x -> { map with fin = fin_remove x map.fin }
-    | Minus_omega -> { map with minus_omega = None }
-    | Plus_omega -> { map with plus_omega = None }
-
-  (* 'map_compare' applies one of three polymorphic function to all elements of the map, based on whether their index is less than, greater than, or equal to some specified number, passing a witness of inequality if relevant.  This requires a record type to hold the polymorphic mapper arguments, as well as several helper functions.  *)
-
-  type 'b map_compare = {
-    map_lt : 'a 's. ('a, strict, 'b) lt -> 'a F.t -> 'a F.t;
-    map_gt : 'a 's. ('b, strict, 'a) lt -> 'a F.t -> 'a F.t;
-    map_eq : 'b F.t -> 'b F.t;
-  }
-
-  (* "fin_map_lt" applies map_lt to all elements of a fin_t, assuming that that is valid given its parameter, and dually for "fin_map_gt". *)
-
-  let rec fin_map_lt : type a b c. c map_compare -> (a, c) then_lt -> a fin_t -> a fin_t =
-   fun f x map ->
-    match map with
-    | Emp -> Emp
-    | Node (z, mmap, pmap) ->
-        Node
-          ( (match z with
-            | None -> None
-            | Some (ab, y) -> Some (ab, f.map_lt (x.then_lt Zero ab) y)),
-            fin_map_lt f (then_minus_lt x) mmap,
-            fin_map_lt f (then_plus_lt x) pmap )
-
-  let rec fin_map_gt : type a b c. c map_compare -> (a, c) then_gt -> a fin_t -> a fin_t =
-   fun f x map ->
-    match map with
-    | Emp -> Emp
-    | Node (z, mmap, pmap) ->
-        Node
-          ( (match z with
-            | None -> None
-            | Some (ab, y) -> Some (ab, f.map_gt (x.then_gt Zero ab) y)),
-            fin_map_gt f (then_minus_gt x) mmap,
-            fin_map_gt f (then_plus_gt x) pmap )
-
-  (* Similarly, "fin_map_plusomega" applies a function to all elements of a fin_t, because +ω is greater than them, and dually. *)
-
-  let rec fin_map_plusomega : type a. plus_omega map_compare -> a fin_t -> a fin_t =
-   fun f map ->
-    match map with
-    | Emp -> Emp
-    | Node (z, mmap, pmap) ->
-        Node
-          ( (match z with
-            | None -> None
-            | Some (ab, y) -> Some (ab, f.map_lt (Fin_plusomega (prepend_fin Zero ab)) y)),
-            fin_map_plusomega f mmap,
-            fin_map_plusomega f pmap )
-
-  let rec fin_map_minusomega : type a. minus_omega map_compare -> a fin_t -> a fin_t =
-   fun f map ->
-    match map with
-    | Emp -> Emp
-    | Node (z, mmap, pmap) ->
-        Node
-          ( (match z with
-            | None -> None
-            | Some (ab, y) -> Some (ab, f.map_gt (Minusomega_fin (prepend_fin Zero ab)) y)),
-            fin_map_minusomega f mmap,
-            fin_map_minusomega f pmap )
-
-  let rec fin_map_compare :
-      type a b c. c map_compare -> b fin -> (a, b, c) prepend -> a fin_t -> a fin_t =
-   fun f x ab map ->
-    match map with
-    | Emp -> Emp
-    | Node (z, mmap, pmap) -> (
-        match x with
-        | Zero ->
-            let z =
-              match z with
+    let rec fin_find : type x a b c. b fin -> (x, a) fin_t -> (a, b, c) prepend -> (x, c) F.t option
+        =
+     fun x map ab ->
+      match map with
+      | Emp -> None
+      | Node (y, mmap, pmap) -> (
+          match x with
+          | Zero -> (
+              match y with
               | None -> None
-              | Some (a_zero, z) ->
-                  let Eq = prepend_uniq ab a_zero in
-                  Some (ab, f.map_eq z) in
-            Node (z, fin_map_lt f (then_minus_lt' ab) mmap, fin_map_gt f (then_plus_gt' ab) pmap)
-        | Plus x ->
-            let z =
-              match z with
+              | Some (aa, y) ->
+                  let Eq = prepend_uniq ab aa in
+                  Some y)
+          | Minus x -> fin_find x mmap (Minus ab)
+          | Plus x -> fin_find x pmap (Plus ab))
+
+    let find_opt : type x a. a Key.t -> x t -> (x, a) F.t option =
+     fun x map ->
+      match x with
+      | Fin x -> fin_find x map.fin Zero
+      | Minus_omega -> map.minus_omega
+      | Plus_omega -> map.plus_omega
+
+    (* 'add' adds an entry to the map, replacing any existing entry for that number. *)
+
+    let rec fin_add :
+        type x a b c. (x, a) fin_t -> b fin -> (a, b, c) prepend -> (x, c) F.t -> (x, a) fin_t =
+     fun map x ab y ->
+      match (x, map) with
+      | Zero, Emp -> Node (Some (ab, y), Emp, Emp)
+      | Zero, Node (_, mmap, pmap) -> Node (Some (ab, y), mmap, pmap)
+      | Minus x, Emp -> Node (None, fin_add Emp x (Minus ab) y, Emp)
+      | Minus x, Node (z, mmap, pmap) -> Node (z, fin_add mmap x (Minus ab) y, pmap)
+      | Plus x, Emp -> Node (None, Emp, fin_add Emp x (Plus ab) y)
+      | Plus x, Node (z, mmap, pmap) -> Node (z, mmap, fin_add pmap x (Plus ab) y)
+
+    let add : type x a. a Key.t -> (x, a) F.t -> x t -> x t =
+     fun x y map ->
+      match x with
+      | Fin x -> { map with fin = fin_add map.fin x Zero y }
+      | Minus_omega -> { map with minus_omega = Some y }
+      | Plus_omega -> { map with plus_omega = Some y }
+
+    (* 'remove' removes an entry from the map. *)
+
+    let rec fin_remove : type x a b. b fin -> (x, a) fin_t -> (x, a) fin_t =
+     fun x map ->
+      match map with
+      | Emp -> Emp
+      | Node (z, mmap, pmap) -> (
+          match x with
+          | Zero -> Node (None, mmap, pmap)
+          | Minus x -> Node (z, fin_remove x mmap, pmap)
+          | Plus x -> Node (z, mmap, fin_remove x pmap))
+
+    let remove : type x a. a Key.t -> x t -> x t =
+     fun x map ->
+      match x with
+      | Fin x -> { map with fin = fin_remove x map.fin }
+      | Minus_omega -> { map with minus_omega = None }
+      | Plus_omega -> { map with plus_omega = None }
+
+    (* 'update' updates an entry in the map. *)
+
+    let rec fin_update :
+        type x a b c.
+        (x, a) fin_t ->
+        b fin ->
+        (a, b, c) prepend ->
+        ((x, c) F.t option -> (x, c) F.t option) ->
+        (x, a) fin_t =
+     fun map x ab f ->
+      match (x, map) with
+      | Zero, Emp -> (
+          match f None with
+          | Some z -> Node (Some (ab, z), Emp, Emp)
+          | None -> Node (None, Emp, Emp))
+      | Zero, Node (None, mmap, pmap) -> (
+          match f None with
+          | Some z -> Node (Some (ab, z), mmap, pmap)
+          | None -> Node (None, mmap, pmap))
+      | Zero, Node (Some (ab', y), mmap, pmap) -> (
+          let Eq = prepend_uniq ab ab' in
+          match f (Some y) with
+          | Some z -> Node (Some (ab, z), mmap, pmap)
+          | None -> Node (None, mmap, pmap))
+      | Minus x, Emp -> Node (None, fin_update Emp x (Minus ab) f, Emp)
+      | Minus x, Node (z, mmap, pmap) -> Node (z, fin_update mmap x (Minus ab) f, pmap)
+      | Plus x, Emp -> Node (None, Emp, fin_update Emp x (Plus ab) f)
+      | Plus x, Node (z, mmap, pmap) -> Node (z, mmap, fin_update pmap x (Plus ab) f)
+
+    let update : type x a. a Key.t -> ((x, a) F.t option -> (x, a) F.t option) -> x t -> x t =
+     fun x f map ->
+      match x with
+      | Fin x -> { map with fin = fin_update map.fin x Zero f }
+      | Minus_omega -> { map with minus_omega = f map.minus_omega }
+      | Plus_omega -> { map with plus_omega = f map.plus_omega }
+
+    (* 'map_compare' applies one of three polymorphic function to all elements of the map, based on whether their index is less than, greater than, or equal to some specified number, passing a witness of inequality if relevant.  This requires a record type to hold the polymorphic mapper arguments, as well as several helper functions.  *)
+
+    type ('x, 'b) map_compare = {
+      map_lt : 'a 's. ('a, strict, 'b) lt -> ('x, 'a) F.t -> ('x, 'a) F.t;
+      map_gt : 'a 's. ('b, strict, 'a) lt -> ('x, 'a) F.t -> ('x, 'a) F.t;
+      map_eq : ('x, 'b) F.t -> ('x, 'b) F.t;
+    }
+
+    (* "fin_map_lt" applies map_lt to all elements of a fin_t, assuming that that is valid given its parameter, and dually for "fin_map_gt". *)
+
+    let rec fin_map_lt :
+        type a b c x. (x, c) map_compare -> (a, c) then_lt -> (x, a) fin_t -> (x, a) fin_t =
+     fun f x map ->
+      match map with
+      | Emp -> Emp
+      | Node (z, mmap, pmap) ->
+          Node
+            ( (match z with
               | None -> None
-              | Some (a_zero, z) ->
-                  Some (a_zero, f.map_lt (prepend_lt Zero (Plus x) (Zero_plus x) a_zero ab) z) in
-            Node
-              (z, fin_map_lt f (then_minus_plus_lt' x ab) mmap, fin_map_compare f x (Plus ab) pmap)
-        | Minus x ->
-            let z =
-              match z with
+              | Some (ab, y) -> Some (ab, f.map_lt (x.then_lt Zero ab) y)),
+              fin_map_lt f (then_minus_lt x) mmap,
+              fin_map_lt f (then_plus_lt x) pmap )
+
+    let rec fin_map_gt :
+        type x a b c. (x, c) map_compare -> (a, c) then_gt -> (x, a) fin_t -> (x, a) fin_t =
+     fun f x map ->
+      match map with
+      | Emp -> Emp
+      | Node (z, mmap, pmap) ->
+          Node
+            ( (match z with
               | None -> None
-              | Some (a_zero, z) ->
-                  Some (a_zero, f.map_gt (prepend_lt (Minus x) Zero (Minus_zero x) ab a_zero) z)
-            in
-            Node
-              (z, fin_map_compare f x (Minus ab) mmap, fin_map_gt f (then_plus_minus_gt' x ab) pmap)
-        )
+              | Some (ab, y) -> Some (ab, f.map_gt (x.then_gt Zero ab) y)),
+              fin_map_gt f (then_minus_gt x) mmap,
+              fin_map_gt f (then_plus_gt x) pmap )
 
-  let map_compare : type b. b map_compare -> b no -> t -> t =
-   fun f x map ->
-    match x with
-    | Minus_omega ->
-        {
-          minus_omega = Option.map f.map_eq map.minus_omega;
-          fin = fin_map_minusomega f map.fin;
-          plus_omega = Option.map (f.map_gt Minusomega_plusomega) map.plus_omega;
-        }
-    | Fin x ->
-        {
-          minus_omega = Option.map (f.map_lt (Minusomega_fin x)) map.minus_omega;
-          fin = fin_map_compare f x Zero map.fin;
-          plus_omega = Option.map (f.map_gt (Fin_plusomega x)) map.plus_omega;
-        }
-    | Plus_omega ->
-        {
-          minus_omega = Option.map (f.map_lt Minusomega_plusomega) map.minus_omega;
-          fin = fin_map_plusomega f map.fin;
-          plus_omega = Option.map f.map_eq map.plus_omega;
-        }
+    (* Similarly, "fin_map_plusomega" applies a function to all elements of a fin_t, because +ω is greater than them, and dually. *)
 
-  (* 'fin_least' finds the element in a fin_t with the least index, or None if the map is empty. *)
+    let rec fin_map_plusomega :
+        type x a. (x, plus_omega) map_compare -> (x, a) fin_t -> (x, a) fin_t =
+     fun f map ->
+      match map with
+      | Emp -> Emp
+      | Node (z, mmap, pmap) ->
+          Node
+            ( (match z with
+              | None -> None
+              | Some (ab, y) -> Some (ab, f.map_lt (Fin_plusomega (prepend_fin Zero ab)) y)),
+              fin_map_plusomega f mmap,
+              fin_map_plusomega f pmap )
 
-  type 'a value = Value : ('a, 'b, 'c) prepend * 'b fin * 'c F.t -> 'a value | None : 'a value
+    let rec fin_map_minusomega :
+        type x a. (x, minus_omega) map_compare -> (x, a) fin_t -> (x, a) fin_t =
+     fun f map ->
+      match map with
+      | Emp -> Emp
+      | Node (z, mmap, pmap) ->
+          Node
+            ( (match z with
+              | None -> None
+              | Some (ab, y) -> Some (ab, f.map_gt (Minusomega_fin (prepend_fin Zero ab)) y)),
+              fin_map_minusomega f mmap,
+              fin_map_minusomega f pmap )
 
-  let rec fin_least : type a. a fin_t -> a value =
-   fun map ->
-    match map with
-    | Emp -> None
-    | Node (x, mmap, pmap) -> (
-        match fin_least mmap with
-        | Value (Minus ab, b, y) -> Value (ab, Minus b, y)
-        | None -> (
-            match x with
-            | Some (ab, y) -> Value (ab, Zero, y)
-            | None -> (
-                match fin_least pmap with
-                | Value (Plus ab, b, y) -> Value (ab, Plus b, y)
-                | None -> None)))
+    let rec fin_map_compare :
+        type x a b c.
+        (x, c) map_compare -> b fin -> (a, b, c) prepend -> (x, a) fin_t -> (x, a) fin_t =
+     fun f x ab map ->
+      match map with
+      | Emp -> Emp
+      | Node (z, mmap, pmap) -> (
+          match x with
+          | Zero ->
+              let z =
+                match z with
+                | None -> None
+                | Some (a_zero, z) ->
+                    let Eq = prepend_uniq ab a_zero in
+                    Some (ab, f.map_eq z) in
+              Node (z, fin_map_lt f (then_minus_lt' ab) mmap, fin_map_gt f (then_plus_gt' ab) pmap)
+          | Plus x ->
+              let z =
+                match z with
+                | None -> None
+                | Some (a_zero, z) ->
+                    Some (a_zero, f.map_lt (prepend_lt Zero (Plus x) (Zero_plus x) a_zero ab) z)
+              in
+              Node
+                (z, fin_map_lt f (then_minus_plus_lt' x ab) mmap, fin_map_compare f x (Plus ab) pmap)
+          | Minus x ->
+              let z =
+                match z with
+                | None -> None
+                | Some (a_zero, z) ->
+                    Some (a_zero, f.map_gt (prepend_lt (Minus x) Zero (Minus_zero x) ab a_zero) z)
+              in
+              Node
+                ( z,
+                  fin_map_compare f x (Minus ab) mmap,
+                  fin_map_gt f (then_plus_minus_gt' x ab) pmap ))
 
-  (* And dually for 'fin_greatest'. *)
+    let map_compare : type b x. (x, b) map_compare -> b Key.t -> x t -> x t =
+     fun f x map ->
+      match x with
+      | Minus_omega ->
+          {
+            minus_omega = Option.map f.map_eq map.minus_omega;
+            fin = fin_map_minusomega f map.fin;
+            plus_omega = Option.map (f.map_gt Minusomega_plusomega) map.plus_omega;
+          }
+      | Fin x ->
+          {
+            minus_omega = Option.map (f.map_lt (Minusomega_fin x)) map.minus_omega;
+            fin = fin_map_compare f x Zero map.fin;
+            plus_omega = Option.map (f.map_gt (Fin_plusomega x)) map.plus_omega;
+          }
+      | Plus_omega ->
+          {
+            minus_omega = Option.map (f.map_lt Minusomega_plusomega) map.minus_omega;
+            fin = fin_map_plusomega f map.fin;
+            plus_omega = Option.map f.map_eq map.plus_omega;
+          }
 
-  let rec fin_greatest : type a. a fin_t -> a value =
-   fun map ->
-    match map with
-    | Emp -> None
-    | Node (x, mmap, pmap) -> (
-        match fin_greatest pmap with
-        | Value (Plus ab, b, y) -> Value (ab, Plus b, y)
-        | None -> (
-            match x with
-            | Some (ab, y) -> Value (ab, Zero, y)
-            | None -> (
-                match fin_greatest mmap with
-                | Value (Minus ab, b, y) -> Value (ab, Minus b, y)
-                | None -> None)))
+    (* 'fin_least' finds the element in a fin_t with the least index, or None if the map is empty. *)
 
-  (* 'add_cut' adds a new entry to the map, with specified index, and whose value is computed from the next-highest and next-lowest entries, whatever they are, by a specified polymorphic function.  It requires upper and lower default values to be given in case there is no next-highest or next-lowest entry, i.e. the new entry will be the greatest and/or least one in the map.  If the specified index already has an entry, it is NOT replaced, instead the map is returned unchanged (but not untouched, so it is not physically equal to the input). *)
+    type ('x, 'a) value =
+      | Value : ('a, 'b, 'c) prepend * 'b fin * ('x, 'c) F.t -> ('x, 'a) value
+      | None : ('x, 'a) value
 
-  type 'a upper = Upper : ('a, strict, 'c) lt * 'c F.t -> 'a upper | No_upper : 'a upper
-  type 'a lower = Lower : ('b, strict, 'a) lt * 'b F.t -> 'a lower | No_lower : 'a lower
+    let rec fin_least : type x a. (x, a) fin_t -> (x, a) value =
+     fun map ->
+      match map with
+      | Emp -> None
+      | Node (x, mmap, pmap) -> (
+          match fin_least mmap with
+          | Value (Minus ab, b, y) -> Value (ab, Minus b, y)
+          | None -> (
+              match x with
+              | Some (ab, y) -> Value (ab, Zero, y)
+              | None -> (
+                  match fin_least pmap with
+                  | Value (Plus ab, b, y) -> Value (ab, Plus b, y)
+                  | None -> None)))
 
-  let rec add_cut_fin :
-      type a b c.
-      (a, b, c) prepend ->
-      b fin ->
-      (c lower -> c upper -> c F.t) ->
-      c lower ->
-      c upper ->
-      a fin_t ->
-      a fin_t =
-   fun ab x f lower upper map ->
-    match (x, map) with
-    | Plus x, Emp -> Node (None, Emp, add_cut_fin (Plus ab) x f lower upper Emp)
-    | Minus x, Emp -> Node (None, add_cut_fin (Minus ab) x f lower upper Emp, Emp)
-    | Zero, Emp -> Node (Some (ab, f lower upper), Emp, Emp)
-    | Zero, Node (Some _, _, _) -> map
-    | Zero, Node (None, mmap, pmap) ->
-        let lower =
-          match fin_greatest mmap with
-          | Value (Minus ad, d, z) -> Lower (prepend_lt (Minus d) Zero (Minus_zero d) ad ab, z)
-          | None -> lower in
-        let upper =
-          match fin_least pmap with
-          | Value (Plus ad, d, z) -> Upper (prepend_lt Zero (Plus d) (Zero_plus d) ab ad, z)
-          | None -> upper in
-        Node (Some (ab, f lower upper), mmap, pmap)
-    | Minus x, Node ((Some (lt, y) as z), mmap, pmap) ->
-        Node
-          ( z,
-            add_cut_fin (Minus ab) x f lower
-              (Upper (prepend_lt (Minus x) Zero (Minus_zero x) ab lt, y))
-              mmap,
-            pmap )
-    | Minus x, Node (None, mmap, pmap) -> (
-        match fin_least pmap with
-        | Value (Plus ad, d, y) ->
-            Node
-              ( None,
-                add_cut_fin (Minus ab) x f lower
-                  (Upper (prepend_lt (Minus x) (Plus d) (Minus_plus (x, d)) ab ad, y))
-                  mmap,
-                pmap )
-        | None -> Node (None, add_cut_fin (Minus ab) x f lower upper mmap, pmap))
-    | Plus x, Node ((Some (lt, y) as z), mmap, pmap) ->
-        Node
-          ( z,
-            mmap,
-            add_cut_fin (Plus ab) x f
-              (Lower (prepend_lt Zero (Plus x) (Zero_plus x) lt ab, y))
-              upper pmap )
-    | Plus x, Node (None, mmap, pmap) -> (
-        match fin_greatest mmap with
-        | Value (Minus ad, d, y) ->
-            Node
-              ( None,
+    (* And dually for 'fin_greatest'. *)
+
+    let rec fin_greatest : type x a. (x, a) fin_t -> (x, a) value =
+     fun map ->
+      match map with
+      | Emp -> None
+      | Node (x, mmap, pmap) -> (
+          match fin_greatest pmap with
+          | Value (Plus ab, b, y) -> Value (ab, Plus b, y)
+          | None -> (
+              match x with
+              | Some (ab, y) -> Value (ab, Zero, y)
+              | None -> (
+                  match fin_greatest mmap with
+                  | Value (Minus ab, b, y) -> Value (ab, Minus b, y)
+                  | None -> None)))
+
+    (* 'add_cut' adds a new entry to the map, with specified index, and whose value is computed from the next-highest and next-lowest entries, whatever they are, by a specified polymorphic function.  It requires upper and lower default values to be given in case there is no next-highest or next-lowest entry, i.e. the new entry will be the greatest and/or least one in the map.  If the specified index already has an entry, it is NOT replaced, instead the map is returned unchanged (but not untouched, so it is not physically equal to the input). *)
+
+    type ('x, 'a) upper =
+      | Upper : ('a, strict, 'c) lt * ('x, 'c) F.t -> ('x, 'a) upper
+      | No_upper : ('x, 'a) upper
+
+    type ('x, 'a) lower =
+      | Lower : ('b, strict, 'a) lt * ('x, 'b) F.t -> ('x, 'a) lower
+      | No_lower : ('x, 'a) lower
+
+    let rec add_cut_fin :
+        type a b c x.
+        (a, b, c) prepend ->
+        b fin ->
+        ((x, c) lower -> (x, c) upper -> (x, c) F.t) ->
+        (x, c) lower ->
+        (x, c) upper ->
+        (x, a) fin_t ->
+        (x, a) fin_t =
+     fun ab x f lower upper map ->
+      match (x, map) with
+      | Plus x, Emp -> Node (None, Emp, add_cut_fin (Plus ab) x f lower upper Emp)
+      | Minus x, Emp -> Node (None, add_cut_fin (Minus ab) x f lower upper Emp, Emp)
+      | Zero, Emp -> Node (Some (ab, f lower upper), Emp, Emp)
+      | Zero, Node (Some _, _, _) -> map
+      | Zero, Node (None, mmap, pmap) ->
+          let lower =
+            match fin_greatest mmap with
+            | Value (Minus ad, d, z) -> Lower (prepend_lt (Minus d) Zero (Minus_zero d) ad ab, z)
+            | None -> lower in
+          let upper =
+            match fin_least pmap with
+            | Value (Plus ad, d, z) -> Upper (prepend_lt Zero (Plus d) (Zero_plus d) ab ad, z)
+            | None -> upper in
+          Node (Some (ab, f lower upper), mmap, pmap)
+      | Minus x, Node ((Some (lt, y) as z), mmap, pmap) ->
+          Node
+            ( z,
+              add_cut_fin (Minus ab) x f lower
+                (Upper (prepend_lt (Minus x) Zero (Minus_zero x) ab lt, y))
                 mmap,
-                add_cut_fin (Plus ab) x f
-                  (Lower (prepend_lt (Minus d) (Plus x) (Minus_plus (d, x)) ad ab, y))
-                  upper pmap )
-        | None -> Node (None, mmap, add_cut_fin (Plus ab) x f lower upper pmap))
+              pmap )
+      | Minus x, Node (None, mmap, pmap) -> (
+          match fin_least pmap with
+          | Value (Plus ad, d, y) ->
+              Node
+                ( None,
+                  add_cut_fin (Minus ab) x f lower
+                    (Upper (prepend_lt (Minus x) (Plus d) (Minus_plus (x, d)) ab ad, y))
+                    mmap,
+                  pmap )
+          | None -> Node (None, add_cut_fin (Minus ab) x f lower upper mmap, pmap))
+      | Plus x, Node ((Some (lt, y) as z), mmap, pmap) ->
+          Node
+            ( z,
+              mmap,
+              add_cut_fin (Plus ab) x f
+                (Lower (prepend_lt Zero (Plus x) (Zero_plus x) lt ab, y))
+                upper pmap )
+      | Plus x, Node (None, mmap, pmap) -> (
+          match fin_greatest mmap with
+          | Value (Minus ad, d, y) ->
+              Node
+                ( None,
+                  mmap,
+                  add_cut_fin (Plus ab) x f
+                    (Lower (prepend_lt (Minus d) (Plus x) (Minus_plus (d, x)) ad ab, y))
+                    upper pmap )
+          | None -> Node (None, mmap, add_cut_fin (Plus ab) x f lower upper pmap))
 
-  let add_cut : type b. b no -> (b lower -> b upper -> b F.t) -> t -> t =
-   fun x f map ->
-    match x with
-    | Fin x ->
-        let lower =
+    let add_cut : type x b. b Key.t -> ((x, b) lower -> (x, b) upper -> (x, b) F.t) -> x t -> x t =
+     fun x f map ->
+      match x with
+      | Fin x ->
+          let lower =
+            match map.minus_omega with
+            | None -> No_lower
+            | Some y -> Lower (Minusomega_fin x, y) in
+          let upper =
+            match map.plus_omega with
+            | None -> No_upper
+            | Some y -> Upper (Fin_plusomega x, y) in
+          { map with fin = add_cut_fin Zero x f lower upper map.fin }
+      | Minus_omega -> (
           match map.minus_omega with
-          | None -> No_lower
-          | Some y -> Lower (Minusomega_fin x, y) in
-        let upper =
+          | Some _ -> map
+          | None ->
+              {
+                map with
+                minus_omega =
+                  Some
+                    (match fin_least map.fin with
+                    | Value (Zero, b, y) -> f No_lower (Upper (Minusomega_fin b, y))
+                    | None -> (
+                        match map.plus_omega with
+                        | Some y -> f No_lower (Upper (Minusomega_plusomega, y))
+                        | None -> f No_lower No_upper));
+              })
+      | Plus_omega -> (
           match map.plus_omega with
-          | None -> No_upper
-          | Some y -> Upper (Fin_plusomega x, y) in
-        { map with fin = add_cut_fin Zero x f lower upper map.fin }
-    | Minus_omega -> (
-        match map.minus_omega with
-        | Some _ -> map
-        | None ->
-            {
-              map with
-              minus_omega =
-                Some
-                  (match fin_least map.fin with
-                  | Value (Zero, b, y) -> f No_lower (Upper (Minusomega_fin b, y))
-                  | None -> (
-                      match map.plus_omega with
-                      | Some y -> f No_lower (Upper (Minusomega_plusomega, y))
-                      | None -> f No_lower No_upper));
-            })
-    | Plus_omega -> (
-        match map.plus_omega with
-        | Some _ -> map
-        | None ->
-            {
-              map with
-              plus_omega =
-                Some
-                  (match fin_greatest map.fin with
-                  | Value (Zero, b, y) -> f (Lower (Fin_plusomega b, y)) No_upper
-                  | None -> (
-                      match map.minus_omega with
-                      | Some y -> f (Lower (Minusomega_plusomega, y)) No_upper
-                      | None -> f No_lower No_upper));
-            })
+          | Some _ -> map
+          | None ->
+              {
+                map with
+                plus_omega =
+                  Some
+                    (match fin_greatest map.fin with
+                    | Value (Zero, b, y) -> f (Lower (Fin_plusomega b, y)) No_upper
+                    | None -> (
+                        match map.minus_omega with
+                        | Some y -> f (Lower (Minusomega_plusomega, y)) No_upper
+                        | None -> f No_lower No_upper));
+              })
+  end
 end

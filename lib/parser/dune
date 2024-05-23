@@ -2,4 +2,4 @@
   (name parser)
   (libraries util bwd algaeff core fmlib_parse uuseg zarith yuujinchou)
 	(instrumentation (backend landmarks --auto)))
-(env (_ (flags (:standard -w -37 -w -30 -w -69))))
+(env (_ (flags (:standard -w -69))))

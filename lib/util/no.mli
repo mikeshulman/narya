@@ -1,3 +1,5 @@
+open Signatures
+
 type zero
 type 'a plus
 type 'a minus
@@ -36,7 +38,7 @@ type (_, _) has_strict_trans =
   | Strict_trans : ('s1, 's2, 's3) strict_trans -> ('s1, 's2) has_strict_trans
 
 val strict_trans : 's1 strictness -> 's2 strictness -> ('s1, 's2) has_strict_trans
-val equal : 'a t -> 'b t -> ('a, 'b) Monoid.compare
+val equal : 'a t -> 'b t -> ('a, 'b) Eq.compare
 val equalb : 'a t -> 'b t -> bool
 
 val lt_trans :
@@ -51,29 +53,30 @@ type wrapped = Wrap : 'a t -> wrapped
 
 val of_rat : Q.t -> wrapped option
 
-module type Fam = sig
-  type 'a t
-end
+module Map : sig
+  module Make : functor (F : Fam2) -> sig
+    module Key : sig
+      type nonrec 'a t = 'a t
+    end
 
-module MapMake : functor (F : Fam) -> sig
-  type 'a no = 'a t
-  type t
+    include MAP with module Key := Key and module F := F
 
-  val empty : t
-  val find : t -> 'a no -> 'a F.t option
-  val add : 'a no -> 'a F.t -> t -> t
-  val remove : 'a no -> t -> t
+    type ('x, 'b) map_compare = {
+      map_lt : 'a 's. ('a, strict, 'b) lt -> ('x, 'a) F.t -> ('x, 'a) F.t;
+      map_gt : 'a 's. ('b, strict, 'a) lt -> ('x, 'a) F.t -> ('x, 'a) F.t;
+      map_eq : ('x, 'b) F.t -> ('x, 'b) F.t;
+    }
 
-  type 'b map_compare = {
-    map_lt : 'a 's. ('a, strict, 'b) lt -> 'a F.t -> 'a F.t;
-    map_gt : 'a 's. ('b, strict, 'a) lt -> 'a F.t -> 'a F.t;
-    map_eq : 'b F.t -> 'b F.t;
-  }
+    val map_compare : ('x, 'b) map_compare -> 'b Key.t -> 'x t -> 'x t
 
-  val map_compare : 'b map_compare -> 'b no -> t -> t
+    type ('x, 'a) upper =
+      | Upper : ('a, strict, 'c) lt * ('x, 'c) F.t -> ('x, 'a) upper
+      | No_upper : ('x, 'a) upper
 
-  type 'a upper = Upper : ('a, strict, 'c) lt * 'c F.t -> 'a upper | No_upper : 'a upper
-  type 'a lower = Lower : ('b, strict, 'a) lt * 'b F.t -> 'a lower | No_lower : 'a lower
+    type ('x, 'a) lower =
+      | Lower : ('b, strict, 'a) lt * ('x, 'b) F.t -> ('x, 'a) lower
+      | No_lower : ('x, 'a) lower
 
-  val add_cut : 'b no -> ('b lower -> 'b upper -> 'b F.t) -> t -> t
+    val add_cut : 'b Key.t -> (('x, 'b) lower -> ('x, 'b) upper -> ('x, 'b) F.t) -> 'x t -> 'x t
+  end
 end

@@ -1,8 +1,8 @@
+open Util
 open Core
 open Parser
 open Syntax
 open Value
-open Parse
 open Asai.Range
 
 let () =
@@ -10,17 +10,17 @@ let () =
   Dim.Endpoints.set_internal true
 
 (* The current context of assumptions, including names. *)
-type ctx = Ctx : ('n, 'b) Ctx.t * 'n Varscope.t -> ctx
+type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx
 
-let ectx = Ctx (Ctx.empty, Varscope.empty)
+let ectx = Ctx (Ctx.empty, Emp)
 let context = ref ectx
 
 (* Functions to synth and check terms *)
 
-let parse_term : type n. n Varscope.t -> string -> n Raw.check located =
+let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check located =
  fun names tm ->
-  let p = Parse_term.parse (`String { content = tm; title = Some "user-supplied term" }) in
-  let (Term tm) = Parse_term.final p in
+  let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
+  let (Term tm) = Parse.Term.final p in
   Postprocess.process names tm
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
@@ -112,7 +112,7 @@ let unparse : ?print:unit -> string -> unit =
 
 let assume (x : string) (ty : kinetic value) : kinetic value =
   let (Ctx (ctx, names)) = !context in
-  context := Ctx (Ctx.ext ctx (Some x) ty, Varscope.ext names (Some x));
+  context := Ctx (Ctx.ext ctx (Some x) ty, Bwv.snoc names (Some x));
   fst (synth x)
 
 (* Check that two terms are, or aren't, equal, at a type or synthesizing *)
@@ -137,12 +137,4 @@ let unequal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
   if Option.is_none (Equal.equal_val (Ctx.length ctx) tm1 tm2) then ()
   else raise (Failure "Equal terms")
 
-let rec run f =
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      run @@ fun () ->
-      Terminal.display d;
-      raise (Failure "Fatal error"))
-  @@ fun () ->
-  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
-  Builtins.run @@ fun () ->
-  Global.run_empty @@ fun () -> Scope.run f
+let run f = Repl.run f

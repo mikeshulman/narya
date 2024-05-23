@@ -2,7 +2,7 @@ This directory contains "white-box" tests that call library functions directly, 
 
 ### Old-style interaction
 
-Many of these tests use the interaction facilities in `Testutil.Pmp` and `Testutil.Mcp`, which were written before it was possible to typecheck constant definitions.  (The difference between the two is in the parser they use, see below.)  Thus, they add variables to the context rather than defining constants, and store terms and values in OCaml variables.  The basic interaction functions in these packages are:
+Many of these tests use the interaction facilities in `Testutil.Pmp` and `Testutil.Mcp`, which were written before it was possible to typecheck definitions of constants.  (The difference between the two is in the parser they use, see below.)  Thus, they add variables to the context rather than defining constants, and store terms and values in OCaml variables.  The basic interaction functions in these packages are:
 
 - `synth M` -- Synthesize a type from a term `M` and return the corresponding "value" of `M` as well as the synthesized type (also a value).
 - `check M T` -- Check the term `M` against the type `T`, which must be a value.  Returns the value of `M`.

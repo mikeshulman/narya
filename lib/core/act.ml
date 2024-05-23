@@ -27,18 +27,22 @@ let act_variables : type m n. n variables -> (m, n) deg -> m variables =
   match deg_perm_of_plus nk s with
   | None_deg_perm_of_plus ->
       let m = dom_deg s in
-      Variables (m, D.plus_zero m, CubeOf.singleton (CubeOf.find_top vars))
+      Variables (m, D.plus_zero m, NICubeOf.singleton (NICubeOf.find_top vars))
   (* If the degeneracy doesn't mix up the normal and cube dimensions, it still might permute the normal ones.  I'm not positive that it makes sense to throw away the degeneracy part here and the permutation part below, but this is the best I can think of.  If it doesn't end up making sense, we may have to revert to making it fully-cube as above. *)
   | Deg_perm_of_plus (mk, s, p) ->
       let m = dom_deg s in
-      let vars =
-        CubeOf.build (CubeOf.dim vars)
+      let module Build = NICubeOf.Traverse (struct
+        type 'acc t = unit
+      end) in
+      let (Wrap (vars, _)) =
+        Build.build_left (NICubeOf.dim vars)
           {
             build =
-              (fun fa ->
+              (fun fa () ->
                 let (Face (fb, _)) = perm_sface p fa in
-                CubeOf.find vars fb);
-          } in
+                Fwrap (NFamOf (NICubeOf.find vars fb), ()));
+          }
+          () in
       Variables (m, mk, vars)
 
 (* Acting on a binder and on other sorts of closures will be unified by the function 'act_closure', but its return value involves an existential type, so it has to be a GADT. *)
@@ -91,7 +95,7 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
         (Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields, new_ins)
   | Constr (name, dim, args) ->
       let (Of fa) = deg_plus_to s dim ~on:"constr" in
-      Constr (name, dom_deg fa, Bwd.map (fun tm -> act_value_cube tm fa) args)
+      Constr (name, dom_deg fa, List.map (fun tm -> act_value_cube tm fa) args)
 
 and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
  fun tm s ->
@@ -181,7 +185,7 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
   | Lazy (lazy tmty) -> act_ty ?err tm tmty s
   | Inst { tm = ty; dim; args; tys = _ } -> (
       (* A type must be fully instantiated, so in particular tys is trivial. *)
-      match compare (TubeOf.uninst args) D.zero with
+      match D.compare (TubeOf.uninst args) D.zero with
       | Neq -> fatal (Anomaly "act_ty applied to non-fully-instantiated term")
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
@@ -203,13 +207,13 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
   | Uninst (ty, (lazy uu)) -> (
       (* This is just the case when dim = 0, so it is the same except simpler. *)
       let fa = s in
-      match (compare (cod_deg fa) D.zero, uu) with
+      match (D.compare (cod_deg fa) D.zero, uu) with
       (* This can also be a user error, e.g. symmetrizing a 0-dimensional thing, so we allow the caller to provide a different error code. *)
       | Neq, _ ->
           fatal
             (Option.value ~default:(Anomaly "invalid degeneracy action on uninstantiated type") err)
       | Eq, Uninst (UU z, _) -> (
-          match compare z D.zero with
+          match D.compare z D.zero with
           | Neq -> fatal (Anomaly "acting on non-fully-instantiated type as a type")
           | Eq -> (
               match D.compare_zero (dom_deg fa) with
@@ -238,10 +242,14 @@ and act_head : type a b h. h head -> (a, b) deg -> h head =
   | Var { level; deg } ->
       let (DegExt (_, _, deg)) = comp_deg_extending deg s in
       Var { level; deg }
-  (* To act on a constant, we push as much of the degeneracy through the insertion as possible. *)
+  (* To act on a constant, we push as much of the degeneracy through the insertion as possible.  The actual degeneracy that gets pushed through doesn't matter, since it just raises the constant to an even higher dimension, and that dimension is stored in the insertion. *)
   | Const { name; ins } ->
       let (Insfact_comp (_, ins, _, _)) = insfact_comp ins s in
       Const { name; ins }
+  (* Acting on a metavariable is similar to a constant, but now the inner degeneracy acts on the stored environment. *)
+  | Meta { meta; env; ins } ->
+      let (Insfact_comp (deg, ins, _, _)) = insfact_comp ins s in
+      Meta { meta; env = Act (env, op_of_deg deg); ins }
 
 (* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)
 and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =

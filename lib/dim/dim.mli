@@ -1,8 +1,10 @@
 open Bwd
 open Util
+open Signatures
 open Tlist
 open Monoid
 module D : MonoidPos
+module Dmap : MAP_MAKER with module Key := D
 
 module Endpoints : sig
   type 'l len
@@ -17,17 +19,10 @@ module Endpoints : sig
 end
 
 val to_int : 'a D.t -> int
-val compare : 'm D.t -> 'n D.t -> ('m, 'n) compare
 
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
 
 val factor : 'nk D.t -> 'n D.t -> ('nk, 'n) factor option
-val epi : 'k D.t -> ('k, 'm, 'l) D.plus -> ('k, 'n, 'l) D.plus -> ('m, 'n) Monoid.eq
-val zero_uniq : 'm D.t -> ('m, 'z, 'm) D.plus -> ('z, D.zero) Monoid.eq
-
-type (_, _) pushout = Pushout : ('a, 'c, 'p) D.plus * ('b, 'd, 'p) D.plus -> ('a, 'b) pushout
-
-val pushout : 'a D.t -> 'b D.t -> ('a, 'b) pushout
 
 type (_, _) deg
 
@@ -51,15 +46,6 @@ val deg_zero : 'a D.t -> ('a, D.zero) deg
 
 type 'n perm = ('n, 'n) deg
 
-val dim_perm : 'n perm -> 'n D.t
-val id_perm : 'n D.t -> 'n perm
-val comp_perm : 'a perm -> 'a perm -> 'a perm
-val perm_plus : 'm perm -> ('m, 'k, 'mk) D.plus -> 'mk perm
-val perm_plus_perm : 'm perm -> ('m, 'n, 'mn) D.plus -> 'n perm -> 'mn perm
-val plus_perm : 'm D.t -> ('m, 'n, 'mn) D.plus -> 'n perm -> 'mn perm
-val is_id_perm : 'n perm -> unit option
-val perm_equiv : 'm perm -> 'n perm -> unit option
-val switch_perm : 'm D.t -> ('m, 'n, 'mn) D.plus -> 'mn perm
 val perm_inv : 'm perm -> 'm perm
 
 type (_, _, _) deg_perm_of_plus =
@@ -74,7 +60,6 @@ type _ deg_of = Of : ('m, 'n) deg -> 'n deg_of
 type _ deg_of_plus = Of : ('n, 'k, 'nk) D.plus * ('m, 'nk) deg -> 'n deg_of_plus
 
 val comp_deg_of_plus : ('m, 'n) deg -> 'm deg_of_plus -> 'n deg_of_plus
-val reduce_deg_of_plus : 'n deg_of_plus -> 'n deg_of_plus
 
 type (_, _) deg_extending =
   | DegExt : ('k, 'j, 'kj) D.plus * ('n, 'i, 'ni) D.plus * ('kj, 'ni) deg -> ('k, 'n) deg_extending
@@ -83,10 +68,6 @@ val comp_deg_extending : ('m, 'n) deg -> ('k, 'l) deg -> ('k, 'n) deg_extending
 
 type any_deg = Any : ('m, 'n) deg -> any_deg
 
-val comp_deg_of_plus_any : 'n deg_of_plus -> any_deg -> 'n deg_of_plus
-val any_deg_plus : any_deg -> 'k D.t -> any_deg
-val any_of_deg_of_plus : 'n deg_of_plus -> any_deg
-val is_id_any_deg : any_deg -> unit option
 val string_of_deg : ('a, 'b) deg -> string
 val deg_of_string : string -> any_deg option
 
@@ -97,7 +78,7 @@ val dom_sface : ('m, 'n) sface -> 'm D.t
 val cod_sface : ('m, 'n) sface -> 'n D.t
 val is_id_sface : ('m, 'n) sface -> unit option
 val comp_sface : ('n, 'k) sface -> ('m, 'n) sface -> ('m, 'k) sface
-val sface_zero : ('n, D.zero) sface -> ('n, D.zero) Monoid.eq
+val sface_zero : ('n, D.zero) sface -> ('n, D.zero) Eq.t
 
 val sface_plus_sface :
   ('k, 'm) sface ->
@@ -120,37 +101,12 @@ type (_, _, _) sface_of_plus =
 
 val sface_of_plus : ('n, 'k, 'nk) D.plus -> ('ml, 'nk) sface -> ('ml, 'n, 'k) sface_of_plus
 
-type ('l, 'n, 'f) count_faces
-type _ has_faces = Faces : ('l, 'n, 'f) count_faces -> 'n has_faces
-
-val count_faces : 'n D.t -> 'n has_faces
-val faces_zero : 'l Endpoints.len -> ('l, D.zero, N.one) count_faces
-val dim_faces : ('l, 'n, 'f) count_faces -> 'n D.t
-val faces_out : ('l, 'n, 'f) count_faces -> 'f N.t
-val faces_uniq : ('l, 'n, 'f1) count_faces -> ('l, 'n, 'f2) count_faces -> ('f1, 'f2) Monoid.eq
-val sfaces : ('l, 'n, 'f) count_faces -> ('n sface_of, 'f) Bwv.t
-(* val sface_int : ('n, 'f) count_faces -> 'n sface_of -> int *)
-
-val sfaces_plus :
-  ('m, 'n, 'mn) D.plus ->
-  ('l, 'm, 'fm) count_faces ->
-  ('l, 'n, 'fn) count_faces ->
-  ('l, 'mn, 'fmn) count_faces ->
-  ('a -> 'b -> 'c) ->
-  ('a, 'fm) Bwv.t ->
-  ('b, 'fn) Bwv.t ->
-  ('c, 'fmn) Bwv.t
-
 type any_sface = Any_sface : ('n, 'k) sface -> any_sface
 
 val string_of_sface : ('n, 'k) sface -> string
 val sface_of_string : string -> any_sface option
 
-module type Fam = sig
-  type ('a, 'b) t
-end
-
-module Cube (F : Fam) : sig
+module Cube (F : Fam2) : sig
   type ('m, 'n, 'b) gt
   type ('n, 'b) t = ('n, 'n, 'b) gt
 
@@ -177,7 +133,7 @@ module Cube (F : Fam) : sig
     val ( @: ) : ('n, 'x) F.t -> ('n, 'xs) Heter.hft -> ('n, ('x, 'xs) cons) Heter.hft
   end
 
-  module Monadic (M : Monad.Plain) : sig
+  module Applicatic (M : Applicative.Plain) : sig
     type ('n, 'bs, 'cs) pmapperM = {
       map : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> ('m, 'cs) Heter.hft M.t;
     }
@@ -204,6 +160,11 @@ module Cube (F : Fam) : sig
     val buildM : 'n D.t -> ('n, 'b) builderM -> ('n, 'b) t M.t
   end
 
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
+  end
+
   module IdM : module type of Monadic (Monad.Identity)
 
   val pmap :
@@ -217,10 +178,6 @@ module Cube (F : Fam) : sig
 
   val miter : ('n, ('b, 'bs) cons) IdM.miteratorM -> ('n, 'n, ('b, 'bs) cons) Heter.hgt -> unit
   val build : 'n D.t -> ('n, 'b) IdM.builderM -> ('n, 'b) t
-
-  type ('n, 'c, 'b) fold_lefter = { fold : 'm. 'c -> ('m, 'n) sface -> ('m, 'b) F.t -> 'c }
-
-  val fold_left : ('n, 'c, 'b) fold_lefter -> 'c -> ('n, 'b) t -> 'c
   val subcube : ('m, 'n) sface -> ('n, 'b) t -> ('m, 'b) t
 end
 
@@ -228,19 +185,7 @@ module FamOf : sig
   type ('a, 'b) t = 'b
 end
 
-module CubeOf : sig
-  include module type of Cube (FamOf)
-
-  val flatten_append :
-    ('b, 'len) Bwv.t ->
-    ('n, 'b) t ->
-    ('l, 'n, 'f) count_faces ->
-    ('len, 'f, 'lenf) N.plus ->
-    ('b, 'lenf) Bwv.t
-
-  val flatten : ('n, 'b) t -> ('l, 'n, 'f) count_faces -> ('b, 'f) Bwv.t
-  val append_bwd : 'a Bwd.t -> ('n, 'a) t -> 'a Bwd.t
-end
+module CubeOf : module type of Cube (FamOf)
 
 type (_, _, _, _) tface
 
@@ -290,7 +235,7 @@ type (_, _, _) pface_of_plus =
 
 val pface_of_plus : ('m, 'n, 'k, 'nk) tface -> ('m, 'n, 'k) pface_of_plus
 
-module Tube (F : Fam) : sig
+module Tube (F : Fam2) : sig
   module C : module type of Cube (F)
 
   type ('n, 'k, 'nk, 'm, 'b) gt
@@ -318,7 +263,7 @@ module Tube (F : Fam) : sig
 
   module Infix : module type of C.Infix
 
-  module Monadic (M : Monad.Plain) : sig
+  module Applicatic (M : Applicative.Plain) : sig
     type ('n, 'k, 'nk, 'bs, 'cs) pmapperM = {
       map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> ('m, 'cs) C.Heter.hft M.t;
     }
@@ -351,6 +296,11 @@ module Tube (F : Fam) : sig
 
     val buildM :
       'n D.t -> ('n, 'k, 'nk) D.plus -> ('n, 'k, 'nk, 'b) builderM -> ('n, 'k, 'nk, 'b) t M.t
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
   end
 
   module IdM : module type of Monadic (Monad.Identity)
@@ -387,6 +337,106 @@ module TubeOf : sig
     ('m, 'k, 'mk) D.plus -> ('k, 'l, 'kl) D.plus -> ('m, 'kl, 'mkl, 'b) t -> ('m, 'k, 'mk, 'b) t
 
   val append_bwd : 'a Bwd.t -> ('m, 'n, 'mn, 'a) t -> 'a Bwd.t
+end
+
+module Icube (F : Fam4) : sig
+  type (_, _, _, _, _) gt
+  type ('left, 'n, 'b, 'right) t = ('left, 'n, 'n, 'b, 'right) gt
+
+  val dim : ('left, 'n, 'b, 'right) t -> 'n D.t
+
+  module Applicatic (M : Util.Applicative.Plain) : sig
+    type ('n, 'b, 'c) mapperM = {
+      map :
+        'left 'right 'm.
+        ('m, 'n) sface -> ('left, 'm, 'b, 'right) F.t -> ('left, 'm, 'c, 'right) F.t M.t;
+    }
+
+    val mapM : ('n, 'b, 'c) mapperM -> ('left, 'n, 'b, 'right) t -> ('left, 'n, 'c, 'right) t M.t
+  end
+
+  module IdM : module type of Applicatic (Applicative.OfMonad (Monad.Identity))
+
+  val map : ('n, 'b, 'c) IdM.mapperM -> ('left, 'n, 'b, 'right) t -> ('left, 'n, 'c, 'right) t
+
+  module Traverse : functor (Acc : Util.Signatures.Fam) -> sig
+    type ('n, 'b, 'c) left_folder = {
+      foldmap :
+        'left 'right 'm.
+        ('m, 'n) sface ->
+        'left Acc.t ->
+        ('left, 'm, 'b, 'right) F.t ->
+        ('left, 'm, 'c, 'right) F.t * 'right Acc.t;
+    }
+
+    val fold_map_left :
+      ('n, 'b, 'c) left_folder ->
+      'left Acc.t ->
+      ('left, 'n, 'b, 'right) t ->
+      ('left, 'n, 'c, 'right) t * 'right Acc.t
+
+    type ('n, 'b, 'c) right_folder = {
+      foldmap :
+        'left 'right 'm.
+        ('m, 'n) sface ->
+        ('left, 'm, 'b, 'right) F.t ->
+        'right Acc.t ->
+        'left Acc.t * ('left, 'm, 'c, 'right) F.t;
+    }
+
+    val fold_map_right :
+      ('n, 'b, 'c) right_folder ->
+      ('left, 'n, 'b, 'right) t ->
+      'right Acc.t ->
+      'left Acc.t * ('left, 'n, 'c, 'right) t
+
+    type (_, _, _) fwrap_left =
+      | Fwrap : ('left, 'm, 'b, 'right) F.t * 'right Acc.t -> ('left, 'm, 'b) fwrap_left
+
+    type (_, _, _, _) gwrap_left =
+      | Wrap : ('left, 'm, 'mk, 'b, 'right) gt * 'right Acc.t -> ('left, 'm, 'mk, 'b) gwrap_left
+
+    type ('left, 'm, 'b) wrap_left = ('left, 'm, 'm, 'b) gwrap_left
+
+    type ('n, 'b) builder_leftM = {
+      build : 'left 'm. ('m, 'n) sface -> 'left Acc.t -> ('left, 'm, 'b) fwrap_left;
+    }
+
+    val build_left : 'n D.t -> ('n, 'b) builder_leftM -> 'left Acc.t -> ('left, 'n, 'b) wrap_left
+
+    type (_, _, _) fwrap_right =
+      | Fwrap : 'left Acc.t * ('left, 'm, 'b, 'right) F.t -> ('m, 'b, 'right) fwrap_right
+
+    type (_, _, _, _) gwrap_right =
+      | Wrap : 'left Acc.t * ('left, 'm, 'mk, 'b, 'right) gt -> ('m, 'mk, 'b, 'right) gwrap_right
+
+    type ('m, 'b, 'right) wrap_right = ('m, 'm, 'b, 'right) gwrap_right
+
+    type ('n, 'b) builder_rightM = {
+      build : 'right 'm. ('m, 'n) sface -> 'right Acc.t -> ('m, 'b, 'right) fwrap_right;
+    }
+
+    val build_right :
+      'n D.t -> ('n, 'b) builder_rightM -> 'right Acc.t -> ('n, 'b, 'right) wrap_right
+  end
+
+  type (_, _) fbiwrap = Fbiwrap : ('left, 'n, 'b, 'right) F.t -> ('n, 'b) fbiwrap
+
+  val find : ('left, 'n, 'b, 'right) t -> ('k, 'n) sface -> ('k, 'b) fbiwrap
+  val find_top : ('left, 'n, 'b, 'right) t -> ('n, 'b) fbiwrap
+end
+
+module NFamOf : sig
+  type (_, _, _, _) t = NFamOf : 'b -> ('left, 'n, 'b, 'left N.suc) t
+end
+
+module NICubeOf : sig
+  include module type of Icube (NFamOf)
+
+  val singleton : 'b -> ('left, D.zero, 'b, 'left N.suc) t
+  val out : 'left N.t -> ('left, 'm, 'b, 'right) t -> 'right N.t
+  val find : ('left, 'n, 'b, 'right) t -> ('k, 'n) sface -> 'b
+  val find_top : ('left, 'n, 'b, 'right) t -> 'b
 end
 
 type (_, _) face = Face : ('m, 'n) sface * 'm perm -> ('m, 'n) face

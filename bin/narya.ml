@@ -6,7 +6,6 @@ open Format
 open React
 open Lwt
 open LTerm_text
-open Parse
 
 let usage_msg = "narya [options] <file1> [<file2> ...]"
 let input_files = ref Emp
@@ -85,8 +84,8 @@ let () =
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let rec batch first ws p src =
-  let cmd = Parse_command.final p in
-  if cmd = Eof then ws
+  let cmd = Command.Parse.final p in
+  if cmd = Eof then if Galaxy.unsolved () then Reporter.fatal Open_holes else ws
   else (
     if !typecheck then Parser.Command.execute cmd;
     let ws =
@@ -95,12 +94,12 @@ let rec batch first ws p src =
         Print.pp_ws `None std_formatter ws;
         Parser.Command.pp_command std_formatter cmd)
       else [] in
-    let p, src = Parse_command.restart_parse p src in
+    let p, src = Command.Parse.restart_parse p src in
     batch false ws p src)
 
 let execute (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
-  let p, src = Parse_command.start_parse source in
+  let p, src = Command.Parse.start_parse source in
   let ws = batch true [] p src in
   if !reformat then (
     let ws = Whitespace.ensure_ending_newlines 2 ws in
@@ -138,8 +137,21 @@ let rec repl terminal history buf =
         let* () = Lwt_io.flush Lwt_io.stdout in
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
-          ~fatal:(fun d -> Terminal.display ~output:stdout d)
-          (fun () -> parse_and_execute_command str);
+          ~fatal:(fun d ->
+            Terminal.display ~output:stdout d;
+            match d.message with
+            | Quit -> exit 0
+            | _ -> ())
+          (fun () ->
+            match Command.parse_single str with
+            | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
+            | ws, Some cmd ->
+                if !typecheck then Parser.Command.execute cmd;
+                if !reformat then (
+                  Print.pp_ws `None std_formatter ws;
+                  let last = Parser.Command.pp_command std_formatter cmd in
+                  Print.pp_ws `None std_formatter last;
+                  Format.pp_print_newline std_formatter ()));
         LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
       else (
@@ -173,11 +185,21 @@ let rec interact_pg () =
     Reporter.try_with
       ~emit:(fun d -> Terminal.display ~output:stdout d)
       ~fatal:(fun d -> Terminal.display ~output:stdout d)
-      (fun () -> parse_and_execute_command str);
+      (fun () ->
+        match Command.parse_single str with
+        | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
+        | ws, Some cmd ->
+            if !typecheck then Parser.Command.execute cmd;
+            if !reformat then (
+              Print.pp_ws `None std_formatter ws;
+              let last = Parser.Command.pp_command std_formatter cmd in
+              Print.pp_ws `None std_formatter last));
     interact_pg ()
   with End_of_file -> ()
 
 let () =
+  Parser.Unparse.install ();
+  Galaxy.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
@@ -197,6 +219,7 @@ let () =
       Terminal.display ~output:stderr d;
       exit 1)
   @@ fun () ->
+  Parser.Pi.install ();
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
   Dim.Endpoints.set_len !arity;
   Dim.Endpoints.set_char !refl_char;

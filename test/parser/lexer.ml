@@ -75,7 +75,7 @@ let () =
         ( Ident [ "comments" ],
           [ `Block " can contain ` line comments \n and {` nest `} arbitrarily "; `Newlines 1 ] );
         (Ident [ "see" ], []);
-        (Op "?", []);
+        (Query, []);
       ])
 
 let () =
@@ -85,7 +85,7 @@ let () =
         (Ident [ "block" ], []);
         (Ident [ "comments" ], [ `Block " nest `{` even after `} backquotes " ]);
         (Ident [ "see" ], []);
-        (Op "?", []);
+        (Query, []);
       ])
 
 let () =
@@ -95,7 +95,7 @@ let () =
         (Ident [ "block" ], []);
         (Ident [ "comments" ], [ `Block "} can start with a lbrace " ]);
         (Ident [ "see" ], []);
-        (Op "?", []);
+        (Query, []);
       ])
 
 let () =

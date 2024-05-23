@@ -62,7 +62,9 @@ Testing notation commands
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0.1 f : x "&" y := f x y'
    ￫ error[E2200]
-   ￮ invalid tightness: 0.1
+   ￭ command-line exec string
+   1 | notation 0.1 f : x "&" y := f x y
+     ^ invalid tightness: 0.1
   
   [1]
 

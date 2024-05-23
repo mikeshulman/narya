@@ -11,7 +11,7 @@ module Tbwd = struct
   (* ('a, 'b, 'n, 'ab) snocs means that 'a is a tbwd (although this isn't enforced -- it could be any type), 'b is a Fwn.t, and 'ab is the result of adding 'b copies of the dimension 'n at the end of 'a. *)
   type (_, _, _, _) snocs =
     | Zero : ('a, Fwn.zero, 'n, 'a) snocs
-    | Suc : ('a, 'b, 'n, 'ab) snocs -> ('a, 'b Fwn.suc, 'n, ('ab, 'n) snoc) snocs
+    | Suc : (('a, 'n) snoc, 'b, 'n, 'ab) snocs -> ('a, 'b Fwn.suc, 'n, 'ab) snocs
 
   let rec snocs_snoc : type a b c n. (a, b, n, c) snocs -> ((a, n) snoc, b, n, (c, n) snoc) snocs =
     function
@@ -20,7 +20,7 @@ module Tbwd = struct
 
   let snocs_suc : type a b c n. (a, b Fwn.suc, n, c) snocs -> ((a, n) snoc, b, n, c) snocs =
     function
-    | Suc ab -> snocs_snoc ab
+    | Suc ab -> ab
 
   let rec snocs_right : type a b c n. (a, b, n, c) snocs -> b Fwn.t = function
     | Zero -> Zero
@@ -36,7 +36,7 @@ module Tbwd = struct
         let (Snocs p) = snocs b in
         Snocs (Suc p)
 
-  (* ('a, 'n, 'b) insert says that 'b is obtained by inserting a dimension 'n somewhere in 'a.  Or, put differently, 'a is obtained from 'b by deleting a dimension 'n from somewhere. *)
+  (* ('a, 'n, 'b) insert says that 'b is obtained by inserting a type 'n somewhere in 'a.  Or, put differently, 'a is obtained from 'b by deleting a type 'n in a specified location. *)
   type (_, _, _) insert =
     | Now : ('a, 'n, ('a, 'n) snoc) insert
     | Later : ('a, 'n, 'b) insert -> (('a, 'k) snoc, 'n, ('b, 'k) snoc) insert
@@ -60,6 +60,8 @@ module Tbwd = struct
   type (_, _) permute =
     | Id : ('a, 'a) permute
     | Insert : ('a, 'b) permute * ('b, 'n, 'c) insert -> (('a, 'n) snoc, 'c) permute
+
+  let id_perm : type a. (a, a) permute = Id
 
   (* There is some redundancy in the above presentation of permutations: Insert (Id, Now) is the same permutation as Id (of a longer list).  We could probably set up the data structures to exclude that possibility statically, but for now we are content to provide a "smart constructor" version of Insert that refuses to create Insert (Id, Now), returning Id instead.  (The latter is preferred for efficiency reasons, because when computing with a permutation we can sometimes short-circuit the rest of the computation if we know the rest of the permutation is an identity.)  *)
   let insert : type a b n c. (a, b) permute -> (b, n, c) insert -> ((a, n) snoc, c) permute =
@@ -194,7 +196,7 @@ module Tbwd = struct
     | Flat_snoc : ('ns, 'm) flatten * ('m, 'n, 'mn) N.plus -> (('ns, 'n) snoc, 'mn) flatten
 
   (* This is a partial function. *)
-  let rec flatten_uniq : type ns m n. (ns, m) flatten -> (ns, n) flatten -> (m, n) Monoid.eq =
+  let rec flatten_uniq : type ns m n. (ns, m) flatten -> (ns, n) flatten -> (m, n) Eq.t =
    fun m n ->
     match (m, n) with
     | Flat_emp, Flat_emp -> Eq

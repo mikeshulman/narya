@@ -1,4 +1,5 @@
 module D = D
+module Dmap = Util.Nmap
 
 let to_int = D.to_int
 
@@ -11,6 +12,7 @@ include Cube
 include Tface
 include Bwtface
 include Tube
+include Icube
 include Face
 include Op
 include Insertion

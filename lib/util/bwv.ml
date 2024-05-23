@@ -69,10 +69,11 @@ let of_list : type a mn. mn N.t -> a list -> ((a, mn) t * a list) option =
   of_list (N.zero_plus n) Emp ys
 
 (* Find the rightmost occurrence of an element in a vector, if any, and return its De Bruijn index. *)
-let rec find : type a n. a -> (a, n) t -> n N.index option =
- fun y -> function
+let rec find_opt : type a n. (a -> bool) -> (a, n) t -> (a * n N.index) option =
+ fun test -> function
   | Emp -> None
-  | Snoc (xs, x) -> if x = y then Some Top else Option.map (fun z -> N.Pop z) (find y xs)
+  | Snoc (xs, x) ->
+      if test x then Some (x, Top) else Option.map (fun (y, z) -> (y, N.Pop z)) (find_opt test xs)
 
 (* Find the rightmost occurrence of an element and return its De Bruijn index, along with the vector with that element removed. *)
 let rec find_remove : type a n. a -> (a, n N.suc) t -> ((a, n) t * n N.suc N.index) option =
@@ -97,6 +98,15 @@ let rec insert : type a n. n N.suc N.index -> a -> (a, n) t -> (a, n N.suc) t =
           match i with
           | _ -> .)
       | Snoc (xs, y) -> Snoc (insert i x xs, y))
+
+(* Apply a permutation *)
+let rec permute : type a m n. (a, m) t -> (m, n) N.perm -> (a, n) t =
+ fun xs p ->
+  match (xs, p) with
+  | _, Id -> xs
+  | Snoc (xs, x), Insert (p, i) ->
+      let ys = permute xs p in
+      insert i x ys
 
 (* Fill a new vector with the return values of a function. *)
 let rec init : type a n. n N.t -> (n N.index -> a) -> (a, n) t =
@@ -138,10 +148,10 @@ module Heter = struct
     | x :: xs -> head' x :: head xs
 end
 
-(* Now we can define the general monadic heterogeneous traversal. *)
+(* Now we can define the general heterogeneous traversal. *)
 
-module Monadic (M : Monad.Plain) = struct
-  open Monad.Ops (M)
+module Applicatic (M : Applicative.Plain) = struct
+  open Applicative.Ops (M)
 
   let rec pmapM :
       type x xs ys n.
@@ -153,33 +163,32 @@ module Monadic (M : Monad.Plain) = struct
     match xss with
     | Emp :: _ -> return (Heter.emp ys)
     | Snoc (xs, x) :: xss ->
-        let* fxs = pmapM f (xs :: Heter.head xss) ys in
-        let* fx = f (x :: Heter.tail xss) in
-        return (Heter.snoc fxs fx)
+        let+ fxs = pmapM f (xs :: Heter.head xss) ys and+ fx = f (x :: Heter.tail xss) in
+        Heter.snoc fxs fx
 
   (* With specializations to simple arity possibly-monadic maps and iterators.  *)
 
   let miterM :
       type x xs n. ((x, xs) cons hlist -> unit M.t) -> ((x, xs) cons, n) Heter.ht -> unit M.t =
    fun f xss ->
-    let* [] =
+    let+ [] =
       pmapM
         (fun x ->
-          let* () = f x in
-          return [])
+          let+ () = f x in
+          [])
         xss Nil in
-    return ()
+    ()
 
   let mmapM :
       type x xs y n. ((x, xs) cons hlist -> y M.t) -> ((x, xs) cons, n) Heter.ht -> (y, n) t M.t =
    fun f xss ->
-    let* [ ys ] =
+    let+ [ ys ] =
       pmapM
         (fun x ->
-          let* y = f x in
-          return [ y ])
+          let+ y = f x in
+          [ y ])
         xss (Cons Nil) in
-    return ys
+    ys
 
   let mapM : type x y n. (x -> y M.t) -> (x, n) t -> (y, n) t M.t =
    fun f xs -> mmapM (fun [ x ] -> f x) [ xs ]
@@ -192,6 +201,11 @@ module Monadic (M : Monad.Plain) = struct
 
   let iterM2 : type x y n. (x -> y -> unit M.t) -> (x, n) t -> (y, n) t -> unit M.t =
    fun f xs ys -> miterM (fun [ x; y ] -> f x y) [ xs; ys ]
+end
+
+module Monadic (M : Monad.Plain) = struct
+  module A = Applicative.OfMonad (M)
+  include Applicatic (A)
 end
 
 let pmap :
@@ -246,14 +260,14 @@ let rec find2l :
 
 (* Appending *)
 
-(* Amusingly, appending *reversed* vectors is a closer match to addition of natural numbers defined by recursion on its right argument that appending non-reversed vectors would be. *)
-let rec append : type a m n mn. (m, n, mn) N.plus -> (a, m) t -> (a, n) t -> (a, mn) t =
+(* The natural operation is to append a forwards vector to a backwards one. *)
+let rec append : type a m n mn. (m, n, mn) Fwn.bplus -> (a, m) t -> (a, n) Vec.t -> (a, mn) t =
  fun mn xs ys ->
   match (mn, ys) with
-  | Zero, Emp -> xs
-  | Suc mn, Snoc (ys, y) -> Snoc (append mn xs ys, y)
+  | Zero, [] -> xs
+  | Suc mn, y :: ys -> append mn (Snoc (xs, y)) ys
 
-(* Conversely, we can split a vector of length m+n into one of length m and one of length n. *)
+(* We can split a Bwv of length m+n into one of length m and one of length n. *)
 let rec unappend : type a m n mn. (m, n, mn) N.plus -> (a, mn) t -> (a, m) t * (a, n) t =
  fun mn xys ->
   match mn with
@@ -316,13 +330,6 @@ let rec fold_left2_map_append :
   | Suc mn, Snoc (xs, x), Snoc (ys, y) ->
       let zs = fold_left2_map_append mn f start xs ys in
       Snoc (zs, f.fold zs x y)
-
-(* Constant-length bind: given a vector of elements of 'a of length n, and a function mapping 'a to vectors of type 'b of length m, we get a vector of type 'b of length m*n.  *)
-let rec bind : type a b m n mn. (m, n, mn) N.times -> (a, n) t -> (a -> (b, m) t) -> (b, mn) t =
- fun mn xs f ->
-  match (mn, xs) with
-  | Zero _, Emp -> Emp
-  | Suc (mn, mnm), Snoc (xs, x) -> append mnm (bind mn xs f) (f x)
 
 let rec fold_left_bind_append :
     type k m n mn k_mn a c.
@@ -410,20 +417,13 @@ let rec of_bwd : type a n. a Bwd.t -> n N.t -> (a, n) t option =
       Some (Snoc (xs', x))
   | _ -> None
 
-(* As befits backwards vectors and lists, this takes n elements from the *right* of a Bwd to form a Bwv. *)
-let rec take_bwd : type a n. n N.t -> a Bwd.t -> (a, n) t =
- fun n xs ->
-  match (n, xs) with
-  | Nat Zero, _ -> Emp
-  | Nat (Suc n), Snoc (xs, x) -> Snoc (take_bwd (Nat n) xs, x)
-  | _ -> raise Not_found
-
-let rec unappend_bwd : type a n. n N.t -> a Bwd.t -> a Bwd.t * (a, n) t =
+(* As befits backwards vectors and lists, this takes n elements from the *right* of a Bwd to form a Bwv, returning the remaining elements along with the Bwv. *)
+let rec take_bwd : type a n. n N.t -> a Bwd.t -> a Bwd.t * (a, n) t =
  fun n xs ->
   match (n, xs) with
   | Nat Zero, _ -> (xs, Emp)
   | Nat (Suc n), Snoc (xs, x) ->
-      let rest, taken = unappend_bwd (Nat n) xs in
+      let rest, taken = take_bwd (Nat n) xs in
       (rest, Snoc (taken, x))
   | _ -> raise Not_found
 
@@ -454,6 +454,9 @@ let rec append_list_map : type a b n. (a -> b) -> (b, n) t -> a list -> b wrappe
   | y :: ys -> append_list_map f (Snoc (xs, f y)) ys
 
 let of_list_map : type a b n. (a -> b) -> a list -> b wrapped = fun f ys -> append_list_map f Emp ys
+
+let append_list : type a n. (a, n) t -> a list -> a wrapped =
+ fun xs ys -> append_list_map (fun x -> x) xs ys
 
 type (_, _) append_plus =
   | Append_plus : ('n, 'm, 'nm) Fwn.bplus * ('a, 'm) Vec.t * ('a, 'nm) t -> ('a, 'n) append_plus

@@ -45,7 +45,7 @@ let rec comp_sface : type m n k. (n, k) sface -> (m, n) sface -> (m, k) sface =
   | Mid a', Mid b' -> Mid (comp_sface a' b')
 
 (* Zero has only the trivial strict face *)
-let sface_zero : type n. (n, D.zero) sface -> (n, D.zero) Monoid.eq = function
+let sface_zero : type n. (n, D.zero) sface -> (n, D.zero) Eq.t = function
   | Zero -> Eq
 
 (* Concatenate two strict faces left-to-right. *)
@@ -91,56 +91,6 @@ let rec sface_of_plus :
       | Mid f ->
           let (SFace_of_plus (ml, f1, f2)) = sface_of_plus nk f in
           SFace_of_plus (Suc ml, f1, Mid f2))
-
-(* The strict faces of any dimension can be enumerated.  For efficiency, this could be memoized. *)
-
-type ('l, 'n, 'f) count_faces = 'l Endpoints.len * ('l D.suc, 'n, 'f) D.pow
-type _ has_faces = Faces : ('l, 'n, 'f) count_faces -> 'n has_faces
-
-let count_faces : type n. n D.t -> n has_faces =
- fun n ->
-  let (Wrap l) = Endpoints.wrapped () in
-  let (Has_pow f) = D.pow (D.suc (Endpoints.len l)) n in
-  Faces (l, f)
-
-let faces_zero : type l. l Endpoints.len -> (l, D.zero, N.one) count_faces = fun l -> (l, Zero)
-let dim_faces : type l n f. (l, n, f) count_faces -> n D.t = fun (_, c) -> D.pow_right c
-let faces_out : type l n f. (l, n, f) count_faces -> f N.t = fun (_, c) -> D.pow_out c
-
-let faces_uniq :
-    type l n f1 f2. (l, n, f1) count_faces -> (l, n, f2) count_faces -> (f1, f2) Monoid.eq =
- fun (_, f1) (_, f2) -> N.pow_uniq f1 f2
-
-let rec sfaces : type l n f. (l, n, f) count_faces -> (n sface_of, f) Bwv.t = function
-  | _, Zero -> Snoc (Emp, SFace_of Zero)
-  | l, Suc (mn, mnm) ->
-      let fmn = sfaces (l, mn) in
-      Bwv.bind mnm
-        (Snoc
-           ( Bwv.map (fun e (SFace_of f) -> SFace_of (End (f, e))) (Endpoints.indices l),
-             fun (SFace_of f) -> SFace_of (Mid f) ))
-        (fun g -> Bwv.map g fmn)
-
-(* This is very inefficient!  But at least it is correct. *)
-(* let sface_int : type n f. (n, f) count_faces -> n sface_of -> int = *)
-(*  fun nf f -> N.to_int (faces_out nf) - N.int_index (Option.get (Bwv.index f (sfaces nf))) - 1 *)
-
-(* The strict faces of a sum of dimensions are the pairs of strict faces of the summands.  We implement this as an assembly function on backwards vectors, so that its interface doesn't depend on the ordering. *)
-
-let sfaces_plus :
-    type l m n mn fm fn fmn a b c.
-    (m, n, mn) D.plus ->
-    (l, m, fm) count_faces ->
-    (l, n, fn) count_faces ->
-    (l, mn, fmn) count_faces ->
-    (a -> b -> c) ->
-    (a, fm) Bwv.t ->
-    (b, fn) Bwv.t ->
-    (c, fmn) Bwv.t =
- fun mn (l, fm) (_, fn) (_, fmn) g xs ys ->
-  let fm_times_fn = N.pow_plus (D.suc (Endpoints.len l)) fm fn mn fmn in
-  (* However, its implementation for this dimension theory does depend on the ternary ordering of strict faces of cubes. *)
-  Bwv.bind fm_times_fn ys (fun y -> Bwv.map (fun x -> g x y) xs)
 
 type (_, _) d_le = Le : ('m, 'n, 'mn) D.plus -> ('m, 'mn) d_le
 

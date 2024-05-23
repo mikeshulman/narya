@@ -68,7 +68,11 @@ and ('left, 'tight, 'right) notation
 and processor = {
   process :
     'n.
-    'n Varscope.t -> observation list -> Asai.Range.t option -> Whitespace.alist -> 'n check located;
+    (string option, 'n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    Whitespace.alist ->
+    'n check located;
 }
 
 and printer = space -> Format.formatter -> observation list -> Whitespace.alist -> unit

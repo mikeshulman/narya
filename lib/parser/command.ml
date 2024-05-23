@@ -1,3 +1,4 @@
+open Bwd
 open Dim
 open Util
 open List_extra
@@ -21,36 +22,269 @@ type def = {
   tm : observation;
 }
 
-type t =
-  | Axiom of {
-      wsaxiom : Whitespace.t list;
-      name : Scope.Trie.path;
-      wsname : Whitespace.t list;
-      parameters : Parameter.t list;
-      wscolon : Whitespace.t list;
-      ty : observation;
-    }
-  | Def of def list
-  | Echo of { wsecho : Whitespace.t list; tm : observation }
-  | Notation : {
-      fixity : ('left, 'tight, 'right) fixity;
-      wsnotation : Whitespace.t list;
-      wstight : Whitespace.t list; (* Empty for outfix *)
-      wsellipsis : Whitespace.t list; (* Empty for non-associative *)
-      name : Scope.Trie.path;
-      wsname : Whitespace.t list;
-      wscolon : Whitespace.t list;
-      pattern : State.pattern;
-      wscoloneq : Whitespace.t list;
-      head : [ `Constr of string | `Constant of Scope.Trie.path ];
-      wshead : Whitespace.t list;
-      args : (string * Whitespace.t list) list;
-    }
-      -> t
-  | Bof of Whitespace.t list
-  | Eof
+module Command = struct
+  type t =
+    | Axiom of {
+        wsaxiom : Whitespace.t list;
+        name : Scope.Trie.path;
+        wsname : Whitespace.t list;
+        parameters : Parameter.t list;
+        wscolon : Whitespace.t list;
+        ty : observation;
+      }
+    | Def of def list
+    | Echo of { wsecho : Whitespace.t list; tm : observation }
+    | Notation : {
+        fixity : ('left, 'tight, 'right) fixity;
+        wsnotation : Whitespace.t list;
+        wstight : Whitespace.t list; (* Empty for outfix *)
+        wsellipsis : Whitespace.t list; (* Empty for non-associative *)
+        name : Scope.Trie.path;
+        wsname : Whitespace.t list;
+        wscolon : Whitespace.t list;
+        pattern : State.pattern;
+        wscoloneq : Whitespace.t list;
+        head : [ `Constr of string | `Constant of Scope.Trie.path ];
+        wshead : Whitespace.t list;
+        args : (string * Whitespace.t list) list;
+      }
+        -> t
+    | Quit of Whitespace.t list
+    | Bof of Whitespace.t list
+    | Eof
+end
 
-let execute : t -> unit = function
+include Command
+
+module Parse = struct
+  open Parse
+  module C = Combinators (Command)
+  open C.Basic
+
+  let token x = step "" (fun state _ (tok, w) -> if tok = x then Some (w, state) else None)
+
+  let ident =
+    step "" (fun state _ (tok, w) ->
+        match tok with
+        | Ident name -> Some ((name, w), state)
+        | _ -> None)
+
+  let variable =
+    step "" (fun state _ (tok, w) ->
+        match tok with
+        | Ident [ x ] -> Some ((Some x, w), state)
+        | Ident xs -> fatal (Invalid_variable xs)
+        | Underscore -> Some ((None, w), state)
+        | _ -> None)
+
+  let parameter =
+    let* wslparen = token LParen in
+    let* name, names = one_or_more variable in
+    let names = name :: names in
+    let* wscolon = token Colon in
+    let* ty = C.term [ RParen ] in
+    let* wsrparen = token RParen in
+    return ({ wslparen; names; wscolon; ty; wsrparen } : Parameter.t)
+
+  let axiom =
+    let* wsaxiom = token Axiom in
+    let* name, wsname = ident in
+    let* parameters = zero_or_more parameter in
+    let* wscolon = token Colon in
+    let* ty = C.term [] in
+    return (Command.Axiom { wsaxiom; name; wsname; parameters; wscolon; ty })
+
+  let def tok =
+    let* wsdef = token tok in
+    let* name, wsname = ident in
+    let* parameters = zero_or_more parameter in
+    let* wscolon, ty, wscoloneq, tm =
+      (let* wscolon = token Colon in
+       let* ty = C.term [ Coloneq ] in
+       let* wscoloneq = token Coloneq in
+       let* tm = C.term [] in
+       return (wscolon, Some ty, wscoloneq, tm))
+      </>
+      let* wscoloneq = token Coloneq in
+      let* tm = C.term [] in
+      return ([], None, wscoloneq, tm) in
+    return ({ wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm } : def)
+
+  let def_and =
+    let* first = def Def in
+    let* rest = zero_or_more (def And) in
+    return (Command.Def (first :: rest))
+
+  let echo =
+    let* wsecho = token Echo in
+    let* tm = C.term [] in
+    return (Command.Echo { wsecho; tm })
+
+  let tightness_and_name :
+      (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
+    let* tloc, tight_or_name = located ident in
+    (let* name, wsname = ident in
+     let tight, wstight = tight_or_name in
+     let tight = String.concat "." tight in
+     match No.of_rat (Q.of_string tight) with
+     | Some tight -> return (Some tight, wstight, name, wsname)
+     | None | (exception Invalid_argument _) ->
+         fatal ~loc:(Range.convert tloc) (Invalid_tightness tight))
+    </>
+    let name, wsname = tight_or_name in
+    return (None, [], name, wsname)
+
+  let pattern_token =
+    step "" (fun state _ (tok, ws) ->
+        match tok with
+        | String str -> (
+            match Lexer.single str with
+            | Some tok -> Some (`Op (tok, `Nobreak, ws), state)
+            | None -> fatal (Invalid_notation_symbol str))
+        | _ -> None)
+
+  let pattern_var =
+    let* x, ws = ident in
+    match x with
+    | [ x ] -> return (`Var (x, `Break, ws))
+    | _ -> fatal (Invalid_variable x)
+
+  let pattern_ellipsis =
+    let* ws = token Ellipsis in
+    return (`Ellipsis ws)
+
+  let fixity_of_pattern pat tight =
+    match (pat, Bwd.of_list pat, tight) with
+    | `Op _ :: _, Snoc (_, `Op _), None -> (Fixity Outfix, pat, [])
+    | `Op _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Prefix tight), pat, [])
+    | `Op _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
+        (Fixity (Prefixr tight), Bwd.to_list bwd_pat, ws)
+    | `Var _ :: _, Snoc (_, `Op _), Some (No.Wrap tight) -> (Fixity (Postfix tight), pat, [])
+    | `Ellipsis ws :: pat, Snoc (_, `Op _), Some (No.Wrap tight) ->
+        (Fixity (Postfixl tight), pat, ws)
+    | `Var _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infix tight), pat, [])
+    | `Ellipsis ws :: pat, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infixl tight), pat, ws)
+    | `Var _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
+        (Fixity (Infixr tight), Bwd.to_list bwd_pat, ws)
+    | [ `Ellipsis _ ], Snoc (Emp, `Ellipsis _), _ -> fatal Zero_notation_symbols
+    | `Ellipsis _ :: _, Snoc (_, `Ellipsis _), _ -> fatal Ambidextrous_notation
+    | _ -> fatal Fixity_mismatch
+
+  let notation_head =
+    step "" (fun state _ (tok, ws) ->
+        match tok with
+        | Ident name -> Some ((`Constant name, ws), state)
+        | Constr c -> Some ((`Constr c, ws), state)
+        | _ -> None)
+
+  let notation_var =
+    let* x, ws = ident in
+    match x with
+    | [ x ] -> return (x, ws)
+    | _ -> fatal (Invalid_variable x)
+
+  let notation =
+    let* wsnotation = token Notation in
+    let* tight, wstight, name, wsname = tightness_and_name in
+    let* wscolon = token Colon in
+    let* pat, pattern = one_or_more (pattern_token </> pattern_var </> pattern_ellipsis) in
+    let pattern = pat :: pattern in
+    let Fixity fixity, pattern, wsellipsis = fixity_of_pattern pattern tight in
+    let* wscoloneq = token Coloneq in
+    let* head, wshead = notation_head in
+    let* args = zero_or_more notation_var in
+    return
+      (Command.Notation
+         {
+           fixity;
+           wsnotation;
+           wstight;
+           wsellipsis;
+           name;
+           wsname;
+           wscolon;
+           pattern;
+           wscoloneq;
+           head;
+           wshead;
+           args;
+         })
+
+  let quit =
+    let* wsquit = token Quit in
+    return (Command.Quit wsquit)
+
+  let bof =
+    let* ws = C.bof in
+    return (Command.Bof ws)
+
+  let eof =
+    let* () = expect_end () in
+    return Command.Eof
+
+  let command () = bof </> axiom </> def_and </> echo </> notation </> quit </> eof
+
+  let command_or_echo () =
+    command ()
+    </> let* tm = C.term [] in
+        return (Command.Echo { wsecho = []; tm })
+
+  type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
+
+  let start_parse ?(or_echo = false) source : C.Lex_and_parse.t * open_source =
+    let (env : Range.Data.t), run =
+      match source with
+      | `String src ->
+          ( { source = `String src; length = Int64.of_int (String.length src.content) },
+            fun p ->
+              let n, p = C.Lex_and_parse.run_on_string_at 0 src.content p in
+              (`String (n, src.content), p) )
+      | `File name ->
+          let ic = In_channel.open_text name in
+          ( { source = `File name; length = In_channel.length ic },
+            fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) ) in
+    Range.run ~env @@ fun () ->
+    let p =
+      C.Lex_and_parse.make Lexer.Parser.start
+        (C.Basic.make_partial () (if or_echo then command_or_echo () else command ())) in
+    let out, p = run p in
+    (C.ensure_success p, (env, out))
+
+  let restart_parse ?(or_echo = false) (p : C.Lex_and_parse.t) ((env, source) : open_source) :
+      C.Lex_and_parse.t * open_source =
+    let run =
+      match source with
+      | `String (n, content) ->
+          fun p ->
+            let n, p = C.Lex_and_parse.run_on_string_at n content p in
+            (`String (n, content), p)
+      | `File ic -> fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) in
+    Range.run ~env @@ fun () ->
+    let p =
+      C.Lex_and_parse.make_next p
+        (C.Basic.make_partial () (if or_echo then command_or_echo () else command ())) in
+    let out, p = run p in
+    (C.ensure_success p, (env, out))
+
+  let final p = C.Lex_and_parse.final p
+  let has_consumed_end p = C.Lex_and_parse.has_consumed_end p
+end
+
+let parse_single (content : string) : Whitespace.t list * Command.t option =
+  let src : Asai.Range.source = `String { content; title = Some "interactive input" } in
+  let p, src = Parse.start_parse ~or_echo:true src in
+  match Parse.final p with
+  | Bof ws ->
+      let p, src = Parse.restart_parse ~or_echo:true p src in
+      let cmd = Parse.final p in
+      if cmd <> Eof then
+        let p, _ = Parse.restart_parse ~or_echo:true p src in
+        let eof = Parse.final p in
+        if eof = Eof then (ws, Some cmd) else Core.Reporter.fatal Too_many_commands
+      else (ws, None)
+  | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
+
+let execute : Command.t -> unit = function
   | Axiom { name; parameters; ty = Term ty; _ } ->
       if Option.is_some (Scope.lookup name) then
         emit (Constant_already_defined (String.concat "." name));
@@ -60,9 +294,10 @@ let execute : t -> unit = function
           Scope.S.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
+      let (Processed_tel (params, ctx)) = process_tel Emp parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty));
-      emit (Constant_assumed (PConstant const))
+      let h = Core.Galaxy.end_command () in
+      emit (Constant_assumed (PConstant const, h))
   | Def defs ->
       let [ names; cdefs; printables ] =
         Mlist.pmap
@@ -84,28 +319,40 @@ let execute : t -> unit = function
         List.map
           (function
             | const, { parameters; ty; tm = Term tm; _ } -> (
-                let (Processed_tel (params, ctx)) = process_tel Varscope.empty parameters in
+                let (Processed_tel (params, ctx)) = process_tel Emp parameters in
                 match ty with
                 | Some (Term ty) ->
-                    Core.Command.Def_check (const, params, process ctx ty, process ctx tm)
+                    Core.Command.Def_check
+                      { const; params; ty = process ctx ty; tm = process ctx tm }
                 | None -> (
                     match process ctx tm with
-                    | { value = Synth tm; loc } -> Def_synth (const, params, { value = tm; loc })
+                    | { value = Synth tm; loc } ->
+                        Def_synth { const; params; tm = { value = tm; loc } }
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
       Core.Command.execute (Def defs);
-      emit (Constant_defined printables)
+      let h = Core.Galaxy.end_command () in
+      emit (Constant_defined (printables, h))
   | Echo { tm = Term tm; _ } -> (
-      let rtm = process Varscope.empty tm in
+      let rtm = process Emp tm in
       match rtm.value with
       | Synth stm ->
           let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
+          let bty = Readback.readback_at Ctx.empty ety (Inst.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
-          pp_term `None Format.std_formatter (Term utm);
-          Format.pp_print_newline Format.std_formatter ();
-          Format.pp_print_newline Format.std_formatter ()
+          let uty = unparse Names.empty bty Interval.entire Interval.entire in
+          let ppf = Format.std_formatter in
+          pp_open_vbox ppf 2;
+          pp_term `None ppf (Term utm);
+          pp_print_cut ppf ();
+          pp_tok ppf Colon;
+          pp_print_string ppf " ";
+          pp_term `None ppf (Term uty);
+          pp_close_box ppf ();
+          pp_print_newline ppf ();
+          pp_print_newline ppf ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
       let notation_name = "notation" :: name in
@@ -142,6 +389,7 @@ let execute : t -> unit = function
         fatal (Unbound_variable_in_notation (List.map fst unbound));
       State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
       emit (Notation_defined (String.concat "." name))
+  | Quit _ -> fatal Quit
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
@@ -300,5 +548,6 @@ let pp_command : formatter -> t -> Whitespace.t list =
             rest in
       pp_close_box ppf ();
       rest
+  | Quit ws -> ws
   | Bof ws -> ws
   | Eof -> []

@@ -39,18 +39,20 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
              List.fold_left
                (fun acc (fld, tm) -> Abwd.add (Some (Field.intern fld)) (parse_chk ctx tm) acc)
                Abwd.empty tms ))
-  | Constr c -> unlocated (Raw.Constr (unlocated (Constr.intern c), Emp))
+  | Constr c -> unlocated (Raw.Constr (unlocated (Constr.intern c), []))
   | App (fn, arg) as tm -> (
       match (parse_chk ctx fn).value with
-      | Constr (c, args) -> unlocated (Raw.Constr (c, Snoc (args, parse_chk ctx arg)))
+      | Constr (c, args) ->
+          (* I would never grow a forwards list on the right in real code, but I can't be bothered to do the right thing in this old code that we should get rid of as soon as feasible.  *)
+          unlocated (Raw.Constr (c, args @ [ parse_chk ctx arg ]))
       | _ -> unlocated (Raw.Synth (parse_syn ctx tm).value))
   | tm -> unlocated (Raw.Synth (parse_syn ctx tm).value)
 
 and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth located =
  fun ctx -> function
   | Var x -> (
-      match Bwv.find x ctx with
-      | Some v -> unlocated (Raw.Var (v, None))
+      match Bwv.find_opt (fun y -> x = y) ctx with
+      | Some (_, v) -> unlocated (Raw.Var (v, None))
       | None -> Reporter.fatal (Unbound_variable x))
   | Const x -> (
       match Scope.lookup [ x ] with
@@ -172,10 +174,4 @@ let unequal (tm1 : kinetic value) (tm2 : kinetic value) : unit =
 let ( $$ ) (fn : kinetic value) (arg : kinetic value) : kinetic value =
   Norm.apply_term fn (Dim.CubeOf.singleton arg)
 
-let run f =
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
-      raise (Failure "Fatal error"))
-  @@ fun () ->
-  Parser.Builtins.run @@ fun () ->
-  Global.run_empty @@ fun () -> Scope.run f
+let run f = Repl.run f

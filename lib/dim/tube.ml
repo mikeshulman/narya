@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Signatures
 open Tlist
 open Hlist
 open Cube
@@ -10,7 +11,7 @@ open Bwtface
 
 (* Tube data structures *)
 
-module Tube (F : Fam) = struct
+module Tube (F : Fam2) = struct
   module C = Cube (F)
   open C.Infix
 
@@ -215,11 +216,11 @@ module Tube (F : Fam) = struct
 
   module Infix = C.Infix
 
-  (* Now the generic monadic traversal.  This appears to require *three* helper functions, corresponding to three stages of where we are in the instantiated or uninstantiated dimensions. *)
+  (* Now the generic traversal.  This appears to require *three* helper functions, corresponding to three stages of where we are in the instantiated or uninstantiated dimensions. *)
 
-  module Monadic (M : Monad.Plain) = struct
-    open Monad.Ops (M)
-    module BwvM = Bwv.Monadic (M)
+  module Applicatic (M : Applicative.Plain) = struct
+    open Applicative.Ops (M)
+    module BwvM = Bwv.Applicatic (M)
 
     type ('n, 'k, 'nk, 'bs, 'cs) pmapperM = {
       map : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> ('m, 'cs) C.Heter.hft M.t;
@@ -241,8 +242,8 @@ module Tube (F : Fam) = struct
           let Eq = D.plus_uniq mk (D.zero_plus (dom_bwtface d)) in
           let Eq = D.plus_uniq ml (D.zero_plus (cod_bwtface d)) in
           let Eq = D.plus_uniq ml1 (D.zero_plus (codl_bwtface d)) in
-          let* x = g.map (tface_of_bw d) (C.Heter.lab trs) in
-          return (C.Heter.leaf x)
+          let+ x = g.map (tface_of_bw d) (C.Heter.lab trs) in
+          C.Heter.leaf x
       | Branch (_, _, _) :: _ ->
           let mk' = D.plus_suc mk in
           let (Suc mk'') = mk' in
@@ -251,15 +252,15 @@ module Tube (F : Fam) = struct
           let (Ends (l, hs, ends)) = C.Heter.ends trs in
           let mid = C.Heter.mid trs in
           let (Hgts newhs) = C.Heter.hgts_of_tlist cst in
-          let* newends =
+          let+ newends =
             BwvM.pmapM
               (fun (e :: brs) ->
-                let* xs =
+                let+ xs =
                   gpmapM_ll mk'' ml' ml1' (LEnd (e, d)) g (C.Heter.hgt_of_hlist hs brs) cst in
-                return (C.Heter.hlist_of_hgt newhs xs))
-              (Endpoints.indices l :: ends) (C.Heter.tlist_hgts newhs cst) in
-          let* newmid = gpmapM_ll mk' ml' ml1' (LMid d) g mid cst in
-          return (C.Heter.branch l newhs newends newmid)
+                C.Heter.hlist_of_hgt newhs xs)
+              (Endpoints.indices l :: ends) (C.Heter.tlist_hgts newhs cst)
+          and+ newmid = gpmapM_ll mk' ml' ml1' (LMid d) g mid cst in
+          C.Heter.branch l newhs newends newmid
 
     let rec gpmapM_l :
         type k m mk l ml b bs cs m1 m2 m2l.
@@ -285,16 +286,16 @@ module Tube (F : Fam) = struct
           let (Ends (l, hs, ends)) = C.Heter.ends trs in
           let mid = C.Heter.mid trs in
           let (Hgts newhs) = C.Heter.hgts_of_tlist cst in
-          let* newends =
+          let+ newends =
             BwvM.pmapM
               (fun (e :: brs) ->
-                let* xs =
+                let+ xs =
                   gpmapM_l mk'' ml' m12 m2l' (bwtface_rend e d) g (C.Heter.hgt_of_hlist hs brs) cst
                 in
-                return (C.Heter.hlist_of_hgt newhs xs))
-              (Endpoints.indices l :: ends) (C.Heter.tlist_hgts newhs cst) in
-          let* newmid = gpmapM_l mk' ml' m12 m2l' (RMid d) g mid cst in
-          return (C.Heter.branch l newhs newends newmid)
+                C.Heter.hlist_of_hgt newhs xs)
+              (Endpoints.indices l :: ends) (C.Heter.tlist_hgts newhs cst)
+          and+ newmid = gpmapM_l mk' ml' m12 m2l' (RMid d) g mid cst in
+          C.Heter.branch l newhs newends newmid
 
     let rec gpmapM_r :
         type n k1 k2 l2 kl nk1 nkl nk b bs cs.
@@ -316,17 +317,17 @@ module Tube (F : Fam) = struct
           let (Ends (l, hs, ends)) = Heter.ends trs in
           let mid = Heter.mid trs in
           let (Hgts newhs) = C.Heter.hgts_of_tlist cst in
-          let* newends =
+          let+ newends =
             BwvM.pmapM
               (fun (e :: brs) ->
-                let* xs =
+                let+ xs =
                   gpmapM_l nk12'' (D.plus_suc nkl) nk1 (D.plus_suc kl)
                     (REnd (e, d))
                     g (C.Heter.hgt_of_hlist hs brs) cst in
-                return (C.Heter.hlist_of_hgt newhs xs))
-              (Endpoints.indices l :: ends) (C.Heter.tlist_hgts newhs cst) in
-          let* newmid = gpmapM_r nk1 (N.plus_suc kl) nk12' (D.plus_suc nkl) (Mid d) g mid cst in
-          return (Heter.branch l newhs newends newmid)
+                C.Heter.hlist_of_hgt newhs xs)
+              (Endpoints.indices l :: ends) (C.Heter.tlist_hgts newhs cst)
+          and+ newmid = gpmapM_r nk1 (N.plus_suc kl) nk12' (D.plus_suc nkl) (Mid d) g mid cst in
+          Heter.branch l newhs newends newmid
 
     let pmapM :
         type n k nk b bs cs.
@@ -356,16 +357,16 @@ module Tube (F : Fam) = struct
         (n, k, nk, nk, (b, bs) cons) Heter.hgt ->
         (n, k, nk, c) t M.t =
      fun g xs ->
-      let* [ ys ] =
+      let+ [ ys ] =
         pmapM
           {
             map =
               (fun fa x ->
-                let* y = g.map fa x in
-                return (y @: []));
+                let+ y = g.map fa x in
+                y @: []);
           }
           xs (Cons Nil) in
-      return ys
+      ys
 
     type ('n, 'k, 'nk, 'bs) miteratorM = {
       it : 'm. ('m, 'n, 'k, 'nk) tface -> ('m, 'bs) C.Heter.hft -> unit M.t;
@@ -375,16 +376,16 @@ module Tube (F : Fam) = struct
         type n k nk b bs.
         (n, k, nk, (b, bs) cons) miteratorM -> (n, k, nk, nk, (b, bs) cons) Heter.hgt -> unit M.t =
      fun g xs ->
-      let* [] =
+      let+ [] =
         pmapM
           {
             map =
               (fun fa x ->
-                let* () = g.it fa x in
-                return hnil);
+                let+ () = g.it fa x in
+                hnil);
           }
           xs Nil in
-      return ()
+      ()
 
     (* We also have a monadic builder function *)
 
@@ -405,20 +406,20 @@ module Tube (F : Fam) = struct
           let Eq = D.plus_uniq mk (D.zero_plus (dom_bwtface d)) in
           let Eq = D.plus_uniq ml (D.zero_plus (cod_bwtface d)) in
           let Eq = D.plus_uniq ml1 (D.zero_plus (codl_bwtface d)) in
-          let* x = g.build (tface_of_bw d) in
-          return (C.Leaf x)
+          let+ x = g.build (tface_of_bw d) in
+          C.Leaf x
       | Nat (Suc m) ->
           let mk' = D.plus_suc mk in
           let (Suc mk'') = mk' in
           let ml' = D.plus_suc ml in
           let ml1' = D.plus_suc ml1 in
           let (Wrap l) = Endpoints.wrapped () in
-          let* ends =
+          let+ ends =
             BwvM.mapM
               (fun e -> gbuildM_ll (Nat m) mk'' ml' ml1' (LEnd (e, d)) g)
-              (Endpoints.indices l) in
-          let* mid = gbuildM_ll (Nat m) mk' ml' ml1' (LMid d) g in
-          return (C.Branch (l, ends, mid))
+              (Endpoints.indices l)
+          and+ mid = gbuildM_ll (Nat m) mk' ml' ml1' (LMid d) g in
+          C.Branch (l, ends, mid)
 
     let rec gbuildM_l :
         type k m mk l ml b m1 m2 m2l.
@@ -442,12 +443,12 @@ module Tube (F : Fam) = struct
           let ml' = D.plus_suc ml in
           let m2l' = D.plus_suc m2l in
           let (Wrap l) = Endpoints.wrapped () in
-          let* ends =
+          let+ ends =
             BwvM.mapM
               (fun e -> gbuildM_l (Nat m) mk'' ml' m12 m2l' (bwtface_rend e d) g)
-              (Endpoints.indices l) in
-          let* mid = gbuildM_l (Nat m) mk' ml' m12 m2l' (RMid d) g in
-          return (C.Branch (l, ends, mid))
+              (Endpoints.indices l)
+          and+ mid = gbuildM_l (Nat m) mk' ml' m12 m2l' (RMid d) g in
+          C.Branch (l, ends, mid)
 
     let rec gbuildM_r :
         type n k1 k2 l2 kl nk1 nkl nk b.
@@ -466,15 +467,15 @@ module Tube (F : Fam) = struct
           let nk12' = D.plus_suc nk12 in
           let (Suc nk12'') = nk12' in
           let (Wrap l) = Endpoints.wrapped () in
-          let* ends =
+          let+ ends =
             BwvM.mapM
               (fun e ->
                 gbuildM_l (D.plus_out n nk1) nk12'' (D.plus_suc nkl) nk1 (D.plus_suc kl)
                   (REnd (e, d))
                   g)
-              (Endpoints.indices l) in
-          let* mid = gbuildM_r n nk1 (N.plus_suc kl) nk12' (D.plus_suc nkl) (Mid d) g in
-          return (Branch (l, ends, mid))
+              (Endpoints.indices l)
+          and+ mid = gbuildM_r n nk1 (N.plus_suc kl) nk12' (D.plus_suc nkl) (Mid d) g in
+          Branch (l, ends, mid)
 
     let buildM :
         type n k nk b. n D.t -> (n, k, nk) D.plus -> (n, k, nk, b) builderM -> (n, k, nk, b) t M.t =
@@ -484,6 +485,11 @@ module Tube (F : Fam) = struct
         (D.plus_zero (D.plus_out n nk))
         (D.plus_zero (D.plus_out n nk))
         Zero g
+  end
+
+  module Monadic (M : Monad.Plain) = struct
+    module A = Applicative.OfMonad (M)
+    include Applicatic (A)
   end
 
   (* Now we deduce the non-monadic versions *)

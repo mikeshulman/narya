@@ -15,8 +15,10 @@
    ￮ Constant even_odd defined
   
   ⊤
+    : Type
   
   ⊥
+    : Type
   
 
   $ narya -v even_odd_sig.ny
@@ -56,8 +58,10 @@
    ￮ Constant even_odd defined
   
   even_odd .even 8
+    : Type
   
   even_odd .odd 8
+    : Type
   
 
 

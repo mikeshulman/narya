@@ -17,7 +17,7 @@ type printable +=
   | Head : 'h head -> printable
   | Binder : ('b, 's) binder -> printable
   | Term : ('b, 's) term -> printable
-  | Env : ('n, 'b) env -> printable
+  | Env : ('n, 'b) Value.env -> printable
 
 let dim : formatter -> 'a D.t -> unit =
  fun ppf d -> fprintf ppf "%d" (String.length (string_of_deg (id_deg d)))
@@ -87,11 +87,13 @@ and head : type h. formatter -> h head -> unit =
   | Const { name; ins } ->
       fprintf ppf "Const (%a, %s)" pp_printed (print (PConstant name))
         (string_of_deg (perm_of_ins ins))
+  | Meta { meta; env = _; ins } ->
+      fprintf ppf "Meta (%s, ?, %s)" (Meta.name meta) (string_of_deg (perm_of_ins ins))
 
 and binder : type b s. formatter -> (b, s) binder -> unit =
  fun ppf (Bind { env = e; ins = _; body }) -> fprintf ppf "Binder (%a, ?, %a)" env e term body
 
-and env : type b n. formatter -> (n, b) env -> unit =
+and env : type b n. formatter -> (n, b) Value.env -> unit =
  fun ppf e ->
   match e with
   | Emp d -> fprintf ppf "Emp %a" dim d
@@ -103,11 +105,13 @@ and term : type b s. formatter -> (b, s) term -> unit =
   match tm with
   | Var _ -> fprintf ppf "Var ?"
   | Const c -> fprintf ppf "Const %a" pp_printed (print (PConstant c))
+  | Meta v -> fprintf ppf "Meta %a" pp_printed (print (PMeta v))
+  | MetaEnv (v, _) -> fprintf ppf "MetaEnv (%a,?)" pp_printed (print (PMeta v))
   | Field (tm, fld) -> fprintf ppf "Field (%a, %s)" term tm (Field.to_string fld)
   | UU n -> fprintf ppf "UU %a" dim n
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
   | Pi (_, _, _) -> fprintf ppf "Pi (?, ?, ?)"
-  | App (fn, _) -> fprintf ppf "App (%a, ?)" term fn
+  | App (fn, arg) -> fprintf ppf "App (%a, (... %a))" term fn term (CubeOf.find_top arg)
   | Lam (_, body) -> fprintf ppf "Lam (?, %a)" term body
   | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)

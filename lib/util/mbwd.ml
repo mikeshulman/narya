@@ -32,8 +32,8 @@ module Heter = struct
     | _ :: xs -> Cons (tlist xs)
 end
 
-module Monadic (M : Monad.Plain) = struct
-  open Monad.Ops (M)
+module Applicatic (M : Applicative.Plain) = struct
+  open Applicative.Ops (M)
 
   let rec pmapM :
       type x xs ys.
@@ -45,29 +45,33 @@ module Monadic (M : Monad.Plain) = struct
     match xss with
     | Emp :: _ -> return (Heter.empty ys)
     | Snoc (xs, x) :: xss ->
-        let* fxs = pmapM f (xs :: Heter.head xss) ys in
-        let* fx = f (x :: Heter.tail xss) in
-        return (Heter.snoc fxs fx)
+        let+ fxs = pmapM f (xs :: Heter.head xss) ys and+ fx = f (x :: Heter.tail xss) in
+        Heter.snoc fxs fx
 
   let miterM : type x xs. ((x, xs) cons Hlist.t -> unit M.t) -> (x, xs) cons Heter.ht -> unit M.t =
    fun f xss ->
-    let* [] =
+    let+ [] =
       pmapM
         (fun x ->
-          let* () = f x in
-          return [])
+          let+ () = f x in
+          [])
         xss Nil in
-    return ()
+    ()
 
   let mmapM : type x xs y. ((x, xs) cons Hlist.t -> y M.t) -> (x, xs) cons Heter.ht -> y Bwd.t M.t =
    fun f xs ->
-    let* [ ys ] =
+    let+ [ ys ] =
       pmapM
         (fun x ->
-          let* y = f x in
-          return [ y ])
+          let+ y = f x in
+          [ y ])
         xs (Cons Nil) in
-    return ys
+    ys
+end
+
+module Monadic (M : Monad.Plain) = struct
+  module A = Applicative.OfMonad (M)
+  include Applicatic (A)
 end
 
 let pmap :

@@ -12,6 +12,7 @@ Testing parsing of commands, on the command line:
 
   $ narya -e 'axiom A : Type' -e 'echo A'
   A
+    : Type
   
 
 And in files:
@@ -27,6 +28,7 @@ Now we run it:
 
   $ narya test.ny
   A
+    : Type
   
 
 Can we parse empty things?

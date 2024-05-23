@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Tbwd
 open Bwd_extra
 open Dim
 open Core
@@ -18,6 +19,7 @@ let get_notation head args =
     match head with
     | `Term (Const c) -> State.Current.unparse (`Constant c)
     | `Constr c -> State.Current.unparse (`Constr c)
+    (* TODO: Can we associate notations to Fields too? *)
     | _ -> None in
   (* There's probably a more efficient way to do this that doesn't involve converting to and from forwards lists, but this way is more natural and easier to understand, and I think this is unlikely to be a performance bottleneck. *)
   let rec take_labeled labels elts acc =
@@ -128,10 +130,9 @@ let unparse_numeral : type n li ls ri rs. (n, kinetic) term -> (li, ls, ri, rs) 
   let rec getsucs tm k =
     match tm with
     (* As in parsing, it would be better not to hardcode the constructor names 'zero' and 'suc'. *)
-    | Term.Constr (c, _, Emp) when c = Constr.intern "zero" ->
+    | Term.Constr (c, _, []) when c = Constr.intern "zero" ->
         Some (Ident (String.split_on_char '.' (Q.to_string (Q.of_int k)), []))
-    | Constr (c, _, Snoc (Emp, arg)) when c = Constr.intern "suc" ->
-        getsucs (CubeOf.find_top arg) (k + 1)
+    | Constr (c, _, [ arg ]) when c = Constr.intern "suc" -> getsucs (CubeOf.find_top arg) (k + 1)
     | _ -> None in
   getsucs tm 0
 
@@ -140,8 +141,8 @@ let rec get_list :
     (n, kinetic) term -> (n, kinetic) term Bwd.t -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
-  | Term.Constr (c, _, Emp) when c = Constr.intern "nil" -> Some elts
-  | Constr (c, _, Snoc (Snoc (Emp, car), cdr)) when c = Constr.intern "cons" ->
+  | Term.Constr (c, _, []) when c = Constr.intern "nil" -> Some elts
+  | Constr (c, _, [ car; cdr ]) when c = Constr.intern "cons" ->
       get_list (CubeOf.find_top cdr) (Snoc (elts, CubeOf.find_top car))
   | _ -> None
 
@@ -150,8 +151,8 @@ let rec get_bwd :
     (n, kinetic) term -> (n, kinetic) term list -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
-  | Term.Constr (c, _, Emp) when c = Constr.intern "emp" -> Some (Bwd.of_list elts)
-  | Constr (c, _, Snoc (Snoc (Emp, rdc), rac)) when c = Constr.intern "snoc" ->
+  | Term.Constr (c, _, []) when c = Constr.intern "emp" -> Some (Bwd.of_list elts)
+  | Constr (c, _, [ rdc; rac ]) when c = Constr.intern "snoc" ->
       get_bwd (CubeOf.find_top rdc) (CubeOf.find_top rac :: elts)
   | _ -> None
 
@@ -164,9 +165,15 @@ let rec get_spine :
  fun tm ->
   match tm with
   | App (fn, arg) -> (
+      let module M = CubeOf.Monadic (Monad.State (struct
+        type t = (n, kinetic) term Bwd.t
+      end)) in
+      (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
+      let append_bwd args =
+        snd (M.miterM { it = (fun _ [ x ] s -> ((), Snoc (s, x))) } [ arg ] args) in
       match get_spine fn with
-      | `App (head, args) -> `App (head, CubeOf.append_bwd args arg)
-      | `Field (head, fld, args) -> `Field (head, fld, CubeOf.append_bwd args arg))
+      | `App (head, args) -> `App (head, append_bwd args)
+      | `Field (head, fld, args) -> `Field (head, fld, append_bwd args))
   | Field (head, fld) -> `Field (head, fld, Emp)
   (* We have to look through identity degeneracies here. *)
   | Act (body, s) -> (
@@ -187,7 +194,9 @@ let rec unparse :
   match tm with
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> unlocated (Ident (Scope.name_of c, []))
-  (* TODO: Can we associate notations to fields, like to constants? *)
+  | Meta v -> unlocated (Ident ([ Meta.name v ], []))
+  (* NB: We don't currently print the arguments of a metavariable. *)
+  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ], []))
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
       unparse_act vars
@@ -227,7 +236,7 @@ let rec unparse :
                   ~last:body ~right_ok)))
   | Lam (Variables (m, _, _), _) ->
       let cube =
-        match compare m D.zero with
+        match D.compare m D.zero with
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
@@ -291,8 +300,8 @@ let rec unparse :
                       [ args ] in
                   unlocated (outfix ~notn:bwd ~ws:[] ~inner)
               | None ->
-                  let args = Bwd.map CubeOf.find_top args in
-                  unparse_spine vars (`Constr c) (Bwd.map (make_unparser vars) args) li ri)))
+                  let args = of_list_map (fun x -> make_unparser vars (CubeOf.find_top x)) args in
+                  unparse_spine vars (`Constr c) args li ri)))
 
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
@@ -328,7 +337,7 @@ and unparse_spine :
           match head with
           | `Term tm -> unparse vars tm li ri
           | `Constr c -> unlocated (Constr (Constr.to_string c, []))
-          | `Field (tm, fld) -> unparse_field (make_unparser vars tm) (Field.to_string fld) li ri
+          | `Field (tm, fld) -> unparse_field vars tm fld li ri
           | `Degen s -> unlocated (Ident ([ s ], []))
           | `Unparser tm -> tm.unparse li ri)
       | Snoc (args, arg) -> (
@@ -348,23 +357,44 @@ and unparse_spine :
 
 and unparse_field :
     type n lt ls rt rs.
-    unparser ->
-    string ->
+    n Names.t ->
+    (n, kinetic) term ->
+    Field.t ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
- fun tm fld li ri ->
-  match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
-  | Some left_ok, Some right_ok ->
-      let fn = tm.unparse li Interval.plus_omega_only in
-      let arg = unlocated (Field (fld, [])) in
-      unlocated (App { fn; arg; left_ok; right_ok })
-  | _ ->
-      let fn = tm.unparse Interval.plus_omega_only Interval.plus_omega_only in
-      let arg = unlocated (Field (fld, [])) in
-      let left_ok = No.le_refl No.plus_omega in
-      let right_ok = No.le_refl No.plus_omega in
-      parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))
+ fun vars tm fld li ri ->
+  match unparse_field_var vars tm fld with
+  | Some res -> res
+  | None -> (
+      match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
+      | Some left_ok, Some right_ok ->
+          let fn = unparse vars tm li Interval.plus_omega_only in
+          let arg = unlocated (Field (Field.to_string fld, [])) in
+          unlocated (App { fn; arg; left_ok; right_ok })
+      | _ ->
+          let fn = unparse vars tm Interval.plus_omega_only Interval.plus_omega_only in
+          let arg = unlocated (Field (Field.to_string fld, [])) in
+          let left_ok = No.le_refl No.plus_omega in
+          let right_ok = No.le_refl No.plus_omega in
+          parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))
+
+and unparse_field_var :
+    type n lt ls rt rs.
+    n Names.t -> (n, kinetic) term -> Field.t -> (lt, ls, rt, rs) parse located option =
+ fun vars tm fld ->
+  match tm with
+  | Var x -> (
+      match Names.lookup_field vars x fld with
+      (* If the field got used up by the lookup, we just return the variable. *)
+      | Some name -> Some (unlocated (Ident (name, [])))
+      (* If the field is still leftover after the lookup, we unparse it as a field. *)
+      | None -> None)
+  | Act (tm, deg) -> (
+      match is_id_deg deg with
+      | Some () -> unparse_field_var vars tm fld
+      | None -> None)
+  | _ -> None
 
 (* For unparsing an iterated abstraction, we group together the fully-normal variables and at-least-partially-cube variables, since they have different notations.  There is no notation for partially-cube variables, so we make them fully cube.  We recursively descend through the structure of the term, storing in 'cube' which kind of variable we are picking up and continuing until we find either a non-abstraction or an abstraction of the wrong type.  *)
 and unparse_lam :
@@ -378,15 +408,23 @@ and unparse_lam :
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
   match body with
-  | Lam (Variables (m, m_n, boundvars), inner) -> (
-      match (cube, compare m D.zero) with
-      | `Normal, Eq ->
-          let Eq = D.plus_uniq m_n (D.zero_plus (D.plus_right m_n)) in
-          let x, vars = Names.add_normals vars boundvars in
-          unparse_lam cube vars (CubeOf.append_bwd xs x) inner li ri
-      | `Cube, Neq ->
-          let x, vars = Names.add_cube (D.plus_out m m_n) vars (CubeOf.find_top boundvars) in
-          unparse_lam cube vars (Snoc (xs, x)) inner li ri
+  | Lam ((Variables (m, _, _) as boundvars), inner) -> (
+      match (cube, D.compare m D.zero) with
+      | `Normal, Eq | `Cube, Neq ->
+          let Variables (_, _, x), vars = Names.add vars boundvars in
+          let module Fold = NICubeOf.Traverse (struct
+            type 'acc t = string option Bwd.t
+          end) in
+          (* Apparently we need to define the folding function explicitly with a type to make it come out sufficiently polymorphic. *)
+          let folder :
+              type m left right.
+              string option Bwd.t ->
+              (left, m, string option, right) NFamOf.t ->
+              (left, m, unit, right) NFamOf.t * string option Bwd.t =
+           fun acc (NFamOf x) -> (NFamOf (), Snoc (acc, x)) in
+          unparse_lam cube vars
+            (snd (Fold.fold_map_left { foldmap = (fun _ acc x -> folder acc x) } xs x))
+            inner li ri
       | _ -> unparse_lam_done cube vars xs body li ri)
   | _ -> unparse_lam_done cube vars xs body li ri
 
@@ -449,9 +487,9 @@ and unparse_pis :
  fun vars accum tm li ri ->
   match tm with
   | Pi (x, doms, cods) -> (
-      match (x, compare (CubeOf.dim doms) D.zero) with
+      match (x, D.compare (CubeOf.dim doms) D.zero) with
       | Some x, Eq ->
-          let x, newvars = Names.add_normals vars (CubeOf.singleton (Some x)) in
+          let Variables (_, _, x), newvars = Names.add vars (singleton_variables D.zero (Some x)) in
           unparse_pis newvars
             (Snoc
                ( accum,
@@ -459,12 +497,12 @@ and unparse_pis :
                    unparse =
                      (fun _ _ ->
                        unparse_pi_dom
-                         (Option.get (CubeOf.find_top x))
+                         (Option.get (NICubeOf.find_top x))
                          (unparse vars (CubeOf.find_top doms) (interval_right asc) Interval.entire));
                  } ))
             (CodCube.find_top cods) li ri
       | None, Eq ->
-          let _, newvars = Names.add_normals vars (CubeOf.singleton None) in
+          let _, newvars = Names.add vars (singleton_variables D.zero None) in
           unparse_pis_final vars accum
             {
               unparse =
@@ -476,9 +514,35 @@ and unparse_pis :
             }
             li ri
       | _, Neq ->
-          (* TODO *)
-          fatal (Unimplemented "printing higher-dimensional Pi-type")
-          (* unparse_pis_final vars accum0 accum (Sorry.e ()) li ri *))
+          let module S = Monad.State (struct
+            type t = unparser Bwd.t
+          end) in
+          let module MOf = CubeOf.Monadic (S) in
+          let (), args =
+            MOf.miterM
+              { it = (fun _ [ dom ] args -> ((), Snoc (args, make_unparser vars dom))) }
+              [ doms ] Emp in
+          let module MCod = CodCube.Monadic (S) in
+          let (), args =
+            MCod.miterM
+              {
+                it =
+                  (fun fa [ cod ] args ->
+                    ( (),
+                      Snoc
+                        (args, make_unparser vars (Lam (singleton_variables (dom_sface fa) x, cod)))
+                    ));
+              }
+              [ cods ] args in
+          unparse_pis_final vars accum
+            {
+              unparse =
+                (fun li ri ->
+                  unparse_spine vars
+                    (`Term (Act (Const Pi.const, deg_zero (CubeOf.dim doms))))
+                    args li ri);
+            }
+            li ri)
   | _ -> unparse_pis_final vars accum (make_unparser vars tm) li ri
 
 (* The arrow in both kinds of pi-type is (un)parsed as a binary operator.  In the dependent case, its left-hand argument looks like an "application spine" of ascribed variables.  Of course, it may have to be parenthesized. *)
@@ -537,6 +601,102 @@ and unparse_pi_dom :
                       ~inner:Emp ~last:dom ~left_ok:(No.le_refl No.minus_omega)
                       ~right_ok:(No.le_refl No.minus_omega))) )))
 
+(* Unparse a term context, given a vector of variable names obtained by pre-uniquifying a variable list, and a list of names for by the empty context that nevertheless remembers the variables in that vector, as produced by Names.uniquify_vars.  Yields not only the list of unparsed terms/types, but a corresponding list of names that can be used to unparse further objects in that context. *)
+let rec unparse_ctx :
+    type a b.
+    emp Names.t ->
+    [ `Locked | `Unlocked ] ->
+    (string * [ `Original | `Renamed ], a) Bwv.t ->
+    (a, b) Termctx.Ordered.t ->
+    b Names.t
+    * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
+    =
+ fun names lock vars ctx ->
+  let merge_orig =
+    match lock with
+    | `Locked -> fun _ -> `Locked
+    | `Unlocked -> fun o -> (o :> [ `Original | `Renamed | `Locked ]) in
+  let module S = struct
+    type t =
+      (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
+  end in
+  let module M = CubeOf.Monadic (Monad.State (S)) in
+  match ctx with
+  | Emp -> (names, Emp)
+  | Lock ctx -> unparse_ctx names `Locked vars ctx
+  | Snoc (ctx, entry, af) -> (
+      let vars, xs = Bwv.unappend af vars in
+      let names, result = unparse_ctx names lock vars ctx in
+      match entry with
+      | Invis bindings ->
+          (* We treat an invisible binding as consisting of all nameless variables, and autogenerate names for them all. *)
+          let x, names = Names.add_cube_autogen (CubeOf.dim bindings) names in
+          let do_binding (b : b Termctx.binding) (res : S.t) : unit * S.t =
+            let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
+            let tm =
+              Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
+            in
+            ((), Snoc (res, (x, `Renamed, tm, Some ty))) in
+          let _, result =
+            M.miterM { it = (fun _ [ b ] res -> do_binding b res) } [ bindings ] result in
+          (names, result)
+      | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
+          (* First we split off the field variables, if any. *)
+          let xs, fs = Bwv.unappend fplus xs in
+          (* Now we assemble the variable names we got from the uniquified variable list into a cube, iterating backwards so that the indices match those of the Bwv.  We ignore the variable names given in the context, but we use their cube to ensure statically that we got the right number of uniquified names.  *)
+          let module T = struct
+            type 'n t = (string * [ `Original | `Renamed ], 'n) Bwv.t
+          end in
+          let module Fold = NICubeOf.Traverse (T) in
+          let do_var :
+              type left right m n.
+              (m, n) sface ->
+              (left, m, string option, right) NFamOf.t ->
+              right T.t ->
+              left T.t * (left, m, string * [ `Original | `Renamed ], right) NFamOf.t =
+           fun _ (NFamOf _) (Snoc (xs, x)) -> (xs, NFamOf x) in
+          let _, vardata = Fold.fold_map_right { foldmap = do_var } vars xs in
+          (* Then we project out the variable names alone.  TODO: Can we do this as part of the same iteration?  It would require a two-output version of the traversal.  *)
+          let projector :
+              type left right m n.
+              (m, n) sface ->
+              (left, m, string * [ `Original | `Renamed ], right) NFamOf.t ->
+              (left, m, string option, right) NFamOf.t =
+           fun _ (NFamOf (x, _)) -> NFamOf (Some x) in
+          let xs = NICubeOf.map { map = projector } vardata in
+          (* With the variables projected out, we add them to the Names.t.  We use Names.unsafe_add because at this point the variables have already been uniquified by Names.uniquify_vars. *)
+          let fnames = Bwv.mmap (fun [ (x, _); (f, _, _) ] -> (f, x)) [ fs; fields ] in
+          let names = Names.unsafe_add names (Variables (dim, plusdim, xs)) (Bwv.to_bwd fnames) in
+          (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
+          let do_binding fab (b : b Termctx.binding) (res : S.t) : unit * S.t =
+            match (hasfields, is_id_sface fab) with
+            | Has_fields, Some () -> ((), res)
+            | _ ->
+                let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
+                let tm =
+                  Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
+                in
+                let (SFace_of_plus (_, fa, fb)) = sface_of_plus plusdim fab in
+                let fastr = "." ^ string_of_sface fa in
+                let add_fa =
+                  if Option.is_some (is_id_sface fa) then fun y -> y else fun y -> y ^ fastr in
+                let x, orig = NICubeOf.find vardata fb in
+                let x = add_fa x in
+                let res = Snoc (res, (x, merge_orig orig, tm, Some ty)) in
+                ((), res) in
+          let _, result =
+            M.miterM { it = (fun fab [ b ] res -> do_binding fab b res) } [ bindings ] result in
+          (* Finally, we iterate forwards through the fields as well, unparsing their types and adding them to the result also. *)
+          let module M = Bwv.Monadic (Monad.State (S)) in
+          let _, result =
+            M.miterM
+              (fun [ (x, orig); (_, _, ty) ] res ->
+                let ty = Term (unparse names ty Interval.entire Interval.entire) in
+                let res = Snoc (res, (x, merge_orig orig, None, Some ty)) in
+                ((), res))
+              [ fs; fields ] result in
+          (names, result))
+
 (* See the explanation of this function in Core.Reporter. *)
 let () =
   Reporter.printer :=
@@ -551,36 +711,44 @@ let () =
       | PLevel i -> Printed ((fun ppf i -> Format.fprintf ppf "(%d,%d)" (fst i) (snd i)), i)
       | PTerm (ctx, tm) ->
           Printed
-            (Print.pp_term `None, Term (unparse (Ctx.names ctx) tm Interval.entire Interval.entire))
+            ( Print.pp_term `None,
+              Term (unparse (Names.of_ctx ctx) tm Interval.entire Interval.entire) )
       | PVal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Ctx.names ctx) (Readback.readback_val ctx tm) Interval.entire
+                (unparse (Names.of_ctx ctx) (Readback.readback_val ctx tm) Interval.entire
                    Interval.entire) )
       | PNormal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Ctx.names ctx) (Readback.readback_nf ctx tm) Interval.entire
+                (unparse (Names.of_ctx ctx) (Readback.readback_nf ctx tm) Interval.entire
                    Interval.entire) )
       | PUninst (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Ctx.names ctx) (Readback.readback_uninst ctx tm) Interval.entire
+                (unparse (Names.of_ctx ctx) (Readback.readback_uninst ctx tm) Interval.entire
                    Interval.entire) )
-      | PNames vars -> Printed (Core.Names.pp_names, vars)
       | PConstant name ->
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)
+      | PMeta v -> Printed (Uuseg_string.pp_utf_8, Meta.name v)
+      | Termctx.PHole (vars, Permute (p, ctx), ty) ->
+          Printed
+            ( (fun ppf (ctx, ty) -> Print.pp_hole ppf ctx ty),
+              let vars, names = Names.uniquify_vars vars in
+              let names, ctx = unparse_ctx names `Unlocked (Bwv.permute vars p) ctx in
+              let ty = unparse names ty Interval.entire Interval.entire in
+              (ctx, Term ty) )
       | Dump.Val tm -> Printed (Dump.value, tm)
       | Dump.Uninst tm -> Printed (Dump.uninst, tm)
       | Dump.Head h -> Printed (Dump.head, h)
       | Dump.Binder b -> Printed (Dump.binder, b)
       | Dump.Term tm -> Printed (Dump.term, tm)
       | Dump.Env e -> Printed (Dump.env, e)
-      | _ -> raise (Failure "unknown printable")
+      | _ -> fatal (Anomaly "unknown printable")
 
 (* Hack to ensure the above code is executed. *)
 let install () = ()

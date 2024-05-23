@@ -35,10 +35,10 @@ module Heter = struct
     | _ :: xs -> Cons (tlist xs)
 end
 
-(* Now we define a single traversal function which encapsulates map, map2, map3, ..., iter, iter2, ... mapM, mapM2, ..., iterM, iterM2, ... and also multiple-output versions and left folds.  It takes a nonempty hlist of lists as input and produces an hlist of lists in some monad as output, where the traversal function acts on hlists of elements. *)
+(* Now we define a single traversal function which encapsulates map, map2, map3, ..., iter, iter2, ... mapM, mapM2, ..., iterM, iterM2, ... and also multiple-output versions and left and right folds.  It takes a nonempty hlist of lists as input and produces an hlist of lists in some applicative functor as output, where the traversal function acts on hlists of elements.  Applicative functors are the natural level of generality for this, and are needed for some esoteric applications like right-fold with simultaneous map, but later we specialize it to monads which include most examples.  *)
 
-module Monadic (M : Monad.Plain) = struct
-  open Monad.Ops (M)
+module Applicatic (M : Applicative.Plain) = struct
+  open Applicative.Ops (M)
 
   let rec pmapM :
       type x xs ys.
@@ -48,31 +48,35 @@ module Monadic (M : Monad.Plain) = struct
     match xss with
     | [] :: _ -> return (Heter.empty ys)
     | (x :: xs) :: xss ->
-        let* fx = f (x :: Heter.hd xss) in
-        let* fxs = pmapM f (xs :: Heter.tl xss) ys in
-        return (Heter.cons fx fxs)
+        let+ fx = f (x :: Heter.hd xss) and+ fxs = pmapM f (xs :: Heter.tl xss) ys in
+        Heter.cons fx fxs
 
   (* Since "nil hlist" is isomorphic to unit, this includes iterations, but it's more convenient to write those actually using unit. *)
   let miterM : type x xs. ((x, xs) cons hlist -> unit M.t) -> (x, xs) cons Heter.ht -> unit M.t =
    fun f xss ->
-    let* [] =
+    let+ [] =
       pmapM
         (fun x ->
-          let* () = f x in
-          return [])
+          let+ () = f x in
+          [])
         xss Nil in
-    return ()
+    ()
 
   (* It's also convenient to separate out the multi-input single-output version. *)
   let mmapM : type x xs y. ((x, xs) cons hlist -> y M.t) -> (x, xs) cons Heter.ht -> y list M.t =
    fun f xs ->
-    let* [ ys ] =
+    let+ [ ys ] =
       pmapM
         (fun x ->
-          let* y = f x in
-          return [ y ])
+          let+ y = f x in
+          [ y ])
         xs (Cons Nil) in
-    return ys
+    ys
+end
+
+module Monadic (M : Monad.Plain) = struct
+  module A = Applicative.OfMonad (M)
+  include Applicatic (A)
 end
 
 (* The non-monadic versions just specialize to the identity. *)
@@ -118,7 +122,7 @@ module Examples = struct
         [ xs ] (Cons (Cons Nil)) in
     (ys, zs)
 
-  (* The same is true for the monadic versions.  Moreover, the monadic iteration also incorporates left and right folds, by instantiating to a state monad or continuation monad respectively.  Again, in practice this is unnecessary; the user can just instantiate to the appropriate monad directly. *)
+  (* The same is true for the monadic versions.  Moreover, the monadic iteration also incorporates left and right folds, by instantiating to a state monad for left folds, and a reverse state applicative functor (or a continuation monad) for right folds.  Again, in practice this is unnecessary; the user can just instantiate to the appropriate monad directly. *)
 
   let mfold_left :
       type x xs acc. (acc -> (x, xs) cons hlist -> acc) -> acc -> (x, xs) cons Heter.ht -> acc =
@@ -137,6 +141,14 @@ module Examples = struct
   let mfold_right :
       type x xs acc. ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
    fun f xss acc ->
+    let open Applicatic (Applicative.RevState (struct
+      type t = acc
+    end)) in
+    snd (miterM (fun xs s -> ((), f xs s)) xss acc)
+
+  let mfold_right' :
+      type x xs acc. ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
+   fun f xss acc ->
     let open Monadic (Monad.Cont (struct
       type t = acc
     end)) in
@@ -147,4 +159,12 @@ module Examples = struct
 
   let fold_right2 : type x y acc. (x -> y -> acc -> acc) -> x list -> y list -> acc -> acc =
    fun f xs ys acc -> mfold_right (fun [ x; y ] acc -> f x y acc) [ xs; ys ] acc
+
+  (* The reverse-state version of this has the additional advantage that, like the forwards state version, it can be combined with a simultaneous map.  Thus, the generic traversal parametrized over an applicative functor allows the caller to specify the *direction* of traversal. *)
+  let fold_right_map : type x y acc. (x -> acc -> y * acc) -> x list -> acc -> y list * acc =
+   fun f xss acc ->
+    let open Applicatic (Applicative.RevState (struct
+      type t = acc
+    end)) in
+    mmapM (fun [ xs ] s -> f xs s) [ xss ] acc
 end

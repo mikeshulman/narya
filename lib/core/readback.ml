@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Tbwd
 open Reporter
 open Dim
 open Syntax
@@ -9,6 +10,7 @@ open Inst
 open Domvars
 open Norm
 open Printable
+module Binding = Ctx.Binding
 
 (* Readback of values to terms.  Closely follows equality-testing in equal.ml, so most comments are omitted.  However, unlike equality-testing and the "readback" in theoretical NbE, this readback does *not* eta-expand functions and tuples.  It is used for (1) displaying terms to the user, who will usually prefer not to see things eta-expanded, and (2) turning values into terms so that we can re-evaluate them in a new environment, for which purpose eta-expansion is irrelevant. *)
 
@@ -22,14 +24,12 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
   | Pi (_, doms, cods), Lam ((Variables (m, mn, xs) as x), body) -> (
       let k = CubeOf.dim doms in
       let l = dim_binder body in
-      match (compare (TubeOf.inst tyargs) k, compare k l) with
+      match (D.compare (TubeOf.inst tyargs) k, D.compare k l) with
       | Neq, _ | _, Neq -> fatal (Dimension_mismatch ("reading back at pi", TubeOf.inst tyargs, k))
       | Eq, Eq ->
           let args, newnfs = dom_vars (Ctx.length ctx) doms in
-          let (Faces dom_faces) = count_faces (D.plus_right mn) in
-          let f = faces_out dom_faces in
-          let (Plus af) = N.plus f in
-          let newctx = Ctx.vis ctx m mn dom_faces af xs newnfs in
+          let (Plus af) = N.plus (NICubeOf.out N.zero xs) in
+          let newctx = Ctx.vis ctx m mn xs newnfs af in
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))
@@ -44,10 +44,8 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
   | ( Neu { alignment = Lawful (Data { dim = _; indices = _; missing = Zero; constrs }); _ },
       Constr (xconstr, xn, xargs) ) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
-        match Constr.Map.find_opt xconstr constrs with
-        | Some x -> x
-        | None -> fatal (Anomaly "constr not found in readback") in
-      match (compare xn (TubeOf.inst tyargs), compare (TubeOf.inst tyargs) (dim_env env)) with
+        Constr.Map.find_opt xconstr constrs <|> Anomaly "constr not found in readback" in
+      match (D.compare xn (TubeOf.inst tyargs), D.compare (TubeOf.inst tyargs) (dim_env env)) with
       | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
       | _, Neq ->
           fatal (Dimension_mismatch ("reading back constrs", TubeOf.inst tyargs, dim_env env))
@@ -59,7 +57,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                   (fun _ [ tm ] ->
                     match tm.tm with
                     | Constr (tmname, _, tmargs) ->
-                        if tmname = xconstr then Bwd.map (fun a -> CubeOf.find_top a) tmargs
+                        if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
                         else fatal (Anomaly "inst arg wrong constr in readback at datatype")
                     | _ -> fatal (Anomaly "inst arg not constr in readback at datatype"));
               }
@@ -67,11 +65,10 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           Constr
             ( xconstr,
               dim_env env,
-              Bwd.of_list
-                (readback_at_tel ctx env
-                   (Bwd.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                   argtys
-                   (TubeOf.mmap { map = (fun _ [ args ] -> Bwd.to_list args) } [ tyarg_args ])) ))
+              readback_at_tel ctx env
+                (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
+                argtys
+                (TubeOf.mmap { map = (fun _ [ args ] -> args) } [ tyarg_args ]) ))
   | _ -> readback_val ctx tm
 
 and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =
@@ -119,15 +116,18 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
 and readback_head : type a k z h. (z, a) Ctx.t -> h head -> (a, kinetic) term =
  fun ctx h ->
   match h with
-  | Var { level; deg } -> (
-      match Ctx.find_level ctx level with
-      | Some x -> Act (Var x, deg)
-      | None -> fatal (No_such_level (PLevel level)))
+  | Var { level; deg } ->
+      let x = Ctx.find_level ctx level <|> No_such_level (PLevel level) in
+      Act (Var x, deg)
   | Const { name; ins } ->
       let dim = cod_left_ins ins in
       let perm = deg_of_ins ins (plus_of_ins ins) in
       let (DegExt (_, _, deg)) = comp_deg_extending (deg_zero dim) perm in
       Act (Const name, deg)
+  | Meta { meta; env; ins } ->
+      let perm = deg_of_ins ins (plus_of_ins ins) in
+      let (Data { termctx; _ }) = Galaxy.find_opt meta <|> Undefined_metavariable (PMeta meta) in
+      Act (MetaEnv (meta, readback_env ctx env termctx), perm)
 
 and readback_at_tel :
     type n c a b ab z.
@@ -142,7 +142,7 @@ and readback_at_tel :
   | [], Emp -> []
   | x :: xs, Ext (_, ty, tys) ->
       let ety = eval_term env ty in
-      (* Copied from check_tel; TODO: Factor it out *)
+      (* Copied from check_at_tel; TODO: Factor it out *)
       let tyargtbl = Hashtbl.create 10 in
       let [ tyarg; tms; tyargs ] =
         TubeOf.pmap
@@ -178,3 +178,96 @@ and readback_at_tel :
                 CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)) ))
            xs tys tyargs
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
+
+and readback_env :
+    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.t -> (b, n, d) Term.env =
+ fun ctx env (Permute (_, envctx)) -> readback_ordered_env ctx env envctx
+
+and readback_ordered_env :
+    type n a b c d.
+    (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.Ordered.t -> (b, n, d) Term.env =
+ fun ctx env envctx ->
+  match envctx with
+  | Emp ->
+      let (Emp n) = Permute.env_top env in
+      Emp n
+  | Lock envctx -> readback_ordered_env ctx env envctx
+  | Snoc (envctx, entry, _) -> (
+      let (Ext (env', xss)) = Permute.env_top env in
+      let tmenv = readback_ordered_env ctx env' envctx in
+      match entry with
+      | Vis { bindings; _ } | Invis bindings ->
+          let tmxss =
+            CubeOf.mmap
+              {
+                map =
+                  (fun fa [ xs ] ->
+                    let ty = (CubeOf.find bindings fa).ty in
+                    let xtytbl = Hashtbl.create 10 in
+                    CubeOf.mmap
+                      {
+                        map =
+                          (fun fb [ tm ] ->
+                            let k = dom_sface fb in
+                            let ty =
+                              inst
+                                (eval_term (Act (env, op_of_sface fb)) ty)
+                                (TubeOf.build k (D.plus_zero k)
+                                   {
+                                     build =
+                                       (fun fc ->
+                                         Hashtbl.find xtytbl
+                                           (SFace_of (comp_sface fb (sface_of_tface fc))));
+                                   }) in
+                            Hashtbl.add xtytbl (SFace_of fb) { tm; ty };
+                            readback_at ctx tm ty);
+                      }
+                      [ xs ]);
+              }
+              [ xss ] in
+          Ext (tmenv, tmxss))
+
+let readback_bindings :
+    type a b n.
+    (a, (b, n) snoc) Ctx.t -> (n, Binding.t) CubeOf.t -> (n, (b, n) snoc Termctx.binding) CubeOf.t =
+ fun ctx vbs ->
+  CubeOf.mmap
+    {
+      map =
+        (fun _ [ b ] ->
+          match Binding.level b with
+          | Some _ ->
+              ({ tm = None; ty = readback_val ctx (Binding.value b).ty }
+                : (b, n) snoc Termctx.binding)
+          | None ->
+              {
+                tm = Some (readback_nf ctx (Binding.value b));
+                ty = readback_val ctx (Binding.value b).ty;
+              });
+    }
+    [ vbs ]
+
+let readback_entry :
+    type a b f n. (a, (b, n) snoc) Ctx.t -> (f, n) Ctx.entry -> (b, f, n) Termctx.entry =
+ fun ctx e ->
+  match e with
+  | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
+      let top = Binding.value (CubeOf.find_top bindings) in
+      let fields =
+        Bwv.map
+          (fun (f, x) ->
+            let fldty = readback_val ctx (tyof_field top.tm top.ty f) in
+            (f, x, fldty))
+          fields in
+      let bindings = readback_bindings ctx bindings in
+      Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
+  | Invis bindings -> Invis (readback_bindings ctx bindings)
+
+let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.Ordered.t = function
+  | Emp -> Emp
+  | Snoc (rest, e, af) as ctx ->
+      Snoc (readback_ordered_ctx rest, readback_entry (Ctx.of_ordered ctx) e, af)
+  | Lock ctx -> Lock (readback_ordered_ctx ctx)
+
+let readback_ctx : type a b. (a, b) Ctx.t -> (a, b) Termctx.t = function
+  | Permute (p, ctx) -> Permute (p, readback_ordered_ctx ctx)

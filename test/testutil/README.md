@@ -1,1 +1,1 @@
-This library contains utility functions for testing.  They are loaded by the test files, and can also be loaded at the toplevel for manual testing and debugging.
+This library contains utility functions for testing.  They are loaded by the test files, and can also be loaded at the toplevel for manual testing and debugging.  For the latter, the module [Repl](repl.ml) is usually the most useful.

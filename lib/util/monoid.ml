@@ -1,11 +1,10 @@
 (* Module signatures for type-level (additive) monoids. *)
 
-type (_, _) eq = Eq : ('a, 'a) eq
-type (_, _) compare = Eq : ('a, 'a) compare | Neq : ('a, 'b) compare
-
 module type Monoid = sig
   (* The elements of the monoid are the types that satisfy this predicate. *)
   type 'a t
+
+  val compare : 'a t -> 'b t -> ('a, 'b) Eq.compare
 
   (* Addition defined as a relation *)
   type ('a, 'b, 'c) plus
@@ -19,7 +18,7 @@ module type Monoid = sig
   val plus_out : 'a t -> ('a, 'b, 'c) plus -> 'c t
 
   (* Sums are unique *)
-  val plus_uniq : ('a, 'b, 'c) plus -> ('a, 'b, 'd) plus -> ('c, 'd) eq
+  val plus_uniq : ('a, 'b, 'c) plus -> ('a, 'b, 'd) plus -> ('c, 'd) Eq.t
 
   (* The unit element of the monoid is called zero *)
   type zero

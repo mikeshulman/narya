@@ -12,6 +12,7 @@ type t =
   | RBracket (* ] *)
   | LBrace (* { *)
   | RBrace (* } *)
+  | Query (* ? *)
   | Arrow (* Both -> and → *)
   | Mapsto (* Both |-> and ↦ *)
   | DblMapsto (* Both |=> and ⤇ *)
@@ -28,6 +29,7 @@ type t =
   | Def
   | And
   | Echo
+  | Quit
   | Match
   | Sig
   | Data
@@ -39,6 +41,7 @@ type t =
   (* Alphanumeric/unicode other than common ASCII symbols and above single-token characters, with dots and underscores occuring only internally, and each dot-separated piece being nonempty.  Those not containing any dots could be local variable names (with one dot, they could be a face of a cube variable), and those consisting entirely of digits could be numerals.  We can't separate these out at lexing time into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
   | Ident of string list
   | Superscript of string
+  | Invalid_superscript of string
   | Bof
   | Eof
 
@@ -140,6 +143,7 @@ let to_string = function
   | RBracket -> "]"
   | LBrace -> "{"
   | RBrace -> "}"
+  | Query -> "?"
   | Arrow -> alt_char "→" "->"
   | Mapsto -> alt_char "↦" "|->"
   | DblMapsto -> alt_char "⤇" "|=>"
@@ -156,6 +160,7 @@ let to_string = function
   | Def -> "def"
   | And -> "and"
   | Echo -> "echo"
+  | Quit -> "quit"
   | Match -> "match"
   | Sig -> "sig"
   | Data -> "data"
@@ -166,6 +171,7 @@ let to_string = function
   | Op s -> s
   | Ident s -> String.concat "." s
   | Superscript s -> to_super s
+  | Invalid_superscript s -> to_super s
   | Bof -> "BOF"
   | Eof -> "EOF"
 

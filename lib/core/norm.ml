@@ -107,23 +107,25 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Plus mn) = D.plus n in
       Val (universe (D.plus_out m mn))
   | Inst (tm, args) -> (
-      let nk = TubeOf.plus args in
+      (* The arguments are an (n,k) tube, with k dimensions instantiated and n dimensions uninstantiated. *)
+      let n = TubeOf.uninst args in
+      let k = TubeOf.inst args in
+      let n_k = TubeOf.plus args in
       (* Add the environment dimension to the uninstantiated dimensions *)
       let m = dim_env env in
-      let (Plus mn) = D.plus (TubeOf.uninst args) in
-      let mn' = D.plus_out m mn in
-      (* Evaluate the inner term *)
+      let (Plus m_n) = D.plus n in
+      let mn = D.plus_out m m_n in
+      (* Evaluate the inner term.  This gives an m+n+k dimensional object; it might have been instantiated from something higher-dimensional, but requires a full m+n+k tube to become fully instantiated.  We will instantiate k of those dimensions, leaving m+n. *)
       let newtm = eval_term env tm in
-      (* Evaluate the arguments, rearranging and acting by faces and degeneracies *)
-      let (Plus mn_k) = D.plus (D.plus_right nk) in
-      let mn_k' = D.plus_out mn' mn_k in
-      (* tys is a complete m+n+k tube *)
+      let (Plus mn_k) = D.plus k in
+      let mnk = D.plus_out mn mn_k in
+      (* tys is a complete m+n+k tube, giving the types of all the arguments that newtm remains to be instantiated by. *)
       let (Inst_tys tys) = inst_tys newtm in
-      match D.compare (TubeOf.inst tys) mn_k' with
-      | Neq -> fatal (Dimension_mismatch ("evaluation instantiation", TubeOf.inst tys, mn_k'))
+      match D.compare (TubeOf.inst tys) mnk with
+      | Neq -> fatal (Dimension_mismatch ("evaluation instantiation", TubeOf.inst tys, mnk))
       | Eq ->
-          (* used_tys is an m+n+k tube with m+n uninstantiated and k instantiated.  These are the types that we must instantiate to give the types of the added instantiation arguments. *)
-          let used_tys = TubeOf.pboundary (D.zero_plus mn') mn_k tys in
+          (* used_tys is an (m+n,k) tube, with m+n uninstantiated and k instantiated.  These are the types that we must instantiate to give the types of the added instantiation arguments. *)
+          let used_tys = TubeOf.pboundary (D.zero_plus mn) mn_k tys in
           let newargstbl = Hashtbl.create 10 in
           let newargs =
             TubeOf.mmap
@@ -131,17 +133,16 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                 map =
                   (fun fa [ ty ] ->
                     (* fa : p+q => m+n+k, fa = fb+fc where fb : p => m and fcd : q => n+k. *)
-                    let (TFace_of_plus (pq, fb, fcd)) = tface_of_plus mn fa in
+                    let (TFace_of_plus (_, fb, fcd)) = tface_of_plus m_n fa in
                     let fa = sface_of_tface fa in
-                    let p = dom_sface fb in
-                    let pq' = D.plus_out p pq in
-                    let Eq = D.plus_uniq (cod_plus_of_tface fcd) nk in
+                    let Eq = D.plus_uniq (cod_plus_of_tface fcd) n_k in
                     (* Thus tm is p+q dimensional. *)
                     let tm = eval_term (Act (env, op_of_sface fb)) (TubeOf.find args fcd) in
                     (* So its type needs to be fully instantiated at that dimension. *)
                     let ty =
                       inst ty
-                        (TubeOf.build D.zero (D.zero_plus pq')
+                        (TubeOf.build D.zero
+                           (D.zero_plus (dom_sface fa))
                            {
                              build =
                                (fun fij ->

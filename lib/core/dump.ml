@@ -22,16 +22,20 @@ type printable +=
 let dim : formatter -> 'a D.t -> unit =
  fun ppf d -> fprintf ppf "%d" (String.length (string_of_deg (id_deg d)))
 
-let rec value : type s. formatter -> s value -> unit =
- fun ppf v ->
+let rec dvalue : type s. int -> formatter -> s value -> unit =
+ fun depth ppf v ->
   match v with
   | Lazy (lazy v) -> value ppf v
-  | Uninst (tm, _) -> fprintf ppf "Uninst (%a, ?)" uninst tm
+  | Uninst (tm, ty) ->
+      if depth > 0 then fprintf ppf "Uninst (%a, %a)" uninst tm (dvalue (depth - 1)) (Lazy.force ty)
+      else fprintf ppf "Uninst (%a, ?)" uninst tm
   | Inst { tm; dim = d; args = _; tys = _ } ->
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
   | Lam (_, _) -> fprintf ppf "Lam ?"
   | Struct (f, _) -> fprintf ppf "Struct (%a)" fields f
   | Constr (_, _, _) -> fprintf ppf "Constr ?"
+
+and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 
 and fields :
     type s. formatter -> (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t -> unit =
@@ -110,7 +114,8 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Field (tm, fld) -> fprintf ppf "Field (%a, %s)" term tm (Field.to_string fld)
   | UU n -> fprintf ppf "UU %a" dim n
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
-  | Pi (_, _, _) -> fprintf ppf "Pi (?, ?, ?)"
+  | Pi (x, doms, _) ->
+      fprintf ppf "Pi^(%a) (%s, ?, ?)" dim (CubeOf.dim doms) (Option.value x ~default:"_")
   | App (fn, arg) -> fprintf ppf "App (%a, (... %a))" term fn term (CubeOf.find_top arg)
   | Lam (_, body) -> fprintf ppf "Lam (?, %a)" term body
   | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)

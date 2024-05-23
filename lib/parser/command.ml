@@ -322,10 +322,12 @@ let execute : Command.t -> unit = function
                 let (Processed_tel (params, ctx)) = process_tel Emp parameters in
                 match ty with
                 | Some (Term ty) ->
-                    Core.Command.Def_check (const, params, process ctx ty, process ctx tm)
+                    Core.Command.Def_check
+                      { const; params; ty = process ctx ty; tm = process ctx tm }
                 | None -> (
                     match process ctx tm with
-                    | { value = Synth tm; loc } -> Def_synth (const, params, { value = tm; loc })
+                    | { value = Synth tm; loc } ->
+                        Def_synth { const; params; tm = { value = tm; loc } }
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
       Core.Command.execute (Def defs);

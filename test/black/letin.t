@@ -169,3 +169,62 @@ Let affects typechecking:
      ^ term synthesized type B a0 but is being checked against type B x
   
   [1]
+
+Let can check in addition to synthesize:
+
+  $ narya -v pre.ny -e "def aconst : A → A ≔ let x ≔ a0 in y ↦ x"
+   ￫ info[I0001]
+   ￮ Axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom a1 assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom a2 assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom B assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom b assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom f assumed
+  
+   ￫ info[I0000]
+   ￮ Constant aconst defined
+  
+
+Let is allowed in case trees:
+
+  $ narya -v pre.ny -e "def atree : A → A ≔ let x ≔ a0 in y ↦ y" -e "echo atree"
+   ￫ info[I0001]
+   ￮ Axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom a1 assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom a2 assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom B assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom b assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom f assumed
+  
+   ￫ info[I0000]
+   ￮ Constant atree defined
+  
+  atree
+    : A → A
+  

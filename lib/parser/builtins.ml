@@ -48,7 +48,7 @@ let () =
               let x = get_var x in
               let ty, tm = (process ctx ty, process ctx tm) in
               match process (Bwv.snoc ctx x) body with
-              | { value = Synth body; loc = body_loc } ->
+              | { value = body; loc = body_loc } ->
                   {
                     value =
                       Synth
@@ -57,14 +57,13 @@ let () =
                              { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc },
                              { value = body; loc = body_loc } ));
                     loc;
-                  }
-              | _ -> fatal (Nonsynthesizing "body of let"))
+                  })
           | [ Term x; Term tm; Term body ] -> (
               let x = get_var x in
               match process ctx tm with
               | { value = Synth term; loc = term_loc } -> (
                   match process (Bwv.snoc ctx x) body with
-                  | { value = Synth body; loc = body_loc } ->
+                  | { value = body; loc = body_loc } ->
                       {
                         value =
                           Synth
@@ -73,8 +72,7 @@ let () =
                                  { value = term; loc = term_loc },
                                  { value = body; loc = body_loc } ));
                         loc;
-                      }
-                  | _ -> fatal (Nonsynthesizing "body of let"))
+                      })
               | _ -> fatal (Nonsynthesizing "value of let"))
           | _ -> fatal (Anomaly "invalid notation arguments for let"));
     };

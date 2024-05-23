@@ -151,6 +151,19 @@ let rec check :
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
   match (tm.value, uty, status) with
+  | Synth (Let (x, v, body)), _, _ ->
+      let stm, sty = synth ctx v in
+      let etm = Ctx.eval_term ctx stm in
+      let mkstatus :
+          type b n s.
+          (b, s) status -> string option -> (b, kinetic) term -> ((b, D.zero) snoc, s) status =
+       fun status x stm ->
+        match status with
+        | Kinetic -> Kinetic
+        | Potential (c, args, hyp) -> Potential (c, args, fun body -> hyp (Term.Let (x, stm, body)))
+      in
+      let cbody = check (mkstatus status x stm) (Ctx.ext_let ctx x { tm = etm; ty = sty }) body ty in
+      Term.Let (x, stm, cbody)
   | Synth stm, _, _ -> (
       let sval, sty = synth ctx { value = stm; loc = tm.loc } in
       let () =
@@ -903,12 +916,13 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
       let ety = Ctx.eval_term ctx cty in
       let ctm = check Kinetic ctx tm ety in
       (ctm, ety)
-  | Let (x, v, body) ->
+  | Let (x, v, { value = Synth body; loc }) ->
       let sv, ty = synth ctx v in
       let tm = Ctx.eval_term ctx sv in
-      let sbody, bodyty = synth (Ctx.ext_let ctx x { tm; ty }) body in
+      let sbody, bodyty = synth (Ctx.ext_let ctx x { tm; ty }) { value = body; loc } in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value. *)
       (Let (x, sv, sbody), bodyty)
+  | Let _ -> fatal (Nonsynthesizing "body of synthesizing let")
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
 and synth_apps :

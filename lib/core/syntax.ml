@@ -21,10 +21,10 @@ module Raw = struct
     | Pi : string option * 'a check located * 'a N.suc check located -> 'a synth
     | App : 'a synth located * 'a check located -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth
-    (* A Let can either synthesize or check.  If it synthesizes, its body must synthesize, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking. *)
-    | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
     | UU : 'a synth
-    | Act : string * ('m, 'n) deg * 'a synth located -> 'a synth
+    (* A Let or an Act can either synthesize or (sometimes) check.  If it synthesizes, its body must synthesize, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking. *)
+    | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
+    | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
 
   and _ check =
     | Synth : 'a synth -> 'a check

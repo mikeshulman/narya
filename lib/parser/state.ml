@@ -10,7 +10,7 @@ module TokMap = Map.Make (Token)
 module StringMap = Map.Make (String)
 
 module PrintKey = struct
-  type t = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t ]
+  type t = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t * int ]
 
   let compare : t -> t -> int = compare
 end
@@ -193,7 +193,7 @@ let add_user :
                     (fun acc k -> Raw.App ({ value = acc; loc }, StringMap.find k args))
                     (Const c) val_vars in
                 Raw.Synth spine
-            | `Constr c ->
+            | `Constr (c, _) ->
                 let args = List.map (fun k -> StringMap.find k args) val_vars in
                 Raw.Constr ({ value = c; loc }, args) in
           { value; loc });
@@ -231,7 +231,7 @@ let add_user :
   (if PrintMap.mem key state.unparse then
      let keyname =
        match key with
-       | `Constr c -> Constr.to_string c ^ "."
+       | `Constr (c, _) -> Constr.to_string c ^ "."
        | `Constant c -> String.concat "." (Scope.name_of c) in
      emit (Head_already_has_notation keyname));
   { state with unparse = state.unparse |> PrintMap.add key { notn = Wrap n; pat_vars; val_vars } }

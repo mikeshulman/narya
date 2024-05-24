@@ -367,7 +367,7 @@ let execute : Command.t -> unit = function
       @@ fun () ->
       let head =
         match head with
-        | `Constr c -> `Constr (Constr.intern c)
+        | `Constr c -> `Constr (Constr.intern c, List.length args)
         | `Constant c -> (
             match Scope.lookup c with
             | Some c -> `Constant c

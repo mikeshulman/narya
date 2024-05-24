@@ -18,7 +18,7 @@ let get_notation head args =
   let* { notn; pat_vars; val_vars } =
     match head with
     | `Term (Const c) -> State.Current.unparse (`Constant c)
-    | `Constr c -> State.Current.unparse (`Constr c)
+    | `Constr c -> State.Current.unparse (`Constr (c, Bwd.length args))
     (* TODO: Can we associate notations to Fields too? *)
     | _ -> None in
   (* There's probably a more efficient way to do this that doesn't involve converting to and from forwards lists, but this way is more natural and easier to understand, and I think this is unlikely to be a performance bottleneck. *)
@@ -29,7 +29,10 @@ let get_notation head args =
     | k :: labels, x :: elts -> take_labeled labels elts (acc |> StringMap.add k x) in
   let* first, rest = take_labeled val_vars (Bwd.to_list args) StringMap.empty in
   let first = List.fold_left (fun acc k -> Snoc (acc, StringMap.find k first)) Emp pat_vars in
-  return (notn, first, Bwd.of_list rest)
+  (* Constructors don't belong to a function-type, so their notation can't be applied to "more arguments" as a function.  Thus, if there are more arguments leftover, it means that the constructor is being used at a different datatype that takes a different number of arguments, and so the notation shouldn't be applied at all (just as if there were too few arguments). *)
+  match (head, rest) with
+  | `Constr _, _ :: _ -> None
+  | _ -> return (notn, first, Bwd.of_list rest)
 
 let unlocated (value : 'a) : 'a located = { value; loc = None }
 
@@ -265,20 +268,6 @@ let rec unparse :
                                  ~right_ok:(No.le_refl No.minus_omega))
                         | `Unlabeled -> tm) ))
                 fields Emp))
-  (* Not yet unparsing comatches *)
-  (*
-  | Struct (Noeta, fields) ->
-      unlocated
-        (outfix ~notn:comatch ~ws:[]
-           ~inner:
-             (Abwd.fold
-                (* Comatches can't have unlabeled fields *)
-                  (fun fld (tm, _) acc ->
-                  Snoc
-                    ( Snoc (acc, Term (unlocated (Field (Field.to_string fld, [])))),
-                      Term (unparse vars tm Interval.entire Interval.entire) ))
-                fields Emp))
-*)
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
       match unparse_numeral tm with

@@ -1319,44 +1319,6 @@ let () =
   set_processor fwd { process = (fun ctx obs loc _ -> process_fwd ctx obs loc) };
   set_print fwd (pp_lst ">")
 
-let cons = make "cons" (Infixr No.zero)
-
-let () =
-  set_tree cons (Open_entry (eop (Op ":>") (done_open cons)));
-  set_processor cons
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [ Term car; Term cdr ] ->
-              let car = process ctx car in
-              let cdr = process ctx cdr in
-              { value = Constr ({ value = Constr.intern "cons"; loc }, [ car; cdr ]); loc }
-          | _ -> fatal (Anomaly "invalid notation arguments for cons"));
-    }
-
-let rec pp_cons : space -> Format.formatter -> observation list -> Whitespace.alist -> unit =
- fun space ppf obs ws ->
-  match obs with
-  | [ car; cdr ] -> (
-      pp_term `Nobreak ppf car;
-      pp_tok ppf (Op ":>");
-      let wscons, ws = take (Op ":>") ws in
-      taken_last ws;
-      pp_ws `Break ppf wscons;
-      match cdr with
-      | Term { value = Notn n; _ } when equal (notn n) cons ->
-          pp_cons space ppf (args n) (whitespace n)
-      | _ ->
-          pp_term space ppf cdr;
-          pp_close_box ppf ())
-  | _ -> fatal (Anomaly "invalid notation arguments for cons")
-
-let () =
-  set_print cons (fun space ppf obs ws ->
-      pp_open_hvbox ppf 0;
-      pp_cons space ppf obs ws)
-
 (* ********************
    Backwards Lists
    ******************** *)
@@ -1378,44 +1340,6 @@ let () =
   set_tree bwd (Closed_entry (eop LBracket (op (Op "<") (inner_lst "<" bwd))));
   set_processor bwd { process = (fun ctx obs loc _ -> process_bwd ctx (Bwd.of_list obs) loc) };
   set_print bwd (pp_lst "<")
-
-let snoc = make "snoc" (Infixl No.zero)
-
-let () =
-  set_tree snoc (Open_entry (eop (Op "<:") (done_open snoc)));
-  set_processor snoc
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [ Term rdc; Term rac ] ->
-              let rdc = process ctx rdc in
-              let rac = process ctx rac in
-              { value = Constr ({ value = Constr.intern "snoc"; loc }, [ rdc; rac ]); loc }
-          | _ -> fatal (Anomaly "invalid notation arguments for snoc"));
-    }
-
-let rec pp_snoc : space -> Format.formatter -> observation list -> Whitespace.alist -> unit =
- fun space ppf obs ws ->
-  match obs with
-  | [ rdc; rac ] ->
-      (match rdc with
-      | Term { value = Notn n; _ } when equal (notn n) snoc ->
-          pp_snoc `Break ppf (args n) (whitespace n)
-      | _ ->
-          pp_open_hvbox ppf 0;
-          pp_term `Break ppf rdc);
-      pp_tok ppf (Op "<:");
-      let wssnoc, ws = take (Op "<:") ws in
-      taken_last ws;
-      pp_ws `Nobreak ppf wssnoc;
-      pp_term space ppf rac
-  | _ -> fatal (Anomaly "invalid notation arguments for snoc")
-
-let () =
-  set_print snoc (fun space ppf obs ws ->
-      pp_snoc space ppf obs ws;
-      pp_close_box ppf ())
 
 (* ********************
    Holes

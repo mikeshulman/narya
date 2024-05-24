@@ -152,7 +152,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let in def and axiom echo quit notation match sig data codata
+let in def and axiom echo quit notation match return sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 
@@ -478,6 +478,8 @@ def Bwd (A:Type) : Type ≔ data [
 
 ### Matching
 
+#### Basics of matching
+
 When a new constant is defined as a function with arguments that belong to datatypes, it can match on such an argument.  For instance, the function that swaps the elements of a binary sum can be written as
 ```
 def Sum.swap (A B : Type) (x : Sum A B) : Sum B A ≔ match x [
@@ -503,17 +505,7 @@ def Sum.swap (A B : Type) : Sum A B → Sum B A ≔ [
 ]
 ```
 
-It is also possible to match against an arbitrary term, not just a variable.  As a simple example, we can show that a contradiction implies anything without a helper function:
-```
-def ⊥ : Type ≔ data [ ]
-
-def efq (A C : Type) (a : A) (na : A → ⊥) : C ≔ match na a [ ]
-```
-Importantly, when matching on a non-variable, *the output type of the function is not refined*.  If the term being matched against appears somewhere in output type, and you want that appearance to be substituted by the constructors in the branches of the match, then you need to define a helper function that is general over a variable belonging to the type of the term you want to match against.  Note that matching against a let-bound variable is equivalent to matching against its value, so this also does not refine the output type.
-
-Matching can only occur at top level in a definition, or inside abstractions, tuples, or other matches (or comatches, see below).  This aligns with the behavior of pattern-matching definitions in Haskell and Agda, although languages such as Coq and ML that have an explicit `match` keyword usually allow matching against arbitrary terms and in arbitrary places in a term.
-
-It is also only possible to match on one argument at a time: the definition of `Sum.assoc` cannot be condensed to have branches like `inl. (inl. a) ↦ inl. a`.  This makes the syntax a little more verbose, but it also eliminates any ambiguity regarding the order in which matching occurs, preventing issues such as those surrounding Agda's `--exact-split` flag.
+It is currently only possible to match on one argument at a time.  This makes the syntax a little more verbose, but it also eliminates any ambiguity regarding the order in which matching occurs, preventing issues such as those surrounding Agda's `--exact-split` flag.  Similarly, each pattern in a match must consist of exactly one constructor applied to variables: the definition of `Sum.assoc` cannot be condensed to have branches like `inl. (inl. a) ↦ inl. a`.  These restrictions might be relaxed in the future.
 
 A function defined by matching can also be recursive, calling itself in each branch.  For instance, we have addition of natural numbers (in one of the possible ways):
 ```
@@ -522,44 +514,126 @@ def ℕ.plus (m n : ℕ) : ℕ ≔ match m [
 | suc. m ↦ suc. (ℕ.plus m n)
 ]
 ```
-For termination and consistency, the recursive calls should be on structurally smaller arguments.  But currently there is no checking for this, so it is possible to write infinite loops.  In fact this is possible even without matching:
+To ensure termination and consistency, the recursive calls should be on structurally smaller arguments.  But currently there is no checking for this, so it is possible to write infinite loops.  In fact this is possible even without matching:
 ```
 def oops : ∅ ≔ oops
 ```
-However, there is coverage-checking: all the constructors of a datatype must be present in the match.  So while you can write infinite loops, your programs shouldn't get stuck.
+(In this connection, note that `echo` fully normalizes its argument before printing it, so `echo oops` will loop forever.  By contrast, this does not happen with infinite loops guarded by a `match`, for reasons explained below.)  However, there is coverage-checking: all the constructors of a datatype must be present in the match.  So while you can write infinite loops, your programs shouldn't get stuck.
 
-When matching against a datatype with indices, the indices in the type of the match variable must also be *distinct free variables* that don't occur in any parameters.  Thus, for instance, we can define appending of vectors:
+A match can only occur at top level in a definition, or inside abstractions, let-bindings, tuples, or other matches (or comatches, see below).  This is discussed in more detail below.  In particular, it ensures that matches always occur in a checking context.
+
+This is the basic idea of matching, but there are a number of different kinds of matches that differ in subtle ways.
+
+
+#### Top-level variable matches
+
+The most important kind of match is matching against a free variable that belongs to a datatype instance whose indices are distinct free variables not occurring in any of the parameters.  In this case, the output type *and* the types of all other variables in the context are refined in each branch of the match, by substituting the corresponding constructor applied to its pattern variables, and its corresponding indices, for these free variables.  This is similar to the behavior of Agda when splitting a definition on a variable.
+
+For example, we can prove that natural number addition is associative:
+```
+def ℕ.plus.assoc (m n p : ℕ) : Id ℕ ((m+n)+p) (m+(n+p)) ≔ match m [
+| zero. ↦ refl (n+p)
+| suc. m' ↦ suc. (ℕ.plus.assoc m' n p)
+]
+```
+This proof uses observational identity types, which are introduced below.  But the point here is that in the `suc.` branch, the variable `m` is defined to equal `suc. m'`, and this definition is substituted into the goal type `Id ℕ ((m+n)+p) (m+(n+p))`, causing both additions to reduce one step.  You can see this by inserting a hole in this clause:
+```
+def ℕ.plus.assoc (m n p : ℕ) : Id ℕ ((m+n)+p) (m+(n+p)) ≔ match m [
+| zero. ↦ refl (n+p)
+| suc. m' ↦ ?
+]
+
+     hole ?0 generated:
+     
+     n : ℕ
+     p : ℕ
+     m' : ℕ
+     m ≔ suc. m' : ℕ
+     ----------------------------------------------------------------------
+     refl ℕ (suc. ((m' + n) + p)) (suc. (m' + (n + p)))
+```
+As an example with indices, we can define appending of vectors:
 ```
 def Vec.append (A : Type) (m n : ℕ) (v : Vec A m) (w : Vec A n) : Vec A (ℕ.plus m n) ≔ match v [
 | nil. ↦ w
 | cons. k a u ↦ cons. (ℕ.plus k n) a (Vec.append A k n u w)
 ]
 ```
-Here the match against `v` is allowed because the index `m` of its type `Vec A m` is a free variable.  Then in the two branches, that variable `m` is specialized to the index value associated to that constructor, namely `zero.` in the first branch and `suc. k` in the second.  (Note that the body of the second branch typechecks because `ℕ.plus (suc. k) n` reduces to `suc. (ℕ.plus k n)`, which is why we defined addition of natural numbers as we did.  The other addition of natural numbers, by recursion on the second argument, instead matches appending of *backwards* vectors.)
+Here the match against `v` falls into this case of matching because `v` and the index `m` of its type `Vec A m` are both free variables.  Then in the two branches, not only is `v` specialized to the constructor, the variable `m` is also specialized to the index value associated to that constructor, namely `zero.` in the first branch and `suc. k` in the second.  Again, you can see this with a hole:
+```
+def Vec.append (A : Type) (m n : ℕ) (v : Vec A m) (w : Vec A n) : Vec A (ℕ.plus m n) ≔ match v [
+| nil. ↦ w
+| cons. k a u ↦ ?
+]
+
+     hole ?1 generated:
+     
+     A : Type
+     n : ℕ
+     w : Vec A n
+     k : ℕ
+     m ≔ suc. k : ℕ
+     a : A
+     u : Vec A k
+     v ≔ cons. k a u : Vec A (suc. k)
+     ----------------------------------------------------------------------
+     Vec A (suc. (k + n))
+
+```
+(Note that the body of the second branch typechecks because `ℕ.plus (suc. k) n` reduces to `suc. (ℕ.plus k n)`, which is why we defined addition of natural numbers as we did.  The other addition of natural numbers, by recursion on the second argument, instead matches appending of *backwards* vectors.)
 
 The fact that the indices cannot occur in the parameters prevents us, for instance, from proving Axiom K.  Thus it is even less general than Agda's `--without-K` matching, and hence also ensures consistency with univalence.  In the future we may implement a more general unification-based condition like Agda's.
+
+
+#### Non-dependent matches
+
+It is also possible to match against a term that is not a free variable, or whose indices are not distinct free variables or occur in the parameters.  In this case Narya cannot guess how to refine the output type or other variables in the context, so it doesn't.  The term being matched against is not defined to equal anything (that doesn't even make sense); instead the pattern variables in each branch are simply introduced as new free variables unrelated to any previous ones, and the output type remains the same in each branch.
+
+In general, this sort of match is more like the `match` of Coq and dialects of ML.  However, unlike in those language, it can still only appear at top-level or inside abstractions, let-bindings, tuples, matches, and comatches.  As a simple example, we can prove *ex falso quodlibet* without a helper function:
+```
+def ⊥ : Type ≔ data [ ]
+
+def efq (A C : Type) (a : A) (na : A → ⊥) : C ≔ match na a [ ]
+```
+Note that matching against a let-bound variable is equivalent to matching against its value, so it falls under this category.
+
+The fact that this kind of match uses the same syntax as the previous one means that if you intend to do a variable match, as above, but the conditions on the match variable and its indices are not satisfied, then Narya will fall back to trying this kind of match.  You will then probably get an error message due to the fact that the goal type didn't get refined in the branches.  Narya tries to help you find bugs of this sort by emitting a hint when that sort of fallback happens.  If it's what you intended, you can silence the hint by writing `match M return _ ↦ _` as in the next sort of match.
+
+Like the ordinary `match` command, a pattern-matching abstraction like `def pred : ℕ → ℕ ≔ [ zero. ↦ zero. | suc. n ↦ n ]` always attempts to generate a match against a variable, and falls back to a non-dependent match if this fails (e.g. if the domain does not have fully general indices).
+
+
+#### Explicitly dependent matches
+
+Although Narya can't guess how to refine the output type when matching against a general term, you can tell it how to do so by writing `match M return x ↦ P`.  Here `x ↦ P` (where `P` can involve `x`) is a type family (called the *motive*) depending on a variable `x` belonging to the datatype (the type of `M`).  If this datatype has indices, then variables to be bound to the indices must be included in the abstraction as well, e.g. `match V return m v ↦ P` for matching against a vector; this ensures that the motive of the elimination is fully general over the indexed datatype family.  Thus, this kind of match has roughly the same functionality as Coq's `match M in T as x return P`.
+
+Each branch of such a match is checked at the type obtained by substituting the corresponding constructor for `x` in the motive `P`.  The entire match synthesizes the result of substituting the discriminee `M` for `x` in the motive `P` (which then immediately gets tested for equality with the checking type, since a match can only occur in checking position).
+
+As usual, the variables bound in the motive can be written as underscores if they are not used; thus with `match M return _ ↦ P` you can specify a constant motive explicitly.  There is rarely any need for this, since a match is always in checking position, so if its output type is to be constant, that output type is just the checking type and doesn't need to be given explicitly.  However, you can write `match M return _ ↦ _` (with the correct number of variables for the indices, if any) to indicate explicitly that the output type *is* intentionally constant.
+
+Note that while this kind of match provides a way to explicitly refine the *output* type when matching against a non-variable term, it does not do anything to the types of other variables in the context.  If you want their types to also be refined in the branches, you have to use the [convoy pattern](http://adam.chlipala.net/cpdt/html/MoreDep.html) as in Coq, or define a helper function using a top-level Agda-like match.
+
 
 ## Case trees
 
 ### Functions defined by case trees
 
-Functions defined by matching do not reduce unless enough of their arguments are constructors to make it all the way through all the matches.  For instance, `Sum.swap x` does not reduce unless `x` is a constructor, and similarly for `Sum.assoc (inl. x)`.  Thus, functions defined by matching are not equal to each other even if their definitions are identical.  For instance, if we define
+Functions defined with matches at top-level (including inside abstractions, tuples, and other matches and comatches) do not reduce unless enough of their arguments are constructors to make it all the way through all the matches.  For instance, `Sum.swap x` does not reduce unless `x` is a constructor, and similarly for `Sum.assoc (inl. x)`.  Thus, functions defined by matching are not equal to each other even if their definitions are identical.  For instance, if we define
 ```
 def neg : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
 def neg' : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
 ```
 then `neg` and `neg'` are not convertible.  By η-expansion, when trying to convert them we do automatically introduce a new variable `x` and try to compare `neg x` with `neg' x`, but neither of these terms reduce since `x` is not a constructor.  (In particular, datatypes do not satisfy any kind of η-conversion themselves.)
 
-In fact, there is nothing that these terms *could* reduce to, because `match` is not actually syntax for any kind of *term* at all.  Instead, it represents a node in a *case tree*.  A case tree is built out of abstractions, let-bindings, matches, and tuples (and comatches, see below), eventually reaching ordinary terms in the innermost bodies.  In fact *every* defined constant in Narya is actually defined to equal a case tree, which in degenerate cases might only consist of some abstractions or even only a single body.  The general rule, subsuming the others mentioned above for abstractions, tuples, and matching, is that a constant defined as a case tree does not reduce to anything until it is applied to enough arguments or field projections, and enough of the arguments are constructor forms, to ensure that it can reduce to one of the innermost body terms.
+To be precise, top-level matches are not really terms at all, but rather nodes in a *case tree*.  A case tree is built out of abstractions, matches, and tuples (and comatches, see below), eventually reaching ordinary terms in the innermost bodies.  In fact *every* defined constant in Narya is actually defined to equal a case tree, which in degenerate cases might only consist of some abstractions or even only a single body.  The general rule, subsuming the others mentioned above for abstractions, tuples, and matching, is that a constant defined as a case tree does not reduce to anything until it is applied to enough arguments or field projections, and enough of the arguments are constructor forms, to ensure that it can reduce to one of the innermost body terms.
 
-The fact that abstractions, let-bindings, and tuples (unlike matches and comatches) *can* also occur at arbitrary positions in a term means that there is some potential ambiguity in a definition containing only those: are they part of the case tree, or part of a unique body term?  The rule to resolve this is that the case tree includes *as much as possible*; this gives rise to the rules for reduction of functions and tuples mentioned above.
+Since abstractions, let-bindings, tuples, and matches (of some sorts) *can* also occur at arbitrary positions in a term, there is some potential ambiguity in a definition containing these: are they part of the case tree, or part of a unique body term?  The rule to resolve this is that the case tree includes *as much as possible*; this gives rise to the rules for reduction of functions and tuples mentioned above.
 
 This is usually what you want.  It more or less aligns with the behavior of functions defined by pattern-matching in Agda, whereas Coq has to mimic it with `simpl nomatch` annotations.  However, if you really want to define a constant that reduces to an abstraction before it receives an argument, or a tuple before a field is projected out, you can wrap it in a no-op redex:
 ```
 def swap (A B : Type) : A × B → B × A ≔
   ((x ↦ x) : (A × B → B × A) → (A × B → B × A)) (u ↦ (u .snd, u .fst))
 ```
-Since a function application cannot be part of a case tree, it goes into the body term, including the abstraction over `u`.  Thus `swap A B` will reduce to `u ↦ (u .snd, u .fst)`.  If there is significant demand for it, we may implement a less kludgy way to force an abstraction or tuple to lie in the body rather than the case tree.
+Since a function application cannot be part of a case tree, it goes into the body term, including the abstraction over `u`.  Thus `swap A B` will reduce to `u ↦ (u .snd, u .fst)`.  If there is significant demand for it, we may implement a less kludgy way to force an abstraction, tuple, or match to lie in the body rather than the case tree.
 
 Note that case trees are generally considered the internal implementation of Agda-style pattern-matching definitions.  The philosophy of Narya is that it is better to expose the case tree to the user explicitly.  Sometimes this makes the code more verbose; but other times it actually makes it more concise, since all the arguments of the function no longer have to be written again in every branch and sub-branch.  But more importantly, the order in which matches are performed, and hence the way in which the function actually computes, is this way obvious to the reader, and can be specified explicitly by the programmer.  So we have no plans to implement Agda-style pattern matching syntax.
 

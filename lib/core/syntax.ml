@@ -31,7 +31,9 @@ module Raw = struct
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
-    | Match : 'a synth located * 'a branch list -> 'a check
+    | Match :
+        'a synth located * [ `Implicit | `Explicit of 'a check located | `Nondep ] * 'a branch list
+        -> 'a check
     (* "[]", which could be either an empty match or an empty comatch *)
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
@@ -124,7 +126,12 @@ module rec Term : sig
     | Struct :
         's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
         -> ('a, 's) term
-    | Match : ('a, kinetic) term * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
+    | Match : {
+        tm : ('a, kinetic) term;
+        dim : 'n D.t;
+        branches : ('a, 'n) branch Constr.Map.t;
+      }
+        -> ('a, potential) term
     | Realize : ('a, kinetic) term -> ('a, potential) term
     | Canonical : 'a canonical -> ('a, potential) term
 
@@ -193,7 +200,12 @@ end = struct
         's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
-    | Match : ('a, kinetic) term * 'n D.t * ('a, 'n) branch Constr.Map.t -> ('a, potential) term
+    | Match : {
+        tm : ('a, kinetic) term;
+        dim : 'n D.t;
+        branches : ('a, 'n) branch Constr.Map.t;
+      }
+        -> ('a, potential) term
     (* A potential term is "realized" by kinetic terms, or canonical types, at its leaves. *)
     | Realize : ('a, kinetic) term -> ('a, potential) term
     | Canonical : 'a canonical -> ('a, potential) term
@@ -476,7 +488,7 @@ end = struct
 
   (* A canonical type value is either a datatype or a codatatype/record. *)
   and canonical =
-    (* A datatype value has a Bwv of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
+    (* A datatype value has a vector of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
     | Data : {
         dim : 'm D.t;
         indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
@@ -538,4 +550,3 @@ let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf
 let val_of_norm_tube :
     type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
-

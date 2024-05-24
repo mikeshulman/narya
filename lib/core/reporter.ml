@@ -86,20 +86,16 @@ module Code = struct
     | Applying_nonfunction_nontype : printable * printable -> t
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : printable -> t
-    | Invalid_match_index : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
     | No_such_constructor_in_match : printable * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Duplicate_constructor_in_data : Constr.t -> t
-    | Index_variable_in_index_value : t
     | Matching_on_nondatatype : printable -> t
-    | Matching_on_let_bound_variable : printable -> t
-    | Matching_on_record_field : Field.t -> t
+    | Matching_wont_refine : string * printable -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
-    | No_permutation : t
     | No_such_level : printable -> t
     | Constant_already_defined : string -> t
     | Invalid_constant_name : string -> t
@@ -123,7 +119,7 @@ module Code = struct
     | Comment_end_in_string : t
     | Error_printing_error : t -> t
     | Checking_canonical_at_nonuniverse : string * printable -> t
-    | Canonical_type_outside_case_tree : string -> t
+    | Invalid_outside_case_tree : string -> t
     | Wrong_boundary_of_record : int -> t
     | Invalid_constructor_type : Constr.t -> t
     | Missing_constructor_type : Constr.t -> t
@@ -183,19 +179,15 @@ module Code = struct
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy _ -> Error
-    | Invalid_match_index _ -> Error
     | Wrong_number_of_arguments_to_pattern _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
     | Duplicate_constructor_in_data _ -> Error
-    | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
-    | Matching_on_let_bound_variable _ -> Hint
-    | Matching_on_record_field _ -> Hint
+    | Matching_wont_refine _ -> Hint
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
-    | No_permutation -> Error
     | No_such_level _ -> Bug
     | Constant_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
@@ -219,7 +211,7 @@ module Code = struct
     | Comment_end_in_string -> Warning
     | Error_printing_error _ -> Bug
     | Checking_canonical_at_nonuniverse _ -> Error
-    | Canonical_type_outside_case_tree _ -> Error
+    | Invalid_outside_case_tree _ -> Error
     | Wrong_boundary_of_record _ -> Error
     | Invalid_constructor_type _ -> Error
     | Missing_constructor_type _ -> Error
@@ -256,10 +248,11 @@ module Code = struct
     | Undefined_metavariable _ -> "E0302"
     | Locked_variable -> "E0310"
     | Locked_axiom _ -> "E0311"
-    (* Bidirectional typechecking *)
+    (* Bidirectional typechecking and case trees *)
     | Nonsynthesizing _ -> "E0400"
     | Unequal_synthesized_type _ -> "E0401"
     | Synthesizing_recursion _ -> "E0402"
+    | Invalid_outside_case_tree _ -> "E0403"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
@@ -291,19 +284,15 @@ module Code = struct
     (* Matches *)
     (* - Match variable *)
     | Unnamed_variable_in_match -> "E1100"
-    | Matching_on_let_bound_variable _ -> "E1101"
-    | Matching_on_record_field _ -> "E1102"
+    | Matching_wont_refine _ -> "E1101"
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
     | Matching_datatype_has_degeneracy _ -> "E1201"
-    | Invalid_match_index _ -> "E1202"
     (* - Match branches *)
     | Missing_constructor_in_match _ -> "E1300"
     | No_such_constructor_in_match _ -> "E1301"
     | Duplicate_constructor_in_match _ -> "E1302"
     | Wrong_number_of_arguments_to_pattern _ -> "E1303"
-    | Index_variable_in_index_value -> "E1304"
-    | No_permutation -> "E1305"
     (* Comatches *)
     | Comatching_at_noncodata _ -> "E1400"
     | Comatching_at_degenerated_codata _ -> "E1401"
@@ -313,13 +302,12 @@ module Code = struct
     | Invalid_method_in_comatch -> "E1405"
     (* Canonical types *)
     | Checking_canonical_at_nonuniverse _ -> "E1500"
-    | Canonical_type_outside_case_tree _ -> "E1501"
-    | Duplicate_field_in_record _ -> "E1502"
-    | Duplicate_method_in_codata _ -> "E1503"
-    | Duplicate_constructor_in_data _ -> "E1504"
-    | Wrong_boundary_of_record _ -> "E1505"
-    | Invalid_constructor_type _ -> "E1506"
-    | Missing_constructor_type _ -> "E1507"
+    | Duplicate_field_in_record _ -> "E1501"
+    | Duplicate_method_in_codata _ -> "E1502"
+    | Duplicate_constructor_in_data _ -> "E1503"
+    | Wrong_boundary_of_record _ -> "E1504"
+    | Invalid_constructor_type _ -> "E1505"
+    | Missing_constructor_type _ -> "E1506"
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
@@ -469,10 +457,6 @@ module Code = struct
     | Matching_datatype_has_degeneracy ty ->
         textf "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"
           pp_printed (print ty)
-    | Invalid_match_index tm ->
-        textf
-          "@[<hv 0>match variable has invalid or duplicate index:@;<1 2>%a@ match indices must be distinct free variables without degeneracies@]"
-          pp_printed (print tm)
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
           textf "too many arguments to constructor %s in match pattern (%d extra)"
@@ -485,22 +469,16 @@ module Code = struct
           (Constr.to_string c)
     | Duplicate_constructor_in_match c ->
         textf "constructor %s appears twice in match" (Constr.to_string c)
-    | Index_variable_in_index_value -> text "free index variable occurs in inferred index value"
     | Matching_on_nondatatype ty ->
         textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
           (print ty)
-    | Matching_on_let_bound_variable name ->
-        textf "matching on let-bound variable %a doesn't refine the type" pp_printed (print name)
-    | Matching_on_record_field fld ->
-        textf "matching on record field %s doesn't refine the type" (Field.to_string fld)
+    | Matching_wont_refine (msg, d) ->
+        textf "match will not refine the goal or context (%s): %a" msg pp_printed (print d)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
-    | No_permutation ->
-        textf
-          "unable to find a consistent permutation of the context;@ this probably indicates a cyclic dependency among index terms@ or an attempt to prove a version of Axiom K"
     | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"
@@ -547,7 +525,7 @@ module Code = struct
         textf "error while printing message:@ %a" (fun ppf () -> default_text e ppf) ()
     | Checking_canonical_at_nonuniverse (tm, ty) ->
         textf "checking %s at non-universe %a" tm pp_printed (print ty)
-    | Canonical_type_outside_case_tree str -> textf "type %s can only occur in case trees" str
+    | Invalid_outside_case_tree str -> textf "%s can only occur in case trees" str
     | Duplicate_method_in_codata fld ->
         textf "duplicate method in codatatype: %s" (Field.to_string fld)
     | Duplicate_field_in_record fld ->

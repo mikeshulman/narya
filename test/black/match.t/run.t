@@ -35,8 +35,32 @@
    ￫ hint[E1101]
    ￭ matchterm.ny
    12 | def doublematch (n : ℕ) : bool ≔ match n [ zero. ↦ false. | suc. k ↦ match n [ zero. ↦ true. | suc. _ ↦ false. ]]
-      ^ matching on let-bound variable n doesn't refine the type
+      ^ match will not refine the goal or context (discriminee is let-bound): n
   
    ￫ info[I0000]
    ￮ Constant doublematch defined
+  
+   ￫ info[I0000]
+   ￮ Constant doublematch' defined
+  
+   ￫ info[I0000]
+   ￮ Constant ⊤ defined
+  
+   ￫ info[I0000]
+   ￮ Constant zero_or_suc defined
+  
+   ￫ info[I0000]
+   ￮ Constant plus_zero_or_suc defined
+  
+   ￫ info[I0000]
+   ￮ Constant Vec defined
+  
+   ￫ info[I0000]
+   ￮ Constant idvec defined
+  
+   ￫ info[I0000]
+   ￮ Constant nil_or_cons defined
+  
+   ￫ info[I0000]
+   ￮ Constant idvec_nil_or_cons defined
   

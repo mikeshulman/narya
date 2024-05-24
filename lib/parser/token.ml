@@ -31,6 +31,7 @@ type t =
   | Echo
   | Quit
   | Match
+  | Return
   | Sig
   | Data
   | Codata
@@ -162,6 +163,7 @@ let to_string = function
   | Echo -> "echo"
   | Quit -> "quit"
   | Match -> "match"
+  | Return -> "return"
   | Sig -> "sig"
   | Data -> "data"
   | Codata -> "codata"

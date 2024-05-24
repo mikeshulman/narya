@@ -173,7 +173,7 @@ and act_binder : type mn kn s. (mn, s) binder -> (kn, mn) deg -> (kn, s) binder 
 and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }
 
-(* When acting on a neutral or normal, we also need to specify the typed of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions.  This function computes this "type of acted terms". *)
+(* When acting on a neutral or normal, we also need to specify the type of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions (as well as the instantiated term).  This function computes this "type of acted terms".  It has to be passed the term as well as the type because the instantiation of the result may involve that term, e.g. if x : A then refl x : Id A x x. *)
 and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) deg -> kinetic value
     =
  fun ?err tm tmty s ->
@@ -185,11 +185,11 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
       | Neq -> fatal (Anomaly "act_ty applied to non-fully-instantiated term")
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
-          (* This can be a user error, e.g. when trying to symmetrize a 1-dimensional thing, so we allow the caller to provide a different error code. *)
+          (* We check that the degeneracy can be extended to match the instantiation dimension.  If this fails, it is sometimes a bug, but sometimes a user error, e.g. when trying to symmetrize a 1-dimensional thing.  So we allow the caller to provide the error code. *)
           let (Of fa) = deg_plus_to s (TubeOf.inst args) ?err ~on:"instantiated type" in
           (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
           let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
-          (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral.  (Hence why we can't use call act_normal_cube and then take the boundary.) *)
+          (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral.  (Hence why we can't just call act_normal_cube and then take the boundary.) *)
           let args =
             TubeOf.build D.zero
               (D.zero_plus (dom_deg fa))

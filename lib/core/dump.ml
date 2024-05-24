@@ -123,7 +123,7 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
   | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
   | Struct (_, _, _) -> fprintf ppf "Struct (?,?,?)"
-  | Match (_, _, _) -> fprintf ppf "Match (?,?,?)"
+  | Match _ -> fprintf ppf "Match (?,?,?)"
   | Realize tm -> fprintf ppf "Realize (%a)" term tm
   | Canonical c -> fprintf ppf "Canonical (%a)" canonical c
 

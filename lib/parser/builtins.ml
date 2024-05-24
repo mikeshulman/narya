@@ -681,7 +681,7 @@ let () =
    Matches
  ******************** *)
 
-let mtch = make "match" Outfix
+let implicit_mtch = make "implicit_match" Outfix
 
 let rec mtch_branches notn bar_ok end_ok =
   Inner
@@ -702,13 +702,27 @@ let rec mtch_branches notn bar_ok end_ok =
     }
 
 let () =
-  set_tree mtch
+  set_tree implicit_mtch
     (Closed_entry
        (eop Match
           (Inner
              {
                empty_branch with
-               term = Some (TokMap.singleton LBracket (mtch_branches mtch true true));
+               term = Some (TokMap.singleton LBracket (mtch_branches implicit_mtch true true));
+             })))
+
+let explicit_mtch = make "explicit_match" Outfix
+
+let () =
+  set_tree explicit_mtch
+    (Closed_entry
+       (eop Match
+          (Inner
+             {
+               empty_branch with
+               term =
+                 Some
+                   (TokMap.singleton Return (term LBracket (mtch_branches explicit_mtch true true)));
              })))
 
 let mtchlam = make "matchlam" Outfix
@@ -741,7 +755,7 @@ let rec process_branches : type n. (string option, n) Bwv.t -> observation list 
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match 1")
 
 let () =
-  set_processor mtch
+  set_processor implicit_mtch
     {
       process =
         (fun ctx obs loc _ ->
@@ -749,12 +763,35 @@ let () =
           | Term tm :: obs -> (
               match (process ctx tm).value with
               | Synth value ->
-                  { value = Match ({ value; loc = tm.loc }, process_branches ctx obs); loc }
+                  {
+                    value = Match ({ value; loc = tm.loc }, `Implicit, process_branches ctx obs);
+                    loc;
+                  }
               | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match"))
           | [] -> fatal Parse_error);
-    }
-
-let () =
+    };
+  set_processor explicit_mtch
+    {
+      process =
+        (fun ctx obs loc _ ->
+          match obs with
+          | Term tm :: Term ({ value = Notn n; _ } as motive) :: obs when equal (notn n) abs -> (
+              match ((process ctx tm).value, args n) with
+              | Synth value, [ _; Term { value = Placeholder _; _ } ] ->
+                  {
+                    value = Match ({ value; loc = tm.loc }, `Nondep, process_branches ctx obs);
+                    loc;
+                  }
+              | Synth value, _ ->
+                  let motive = process ctx motive in
+                  {
+                    value =
+                      Match ({ value; loc = tm.loc }, `Explicit motive, process_branches ctx obs);
+                    loc;
+                  }
+              | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match"))
+          | _ -> fatal Parse_error);
+    };
   set_processor mtchlam
     {
       process =
@@ -765,7 +802,10 @@ let () =
               Lam
                 ( { value = None; loc = None },
                   `Normal,
-                  { value = Match ({ value = Var (Top, None); loc = None }, branches); loc } );
+                  {
+                    value = Match ({ value = Var (Top, None); loc = None }, `Implicit, branches);
+                    loc;
+                  } );
             loc;
           });
     }
@@ -781,7 +821,7 @@ let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist 
       if brk || style = `Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
       (match body with
       | Term { value = Notn n; _ }
-        when (equal (notn n) mtch || equal (notn n) comatch) && style = `Compact ->
+        when (equal (notn n) implicit_mtch || equal (notn n) comatch) && style = `Compact ->
           pp_open_hovbox ppf 0;
           if true then (
             pp_open_hovbox ppf 4;
@@ -821,12 +861,20 @@ and pp_match box space ppf obs ws =
   | Some (wsmtch, ws) -> (
       match obs with
       | (Term { value = Ident _; _ } as x) :: obs ->
-          let wslbrack, ws = take LBracket ws in
           if box then pp_open_vbox ppf 0;
           if true then (
             pp_tok ppf Match;
             pp_ws `Nobreak ppf wsmtch;
             pp_term `Nobreak ppf x;
+            let ws, obs =
+              match (take_opt Return ws, obs) with
+              | Some (wsret, ws), motive :: obs ->
+                  pp_tok ppf Return;
+                  pp_ws `Nobreak ppf wsret;
+                  pp_term `Nobreak ppf motive;
+                  (ws, obs)
+              | _ -> (ws, obs) in
+            let wslbrack, ws = take LBracket ws in
             pp_tok ppf LBracket;
             pp_ws `Nobreak ppf wslbrack;
             let ws = must_start_with (Op "|") ws in
@@ -852,7 +900,8 @@ and pp_match box space ppf obs ws =
 
 (* Matches and comatches are only valid in case trees. *)
 let () =
-  set_print_as_case mtch (pp_match true);
+  set_print_as_case implicit_mtch (pp_match true);
+  set_print_as_case explicit_mtch (pp_match true);
   set_print_as_case mtchlam (pp_match true);
   set_print_as_case comatch (pp_match true);
   set_print_as_case empty_co_match (pp_match true)
@@ -1402,7 +1451,8 @@ let builtins =
     |> State.add universe
     |> State.add coloneq
     |> State.add comatch
-    |> State.add mtch
+    |> State.add implicit_mtch
+    |> State.add explicit_mtch
     |> State.add mtchlam
     |> State.add empty_co_match
     |> State.add codata

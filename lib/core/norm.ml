@@ -256,12 +256,14 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Plus kn) = D.plus (cod_deg s) in
       let ks = plus_deg k kn km s in
       Val (act_value (eval_term env x) ks)
-  | Match (ix, n, branches) -> (
+  | Match { tm; dim = match_dim; branches } -> (
+      let env_dim = dim_env env in
+      let (Plus plus_dim) = D.plus match_dim in
+      let total_dim = D.plus_out env_dim plus_dim in
       (* Get the argument being inspected *)
-      let m = dim_env env in
-      match eval_term env ix with
-      (* It must be an application of a constructor *)
-      | Constr (name, dim, dargs) -> (
+      match eval_term env tm with
+      (* To reduce nontrivially, the discriminee must be an application of a constructor. *)
+      | Constr (name, constr_dim, dargs) -> (
           match Constr.Map.find_opt name branches with
           (* Matches are constructed to contain all the constructors of the datatype being matched on, and this constructor belongs to that datatype, so it ought to be in the match. *)
           | None ->
@@ -270,18 +272,22 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                    (Printf.sprintf "constructor %s missing from compiled match"
                       (Constr.to_string name)))
           | Some (Branch (plus, perm, body)) -> (
-              let (Plus mn) = D.plus n in
-              match D.compare dim (D.plus_out m mn) with
+              match D.compare constr_dim total_dim with
+              | Neq -> fatal (Dimension_mismatch ("evaluating match", constr_dim, total_dim))
               | Eq ->
-                  (* If we have a branch with a matching constant, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
-                  let env = take_args env mn dargs plus in
+                  (* If we have a branch with a matching constructor, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
+                  let env = take_args env plus_dim dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
-                  eval (permute_env perm env) body
-              (* TODO: Is this case actually a bug, or can it happen? *)
-              | _ -> Unrealized))
+                  eval (permute_env perm env) body))
+      (* Otherwise, the case tree doesn't reduce. *)
       | _ -> Unrealized)
   | Realize tm -> Realize (eval_term env tm)
   | Canonical c -> Canonical (eval_canonical env c)
+
+and eval_with_boundary :
+    type m n mn a. (m, a) env -> (a, kinetic) term -> (m, kinetic value) CubeOf.t =
+ fun env tm ->
+  CubeOf.build (dim_env env) { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) tm) }
 
 (* A helper function that doesn't get the correct types if we define it inline. *)
 and eval_args :
@@ -568,3 +574,11 @@ and apply_binder_term : type n. (n, kinetic) binder -> (n, kinetic value) CubeOf
  fun b arg ->
   let (Val v) = apply_binder b arg in
   v
+
+(* Apply a function to all the values in a cube one by one as 0-dimensional applications, rather than as one n-dimensional application. *)
+let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> kinetic value =
+ fun fn xs ->
+  let module MC = CubeOf.Monadic (Monad.State (struct
+    type t = kinetic value
+  end)) in
+  snd (MC.miterM { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x))) } [ xs ] fn)

@@ -152,14 +152,41 @@ let rec check :
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
   match (tm.value, uty, status) with
-  | Synth stm, _, _ -> (
-      let sval, sty = synth ctx { value = stm; loc = tm.loc } in
-      let () =
-        equal_val (Ctx.length ctx) sty ty
-        <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty)) in
-      match status with
-      | Potential _ -> (Term.Realize sval : (b, s) term)
-      | Kinetic -> sval)
+  (* A Let is a "synthesizing" term so that it *can* synthesize, but in checking position it checks instead. *)
+  | Synth (Let (x, v, body)), _, _ ->
+      let stm, sty = synth ctx v in
+      let etm = Ctx.eval_term ctx stm in
+      let mkstatus :
+          type b n s.
+          (b, s) status -> string option -> (b, kinetic) term -> ((b, D.zero) snoc, s) status =
+       fun status x stm ->
+        match status with
+        | Kinetic -> Kinetic
+        | Potential (c, args, hyp) -> Potential (c, args, fun body -> hyp (Term.Let (x, stm, body)))
+      in
+      let cbody = check (mkstatus status x stm) (Ctx.ext_let ctx x { tm = etm; ty = sty }) body ty in
+      Term.Let (x, stm, cbody)
+  (* An action can always synthesize, but can also check if its degeneracy is a pure permutation, since then the type of the argument can be inferred by applying the inverse permutation to the ambient type. *)
+  | Synth (Act (str, fa, x) as stm), _, _ -> (
+      match D.compare (dom_deg fa) (cod_deg fa) with
+      | Neq -> check_of_synth status ctx stm tm.loc ty
+      | Eq -> (
+          let fainv = perm_inv fa in
+          let ty_fainv =
+            act_ty
+              (Lazy (lazy (fatal (Anomaly "term used in action by inverse symmetry"))))
+              ty fainv
+              ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa)) in
+          let cx =
+            (* A pure permutation shouldn't ever be locking, but we may as well keep this here for consistency.  *)
+            if locking fa then Global.run_locked (fun () -> check Kinetic (Ctx.lock ctx) x ty_fainv)
+            else check Kinetic ctx x ty_fainv in
+          let v = Term.Act (cx, fa) in
+          match status with
+          | Potential _ -> (Term.Realize v : (b, s) term)
+          | Kinetic -> v))
+  (* For any other synthesizing term, we pass off to synthesis. *)
+  | Synth stm, _, _ -> check_of_synth status ctx stm tm.loc ty
   | Lam ({ value = x; _ }, cube, body), Pi (_, doms, cods), _ -> (
       let m = CubeOf.dim doms in
       (* It seems that we have to perform this matching inside a helper function with a declared polymorphic type in order for its type to get specialized correctly and for it to typecheck. *)
@@ -368,6 +395,20 @@ let rec check :
       Galaxy.add meta vars termctx ty energy;
       emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
       Meta meta
+
+(* Deal with a synthesizing term in checking position. *)
+and check_of_synth :
+    type a b s.
+    (b, s) status -> (a, b) Ctx.t -> a synth -> Asai.Range.t option -> kinetic value -> (b, s) term
+    =
+ fun status ctx stm loc ty ->
+  let sval, sty = synth ctx { value = stm; loc } in
+  let () =
+    equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty))
+  in
+  match status with
+  | Potential _ -> (Term.Realize sval : (b, s) term)
+  | Kinetic -> sval
 
 and check_match :
     type a b s matcher.
@@ -896,7 +937,8 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
       let fn, locs, args = spine tm in
       let sfn, sty = synth ctx fn in
       synth_apps ctx { value = sfn; loc = fn.loc } sty locs args
-  | Act (str, fa, x) ->
+  | Act (str, fa, { value = Synth x; loc }) ->
+      let x = { value = x; loc } in
       let sx, ety =
         if locking fa then Global.run_locked (fun () -> synth (Ctx.lock ctx) x) else synth ctx x
       in
@@ -904,17 +946,19 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
       ( Act (sx, fa),
         with_loc x.loc @@ fun () ->
         act_ty ex ety fa ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa)) )
+  | Act _ -> fatal (Nonsynthesizing "argument of degeneracy")
   | Asc (tm, ty) ->
       let cty = check Kinetic ctx ty (universe D.zero) in
       let ety = Ctx.eval_term ctx cty in
       let ctm = check Kinetic ctx tm ety in
       (ctm, ety)
-  | Let (x, v, body) ->
+  | Let (x, v, { value = Synth body; loc }) ->
       let sv, ty = synth ctx v in
       let tm = Ctx.eval_term ctx sv in
-      let sbody, bodyty = synth (Ctx.ext_let ctx x { tm; ty }) body in
+      let sbody, bodyty = synth (Ctx.ext_let ctx x { tm; ty }) { value = body; loc } in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value. *)
       (Let (x, sv, sbody), bodyty)
+  | Let _ -> fatal (Nonsynthesizing "body of synthesizing let")
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
 and synth_apps :

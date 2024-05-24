@@ -71,11 +71,9 @@ let rec process :
   | Field _ -> fatal (Anomaly "field is head")
   | Superscript (Some x, str, _) -> (
       match deg_of_string str with
-      | Some (Any s) -> (
+      | Some (Any s) ->
           let body = process ctx x in
-          match body.value with
-          | Synth arg -> { value = Synth (Act (str, s, { value = arg; loc = body.loc })); loc }
-          | _ -> fatal ?loc:body.loc (Nonsynthesizing "argument of degeneracy"))
+          { value = Synth (Act (str, s, body)); loc }
       | None -> fatal (Invalid_degeneracy str))
   | Superscript (None, _, _) -> fatal (Anomaly "degeneracy is head")
 
@@ -100,11 +98,10 @@ and process_apps :
   match process_head ctx tm with
   | `Deg (str, Any s) -> (
       match args with
-      | (Term arg, loc) :: args -> (
-          match process ctx arg with
-          | { value = Synth arg; _ } ->
-              process_apply ctx { value = Act (str, s, { value = arg; loc }); loc } args
-          | { loc; _ } -> fatal ?loc (Nonsynthesizing "argument of degeneracy"))
+      | (Term arg, loc) :: args ->
+          process_apply ctx
+            { value = Act (str, s, { value = (process ctx arg).value; loc }); loc }
+            args
       | [] -> fatal ?loc:tm.loc (Anomaly "TODO"))
   | `Constr c ->
       let c = { value = c; loc = tm.loc } in

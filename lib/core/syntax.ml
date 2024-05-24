@@ -20,9 +20,10 @@ module Raw = struct
     | Pi : string option * 'a check located * 'a N.suc check located -> 'a synth
     | App : 'a synth located * 'a check located -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth
-    | Let : string option * 'a synth located * 'a N.suc synth located -> 'a synth
     | UU : 'a synth
-    | Act : string * ('m, 'n) deg * 'a synth located -> 'a synth
+    (* A Let or an Act can either synthesize or (sometimes) check.  If it synthesizes, its body must synthesize, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking. *)
+    | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
+    | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
 
   and _ check =
     | Synth : 'a synth -> 'a check
@@ -118,9 +119,7 @@ module rec Term : sig
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
-    | Let :
-        string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
-        -> ('a, kinetic) term
+    | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
         's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
@@ -187,9 +186,7 @@ end = struct
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
-    | Let :
-        string option * ('a, kinetic) term * (('a, D.zero) snoc, kinetic) term
-        -> ('a, kinetic) term
+    | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :

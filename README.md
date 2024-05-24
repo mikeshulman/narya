@@ -56,7 +56,7 @@ When the Narya executable is run, it loads and typechecks all the files given on
 
 There is currently no importing or exporting: all definitions from all sources go into the same flat namespace, so for instance in interactive mode you can refer to definitions made in files that were loaded previously.  There is also no compilation or caching: everything must be typechecked and loaded anew at every invocation.
 
-In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit interactive mode.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
+In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit interactive mode, or enter the command `quit`.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
 
 
 ### Commands
@@ -120,7 +120,7 @@ A notation which starts and ends with a variable is called "infix"; one that sta
 
 We have already mentioned the right-associative function-type notation `A → B`; this has tightness 0.  Function abstraction `x ↦ M` is also right-associative, so you can write `x ↦ y → M` (which can also be abbreviated as `x y ↦ M`), and has tightness −ω.  Application `M N` is implemented specially since an ordinary notation cannot have two variables next to each other without a symbol in between, but it behaves as though it is left-associative with tightness +ω.  (In particular, a nonassociative prefix notation of tightness +ω, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  However, there are no such notations yet.)
 
-In addition, parentheses `( M )` are defined as an outfix notation, hence with effective tightness +ω.  This emphasizes that notations of any tightness, even −ω, can appear in "internal" locations of a notation, meaning those with notation symbols on both sides.  Tightness and associativity only control what other notations can appear in the "external" locations that are only delimited by a notation symbol on one side.
+In addition, parentheses `( M )` are defined as an outfix notation, hence with effective tightness +ω.  This emphasizes that the "internal" locations of any notation (those with notation symbols on both sides) behave as if surrounded by parentheses; in particular, notations of any tightness, even −ω, can appear therein without further parenthesization.  Tightness and associativity only control what other notations can appear in the "external" locations that are delimited by a notation symbol on one side only.
 
 
 ### Comments and strings
@@ -145,7 +145,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
   This rule is intended to be a compromise, allowing the user to define plenty of infix operators that don't require spacing but also arbitrary unicode operators, while keeping the lexer rules simple and unchanging as new operators are defined.  However, feedback is welcome!
 
-- A nonempty string such as `⁽¹ᵉ³⁾` consisting of Unicode superscript letter, digit, and hyphen characters, `ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ𐞥ʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁻`, in between Unicode superscript parentheses, `⁽` and `⁾`, is treated as a single token and applied as a "superscript" operator to whatever immediately precedes it.  This is used for generic degeneracies (see below).  It binds more tightly than anything (tightness of "ω+1"), including function application, so that `f⁽ᵉ⁾ x` means `(f⁽ᵉ⁾) x` and `f x⁽ᵉ⁾` means `f (x⁽ᵉ⁾)`.  In addition, a caret `^` followed by a nonempty string of the corresponding ASCII characters `abcdefghijklmnopqrstuvwxyz0123456789-` (no internal spaces!) in between ordinary parentheses `(` and `)` has exactly the same meaning with the same tightness: `f^(e) x` means the same as `f⁽ᵉ⁾ x`.  (Unicode subscript characters are not treated specially; thus they may appear freely in identifiers or symbols.)
+- A nonempty string such as `⁽¹ᵉ³⁾` consisting of Unicode superscript letter, digit, and hyphen characters, `ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ𐞥ʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁻`, in between Unicode superscript parentheses, `⁽` and `⁾`, is treated as a single token and applied as a "superscript" operator to whatever immediately precedes it.  This is used for generic degeneracies (see below).  It binds more tightly than anything (tightness of "ω+1"), including function application, so that `f⁽ᵉ⁾ x` means `(f⁽ᵉ⁾) x` and `f x⁽ᵉ⁾` means `f (x⁽ᵉ⁾)`.  In addition, a caret `^` followed by a nonempty string of the corresponding ASCII characters `abcdefghijklmnopqrstuvwxyz0123456789-` (no internal spaces!) in between ordinary parentheses `(` and `)` has exactly the same meaning with the same tightness: `f^(e) x` means the same as `f⁽ᵉ⁾ x`.  (Unicode subscript characters are not treated specially; thus they may appear freely in identifiers or symbols, as may unicode superscripts not involving any parentheses.)
 
 
 ### Identifiers
@@ -170,7 +170,7 @@ Narya's typechecker is bidirectional.  This means that some terms *synthesize* a
 
 - Function application `M N` synthesizes, by first requiring `M` to synthesize a function-type `(x:A) → B`, then checking `N` against the input type `A`, and finally synthesizing the corresponding output `B[N/x]`.
 
-- Function abstraction `x ↦ M` checks against a function-type `(x:A) → B` by checking `M` against `B` in a context extended by a variable `x:A`.  In particular, this means that the same abstraction term can mean different things depending on what type it is checked against.  For instance, `x ↦ x` checks against *any* endo-function type `A → A`.
+- Function abstraction `x ↦ M` checks against a function-type `(x:A) → B` by checking `M` against `B` in a context extended by a variable `x:A`.  In particular, this means that the same abstraction term can mean different things depending on what type it is checked against.  For instance, `x ↦ x` checks against *any* endo-function type `A → A`.  (Speaking semantically, however, we do not regard this as "one term having multiple types"; rather we consider that the typechecker is elaborating the ambiguous notation `x ↦ x` using contextual information to produce a distinct identity term in each endo-function type.)
 
 - Type-forming operators such as `Type` and `(x:A) → B` synthesize, after requiring their inputs to synthesize.  This might be modified later after universe levels are introduced.
 
@@ -179,7 +179,7 @@ Narya's typechecker is bidirectional.  This means that some terms *synthesize* a
 
 ### Ascription
 
-If you want to use a checking term in a synthesizing position, you have to *ascribe* it to a particular type by writing `M : A` (or `M:A` by the lexer rules discussed above).  This *checks* `M` against the supplied type `A`, and then itself *synthesizes* that type.  For example, you cannot directly apply an abstraction to an argument to create a redex as in `(x ↦ M) N`, since the abstraction only checks whereas a function being applied must synthesize, but you can if you ascribe it as in `((x ↦ M) : A → B) N`.  In general, ascription tends only to be needed when explicitly writing a redex or something similar.
+If you want to use a checking term in a synthesizing position, you have to *ascribe* it to a particular type by writing `M : A` (or `M:A` by the lexer rules discussed above, assuming `M` doesn't end, or `A` start, with a special ASCII character notation).  This *checks* `M` against the supplied type `A`, and then itself *synthesizes* that type.  For example, you cannot directly apply an abstraction to an argument to create a redex as in `(x ↦ M) N`, since the abstraction only checks whereas a function being applied must synthesize, but you can if you ascribe it as in `((x ↦ M) : A → B) N`.  In general, ascription tends only to be needed when explicitly writing a redex or something similar.
 
 The ascription notation has tightness −ω, and is non-associative, so that `M : N : P` is a parse error.  However, the right-associativity of `↦` and the fact that they share the same tightness means that `x ↦ M : A` is parsed as `x ↦ (M : A)`, hence the placement of parentheses in the above example redex.
 
@@ -193,11 +193,11 @@ Writing `let x ≔ M in N` binds the local variable `x` to the value `M` while t
 The term `M` is required to synthesize.  Thus `let x ≔ M : A in N` is a common idiom, and can be written alternatively as `let x : A ≔ M in N`.  The body `N` can either check or synthesize, and the let-binding as a whole inherits this from it: if `N` synthesizes a type then the let-binding synthesizes the same type, while if `N` checks then the let-binding checks against a type that is passed on to `N` to check against.  The let-binding notation is right-associative with tightness −ω.
 
 
-### Eta-conversion and function constants
+### Eta-conversion and case trees
 
-Functions satisfy undirected η-conversion as well as directed β-reduction.  That is, while neither of `x ↦ f x` or `f` simplifies to the other, they are considered equal for the purposes of typechecking (they are "convertible").
+Functions satisfy undirected η-conversion (in addition to the obvious directed β-reduction).  That is, while neither of `x ↦ f x` or `f` *simplifies* to the other, they are considered equal for the purposes of typechecking (they are "convertible").  The way this works is that the equality-checking algorithm is type-sensitive, and when comparing two terms at a function type it first applies them to a fresh variable, and `(x ↦ f x) y` then reduces to `f y`.
 
-In addition, constants defined as functions do not reduce until they are applied to all of their arguments, including both those declared as parameters and those not so declared.  (This behavior is a special case of "case trees", discussed below.)  For instance, if we define addition of Church numerals as
+In addition, constants defined as functions do not reduce until they are applied to all of their arguments, including both those declared as parameters and those not so declared.  For instance, if we define addition of Church numerals as
 ```
 def cplus (A:Type) (m n : (A → A) → (A → A)) : (A → A) → (A → A) ≔
   f x ↦ m f (n f x)
@@ -212,21 +212,42 @@ A f x ↦ f (f x)
 ```
 If there is significant demand for displaying function bodies, we may add an option to ask for η-expansion.
 
+More generally, the definition of a constant is not just a term, but something called a *case tree*, which can contain internal nodes of different sorts and ends in ordinary terms at its leaves.  Evaluation of such a constant, applied to arguments, does not reduce to anything unless the arguments are sufficient and sufficiently informative for the evaluation to reach a leaf.  In fact *every* defined constant in Narya is actually defined to equal a case tree, even if it consists only of a single leaf.
+
+So far, the only kinds of case tree node we have seen are abstractions and let-bindings.  The requirement for abstractions in a case tree to reduce is just that the function receives enough arguments to β-reduce all the abstractions, and let-bindings in a case tree reduce if their body does.  Thus, in particular, an abstraction directly inside a let-binding, such as that over `y` above, must also receive an argument before the definition reduces.  Other kinds of case tree nodes, with their own reduction rules, include tuples, matches, and comatches, discussed below.
+
+Since abstractions and let-bindings can also occur at arbitrary positions in a term, there is some potential ambiguity in a definition containing these: are they part of the case tree, or part of a unique body term?  The rule to resolve this is that the case tree includes *as much as possible*.  Once another kind of term is encountered that cannot be a case tree node, then that term and all its sub-terms (including any abstractions or let-bindings) are part of the leaf.  Thus, for instance, in
+```
+def foo : A → B → C ≔ 
+  x ↦ 
+  let y ≔ M in
+  y ↦
+  f (z ↦ N)
+```
+the abstractions over `x` and `y` are part of the case tree, as is the let-binding, but the abstraction `z ↦ N` is not.  Thus, `foo` and `foo a` will not reduce, but `foo a b` will reduce.  This behavior is usually what you want, but if you really want to define a constant that reduces to an abstraction before it receives an argument you can wrap it in a no-op redex:
+```
+def id (A:Type) : A → A 
+  ≔ ((f ↦ f) : (A → A) → (A → A)) (x ↦ x)
+```
+Since a function application cannot be part of a case tree, it goes into the body term, including the abstraction over `f`.  Thus `id A` will reduce to `x ↦ x`.  If there is significant demand for it, we may implement a less kludgy way to force transitioning from case tree nodes to a leaf.
+
 
 ## Interactive proof
 
-There is no truly interactive proof or term-construction mode yet, but there is the ability to leave *holes* in terms.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever, and emits a message showing the type it is being checked against, and all the variables in the context with their types (and definitions, if any).  There is not yet any way to go back and fill a hole *after* it is created, but you can get something of the same effect by just editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.
+There is no truly interactive proof or term-construction mode yet, but there is the ability to leave *holes* in terms.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever, and emits a message showing the type it is being checked against, and all the variables in the context with their types (and definitions, if any).  There is not yet any way to go back and fill a hole *after* it is created, but you can get something of the same effect by just editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.  (And in interactive mode, you can press the up-arrow or Meta+P to get to the previous command, edit it to replace the `?`, and re-execute it, ignoring the resulting warning about redefining the constant.)
 
-A command containing one or more holes will succeed as long as the term typechecks without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts.  In other words, it will succeed if the term would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself.  (This will be improved in the future.)
+A `def` or `axiom` command (or even an `echo` command) containing one or more holes will succeed as long as the term typechecks without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts.  In other words, it will succeed if the term would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself.  (This will be improved in the future.)
 
-If a command containing one or more holes succeeds, you can continue to issue other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N` where `N` is the sequential number of the hole.  Unlike the printing of most terms, this is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N`.  This may be improved in future, but it is ameliorated somewhat by the fact that "case tree holes" (see below) never appear in terms.
+If a command containing one or more holes succeeds, you can continue to issue other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N` where `N` is the sequential number of the hole.  (Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.)  Unlike the printing of most terms, `?N` for a hole is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N`.  This may be improved in future, but it is ameliorated somewhat by the treatment of holes in case trees.
 
-Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.
+Specifically, a hole `?` left in a place where a case tree would be valid to continue is a *case tree hole*, and is treated a bit differently than an ordinary hole.  Obviously, once it is possible to "fill" holes, a case tree hole will be fillable with a case tree rather than just a term.  But currently, the main difference is that evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would constitute the substitution applied to a term hole, and hence not currently printed).
 
 When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.
 
 
 ## Record types and tuples
+
+We now describe the various other classes of types that can be defined by the user, starting with the simplest, record types.
 
 ### Defining record types
 
@@ -237,7 +258,7 @@ def Magma : Type ≔ sig (
   op : t → t → t,
 )
 ```
-The trailing comma after the last field is optional.  (By the lexing rules above, no space is required around the commas, unless they follow a type that is expressed using a notation that ends with another special ASCII character.)  Note that later fields can depend on the values of previous fields, by name.  The names of fields must be identifiers, except that they may not contain periods.
+The trailing comma after the last field is optional.  (By the lexing rules above, no space is required around the commas, unless they follow a type that is expressed using a notation that ends with another special ASCII character.)  Note that later fields can depend on the values of previous fields, by name.  The names of fields must be valid local variable names, i.e. identifiers not containing periods.
 
 Although this command may look like it is defining `Magma` to equal a pre-existing type denoted `sig (t:Type, op:t→t→t)`, in fact it declares `Magma` to be a *new* type that didn't previously exist and doesn't reduce to anything else.  In particular, therefore, declaring another identical-looking type:
 ```
@@ -314,7 +335,7 @@ The names of the fields in a tuple can also be replaced by underscores or omitte
 ```
 but not, of course, `(plus, ℕ)` since that would try to interpret `plus` as the value of the field `t`.  Unlabeled tuples are convenient for small examples, including familiar cases such as `(0,0) : ℝ × ℝ`, but for records with large numbers of fields they are discouraged as being hard to understand and brittle.  (But some mathematicians do like to write, for instance, `(G,m,e,i,a,l,r,v) : Group`, and that is allowed.)
 
-As this discussion suggests, tuples *check*, and do not synthesize.  In particular, this means the same tuple can mean different things when checked at different types.  An unlabeled tuple `(a,b)` can check at *any* record type with two fields for which `a` checks at the type of the first field and `b` at the type of the second (possibly depending on the value of `a`).  A labeled tuple such as `(fst ≔ a, snd ≔ b)` can likewise check at any such record type for which the names of the two fields are `fst` and `snd`.  *Field names are not scoped or namespaced*: they belong to a flat global name domain, distinct from that of constants and variables.
+As this discussion suggests, tuples *check*, and do not synthesize.  In particular, this means that, as for function abstractions, the same tuple can mean different things when checked at different types.  An unlabeled tuple `(a,b)` can check at *any* record type with two fields for which `a` checks at the type of the first field and `b` at the type of the second (possibly depending on the value of `a`).  A labeled tuple such as `(fst ≔ a, snd ≔ b)` can likewise check at any such record type for which the names of the two fields are `fst` and `snd`.  *Field names are not scoped or namespaced*: they belong to a flat global name domain, distinct from that of constants and variables.
 
 Like record types, tuples can have zero fields:
 ```
@@ -343,14 +364,15 @@ Finally, like unlabeled tuples that default to the order in which fields were de
 
 Records satisfy η-conversion: two elements of a record type whose components are field-wise convertible are themselves convertible.  For instance, if `M : Σ A B`, then `M` is convertible with `(M .fst, M .snd)`, although neither reduces to the other.  In particular, if a record type has zero fields, then it has a unique element `()` up to convertibility; and if it has only one field, it is definitionally isomorphic to the type of that field.
 
-In addition, a constant that is defined to directly equal a tuple, or an abstracted tuple, or a tuple inside a let-binding, does not *reduce* to that tuple directly: it only reduces when a field is projected.  For instance, if we have
+In addition, tuples are allowed as nodes in a case tree.  Thus, a constant that is defined to directly equal a tuple, or an abstracted tuple, or a tuple inside a let-binding, does not *reduce* to that tuple directly: it only reduces when a field is projected.  (Now we see why case trees are *trees*, as with tuple nodes they can in fact ramify into multiple branches.)  For instance, if we have
 ```
 def pair (a:A) (b:B a) : Σ A B ≔ (a,b)
 ```
-then `pair a b` doesn't reduce to `(a,b)`.  But `pair a b .fst` does reduce to `a` and `pair a b .snd` does reduce to `b`, which in turn means (by η-conversion) that `pair a b` is *convertible* with `(a,b)`.  (This behavior is a special case of "case trees", discussed below.)  It does not apply (indeed, it cannot) to tuples that appear more deeply nested inside a term, such as the `(a,b)` in
+then `pair a b` doesn't reduce to `(a,b)`.  But `pair a b .fst` does reduce to `a` and `pair a b .snd` does reduce to `b`, which in turn means (by η-conversion) that `pair a b` is *convertible* with `(a,b)`.  Similarly, abstractions *inside* a tuple are also still part of the case tree, and block reduction until applied to all their arguments: if we have
 ```
-def curry (f : A × B → C) (a:A) (b:B) : C ≔ f (a,b)
+def unpairfn (f : A → B × C) : (A → B) × (A → C) ≔ (x ↦ (f x).fst, x ↦ (f x).snd)
 ```
+then `unpairfn f .fst` does not reduce until applied to a further argument.
 
 
 ## Inductive datatypes and matching
@@ -364,9 +386,9 @@ def Bool : Type ≔ data [
 | false. : Bool
 ]
 ```
-The `|` before the first constructor is optional, and no spaces are required around the brackets and bar (unless, as usual, they are adjacent to a notation involving other special ASCII symbols).
+The `|` before the first constructor is optional, and no spaces are required around the brackets and bar (unless, as usual, the bar is adjacent to a notation involving other special ASCII symbols).
 
-Note that each constructor ends with a period.  This is intentionally dual to the fact that record fields and codata methods (see below) *begin* with a period, and reminds us that constructors, like fields and records, are not namespaced but belong to a separate flat name domain.  (OCaml programmers should think of polymorphic variants, not regular variants, although there is no subtyping yet.)  The use of separate syntax distinguishing constructors from variables and functions is also familiar from functional programming, although the specific use of a dot suffix is novel (capitalization is more common).
+Note that each constructor ends with a period.  This is intentionally dual to the fact that record fields (and codata methods, see below) *begin* with a period, and reminds us that constructors, like fields and records, are not namespaced but belong to a separate flat name domain.  (OCaml programmers should think of polymorphic variants, not regular variants, although there is no subtyping yet.)  The use of separate syntax distinguishing constructors from variables and functions is also familiar from functional programming, although the specific use of a dot suffix is unusual (capitalization is more common).
 
 Also as with record types, this is not defining `Bool` to equal a pre-existing thing, but declaring it to be a new type that didn't previously exist and doesn't reduce to anything else.
 
@@ -422,7 +444,7 @@ A datatype can have zero constructors, yielding an empty type:
 def ∅ : Type ≔ data [ ]
 ```
 
-Finally, a datatype can also have *indices*, which are arguments of its type that are not abstracted over (either as parameters or after the ≔) before issuing the `data` keyword.  In this case, all the constructors must include an explicit output type that specifies the values of the indices for that constructor (and also includes all the parameters explicitly, although these cannot differ between constructors).  For instance, we have vectors (length-indexed lists):
+Finally, a datatype can also have *indices*, which are arguments of its type that are not abstracted over (either as parameters, or with ↦ after the ≔) before issuing the `data` keyword.  In this case, all the constructors must include an explicit output type that specifies the values of the indices for that constructor (and also includes all the parameters explicitly, although these cannot differ between constructors).  For instance, we have vectors (length-indexed lists):
 ```
 def Vec (A:Type) : ℕ → Type ≔ data [
 | nil. : Vec A zero.
@@ -458,7 +480,7 @@ A constructor, meaning an identifier ending with a period but containing no inte
 
 Constructors check rather than synthesizing.  As usual with checking terms, one constructor application can check at many different datatypes.  As a simple and common example, `nil.` typechecks at `List A` for *any* type `A`.  This makes it clear that, unlike an ordinary function application, a constructor application cannot synthesize, as there is no way to guess from `nil.` what the type `A` should be.  Moreover, unlike in some other languages, the parameter `A` is not even an "implicit argument" of the constructor; the only way to make `nil.` synthesize is to ascribe it as `nil. : List A`.  Similarly, `inl. a` typechecks at `Sum A B` for any type `B`.
 
-Constructors must always be applied to all of their arguments.  For instance, one cannot write `cons. x : List A → List A`.  You have to η-expand it: `(xs ↦ cons. x xs) : List A → List A`.
+Constructors must always be applied to all of their arguments.  For instance, one cannot write `cons. x : List A → List A`.  You have to η-expand it: `(xs ↦ cons. x xs) : List A → List A`.  This might be improved in future.
 
 
 ### Numeral and list notations
@@ -477,8 +499,6 @@ def Bwd (A:Type) : Type ≔ data [
 (Since `[` and `]` are always their own tokens, it is also possible to put spaces in these notations, such as `[ > 1, 2, 3 > ]`, but this is not recommended.)
 
 ### Matching
-
-#### Basics of matching
 
 When a new constant is defined as a function with arguments that belong to datatypes, it can match on such an argument.  For instance, the function that swaps the elements of a binary sum can be written as
 ```
@@ -504,8 +524,60 @@ def Sum.swap (A B : Type) : Sum A B → Sum B A ≔ [
 | inr. b ↦ inl. b 
 ]
 ```
+A match is a checking term.  It requires the term being matched against to synthesize, while the bodies of each branch are checking (we will discuss below how the type they are checked against is determined).
 
-It is currently only possible to match on one argument at a time.  This makes the syntax a little more verbose, but it also eliminates any ambiguity regarding the order in which matching occurs, preventing issues such as those surrounding Agda's `--exact-split` flag.  Similarly, each pattern in a match must consist of exactly one constructor applied to variables: the definition of `Sum.assoc` cannot be condensed to have branches like `inl. (inl. a) ↦ inl. a`.  These restrictions might be relaxed in the future.
+It is currently only possible to match on one argument at a time.  Similarly, each pattern in a match must consist of exactly one constructor applied to variables: the definition of `Sum.assoc` cannot be condensed to have branches like `inl. (inl. a) ↦ inl. a`.  These restrictions might be relaxed in the future.
+
+
+### Matching and case trees
+
+Matches are case tree nodes, which only reduce if the term being matched against is a constructor form so that one of the branches can be selected.  Thus, for instance, `Sum.swap x` does not reduce unless `x` is a constructor, and similarly for `Sum.assoc (inl. x)`.  This more or less aligns with the behavior of functions defined by pattern-matching in Agda, whereas Coq has to mimic it with `simpl nomatch` annotations.
+
+However, matches are also unlike the case tree nodes we have discussed so far, in two ways.
+
+Firstly, matches and datatypes do not satisfy any kind of η-conversion.  Thus, two functions defined by matching are not equal to each other even if their definitions are identical.  For instance, if we define
+```
+def neg1 : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
+def neg2 : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
+```
+then `neg1` and `neg2` are not convertible.  By η-expansion, when trying to convert them we do automatically introduce a new variable `x` and try to compare `neg1 x` with `neg2 x`, but neither of these terms reduce since `x` is not a constructor.  In particular, datatypes do not satisfy any kind of η-conversion themselves.
+
+Secondly, matches can *only* occur in case trees, *not* elsewhere in a term.  This means that when normalizing and printing a term, the result will never involve any `match`es; if there are any matches in a definition for which the match variable doesn't get substituted by a constructor, the entire case tree fails to reduce, remaining a stuck application of the function.  We will discuss this further below.
+
+Note that case trees are generally considered the internal implementation of Agda-style pattern-matching definitions.  For instance, according to the [Agda manual](https://agda.readthedocs.io/en/v2.6.4.3-r1/language/function-definitions.html#case-trees), the function definition
+```
+-- This is Agda, not Narya
+max : Nat → Nat → Nat
+max zero    n       = n
+max m       zero    = m
+max (suc m) (suc n) = suc (max m n)
+```
+is represented internally as a case tree that looks like this:
+```
+-- This is pseudocode
+max m n = case m of
+  zero   → n
+  suc m' → case n of
+    zero   → suc m'
+    suc n' → suc (max m' n')
+```
+Agda's approach has the problem, noted there, that not all the clauses in such a definition may hold definitionally, e.g. `max m zero` is not convertible with `m` when `m` is a variable.  For this reason Agda has the `--exact-split` flag that prevents such clauses.  Narya avoids this problem by requiring the user to write case trees explicitly, making it clear in the code what path the computation will take and hence what equations will hold definitionally:
+```
+{` This is Narya again `}
+def max (m n : ℕ) : ℕ ≔ match m [
+| zero.  ↦ n
+| suc. m' ↦ match n [
+  | zero. ↦ suc. m'
+  | suc. n' ↦ suc. (max m' n')
+  ]
+]
+```
+Now it is clear that `max m zero.` is stuck, since `m` is matched against first.
+
+Sometimes writing case trees explicitly makes the code more verbose, but other times it actually makes it more concise, since all the arguments of the function no longer have to be written again in every branch and sub-branch.  However, we regard this as secondary; more important is making clear to the reader, and allowing the programmer to specify, the order in which matches are performed, and hence the way in which the function actually computes.  So we have no plans to implement Agda-style pattern matching syntax.
+
+
+### Recursion
 
 A function defined by matching can also be recursive, calling itself in each branch.  For instance, we have addition of natural numbers (in one of the possible ways):
 ```
@@ -513,21 +585,19 @@ def ℕ.plus (m n : ℕ) : ℕ ≔ match m [
 | zero. ↦ n
 | suc. m ↦ suc. (ℕ.plus m n)
 ]
+
+notation 4 ℕ.plus : x "+" y ≔ ℕ.plus x y
 ```
 To ensure termination and consistency, the recursive calls should be on structurally smaller arguments.  But currently there is no checking for this, so it is possible to write infinite loops.  In fact this is possible even without matching:
 ```
 def oops : ∅ ≔ oops
 ```
-(In this connection, note that `echo` fully normalizes its argument before printing it, so `echo oops` will loop forever.  By contrast, this does not happen with infinite loops guarded by a `match`, for reasons explained below.)  However, there is coverage-checking: all the constructors of a datatype must be present in the match.  So while you can write infinite loops, your programs shouldn't get stuck.
-
-A match can only occur at top level in a definition, or inside abstractions, let-bindings, tuples, or other matches (or comatches, see below).  This is discussed in more detail below.  In particular, it ensures that matches always occur in a checking context.
-
-This is the basic idea of matching, but there are a number of different kinds of matches that differ in subtle ways.
+(In this connection, recall that `echo` fully normalizes its argument before printing it, so `echo oops` will loop forever.  By contrast, this does not usually happen with infinite loops guarded by a `match`, because matches are case tree nodes, so their branch bodies are not normalized unless their argument is a constructor that selects a particular branch.)  However, there is coverage-checking: all the constructors of a datatype must be present in the match.  So while you can write infinite loops, your programs shouldn't get stuck.
 
 
-#### Top-level variable matches
+### Variable matches
 
-The most important kind of match is matching against a free variable that belongs to a datatype instance whose indices are distinct free variables not occurring in any of the parameters.  In this case, the output type *and* the types of all other variables in the context are refined in each branch of the match, by substituting the corresponding constructor applied to its pattern variables, and its corresponding indices, for these free variables.  This is similar to the behavior of Agda when splitting a definition on a variable.
+The most important kind of match is matching against a free variable that belongs to a datatype instance whose indices are distinct free variables not occurring in any of the parameters.  In this case, the output type *and* the types of all other variables in the context are *refined* while checking each branch of the match, by substituting the corresponding constructor applied to its pattern variables, and its corresponding indices, for these free variables.  This is similar to the behavior of Agda when splitting a definition on a variable.
 
 For example, we can prove that natural number addition is associative:
 ```
@@ -580,16 +650,14 @@ def Vec.append (A : Type) (m n : ℕ) (v : Vec A m) (w : Vec A n) : Vec A (ℕ.p
      Vec A (suc. (k + n))
 
 ```
-(Note that the body of the second branch typechecks because `ℕ.plus (suc. k) n` reduces to `suc. (ℕ.plus k n)`, which is why we defined addition of natural numbers as we did.  The other addition of natural numbers, by recursion on the second argument, instead matches appending of *backwards* vectors.)
+(Note that the body of the second branch typechecks because `ℕ.plus (suc. k) n` reduces to `suc. (ℕ.plus k n)`, which is why we defined addition of natural numbers as we did.  The other addition of natural numbers, by recursion on the second argument, instead aligns with appending of *backwards* vectors.)
 
 The fact that the indices cannot occur in the parameters prevents us, for instance, from proving Axiom K.  Thus it is even less general than Agda's `--without-K` matching, and hence also ensures consistency with univalence.  In the future we may implement a more general unification-based condition like Agda's.
 
 
-#### Non-dependent matches
+### Non-dependent matches
 
-It is also possible to match against a term that is not a free variable, or whose indices are not distinct free variables or occur in the parameters.  In this case Narya cannot guess how to refine the output type or other variables in the context, so it doesn't.  The term being matched against is not defined to equal anything (that doesn't even make sense); instead the pattern variables in each branch are simply introduced as new free variables unrelated to any previous ones, and the output type remains the same in each branch.
-
-In general, this sort of match is more like the `match` of Coq and dialects of ML.  However, unlike in those language, it can still only appear at top-level or inside abstractions, let-bindings, tuples, matches, and comatches.  As a simple example, we can prove *ex falso quodlibet* without a helper function:
+It is also possible to match against a term that is not a free variable, or whose indices are not distinct free variables or occur in the parameters.  In this case Narya cannot guess how to refine the output type or other variables in the context, so it doesn't.  The term being matched against is not defined to equal anything (that doesn't even make sense); instead the pattern variables in each branch are simply introduced as new free variables unrelated to any previous ones, and the output type remains the same in each branch.  As a simple example, we can prove *ex falso quodlibet* without a helper function:
 ```
 def ⊥ : Type ≔ data [ ]
 
@@ -597,84 +665,40 @@ def efq (A C : Type) (a : A) (na : A → ⊥) : C ≔ match na a [ ]
 ```
 Note that matching against a let-bound variable is equivalent to matching against its value, so it falls under this category.
 
-The fact that this kind of match uses the same syntax as the previous one means that if you intend to do a variable match, as above, but the conditions on the match variable and its indices are not satisfied, then Narya will fall back to trying this kind of match.  You will then probably get an error message due to the fact that the goal type didn't get refined in the branches.  Narya tries to help you find bugs of this sort by emitting a hint when that sort of fallback happens.  If it's what you intended, you can silence the hint by writing `match M return _ ↦ _` as in the next sort of match.
+In general, this sort of match is more like the `match` of Coq and dialects of ML.  However, unlike in those language, it can still only appear as a node in a case tree, thus only at top-level of a definition or inside abstractions, let-bindings, tuples, other matches, and comatches (see below).
+
+The fact that this kind of match uses the same syntax as the previous one means that if you intend to do a variable match, as above, but the conditions on the match variable and its indices are not satisfied, then Narya will fall back to trying this kind of match.  You will then probably get an error message due to the fact that the goal type didn't get refined in the branches the way you were expecting it to.  Narya tries to help you find bugs of this sort by emitting a hint when that sort of fallback happens.  If you really did mean to write a non-dependent match, you can silence the hint by writing `match M return _ ↦ _` (see the next sort of match, below).
 
 Like the ordinary `match` command, a pattern-matching abstraction like `def pred : ℕ → ℕ ≔ [ zero. ↦ zero. | suc. n ↦ n ]` always attempts to generate a match against a variable, and falls back to a non-dependent match if this fails (e.g. if the domain does not have fully general indices).
 
 
-#### Explicitly dependent matches
+### Explicitly dependent matches
 
-Although Narya can't guess how to refine the output type when matching against a general term, you can tell it how to do so by writing `match M return x ↦ P`.  Here `x ↦ P` (where `P` can involve `x`) is a type family (called the *motive*) depending on a variable `x` belonging to the datatype (the type of `M`).  If this datatype has indices, then variables to be bound to the indices must be included in the abstraction as well, e.g. `match V return m v ↦ P` for matching against a vector; this ensures that the motive of the elimination is fully general over the indexed datatype family.  Thus, this kind of match has roughly the same functionality as Coq's `match M in T as x return P`.
+Although Narya can't guess how to refine the output type when matching against a general term, you can tell it how to do so by writing `match M return x ↦ P`.  Here `x ↦ P` (where `P` can involve `x`) is a type family (called the *motive*) depending on a variable `x` belonging to the datatype (the type of `M`).  If this datatype has indices, then variables to be bound to the indices must be included in the abstraction as well, e.g. `match V return i v ↦ P` for matching against a vector; this ensures that the motive of the elimination is fully general over the indexed datatype family.  Thus, this kind of match has roughly the same functionality as Coq's `match M in T i as x return P`.
 
-Each branch of such a match is checked at the type obtained by substituting the corresponding constructor for `x` in the motive `P`.  The entire match synthesizes the result of substituting the discriminee `M` for `x` in the motive `P` (which then immediately gets tested for equality with the checking type, since a match can only occur in checking position).
+Each branch of such a match is checked at the type obtained by substituting the corresponding constructor for `x` in the motive `P`.  The entire match synthesizes the result of substituting the discriminee `M` for `x` in the motive `P` (which then immediately gets tested for equality with the checking type, since a match, like other case tree nodes, can only occur in checking position).  For example, we could prove associativity of addition more verbosely as follows:
+```
+def ℕ.plus.assoc (m n p : ℕ) : Id ℕ ((m+n)+p) (m+(n+p))
+  ≔ match m return x |-> Id ℕ ((x+n)+p) (x+(n+p)) [
+  | zero. ↦ refl (n+p)
+  | suc. m' ↦ suc. (ℕ.plus.assoc m' n p)
+  ]
+```
 
-As usual, the variables bound in the motive can be written as underscores if they are not used; thus with `match M return _ ↦ P` you can specify a constant motive explicitly.  There is rarely any need for this, since a match is always in checking position, so if its output type is to be constant, that output type is just the checking type and doesn't need to be given explicitly.  However, you can write `match M return _ ↦ _` (with the correct number of variables for the indices, if any) to indicate explicitly that the output type *is* intentionally constant.
+As usual, the variables bound in the motive can be written as underscores if they are not used; thus with `match M return _ ↦ P` you can specify a constant motive explicitly.  There is rarely any need for this, since a match is always in checking position, so if its output type is to be constant, that output type is just the checking type and doesn't need to be given explicitly.  However, you can write `match M return _ ↦ _` (with the correct number of variables for the indices, if any) to indicate explicitly that the output type *is* intentionally constant, silencing any hints about fallback.
 
 Note that while this kind of match provides a way to explicitly refine the *output* type when matching against a non-variable term, it does not do anything to the types of other variables in the context.  If you want their types to also be refined in the branches, you have to use the [convoy pattern](http://adam.chlipala.net/cpdt/html/MoreDep.html) as in Coq, or define a helper function using a top-level Agda-like match.
 
 
-## Case trees
+### On matching outside case trees
 
-### Functions defined by case trees
+Why are matches only allowed in case trees, rather than at arbitrary locations in a term?
 
-Functions defined with matches at top-level (including inside abstractions, tuples, and other matches and comatches) do not reduce unless enough of their arguments are constructors to make it all the way through all the matches.  For instance, `Sum.swap x` does not reduce unless `x` is a constructor, and similarly for `Sum.assoc (inl. x)`.  Thus, functions defined by matching are not equal to each other even if their definitions are identical.  For instance, if we define
-```
-def neg : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
-def neg' : Bool → Bool ≔ [ true. ↦ false. | false. ↦ true. ]
-```
-then `neg` and `neg'` are not convertible.  By η-expansion, when trying to convert them we do automatically introduce a new variable `x` and try to compare `neg x` with `neg' x`, but neither of these terms reduce since `x` is not a constructor.  (In particular, datatypes do not satisfy any kind of η-conversion themselves.)
+Note that if matches could appear anywhere in a term, then Narya would have to be able to check whether two `match` expressions are equal to each other.  There is no way to do this with any kind of η-conversion, so unlike the situtaion for abstractions, let-bindings, and tuples, there would be a definitional difference between a match appearing as part of a case tree and an identical-looking match expression appearing in a term.  This would be potentially confusing.
 
-To be precise, top-level matches are not really terms at all, but rather nodes in a *case tree*.  A case tree is built out of abstractions, matches, and tuples (and comatches, see below), eventually reaching ordinary terms in the innermost bodies.  In fact *every* defined constant in Narya is actually defined to equal a case tree, which in degenerate cases might only consist of some abstractions or even only a single body.  The general rule, subsuming the others mentioned above for abstractions, tuples, and matching, is that a constant defined as a case tree does not reduce to anything until it is applied to enough arguments or field projections, and enough of the arguments are constructor forms, to ensure that it can reduce to one of the innermost body terms.
+More importantly, however, checking *equality* of two match expressions would require descending into the branch bodies to check them for equality, which would require *normalizing* those bodies.  Now suppose a function were defined recursively using a match outside its case tree; then it would evaluate to a match expression even if its argument is not a constructor, and it would appear itself in one of the branches of that match expression.  This would lead to an infinite regress of normalization.
 
-Since abstractions, let-bindings, tuples, and matches (of some sorts) *can* also occur at arbitrary positions in a term, there is some potential ambiguity in a definition containing these: are they part of the case tree, or part of a unique body term?  The rule to resolve this is that the case tree includes *as much as possible*; this gives rise to the rules for reduction of functions and tuples mentioned above.
-
-This is usually what you want.  It more or less aligns with the behavior of functions defined by pattern-matching in Agda, whereas Coq has to mimic it with `simpl nomatch` annotations.  However, if you really want to define a constant that reduces to an abstraction before it receives an argument, or a tuple before a field is projected out, you can wrap it in a no-op redex:
-```
-def swap (A B : Type) : A × B → B × A ≔
-  ((x ↦ x) : (A × B → B × A) → (A × B → B × A)) (u ↦ (u .snd, u .fst))
-```
-Since a function application cannot be part of a case tree, it goes into the body term, including the abstraction over `u`.  Thus `swap A B` will reduce to `u ↦ (u .snd, u .fst)`.  If there is significant demand for it, we may implement a less kludgy way to force an abstraction, tuple, or match to lie in the body rather than the case tree.
-
-Note that case trees are generally considered the internal implementation of Agda-style pattern-matching definitions.  The philosophy of Narya is that it is better to expose the case tree to the user explicitly.  Sometimes this makes the code more verbose; but other times it actually makes it more concise, since all the arguments of the function no longer have to be written again in every branch and sub-branch.  But more importantly, the order in which matches are performed, and hence the way in which the function actually computes, is this way obvious to the reader, and can be specified explicitly by the programmer.  So we have no plans to implement Agda-style pattern matching syntax.
-
-
-### Canonical types defined by case trees
-
-By a *canonical type* we mean a universe, function-type, record type, datatype, or codatatype (see below), of which the first two are built in and the latter three are all user-defined.  So far, all our definitions of new canonical types (record types and datatypes) may have been abstracted over parameters, but otherwise the keyword `sig` or `data` has occurred immediately after the ≔.
-
-However, in fact a canonical type declaration can appear anywhere in a case tree!  For example, here is another definition of length-indexed lists, which we call "covectors".  Now instead of the length being an index, it is a *parameter* over which we recurse:
-```
-def Covec (A:Type) (n:ℕ) : Type ≔ match n [
-| zero. ↦ sig ()
-| suc. n ↦ sig (
-  car : A,
-  cdr : Covec A n
-)]
-```
-Thus, `Covec A 0` is a unit type, `Covec A 1` is isomorphic to `A` (definitionally! since record types have η-conversion), `Covec A 2` is isomorphic to `A × A`, and so on.
-
-This is very similar, but subtly different from, the following definition that could be given in Coq or Agda:
-```
-def Covec' (A:Type) (n:ℕ) : Type ≔ match n [
-| zero. ↦ ⊤
-| suc. n ↦ A × Covec' A n
-]
-```
-The two are definitionally isomorphic.  The difference is that `Covec' A n` reduces when `n` is a constructor, while `Covec A n` is already a canonical type no matter what `n` is; it's just that when `n` is a constructor we know how it *behaves*.  For instance, `Covec' A 2` reduces to `A × (A × ⊤)`, whereas `Covec A 2` does not reduce but we can still typecheck `(a, (b, ()))` at it.  This sort of "recursively defined canonical type" helps maintain information about the meaning of a type, just like using a custom record type rather than a nested Σ-type; eventually we hope it will be helpful for unification and typeclass inference.
-
-As another example, once we have an identity type `Id` (which could be `Jd`) we can define the homotopy-theoretic tower of truncation levels:
-```
-def trunc_index : Type ≔ data [ minustwo. | suc. (_ : trunc_index) ]
-
-def IsTrunc (n:ℕ) (A:Type) : Type ≔ match n [
-| minustwo. ↦ sig ( center : A, contr : (x:A) → Id A center x )
-| suc. n ↦ sig ( trunc_id : (x y : A) → IsTrunc n (Id A x y) )
-]
-```
-
-### Holes in case trees
-
-A hole `?` left in a place where a case tree would be valid to continue is a "case tree hole", and is treated a bit differently than an ordinary hole.  Obviously, once it is possible to "fill" holes, a case tree hole will be fillable with a case tree rather than just a term.  But currently, the main difference is that evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would be the substitution applied to a term hole, and hence not currently printed).
+This is probably not an impossible problem to solve (e.g. Coq has fixpoint terms and match terms and manages to check equality somehow), but it would be quite complicated and does not seem worth the trouble.  Note that Narya's current match facilities are *more* flexible than those of Agda in allowing non-dependent and explicit-motive matches on arbitrary terms, rather than just matches on free variables (although they are less convenient in that there is not yet any unification).
 
 
 ## Codatatypes and comatching
@@ -718,9 +742,44 @@ In addition, unlike tuples, comatches are a part of case trees but not of ordina
 (As a bit of syntactic trivia, note that `[]` is ambiguous: it could denote either a pattern-matching lambda on a datatype with no constructors, or a copattern-match into a codatatype with no methods.  Fortunately, since both possibilities are checking rather than synthesizing, the ambiguity is resolved by bidirectional typechecking.)
 
 
+## Canonical types defined by case trees
+
+By a *canonical type* we mean a universe, function-type, record type, datatype, or codatatype, of which the first two are built in and the latter three are all user-defined.  So far, all our definitions of new canonical types (record types, datatypes, and codatatypes) may have been abstracted over parameters, but otherwise the keyword `sig` or `data` has occurred immediately after the ≔.
+
+However, in fact a canonical type declaration can appear anywhere in a case tree!  For example, here is another definition of length-indexed lists, which we call "covectors".  Now instead of the length being an index, it is a *parameter* over which we recurse:
+```
+def Covec (A:Type) (n:ℕ) : Type ≔ match n [
+| zero. ↦ sig ()
+| suc. n ↦ sig (
+  car : A,
+  cdr : Covec A n
+)]
+```
+Thus, `Covec A 0` is a unit type, `Covec A 1` is isomorphic to `A` (definitionally! since record types have η-conversion), `Covec A 2` is isomorphic to `A × A`, and so on.
+
+This is very similar, but subtly different from, the following definition that could be given in Coq or Agda:
+```
+def Covec' (A:Type) (n:ℕ) : Type ≔ match n [
+| zero. ↦ ⊤
+| suc. n ↦ A × Covec' A n
+]
+```
+The two are definitionally isomorphic.  The difference is that `Covec' A n` reduces when `n` is a constructor, while `Covec A n` is already a canonical type no matter what `n` is; it's just that when `n` is a constructor we know how it *behaves*.  For instance, `Covec' A 2` reduces to `A × (A × ⊤)`, whereas `Covec A 2` does not reduce but we can still typecheck `(a, (b, ()))` at it.  This sort of "recursively defined canonical type" helps maintain information about the meaning of a type, just like using a custom record type rather than a nested Σ-type; eventually we hope it will be helpful for unification and typeclass inference.
+
+As another example, once we have an identity type `Id` (which could be `Jd`) we can define the homotopy-theoretic tower of truncation levels:
+```
+def trunc_index : Type ≔ data [ minustwo. | suc. (_ : trunc_index) ]
+
+def IsTrunc (n:ℕ) (A:Type) : Type ≔ match n [
+| minustwo. ↦ sig ( center : A, contr : (x:A) → Id A center x )
+| suc. n ↦ sig ( trunc_id : (x y : A) → IsTrunc n (Id A x y) )
+]
+```
+
+
 ## Mutual definitions
 
-A block of constants can be defined mutually.  This means that first all of their *types* are checked, in order, so that the types of later constants in the block may refer to earlier constants (but using only their types, not their definitions).  Then their definitions are checked, again in order, so that the definitions of later constants may use the definitions of earlier ones (as well as the types of arbitrary ones).  Because datatypes are just a kind of definition, the same syntax for mutual definitions encompasses mutually recursive functions, mutually inductive types, inductive-inductive types, and even inductive-recursive types and functions.  Furthermore, all these kinds of mutual definitions can be encoded as single definitions using record-types (but the explicit mutual syntax is usually more congenial).
+A block of constants can be defined mutually.  This means that first all of their *types* are checked, in order, so that the types of later constants in the block may refer to earlier constants (but using only their types, not their definitions).  Then their definitions are checked, again in order, so that the definitions of later constants may use the definitions of earlier ones (as well as the types of arbitrary ones).  Because canonical types are just a kind of definition, the same syntax for mutual definitions encompasses mutually recursive functions, mutually inductive types, inductive-inductive types, and even inductive-recursive types and functions.  Furthermore, all these kinds of mutual definitions can be encoded as single definitions using record-types (but the explicit mutual syntax is usually more congenial).
 
 The syntax for a mutual block of definitions looks just like a sequence of ordinary `def` commands, except that the second and later ones use the keyword `and` instead of `def`.  This is similar to the syntax of ML-like programming languages and Coq, and in contrast to Agda's style in which declarations and definitions can be mixed arbitrarily as long as each constant is declared before it is defined.  We prefer to keep the declaration of the type of each constant next to its definition, and make it clear textually which blocks of constants are defined mutually, at the price of allowing the definition of a constant to refer to others whose type is declared later textually in the same block.
 
@@ -797,7 +856,7 @@ In this case, `Even' 4` doesn't reduce to anything, but it is definitionally a s
 
 ### Inductive-inductive families
 
-Here is a definition of the bare bones of the syntax of type theory (contexts and types) that often appears as an example of induction-induction:
+An inductive-inductive definition consists of several type families defined by mutual induction, of which the types of later ones may depend on the previous ones.  For example, here is a definition of the bare bones of the syntax of type theory (contexts and types) that often appears as an example of induction-induction:
 ```
 def ctx : Type ≔ data [
 | empty.
@@ -809,7 +868,7 @@ and ty (Γ : ctx) : Type ≔ data [
 | pi. (A : ty Γ) (B : ty (ext. Γ A))
 ]
 ```
-Note that the context Γ is a non-uniform parameter of the datatype `ty`.  And its encoding:
+Note that the context Γ is a non-uniform parameter of the datatype `ty`.  Here is its encoding as a single definition:
 ```
 def ctx_ty : Σ Type (X ↦ (X → Type)) ≔ (
   ctx ≔ data [
@@ -823,7 +882,7 @@ def ctx_ty : Σ Type (X ↦ (X → Type)) ≔ (
 
 ### Inductive-recursive definitions
 
-Finally, because a case tree can include canonical type declarations in some branches and ordinary (co)recursive definitions in other branches, we can also encode inductive-recursive definitions.  For instance, here is an inductive-recursive universe that contains the Booleans and is closed under Π-types:
+An inductive-recursive definition consists of one or more type families defined by induction together with one or more functions defined by recursion, in a way that refer to each other.  For instance, here is an inductive-recursive universe that contains the Booleans and is closed under Π-types:
 ```
 def uu : Type ≔ data [
 | bool.
@@ -835,7 +894,7 @@ and el : uu → Type ≔ [
 | pi. A B ↦ (x : el A) → el (B x)
 ]
 ```
-and its encoding:
+Because a case tree can include canonical type declarations in some branches and ordinary (co)recursive definitions in other branches, we can also encode this as a single definition:
 ```
 def uu_el : Σ Type (X ↦ (X → Type)) ≔ (
   uu ≔ data [

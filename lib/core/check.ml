@@ -352,9 +352,9 @@ let rec check :
   | Constr ({ value; loc }, _), _, _ ->
       fatal ?loc (No_such_constructor (`Other (PUninst (ctx, uty)), value))
   | Match (tm, `Implicit, brs), _, Potential _ -> check_implicit_match status ctx tm brs ty
-  | Match (tm, `Nondep, brs), _, Potential _ ->
+  | Match (tm, `Nondep i, brs), _, Potential _ ->
       let stm, sty = synth ctx tm in
-      check_nondep_match status ctx stm sty brs ty
+      check_nondep_match status ctx stm sty brs (Some i) ty
   | Match (tm, `Explicit motive, brs), _, Potential _ ->
       let sval, sty = check_dep_match status ctx tm brs motive in
       let () =
@@ -439,16 +439,16 @@ and check_implicit_match :
       | `Field (_, _, fld) ->
           emit ?loc (Matching_wont_refine ("discriminee is record field", PField fld));
           let tm, varty = synth ctx tm in
-          check_nondep_match status ctx tm varty brs motive
+          check_nondep_match status ctx tm varty brs None motive
       | `Var (None, _, ix) ->
           emit ?loc (Matching_wont_refine ("discriminee is let-bound", PTerm (ctx, Var ix)));
           let tm, varty = synth ctx tm in
-          check_nondep_match status ctx tm varty brs motive
+          check_nondep_match status ctx tm varty brs None motive
       | `Var (Some level, { tm = _; ty = varty }, index) ->
           check_var_match status ctx level index varty brs motive)
   | _ ->
       let tm, varty = synth ctx tm in
-      check_nondep_match status ctx tm varty brs motive
+      check_nondep_match status ctx tm varty brs None motive
 
 (* Check a non-dependent match with a specified type, which might have been specified by the user (in which case it is already typechecked and evaluated) or might have come from checking against it. *)
 and check_nondep_match :
@@ -458,9 +458,10 @@ and check_nondep_match :
     (b, kinetic) term ->
     kinetic value ->
     a branch list ->
+    int located option ->
     kinetic value ->
     (b, potential) term =
- fun status ctx tm varty brs motive ->
+ fun status ctx tm varty brs i motive ->
   (* We look up the type of the discriminee, which must be a datatype, without any degeneracy applied outside, and at the same dimension as its instantiation. *)
   let (Fullinst (uvarty, inst_args)) = full_inst varty "check_nondep_match" in
   match uvarty with
@@ -468,8 +469,13 @@ and check_nondep_match :
       {
         head = Const { name; _ };
         args = _;
-        alignment = Lawful (Data { dim; indices = _; constrs });
+        alignment = Lawful (Data { dim; indices = Filled indices; constrs });
       } -> (
+      (match i with
+      | Some { value; loc } ->
+          let needed = Fwn.to_int (Vec.length indices) + 1 in
+          if value <> needed then fatal ?loc (Wrong_number_of_arguments_to_motive needed)
+      | None -> ());
       match D.compare dim (TubeOf.inst inst_args) with
       | Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
       | Eq ->
@@ -680,10 +686,10 @@ and check_var_match :
               match d.message with
               | Matching_wont_refine (str, x) ->
                   emit (Matching_wont_refine (str, x));
-                  check_nondep_match status ctx (Term.Var index) varty brs motive
+                  check_nondep_match status ctx (Term.Var index) varty brs None motive
               | No_such_level x ->
                   emit (Matching_wont_refine ("index variable occurs in parameter", x));
-                  check_nondep_match status ctx (Term.Var index) varty brs motive
+                  check_nondep_match status ctx (Term.Var index) varty brs None motive
               | _ -> fatal_diagnostic d)
           @@ fun () ->
           let index_vars =

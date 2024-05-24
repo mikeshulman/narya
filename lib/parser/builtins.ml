@@ -737,9 +737,9 @@ let rec get_pattern :
   match pat.value with
   | Constr (c, _) -> ({ value = Constr.intern c; loc = pat.loc }, vars)
   | App { fn; arg = { value = Ident ([ x ], _); loc = _ }; _ } -> get_pattern fn (Some x :: vars)
-  | App { arg = { value = Ident (xs, _); _ }; _ } -> fatal (Invalid_variable xs)
+  | App { arg = { value = Ident (xs, _); loc }; _ } -> fatal ?loc (Invalid_variable xs)
   | App { fn; arg = { value = Placeholder _; loc = _ }; _ } -> get_pattern fn (None :: vars)
-  | _ -> fatal Parse_error
+  | _ -> fatal ?loc:pat.loc Parse_error
 
 let rec process_branches : type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list
     =
@@ -768,29 +768,36 @@ let () =
                     loc;
                   }
               | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match"))
-          | [] -> fatal Parse_error);
+          | [] -> fatal (Anomaly "invalid notation arguments for match"));
     };
   set_processor explicit_mtch
     {
       process =
         (fun ctx obs loc _ ->
           match obs with
-          | Term tm :: Term ({ value = Notn n; _ } as motive) :: obs when equal (notn n) abs -> (
-              match ((process ctx tm).value, args n) with
-              | Synth value, [ _; Term { value = Placeholder _; _ } ] ->
-                  {
-                    value = Match ({ value; loc = tm.loc }, `Nondep, process_branches ctx obs);
-                    loc;
-                  }
-              | Synth value, _ ->
-                  let motive = process ctx motive in
-                  {
-                    value =
-                      Match ({ value; loc = tm.loc }, `Explicit motive, process_branches ctx obs);
-                    loc;
-                  }
-              | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match"))
-          | _ -> fatal Parse_error);
+          | Term tm :: Term ({ value = Notn n; loc = mloc } as motive) :: obs ->
+              if equal (notn n) abs then
+                match ((process ctx tm).value, args n) with
+                | Synth value, [ Term vars; Term { value = Placeholder _; _ } ] ->
+                    let (Extctx (mn, _, _)) = get_vars ctx vars in
+                    {
+                      value =
+                        Match
+                          ( { value; loc = tm.loc },
+                            `Nondep { value = N.to_int (N.plus_right mn); loc = vars.loc },
+                            process_branches ctx obs );
+                      loc;
+                    }
+                | Synth value, _ ->
+                    let motive = process ctx motive in
+                    {
+                      value =
+                        Match ({ value; loc = tm.loc }, `Explicit motive, process_branches ctx obs);
+                      loc;
+                    }
+                | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match")
+              else fatal ?loc:mloc Parse_error
+          | _ -> fatal (Anomaly "invalid notation arguments for match"));
     };
   set_processor mtchlam
     {

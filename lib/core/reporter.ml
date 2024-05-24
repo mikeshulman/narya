@@ -87,6 +87,7 @@ module Code = struct
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
+    | Wrong_number_of_arguments_to_motive : int -> t
     | No_such_constructor_in_match : printable * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Duplicate_constructor_in_data : Constr.t -> t
@@ -180,6 +181,7 @@ module Code = struct
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy _ -> Error
     | Wrong_number_of_arguments_to_pattern _ -> Error
+    | Wrong_number_of_arguments_to_motive _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
     | Duplicate_constructor_in_data _ -> Error
@@ -293,6 +295,8 @@ module Code = struct
     | No_such_constructor_in_match _ -> "E1301"
     | Duplicate_constructor_in_match _ -> "E1302"
     | Wrong_number_of_arguments_to_pattern _ -> "E1303"
+    (* - Match motive *)
+    | Wrong_number_of_arguments_to_motive _ -> "E1400"
     (* Comatches *)
     | Comatching_at_noncodata _ -> "E1400"
     | Comatching_at_degenerated_codata _ -> "E1401"
@@ -464,6 +468,8 @@ module Code = struct
         else
           textf "not enough arguments to constructor %s in match pattern (need %d more)"
             (Constr.to_string c) (abs n)
+    | Wrong_number_of_arguments_to_motive n ->
+        textf "wrong number of arguments for match motive: should be %d" n
     | No_such_constructor_in_match (d, c) ->
         textf "datatype %a being matched against has no constructor %s" pp_printed (print d)
           (Constr.to_string c)

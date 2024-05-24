@@ -32,7 +32,9 @@ module Raw = struct
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
     | Match :
-        'a synth located * [ `Implicit | `Explicit of 'a check located | `Nondep ] * 'a branch list
+        'a synth located
+        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
+        * 'a branch list
         -> 'a check
     (* "[]", which could be either an empty match or an empty comatch *)
     | Empty_co_match : 'a check

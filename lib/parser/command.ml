@@ -139,6 +139,7 @@ module Parse = struct
         match tok with
         | String str -> (
             match Lexer.single str with
+            (* Currently we hard code a `Nobreak after each symbol in a notation. *)
             | Some tok -> Some (`Op (tok, `Nobreak, ws), state)
             | None -> fatal (Invalid_notation_symbol str))
         | _ -> None)
@@ -146,6 +147,7 @@ module Parse = struct
   let pattern_var =
     let* x, ws = ident in
     match x with
+    (* Currently we hard code a `Break after each variable in a notation. *)
     | [ x ] -> return (`Var (x, `Break, ws))
     | _ -> fatal (Invalid_variable x)
 

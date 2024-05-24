@@ -1391,14 +1391,6 @@ let builtins =
     |> State.add data
     |> State.add fwd
     |> State.add bwd
-    |> State.add_user "cons" (Infixr No.zero)
-         [ `Var ("x", `Break, []); `Op (Op ":>", `Nobreak, []); `Var ("xs", `None, []) ]
-         (`Constr (Constr.intern "cons", 2))
-         [ "x"; "xs" ]
-    |> State.add_user "snoc" (Infixl No.zero)
-         [ `Var ("xs", `Break, []); `Op (Op "<:", `Nobreak, []); `Var ("x", `None, []) ]
-         (`Constr (Constr.intern "snoc", 2))
-         [ "xs"; "x" ]
     |> State.add hole)
 
 let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f

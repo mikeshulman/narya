@@ -85,6 +85,8 @@ let test_reformat () =
   reformat "[< <]";
   reformat "[> blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah >]";
   reformat "[< blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah <]";
+  Testutil.Repl.cmd ~quiet:true "notation 5 cons : x \":>\" y … ≔ cons. x y";
+  Testutil.Repl.cmd ~quiet:true "notation 5 snoc : … x \"<:\" y ≔ snoc. x y";
   reformat "1 :> 2 :> 3 :> xs";
   reformat "xs <: 1 <: 2 <: 3";
   reformat "x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> xs";

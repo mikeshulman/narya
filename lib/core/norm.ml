@@ -69,32 +69,42 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a hole. *)
           | Unrealized -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
       | Axiom _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
-  | Meta meta -> (
-      match Galaxy1.find meta <|> Undefined_metavariable (PMeta meta) with
-      | { tm = Some tm; _ } -> eval env tm
-      (* If a potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
-      | { tm = None; energy = Potential; _ } -> Unrealized
-      | { tm = None; ty; energy = Kinetic } ->
-          let dim = dim_env env in
-          (* As with constants, we need to instantiate the type at the same meta evaluated at lower dimensions. *)
-          let ty =
-            lazy
-              (inst (eval_term env ty)
-                 (TubeOf.build D.zero (D.zero_plus dim)
-                    {
-                      build =
-                        (fun fa ->
-                          let tm =
-                            eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Meta meta) in
-                          match tm with
-                          | Uninst (Neu _, (lazy ty)) -> { tm; ty }
-                          | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
-                    })) in
-          let head = Value.Meta { meta; env; ins = ins_zero dim } in
-          Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
+  | Meta (meta, ambient) -> (
+      let dim = dim_env env in
+      let head = Value.Meta { meta; env; ins = ins_zero dim } in
+      (* As with constants, we need to instantiate the type at the same meta evaluated at lower dimensions. *)
+      let make_ty meta ty =
+        inst (eval_term env ty)
+          (TubeOf.build D.zero (D.zero_plus dim)
+             {
+               build =
+                 (fun fa ->
+                   let tm =
+                     eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Meta (meta, Kinetic))
+                   in
+                   match tm with
+                   | Uninst (Neu _, (lazy ty)) -> { tm; ty }
+                   | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
+             }) in
+      let make_neutral meta ty alignment =
+        Uninst (Neu { head; args = Emp; alignment }, lazy (make_ty meta ty)) in
+      match (Galaxy1.find meta <|> Undefined_metavariable (PMeta meta), ambient) with
+      (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
+      | { tm = None; _ }, Potential -> Unrealized
+      (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)
+      | { tm = None; ty; _ }, Kinetic -> Val (make_neutral meta ty True)
+      | { tm = Some tm; energy = Potential; _ }, Potential -> eval env tm
+      | { tm = Some tm; energy = Kinetic; _ }, Kinetic -> eval env tm
+      | { tm = Some tm; energy = Kinetic; _ }, Potential -> Realize (eval_term env tm)
+      | { tm = Some tm; energy = Potential; ty }, Kinetic -> (
+          match eval env tm with
+          | Val v -> Val (make_neutral meta ty (Chaotic v))
+          | Realize tm -> Val tm
+          | Unrealized -> Val (make_neutral meta ty True)
+          | Canonical v -> Val (make_neutral meta ty (Lawful v))))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
-      eval (eval_env env m_n metaenv) (Term.Meta meta)
+      eval (eval_env env m_n metaenv) (Term.Meta (meta, Kinetic))
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in

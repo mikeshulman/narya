@@ -113,8 +113,8 @@ module rec Term : sig
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 's) Meta.t -> ('a, 's) term
-    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
+    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -183,9 +183,9 @@ end = struct
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 's) Meta.t -> ('a, 's) term
+    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
     (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
-    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -316,7 +316,7 @@ module rec Value : sig
     | Var : { level : level; deg : ('m, 'n) deg } -> var head
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
     | Meta : {
-        meta : ('b, kinetic) Meta.t;
+        meta : ('b, 's) Meta.t;
         env : ('m, 'b) env;
         ins : ('mn, 'm, 'n) insertion;
       }
@@ -335,8 +335,8 @@ module rec Value : sig
 
   and _ alignment =
     | True : 'h alignment
-    | Chaotic : potential value -> const alignment
-    | Lawful : canonical -> const alignment
+    | Chaotic : potential value -> 'h alignment
+    | Lawful : canonical -> 'h alignment
 
   and uninst =
     | UU : 'n D.t -> uninst
@@ -414,8 +414,7 @@ end = struct
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
     (* A metavariable (i.e. flexible) head stores the metavariable along with a delayed substitution applied to it. *)
     | Meta : {
-        (* Only kinetic metavariables can appear in values; potential ones just cause the case tree they appear in to be stuck. *)
-        meta : ('b, kinetic) Meta.t;
+        meta : ('b, 's) Meta.t;
         env : ('m, 'b) env;
         ins : ('mn, 'm, 'n) insertion;
       }
@@ -445,8 +444,8 @@ end = struct
      Alignments are parametrized over the class of head for a neutral that can have such an alignment.  Only constant-headed neutrals can have chaotic or lawful alignments; variables are always true neutral.  This is because alignments are ignored by readback, and so the information they contain must be reconstructible from the read-back term, which is possible for the case tree that is stored with a constant in the global environment, but not for a variable. *)
   and _ alignment =
     | True : 'h alignment
-    | Chaotic : potential value -> const alignment
-    | Lawful : canonical -> const alignment
+    | Chaotic : potential value -> 'h alignment
+    | Lawful : canonical -> 'h alignment
 
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =

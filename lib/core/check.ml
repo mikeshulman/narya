@@ -395,7 +395,7 @@ let rec check :
       let termctx = readback_ctx ctx in
       Galaxy.add meta vars termctx ty energy;
       emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
-      Meta meta
+      Meta (meta, energy)
   (* And lastly, if we have a synthesizing term, we synthesize it. *)
   | Synth stm, _, _ -> check_of_synth status ctx stm tm.loc ty
 

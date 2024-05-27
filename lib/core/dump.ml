@@ -110,7 +110,7 @@ and term : type b s. formatter -> (b, s) term -> unit =
   match tm with
   | Var _ -> fprintf ppf "Var ?"
   | Const c -> fprintf ppf "Const %a" pp_printed (print (PConstant c))
-  | Meta v -> fprintf ppf "Meta %a" pp_printed (print (PMeta v))
+  | Meta (v, _) -> fprintf ppf "Meta %a" pp_printed (print (PMeta v))
   | MetaEnv (v, _) -> fprintf ppf "MetaEnv (%a,?)" pp_printed (print (PMeta v))
   | Field (tm, fld) -> fprintf ppf "Field (%a, %s)" term tm (Field.to_string fld)
   | UU n -> fprintf ppf "UU %a" dim n

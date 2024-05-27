@@ -500,9 +500,10 @@ def Bwd (A:Type) : Type ≔ data [
 ```
 (Since `[` and `]` are always their own tokens, it is also possible to put spaces in these notations, such as `[ > 1, 2, 3 > ]`, but this is not recommended.)
 
+
 ### Matching
 
-When a new constant is defined as a function with arguments that belong to datatypes, it can match on such an argument.  For instance, the function that swaps the elements of a binary sum can be written as
+When a new constant is defined as a function with arguments that belong to datatypes, it can *match* on such an argument.  For instance, the function that swaps the elements of a binary sum can be written as
 ```
 def Sum.swap (A B : Type) (x : Sum A B) : Sum B A ≔ match x [
 | inl. a ↦ inr. a
@@ -599,7 +600,7 @@ def oops : ∅ ≔ oops
 
 ### Variable matches
 
-The most important kind of match is matching against a free variable that belongs to a datatype instance whose indices are distinct free variables not occurring in any of the parameters.  In this case, the output type *and* the types of all other variables in the context are *refined* while checking each branch of the match, by substituting the corresponding constructor applied to its pattern variables, and its corresponding indices, for these free variables.  This is similar to the behavior of Agda when splitting a definition on a variable.
+The most important kind of match is matching against a free variable that belongs to a datatype instance whose indices are distinct free variables not occurring in any of the parameters, in a checking context.  In this case, the output type *and* the types of all other variables in the context are *refined* while checking each branch of the match, by substituting the corresponding constructor applied to its pattern variables, and its corresponding indices, for these free variables.  This is similar to the behavior of Agda when splitting a definition on a variable.
 
 For example, we can prove that natural number addition is associative:
 ```
@@ -671,6 +672,8 @@ In general, this sort of match is more like the `match` of Coq and dialects of M
 
 The fact that this kind of match uses the same syntax as the previous one means that if you intend to do a variable match, as above, but the conditions on the match variable and its indices are not satisfied, then Narya will fall back to trying this kind of match.  You will then probably get an error message due to the fact that the goal type didn't get refined in the branches the way you were expecting it to.  Narya tries to help you find bugs of this sort by emitting a hint when that sort of fallback happens.  If you really did mean to write a non-dependent match, you can silence the hint by writing `match M return _ ↦ _` (see the next sort of match, below).
 
+A variable match can only check, but a non-dependent match can also synthesize.  This requires the body of the *first* branch to synthesize a type that does not depend on any of its pattern variables; then the other branches are checked against that same type, and it is the type synthesized by the whole match statement.  Writing a match that could have been a variable match but in a synthesizing context will also cause an automatic fallback to non-dependent matching, with a hint emitted.
+
 Like the ordinary `match` command, a pattern-matching abstraction like `def pred : ℕ → ℕ ≔ [ zero. ↦ zero. | suc. n ↦ n ]` always attempts to generate a match against a variable, and falls back to a non-dependent match if this fails (e.g. if the domain does not have fully general indices).
 
 
@@ -678,7 +681,7 @@ Like the ordinary `match` command, a pattern-matching abstraction like `def pred
 
 Although Narya can't guess how to refine the output type when matching against a general term, you can tell it how to do so by writing `match M return x ↦ P`.  Here `x ↦ P` (where `P` can involve `x`) is a type family (called the *motive*) depending on a variable `x` belonging to the datatype (the type of `M`).  If this datatype has indices, then variables to be bound to the indices must be included in the abstraction as well, e.g. `match V return i v ↦ P` for matching against a vector; this ensures that the motive of the elimination is fully general over the indexed datatype family.  Thus, this kind of match has roughly the same functionality as Coq's `match M in T i as x return P`.
 
-Each branch of such a match is checked at the type obtained by substituting the corresponding constructor for `x` in the motive `P`.  The entire match synthesizes the result of substituting the discriminee `M` for `x` in the motive `P` (which then immediately gets tested for equality with the checking type, since a match, like other case tree nodes, can only occur in checking position).  For example, we could prove associativity of addition more verbosely as follows:
+Each branch of such a match is checked at the type obtained by substituting the corresponding constructor for `x` in the motive `P`.  The entire match then synthesizes the result of substituting the discriminee `M` for `x` in the motive `P` (which then immediately gets tested for equality with the checking type, since a match, like other case tree nodes, can only occur in checking position).  For example, we could prove associativity of addition more verbosely as follows:
 ```
 def ℕ.plus.assoc (m n p : ℕ) : Id ℕ ((m+n)+p) (m+(n+p))
   ≔ match m return x |-> Id ℕ ((x+n)+p) (x+(n+p)) [
@@ -701,6 +704,15 @@ Note that if matches could appear anywhere in a term, then Narya would have to b
 More importantly, however, checking *equality* of two match expressions would require descending into the branch bodies to check them for equality, which would require *normalizing* those bodies.  Now suppose a function were defined recursively using a match outside its case tree; then it would evaluate to a match expression even if its argument is not a constructor, and it would appear itself in one of the branches of that match expression.  This would lead to an infinite regress of normalization.
 
 This is probably not an impossible problem to solve (e.g. Coq has fixpoint terms and match terms and manages to check equality somehow), but it would be quite complicated and does not seem worth the trouble.  Note that Narya's current match facilities are *more* flexible than those of Agda in allowing non-dependent and explicit-motive matches on arbitrary terms, rather than just matches on free variables (although they are less convenient in that there is not yet any unification).
+
+
+### Matching in let-bindings
+
+There is one additional place, outside an ordinary case tree, that matches are allowed: as the term to be bound in a let-binding that itself appears in a case tree, or in the bound term of such a let-binding.  Note that other kinds of case tree nodes, such as abstractions, tuples, and comatches (below) are not allowed in such a location.  In other words, there is a special kind of "restricted case tree" that can involve only let-bindings and matches (until it gets to a leaf), and a let-binding in a case tree (even a restricted case tree) can bind a variable to the result of such a restricted case tree.
+
+When evaluating such a tree, the case tree bound to the variable is required to evaluate fully to an ordinary term; otherwise the reduction of the whole case tree is blocked.  This is why abstractions and comatches cannot appear in restricted case trees: they *cannot* evaluate to an ordinary term until they are applied to an argument or a method projection.  It should be possible in theory for tuples to appear in restricted case trees, but this has not been implemented yet (and would apparently require some significant work); if you would find it useful, please let me know.
+
+Note that unlike the locations of all ordinary case trees, which are checking contexts, the bound term in a let-expression is required to synthesize.  Thus, when using a match expression there, you must either use a synthesizing form of match (that is, one with an explicit motive, or a non-dependent one whose first branch synthesizes) or ascribe it to a type, the latter either in the ordinary way with `let x ≔ match n [ … ] : A in M` or in the let-sugared way with `let x : A ≔ match n [ … ] in M`.  This is the only place where it matters whether a match-expression synthesizes.
 
 
 ## Codatatypes and comatching

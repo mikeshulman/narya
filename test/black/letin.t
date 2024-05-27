@@ -228,3 +228,59 @@ Let is allowed in case trees:
   atree
     : A → A
   
+
+Matches and other lets in let-bindings
+
+  $ cat >chem.ny <<EOF
+  > def bool : Type := data [ true. | false. ]
+  > def not1 (b : bool) : bool := let n : bool := match b [ true. |-> false. | false. |-> true. ] in n
+  > echo not1 true.
+  > echo not1 false.
+  > def not2 (b : bool) : bool := let n := match b [ true. |-> false. : bool | false. |-> true. ] in n
+  > echo not2 true.
+  > echo not2 false.
+  > def not3 (b : bool) : bool := let n := let m := match b [ true. |-> false. : bool | false. |-> true. ] in m in n
+  > echo not3 true.
+  > echo not3 false.
+
+  $ narya -v chem.ny
+   ￫ info[I0000]
+   ￮ Constant bool defined
+  
+   ￫ info[I0000]
+   ￮ Constant not1 defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+   ￫ hint[E1101]
+   ￭ chem.ny
+   5 | def not2 (b : bool) : bool := let n := match b [ true. |-> false. : bool | false. |-> true. ] in n
+     ^ match will not refine the goal or context (match in synthesizing position): 
+  
+   ￫ info[I0000]
+   ￮ Constant not2 defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+   ￫ hint[E1101]
+   ￭ chem.ny
+   8 | def not3 (b : bool) : bool := let n := let m := match b [ true. |-> false. : bool | false. |-> true. ] in m in n
+     ^ match will not refine the goal or context (match in synthesizing position): 
+  
+   ￫ info[I0000]
+   ￮ Constant not3 defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  

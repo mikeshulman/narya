@@ -714,6 +714,8 @@ When evaluating such a tree, the case tree bound to the variable is required to 
 
 Note that unlike the locations of all ordinary case trees, which are checking contexts, the bound term in a let-expression is required to synthesize.  Thus, when using a match expression there, you must either use a synthesizing form of match (that is, one with an explicit motive, or a non-dependent one whose first branch synthesizes) or ascribe it to a type, the latter either in the ordinary way with `let x ≔ match n [ … ] : A in M` or in the let-sugared way with `let x : A ≔ match n [ … ] in M`.  This is the only place where it matters whether a match-expression synthesizes.
 
+Matching in a case-tree let-binding allows you to effectively perform a match anywhere in a term that isn't inside a non-case-tree abstraction, by lifting the match out to the nearest enclosing part of the case tree (so that all the variables it needs are available) and let-binding it to a variable there.  But if you want to perform a match inside a non-case-tree abstraction, then you need to define that abstraction globally as a helper function.
+
 
 ## Codatatypes and comatching
 

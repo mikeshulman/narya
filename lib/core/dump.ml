@@ -31,8 +31,8 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
       else fprintf ppf "Uninst (%a, ?)" uninst tm
   | Inst { tm; dim = d; args = _; tys = _ } ->
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
-  | Lam (_, _) -> fprintf ppf "Lam ?"
-  | Struct (f, _) -> fprintf ppf "Struct (%a)" fields f
+  | Lam (_, _, _) -> fprintf ppf "Lam ?"
+  | Struct (f, _, _) -> fprintf ppf "Struct (%a)" fields f
   | Constr (c, d, args) ->
       fprintf ppf "Constr (%s, %a, %d)" (Constr.to_string c) dim d (List.length args)
 
@@ -51,9 +51,9 @@ and fields :
 and evaluation : type s. formatter -> s evaluation -> unit =
  fun ppf v ->
   match v with
-  | Unrealized -> fprintf ppf "Unrealized"
-  | Realize v -> fprintf ppf "Realize (%a)" value v
-  | Val v -> fprintf ppf "Val (%a)" value v
+  | Unrealized _ -> fprintf ppf "Unrealized"
+  | Realize (v, _) -> fprintf ppf "Realize (%a)" value v
+  | Val (v, _) -> fprintf ppf "Val (%a)" value v
   | Canonical _ -> fprintf ppf "Canonical ?"
 
 and uninst : formatter -> uninst -> unit =
@@ -118,13 +118,13 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Pi (x, doms, _) ->
       fprintf ppf "Pi^(%a) (%s, ?, ?)" dim (CubeOf.dim doms) (Option.value x ~default:"_")
   | App (fn, arg) -> fprintf ppf "App (%a, (... %a))" term fn term (CubeOf.find_top arg)
-  | Lam (_, body) -> fprintf ppf "Lam (?, %a)" term body
+  | Lam (_, _, body) -> fprintf ppf "Lam (?, %a)" term body
   | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
-  | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
-  | Struct (_, _, _) -> fprintf ppf "Struct (?,?,?)"
+  | Let (_, _, _, _) -> fprintf ppf "Let (?,?,?,?)"
+  | Struct _ -> fprintf ppf "Struct ?"
   | Match _ -> fprintf ppf "Match (?,?,?)"
-  | Realize tm -> fprintf ppf "Realize (%a)" term tm
+  | Realize (tm, _) -> fprintf ppf "Realize (%a)" term tm
   | Canonical c -> fprintf ppf "Canonical (%a)" canonical c
 
 and canonical : type b. formatter -> b canonical -> unit =

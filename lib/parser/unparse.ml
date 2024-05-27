@@ -218,7 +218,7 @@ let rec unparse :
       | `Field (head, fld, args) ->
           unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser vars) args) li ri)
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
-  | Let (x, tm, body) -> (
+  | Let (x, Kinetic, tm, body) -> (
       let tm = unparse vars tm Interval.entire Interval.entire in
       (* If a let-in doesn't fit in its interval, we have to parenthesize it. *)
       let x, vars = Names.add_cube D.zero vars x in
@@ -237,13 +237,13 @@ let rec unparse :
                (prefix ~notn:letin ~ws:[]
                   ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
                   ~last:body ~right_ok)))
-  | Lam (Variables (m, _, _), _) ->
+  | Lam (Variables (m, _, _), Kinetic, _) ->
       let cube =
         match D.compare m D.zero with
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (Eta, _, fields) ->
+  | Struct { eta = Eta; dim = _; fields; energy = Kinetic } ->
       unlocated
         (outfix ~notn:parens ~ws:[]
            ~inner:
@@ -291,6 +291,8 @@ let rec unparse :
               | None ->
                   let args = of_list_map (fun x -> make_unparser vars (CubeOf.find_top x)) args in
                   unparse_spine vars (`Constr c) args li ri)))
+  | Match { energy = _; _ } -> .
+  | Realize (_, _) -> .
 
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
@@ -397,7 +399,7 @@ and unparse_lam :
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
   match body with
-  | Lam ((Variables (m, _, _) as boundvars), inner) -> (
+  | Lam ((Variables (m, _, _) as boundvars), Kinetic, inner) -> (
       match (cube, D.compare m D.zero) with
       | `Normal, Eq | `Cube, Neq ->
           let Variables (_, _, x), vars = Names.add vars boundvars in
@@ -519,8 +521,9 @@ and unparse_pis :
                   (fun fa [ cod ] args ->
                     ( (),
                       Snoc
-                        (args, make_unparser vars (Lam (singleton_variables (dom_sface fa) x, cod)))
-                    ));
+                        ( args,
+                          make_unparser vars
+                            (Lam (singleton_variables (dom_sface fa) x, Kinetic, cod)) ) ));
               }
               [ cods ] args in
           unparse_pis_final vars accum

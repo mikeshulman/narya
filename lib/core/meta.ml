@@ -54,6 +54,7 @@ module Map = struct
       type ('b, 'g) t = {
         kinetic : ('b, 'g * kinetic) F.t IntMap.t;
         potential : ('b, 'g * potential) F.t IntMap.t;
+        chemical : ('b, 'g * chemical) F.t IntMap.t;
       }
     end
 
@@ -71,6 +72,7 @@ module Map = struct
        fun s i eimap ->
         match s with
         | Kinetic -> IntMap.find_opt i eimap.kinetic
+        | Chemical -> IntMap.find_opt i eimap.chemical
         | Potential -> IntMap.find_opt i eimap.potential in
       let (MetaKey m) = key in
       let* eimap = Map.find_opt m.len map in
@@ -82,13 +84,16 @@ module Map = struct
        fun s i value eimap ->
         match s with
         | Kinetic -> { eimap with kinetic = IntMap.add i value eimap.kinetic }
+        | Chemical -> { eimap with chemical = IntMap.add i value eimap.chemical }
         | Potential -> { eimap with potential = IntMap.add i value eimap.potential } in
       let (MetaKey m) = key in
       Map.update m.len
         (function
           | Some eimap -> Some (go m.energy m.number value eimap)
           | None ->
-              Some (go m.energy m.number value { kinetic = IntMap.empty; potential = IntMap.empty }))
+              Some
+                (go m.energy m.number value
+                   { kinetic = IntMap.empty; chemical = IntMap.empty; potential = IntMap.empty }))
         map
 
     let update : type b g. g Key.t -> ((b, g) F.t option -> (b, g) F.t option) -> b t -> b t =
@@ -103,13 +108,16 @@ module Map = struct
        fun s i f eimap ->
         match s with
         | Kinetic -> { eimap with kinetic = IntMap.update i f eimap.kinetic }
+        | Chemical -> { eimap with chemical = IntMap.update i f eimap.chemical }
         | Potential -> { eimap with potential = IntMap.update i f eimap.potential } in
       let (MetaKey m) = key in
       Map.update m.len
         (function
           | Some eimap -> Some (go m.energy m.number f eimap)
           | None ->
-              Some (go m.energy m.number f { kinetic = IntMap.empty; potential = IntMap.empty }))
+              Some
+                (go m.energy m.number f
+                   { kinetic = IntMap.empty; chemical = IntMap.empty; potential = IntMap.empty }))
         map
 
     let remove : type b g. g Key.t -> b t -> b t =
@@ -118,6 +126,7 @@ module Map = struct
        fun s i eimap ->
         match s with
         | Kinetic -> { eimap with kinetic = IntMap.remove i eimap.kinetic }
+        | Chemical -> { eimap with chemical = IntMap.remove i eimap.chemical }
         | Potential -> { eimap with potential = IntMap.remove i eimap.potential } in
       let (MetaKey m) = key in
       Map.update m.len

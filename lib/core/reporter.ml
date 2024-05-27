@@ -130,6 +130,7 @@ module Code = struct
     | Open_holes : t
     | Quit : t
     | Synthesizing_recursion : printable -> t
+    | Invalid_synthesized_type : string * printable -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -223,6 +224,7 @@ module Code = struct
     | Open_holes -> Error
     | Quit -> Info
     | Synthesizing_recursion _ -> Error
+    | Invalid_synthesized_type _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -255,6 +257,7 @@ module Code = struct
     | Unequal_synthesized_type _ -> "E0401"
     | Synthesizing_recursion _ -> "E0402"
     | Invalid_outside_case_tree _ -> "E0403"
+    | Invalid_synthesized_type _ -> "E0404"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
@@ -557,6 +560,8 @@ module Code = struct
     | Quit -> text "Goodbye!"
     | Synthesizing_recursion c ->
         textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
+    | Invalid_synthesized_type (str, ty) ->
+        textf "type %a synthesized by %s is invalid for entire term" pp_printed (print ty) str
 end
 
 include Asai.StructuredReporter.Make (Code)

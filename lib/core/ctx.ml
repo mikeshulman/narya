@@ -331,9 +331,9 @@ module Ordered = struct
     | Emp -> tree
     | Lock ctx -> lam ctx tree
     | Snoc (ctx, Vis { dim; plusdim; vars; bindings; fplus = Zero; _ }, _) when all_free bindings ->
-        lam ctx (Lam (Variables (dim, plusdim, vars), tree))
+        lam ctx (Lam (Variables (dim, plusdim, vars), Potential, tree))
     | Snoc (ctx, Invis bindings, _) when all_free bindings ->
-        lam ctx (Lam (singleton_variables (CubeOf.dim bindings) None, tree))
+        lam ctx (Lam (singleton_variables (CubeOf.dim bindings) None, Potential, tree))
     | _ -> fatal (Anomaly "let-bound variable in Ctx.lam")
 
   (* Delete some level variables from a context by making their bindings into "unknown".  This will cause readback to raise No_such_level if it encounters one of those variables, which can then be trapped as an occurs-check. *)

@@ -21,7 +21,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
  fun ctx tm ty ->
   let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
   match (uty, tm) with
-  | Pi (_, doms, cods), Lam ((Variables (m, mn, xs) as x), body) -> (
+  | Pi (_, doms, cods), Lam ((Variables (m, mn, xs) as x), body, _) -> (
       let k = CubeOf.dim doms in
       let l = dim_binder body in
       match (D.compare (TubeOf.inst tyargs) k, D.compare k l) with
@@ -32,15 +32,17 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           let newctx = Ctx.vis ctx m mn xs newnfs af in
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
-          Term.Lam (x, body))
-  | Neu { alignment = Lawful (Codata { eta = Eta; fields = _; _ }); _ }, Struct (tmflds, tmins) ->
+          Term.Lam (x, Kinetic, body))
+  | Neu { alignment = Lawful (Codata { eta = Eta; fields = _; _ }); _ }, Struct (tmflds, tmins, _)
+    ->
       let fields =
         Abwd.mapi
           (fun fld (fldtm, l) ->
             match Lazy.force fldtm with
-            | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
+            | Val (x, _) -> (readback_at ctx x (tyof_field tm ty fld), l))
           tmflds in
-      Act (Struct (Eta, cod_left_ins tmins, fields), perm_of_ins tmins)
+      Act
+        (Struct { eta = Eta; dim = cod_left_ins tmins; fields; energy = Kinetic }, perm_of_ins tmins)
   | ( Neu { alignment = Lawful (Data { dim = _; indices = _; constrs }); _ },
       Constr (xconstr, xn, xargs) ) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =

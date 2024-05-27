@@ -86,13 +86,13 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
                 act_value (CubeOf.find tys' fd) fc);
           } in
       Inst { tm = act_uninst tm fa; dim; args; tys }
-  | Lam (x, body) ->
+  | Lam (x, body, energy) ->
       let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
-      Lam (act_variables x fa, act_binder body fa)
-  | Struct (fields, ins) ->
+      Lam (act_variables x fa, act_binder body fa, energy)
+  | Struct (fields, ins, energy) ->
       let (Insfact_comp (fa, new_ins, _, _)) = insfact_comp ins s in
-      Struct
-        (Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields, new_ins)
+      let fields = Abwd.map (fun (tm, l) -> (lazy (act_evaluation (Lazy.force tm) fa), l)) fields in
+      Struct (fields, new_ins, energy)
   | Constr (name, dim, args) ->
       let (Of fa) = deg_plus_to s dim ~on:"constr" in
       Constr (name, dom_deg fa, List.map (fun tm -> act_value_cube tm fa) args)
@@ -100,9 +100,9 @@ let rec act_value : type m n s. s value -> (m, n) deg -> s value =
 and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
  fun tm s ->
   match tm with
-  | Unrealized -> Unrealized
-  | Realize tm -> Realize (act_value tm s)
-  | Val tm -> Val (act_value tm s)
+  | Unrealized e -> Unrealized e
+  | Realize (tm, e) -> Realize (act_value tm s, e)
+  | Val (tm, e) -> Val (act_value tm s, e)
   | Canonical c -> Canonical (act_canonical c s)
 
 and act_alignment : type m n h. h alignment -> (m, n) deg -> h alignment =

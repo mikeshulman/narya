@@ -33,7 +33,7 @@ let synth (tm : string) : kinetic value * kinetic value =
   @@ fun () ->
   match parse_term names tm with
   | { value = Synth raw; loc } ->
-      let syn, ty = Check.synth ctx { value = raw; loc } in
+      let syn, ty = Check.synth Kinetic ctx { value = raw; loc } in
       let esyn = Ctx.eval_term ctx syn in
       (esyn, ty)
   | _ -> Reporter.fatal (Nonsynthesizing "toplevel synth")
@@ -69,7 +69,7 @@ let unsynth : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string ->
   @@ fun () ->
   match parse_term names tm with
   | { value = Synth raw; loc } ->
-      let _ = Check.synth ctx { value = raw; loc } in
+      let _ = Check.synth Kinetic ctx { value = raw; loc } in
       raise (Failure "Synthesis success")
   | _ -> Reporter.fatal (Nonsynthesizing "top-level unsynth")
 

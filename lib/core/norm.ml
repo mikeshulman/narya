@@ -40,7 +40,7 @@ let lookup : type n b. (n, b) env -> b index -> kinetic value =
 let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
  fun env tm ->
   match tm with
-  | Var v -> Val (lookup env v)
+  | Var v -> Val (lookup env v, Kinetic)
   | Const name -> (
       let dim = dim_env env in
       let cty, defn = Global.find_opt name <|> Undefined_constant (PConstant name) in
@@ -63,17 +63,18 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       match defn with
       | Defined tree -> (
           match eval (Emp dim) tree with
-          | Realize x -> Val x
-          | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
-          | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
+          | Realize (x, _) -> Val (x, Kinetic)
+          | Val (x, _) -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty), Kinetic)
+          | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty), Kinetic)
           (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a hole. *)
-          | Unrealized -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
-      | Axiom _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
+          | Unrealized _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty), Kinetic))
+      | Axiom _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty), Kinetic))
   | Meta meta -> (
       match Galaxy1.find meta <|> Undefined_metavariable (PMeta meta) with
       | { tm = Some tm; _ } -> eval env tm
       (* If a potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
-      | { tm = None; energy = Potential; _ } -> Unrealized
+      | { tm = None; energy = Potential; _ } -> Unrealized Potential
+      | { tm = None; energy = Chemical; _ } -> Unrealized Chemical
       | { tm = None; ty; energy = Kinetic } ->
           let dim = dim_env env in
           (* As with constants, we need to instantiate the type at the same meta evaluated at lower dimensions. *)
@@ -90,22 +91,15 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                           | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                           | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
                     })) in
-          Val
-            (Uninst
-               ( Neu
-                   {
-                     head = Value.Meta { meta; env; ins = ins_zero dim };
-                     args = Emp;
-                     alignment = True;
-                   },
-                 ty )))
+          let head = Value.Meta { meta; env; ins = ins_zero dim } in
+          Val (Uninst (Neu { head; args = Emp; alignment = True }, ty), Kinetic))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
       eval (eval_env env m_n metaenv) (Term.Meta meta)
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
-      Val (universe (D.plus_out m mn))
+      Val (universe (D.plus_out m mn), Kinetic)
   | Inst (tm, args) -> (
       (* The arguments are an (n,k) tube, with k dimensions instantiated and n dimensions uninstantiated. *)
       let n = TubeOf.uninst args in
@@ -155,13 +149,13 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
               }
               [ used_tys ] in
           (* The types not in used_tys form a complete m+n tube, which will be the remaining instantiation arguments of the type of the result.  We don't need to worry about that here, it's taken care of in "inst". *)
-          Val (inst newtm newargs))
-  | Lam (Variables (n, n_k, vars), body) ->
+          Val (inst newtm newargs, Kinetic))
+  | Lam (Variables (n, n_k, vars), e, body) ->
       let m = dim_env env in
       let (Plus m_nk) = D.plus (D.plus_out n n_k) in
       let (Plus m_n) = D.plus n in
       let mn_k = D.plus_assocl m_n n_k m_nk in
-      Val (Lam (Variables (D.plus_out m m_n, mn_k, vars), eval_binder env m_nk body))
+      Val (Lam (Variables (D.plus_out m m_n, mn_k, vars), eval_binder env m_nk body, e), e)
   | App (fn, args) ->
       (* First we evaluate the function. *)
       let efn = eval_term env fn in
@@ -184,18 +178,17 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           } in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
-  | Field (tm, fld) -> Val (field (eval_term env tm) fld)
-  | Struct (_, m, fields) ->
+  | Field (tm, fld) -> Val (field (eval_term env tm) fld, Kinetic)
+  | Struct { eta = _; dim; fields; energy } ->
       let (Plus mn) = D.plus (dim_env env) in
-      Val
-        (Struct
-           (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins_zero (D.plus_out m mn)))
+      let ins = ins_zero (D.plus_out dim mn) in
+      Val (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins, energy), energy)
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
       let eargs = List.map (eval_args env m_n mn) args in
-      Val (Constr (constr, mn, eargs))
+      Val (Constr (constr, mn, eargs), Kinetic)
   | Pi (x, doms, cods) ->
       (* We are starting with an n-dimensional pi-type and evaluating it in an m-dimensional environment, producing an (m+n)-dimensional result. *)
       let n = CubeOf.dim doms in
@@ -243,20 +236,22 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                 Hashtbl.add pitbl (SFace_of fab) ntm;
                 ntm);
           } in
-      Val (CubeOf.find_top pis).tm
-  | Let (_, v, body) ->
+      Val ((CubeOf.find_top pis).tm, Kinetic)
+  | Let (_, Kinetic, v, body) ->
       let args =
         CubeOf.build (dim_env env) { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) v) }
       in
       eval (Ext (env, CubeOf.singleton args)) body
-  (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
+  | Let (_, Chemical, tm, body) -> eval_let env tm body Chemical
+  | Let (_, Potential, tm, body) -> eval_let env tm body Potential
   | Act (x, s) ->
+      (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
       let k = dim_env env in
       let (Plus km) = D.plus (dom_deg s) in
       let (Plus kn) = D.plus (cod_deg s) in
       let ks = plus_deg k kn km s in
-      Val (act_value (eval_term env x) ks)
-  | Match { tm; dim = match_dim; branches } -> (
+      Val (act_value (eval_term env x) ks, Kinetic)
+  | Match { tm; dim = match_dim; branches; energy } -> (
       let env_dim = dim_env env in
       let (Plus plus_dim) = D.plus match_dim in
       let total_dim = D.plus_out env_dim plus_dim in
@@ -280,8 +275,8 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                   (* Then we proceed recursively with the body of that branch. *)
                   eval (permute_env perm env) body))
       (* Otherwise, the case tree doesn't reduce. *)
-      | _ -> Unrealized)
-  | Realize tm -> Realize (eval_term env tm)
+      | _ -> Unrealized energy)
+  | Realize (tm, e) -> Realize (eval_term env tm, e)
   | Canonical c -> Canonical (eval_canonical env c)
 
 and eval_with_boundary :
@@ -311,7 +306,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
  fun fn arg ->
   match fn with
   (* If the function is a lambda-abstraction, we check that it has the correct dimension and then beta-reduce, adding the arguments to the environment. *)
-  | Lam (_, body) -> (
+  | Lam (_, body, _) -> (
       let m = CubeOf.dim arg in
       match D.compare (dim_binder body) m with
       | Neq -> fatal (Dimension_mismatch ("applying a lambda", dim_binder body, m))
@@ -340,20 +335,23 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               | Neu { head; args; alignment } -> (
                   let args = Snoc (args, App (Arg newarg, ins_zero k)) in
                   match alignment with
-                  | True -> Val (Uninst (Neu { head; args; alignment = True }, ty))
+                  | True -> Val (Uninst (Neu { head; args; alignment = True }, ty), Kinetic)
                   | Chaotic tm -> (
                       match apply tm arg with
-                      | Realize x -> Val x
-                      | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
-                      | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
-                      | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
+                      | Realize (x, _) -> Val (x, Kinetic)
+                      | Val (x, _) ->
+                          Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty), Kinetic)
+                      | Unrealized _ ->
+                          Val (Uninst (Neu { head; args; alignment = True }, ty), Kinetic)
+                      | Canonical c ->
+                          Val (Uninst (Neu { head; args; alignment = Lawful c }, ty), Kinetic))
                   | Lawful (Data { dim; indices = Unfilled _ as indices; constrs }) -> (
                       match D.compare dim k with
                       | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
                       | Eq ->
                           let indices = Fillvec.snoc indices newarg in
                           let alignment = Lawful (Data { dim; indices; constrs }) in
-                          Val (Uninst (Neu { head; args; alignment }, ty)))
+                          Val (Uninst (Neu { head; args; alignment }, ty), Kinetic))
                   | _ -> fatal (Anomaly "invalid application of type"))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
@@ -398,27 +396,27 @@ and field : kinetic value -> Field.t -> kinetic value =
  fun tm fld ->
   match tm with
   (* TODO: Is it okay to ignore the insertion here? *)
-  | Struct (fields, _) ->
+  | Struct (fields, _, _) ->
       let xv =
         Abwd.find_opt fld fields <|> Anomaly ("missing field in eval struct: " ^ Field.to_string fld)
       in
-      let (Val x) = Lazy.force (fst xv) in
+      let (Val (x, _)) = Lazy.force (fst xv) in
       x
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
       let newty = lazy (tyof_field tm ty fld) in
       let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
       match alignment with
       | True -> Uninst (Neu { head; args; alignment = True }, newty)
-      | Chaotic (Struct (fields, _)) -> (
+      | Chaotic (Struct (fields, _, _)) -> (
           match Abwd.find_opt fld fields with
           | None ->
               (* This can happen correctly during checking a recursive case tree, where the body of one field refers to its not-yet-defined self or other not-yet-defined fields. *)
               Uninst (Neu { head; args; alignment = True }, newty)
           | Some x -> (
               match Lazy.force (fst x) with
-              | Realize x -> x
-              | Val x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
-              | Unrealized -> Uninst (Neu { head; args; alignment = True }, newty)
+              | Realize (x, _) -> x
+              | Val (x, _) -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
+              | Unrealized _ -> Uninst (Neu { head; args; alignment = True }, newty)
               | Canonical c -> Uninst (Neu { head; args; alignment = Lawful c }, newty)))
       | Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree")
       | Lawful _ -> fatal (Anomaly "field projection of canonical type"))
@@ -482,6 +480,26 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
 and tyof_field ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.t) : kinetic value =
   snd (tyof_field_withname ?severity tm ty (`Name fld))
 
+and eval_let :
+    type m b s.
+    (m, b) env -> (b, chemical) term -> ((b, D.zero) snoc, s) term -> s nonkinetic -> s evaluation =
+ fun env tm body s ->
+  let module M = CubeOf.Monadic (Monad.Maybe) in
+  (* A potential or chemical let binds a variable to a chemical term, but requires that term to evaluate fully to a kinetic term before it will compute. *)
+  match
+    M.buildM (dim_env env)
+      {
+        build =
+          (fun fa ->
+            match eval (Act (env, op_of_sface fa)) tm with
+            | Val (_, _) -> .
+            | Realize (v, _) -> Some v
+            | Unrealized _ -> None);
+      }
+  with
+  | Some args -> eval (Ext (env, CubeOf.singleton args)) body
+  | None -> Unrealized s
+
 and eval_binder :
     type m n mn b s.
     (m, b) env -> (m, n, mn) D.plus -> ((b, n) snoc, s) term -> (mn, s) Value.binder =
@@ -518,9 +536,9 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
              } ))
       body
   with
-  | Unrealized -> Unrealized
-  | Realize v -> Realize (act_value v perm)
-  | Val v -> Val (act_value v perm)
+  | Unrealized e -> Unrealized e
+  | Realize (v, e) -> Realize (act_value v perm, e)
+  | Val (v, e) -> Val (act_value v perm, e)
   | Canonical c -> Canonical (act_canonical c perm)
 
 and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical =
@@ -538,7 +556,7 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical
 
 and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
  fun env tm ->
-  let (Val v) = eval env tm in
+  let (Val (v, _)) = eval env tm in
   v
 
 and eval_env :
@@ -566,13 +584,13 @@ and eval_env :
 
 and apply_term : type n. kinetic value -> (n, kinetic value) CubeOf.t -> kinetic value =
  fun fn arg ->
-  let (Val v) = apply fn arg in
+  let (Val (v, _)) = apply fn arg in
   v
 
 and apply_binder_term : type n. (n, kinetic) binder -> (n, kinetic value) CubeOf.t -> kinetic value
     =
  fun b arg ->
-  let (Val v) = apply_binder b arg in
+  let (Val (v, _)) = apply_binder b arg in
   v
 
 (* Apply a function to all the values in a cube one by one as 0-dimensional applications, rather than as one n-dimensional application. *)

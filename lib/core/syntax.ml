@@ -24,6 +24,12 @@ module Raw = struct
     (* A Let or an Act can either synthesize or (sometimes) check.  If it synthesizes, its body must synthesize, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking. *)
     | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
     | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
+    | Match :
+        'a synth located
+        (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
+        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
+        * 'a branch list
+        -> 'a synth
 
   and _ check =
     | Synth : 'a synth -> 'a check
@@ -31,12 +37,7 @@ module Raw = struct
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
-    | Match :
-        'a synth located
-        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
-        * 'a branch list
-        -> 'a check
-    (* "[]", which could be either an empty match or an empty comatch *)
+    (* "[]", which could be either an empty pattern-matching lambda or an empty comatch *)
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
     (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)
@@ -123,24 +124,31 @@ module rec Term : sig
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
-    | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
-    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
-    | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
+    | Let :
+        string option * ('t, 's) lettable * ('a, 't) term * (('a, D.zero) snoc, 's) term
+        -> ('a, 's) term
+    | Lam : 'n variables * 's nonchemical * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
+    | Struct : {
+        eta : 's eta;
+        dim : 'n D.t;
+        fields : (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t;
+        energy : 's nonchemical;
+      }
         -> ('a, 's) term
     | Match : {
         tm : ('a, kinetic) term;
         dim : 'n D.t;
-        branches : ('a, 'n) branch Constr.Map.t;
+        branches : ('a, 'n, 's) branch Constr.Map.t;
+        energy : 's nonkinetic;
       }
-        -> ('a, potential) term
-    | Realize : ('a, kinetic) term -> ('a, potential) term
+        -> ('a, 's) term
+    | Realize : ('a, kinetic) term * 's nonkinetic -> ('a, 's) term
     | Canonical : 'a canonical -> ('a, potential) term
 
-  and (_, _) branch =
+  and (_, _, _) branch =
     | Branch :
-        ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
-        -> ('a, 'n) branch
+        ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, 's) term
+        -> ('a, 'n, 's) branch
 
   and _ canonical =
     | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
@@ -195,28 +203,37 @@ end = struct
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
-    | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
-    (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
-    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
-    | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
+    (* Let-bindings can appear in any kind of term, but the allowed kind of the binding depends on the kind of the whole term: it is kinetic in a kinetic term, and chemical in a chemical or potential term. *)
+    | Let :
+        string option * ('t, 's) lettable * ('a, 't) term * (('a, D.zero) snoc, 's) term
+        -> ('a, 's) term
+    (* Abstractions can only appear in nonchemical terms.  The dimension 'n is the substitution dimension of the function-type being checked against.  *)
+    | Lam : 'n variables * 's nonchemical * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
+    (* Structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the record or codata type being checked against. *)
+    | Struct : {
+        eta : 's eta;
+        dim : 'n D.t;
+        fields : (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t;
+        energy : 's nonchemical;
+      }
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
     | Match : {
         tm : ('a, kinetic) term;
         dim : 'n D.t;
-        branches : ('a, 'n) branch Constr.Map.t;
+        branches : ('a, 'n, 's) branch Constr.Map.t;
+        energy : 's nonkinetic;
       }
-        -> ('a, potential) term
-    (* A potential term is "realized" by kinetic terms, or canonical types, at its leaves. *)
-    | Realize : ('a, kinetic) term -> ('a, potential) term
+        -> ('a, 's) term
+    (* A nonkinetic term is "realized" by kinetic terms, or (in the potential case) canonical types, at its leaves. *)
+    | Realize : ('a, kinetic) term * 's nonkinetic -> ('a, 's) term
     | Canonical : 'a canonical -> ('a, potential) term
 
   (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables.  In addition, its context must be permuted to put those new variables before the existing variables that are now defined in terms of them. *)
-  and (_, _) branch =
+  and (_, _, _) branch =
     | Branch :
-        ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
-        -> ('a, 'n) branch
+        ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, 's) term
+        -> ('a, 'n, 's) branch
 
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =
@@ -256,7 +273,7 @@ open Term
 let rec nth_var : type a b s. (a, s) term -> b Bwd.t -> any_variables option =
  fun tr args ->
   match tr with
-  | Lam (x, body) -> (
+  | Lam (x, _, body) -> (
       match args with
       | Emp -> Some (Any x)
       | Snoc (args, _) -> nth_var body args)
@@ -284,7 +301,7 @@ module Telescope = struct
    fun doms body ->
     match doms with
     | Emp -> body
-    | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
+    | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, Kinetic, lams doms body)
 end
 
 let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
@@ -352,16 +369,18 @@ module rec Value : sig
       }
         -> kinetic value
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
-    | Lam : 'k variables * ('k, 's) binder -> 's value
+    | Lam : 'k variables * ('k, 's) binder * 's nonchemical -> 's value
     | Struct :
-        (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
+        (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t
+        * ('m, 'n, 'k) insertion
+        * 's nonchemical
         -> 's value
     | Lazy : 's value Lazy.t -> 's value
 
   and _ evaluation =
-    | Val : 's value -> 's evaluation
-    | Realize : kinetic value -> potential evaluation
-    | Unrealized : potential evaluation
+    | Val : 's value * 's nonchemical -> 's evaluation
+    | Realize : kinetic value * 's nonkinetic -> 's evaluation
+    | Unrealized : 's nonkinetic -> 's evaluation
     | Canonical : canonical -> potential evaluation
 
   and canonical =
@@ -473,19 +492,21 @@ end = struct
     (* A constructor has a name, a dimension, and a list of arguments of that dimension.  It must always be applied to the correct number of arguments (otherwise it can be eta-expanded).  It doesn't have an outer insertion because a primitive datatype is always 0-dimensional (it has higher-dimensional versions, but degeneracies can always be pushed inside these).  *)
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
-    | Lam : 'k variables * ('k, 's) binder -> 's value
+    | Lam : 'k variables * ('k, 's) binder * 's nonchemical -> 's value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
     | Struct :
-        (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
+        (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t
+        * ('m, 'n, 'k) insertion
+        * 's nonchemical
         -> 's value
     | Lazy : 's value Lazy.t -> 's value
 
   (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
   and _ evaluation =
     (* When 's = potential, a Val means the case tree is not yet fully applied; while when 's = kinetic, it is the only possible kind of result.  Collapsing these two together seems to unify the code for Lam and Struct as much as possible. *)
-    | Val : 's value -> 's evaluation
-    | Realize : kinetic value -> potential evaluation
-    | Unrealized : potential evaluation
+    | Val : 's value * 's nonchemical -> 's evaluation
+    | Realize : kinetic value * 's nonkinetic -> 's evaluation
+    | Unrealized : 's nonkinetic -> 's evaluation
     | Canonical : canonical -> potential evaluation
 
   (* A canonical type value is either a datatype or a codatatype/record. *)

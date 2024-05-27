@@ -116,7 +116,7 @@ let print (tm : string) : unit =
   let rtm = parse_term tm in
   match rtm with
   | { value = Synth rtm; loc } ->
-      let ctm, ety = synth Ctx.empty { value = rtm; loc } in
+      let ctm, ety = synth Kinetic Ctx.empty { value = rtm; loc } in
       let etm = eval_term (Emp D.zero) ctm in
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in

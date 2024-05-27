@@ -47,7 +47,7 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
   | Neu { alignment = Lawful (Codata { eta = Noeta; fields; _ }); _ } -> (
       (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
       match (x, y) with
-      | Struct (xfld, xins), Struct (yfld, yins) ->
+      | Struct (xfld, xins, _), Struct (yfld, yins, _) ->
           let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
           BwdM.miterM
             (fun [ (fld, _) ] ->
@@ -55,12 +55,12 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
                 match Abwd.find_opt fld xfld with
                 | Some xv -> xv
                 | None -> fatal (Anomaly "missing field in equality-check") in
-              let (Val xtm) = Lazy.force (fst xv) in
+              let (Val (xtm, _)) = Lazy.force (fst xv) in
               let yv =
                 match Abwd.find_opt fld yfld with
                 | Some yv -> yv
                 | None -> fatal (Anomaly "missing field in equality-check") in
-              let (Val ytm) = Lazy.force (fst yv) in
+              let (Val (ytm, _)) = Lazy.force (fst yv) in
               equal_at ctx xtm ytm (tyof_field x ty fld))
             [ fields ]
       | Struct _, _ | _, Struct _ -> fail

@@ -58,9 +58,9 @@ let check_term : defined_const -> unit = function
       Global.add const pi_cty (Defined tree)
   | Defined_synth { const; params; tm } ->
       let (Checked_tel (cparams, ctx)) = check_tel Ctx.empty params in
-      let ctm, ety = synth ctx tm in
+      let ctm, ety = synth (Potential (const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
       let cty = readback_val ctx ety in
-      Global.add const (Telescope.pis cparams cty) (Defined (Ctx.lam ctx (Realize ctm)))
+      Global.add const (Telescope.pis cparams cty) (Defined (Ctx.lam ctx ctm))
 
 (* When checking a "def", therefore, we first iterate through checking the parameters and types, and then go back and check all the terms.  Moreover, whenever we check a type, we temporarily define the corresponding constant as an axiom having that type, so that its type can be used recursively in typechecking its definition, as well as the types of later mutual constants and the definitions of any other mutual constants. *)
 let check_defs (defs : defconst list) : unit =

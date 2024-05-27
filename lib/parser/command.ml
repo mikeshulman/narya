@@ -339,7 +339,7 @@ let execute : Command.t -> unit = function
       let rtm = process Emp tm in
       match rtm.value with
       | Synth stm ->
-          let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in
+          let ctm, ety = Check.synth Kinetic Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
           let bty = Readback.readback_at Ctx.empty ety (Inst.universe D.zero) in

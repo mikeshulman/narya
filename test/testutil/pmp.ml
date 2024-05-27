@@ -108,7 +108,7 @@ let synth (tm : pmt) : kinetic value * kinetic value =
       raise (Failure "Failed to synthesize"))
   @@ fun () ->
   let raw = parse_syn names tm in
-  let syn, ty = Check.synth ctx raw in
+  let syn, ty = Check.synth Kinetic ctx raw in
   let esyn = Ctx.eval_term ctx syn in
   (esyn, ty)
 
@@ -128,7 +128,7 @@ let unsynth (tm : pmt) : unit =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
   let raw = parse_syn names tm in
-  let _ = Check.synth ctx raw in
+  let _ = Check.synth Kinetic ctx raw in
   raise (Failure "Synthesis success")
 
 let uncheck (tm : pmt) (ty : kinetic value) : unit =

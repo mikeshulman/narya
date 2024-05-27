@@ -90,15 +90,8 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                           | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                           | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
                     })) in
-          Val
-            (Uninst
-               ( Neu
-                   {
-                     head = Value.Meta { meta; env; ins = ins_zero dim };
-                     args = Emp;
-                     alignment = True;
-                   },
-                 ty )))
+          let head = Value.Meta { meta; env; ins = ins_zero dim } in
+          Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
       eval (eval_env env m_n metaenv) (Term.Meta meta)
@@ -185,11 +178,10 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
   | Field (tm, fld) -> Val (field (eval_term env tm) fld)
-  | Struct (_, m, fields) ->
+  | Struct (_, dim, fields) ->
       let (Plus mn) = D.plus (dim_env env) in
-      Val
-        (Struct
-           (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins_zero (D.plus_out m mn)))
+      let ins = ins_zero (D.plus_out dim mn) in
+      Val (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in

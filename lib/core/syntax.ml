@@ -24,6 +24,12 @@ module Raw = struct
     (* A Let or an Act can either synthesize or (sometimes) check.  If it synthesizes, its body must synthesize, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking. *)
     | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
     | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
+    | Match :
+        'a synth located
+        (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
+        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
+        * 'a branch list
+        -> 'a synth
 
   and _ check =
     | Synth : 'a synth -> 'a check
@@ -31,12 +37,7 @@ module Raw = struct
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
-    | Match :
-        'a synth located
-        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
-        * 'a branch list
-        -> 'a check
-    (* "[]", which could be either an empty match or an empty comatch *)
+    (* "[]", which could be either an empty pattern-matching lambda or an empty comatch *)
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
     (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)

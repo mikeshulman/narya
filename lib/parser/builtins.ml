@@ -764,7 +764,8 @@ let () =
               match (process ctx tm).value with
               | Synth value ->
                   {
-                    value = Match ({ value; loc = tm.loc }, `Implicit, process_branches ctx obs);
+                    value =
+                      Synth (Match ({ value; loc = tm.loc }, `Implicit, process_branches ctx obs));
                     loc;
                   }
               | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match"))
@@ -782,17 +783,20 @@ let () =
                     let (Extctx (mn, _, _)) = get_vars ctx vars in
                     {
                       value =
-                        Match
-                          ( { value; loc = tm.loc },
-                            `Nondep { value = N.to_int (N.plus_right mn); loc = vars.loc },
-                            process_branches ctx obs );
+                        Synth
+                          (Match
+                             ( { value; loc = tm.loc },
+                               `Nondep { value = N.to_int (N.plus_right mn); loc = vars.loc },
+                               process_branches ctx obs ));
                       loc;
                     }
                 | Synth value, _ ->
                     let motive = process ctx motive in
                     {
                       value =
-                        Match ({ value; loc = tm.loc }, `Explicit motive, process_branches ctx obs);
+                        Synth
+                          (Match
+                             ({ value; loc = tm.loc }, `Explicit motive, process_branches ctx obs));
                       loc;
                     }
                 | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match")
@@ -810,7 +814,8 @@ let () =
                 ( { value = None; loc = None },
                   `Normal,
                   {
-                    value = Match ({ value = Var (Top, None); loc = None }, `Implicit, branches);
+                    value =
+                      Synth (Match ({ value = Var (Top, None); loc = None }, `Implicit, branches));
                     loc;
                   } );
             loc;

@@ -105,7 +105,7 @@ and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
   | Val tm -> Val (act_value tm s)
   | Canonical c -> Canonical (act_canonical c s)
 
-and act_alignment : type m n h. h alignment -> (m, n) deg -> h alignment =
+and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
  fun alignment s ->
   match alignment with
   | True -> True
@@ -231,7 +231,7 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
   | Constr _ -> fatal (Anomaly "a constructor cannot be a type to act on")
 
 (* Action on a head *)
-and act_head : type a b h. h head -> (a, b) deg -> h head =
+and act_head : type a b. head -> (a, b) deg -> head =
  fun ne s ->
   match ne with
   (* To act on a variable, we just accumulate the delayed action. *)

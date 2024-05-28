@@ -113,7 +113,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
               perm_of_ins ins ))
         (readback_head ctx head) args
 
-and readback_head : type a k z h. (z, a) Ctx.t -> h head -> (a, kinetic) term =
+and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
  fun ctx h ->
   match h with
   | Var { level; deg } ->

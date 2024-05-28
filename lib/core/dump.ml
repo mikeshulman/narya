@@ -14,7 +14,7 @@ open Term
 type printable +=
   | Val : 's value -> printable
   | Uninst : uninst -> printable
-  | Head : 'h head -> printable
+  | Head : head -> printable
   | Binder : ('b, 's) binder -> printable
   | Term : ('b, 's) term -> printable
   | Env : ('n, 'b) Value.env -> printable
@@ -78,14 +78,14 @@ and arg : type n. formatter -> n arg -> unit =
   | Arg xs -> value ppf (CubeOf.find_top xs).tm
   | Field fld -> fprintf ppf ".%s" (Field.to_string fld)
 
-and alignment : type h. formatter -> h alignment -> unit =
+and alignment : formatter -> alignment -> unit =
  fun ppf al ->
   match al with
   | True -> fprintf ppf "True"
   | Chaotic v -> fprintf ppf "Chaotic (%a)" value v
   | Lawful _ -> fprintf ppf "Lawful ?"
 
-and head : type h. formatter -> h head -> unit =
+and head : formatter -> head -> unit =
  fun ppf h ->
   match h with
   | Var { level; _ } -> fprintf ppf "Var (%d,%d)" (fst level) (snd level)

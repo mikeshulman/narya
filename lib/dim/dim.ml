@@ -1,6 +1,8 @@
 module D = D
 module Dmap = Util.Nmap
 
+type dim_wrapped = Wrap : 'n D.t -> dim_wrapped
+
 let to_int = D.to_int
 
 module Endpoints = Endpoints

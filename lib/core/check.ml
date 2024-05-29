@@ -1163,7 +1163,7 @@ and synth : type a b. (a, b) Ctx.t -> a synth located -> (b, kinetic) term * kin
       let stm, sty = synth ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
       let etm = Ctx.eval_term ctx stm in
-      let fld, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error etm sty fld in
+      let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error etm sty fld in
       (Field (stm, fld), newty)
   | UU -> (Term.UU D.zero, universe D.zero)
   | Pi (x, dom, cod) ->

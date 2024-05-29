@@ -393,8 +393,8 @@ and tyof_app :
       [ fns ] in
   inst (apply_binder_term (BindCube.find_top cods) args) out_args
 
-(* Compute a field of a structure, at a particular dimension. *)
-and field : kinetic value -> Field.t -> kinetic value =
+(* Compute a field of a structure. *)
+and field : type n. kinetic value -> Field.t -> kinetic value =
  fun tm fld ->
   match tm with
   (* TODO: Is it okay to ignore the insertion here? *)
@@ -405,8 +405,9 @@ and field : kinetic value -> Field.t -> kinetic value =
       let (Val x) = Lazy.force (fst xv) in
       x
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
-      let newty = lazy (tyof_field tm ty fld) in
-      let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
+      let Wrap n, newty = tyof_field_withdim tm ty fld in
+      let newty = Lazy.from_val newty in
+      let args = Snoc (args, App (Field fld, ins_zero n)) in
       match alignment with
       | True -> Uninst (Neu { head; args; alignment = True }, newty)
       | Chaotic (Struct (fields, _)) -> (
@@ -424,9 +425,9 @@ and field : kinetic value -> Field.t -> kinetic value =
       | Lawful _ -> fatal (Anomaly "field projection of canonical type"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
-(* Given a term and its record type, compute the type of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
+(* Given a term and its record type, compute the type and dimension of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
 and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.or_index) :
-    Field.t * kinetic value =
+    Field.t * dim_wrapped * kinetic value =
   let (Fullinst (ty, tyargs)) = full_inst ?severity ty "tyof_field" in
   match ty with
   | Neu
@@ -465,6 +466,7 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
           match Field.find fields fld with
           | Some (fldname, fldty) ->
               ( fldname,
+                Wrap m,
                 (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
                 inst (eval_term env fldty)
                   (TubeOf.mmap
@@ -472,15 +474,21 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
                        map =
                          (fun _ [ arg ] ->
                            let tm = field arg.tm fldname in
-                           let _, ty = tyof_field_withname arg.tm arg.ty fld in
+                           let _, _, ty = tyof_field_withname arg.tm arg.ty fld in
                            { tm; ty });
                      }
                      [ TubeOf.middle (D.zero_plus m) mn tyargs ]) )
           | None -> fatal ?severity (No_such_field (`Record (PConstant const), fld))))
   | _ -> fatal ?severity (No_such_field (`Other, fld))
 
+and tyof_field_withdim ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.t) :
+    dim_wrapped * kinetic value =
+  let _, n, ty = tyof_field_withname ?severity tm ty (`Name fld) in
+  (n, ty)
+
 and tyof_field ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.t) : kinetic value =
-  snd (tyof_field_withname ?severity tm ty (`Name fld))
+  let _, _, ty = tyof_field_withname ?severity tm ty (`Name fld) in
+  ty
 
 and eval_binder :
     type m n mn b s.

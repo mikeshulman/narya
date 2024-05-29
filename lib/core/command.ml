@@ -6,6 +6,7 @@ open Syntax
 open Raw
 open Term
 open Inst
+open Norm
 open Check
 open Readback
 open Asai.Range
@@ -53,7 +54,7 @@ let check_term : defined_const -> unit = function
       (* It's essential that we evaluate the type at this point, rather than sooner, so that the evaluation uses the *definitions* of previous constants in the mutual block and not just their types.  For the same reason, we need to re-evaluate the telescope of parameters. *)
       let (Checked_tel (_, ctx)) = check_tel Ctx.empty params in
       let cty = check Kinetic ctx ty (universe D.zero) in
-      let ety = Ctx.eval_term ctx cty in
+      let ety = eval_term (Ctx.env ctx) cty in
       let tree = Ctx.lam ctx (check (Potential (const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in
       Global.add const pi_cty (Defined tree)
   | Defined_synth { const; params; tm } ->

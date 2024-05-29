@@ -2,6 +2,7 @@ open Util
 open Core
 open Syntax
 open Value
+open Norm
 open Parser
 open Asai.Range
 
@@ -109,7 +110,7 @@ let synth (tm : pmt) : kinetic value * kinetic value =
   @@ fun () ->
   let raw = parse_syn names tm in
   let syn, ty = Check.synth Kinetic ctx raw in
-  let esyn = Ctx.eval_term ctx syn in
+  let esyn = eval_term (Ctx.env ctx) syn in
   (esyn, ty)
 
 let check (tm : pmt) (ty : kinetic value) : kinetic value =
@@ -120,7 +121,7 @@ let check (tm : pmt) (ty : kinetic value) : kinetic value =
   @@ fun () ->
   let raw = parse_chk names tm in
   let chk = Check.check Kinetic ctx raw ty in
-  Ctx.eval_term ctx chk
+  eval_term (Ctx.env ctx) chk
 
 (* Assert that a term *doesn't* synthesize or check *)
 

@@ -183,7 +183,7 @@ let rec check :
   (* A Let is a "synthesizing" term so that it *can* synthesize, but in checking position it checks instead. *)
   | Synth (Let (x, v, body)), _, _ ->
       let stm, sty = synth Kinetic ctx v in
-      let etm = Ctx.eval_term ctx stm in
+      let etm = eval_term (Ctx.env ctx) stm in
       let mkstatus :
           type b n s.
           (b, s) status -> string option -> (b, kinetic) term -> ((b, D.zero) snoc, s) status =
@@ -607,9 +607,9 @@ and synth_dep_match :
           match uvarty_params with
           | Uninst (_, (lazy uvarty_params_ty)) ->
               let motivety = motive_of_family ctx uvarty_params uvarty_params_ty in
-              let emotivety = Ctx.eval_term ctx motivety in
+              let emotivety = eval_term (Ctx.env ctx) motivety in
               let cmotive = check Kinetic ctx motive emotivety in
-              let emotive = Ctx.eval_term ctx cmotive in
+              let emotive = eval_term (Ctx.env ctx) cmotive in
               (* We now iterate through the branches supplied by the user, typechecking them and inserting them in the match tree. *)
               let branches =
                 List.fold_left
@@ -685,7 +685,7 @@ and synth_dep_match :
                   (MT.miterM
                      { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
                      [ inst_args ] result) in
-              let result = apply_term result (CubeOf.singleton (Ctx.eval_term ctx ctm)) in
+              let result = apply_term result (CubeOf.singleton (eval_term (Ctx.env ctx) ctm)) in
               (* We readback the result so we can store it in the term, so that when evaluating it we know what its type must be without having to do all the work again. *)
               (Match { tm = ctm; dim; branches }, result)
           | _ -> fatal (Anomaly "uvarty_params not uninst")))
@@ -875,11 +875,12 @@ and check_var_match :
                                   Hashtbl.iter (fun _ v -> discard (readback_nf oldctx v)) new_vals
                                 );
                                 (* The type of the match must be specialized in the branches by substituting different constructors for the match variable, as well as the index values for the index variables, and lower-dimensional versions of each constructor for the instantiation variables.  Thus, we readback-eval this type into the new context, to obtain the type at which the branch body will be checked. *)
-                                let newty = Ctx.eval_term newctx (readback_val oldctx motive) in
+                                let newty =
+                                  eval_term (Ctx.env newctx) (readback_val oldctx motive) in
                                 (* Now we have to modify the "status" data by readback-eval on the arguments and adding a hypothesized current branch to the match.  *)
                                 let eval_readback_args x =
-                                  let tm = Ctx.eval_term newctx (readback_nf oldctx x) in
-                                  let ty = Ctx.eval_term newctx (readback_val oldctx x.ty) in
+                                  let tm = eval_term (Ctx.env newctx) (readback_nf oldctx x) in
+                                  let ty = eval_term (Ctx.env newctx) (readback_val oldctx x.ty) in
                                   { tm; ty } in
                                 let perm = checked_perm in
                                 let status =
@@ -953,7 +954,7 @@ and check_data :
       | None, Some output -> (
           let (Checked_tel (args, newctx)) = check_tel ctx args in
           let coutput = check Kinetic newctx output (universe D.zero) in
-          match Ctx.eval_term newctx coutput with
+          match eval_term (Ctx.env newctx) coutput with
           | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; alignment = _ }, _)
             ->
               if head = out_head && Option.is_some (is_id_ins ins) then
@@ -1173,7 +1174,7 @@ and check_field :
   | Some tm ->
       let field_status = mkstatus status eta ctms `Labeled in
       let ctm = check field_status ctx tm ety in
-      let etms = Abwd.add fld (lazy (Ctx.eval ctx ctm), `Labeled) etms in
+      let etms = Abwd.add fld (lazy (eval (Ctx.env ctx) ctm), `Labeled) etms in
       let ctms = Snoc (ctms, (fld, (ctm, `Labeled))) in
       check_fields status eta ctx ty dim fields tms etms ctms
   | None -> (
@@ -1181,7 +1182,7 @@ and check_field :
       match Abwd.find_opt_and_update_key None (Some fld) tms with
       | Some (tm, tms) ->
           let ctm = check field_status ctx tm ety in
-          let etms = Abwd.add fld (lazy (Ctx.eval ctx ctm), `Unlabeled) etms in
+          let etms = Abwd.add fld (lazy (eval (Ctx.env ctx) ctm), `Unlabeled) etms in
           let ctms = Snoc (ctms, (fld, (ctm, `Unlabeled))) in
           check_fields status eta ctx ty dim fields tms etms ctms
       | None -> fatal (Missing_field_in_tuple fld))
@@ -1204,14 +1205,14 @@ and synth :
   | Field (tm, fld) ->
       let stm, sty = synth Kinetic ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
-      let etm = Ctx.eval_term ctx stm in
+      let etm = eval_term (Ctx.env ctx) stm in
       let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error etm sty fld in
       (realize status (Field (stm, fld)), newty)
   | UU -> (realize status (Term.UU D.zero), universe D.zero)
   | Pi (x, dom, cod) ->
       (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
       let cdom = check Kinetic ctx dom (universe D.zero) in
-      let edom = Ctx.eval_term ctx cdom in
+      let edom = eval_term (Ctx.env ctx) cdom in
       let ccod = check Kinetic (Ctx.ext ctx x edom) cod (universe D.zero) in
       (realize status (pi x cdom ccod), universe D.zero)
   | App _ ->
@@ -1225,19 +1226,19 @@ and synth :
       let sx, ety =
         if locking fa then Global.run_locked (fun () -> synth Kinetic (Ctx.lock ctx) x)
         else synth Kinetic ctx x in
-      let ex = Ctx.eval_term ctx sx in
+      let ex = eval_term (Ctx.env ctx) sx in
       ( realize status (Term.Act (sx, fa)),
         with_loc x.loc @@ fun () ->
         act_ty ex ety fa ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa)) )
   | Act _ -> fatal (Nonsynthesizing "argument of degeneracy")
   | Asc (tm, ty) ->
       let cty = check Kinetic ctx ty (universe D.zero) in
-      let ety = Ctx.eval_term ctx cty in
+      let ety = eval_term (Ctx.env ctx) cty in
       let ctm = check status ctx tm ety in
       (ctm, ety)
   | Let (x, v, { value = Synth body; loc }) -> (
       let sv, sty = synth Kinetic ctx v in
-      let ev = Ctx.eval_term ctx sv in
+      let ev = eval_term (Ctx.env ctx) sv in
       match status with
       | Potential (c, args, hyp) ->
           let status = Potential (c, args, fun body -> hyp (Term.Let (x, sv, body))) in
@@ -1332,7 +1333,7 @@ and synth_app :
                                  Hashtbl.find eargtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
                            }) in
                     let ctm = check Kinetic ctx tm ty in
-                    let tm = Ctx.eval_term ctx ctm in
+                    let tm = eval_term (Ctx.env ctx) ctm in
                     Hashtbl.add eargtbl (SFace_of fa) { tm; ty };
                     return (ctm @: [ tm ]));
               }
@@ -1386,7 +1387,7 @@ and synth_app :
                         let ty = inst tyarg.tm kargs in
                         let ctm = check Kinetic ctx tm ty in
                         (* Then we evaluate it and assemble a normal version to store in the hashtbl, before returning the checked and evaluated versions. *)
-                        let tm = Ctx.eval_term ctx ctm in
+                        let tm = eval_term (Ctx.env ctx) ctm in
                         let ntm = { tm; ty } in
                         Hashtbl.add eargtbl (SFace_of fa) ntm;
                         return (ctm @: [ ntm ]));
@@ -1451,7 +1452,7 @@ and check_at_tel :
       let ity = inst ety tyarg in
       let ctm = check Kinetic ctx tm ity in
       let ctms = TubeOf.mmap { map = (fun _ [ t ] -> readback_nf ctx t) } [ tyarg ] in
-      let etm = Ctx.eval_term ctx ctm in
+      let etm = eval_term (Ctx.env ctx) ctm in
       let newenv, newargs =
         check_at_tel c ctx
           (Ext
@@ -1472,7 +1473,7 @@ and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) che
   | Emp -> Checked_tel (Emp, ctx)
   | Ext (x, ty, tys) ->
       let cty = check Kinetic ctx ty (universe D.zero) in
-      let ety = Ctx.eval_term ctx cty in
+      let ety = eval_term (Ctx.env ctx) cty in
       let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
       let ctx = Ctx.cube_vis ctx x newnfs in
       let (Checked_tel (ctys, ctx)) = check_tel ctx tys in

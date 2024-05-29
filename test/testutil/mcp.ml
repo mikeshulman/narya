@@ -3,6 +3,7 @@ open Core
 open Parser
 open Syntax
 open Value
+open Norm
 open Asai.Range
 
 let () =
@@ -34,7 +35,7 @@ let synth (tm : string) : kinetic value * kinetic value =
   match parse_term names tm with
   | { value = Synth raw; loc } ->
       let syn, ty = Check.synth Kinetic ctx { value = raw; loc } in
-      let esyn = Ctx.eval_term ctx syn in
+      let esyn = eval_term (Ctx.env ctx) syn in
       (esyn, ty)
   | _ -> Reporter.fatal (Nonsynthesizing "toplevel synth")
 
@@ -43,7 +44,7 @@ let check (tm : string) (ty : kinetic value) : kinetic value =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to check"))
-  @@ fun () -> Ctx.eval_term ctx (Check.check Kinetic ctx (parse_term names tm) ty)
+  @@ fun () -> eval_term (Ctx.env ctx) (Check.check Kinetic ctx (parse_term names tm) ty)
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 

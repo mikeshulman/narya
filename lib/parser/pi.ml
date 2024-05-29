@@ -1,6 +1,7 @@
 open Dim
 open Core
 open Inst
+open Norm
 open Check
 open Notation
 open Postprocess
@@ -18,7 +19,7 @@ let install () =
            (`String { content = "(A : Type) (B : A -> Type) -> Type"; title = None })) in
     let rty = process Emp pty in
     let cty = check Kinetic ctx rty (universe D.zero) in
-    let ety = Ctx.eval_term ctx cty in
+    let ety = eval_term (Ctx.env ctx) cty in
     let (Term ptm) =
       Parse.Term.final
         (Parse.Term.parse (`String { content = "A B |-> (x : A) -> B x"; title = None })) in

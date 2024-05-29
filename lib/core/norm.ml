@@ -592,3 +592,54 @@ let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> k
     type t = kinetic value
   end)) in
   snd (MC.miterM { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x))) } [ xs ] fn)
+
+(* Evaluate a term context to produce a value context. *)
+
+let eval_bindings :
+    type a b n.
+    (a, b) Ctx.Ordered.t -> (n, (b, n) snoc Termctx.binding) CubeOf.t -> (n, Ctx.Binding.t) CubeOf.t
+    =
+ fun ctx cbs ->
+  let open Termctx in
+  let i = Ctx.Ordered.length ctx in
+  let vbs = CubeOf.build (CubeOf.dim cbs) { build = (fun _ -> Ctx.Binding.unknown ()) } in
+  let tempctx = Ctx.Ordered.Snoc (ctx, Invis vbs, Zero) in
+  let argtbl = Hashtbl.create 10 in
+  let j = ref 0 in
+  let () =
+    CubeOf.miter
+      {
+        it =
+          (fun fa [ ({ ty = cty; tm = ctm } : (b, n) snoc binding); vb ] ->
+            (* Unlike in dom_vars, we don't need to instantiate the types, since their instantiations should have been preserved by readback and will reappear correctly here. *)
+            let ety = eval_term (Ctx.Ordered.env tempctx) cty in
+            let level = (i, !j) in
+            j := !j + 1;
+            let v =
+              match ctm with
+              | None -> ({ tm = var level ety; ty = ety } : normal)
+              | Some ctm -> { tm = eval_term (Ctx.Ordered.env tempctx) ctm; ty = ety } in
+            Hashtbl.add argtbl (SFace_of fa) v;
+            Ctx.Binding.specify vb None v);
+      }
+      [ cbs; vbs ] in
+  vbs
+
+let eval_entry : type a b f n. (a, b) Ctx.Ordered.t -> (b, f, n) Termctx.entry -> (f, n) Ctx.entry =
+ fun ctx e ->
+  match e with
+  | Termctx.Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
+      let bindings = eval_bindings ctx bindings in
+      let fields = Bwv.map (fun (f, x, _) -> (f, x)) fields in
+      Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
+  | Invis bindings -> Invis (eval_bindings ctx bindings)
+
+let rec eval_ordered_ctx : type a b. (a, b) Termctx.ordered -> (a, b) Ctx.Ordered.t = function
+  | Termctx.Emp -> Emp
+  | Snoc (ctx, e, af) ->
+      let ectx = eval_ordered_ctx ctx in
+      Snoc (ectx, eval_entry ectx e, af)
+  | Lock ctx -> Lock (eval_ordered_ctx ctx)
+
+let eval_ctx : type a b. (a, b) Termctx.t -> (a, b) Ctx.t = function
+  | Termctx.Permute (p, ctx) -> Permute (p, eval_ordered_ctx ctx)

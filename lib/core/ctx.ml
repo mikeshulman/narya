@@ -307,13 +307,6 @@ module Ordered = struct
           { map = (fun _ [ x ] -> CubeOf.singleton (Lazy (lazy (Binding.value x).tm))) }
           [ v ] )
 
-  (* Evaluate a case tree or term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
-  let eval : type a b s. (a, b) t -> (b, s) term -> s evaluation =
-   fun ctx tm -> Norm.eval (env ctx) tm
-
-  let eval_term : type a b. (a, b) t -> (b, kinetic) term -> kinetic value =
-   fun ctx tm -> Norm.eval_term (env ctx) tm
-
   (* Extend a context by one new variable, without a value but with an assigned type. *)
   let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) snoc) t =
    fun ctx x ty ->
@@ -387,8 +380,6 @@ let apps (Permute (_, ctx)) = Ordered.apps ctx
 let lookup (Permute (p, ctx)) i = Ordered.lookup ctx (N.perm_apply p (fst i), snd i)
 let find_level (Permute (_, ctx)) x = Ordered.find_level ctx x
 let env (Permute (_, ctx)) = Ordered.env ctx
-let eval (Permute (_, ctx)) tm = Ordered.eval ctx tm
-let eval_term (Permute (_, ctx)) tm = Ordered.eval_term ctx tm
 let ext (Permute (p, ctx)) xs ty = Permute (Insert (p, Top), Ordered.ext ctx xs ty)
 let ext_let (Permute (p, ctx)) xs tm = Permute (Insert (p, Top), Ordered.ext_let ctx xs tm)
 let lam (Permute (_, ctx)) tm = Ordered.lam ctx tm

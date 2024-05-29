@@ -53,24 +53,7 @@ let add :
 
 let unsolved () = (S.get ()).solved = `Unsolved
 let _update meta f = S.modify (fun data -> { data with map = M.update (MetaKey meta) f data.map })
-
-(* When running in a new Galactic state, we also trap the temporary lookup effect from Galaxy1 and turn it into an actual lookup. *)
-let run_empty f =
-  let open Effect.Deep in
-  S.run ~init:{ map = M.empty; solved = `Solved; current = 0 } @@ fun () ->
-  try_with f ()
-    {
-      effc =
-        (fun (type a) (eff : a Effect.t) ->
-          match eff with
-          | Galaxy1.Find v ->
-              Some
-                (fun (k : (a, _) continuation) ->
-                  match find_opt v with
-                  | Some (Data { ty; tm; energy; _ }) -> continue k (Some { ty; tm; energy })
-                  | None -> continue k None)
-          | _ -> None);
-    }
+let run_empty f = S.run ~init:{ map = M.empty; solved = `Solved; current = 0 } f
 
 (* At the end of a command, we get the number of holes that were created by that command, and reset the counter to 0 for the next command. *)
 let end_command () =

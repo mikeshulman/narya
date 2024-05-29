@@ -393,7 +393,7 @@ let rec check :
       let meta = Meta.make `Hole (Ctx.dbwd ctx) energy in
       let ty = readback_val ctx ty in
       let termctx = readback_ctx ctx in
-      Galaxy.add meta vars termctx ty energy;
+      Eternity.add meta vars termctx ty energy;
       emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
       Meta (meta, energy)
   (* And lastly, if we have a synthesizing term, we synthesize it. *)

@@ -4,7 +4,7 @@ open Util
 open Syntax
 open Term
 
-(* In contrast to the "Global" state which stores constants and their definitions, the "Galactic" state stores metavariables and their definitions.  We think of this as "outside" the global state because, firstly, metavariables aren't scoped and aren't affected by import and sectioning commands, but even more importantly, each metavariable stores its own copy of the Global state when it was created.  This way we can be sure that any solution of that metavariable  would have been valid in its original location. *)
+(* In contrast to the "Global" state which stores constants and their definitions, the "Eternal" state stores metavariables and their definitions.  Like its Asimovian namesake, Eternity exists outside the ordinary timestream.  Eternal metavariables aren't scoped and aren't affected by import and sectioning commands, but even more importantly, each such metavariable stores its own copy of the Global state when it was created.  This way we can "go back in time" to when that metavariable was created and be sure that any solution of that metavariable would have been valid in its original location. *)
 
 type (_, _) data =
   | Data : {

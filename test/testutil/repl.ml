@@ -126,7 +126,7 @@ let print (tm : string) : unit =
 
 let run f =
   Parser.Unparse.install ();
-  Galaxy.run_empty @@ fun () ->
+  Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->

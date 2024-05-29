@@ -88,7 +88,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
              }) in
       let make_neutral meta ty alignment =
         Uninst (Neu { head; args = Emp; alignment }, lazy (make_ty meta ty)) in
-      match (Galaxy.find_opt meta <|> Undefined_metavariable (PMeta meta), ambient) with
+      match (Eternity.find_opt meta <|> Undefined_metavariable (PMeta meta), ambient) with
       (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
       | Data { tm = None; _ }, Potential -> Unrealized
       (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)

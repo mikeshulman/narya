@@ -188,7 +188,7 @@ and equal_head : int -> head -> head -> unit option =
       match (Meta.compare meta1 meta2, D.compare (cod_left_ins i1) (cod_left_ins i2)) with
       | Eq, Eq ->
           let (Data { termctx; _ }) =
-            Galaxy.find_opt meta1 <|> Undefined_metavariable (PMeta meta1) in
+            Eternity.find_opt meta1 <|> Undefined_metavariable (PMeta meta1) in
           equal_env lvl env1 env2 termctx
       | _ -> fail)
   | _, _ -> fail

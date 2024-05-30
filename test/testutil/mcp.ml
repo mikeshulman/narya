@@ -34,7 +34,7 @@ let synth (tm : string) : kinetic value * kinetic value =
   @@ fun () ->
   match parse_term names tm with
   | { value = Synth raw; loc } ->
-      let syn, ty = Check.synth Kinetic ctx { value = raw; loc } in
+      let syn, ty = Check.synth (Kinetic `Nolet) ctx { value = raw; loc } in
       let esyn = eval_term (Ctx.env ctx) syn in
       (esyn, ty)
   | _ -> Reporter.fatal (Nonsynthesizing "toplevel synth")
@@ -44,7 +44,7 @@ let check (tm : string) (ty : kinetic value) : kinetic value =
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Failed to check"))
-  @@ fun () -> eval_term (Ctx.env ctx) (Check.check Kinetic ctx (parse_term names tm) ty)
+  @@ fun () -> eval_term (Ctx.env ctx) (Check.check (Kinetic `Nolet) ctx (parse_term names tm) ty)
 
 (* Assert that a term *doesn't* synthesize or check, and possibly ensure it gives a specific error code. *)
 
@@ -70,7 +70,7 @@ let unsynth : ?print:unit -> ?code:Reporter.Code.t -> ?short:string -> string ->
   @@ fun () ->
   match parse_term names tm with
   | { value = Synth raw; loc } ->
-      let _ = Check.synth Kinetic ctx { value = raw; loc } in
+      let _ = Check.synth (Kinetic `Nolet) ctx { value = raw; loc } in
       raise (Failure "Synthesis success")
   | _ -> Reporter.fatal (Nonsynthesizing "top-level unsynth")
 
@@ -95,7 +95,7 @@ let uncheck :
             Terminal.display d;
             raise (Failure "Unexpected error code")))
   @@ fun () ->
-  let _ = Check.check Kinetic ctx (parse_term names tm) ty in
+  let _ = Check.check (Kinetic `Nolet) ctx (parse_term names tm) ty in
   raise (Failure "Checking success")
 
 (* Assert that a term doesn't parse *)

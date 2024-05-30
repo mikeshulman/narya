@@ -109,7 +109,7 @@ let synth (tm : pmt) : kinetic value * kinetic value =
       raise (Failure "Failed to synthesize"))
   @@ fun () ->
   let raw = parse_syn names tm in
-  let syn, ty = Check.synth Kinetic ctx raw in
+  let syn, ty = Check.synth (Kinetic `Nolet) ctx raw in
   let esyn = eval_term (Ctx.env ctx) syn in
   (esyn, ty)
 
@@ -120,7 +120,7 @@ let check (tm : pmt) (ty : kinetic value) : kinetic value =
       raise (Failure "Failed to check"))
   @@ fun () ->
   let raw = parse_chk names tm in
-  let chk = Check.check Kinetic ctx raw ty in
+  let chk = Check.check (Kinetic `Nolet) ctx raw ty in
   eval_term (Ctx.env ctx) chk
 
 (* Assert that a term *doesn't* synthesize or check *)
@@ -129,14 +129,14 @@ let unsynth (tm : pmt) : unit =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
   let raw = parse_syn names tm in
-  let _ = Check.synth Kinetic ctx raw in
+  let _ = Check.synth (Kinetic `Nolet) ctx raw in
   raise (Failure "Synthesis success")
 
 let uncheck (tm : pmt) (ty : kinetic value) : unit =
   let (Ctx (ctx, names)) = !context in
   Reporter.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
   let raw = parse_chk names tm in
-  let _ = Check.check Kinetic ctx raw ty in
+  let _ = Check.check (Kinetic `Nolet) ctx raw ty in
   raise (Failure "Checking success")
 
 (* Add to the context of assumptions *)

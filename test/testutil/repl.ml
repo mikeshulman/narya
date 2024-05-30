@@ -28,10 +28,11 @@ let parse_term (tm : string) : N.zero check located =
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let check_type (rty : N.zero check located) : (emp, kinetic) term =
-  Reporter.trace "when checking type" @@ fun () -> check Kinetic Ctx.empty rty (universe D.zero)
+  Reporter.trace "when checking type" @@ fun () ->
+  check (Kinetic `Nolet) Ctx.empty rty (universe D.zero)
 
 let check_term (rtm : N.zero check located) (ety : kinetic value) : (emp, kinetic) term =
-  Reporter.trace "when checking term" @@ fun () -> check Kinetic Ctx.empty rtm ety
+  Reporter.trace "when checking term" @@ fun () -> check (Kinetic `Nolet) Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
   let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
@@ -116,7 +117,7 @@ let print (tm : string) : unit =
   let rtm = parse_term tm in
   match rtm with
   | { value = Synth rtm; loc } ->
-      let ctm, ety = synth Kinetic Ctx.empty { value = rtm; loc } in
+      let ctm, ety = synth (Kinetic `Nolet) Ctx.empty { value = rtm; loc } in
       let etm = eval_term (Emp D.zero) ctm in
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in

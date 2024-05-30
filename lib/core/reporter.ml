@@ -120,7 +120,7 @@ module Code = struct
     | Comment_end_in_string : t
     | Error_printing_error : t -> t
     | Checking_canonical_at_nonuniverse : string * printable -> t
-    | Invalid_outside_case_tree : string -> t
+    | Bare_case_tree_construct : string -> t
     | Wrong_boundary_of_record : int -> t
     | Invalid_constructor_type : Constr.t -> t
     | Missing_constructor_type : Constr.t -> t
@@ -214,7 +214,7 @@ module Code = struct
     | Comment_end_in_string -> Warning
     | Error_printing_error _ -> Bug
     | Checking_canonical_at_nonuniverse _ -> Error
-    | Invalid_outside_case_tree _ -> Error
+    | Bare_case_tree_construct _ -> Hint
     | Wrong_boundary_of_record _ -> Error
     | Invalid_constructor_type _ -> Error
     | Missing_constructor_type _ -> Error
@@ -256,7 +256,7 @@ module Code = struct
     | Nonsynthesizing _ -> "E0400"
     | Unequal_synthesized_type _ -> "E0401"
     | Synthesizing_recursion _ -> "E0402"
-    | Invalid_outside_case_tree _ -> "E0403"
+    | Bare_case_tree_construct _ -> "H0403"
     | Invalid_synthesized_type _ -> "E0404"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
@@ -534,7 +534,8 @@ module Code = struct
         textf "error while printing message:@ %a" (fun ppf () -> default_text e ppf) ()
     | Checking_canonical_at_nonuniverse (tm, ty) ->
         textf "checking %s at non-universe %a" tm pp_printed (print ty)
-    | Invalid_outside_case_tree str -> textf "%s can only occur in case trees" str
+    | Bare_case_tree_construct str ->
+        textf "%s encountered outside case tree, wrapping in implicit let-binding" str
     | Duplicate_method_in_codata fld ->
         textf "duplicate method in codatatype: %s" (Field.to_string fld)
     | Duplicate_field_in_record fld ->

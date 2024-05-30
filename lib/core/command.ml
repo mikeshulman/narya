@@ -53,7 +53,7 @@ let check_term : defined_const -> unit = function
   | Defined_check { const; params; ty; pi_cty; tm } ->
       (* It's essential that we evaluate the type at this point, rather than sooner, so that the evaluation uses the *definitions* of previous constants in the mutual block and not just their types.  For the same reason, we need to re-evaluate the telescope of parameters. *)
       let (Checked_tel (_, ctx)) = check_tel Ctx.empty params in
-      let cty = check Kinetic ctx ty (universe D.zero) in
+      let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
       let ety = eval_term (Ctx.env ctx) cty in
       let tree =
         Ctx.lam ctx (check (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in
@@ -71,7 +71,7 @@ let check_defs (defs : defconst list) : unit =
     | [] -> List.iter check_term (Bwd.to_list defineds)
     | Def_check { const; params; ty; tm } :: defs ->
         let (Checked_tel (cparams, ctx)) = check_tel Ctx.empty params in
-        let cty = check Kinetic ctx ty (universe D.zero) in
+        let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
         let pi_cty = Telescope.pis cparams cty in
         (* This temporary definition will be overridden later. *)
         Global.add const pi_cty (Axiom `Parametric);
@@ -84,7 +84,7 @@ let check_defs (defs : defconst list) : unit =
 let execute : t -> unit = function
   | Axiom (const, params, ty) ->
       let (Checked_tel (params, ctx)) = check_tel Ctx.empty params in
-      let cty = check Kinetic ctx ty (universe D.zero) in
+      let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
       let cty = Telescope.pis params cty in
       Global.add const cty (Axiom `Nonparametric)
   | Def defs -> check_defs defs

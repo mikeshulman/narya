@@ -18,7 +18,7 @@ let install () =
         (Parse.Term.parse
            (`String { content = "(A : Type) (B : A -> Type) -> Type"; title = None })) in
     let rty = process Emp pty in
-    let cty = check Kinetic ctx rty (universe D.zero) in
+    let cty = check (Kinetic `Nolet) ctx rty (universe D.zero) in
     let ety = eval_term (Ctx.env ctx) cty in
     let (Term ptm) =
       Parse.Term.final

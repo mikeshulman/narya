@@ -331,3 +331,67 @@ Let doesn't make a case tree unless it needs to:
   )
     : prod (Type → Type) Type
   
+
+Matches outside case trees can be implicitly wrapped in a let-binding:
+
+  $ narya -v letcase.ny -e 'def not (b : bool) : bool ≔ ((x ↦ x) : bool → bool) (match b [ true. ↦ false. | false. ↦ true. ])' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+   ￫ info[I0000]
+   ￮ Constant bool defined
+  
+   ￫ info[I0001]
+   ￮ Axiom u assumed
+  
+   ￫ hint[H0403]
+   ￭ command-line exec string
+   1 | def not (b : bool) : bool ≔ ((x ↦ x) : bool → bool) (match b [ true. ↦ false. | false. ↦ true. ])
+     ^ match encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ info[I0000]
+   ￮ Constant not defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+  _let.0
+    : bool
+  
+
+Pattern-matching lambdas can be used in arbitrary places:
+
+  $ narya -v - <<EOF
+  > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
+  > def square (f : ℕ → ℕ) : ℕ → ℕ ≔ x ↦ f (f x)
+  > def squaredec : ℕ → ℕ ≔ square [ zero. ↦ zero. | suc. n ↦ n ]
+  > echo squaredec 4
+  > echo squaredec 1
+  > axiom n : ℕ
+  > echo squaredec n
+   ￫ info[I0000]
+   ￮ Constant ℕ defined
+  
+   ￫ info[I0000]
+   ￮ Constant square defined
+  
+   ￫ hint[H0403]
+   ￭ stdin
+   3 | def squaredec : ℕ → ℕ ≔ square [ zero. ↦ zero. | suc. n ↦ n ]
+     ^ match encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ info[I0000]
+   ￮ Constant squaredec defined
+  
+  2
+    : ℕ
+  
+  0
+    : ℕ
+  
+   ￫ info[I0001]
+   ￮ Axiom n assumed
+  
+  _let.0
+    : ℕ
+  

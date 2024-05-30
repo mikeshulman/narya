@@ -5,34 +5,26 @@ open Signatures
 open Dimbwd
 open Energy
 
-(* Metavariables, such as holes and unification variables. *)
+(* Metavariables, such as holes and unification variables.  Local generative definitions are also reperesented as metavariables. *)
 
-type sort = [ `Hole | `Let ]
+type sort = [ `Hole | `Def of string * string option ]
 
 (* A metavariable has an autonumber identity, like a constant.  It also stores its sort, and is parametrized by its checked context length and its energy (kinetic or potential). *)
-type ('b, 's) t = {
-  number : int;
-  name : string option;
-  sort : sort;
-  len : 'b Dbwd.t;
-  energy : 's energy;
-}
+type ('b, 's) t = { number : int; sort : sort; len : 'b Dbwd.t; energy : 's energy }
 
 let counter = ref (-1)
 
-let make : type b s. sort -> ?name:string -> b Dbwd.t -> s energy -> (b, s) t =
- fun sort ?name len energy ->
+let make : type b s. sort -> b Dbwd.t -> s energy -> (b, s) t =
+ fun sort len energy ->
   counter := !counter + 1;
-  { number = !counter; sort; len; energy; name }
+  { number = !counter; sort; len; energy }
 
 let name : type b s. (b, s) t -> string =
  fun x ->
   match x.sort with
   | `Hole -> Printf.sprintf "?%d" x.number
-  | `Let -> (
-      match x.name with
-      | None -> Printf.sprintf "_let.%d" x.number
-      | Some name -> Printf.sprintf "_let.%d.%s" x.number name)
+  | `Def (sort, None) -> Printf.sprintf "_%s.%d" sort x.number
+  | `Def (sort, Some name) -> Printf.sprintf "_%s.%d.%s" sort x.number name
 
 let compare : type b1 s1 b2 s2. (b1, s1) t -> (b2, s2) t -> (b1 * s1, b2 * s2) Eq.compare =
  fun x y ->

@@ -153,7 +153,7 @@
       ^ hole ?11 generated:
         
         ----------------------------------------------------------------------
-        ?10
+        ?10{…}
   
    ￫ info[I0000]
    ￮ Constant pp' defined, containing 2 holes
@@ -235,7 +235,7 @@
         B : Type
         x : A
         y : B
-        one : ?16
+        one : ?16{…}
         ----------------------------------------------------------------------
         Type
   
@@ -362,7 +362,7 @@
    ￭ dtt-holes.ny
    4 | def g (X : Type) : Type⁽ᵈ⁾ X ≔ (f ?)⁽ᵈ⁾
      ^ term synthesized type
-         Type⁽ᵈ⁾ ?0
+         Type⁽ᵈ⁾ ?0{…}
        but is being checked against type
          Type⁽ᵈ⁾ X
   

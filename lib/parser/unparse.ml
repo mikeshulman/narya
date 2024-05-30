@@ -199,7 +199,7 @@ let rec unparse :
   | Const c -> unlocated (Ident (Scope.name_of c, []))
   | Meta (v, _) -> unlocated (Ident ([ Meta.name v ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)
-  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ], []))
+  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ^ "{…}" ], []))
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
       unparse_act vars

@@ -252,7 +252,7 @@ Let can contain case trees:
   true.
     : bool
   
-  _let.0.n
+  _let.0.n{…}
     : bool
   
 
@@ -272,7 +272,7 @@ Let can contain case trees:
   true.
     : bool
   
-  _let.0.n u
+  _let.0.n{…} u
     : bool
   
 
@@ -299,7 +299,7 @@ Synthesizing matches don't need to be annotated
   true.
     : bool
   
-  _let.0.n
+  _let.0.n{…}
     : bool
   
 
@@ -355,7 +355,7 @@ Matches outside case trees can be implicitly wrapped in a let-binding:
   true.
     : bool
   
-  _let.0
+  _match.0{…}
     : bool
   
 
@@ -392,6 +392,6 @@ Pattern-matching lambdas can be used in arbitrary places:
    ￫ info[I0001]
    ￮ Axiom n assumed
   
-  _let.0
+  _match.0{…}
     : ℕ
   

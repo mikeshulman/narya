@@ -360,7 +360,7 @@ let rec check :
   (* We don't need to deal with `Explicit matches here, since they can always synthesize a type and hence be caught by the catch-all for checking synthesizing terms, below. *)
   | Empty_co_match, Pi _, _ ->
       (* Checking [] at a pi-type interprets it as a pattern-matching lambda over an empty datatype. *)
-      let x = { value = None; loc = None } in
+      let x = { value = Some "x"; loc = None } in
       let body =
         {
           value = Synth (Match ({ value = Var (Top, None); loc = None }, `Implicit, []));

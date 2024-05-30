@@ -6,6 +6,8 @@ open Syntax
 open Term
 module StringMap : module type of Map.Make (String)
 
+val default : unit -> string
+
 type 'n t
 
 val empty : emp t

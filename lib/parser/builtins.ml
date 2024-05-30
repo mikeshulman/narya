@@ -803,7 +803,7 @@ let () =
           {
             value =
               Lam
-                ( { value = None; loc = None },
+                ( { value = Some (Names.default ()); loc = None },
                   `Normal,
                   {
                     value =

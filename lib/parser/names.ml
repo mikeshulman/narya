@@ -8,6 +8,7 @@ open Reporter
 module StringMap = Map.Make (String)
 
 let __DEFAULT_NAME__ = "H"
+let default () = __DEFAULT_NAME__
 
 (* Track the used variable names, to generate fresh ones for bound variables if needed. *)
 

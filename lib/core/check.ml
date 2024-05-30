@@ -227,10 +227,15 @@ let rec check :
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
           let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
-          (* A helper function to update the potential status *)
-          let mkstatus xs (Potential (c, args, hyp)) =
-            let arg = Arg (CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ]) in
-            Potential (c, Snoc (args, App (arg, ins_zero m)), fun tm -> hyp (Lam (xs, tm))) in
+          (* A helper function to update the status *)
+          let mkstatus (type n) (xs : n variables) : (b, s) status -> ((b, n) snoc, s) status =
+            function
+            | Kinetic l -> Kinetic l
+            | Potential (c, args, hyp) ->
+                let arg =
+                  Arg (CubeOf.mmap { map = (fun _ [ x ] -> Ctx.Binding.value x) } [ newnfs ]) in
+                Potential (c, Snoc (args, App (arg, ins_zero m)), fun tm -> hyp (Lam (xs, tm)))
+          in
           (* Apply and instantiate the codomain to those arguments to get a type to check the body at. *)
           let output = tyof_app cods tyargs newargs in
           match cube with
@@ -254,22 +259,16 @@ let rec check :
                   }
                   (Ok (None, Zero, tm))
               with
-              | Wrap (names, Ok (_, af, body)) -> (
+              | Wrap (names, Ok (_, af, body)) ->
                   let xs = Variables (D.zero, D.zero_plus m, names) in
                   let ctx = Ctx.vis ctx D.zero (D.zero_plus m) names newnfs af in
-                  match status with
-                  | Potential _ -> Lam (xs, check (mkstatus xs status) ctx body output)
-                  | Kinetic l -> Lam (xs, check (Kinetic l) ctx body output))
+                  Lam (xs, check (mkstatus xs status) ctx body output)
               | Wrap (_, Missing (loc, j)) -> fatal ?loc (Not_enough_lambdas j))
-          | `Cube -> (
+          | `Cube ->
               (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
               let xs = singleton_variables m x in
               let ctx = Ctx.cube_vis ctx x newnfs in
-              match status with
-              | Potential _ ->
-                  let status = mkstatus xs status in
-                  Lam (xs, check status ctx body output)
-              | Kinetic l -> Lam (xs, check (Kinetic l) ctx body output))))
+              Lam (xs, check (mkstatus xs status) ctx body output)))
   | Lam _, _, _ -> fatal (Checking_lambda_at_nonfunction (PUninst (ctx, uty)))
   | ( Struct (Noeta, tms),
       (* We don't need to name the arguments here because tyof_field, called below from check_field, uses them. *)
@@ -1241,16 +1240,7 @@ and check_field :
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
  fun status eta ctx ty dim fld fields prev_etm tms etms ctms ->
-  (* Once again we need a helper function with a declared polymorphic type in order to munge the status.  *)
-  let mkstatus :
-      type b s.
-      (b, s) status ->
-      s eta ->
-      (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
-      [ `Labeled | `Unlabeled ] ->
-      (b, s) status =
-   fun status eta ctms lbl ->
-    match status with
+  let mkstatus lbl : (b, s) status -> (b, s) status = function
     | Kinetic l -> Kinetic l
     | Potential (c, args, hyp) ->
         let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
@@ -1259,16 +1249,14 @@ and check_field :
   let ety = tyof_field prev_etm ty fld in
   match Abwd.find_opt (Some fld) tms with
   | Some tm ->
-      let field_status = mkstatus status eta ctms `Labeled in
-      let ctm = check field_status ctx tm ety in
+      let ctm = check (mkstatus `Labeled status) ctx tm ety in
       let etms = Abwd.add fld (lazy (eval (Ctx.env ctx) ctm), `Labeled) etms in
       let ctms = Snoc (ctms, (fld, (ctm, `Labeled))) in
       check_fields status eta ctx ty dim fields tms etms ctms
   | None -> (
-      let field_status = mkstatus status eta ctms `Unlabeled in
       match Abwd.find_opt_and_update_key None (Some fld) tms with
       | Some (tm, tms) ->
-          let ctm = check field_status ctx tm ety in
+          let ctm = check (mkstatus `Unlabeled status) ctx tm ety in
           let etms = Abwd.add fld (lazy (eval (Ctx.env ctx) ctm), `Unlabeled) etms in
           let ctms = Snoc (ctms, (fld, (ctm, `Unlabeled))) in
           check_fields status eta ctx ty dim fields tms etms ctms

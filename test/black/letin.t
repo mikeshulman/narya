@@ -228,3 +228,106 @@ Let is allowed in case trees:
   atree
     : A → A
   
+
+Let can contain case trees:
+
+  $ cat >letcase.ny <<EOF
+  > def bool : Type := data [ true. | false. ]
+  > axiom u : bool
+  > EOF
+
+  $ narya -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool := match x [ true. |-> false. | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+   ￫ info[I0000]
+   ￮ Constant bool defined
+  
+   ￫ info[I0001]
+   ￮ Axiom u assumed
+  
+   ￫ info[I0000]
+   ￮ Constant not defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+  _let.0.n
+    : bool
+  
+
+  $ narya -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool -> bool := y |-> match y [ true. |-> false. | false. |-> true. ] in n x' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+   ￫ info[I0000]
+   ￮ Constant bool defined
+  
+   ￫ info[I0001]
+   ￮ Axiom u assumed
+  
+   ￫ info[I0000]
+   ￮ Constant not defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+  _let.0.n u
+    : bool
+  
+
+Synthesizing matches don't need to be annotated
+
+  $ narya -v letcase.ny -e 'def not : bool -> bool := x |-> let n := match x [ true. |-> (false. : bool) | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+   ￫ info[I0000]
+   ￮ Constant bool defined
+  
+   ￫ info[I0001]
+   ￮ Axiom u assumed
+  
+   ￫ hint[E1101]
+   ￭ command-line exec string
+   1 | def not : bool -> bool := x |-> let n := match x [ true. |-> (false. : bool) | false. |-> true. ] in n
+     ^ match will not refine the goal or context (match in synthesizing position): 
+  
+   ￫ info[I0000]
+   ￮ Constant not defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+  _let.0.n
+    : bool
+  
+
+Let doesn't make a case tree unless it needs to:
+
+  $ cat >letnocase.ny <<EOF
+  > def prod (A B : Type) : Type := sig (fst : A, snd : B)
+  > def foo : prod (Type -> Type) Type := ( fst := X |-> X, snd := Type )
+  > echo foo
+  > def foo' : prod (Type -> Type) Type := let z : prod (Type -> Type) Type := ( fst := X |-> X, snd := Type ) in z
+  > echo foo'
+
+  $ narya -v letnocase.ny
+   ￫ info[I0000]
+   ￮ Constant prod defined
+  
+   ￫ info[I0000]
+   ￮ Constant foo defined
+  
+  foo
+    : prod (Type → Type) Type
+  
+   ￫ info[I0000]
+   ￮ Constant foo' defined
+  
+  (
+    fst ≔ X ↦ X,
+    snd ≔ Type,
+  )
+    : prod (Type → Type) Type
+  

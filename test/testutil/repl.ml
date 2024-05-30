@@ -70,7 +70,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
       Reporter.trace "when checking case tree" @@ fun () ->
       let tree =
         Global.run_with const cty (Axiom `Parametric) @@ fun () ->
-        check (Potential (const, Emp, fun x -> x)) Ctx.empty rtm ety in
+        check (Potential (Constant const, Emp, fun x -> x)) Ctx.empty rtm ety in
       Global.add const cty (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
 

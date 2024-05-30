@@ -55,11 +55,12 @@ let check_term : defined_const -> unit = function
       let (Checked_tel (_, ctx)) = check_tel Ctx.empty params in
       let cty = check Kinetic ctx ty (universe D.zero) in
       let ety = eval_term (Ctx.env ctx) cty in
-      let tree = Ctx.lam ctx (check (Potential (const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in
+      let tree =
+        Ctx.lam ctx (check (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in
       Global.add const pi_cty (Defined tree)
   | Defined_synth { const; params; tm } ->
       let (Checked_tel (cparams, ctx)) = check_tel Ctx.empty params in
-      let ctm, ety = synth (Potential (const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
+      let ctm, ety = synth (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
       let cty = readback_val ctx ety in
       Global.add const (Telescope.pis cparams cty) (Defined (Ctx.lam ctx ctm))
 

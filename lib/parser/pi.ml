@@ -24,6 +24,6 @@ let install () =
       Parse.Term.final
         (Parse.Term.parse (`String { content = "A B |-> (x : A) -> B x"; title = None })) in
     let rtm = process Emp ptm in
-    let ctm = check (Potential (const, Ctx.apps ctx, Ctx.lam ctx)) ctx rtm ety in
+    let ctm = check (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx rtm ety in
     Global.add const cty (Defined ctm);
     Scope.set [ "Π" ] const)

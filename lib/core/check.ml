@@ -152,11 +152,25 @@ let spine :
    3. A "hypothesizing" callback that allows us to say "if I were to return such-and-such a term from my current typechecking problem, what would the resulting definition of the top-level constant be?"  This is used when typechecking comatches and codata (and, potentially one day, matches and data as well, such as for HITs) whose later branches depend on the *values* of previous ones.  So as we typecheck the branches of such a thing, we collect a partial definition including all the branches that have been typechecked so far, and temporarily bind the constant to that value while typechecking later branches.  And in order that this is correct, whenever we pass *inside* a case tree construct (lambda, match, or comatch) we wrap the outer callback in an inner one that inserts the correct construct to the hypothesized term.  (It's tempting to think of implementing this with algebraic effects rather than an explicit callback, but I found the purely functional version easier to get correct, even if it does involve passing around more arguments.)
 
    We parametrize this "status" datatype over the energy of the term (kinetic or potential), since only potential terms have any status to remember.  This implies that status also serves the purpose of recording which kind of term we are checking, so we don't need to pass that around separately. *)
+type _ potential_head =
+  | Constant : Constant.t -> emp potential_head
+  | Meta : ('a, potential) Meta.t * (D.zero, 'a) env -> 'a potential_head
+
+let head_of_potential : type a s. a potential_head -> Value.head = function
+  | Constant name -> Const { name; ins = ins_zero D.zero }
+  | Meta (meta, env) -> Meta { meta; env; ins = ins_zero D.zero }
+
 type (_, _) status =
   | Kinetic : ('b, kinetic) status
   | Potential :
-      Constant.t * app Bwd.t * (('b, potential) term -> (emp, potential) term)
+      'a potential_head * app Bwd.t * (('b, potential) term -> ('a, potential) term)
       -> ('b, potential) status
+
+let run_with_definition : type a s c. a potential_head -> (a, potential) term -> (unit -> c) -> c =
+ fun head tm f ->
+  match head with
+  | Constant c -> Global.run_with_definition c (Defined tm) f
+  | Meta (m, _) -> Global.run_with_meta_definition m (`Nonrec tm) f
 
 let energy : type b s. (b, s) status -> s energy = function
   | Kinetic -> Kinetic
@@ -176,24 +190,14 @@ type (_, _) checked_tel =
 let rec check :
     type a b s. (b, s) status -> (a, b) Ctx.t -> a check located -> kinetic value -> (b, s) term =
  fun status ctx tm ty ->
-  with_loc tm.loc @@ fun () ->
+  with_loc tm.loc @@ fun () : (b, s) term ->
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
   let (Fullinst (uty, tyargs)) = full_inst ~severity:Asai.Diagnostic.Error ty "typechecking" in
   match (tm.value, uty, status) with
   (* A Let is a "synthesizing" term so that it *can* synthesize, but in checking position it checks instead. *)
   | Synth (Let (x, v, body)), _, _ ->
-      let stm, sty = synth Kinetic ctx v in
-      let etm = eval_term (Ctx.env ctx) stm in
-      let mkstatus :
-          type b n s.
-          (b, s) status -> string option -> (b, kinetic) term -> ((b, D.zero) snoc, s) status =
-       fun status x stm ->
-        match status with
-        | Kinetic -> Kinetic
-        | Potential (c, args, hyp) -> Potential (c, args, fun body -> hyp (Term.Let (x, stm, body)))
-      in
-      let cbody = check (mkstatus status x stm) (Ctx.ext_let ctx x { tm = etm; ty = sty }) body ty in
-      Term.Let (x, stm, cbody)
+      let clet, Not_some = synth_or_check_let status ctx x v body (Some ty) in
+      clet
   (* An action can always synthesize, but can also check if its degeneracy is a pure permutation, since then the type of the argument can be inferred by applying the inverse permutation to the ambient type. *)
   | Synth (Act (str, fa, x) as stm), _, _ -> (
       match D.compare (dom_deg fa) (cod_deg fa) with
@@ -408,6 +412,66 @@ and check_of_synth :
   let sval, sty = synth status ctx { value = stm; loc } in
   equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
   sval
+
+and synth_or_check_let :
+    type a b s p.
+    (b, s) status ->
+    (a, b) Ctx.t ->
+    string option ->
+    a synth located ->
+    a N.suc check located ->
+    (kinetic value, p) Perhaps.t ->
+    (b, s) term * (kinetic value, p) Perhaps.not =
+ fun status ctx name v body ty ->
+  (* We try checking the bound term first as an ordinary kinetic term. *)
+  let v, nf =
+    Reporter.try_with ~fatal:(fun d ->
+        match d.message with
+        (* If that fails, the bound term is also allowed to be a case tree, i.e. a potential term.  But in a checked "let" expression, the term being bound is a kinetic one, and must be so that its value can be put into the environment when the term is evaluated.  We deal with this by binding a *metavariable* to the bound term and then taking the value of that metavariable as the kinetic term to actually be bound.  *)
+        | Invalid_outside_case_tree _ ->
+            (* First we make the metavariable. *)
+            let meta = Meta.make `Let ?name (Ctx.dbwd ctx) Potential in
+            (* A new status in which to check the metavariable; now it is the "current constant" being defined. *)
+            let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
+            let sv, svty = synth tmstatus ctx v in
+            (* Now we define the galactic value of that metavariable to be the term and type just synthesized. *)
+            let vty = readback_val ctx svty in
+            let termctx = readback_ctx ctx in
+            Global.add_meta meta
+              (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
+            (* We extend the context by a new variable, bound to the value of that metavariable. *)
+            let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
+            let make_neutral alignment =
+              Uninst (Neu { head; args = Emp; alignment }, Lazy.from_val svty) in
+            let tm =
+              match eval (Ctx.env ctx) sv with
+              | Val x -> make_neutral (Chaotic x)
+              | Realize x -> x
+              | Unrealized -> make_neutral True
+              | Canonical x -> make_neutral (Lawful x) in
+            (Term.Meta (meta, Kinetic), { tm; ty = svty })
+        | _ -> fatal_diagnostic d)
+    @@ fun () ->
+    (* Here's our attempt to check the bound term as an ordinary kinetic term. *)
+    let sv, svty = synth Kinetic ctx v in
+    let ev = eval_term (Ctx.env ctx) sv in
+    (sv, { tm = ev; ty = svty }) in
+  (* Either way, we end up with a checked term 'v' and a normal form 'nf'.  We use the latter to extend the context. *)
+  let newctx = Ctx.ext_let ctx name nf in
+  (* Now we update the status of the original constant being checked *)
+  let status : ((b, D.zero) snoc, s) status =
+    match status with
+    | Potential (c, args, hyp) -> Potential (c, args, fun body -> hyp (Let (name, v, body)))
+    | Kinetic -> Kinetic in
+  (* And synthesize or check the body in the extended context. *)
+  match (ty, body) with
+  | Some ty, _ ->
+      let sbody = check status newctx body ty in
+      (Term.Let (name, v, sbody), Not_some)
+  | None, { value = Synth body; loc } ->
+      let sbody, sbodyty = synth status newctx { value = body; loc } in
+      (Term.Let (name, v, sbody), Not_none sbodyty)
+  | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
 
 (* Check a match statement without an explicit motive supplied by the user.  This means if the discriminee is a well-behaved variable, it can be a variable match; otherwise it reverts back to a non-dependent match. *)
 and check_implicit_match :
@@ -946,8 +1010,7 @@ and check_data :
       Potential (head, current_apps, hyp) ) -> (
       with_loc loc @@ fun () ->
       (* Temporarily bind the current constant to the up-until-now value. *)
-      Global.run_with_definition head
-        (Defined (hyp (Term.Canonical (Data (num_indices, checked_constrs)))))
+      run_with_definition head (hyp (Term.Canonical (Data (num_indices, checked_constrs))))
       @@ fun () ->
       match (Constr.Map.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
@@ -956,20 +1019,21 @@ and check_data :
           let coutput = check Kinetic newctx output (universe D.zero) in
           match eval_term (Ctx.env newctx) coutput with
           | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; alignment = _ }, _)
-            ->
-              if head = out_head && Option.is_some (is_id_ins ins) then
-                let (Wrap indices) =
-                  get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps) output.loc
-                in
-                match Fwn.compare (Vec.length indices) num_indices with
-                | Eq ->
-                    check_data status ctx ty num_indices
-                      (checked_constrs |> Constr.Map.add c (Term.Dataconstr { args; indices }))
-                      raw_constrs
-                | _ ->
-                    (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
-                    fatal (Anomaly "length of indices mismatch")
-              else fatal ?loc:output.loc (Invalid_constructor_type c)
+            -> (
+              match head with
+              | Constant cc when cc = out_head && Option.is_some (is_id_ins ins) -> (
+                  let (Wrap indices) =
+                    get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps)
+                      output.loc in
+                  match Fwn.compare (Vec.length indices) num_indices with
+                  | Eq ->
+                      check_data status ctx ty num_indices
+                        (checked_constrs |> Constr.Map.add c (Term.Dataconstr { args; indices }))
+                        raw_constrs
+                  | _ ->
+                      (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
+                      fatal (Anomaly "length of indices mismatch"))
+              | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
           | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
       | None, None -> (
           match num_indices with
@@ -1020,9 +1084,9 @@ and with_codata_so_far :
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
     ((n, Ctx.Binding.t) CubeOf.t -> c) ->
     c =
- fun (Potential (name, args, hyp)) eta ctx dim tyargs checked_fields cont ->
+ fun (Potential (h, args, hyp)) eta ctx dim tyargs checked_fields cont ->
   (* We can always create a constant with the (0,0,0) insertion, even if its dimension is actually higher. *)
-  let head = Value.Const { name; ins = zero_ins D.zero } in
+  let head = head_of_potential h in
   let alignment =
     Lawful (Codata { eta; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields }) in
   let prev_ety =
@@ -1032,9 +1096,8 @@ and with_codata_so_far :
       (TubeOf.plus_cube
          (TubeOf.mmap { map = (fun _ [ nf ] -> nf.tm) } [ tyargs ])
          (CubeOf.singleton prev_ety)) in
-  Global.run_with_definition name
-    (Defined (hyp (Term.Canonical (Codata (eta, dim, checked_fields)))))
-  @@ fun () -> cont domvars
+  run_with_definition h (hyp (Term.Canonical (Codata (eta, dim, checked_fields)))) @@ fun () ->
+  cont domvars
 
 and check_codata :
     type a b n.
@@ -1131,9 +1194,9 @@ and check_fields :
   | [], _ -> (tms, ctms)
   | fld :: fields, Potential (name, args, hyp) ->
       (* Temporarily bind the current constant to the up-until-now value. *)
-      Global.run_with_definition name (Defined (hyp (Term.Struct (eta, dim, ctms)))) @@ fun () ->
+      run_with_definition name (hyp (Term.Struct (eta, dim, ctms))) @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
-      let head = Value.Const { name; ins = ins_zero D.zero } in
+      let head = head_of_potential name in
       let prev_etm = Uninst (Neu { head; args; alignment = Chaotic str }, Lazy.from_val ty) in
       check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
   | fld :: fields, Kinetic -> check_field status eta ctx ty dim fld fields str tms etms ctms
@@ -1236,21 +1299,10 @@ and synth :
       let ety = eval_term (Ctx.env ctx) cty in
       let ctm = check status ctx tm ety in
       (ctm, ety)
-  | Let (x, v, { value = Synth body; loc }) -> (
-      let sv, sty = synth Kinetic ctx v in
-      let ev = eval_term (Ctx.env ctx) sv in
-      match status with
-      | Potential (c, args, hyp) ->
-          let status = Potential (c, args, fun body -> hyp (Term.Let (x, sv, body))) in
-          let sbody, bodyty =
-            synth status (Ctx.ext_let ctx x { tm = ev; ty = sty }) { value = body; loc } in
-          (* In this case, the synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
-          (Let (x, sv, sbody), bodyty)
-      | Kinetic ->
-          let sbody, bodyty =
-            synth Kinetic (Ctx.ext_let ctx x { tm = ev; ty = sty }) { value = body; loc } in
-          (Let (x, sv, sbody), bodyty))
-  | Let _ -> fatal (Nonsynthesizing "body of synthesizing let")
+  | Let (x, v, body) ->
+      let ctm, Not_none ety = synth_or_check_let status ctx x v body None in
+      (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
+      (ctm, ety)
   | Match (tm, `Explicit motive, brs) -> (
       match status with
       | Potential _ -> synth_dep_match status ctx tm brs motive

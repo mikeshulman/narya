@@ -7,23 +7,32 @@ open Energy
 
 (* Metavariables, such as holes and unification variables. *)
 
-(* At present the only sort of metavariable is a hole. *)
-type sort = [ `Hole ]
+type sort = [ `Hole | `Let ]
 
 (* A metavariable has an autonumber identity, like a constant.  It also stores its sort, and is parametrized by its checked context length and its energy (kinetic or potential). *)
-type ('b, 's) t = { number : int; sort : sort; len : 'b Dbwd.t; energy : 's energy }
+type ('b, 's) t = {
+  number : int;
+  name : string option;
+  sort : sort;
+  len : 'b Dbwd.t;
+  energy : 's energy;
+}
 
 let counter = ref (-1)
 
-let make : type b s. sort -> b Dbwd.t -> s energy -> (b, s) t =
- fun sort len energy ->
+let make : type b s. sort -> ?name:string -> b Dbwd.t -> s energy -> (b, s) t =
+ fun sort ?name len energy ->
   counter := !counter + 1;
-  { number = !counter; sort; len; energy }
+  { number = !counter; sort; len; energy; name }
 
 let name : type b s. (b, s) t -> string =
  fun x ->
   match x.sort with
   | `Hole -> Printf.sprintf "?%d" x.number
+  | `Let -> (
+      match x.name with
+      | None -> Printf.sprintf "_let.%d" x.number
+      | Some name -> Printf.sprintf "_let.%d.%s" x.number name)
 
 let compare : type b1 s1 b2 s2. (b1, s1) t -> (b2, s2) t -> (b1 * s1, b2 * s2) Eq.compare =
  fun x y ->

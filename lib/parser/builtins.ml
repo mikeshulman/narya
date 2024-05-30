@@ -30,6 +30,87 @@ let parens = make "parens" Outfix
 
 let letin = make "let" (Prefixr No.minus_omega)
 
+let process_let :
+    type n lt ls rt rs.
+    [ `Let ] ->
+    (string option, n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    n check located =
+ fun kind ctx obs loc ->
+  match obs with
+  | [ Term x; Term ty; Term tm; Term body ] -> (
+      let x = get_var x in
+      let ty, tm = (process ctx ty, process ctx tm) in
+      let body = process (Bwv.snoc ctx x) body in
+      let v : n synth located = { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc } in
+      match kind with
+      | `Let -> { value = Synth (Let (x, v, body)); loc })
+  | [ Term x; Term tm; Term body ] -> (
+      let x = get_var x in
+      match process ctx tm with
+      | { value = Synth term; loc = term_loc } -> (
+          let body = process (Bwv.snoc ctx x) body in
+          match kind with
+          | `Let -> { value = Synth (Let (x, { value = term; loc = term_loc }, body)); loc })
+      | _ -> fatal (Nonsynthesizing "value of let"))
+  | _ -> fatal (Anomaly "invalid notation arguments for let")
+
+let pp_let tok space ppf obs ws =
+  let rec pp_let space ppf obs ws =
+    let style = style () in
+    match obs with
+    | [ x; ty; tm; body ] ->
+        let wslet, ws = take tok ws in
+        let wscolon, ws = take Colon ws in
+        let wscoloneq, ws = take Coloneq ws in
+        let wsin, ws = take In ws in
+        taken_last ws;
+        if style = `Compact then pp_open_hovbox ppf 2;
+        if true then (
+          pp_open_hvbox ppf 2;
+          if true then (
+            pp_tok ppf tok;
+            pp_ws `Nobreak ppf wslet;
+            pp_term `Break ppf x;
+            pp_tok ppf Colon;
+            pp_ws `Nobreak ppf wscolon;
+            pp_term `Break ppf ty;
+            pp_tok ppf Coloneq;
+            pp_ws `Nobreak ppf wscoloneq;
+            pp_term (if style = `Compact then `Nobreak else `Break) ppf tm);
+          if style = `Compact then pp_close_box ppf ();
+          pp_tok ppf In);
+        pp_close_box ppf ();
+        pp_ws `Break ppf wsin;
+        pp_let_body space ppf body
+    | [ x; tm; body ] ->
+        let wslet, ws = take tok ws in
+        let wscoloneq, ws = take Coloneq ws in
+        let wsin, ws = take In ws in
+        taken_last ws;
+        if style = `Compact then pp_open_hovbox ppf 2 else pp_open_hvbox ppf 2;
+        if true then (
+          pp_tok ppf tok;
+          pp_ws `Nobreak ppf wslet;
+          pp_term `Break ppf x;
+          pp_tok ppf Coloneq;
+          pp_ws `Nobreak ppf wscoloneq;
+          pp_term (if style = `Compact then `Nobreak else `Break) ppf tm;
+          pp_tok ppf In);
+        pp_close_box ppf ();
+        pp_ws `Break ppf wsin;
+        pp_let_body space ppf body
+    | _ -> fatal (Anomaly "invalid notation arguments for let")
+  and pp_let_body space ppf tr =
+    match tr with
+    | Term { value = Notn n; _ } when equal (notn n) letin ->
+        pp_let space ppf (args n) (whitespace n)
+    | _ -> pp_term space ppf tr in
+  pp_open_hvbox ppf 0;
+  pp_let space ppf obs ws;
+  pp_close_box ppf ()
+
 let () =
   set_tree letin
     (Closed_entry
@@ -39,97 +120,8 @@ let () =
                (Coloneq, term In (Done_closed letin));
                (Colon, term Coloneq (term In (Done_closed letin)));
              ])));
-  set_processor letin
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [ Term x; Term ty; Term tm; Term body ] -> (
-              let x = get_var x in
-              let ty, tm = (process ctx ty, process ctx tm) in
-              match process (Bwv.snoc ctx x) body with
-              | { value = body; loc = body_loc } ->
-                  {
-                    value =
-                      Synth
-                        (Let
-                           ( x,
-                             { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc },
-                             { value = body; loc = body_loc } ));
-                    loc;
-                  })
-          | [ Term x; Term tm; Term body ] -> (
-              let x = get_var x in
-              match process ctx tm with
-              | { value = Synth term; loc = term_loc } -> (
-                  match process (Bwv.snoc ctx x) body with
-                  | { value = body; loc = body_loc } ->
-                      {
-                        value =
-                          Synth
-                            (Let
-                               ( x,
-                                 { value = term; loc = term_loc },
-                                 { value = body; loc = body_loc } ));
-                        loc;
-                      })
-              | _ -> fatal (Nonsynthesizing "value of let"))
-          | _ -> fatal (Anomaly "invalid notation arguments for let"));
-    };
-  set_print letin (fun space ppf obs ws ->
-      let rec pp_let space ppf obs ws =
-        let style = style () in
-        match obs with
-        | [ x; ty; tm; body ] ->
-            let wslet, ws = take Let ws in
-            let wscolon, ws = take Colon ws in
-            let wscoloneq, ws = take Coloneq ws in
-            let wsin, ws = take In ws in
-            taken_last ws;
-            if style = `Compact then pp_open_hovbox ppf 2;
-            if true then (
-              pp_open_hvbox ppf 2;
-              if true then (
-                pp_tok ppf Let;
-                pp_ws `Nobreak ppf wslet;
-                pp_term `Break ppf x;
-                pp_tok ppf Colon;
-                pp_ws `Nobreak ppf wscolon;
-                pp_term `Break ppf ty;
-                pp_tok ppf Coloneq;
-                pp_ws `Nobreak ppf wscoloneq;
-                pp_term (if style = `Compact then `Nobreak else `Break) ppf tm);
-              if style = `Compact then pp_close_box ppf ();
-              pp_tok ppf In);
-            pp_close_box ppf ();
-            pp_ws `Break ppf wsin;
-            pp_let_body space ppf body
-        | [ x; tm; body ] ->
-            let wslet, ws = take Let ws in
-            let wscoloneq, ws = take Coloneq ws in
-            let wsin, ws = take In ws in
-            taken_last ws;
-            if style = `Compact then pp_open_hovbox ppf 2 else pp_open_hvbox ppf 2;
-            if true then (
-              pp_tok ppf Let;
-              pp_ws `Nobreak ppf wslet;
-              pp_term `Break ppf x;
-              pp_tok ppf Coloneq;
-              pp_ws `Nobreak ppf wscoloneq;
-              pp_term (if style = `Compact then `Nobreak else `Break) ppf tm;
-              pp_tok ppf In);
-            pp_close_box ppf ();
-            pp_ws `Break ppf wsin;
-            pp_let_body space ppf body
-        | _ -> fatal (Anomaly "invalid notation arguments for let")
-      and pp_let_body space ppf tr =
-        match tr with
-        | Term { value = Notn n; _ } when equal (notn n) letin ->
-            pp_let space ppf (args n) (whitespace n)
-        | _ -> pp_term space ppf tr in
-      pp_open_hvbox ppf 0;
-      pp_let space ppf obs ws;
-      pp_close_box ppf ())
+  set_processor letin { process = (fun ctx obs loc _ -> process_let `Let ctx obs loc) };
+  set_print letin (pp_let Let)
 
 (* ********************
    Ascription

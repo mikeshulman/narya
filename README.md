@@ -309,7 +309,7 @@ def wrapped_nat : Type ≔ sig ( unwrap : ℕ )
 ```
 or even zero fields:
 ```
-def ⊤ := Type ≔ sig ()
+def ⊤ : Type ≔ sig ()
 ```
 
 
@@ -380,6 +380,44 @@ then `pair a b` doesn't reduce to `(a,b)`.  But `pair a b .fst` does reduce to `
 def unpairfn (f : A → B × C) : (A → B) × (A → C) ≔ (x ↦ (f x).fst, x ↦ (f x).snd)
 ```
 then `unpairfn f .fst` does not reduce until applied to a further argument.  As with abstractions, you can force such reduction by wrapping the term in an identity function or a let-binding.
+
+
+### Eta-expansion and opacity
+
+Often the behavior described above is convenient, e.g. when printing a term belonging to a large record type with many fields, such as `ℤ : Ring` or `Grp : Cat`, you don't want to see the explicit definitions of all the fields.  However, there are times when you do want to see the definitions of the fields, and for this purpose you can change the "opacity" of a record type.
+
+Opacity is an *attribute* of a record type.  Attributes are an experimental feature, particularly their syntax, and may change radically in the future.  At present, only record types can have attributes, and the only attributes are those relating to opacity.  The current syntax for defining a record type with an attribute is `sig #(ATTR) ( … )`.  Currently attributes can only be set when a record type is defined; in the future it may be possible to alter them after the fact.  Opacity attributes do *not* affect convertibility of terms; η-conversion is always valid internally.  Opacity attributes only affect how terms are *displayed* to the user.  (If you want a record-like type without η-conversion, use a non-recursive codatatype; see below.)
+
+To explain the opacity attributes, suppose that with the definitions above, we also have
+```
+axiom x : A × ⊤
+def y : A × ⊤ ≔ (a, ⋆)
+def z : A × ⊤ ≔ (a, ())
+```
+We now list the opacity attributes, along with how altering the opacity of `prod` (but not `⊤`) would change the printing behavior of the above terms.
+
+- `opaque`: This is the default setting, as described above: no η-expansion happens, so only terms that are syntactically tuples outside of a case tree are printed as tuples.  If `prod` is opaque, then:
+  - `x` is printed as `x`
+  - `y` is printed as `y`
+  - `z` is printed as `z`
+- `transparent`, a.k.a. `transparent labeled`: When a record type is transparent, *all* terms belonging to that record type are η-expanded before being printed.  By default, η-expanded tuples are printed with labels; the alternate attribute name `transparent labeled` emphasizes this.  If `prod` is transparent labeled, then:
+  - `x` is printed as `(fst ≔ x .fst, snd ≔ x .snd)`
+  - `y` is printed as `(fst ≔ a, snd ≔ ⋆)`
+  - `z` is printed as `(fst ≔ a, snd ≔ z .snd)`.  Note that `z .snd` is not η-expanded to `()` because it belongs to the record type `⊤` which we are assuming is still opaque.
+- `transparent positional`: Like `transparent labeled`, but η-expanded tuples are printed positionally rather than with labeled terms.  If `prod` is transparent positional, then:
+  - `x` is printed as `(x .fst, x .snd)`
+  - `y` is printed as `(a, ⋆)`
+  - `z` is printed as `(a, z .snd)`
+- `translucent`, a.k.a. `translucent labeled`: When a record type is translucent, terms belonging to that record type are η-expanded before being printed if and only if they are a tuple in a case tree.  Note that this does not guarantee that all or any of their fields will evaluate completely; any field whose case tree branch is stuck will be printed as a projection, as in the transparent case.  If `prod` is translucent labeled, then:
+  - `x` is printed as `x`
+  - `y` is printed as `(fst ≔ a, snd ≔ ⋆)`
+  - `z` is printed as `(fst ≔ a, snd ≔ z .snd)`.
+- `translucent positional`: Like `translucent labeled`, but η-expanded tuples are printed positionally rather than with labeled terms.  If `prod` is translucent positional, then:
+  - `x` is printed as `x`
+  - `y` is printed as `(a, ⋆)`
+  - `z` is printed as `(a, z .snd)`
+
+For a record type with zero fields, η-expansion prints all of its elements as `()`, with no difference between labeled and positional.  And for a record type with one field, positional η-expansion prints its elements as `(_ ≔ a)`.  There is currently no way to cause the projections in an η-expansion to be printed with positional notation such as `(x .0, x .1)`.
 
 
 ## Inductive datatypes and matching

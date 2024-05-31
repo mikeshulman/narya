@@ -219,6 +219,7 @@ let () =
       Terminal.display ~output:stderr d;
       exit 1)
   @@ fun () ->
+  Readback.Display.run ~env:false @@ fun () ->
   Parser.Pi.install ();
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
   Dim.Endpoints.set_len !arity;

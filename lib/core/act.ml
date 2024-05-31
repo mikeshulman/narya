@@ -8,14 +8,10 @@ open Value
 (* Operator actions on values.  Unlike substitution, operator actions take a *value* as input (and produces another value). *)
 
 (* Since values don't have a statically specified dimension, we have to act on them by an *arbitrary* degeneracy, which means that in many places we have to check dynamically that the dimensions either match or can be extended to match.  This function encapsulates that. *)
-let deg_plus_to : type m n nk. ?on:string -> ?err:Code.t -> (m, n) deg -> nk D.t -> nk deg_of =
- fun ?on ?err s nk ->
+let deg_plus_to : type m n nk. on:string -> ?err:Code.t -> (m, n) deg -> nk D.t -> nk deg_of =
+ fun ~on ?err s nk ->
   match factor nk (cod_deg s) with
-  | None -> (
-      match (err, on) with
-      | Some e, _ -> fatal e
-      | None, Some x -> fatal (Anomaly ("invalid degeneracy action on " ^ x))
-      | None, None -> fatal (Anomaly "invalid degeneracy action"))
+  | None -> fatal (Option.value err ~default:(Invalid_degeneracy_action (on, nk, cod_deg s)))
   | Some (Factor nk) ->
       let (Plus mk) = D.plus (D.plus_right nk) in
       let sk = deg_plus s nk mk in
@@ -116,14 +112,14 @@ and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
  fun tm s ->
   match tm with
   | Data { dim; indices; constrs } ->
-      let (Of fa) = deg_plus_to s dim in
+      let (Of fa) = deg_plus_to ~on:"data" s dim in
       let indices = Fillvec.map (fun ixs -> act_normal_cube ixs fa) indices in
       let constrs = Constr.Map.map (fun c -> act_dataconstr c fa) constrs in
       Data { dim = dom_deg fa; indices; constrs }
-  | Codata { eta; env; ins; fields } ->
-      let (Of fa) = deg_plus_to s (dom_ins ins) in
+  | Codata { eta; opacity; env; ins; fields } ->
+      let (Of fa) = deg_plus_to ~on:"codata" s (dom_ins ins) in
       let (Act_closure (env, ins)) = act_closure env ins fa in
-      Codata { eta; env; ins; fields }
+      Codata { eta; opacity; env; ins; fields }
 
 and act_dataconstr : type m n i. (n, i) dataconstr -> (m, n) deg -> (m, i) dataconstr =
  fun (Dataconstr { env; args; indices }) s ->

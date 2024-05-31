@@ -134,8 +134,8 @@ and canonical : type b. formatter -> b canonical -> unit =
       fprintf ppf "Data (%d, (%s))" (Fwn.to_int i)
         (String.concat ","
            (List.map (fun (c, _) -> Constr.to_string c) (Constr.Map.bindings constrs)))
-  | Codata (eta, _dim, fields) ->
-      fprintf ppf "Codata (%s, ?, (%s))"
+  | Codata { eta; fields; _ } ->
+      fprintf ppf "Codata (%s, (%s))"
         (match eta with
         | Eta -> "Eta"
         | Noeta -> "Noeta")

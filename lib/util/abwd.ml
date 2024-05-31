@@ -20,6 +20,24 @@ let add (x : 'k) (a : 'a) (map : ('k, 'a) t) = Snoc (map, (x, a))
 let fold (f : 'k -> 'a -> 'acc -> 'acc) (map : ('k, 'a) t) (start : 'acc) =
   Bwd.fold_left (fun acc (x, a) -> f x a acc) start map
 
+exception No_such_key
+
+let update (x : 'k) (f : 'a option -> 'a option) (map : ('k, 'a) t) : ('k, 'a) t =
+  let rec go map =
+    match map with
+    | Emp -> raise No_such_key
+    | Snoc (map, (y, v)) -> (
+        if x <> y then Snoc (go map, (y, v))
+        else
+          match f (Some v) with
+          | Some w -> Snoc (map, (x, w))
+          | None -> map) in
+  try go map
+  with No_such_key -> (
+    match f None with
+    | Some v -> Snoc (map, (x, v))
+    | None -> map)
+
 let rec find_opt_and_update_key (oldkey : 'k) (newkey : 'k) (map : ('k, 'a) t) =
   match map with
   | Emp -> None

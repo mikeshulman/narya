@@ -10,6 +10,7 @@ open Notation
 open Builtins
 open Reporter
 open Printable
+open Range
 module StringMap = Map.Make (String)
 
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
@@ -33,8 +34,6 @@ let get_notation head args =
   match (head, rest) with
   | `Constr _, _ :: _ -> None
   | _ -> return (notn, first, Bwd.of_list rest)
-
-let unlocated (value : 'a) : 'a located = { value; loc = None }
 
 (* Put parentheses around a term. *)
 let parenthesize tm = unlocated (outfix ~notn:parens ~ws:[] ~inner:(Snoc (Emp, Term tm)))

@@ -18,3 +18,11 @@ let of_list_map f ys =
     | [] -> xs
     | y :: ys -> go (Snoc (xs, f y)) ys in
   go Emp ys
+
+(* Convert to a list while mapping at the same time *)
+let to_list_map f xs =
+  let rec go xs ys =
+    match xs with
+    | Emp -> ys
+    | Snoc (xs, x) -> go xs (f x :: ys) in
+  go xs []

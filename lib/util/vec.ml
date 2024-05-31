@@ -49,6 +49,20 @@ let rec take_bwd : type a n. n Fwn.t -> a Bwd.t -> a Bwd.t * (a, n) t =
       | Snoc (xs, x), ys -> (xs, x :: ys)
       | Emp, _ -> raise Not_found)
 
+let rec append : type a m n mn. (m, n, mn) Fwn.plus -> (a, m) t -> (a, n) t -> (a, mn) t =
+ fun mn xs ys ->
+  match (mn, xs) with
+  | Zero, [] -> ys
+  | Suc mn, x :: xs -> x :: append mn xs ys
+
+let rec init : type a s n. (s -> a * s) -> n Fwn.t -> s -> (a, n) t =
+ fun f n s ->
+  match n with
+  | Zero -> []
+  | Suc n ->
+      let x, s = f s in
+      x :: init f n s
+
 (* Generic traversal *)
 
 module Heter = struct

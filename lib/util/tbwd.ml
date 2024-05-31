@@ -226,7 +226,7 @@ module Tbwd = struct
         let (Flat_cons (n, ns)) = ns in
         let (Plus m) = N.plus (Fwn.fplus_left n) in
         let (Bplus_flatten_append (ps, mn)) = bplus_flatten_append (Flat_snoc (ms, m)) ns mnp in
-        Bplus_flatten_append (ps, Fwn.assocr m n mn)
+        Bplus_flatten_append (ps, Fwn.bfplus_assocr m n mn)
 
   (* If we remove an entry from a flattenable list, the result is again flattenable, and the missing entry can be added to its flattening to obtain the original one.  (Note that the latter fact uses commutativity of addition for nat). *)
   type (_, _, _) flatten_uninsert =

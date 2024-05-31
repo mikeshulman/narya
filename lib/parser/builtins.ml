@@ -10,9 +10,8 @@ open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
 open Printconfig
+open Range
 module StringSet = Set.Make (String)
-
-type 'a located = 'a Asai.Range.located
 
 (* ********************
    Parentheses
@@ -31,7 +30,7 @@ let parens = make "parens" Outfix
 let letin = make "let" (Prefixr No.minus_omega)
 
 let process_let :
-    type n lt ls rt rs.
+    type n.
     [ `Let ] ->
     (string option, n) Bwv.t ->
     observation list ->

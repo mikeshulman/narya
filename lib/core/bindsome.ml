@@ -46,7 +46,7 @@ module Ordered = struct
     match newctx with
     | Snoc (newctx, x, ij) ->
         let (Fplus jk) = Fwn.fplus (N.plus_right ij) in
-        let i_jk = Fwn.assocr ij jk ij_k in
+        let i_jk = Fwn.bfplus_assocr ij jk ij_k in
         Split_tel (i_jk, newctx, Cons (x, newtel, jk))
     | Lock newctx -> split_tel_step ij_k newctx (Lock newtel)
 

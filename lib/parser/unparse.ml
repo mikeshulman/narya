@@ -694,6 +694,7 @@ let () =
           Reporter.emit (Error_printing_error d.message);
           Printed ((fun ppf () -> Format.pp_print_string ppf "PRINTING_ERROR"), ()))
       @@ fun () ->
+      Readback.Display.run ~env:true @@ fun () ->
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
       | PString str -> Printed (Uuseg_string.pp_utf_8, str)

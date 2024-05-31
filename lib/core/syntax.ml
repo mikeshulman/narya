@@ -44,9 +44,9 @@ module Raw = struct
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
     (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)
     | Codata : (Field.t, string option * 'a N.suc check located) Abwd.t -> 'a check
-    (* A record type binds its "self" variable namelessly, exposing it to the user by additional variables that are bound locally to its fields.  This can't be "cubeified" as easily, so we allow the user to specify either a single cube variable name (thereby also accidentally giving access to the internal previously unnamed variable) or a list of ordinary variables to be its boundary only.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one. *)
+    (* A record type binds its "self" variable namelessly, exposing it to the user by additional variables that are bound locally to its fields.  This can't be "cubeified" as easily, so we have the user specify a list of ordinary variables to be its boundary.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one. *)
     | Record :
-        ('a, 'c, 'ac) Fwn.bplus located * (string option, 'c) Vec.t * ('ac, 'd, 'acd) tel
+        ('a, 'c, 'ac) Fwn.bplus located * (string option, 'c) Vec.t * ('ac, 'd, 'acd) tel * opacity
         -> 'a check
     (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data. *)
     | Hole : (string option, 'a) Bwv.t -> 'a check
@@ -147,8 +147,12 @@ module rec Term : sig
 
   and _ canonical =
     | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
-    | Codata :
-        potential eta * 'n D.t * (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t
+    | Codata : {
+        eta : potential eta;
+        opacity : opacity;
+        dim : 'n D.t;
+        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
+      }
         -> 'a canonical
 
   and (_, _) dataconstr =
@@ -227,8 +231,12 @@ end = struct
     (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
     | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
-    | Codata :
-        potential eta * 'n D.t * (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t
+    | Codata : {
+        eta : potential eta;
+        opacity : opacity;
+        dim : 'n D.t;
+        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
+      }
         -> 'a canonical
 
   (* A datatype constructor has a telescope of arguments and a list of index values depending on those arguments. *)
@@ -368,6 +376,7 @@ module rec Value : sig
         -> canonical
     | Codata : {
         eta : potential eta;
+        opacity : opacity;
         env : ('m, 'a) env;
         ins : ('mn, 'm, 'n) insertion;
         fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
@@ -485,6 +494,7 @@ end = struct
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
     | Codata : {
         eta : potential eta;
+        opacity : opacity;
         env : ('m, 'a) env;
         ins : ('mn, 'm, 'n) insertion;
         (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)

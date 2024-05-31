@@ -120,10 +120,10 @@ and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
       let indices = Fillvec.map (fun ixs -> act_normal_cube ixs fa) indices in
       let constrs = Constr.Map.map (fun c -> act_dataconstr c fa) constrs in
       Data { dim = dom_deg fa; indices; constrs }
-  | Codata { eta; env; ins; fields } ->
+  | Codata { eta; opacity; env; ins; fields } ->
       let (Of fa) = deg_plus_to s (dom_ins ins) in
       let (Act_closure (env, ins)) = act_closure env ins fa in
-      Codata { eta; env; ins; fields }
+      Codata { eta; opacity; env; ins; fields }
 
 and act_dataconstr : type m n i. (n, i) dataconstr -> (m, n) deg -> (m, i) dataconstr =
  fun (Dataconstr { env; args; indices }) s ->

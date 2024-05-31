@@ -23,3 +23,7 @@ end
 
 (* Structs can have or lack eta-conversion, but the only kinetic ones are the ones with eta (records). *)
 type _ eta = Eta : 's eta | Noeta : potential eta
+
+(* Opacity of a record type governs whether eta-expansion happens on readback for display. *)
+type opacity =
+  [ `Opaque | `Transparent of [ `Labeled | `Unlabeled ] | `Translucent of [ `Labeled | `Unlabeled ] ]

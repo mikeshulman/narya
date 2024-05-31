@@ -11,6 +11,7 @@ open Domvars
 open Norm
 open Printable
 module Binding = Ctx.Binding
+module Display = Algaeff.Reader.Make (Bool)
 
 (* Readback of values to terms.  Closely follows equality-testing in equal.ml, so most comments are omitted.  However, unlike equality-testing and the "readback" in theoretical NbE, this readback does *not* eta-expand functions and tuples.  It is used for (1) displaying terms to the user, who will usually prefer not to see things eta-expanded, and (2) turning values into terms so that we can re-evaluate them in a new environment, for which purpose eta-expansion is irrelevant. *)
 
@@ -33,14 +34,30 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))
-  | Neu { alignment = Lawful (Codata { eta = Eta; fields = _; _ }); _ }, Struct (tmflds, tmins) ->
-      let fields =
-        Abwd.mapi
-          (fun fld (fldtm, l) ->
-            match Lazy.force fldtm with
-            | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
-          tmflds in
-      Act (Struct (Eta, cod_left_ins tmins, fields), perm_of_ins tmins)
+  | Neu { alignment = Lawful (Codata { eta = Eta; opacity; fields; env = _; ins }); _ }, _
+  (* A nontrivially permuted record is not a record type. *)
+    when Option.is_some (is_id_ins ins) -> (
+      let dim = cod_left_ins ins in
+      match (tm, opacity) with
+      (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
+      | Struct (tmflds, _), _ ->
+          let fields =
+            Abwd.mapi
+              (fun fld (fldtm, l) ->
+                match Lazy.force fldtm with
+                | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
+              tmflds in
+          Struct (Eta, dim, fields)
+      (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
+      | (_, `Transparent l | Uninst (Neu { alignment = Chaotic _; _ }, _), `Translucent l)
+        when Display.read () ->
+          let fields =
+            Abwd.mapi
+              (fun fld _ -> (readback_at ctx (field tm fld) (tyof_field tm ty fld), l))
+              fields in
+          Struct (Eta, dim, fields)
+      (* Otherwise, we pass off to synthesizing readback. *)
+      | _ -> readback_val ctx tm)
   | ( Neu { alignment = Lawful (Data { dim = _; indices = _; constrs }); _ },
       Constr (xconstr, xn, xargs) ) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =

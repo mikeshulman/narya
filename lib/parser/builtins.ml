@@ -1028,8 +1028,22 @@ let () =
           (Inner
              {
                empty_branch with
-               ops = TokMap.singleton LParen (record_fields ());
-               term = Some (TokMap.of_list [ (Mapsto, op LParen (record_fields ())) ]);
+               ops =
+                 TokMap.of_list
+                   [
+                     (LParen, record_fields ());
+                     ( Op "#",
+                       op LParen
+                         (term RParen
+                            (Inner
+                               {
+                                 empty_branch with
+                                 ops = TokMap.singleton LParen (record_fields ());
+                                 term =
+                                   Some (TokMap.singleton Mapsto (op LParen (record_fields ())));
+                               })) );
+                   ];
+               term = Some (TokMap.singleton Mapsto (op LParen (record_fields ())));
              })))
 
 type _ any_tel = Any_tel : ('a, 'c, 'ac) Raw.tel -> 'a any_tel
@@ -1054,11 +1068,49 @@ let () =
       process =
         (fun ctx obs loc ws ->
           let _, ws = take Sig ws in
+          let opacity, ws, obs =
+            match (take_opt (Op "#") ws, obs) with
+            | None, _ -> (`Opaque, ws, obs)
+            | Some (_, ws), Term attr :: obs ->
+                let _, ws = take LParen ws in
+                let _, ws = take RParen ws in
+                let opacity =
+                  match attr.value with
+                  | Ident ([ "opaque" ], _) -> `Opaque
+                  | Ident ([ "transparent" ], _) -> `Transparent `Labeled
+                  | Ident ([ "translucent" ], _) -> `Translucent `Labeled
+                  | App
+                      {
+                        fn = { value = Ident ([ "transparent" ], _); _ };
+                        arg = { value = Ident ([ "labeled" ], _); _ };
+                        _;
+                      } -> `Transparent `Labeled
+                  | App
+                      {
+                        fn = { value = Ident ([ "transparent" ], _); _ };
+                        arg = { value = Ident ([ "positional" ], _); _ };
+                        _;
+                      } -> `Transparent `Unlabeled
+                  | App
+                      {
+                        fn = { value = Ident ([ "translucent" ], _); _ };
+                        arg = { value = Ident ([ "labeled" ], _); _ };
+                        _;
+                      } -> `Translucent `Labeled
+                  | App
+                      {
+                        fn = { value = Ident ([ "translucent" ], _); _ };
+                        arg = { value = Ident ([ "positional" ], _); _ };
+                        _;
+                      } -> `Translucent `Unlabeled
+                  | _ -> fatal ?loc:attr.loc Unrecognized_attribute in
+                (opacity, ws, obs)
+            | _ -> fatal (Anomaly "invalid notation arguments for record") in
           match take_opt Mapsto ws with
           | None ->
               let ctx = Bwv.snoc ctx None in
               let (Any_tel tel) = process_tel ctx StringSet.empty obs in
-              { value = Record ({ value = Suc Zero; loc }, [ None ], tel); loc }
+              { value = Record ({ value = Suc Zero; loc }, [ None ], tel, opacity); loc }
           | Some _ -> (
               match obs with
               | Term x :: obs ->
@@ -1067,7 +1119,7 @@ let () =
                   let (Bplus ac) = Fwn.bplus (Vec.length vars) in
                   let ctx = Bwv.append ac ctx vars in
                   let (Any_tel tel) = process_tel ctx StringSet.empty obs in
-                  Range.locate (Record ({ value = ac; loc = x.loc }, vars, tel)) loc
+                  Range.locate (Record ({ value = ac; loc = x.loc }, vars, tel, opacity)) loc
               | _ -> fatal (Anomaly "invalid notation arguments for record")));
     }
 

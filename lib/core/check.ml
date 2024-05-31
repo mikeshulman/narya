@@ -373,13 +373,13 @@ let rec check :
       match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking codata", TubeOf.inst tyargs, m))
       | Eq -> check_codata status ctx tyargs Emp (Bwd.to_list fields))
-  | Record (abc, xs, fields), UU m, Potential _ -> (
+  | Record (abc, xs, fields, opacity), UU m, Potential _ -> (
       match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking record", TubeOf.inst tyargs, m))
       | Eq ->
           let dim = TubeOf.inst tyargs in
           let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
-          check_record status dim ctx tyargs vars Emp Zero af Emp fields)
+          check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields)
   | Data constrs, _, Potential _ ->
       (* For a datatype, the type to check against might not be a universe, it could include indices. *)
       let (Wrap num_indices) = Fwn.of_int (typefam ctx ty) in
@@ -1102,16 +1102,18 @@ and with_codata_so_far :
     (b, potential) status ->
     potential eta ->
     (a, b) Ctx.t ->
+    opacity ->
     n D.t ->
     (D.zero, n, n, normal) TubeOf.t ->
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
     ((n, Ctx.Binding.t) CubeOf.t -> c) ->
     c =
- fun (Potential (h, args, hyp)) eta ctx dim tyargs checked_fields cont ->
+ fun (Potential (h, args, hyp)) eta ctx opacity dim tyargs checked_fields cont ->
   (* We can always create a constant with the (0,0,0) insertion, even if its dimension is actually higher. *)
   let head = head_of_potential h in
   let alignment =
-    Lawful (Codata { eta; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields }) in
+    Lawful (Codata { eta; opacity; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields })
+  in
   let prev_ety =
     Uninst (Neu { head; args; alignment }, Lazy.from_val (inst (universe dim) tyargs)) in
   let _, domvars =
@@ -1119,8 +1121,9 @@ and with_codata_so_far :
       (TubeOf.plus_cube
          (TubeOf.mmap { map = (fun _ [ nf ] -> nf.tm) } [ tyargs ])
          (CubeOf.singleton prev_ety)) in
-  run_with_definition h (hyp (Term.Canonical (Codata (eta, dim, checked_fields)))) @@ fun () ->
-  cont domvars
+  run_with_definition h
+    (hyp (Term.Canonical (Codata { eta; opacity; dim; fields = checked_fields })))
+  @@ fun () -> cont domvars
 
 and check_codata :
     type a b n.
@@ -1133,9 +1136,9 @@ and check_codata :
  fun status ctx tyargs checked_fields raw_fields ->
   let dim = TubeOf.inst tyargs in
   match raw_fields with
-  | [] -> Canonical (Codata (Noeta, dim, checked_fields))
+  | [] -> Canonical (Codata { eta = Noeta; opacity = `Opaque; dim; fields = checked_fields })
   | (fld, (x, rty)) :: raw_fields ->
-      with_codata_so_far status Noeta ctx dim tyargs checked_fields @@ fun domvars ->
+      with_codata_so_far status Noeta ctx `Opaque dim tyargs checked_fields @@ fun domvars ->
       let newctx = Ctx.cube_vis ctx x domvars in
       let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
       let checked_fields = Snoc (checked_fields, (fld, cty)) in
@@ -1146,6 +1149,7 @@ and check_record :
     (b, potential) status ->
     n D.t ->
     (a, b) Ctx.t ->
+    opacity ->
     (D.zero, n, n, normal) TubeOf.t ->
     (N.zero, n, string option, f1) NICubeOf.t ->
     (Field.t * string, f2) Bwv.t ->
@@ -1154,18 +1158,18 @@ and check_record :
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
     (af, d, acd) Raw.tel ->
     (b, potential) term =
- fun status dim ctx tyargs vars ctx_fields fplus af checked_fields raw_fields ->
+ fun status dim ctx opacity tyargs vars ctx_fields fplus af checked_fields raw_fields ->
   match raw_fields with
-  | Emp -> Term.Canonical (Codata (Eta, dim, checked_fields))
+  | Emp -> Term.Canonical (Codata { eta = Eta; opacity; dim; fields = checked_fields })
   | Ext (None, _, _) -> fatal (Anomaly "unnamed field in check_record")
   | Ext (Some name, rty, raw_fields) ->
-      with_codata_so_far status Eta ctx dim tyargs checked_fields @@ fun domvars ->
+      with_codata_so_far status Eta ctx opacity dim tyargs checked_fields @@ fun domvars ->
       let newctx = Ctx.vis_fields ctx vars domvars ctx_fields fplus af in
       let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
       let fld = Field.intern name in
       let checked_fields = Snoc (checked_fields, (fld, cty)) in
       let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
-      check_record status dim ctx tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
+      check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
         raw_fields
 
 and check_struct :

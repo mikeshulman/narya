@@ -339,6 +339,7 @@ let execute : Command.t -> unit = function
       let rtm = process Emp tm in
       match rtm.value with
       | Synth stm ->
+          Readback.Display.run ~env:true @@ fun () ->
           let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in

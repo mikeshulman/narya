@@ -131,6 +131,7 @@ module Code = struct
     | Quit : t
     | Synthesizing_recursion : printable -> t
     | Invalid_synthesized_type : string * printable -> t
+    | Unrecognized_attribute : t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -225,6 +226,7 @@ module Code = struct
     | Quit -> Info
     | Synthesizing_recursion _ -> Error
     | Invalid_synthesized_type _ -> Error
+    | Unrecognized_attribute -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -244,6 +246,7 @@ module Code = struct
     | Invalid_numeral _ -> "E0205"
     | Invalid_degeneracy _ -> "E0206"
     | No_relative_precedence _ -> "E0207"
+    | Unrecognized_attribute -> "E0208"
     | Comment_end_in_string -> "E0250"
     | Encoding_error -> "E0299"
     (* Scope errors *)
@@ -563,6 +566,7 @@ module Code = struct
         textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
     | Invalid_synthesized_type (str, ty) ->
         textf "type %a synthesized by %s is invalid for entire term" pp_printed (print ty) str
+    | Unrecognized_attribute -> textf "unrecognized attribute"
 end
 
 include Asai.StructuredReporter.Make (Code)

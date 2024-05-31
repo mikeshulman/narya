@@ -121,18 +121,13 @@ and process_head :
     (lt, ls, rt, rs) parse located ->
     [ `Deg of string * any_deg | `Constr of Constr.t | `Fn of n synth located ] =
  fun ctx tm ->
-  let process_fn () =
-    let tm = process ctx tm in
-    match tm.value with
-    | Synth value -> `Fn { value; loc = tm.loc }
-    | _ -> fatal (Anomaly "") in
   match tm.value with
   | Constr (ident, _) -> `Constr (Constr.intern ident)
   | Ident ([ str ], _) -> (
       match deg_of_name str with
       | Some s -> `Deg (str, s)
-      | None -> process_fn ())
-  | _ -> process_fn ()
+      | None -> `Fn (process_synth ctx tm "function"))
+  | _ -> `Fn (process_synth ctx tm "function")
 
 and process_apply :
     type n.
@@ -146,6 +141,14 @@ and process_apply :
   | (Term { value = Field (fld, _); _ }, loc) :: args ->
       process_apply ctx { value = Field (fn, Field.intern_ori fld); loc } args
   | (Term arg, loc) :: args -> process_apply ctx { value = Raw.App (fn, process ctx arg); loc } args
+
+and process_synth :
+    type n lt ls rt rs.
+    (string option, n) Bwv.t -> (lt, ls, rt, rs) parse located -> string -> n synth located =
+ fun ctx x str ->
+  match process ctx x with
+  | { value = Synth value; loc } -> { value; loc }
+  | { loc; _ } -> fatal ?loc (Nonsynthesizing str)
 
 type _ processed_tel =
   | Processed_tel : ('n, 'k, 'nk) Raw.tel * (string option, 'nk) Bwv.t -> 'n processed_tel

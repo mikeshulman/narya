@@ -47,12 +47,10 @@ let process_let :
       | `Let -> { value = Synth (Let (x, v, body)); loc })
   | [ Term x; Term tm; Term body ] -> (
       let x = get_var x in
-      match process ctx tm with
-      | { value = Synth term; loc = term_loc } -> (
-          let body = process (Bwv.snoc ctx x) body in
-          match kind with
-          | `Let -> { value = Synth (Let (x, { value = term; loc = term_loc }, body)); loc })
-      | _ -> fatal (Nonsynthesizing "value of let"))
+      let term = process_synth ctx tm "value of let" in
+      let body = process (Bwv.snoc ctx x) body in
+      match kind with
+      | `Let -> { value = Synth (Let (x, term, body)); loc })
   | _ -> fatal (Anomaly "invalid notation arguments for let")
 
 let pp_let tok space ppf obs ws =
@@ -751,15 +749,9 @@ let () =
       process =
         (fun ctx obs loc _ ->
           match obs with
-          | Term tm :: obs -> (
-              match (process ctx tm).value with
-              | Synth value ->
-                  {
-                    value =
-                      Synth (Match ({ value; loc = tm.loc }, `Implicit, process_branches ctx obs));
-                    loc;
-                  }
-              | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match"))
+          | Term tm :: obs ->
+              let x = process_synth ctx tm "discriminee of match" in
+              { value = Synth (Match (x, `Implicit, process_branches ctx obs)); loc }
           | [] -> fatal (Anomaly "invalid notation arguments for match"));
     };
   set_processor explicit_mtch
@@ -769,28 +761,16 @@ let () =
           match obs with
           | Term tm :: Term ({ value = Notn n; loc = mloc } as motive) :: obs ->
               if equal (notn n) abs then
-                match ((process ctx tm).value, args n) with
-                | Synth value, [ Term vars; Term { value = Placeholder _; _ } ] ->
+                let x = process_synth ctx tm "discriminee of match" in
+                match args n with
+                | [ Term vars; Term { value = Placeholder _; _ } ] ->
                     let (Extctx (mn, _, _)) = get_vars ctx vars in
-                    {
-                      value =
-                        Synth
-                          (Match
-                             ( { value; loc = tm.loc },
-                               `Nondep { value = N.to_int (N.plus_right mn); loc = vars.loc },
-                               process_branches ctx obs ));
-                      loc;
-                    }
-                | Synth value, _ ->
+                    let motive : int located =
+                      { value = N.to_int (N.plus_right mn); loc = vars.loc } in
+                    { value = Synth (Match (x, `Nondep motive, process_branches ctx obs)); loc }
+                | _ ->
                     let motive = process ctx motive in
-                    {
-                      value =
-                        Synth
-                          (Match
-                             ({ value; loc = tm.loc }, `Explicit motive, process_branches ctx obs));
-                      loc;
-                    }
-                | _ -> fatal ?loc:tm.loc (Nonsynthesizing "discriminee of match")
+                    { value = Synth (Match (x, `Explicit motive, process_branches ctx obs)); loc }
               else fatal ?loc:mloc Parse_error
           | _ -> fatal (Anomaly "invalid notation arguments for match"));
     };

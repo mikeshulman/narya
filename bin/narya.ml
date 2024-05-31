@@ -85,7 +85,7 @@ module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let rec batch first ws p src =
   let cmd = Command.Parse.final p in
-  if cmd = Eof then if Galaxy.unsolved () then Reporter.fatal Open_holes else ws
+  if cmd = Eof then if Eternity.unsolved () then Reporter.fatal Open_holes else ws
   else (
     if !typecheck then Parser.Command.execute cmd;
     let ws =
@@ -199,7 +199,7 @@ let rec interact_pg () =
 
 let () =
   Parser.Unparse.install ();
-  Galaxy.run_empty @@ fun () ->
+  Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Scope.run @@ fun () ->
   Builtins.run @@ fun () ->

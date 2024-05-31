@@ -298,7 +298,7 @@ let execute : Command.t -> unit = function
       @@ fun () ->
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty));
-      let h = Core.Galaxy.end_command () in
+      let h = Core.Eternity.end_command () in
       emit (Constant_assumed (PConstant const, h))
   | Def defs ->
       let [ names; cdefs; printables ] =
@@ -333,13 +333,13 @@ let execute : Command.t -> unit = function
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
       Core.Command.execute (Def defs);
-      let h = Core.Galaxy.end_command () in
+      let h = Core.Eternity.end_command () in
       emit (Constant_defined (printables, h))
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
       match rtm.value with
       | Synth stm ->
-          let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in
+          let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
           let bty = Readback.readback_at Ctx.empty ety (Inst.universe D.zero) in

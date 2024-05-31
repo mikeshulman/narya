@@ -3,7 +3,7 @@ open Signatures
 open Dimbwd
 open Energy
 
-type sort = [ `Hole ]
+type sort = [ `Hole | `Def of string * string option ]
 type ('b, 's) t
 
 val make : sort -> 'b Dbwd.t -> 's energy -> ('b, 's) t

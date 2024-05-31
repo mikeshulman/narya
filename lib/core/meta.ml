@@ -5,10 +5,9 @@ open Signatures
 open Dimbwd
 open Energy
 
-(* Metavariables, such as holes and unification variables. *)
+(* Metavariables, such as holes and unification variables.  Local generative definitions are also reperesented as metavariables. *)
 
-(* At present the only sort of metavariable is a hole. *)
-type sort = [ `Hole ]
+type sort = [ `Hole | `Def of string * string option ]
 
 (* A metavariable has an autonumber identity, like a constant.  It also stores its sort, and is parametrized by its checked context length and its energy (kinetic or potential). *)
 type ('b, 's) t = { number : int; sort : sort; len : 'b Dbwd.t; energy : 's energy }
@@ -24,6 +23,8 @@ let name : type b s. (b, s) t -> string =
  fun x ->
   match x.sort with
   | `Hole -> Printf.sprintf "?%d" x.number
+  | `Def (sort, None) -> Printf.sprintf "_%s.%d" sort x.number
+  | `Def (sort, Some name) -> Printf.sprintf "_%s.%d.%s" sort x.number name
 
 let compare : type b1 s1 b2 s2. (b1, s1) t -> (b2, s2) t -> (b1 * s1, b2 * s2) Eq.compare =
  fun x y ->

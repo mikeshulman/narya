@@ -66,42 +66,47 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           | Realize x -> Val x
           | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
           | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
-          (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a hole. *)
+          (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a potential hole. *)
           | Unrealized -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
       | Axiom _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
-  | Meta meta -> (
-      match Galaxy1.find meta <|> Undefined_metavariable (PMeta meta) with
-      | { tm = Some tm; _ } -> eval env tm
-      (* If a potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
-      | { tm = None; energy = Potential; _ } -> Unrealized
-      | { tm = None; ty; energy = Kinetic } ->
-          let dim = dim_env env in
-          (* As with constants, we need to instantiate the type at the same meta evaluated at lower dimensions. *)
-          let ty =
-            lazy
-              (inst (eval_term env ty)
-                 (TubeOf.build D.zero (D.zero_plus dim)
-                    {
-                      build =
-                        (fun fa ->
-                          let tm =
-                            eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Meta meta) in
-                          match tm with
-                          | Uninst (Neu _, (lazy ty)) -> { tm; ty }
-                          | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
-                    })) in
-          Val
-            (Uninst
-               ( Neu
-                   {
-                     head = Value.Meta { meta; env; ins = ins_zero dim };
-                     args = Emp;
-                     alignment = True;
-                   },
-                 ty )))
+  | Meta (meta, ambient) -> (
+      let dim = dim_env env in
+      let head = Value.Meta { meta; env; ins = ins_zero dim } in
+      (* As with constants, we need to instantiate the type at the same meta evaluated at lower dimensions. *)
+      let make_ty meta ty =
+        inst (eval_term env ty)
+          (TubeOf.build D.zero (D.zero_plus dim)
+             {
+               build =
+                 (fun fa ->
+                   let tm =
+                     eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Meta (meta, Kinetic))
+                   in
+                   match tm with
+                   | Uninst (Neu _, (lazy ty)) -> { tm; ty }
+                   | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
+             }) in
+      let make_neutral meta ty alignment =
+        Uninst (Neu { head; args = Emp; alignment }, lazy (make_ty meta ty)) in
+      match (Global.find_meta_opt meta <|> Undefined_metavariable (PMeta meta), ambient) with
+      (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
+      | Metadef { tm = `None; _ }, Potential -> Unrealized
+      (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)
+      | Metadef { tm = `None; ty; _ }, Kinetic -> Val (make_neutral meta ty True)
+      (* If a metavariable has a definition that fits with the current energy, we simply evaluate that definition. *)
+      | Metadef { tm = `Nonrec tm; energy = Potential; _ }, Potential -> eval env tm
+      | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Kinetic -> eval env tm
+      | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Potential -> Realize (eval_term env tm)
+      | Metadef { tm = `Nonrec tm; energy = Potential; ty; _ }, Kinetic -> (
+          (* If a potential metavariable with a definition is used in a kinetic context, and doesn't evaluate yet to a kinetic result, we again have to build a neutral. *)
+          match eval env tm with
+          | Val v -> Val (make_neutral meta ty (Chaotic v))
+          | Realize tm -> Val tm
+          | Unrealized -> Val (make_neutral meta ty True)
+          | Canonical v -> Val (make_neutral meta ty (Lawful v))))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
-      eval (eval_env env m_n metaenv) (Term.Meta meta)
+      eval (eval_env env m_n metaenv) (Term.Meta (meta, Kinetic))
   | UU n ->
       let m = dim_env env in
       let (Plus mn) = D.plus n in
@@ -185,11 +190,10 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
   | Field (tm, fld) -> Val (field (eval_term env tm) fld)
-  | Struct (_, m, fields) ->
+  | Struct (_, dim, fields) ->
       let (Plus mn) = D.plus (dim_env env) in
-      Val
-        (Struct
-           (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins_zero (D.plus_out m mn)))
+      let ins = ins_zero (D.plus_out dim mn) in
+      Val (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -590,3 +594,54 @@ let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> k
     type t = kinetic value
   end)) in
   snd (MC.miterM { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x))) } [ xs ] fn)
+
+(* Evaluate a term context to produce a value context. *)
+
+let eval_bindings :
+    type a b n.
+    (a, b) Ctx.Ordered.t -> (n, (b, n) snoc Termctx.binding) CubeOf.t -> (n, Ctx.Binding.t) CubeOf.t
+    =
+ fun ctx cbs ->
+  let open Termctx in
+  let i = Ctx.Ordered.length ctx in
+  let vbs = CubeOf.build (CubeOf.dim cbs) { build = (fun _ -> Ctx.Binding.unknown ()) } in
+  let tempctx = Ctx.Ordered.Snoc (ctx, Invis vbs, Zero) in
+  let argtbl = Hashtbl.create 10 in
+  let j = ref 0 in
+  let () =
+    CubeOf.miter
+      {
+        it =
+          (fun fa [ ({ ty = cty; tm = ctm } : (b, n) snoc binding); vb ] ->
+            (* Unlike in dom_vars, we don't need to instantiate the types, since their instantiations should have been preserved by readback and will reappear correctly here. *)
+            let ety = eval_term (Ctx.Ordered.env tempctx) cty in
+            let level = (i, !j) in
+            j := !j + 1;
+            let v =
+              match ctm with
+              | None -> ({ tm = var level ety; ty = ety } : normal)
+              | Some ctm -> { tm = eval_term (Ctx.Ordered.env tempctx) ctm; ty = ety } in
+            Hashtbl.add argtbl (SFace_of fa) v;
+            Ctx.Binding.specify vb None v);
+      }
+      [ cbs; vbs ] in
+  vbs
+
+let eval_entry : type a b f n. (a, b) Ctx.Ordered.t -> (b, f, n) Termctx.entry -> (f, n) Ctx.entry =
+ fun ctx e ->
+  match e with
+  | Termctx.Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
+      let bindings = eval_bindings ctx bindings in
+      let fields = Bwv.map (fun (f, x, _) -> (f, x)) fields in
+      Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
+  | Invis bindings -> Invis (eval_bindings ctx bindings)
+
+let rec eval_ordered_ctx : type a b. (a, b) Termctx.ordered -> (a, b) Ctx.Ordered.t = function
+  | Termctx.Emp -> Emp
+  | Snoc (ctx, e, af) ->
+      let ectx = eval_ordered_ctx ctx in
+      Snoc (ectx, eval_entry ectx e, af)
+  | Lock ctx -> Lock (eval_ordered_ctx ctx)
+
+let eval_ctx : type a b. (a, b) Termctx.t -> (a, b) Ctx.t = function
+  | Termctx.Permute (p, ctx) -> Permute (p, eval_ordered_ctx ctx)

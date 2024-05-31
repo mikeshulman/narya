@@ -197,9 +197,9 @@ let rec unparse :
   match tm with
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> unlocated (Ident (Scope.name_of c, []))
-  | Meta v -> unlocated (Ident ([ Meta.name v ], []))
+  | Meta (v, _) -> unlocated (Ident ([ Meta.name v ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)
-  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ], []))
+  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ^ "{…}" ], []))
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
       unparse_act vars
@@ -596,7 +596,7 @@ let rec unparse_ctx :
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
     (string * [ `Original | `Renamed ], a) Bwv.t ->
-    (a, b) Termctx.Ordered.t ->
+    (a, b) Termctx.ordered ->
     b Names.t
     * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
     =

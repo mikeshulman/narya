@@ -21,9 +21,17 @@ module Raw = struct
     | App : 'a synth located * 'a check located -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth
     | UU : 'a synth
-    (* A Let or an Act can either synthesize or (sometimes) check.  If it synthesizes, its body must synthesize, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking. *)
+    (* A Let can either synthesize or (sometimes) check.  It synthesizes only if its body also synthesizes, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking.  Thus, we make it a "synthesizing term".  The term being bound must also synthesize; the shorthand notation "let x : A := M" is expanded during parsing to "let x := M : A". *)
     | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
+    (* An Act can also sometimes check, if its body checks and the degeneracy is a pure permutation.  But otherwise, it synthesizes and so must its body.  *)
     | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
+    (* A Match can also sometimes check, but synthesizes if it has an explicit return type or if it is nondependent and its first branch synthesizes. *)
+    | Match :
+        'a synth located
+        (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
+        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
+        * 'a branch list
+        -> 'a synth
 
   and _ check =
     | Synth : 'a synth -> 'a check
@@ -31,12 +39,7 @@ module Raw = struct
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
     | Struct : 's eta * (Field.t option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
-    | Match :
-        'a synth located
-        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
-        * 'a branch list
-        -> 'a check
-    (* "[]", which could be either an empty match or an empty comatch *)
+    (* "[]", which could be either an empty pattern-matching lambda or an empty comatch *)
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
     (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)
@@ -112,8 +115,8 @@ module rec Term : sig
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 's) Meta.t -> ('a, 's) term
-    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
+    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -182,9 +185,9 @@ end = struct
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 's) Meta.t -> ('a, 's) term
+    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
     (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
-    | MetaEnv : ('b, kinetic) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -195,6 +198,7 @@ end = struct
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
+    (* The term being bound in a 'let' is always kinetic.  Thus, if the supplied bound term is potential, the "bound term" here must be the metavariable whose value is set to that term rather than to the (potential) term itself. *)
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
@@ -307,19 +311,10 @@ module rec Value : sig
 
   module BindCube : module type of Cube (BindFam)
 
-  type var
-  type const
-  type meta
-
-  type 'h head =
-    | Var : { level : level; deg : ('m, 'n) deg } -> var head
-    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
-    | Meta : {
-        meta : ('b, kinetic) Meta.t;
-        env : ('m, 'b) env;
-        ins : ('mn, 'm, 'n) insertion;
-      }
-        -> meta head
+  type head =
+    | Var : { level : level; deg : ('m, 'n) deg } -> head
+    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
+    | Meta : { meta : ('b, 's) Meta.t; env : ('m, 'b) env; ins : ('mn, 'm, 'n) insertion } -> head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
@@ -332,15 +327,15 @@ module rec Value : sig
       }
         -> ('mn, 's) binder
 
-  and _ alignment =
-    | True : 'h alignment
-    | Chaotic : potential value -> const alignment
-    | Lawful : canonical -> const alignment
+  and alignment =
+    | True : alignment
+    | Chaotic : potential value -> alignment
+    | Lawful : canonical -> alignment
 
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    | Neu : { head : 'h head; args : app Bwd.t; alignment : 'h alignment } -> uninst
+    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
 
   and _ value =
     | Uninst : uninst * kinetic value Lazy.t -> kinetic value
@@ -401,24 +396,14 @@ end = struct
 
   module BindCube = Cube (BindFam)
 
-  type var = private Dummy_var
-  type const = private Dummy_const
-  type meta = private Dummy_meta
-
   (* The head of an elimination spine is either a variable or a constant.  We define this type to be parametrized over a pair of dummy indices indicating which it is, so that most of the time we can treat them equally by parametrizing over the index, but in some places (e.g. alignment) we can specify that only one kind of head is allowed. *)
-  type _ head =
+  type head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
-    | Var : { level : level; deg : ('m, 'n) deg } -> var head
+    | Var : { level : level; deg : ('m, 'n) deg } -> head
     (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial.  The dimension of a constant is its dimension as a term standing on its own; so in particular if it has any parameters, then it belongs to an ordinary, 0-dimensional, pi-type and therefore is 0-dimensional, even if the eventual codomain of the pi-type is higher-dimensional.  Note also that when nonidentity insertions end up getting stored here, e.g. by Act, the dimension 'c gets extended as necessary; so it is always okay to create a constant with the (0,0,0) insertion to start with, even if you don't know what its actual dimension is. *)
-    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> const head
+    | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
     (* A metavariable (i.e. flexible) head stores the metavariable along with a delayed substitution applied to it. *)
-    | Meta : {
-        (* Only kinetic metavariables can appear in values; potential ones just cause the case tree they appear in to be stuck. *)
-        meta : ('b, kinetic) Meta.t;
-        env : ('m, 'b) env;
-        ins : ('mn, 'm, 'n) insertion;
-      }
-        -> meta head
+    | Meta : { meta : ('b, 's) Meta.t; env : ('m, 'b) env; ins : ('mn, 'm, 'n) insertion } -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =
@@ -442,10 +427,10 @@ end = struct
      - A Chaotic neutral has a head defined by a case tree but isn't fully applied, so it might reduce further if it is applied to further arguments or field projections.  Thus it stores a value that should be either an abstraction or a struct, but does not test as equal to that value.
      - A Lawful neutral has a head defined by a case tree that will doesn't reduce, but if it is applied to enough arguments it obtains a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.).
      Alignments are parametrized over the class of head for a neutral that can have such an alignment.  Only constant-headed neutrals can have chaotic or lawful alignments; variables are always true neutral.  This is because alignments are ignored by readback, and so the information they contain must be reconstructible from the read-back term, which is possible for the case tree that is stored with a constant in the global environment, but not for a variable. *)
-  and _ alignment =
-    | True : 'h alignment
-    | Chaotic : potential value -> const alignment
-    | Lawful : canonical -> const alignment
+  and alignment =
+    | True : alignment
+    | Chaotic : potential value -> alignment
+    | Lawful : canonical -> alignment
 
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
@@ -453,7 +438,7 @@ end = struct
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also has an alignment, which must be an allowed alignment for its class of head. *)
-    | Neu : { head : 'h head; args : app Bwd.t; alignment : 'h alignment } -> uninst
+    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
 
   and _ value =
     (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)

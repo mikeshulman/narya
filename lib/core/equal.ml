@@ -169,7 +169,7 @@ and equal_uninst : int -> uninst -> uninst -> unit option =
   | _ -> fail
 
 (* Synthesizing equality check for heads.  Again equality of types is part of the conclusion, not a hypothesis. *)
-and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
+and equal_head : int -> head -> head -> unit option =
  fun lvl x y ->
   match (x, y) with
   | Var { level = l1; deg = d1 }, Var { level = l2; deg = d2 } ->
@@ -187,8 +187,8 @@ and equal_head : type h1 h2. int -> h1 head -> h2 head -> unit option =
   | Meta { meta = meta1; env = env1; ins = i1 }, Meta { meta = meta2; env = env2; ins = i2 } -> (
       match (Meta.compare meta1 meta2, D.compare (cod_left_ins i1) (cod_left_ins i2)) with
       | Eq, Eq ->
-          let (Data { termctx; _ }) =
-            Galaxy.find_opt meta1 <|> Undefined_metavariable (PMeta meta1) in
+          let (Metadef { termctx; _ }) =
+            Global.find_meta_opt meta1 <|> Undefined_metavariable (PMeta meta1) in
           equal_env lvl env1 env2 termctx
       | _ -> fail)
   | _, _ -> fail
@@ -273,7 +273,7 @@ and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.t 
  fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
 
 and equal_ordered_env :
-    type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.Ordered.t -> unit option =
+    type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.ordered -> unit option =
  fun lvl env1 env2 envctx ->
   (* Copied from readback_ordered_env *)
   match envctx with

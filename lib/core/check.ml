@@ -398,8 +398,8 @@ let rec check :
   | Hole vars, _, _ ->
       let energy = energy status in
       let meta = Meta.make `Hole (Ctx.dbwd ctx) energy in
-      let ty = readback_val ctx ty in
-      let termctx = readback_ctx ctx in
+      let ty, termctx =
+        Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
       Eternity.add meta vars termctx ty energy;
       emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
       Meta (meta, energy)

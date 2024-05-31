@@ -30,3 +30,51 @@ Transparency and translucency
   > echo x3b
   > def y3b : prod3b ≔ (a,b)
   > echo y3b
+  x1
+    : prod1
+  
+  y1
+    : prod1
+  
+  (
+    fst ≔ x2a .fst,
+    snd ≔ x2a .snd,
+  )
+    : prod2a
+  
+  (
+    fst ≔ a,
+    snd ≔ b,
+  )
+    : prod2a
+  
+  (
+    x2b .fst,
+    x2b .snd,
+  )
+    : prod2b
+  
+  (
+    a,
+    b,
+  )
+    : prod2b
+  
+  x3a
+    : prod3a
+  
+  (
+    fst ≔ a,
+    snd ≔ b,
+  )
+    : prod3a
+  
+  x3b
+    : prod3b
+  
+  (
+    a,
+    b,
+  )
+    : prod3b
+  

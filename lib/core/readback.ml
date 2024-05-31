@@ -8,6 +8,7 @@ open Term
 open Value
 open Inst
 open Domvars
+open Act
 open Norm
 open Printable
 module Binding = Ctx.Binding
@@ -34,30 +35,43 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))
-  | Neu { alignment = Lawful (Codata { eta = Eta; opacity; fields; env = _; ins }); _ }, _
-  (* A nontrivially permuted record is not a record type. *)
-    when Option.is_some (is_id_ins ins) -> (
+  | Neu { alignment = Lawful (Codata { eta = Eta; opacity; fields; env = _; ins }); _ }, _ -> (
       let dim = cod_left_ins ins in
-      match (tm, opacity) with
-      (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
-      | Struct (tmflds, _), _ ->
-          let fields =
-            Abwd.mapi
-              (fun fld (fldtm, l) ->
-                match Lazy.force fldtm with
-                | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
-              tmflds in
-          Struct (Eta, dim, fields)
-      (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
-      | (_, `Transparent l | Uninst (Neu { alignment = Chaotic _; _ }, _), `Translucent l)
-        when Display.read () ->
-          let fields =
-            Abwd.mapi
-              (fun fld _ -> (readback_at ctx (field tm fld) (tyof_field tm ty fld), l))
-              fields in
-          Struct (Eta, dim, fields)
-      (* Otherwise, we pass off to synthesizing readback. *)
-      | _ -> readback_val ctx tm)
+      let readback_at_record tm ty =
+        match (tm, opacity) with
+        (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
+        | Struct (tmflds, _), _ ->
+            let fields =
+              Abwd.mapi
+                (fun fld (fldtm, l) ->
+                  match Lazy.force fldtm with
+                  | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
+                tmflds in
+            Some (Term.Struct (Eta, dim, fields))
+        (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
+        | (_, `Transparent l | Uninst (Neu { alignment = Chaotic _; _ }, _), `Translucent l)
+          when Display.read () ->
+            let fields =
+              Abwd.mapi
+                (fun fld _ -> (readback_at ctx (field tm fld) (tyof_field tm ty fld), l))
+                fields in
+            Some (Struct (Eta, dim, fields))
+        (* If the term is not a struct and the record type is not transparent/translucent, we pass off to synthesizing readback. *)
+        | _ -> None in
+      match is_id_ins ins with
+      | Some () -> (
+          match readback_at_record tm ty with
+          | Some res -> res
+          | None -> readback_val ctx tm)
+      | None -> (
+          (* A nontrivially permuted record is not a record type, but we can permute its arguments to find elements of a record type that we can then eta-expand and re-permute. *)
+          let p = perm_of_ins ins in
+          let pinv = perm_inv p in
+          let ptm = act_value tm pinv in
+          let pty = act_ty tm ty pinv in
+          match readback_at_record ptm pty with
+          | Some res -> Act (res, p)
+          | None -> readback_val ctx tm))
   | ( Neu { alignment = Lawful (Data { dim = _; indices = _; constrs }); _ },
       Constr (xconstr, xn, xargs) ) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =

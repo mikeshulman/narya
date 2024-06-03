@@ -587,7 +587,7 @@ and synth_or_check_nondep_match :
                            - Fwn.to_int (Telescope.length argtys) ))
                 | Eq -> (
                     (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                    let newctx, _, _ = ext_tel ctx env xs argtys user_args.value efc in
+                    let newctx, _, _, _ = ext_tel ctx env xs argtys user_args.value efc in
                     let perm = Tbwd.id_perm in
                     let status =
                       make_match_status status tm dim branches efc None perm constr.value in
@@ -727,7 +727,7 @@ and synth_dep_match :
                                - Fwn.to_int (Telescope.length argtys) ))
                     | Eq ->
                         (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                        let newctx, newenv, newvars =
+                        let newctx, newenv, newvars, _ =
                           ext_tel ctx env xs argtys user_args.value efc in
                         let perm = Tbwd.id_perm in
                         let status =
@@ -872,7 +872,7 @@ and check_var_match :
                            - Fwn.to_int (Telescope.length argtys) ))
                 | Eq -> (
                     (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                    let newctx, newenv, newvars = ext_tel ctx env xs argtys user_args.value efc in
+                    let newctx, newenv, newvars, _ = ext_tel ctx env xs argtys user_args.value efc in
                     (* Evaluate the "index_terms" at the new pattern variables, obtaining what the indices should be for the new term that replaces the match variable in the match body. *)
                     let index_vals =
                       Vec.mmap

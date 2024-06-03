@@ -368,6 +368,7 @@ let rec check :
       check status ctx { value = Raw.Lam (x, `Normal, body); loc = tm.loc } ty
   (* Otherwise, we interpret it as a comatch into an empty codatatype. *)
   | Empty_co_match, _, _ -> check status ctx { value = Struct (Noeta, Abwd.empty); loc = tm.loc } ty
+  | Refute (tms, i), _, Potential _ -> check_refute status ctx tms ty i None
   (* Now we go through the canonical types. *)
   | Codata fields, UU m, Potential _ -> (
       match D.compare (TubeOf.inst tyargs) m with
@@ -391,6 +392,7 @@ let rec check :
   (* If we have a term that's not valid outside a case tree, we bind it to a global metavariable. *)
   | Struct (Noeta, _), _, Kinetic l -> kinetic_of_potential l ctx tm ty "comatch"
   | Synth (Match _), _, Kinetic l -> kinetic_of_potential l ctx tm ty "match"
+  | Refute _, _, Kinetic l -> kinetic_of_potential l ctx tm ty "match"
   | Codata _, _, Kinetic l -> kinetic_of_potential l ctx tm ty "codata"
   | Record _, _, Kinetic l -> kinetic_of_potential l ctx tm ty "sig"
   | Data _, _, Kinetic l -> kinetic_of_potential l ctx tm ty "data"
@@ -1016,6 +1018,43 @@ and make_match_status :
         let branches = branches |> Constr.Map.add constr (Term.Branch (efc, perm, tm)) in
         hyp (Term.Match { tm = newtm; dim; branches }) in
       Potential (c, args, hyp)
+
+and check_refute :
+    type a b.
+    (b, potential) status ->
+    (a, b) Ctx.t ->
+    a synth located list ->
+    kinetic value ->
+    [ `Explicit | `Implicit ] ->
+    Constr.t option ->
+    (b, potential) term =
+ fun status ctx tms ty i missing ->
+  match tms with
+  | [] -> (
+      match i with
+      | `Implicit -> fatal (Anomaly "no discriminees to refute")
+      | `Explicit -> fatal Invalid_refutation)
+  | [ tm ] ->
+      let stm, sty = synth (Kinetic `Nolet) ctx tm in
+      Reporter.try_with
+        (fun () -> check_nondep_match status ctx stm sty [] None ty)
+        ~fatal:(fun d ->
+          match d.message with
+          | Missing_constructor_in_match c -> (
+              match (i, missing) with
+              | `Explicit, _ -> fatal Invalid_refutation
+              | `Implicit, Some missing -> fatal (Missing_constructor_in_match missing)
+              | `Implicit, None -> fatal (Missing_constructor_in_match c))
+          | _ -> fatal_diagnostic d)
+  | tm :: (_ :: _ as tms) ->
+      let stm, sty = synth (Kinetic `Nolet) ctx tm in
+      Reporter.try_with
+        (fun () -> check_nondep_match status ctx stm sty [] None ty)
+        ~fatal:(fun d ->
+          match d.message with
+          | Missing_constructor_in_match c ->
+              check_refute status ctx tms ty i (Some (Option.value missing ~default:c))
+          | _ -> fatal_diagnostic d)
 
 and check_data :
     type a b i bi.

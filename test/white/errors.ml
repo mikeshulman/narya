@@ -51,8 +51,8 @@ let () =
     unsynth ~print:() "a ↦ ( fst ≔ a, fst ≔ a )"
       ~code:(Duplicate_field_in_tuple (Core.Field.intern "fst")) in
   let () = unsynth ~print:() "( (x) ≔ a )" ~code:Invalid_field_in_tuple in
-  let () = unsynth ~print:() "[ _ ↦ a ]" ~code:Parse_error in
-  let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:Parse_error in
+  let () = unsynth ~print:() "[ _ ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
+  let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
   let () = unsynth ~print:() "[ | | .head |-> 0 | .tail |-> f ]" ~code:Parse_error in
 
   (* Records and datatypes *)

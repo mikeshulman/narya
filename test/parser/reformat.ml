@@ -152,6 +152,9 @@ let test_compactness () =
   reformat
     "[ con. a b |-> [ foo. x |-> ba ba ba | bar. y z |-> y ] | str. u v |-> [ baz. |-> bluh bluh ] ]";
   reformat "(match x [| poo. |-> bah])";
+  reformat "match x, y [ true., false. ↦ 0 | true., true. ↦ 1 ]";
+  reformat
+    "match x [ zero. ↦ 0 | suc. zero. ↦ 1 | suc. (suc. zero.) ↦ 2 | suc. (suc. (suc. n)) ↦ n ]";
 
   (* Canonical types *)
   reformat "codata [ x .head : blah blah blah blah blah blah blah blah | x .tail : Stream A ]";

@@ -116,12 +116,6 @@ The heterogeneous Jdentity type also figures in some inconsistencies, such as Ag
    ￫ info[I0000]
    ￮ Constant ∅ defined
   
-   ￫ hint[E1101]
-   ￭ command-line exec string
-   1 | def notpdf (u : D false.) (e : Hd (D false.) u (D true.) x.) : ∅ ≔ match e [ ]
-     ^ match will not refine the goal or context (index is not a free variable): 
-       D true.
-  
    ￫ error[E1300]
    ￭ command-line exec string
    1 | def notpdf (u : D false.) (e : Hd (D false.) u (D true.) x.) : ∅ ≔ match e [ ]

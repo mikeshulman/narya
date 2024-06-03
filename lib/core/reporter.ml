@@ -133,6 +133,12 @@ module Code = struct
     | Invalid_synthesized_type : string * printable -> t
     | Unrecognized_attribute : t
     | Invalid_degeneracy_action : string * 'nk D.t * 'n D.t -> t
+    | Wrong_number_of_patterns : t
+    | Inconsistent_patterns : t
+    | Overlapping_patterns : t
+    | No_remaining_patterns : t
+    | Invalid_refutation : t
+    | Duplicate_pattern_variable : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -229,6 +235,12 @@ module Code = struct
     | Invalid_synthesized_type _ -> Error
     | Unrecognized_attribute -> Error
     | Invalid_degeneracy_action _ -> Bug
+    | Wrong_number_of_patterns -> Error
+    | Inconsistent_patterns -> Error
+    | Overlapping_patterns -> Error
+    | No_remaining_patterns -> Bug
+    | Invalid_refutation -> Error
+    | Duplicate_pattern_variable _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -304,6 +316,12 @@ module Code = struct
     | No_such_constructor_in_match _ -> "E1301"
     | Duplicate_constructor_in_match _ -> "E1302"
     | Wrong_number_of_arguments_to_pattern _ -> "E1303"
+    | Duplicate_pattern_variable _ -> "E1304"
+    | Wrong_number_of_patterns -> "E1305"
+    | Inconsistent_patterns -> "E1306"
+    | Overlapping_patterns -> "E1307"
+    | No_remaining_patterns -> "E1308"
+    | Invalid_refutation -> "E1309"
     (* - Match motive *)
     | Wrong_number_of_arguments_to_motive _ -> "E1400"
     (* Comatches *)
@@ -573,6 +591,13 @@ module Code = struct
     | Invalid_degeneracy_action (str, nk, n) ->
         textf "invalid degeneracy action on %s: dimension %d doesn't factor through codomain %d" str
           (to_int nk) (to_int n)
+    | Wrong_number_of_patterns -> text "wrong number of patterns for match"
+    | Inconsistent_patterns -> text "inconsistent patterns in match"
+    | Overlapping_patterns -> text "overlapping patterns in match"
+    | No_remaining_patterns -> text "no remaining patterns while parsing match"
+    | Invalid_refutation -> text "invalid refutation: no remaining discriminee has an empty type"
+    | Duplicate_pattern_variable x ->
+        textf "variable name '%s' used more than once in match patterns" x
 end
 
 include Asai.StructuredReporter.Make (Code)

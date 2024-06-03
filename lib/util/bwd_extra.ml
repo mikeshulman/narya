@@ -11,6 +11,12 @@ let rec split_first = function
       | Some (y, ys) -> Some (y, Snoc (ys, x))
       | None -> None)
 
+(* Append one Bwd to another *)
+let rec append xs ys =
+  match ys with
+  | Emp -> xs
+  | Snoc (ys, y) -> Snoc (append xs ys, y)
+
 (* Convert from a list while mapping at the same time *)
 let of_list_map f ys =
   let rec go xs ys =
@@ -20,9 +26,9 @@ let of_list_map f ys =
   go Emp ys
 
 (* Convert to a list while mapping at the same time *)
-let to_list_map f xs =
-  let rec go xs ys =
-    match xs with
-    | Emp -> ys
-    | Snoc (xs, x) -> go xs (f x :: ys) in
-  go xs []
+let rec prepend_map f xs ys =
+  match xs with
+  | Emp -> ys
+  | Snoc (xs, x) -> prepend_map f xs (f x :: ys)
+
+let to_list_map f xs = prepend_map f xs []

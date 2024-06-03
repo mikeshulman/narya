@@ -274,6 +274,13 @@ let rec prepend : type a m n mn. (m, n, mn) Fwn.fplus -> (a, m) t -> (a, n) Vec.
   | Zero, Emp -> ys
   | Suc mn, Snoc (xs, x) -> prepend mn xs (x :: ys)
 
+(* But we can also append one Bwv to another *)
+let rec bappend : type a m n mn. (m, n, mn) N.plus -> (a, m) t -> (a, n) t -> (a, mn) t =
+ fun mn xs ys ->
+  match (mn, ys) with
+  | Zero, Emp -> xs
+  | Suc mn, Snoc (ys, y) -> Snoc (bappend mn xs ys, y)
+
 (* We can split a Bwv of length m+n into one of length m and one of length n. *)
 let rec unappend : type a m n mn. (m, n, mn) N.plus -> (a, mn) t -> (a, m) t * (a, n) t =
  fun mn xys ->

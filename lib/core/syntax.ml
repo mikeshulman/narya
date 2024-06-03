@@ -26,11 +26,12 @@ module Raw = struct
     (* An Act can also sometimes check, if its body checks and the degeneracy is a pure permutation.  But otherwise, it synthesizes and so must its body.  *)
     | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
     (* A Match can also sometimes check, but synthesizes if it has an explicit return type or if it is nondependent and its first branch synthesizes. *)
-    | Match :
-        'a synth located
+    | Match : {
+        tm : 'a synth located;
         (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
-        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
-        * 'a branch list
+        sort : [ `Implicit | `Explicit of 'a check located | `Nondep of int located ];
+        branches : 'a branch list;
+      }
         -> 'a synth
 
   and _ check =

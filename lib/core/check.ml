@@ -352,17 +352,21 @@ let rec check :
           realize status (Term.Constr (constr, dim, newargs)))
   | Constr ({ value; loc }, _), _, _ ->
       fatal ?loc (No_such_constructor (`Other (PUninst (ctx, uty)), value))
-  | Synth (Match (tm, `Implicit, brs)), _, Potential _ -> check_implicit_match status ctx tm brs ty
-  | Synth (Match (tm, `Nondep i, brs)), _, Potential _ ->
+  | Synth (Match { tm; sort = `Implicit; branches }), _, Potential _ ->
+      check_implicit_match status ctx tm branches ty
+  | Synth (Match { tm; sort = `Nondep i; branches }), _, Potential _ ->
       let stm, sty = synth (Kinetic `Nolet) ctx tm in
-      check_nondep_match status ctx stm sty brs (Some i) ty
+      check_nondep_match status ctx stm sty branches (Some i) ty
   (* We don't need to deal with `Explicit matches here, since they can always synthesize a type and hence be caught by the catch-all for checking synthesizing terms, below. *)
   | Empty_co_match, Pi _, _ ->
       (* Checking [] at a pi-type interprets it as a pattern-matching lambda over an empty datatype. *)
       let x = { value = Some "x"; loc = None } in
       let body =
         {
-          value = Synth (Match ({ value = Var (Top, None); loc = None }, `Implicit, []));
+          value =
+            Synth
+              (Match
+                 { tm = { value = Var (Top, None); loc = None }; sort = `Implicit; branches = [] });
           loc = tm.loc;
         } in
       check status ctx { value = Raw.Lam (x, `Normal, body); loc = tm.loc } ty
@@ -1372,11 +1376,13 @@ and synth :
           Global.add_meta meta
             (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
           (Term.Meta (meta, Kinetic), svty))
-  | Match (tm, `Explicit motive, brs), Potential _ -> synth_dep_match status ctx tm brs motive
-  | Match (tm, `Implicit, brs), Potential _ ->
+  | Match { tm; sort = `Explicit motive; branches }, Potential _ ->
+      synth_dep_match status ctx tm branches motive
+  | Match { tm; sort = `Implicit; branches }, Potential _ ->
       emit (Matching_wont_refine ("match in synthesizing position", PUnit));
-      synth_nondep_match status ctx tm brs None
-  | Match (tm, `Nondep i, brs), Potential _ -> synth_nondep_match status ctx tm brs (Some i)
+      synth_nondep_match status ctx tm branches None
+  | Match { tm; sort = `Nondep i; branches }, Potential _ ->
+      synth_nondep_match status ctx tm branches (Some i)
 
 (* Given a synthesized function and its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
 and synth_apps :

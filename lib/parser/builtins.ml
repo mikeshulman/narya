@@ -776,22 +776,19 @@ let () =
           match obs with
           | Term tm :: Term ({ value = Notn n; loc = mloc } as motive) :: obs ->
               if equal (notn n) abs then
-                let x = process_synth ctx tm "discriminee of match" in
+                let tm = process_synth ctx tm "discriminee of match" in
                 match args n with
                 | [ Term vars; Term { value = Placeholder _; _ } ] ->
                     let (Extctx (mn, _, _)) = get_vars ctx vars in
-                    let motive : int located =
-                      { value = N.to_int (N.plus_right mn); loc = vars.loc } in
-                    {
-                      value = Synth (Match (x, `Nondep motive, process_simple_branches ctx obs));
-                      loc;
-                    }
+                    let sort =
+                      `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
+                    in
+                    let branches = process_simple_branches ctx obs in
+                    { value = Synth (Match { tm; sort; branches }); loc }
                 | _ ->
-                    let motive = process ctx motive in
-                    {
-                      value = Synth (Match (x, `Explicit motive, process_simple_branches ctx obs));
-                      loc;
-                    }
+                    let sort = `Explicit (process ctx motive) in
+                    let branches = process_simple_branches ctx obs in
+                    { value = Synth (Match { tm; sort; branches }); loc }
               else fatal ?loc:mloc Parse_error
           | _ -> fatal (Anomaly "invalid notation arguments for match"));
     }
@@ -1047,7 +1044,7 @@ let rec process_branches :
                 @@ fun () ->
                 Raw.Branch (c, names, locate am loc, process_branches newxctx newxs seen newbrs loc))
           cbranches in
-      locate (Synth (Match (process_obs_or_ix xctx x, `Implicit, branches))) loc
+      locate (Synth (Match { tm = process_obs_or_ix xctx x; sort = `Implicit; branches })) loc
 
 let rec get_discriminees :
     observation list ->

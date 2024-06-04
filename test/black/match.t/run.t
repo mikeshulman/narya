@@ -197,7 +197,7 @@
    ￫ error[E1300]
    ￭ command-line exec string
    1 | def foo3 (x : bool) (y : unit) : ⊥ ≔ match x, y [ ]
-     ^ missing match clause for constructor false
+     ^ missing match clause for constructor true
   
   [1]
 

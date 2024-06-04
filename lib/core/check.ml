@@ -631,8 +631,8 @@ and synth_or_check_nondep_match :
                                  "first branch in synthesizing match without return annotation"))))
               Constr.Map.empty brs in
           (* Coverage check *)
-          Bwd.iter
-            (fun (c, _) ->
+          Abwd.iter
+            (fun c _ ->
               if not (Constr.Map.mem c branches) then fatal (Missing_constructor_in_match c))
             constrs;
           match (motive, !ty) with
@@ -763,8 +763,8 @@ and synth_dep_match :
                              (Term.Branch (efc, perm, check status newctx body bmotive)))
                   Constr.Map.empty brs in
               (* Coverage check *)
-              Bwd.iter
-                (fun (c, _) ->
+              Abwd.iter
+                (fun c _ ->
                   if not (Constr.Map.mem c branches) then fatal (Missing_constructor_in_match c))
                 constrs;
               (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
@@ -892,12 +892,12 @@ and check_var_match :
           (* If there are any constructors in the datatype left over that the user didn't supply branches for, we add them to the list at the end.  They will be tested for refutability. *)
           let user_branches =
             Bwd_extra.append user_branches
-              (Abwd.map
-                 (fun (Value.Dataconstr { env; args = argtys; indices = index_terms }) ->
+              (Bwd.map
+                 (fun (c, Value.Dataconstr { env; args = argtys; indices = index_terms }) ->
                    let b = Telescope.length argtys in
                    let (Bplus plus_args) = Fwn.bplus b in
                    let xs = Vec.init (fun () -> (None, ())) b () in
-                   Checkable_branch { xs; body = None; plus_args; env; argtys; index_terms })
+                   (c, Checkable_branch { xs; body = None; plus_args; env; argtys; index_terms }))
                  leftovers) in
           (* Now we iterate through the branches. *)
           let branches =

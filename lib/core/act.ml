@@ -111,11 +111,11 @@ and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
 and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
  fun tm s ->
   match tm with
-  | Data { dim; indices; constrs } ->
+  | Data (dim, indices, constrs) ->
       let (Of fa) = deg_plus_to ~on:"data" s dim in
       let indices = Fillvec.map (fun ixs -> act_normal_cube ixs fa) indices in
-      let constrs = Constr.Map.map (fun c -> act_dataconstr c fa) constrs in
-      Data { dim = dom_deg fa; indices; constrs }
+      let constrs = Abwd.map (fun c -> act_dataconstr c fa) constrs in
+      Data (dom_deg fa, indices, constrs)
   | Codata { eta; opacity; env; ins; fields } ->
       let (Of fa) = deg_plus_to ~on:"codata" s (dom_ins ins) in
       let (Act_closure (env, ins)) = act_closure env ins fa in

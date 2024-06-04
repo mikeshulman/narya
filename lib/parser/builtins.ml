@@ -738,12 +738,10 @@ let () =
 (* A simple pattern is a constructor applied to zero or more variables or placeholders. *)
 let rec get_simple_pattern :
     type lt1 ls1 rt1 rs1.
-    (lt1, ls1, rt1, rs1) parse located ->
-    string option list ->
-    Constr.t located * string option list =
+    (lt1, ls1, rt1, rs1) parse located -> string option list -> Constr.t * string option list =
  fun pat vars ->
   match pat.value with
-  | Constr (c, _) -> ({ value = Constr.intern c; loc = pat.loc }, vars)
+  | Constr (c, _) -> (Constr.intern c, vars)
   | App { fn; arg = { value = Ident ([ x ], _); loc = _ }; _ } ->
       if List.mem (Some x) vars then fatal (Duplicate_pattern_variable x)
       else get_simple_pattern fn (Some x :: vars)
@@ -753,17 +751,21 @@ let rec get_simple_pattern :
 
 (* Simple branches are a sequence of simple patterns, each associated to an ordinary body. *)
 let rec process_simple_branches :
-    type n. (string option, n) Bwv.t -> observation list -> n Raw.branch list =
- fun ctx obs ->
+    type n.
+    (string option, n) Bwv.t ->
+    observation list ->
+    (Constr.t, n Raw.branch) Abwd.t ->
+    (Constr.t, n Raw.branch) Abwd.t =
+ fun ctx obs brs ->
   match obs with
-  | [] -> []
+  | [] -> brs
   | Term pat :: Term body :: obs ->
       let c, vars = get_simple_pattern pat [] in
       let (Wrap xs) = Vec.of_list vars in
       let (Bplus ab) = Fwn.bplus (Vec.length xs) in
       let ectx = Bwv.append ab ctx xs in
-      Branch (c, xs, { value = ab; loc = pat.loc }, process ectx body)
-      :: process_simple_branches ctx obs
+      let brs = Snoc (brs, (c, Branch (xs, { value = ab; loc = pat.loc }, process ectx body))) in
+      process_simple_branches ctx obs brs
   | _ -> fatal (Anomaly "invalid notation arguments for (co)match 1")
 
 (* Explicit matches have a single discriminee and a list of simple branches. *)
@@ -783,11 +785,11 @@ let () =
                     let sort =
                       `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
                     in
-                    let branches = process_simple_branches ctx obs in
+                    let branches = process_simple_branches ctx obs Emp in
                     { value = Synth (Match { tm; sort; branches }); loc }
                 | _ ->
                     let sort = `Explicit (process ctx motive) in
-                    let branches = process_simple_branches ctx obs in
+                    let branches = process_simple_branches ctx obs Emp in
                     { value = Synth (Match { tm; sort; branches }); loc }
               else fatal ?loc:mloc Parse_error
           | _ -> fatal (Anomaly "invalid notation arguments for match"));
@@ -1014,8 +1016,8 @@ let rec process_branches :
       let (x :: xs) = xs in
       let branches =
         (* Now we recursively process each of those families of branches. *)
-        Bwd_extra.to_list_map
-          (fun (_, CBranches (type m) ((c, brs) : _ * (_, m, _) cbranch Bwd.t)) ->
+        Abwd.map
+          (fun (CBranches (type m) ((c, brs) : _ * (_, m, _) cbranch Bwd.t)) ->
             match Bwd.to_list brs with
             | [] -> fatal (Anomaly "empty list of branches for constructor")
             | (_, pats, _, _) :: _ as brs ->
@@ -1042,7 +1044,7 @@ let rec process_branches :
                         fatal ?loc:c.loc (Duplicate_constructor_in_match c.value)
                     | _ -> fatal_diagnostic d)
                 @@ fun () ->
-                Raw.Branch (c, names, locate am loc, process_branches newxctx newxs seen newbrs loc))
+                Raw.Branch (names, locate am loc, process_branches newxctx newxs seen newbrs loc))
           cbranches in
       locate (Synth (Match { tm = process_obs_or_ix xctx x; sort = `Implicit; branches })) loc
 

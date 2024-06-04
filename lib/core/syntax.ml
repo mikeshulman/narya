@@ -30,7 +30,7 @@ module Raw = struct
         tm : 'a synth located;
         (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
         sort : [ `Implicit | `Explicit of 'a check located | `Nondep of int located ];
-        branches : 'a branch list;
+        branches : (Constr.t, 'a branch) Abwd.t;
       }
         -> 'a synth
 
@@ -57,10 +57,7 @@ module Raw = struct
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
     | Branch :
-        Constr.t located
-        * (string option, 'b) Vec.t
-        * ('a, 'b, 'ab) Fwn.bplus located
-        * 'ab check located
+        (string option, 'b) Vec.t * ('a, 'b, 'ab) Fwn.bplus located * 'ab check located
         -> 'a branch
 
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
@@ -149,7 +146,11 @@ module rec Term : sig
         -> ('a, 'n) branch
 
   and _ canonical =
-    | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    | Data : {
+        indices : 'i Fwn.t;
+        constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
+      }
+        -> 'a canonical
     | Codata : {
         eta : potential eta;
         opacity : opacity;
@@ -232,7 +233,11 @@ end = struct
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =
     (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
-    | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    | Data : {
+        indices : 'i Fwn.t;
+        constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
+      }
+        -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
     | Codata : {
         eta : potential eta;
@@ -371,11 +376,10 @@ module rec Value : sig
     | Canonical : canonical -> potential evaluation
 
   and canonical =
-    | Data : {
-        dim : 'm D.t;
-        indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
-        constrs : ('m, 'ij) dataconstr Constr.Map.t;
-      }
+    | Data :
+        'm D.t
+        * (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t
+        * (Constr.t, ('m, 'ij) dataconstr) Abwd.t
         -> canonical
     | Codata : {
         eta : potential eta;
@@ -488,11 +492,11 @@ end = struct
   (* A canonical type value is either a datatype or a codatatype/record. *)
   and canonical =
     (* A datatype value has a vector of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
-    | Data : {
-        dim : 'm D.t;
-        indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
-        constrs : ('m, 'ij) dataconstr Constr.Map.t;
-      }
+    | Data :
+        (* Unfortunately, it appears that we can't use an inline record for this constructor, because we need to be able to bind its existential types explicitly, and there's no syntax to do that with an inline record (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721). *)
+        'm D.t
+        * (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t
+        * (Constr.t, ('m, 'ij) dataconstr) Abwd.t
         -> canonical
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
     | Codata : {

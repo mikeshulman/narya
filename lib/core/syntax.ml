@@ -78,6 +78,18 @@ module Raw = struct
         let (Dataconstr (tel, out)) = dataconstr_of_pi cod in
         Dataconstr (Ext (x, dom, tel), out)
     | _ -> Dataconstr (Emp, Some ty)
+
+  let rec lams :
+      type a b ab.
+      (a, b, ab) Fwn.bplus ->
+      (string option located, b) Vec.t ->
+      ab check located ->
+      Asai.Range.t option ->
+      a check located =
+   fun ab xs tm loc ->
+    match (ab, xs) with
+    | Zero, [] -> tm
+    | Suc ab, x :: xs -> { value = Lam (x, `Normal, lams ab xs tm loc); loc }
 end
 
 (* ******************** Names ******************** *)

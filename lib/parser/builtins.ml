@@ -718,9 +718,11 @@ let rec discriminees () =
 (* Implicit matches can be multiple and deep matches, with multiple discriminees and multiple patterns. *)
 let () = set_tree implicit_mtch (Closed_entry (eop Match (discriminees ())))
 
-(* Pattern-matching lambdas and explicitly typed matches can be deep, but not (yet) multiple. *)
+(* Empty matches [ ] are not allowed for mtchlam, because they are parsed separately as empty_co_match. *)
+let () = set_tree mtchlam (Closed_entry (eop LBracket (mtch_branches mtchlam true false true)))
+
+(* Explicitly typed matches can be deep, but not (yet) multiple. *)
 let () =
-  set_tree mtchlam (Closed_entry (eop LBracket (mtch_branches mtchlam true false false)));
   set_tree explicit_mtch
     (Closed_entry
        (eop Match
@@ -1123,18 +1125,50 @@ let () =
                 process_branches ctx [ Left tm ] Emp branches loc sort
               else fatal ?loc:mloc Parse_error
           | _ -> fatal (Anomaly "invalid notation arguments for match"));
-    };
+    }
+
+(* A version of get_patterns that doesn't require a specific number of patterns in advance. *)
+let rec get_any_patterns :
+    type n.
+    observation list ->
+    Whitespace.alist ->
+    pattern Vec.wrapped * observation list * Whitespace.alist =
+ fun obs ws ->
+  match obs with
+  | [] -> fatal (Anomaly "invalid notation arguments for match")
+  | Term tm :: obs -> (
+      match take_opt Mapsto ws with
+      | Some (_, ws) -> (Wrap [ get_pattern tm ], obs, ws)
+      | None -> (
+          match take_opt (Op ",") ws with
+          | Some (_, ws) ->
+              let Wrap pats, obs, ws = get_any_patterns obs ws in
+              (Wrap (get_pattern tm :: pats), obs, ws)
+          | None -> fatal (Anomaly "invalid notation arguments for match")))
+
+let () =
   set_processor mtchlam
     {
       process =
         (fun ctx obs loc ws ->
-          let ctx = Matchscope.ext (Matchscope.make ctx) None in
-          let x = Matchscope.last_num ctx in
           let _, ws = take LBracket ws in
+          (* Empty matching lambdas are a different notation, empty_co_match, so here there must be at least one branch. *)
           let ws = must_start_with (Op "|") ws in
-          let branches = get_branches ctx (Suc Zero) obs ws in
-          let mtch = process_branches ctx [ Right x ] Emp branches loc `Implicit in
-          { value = Lam ({ value = None; loc = None }, `Normal, mtch); loc });
+          let _, ws = take (Op "|") ws in
+          (* We get the *number* of patterns from the first branch. *)
+          let Wrap pats, obs, ws = get_any_patterns obs ws in
+          match obs with
+          | body :: obs ->
+              let n = Vec.length pats in
+              let (Bplus an) = Fwn.bplus n in
+              let ctx, xs = Matchscope.exts an (Matchscope.make ctx) in
+              let branches = get_branches ctx n obs ws in
+              let mtch =
+                process_branches ctx
+                  (Vec.mmap (fun [ i ] -> Either.Right i) [ xs ])
+                  Emp ((ctx, pats, body) :: branches) loc `Implicit in
+              Raw.lams an (Vec.init (fun () -> (unlocated None, ())) n ()) mtch loc
+          | [] -> fatal (Anomaly "invalid notation arguments for match"));
     }
 
 let rec pp_patterns obs ws =

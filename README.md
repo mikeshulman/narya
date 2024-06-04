@@ -639,7 +639,17 @@ def andb (x y : Bool) : Bool ≔ match x, y [
 ```
 Here the `_` indicates that that value can be anything.  It can also be replaced by a variable, which is then bound to the value being matched.
 
-Multiple and deep matches can be combined.  In general, for a multiple match on a comma-separated list of a positive number of discriminees, the left-hand side of each branch must be a comma-separated list of the same number of *patterns*.  Each pattern is either a variable, an underscore, or a constructor applied to some number of other patterns.  Plain variable patterns are equivalent to let-bindings: `match x [ y ↦ M ]` is the same as `let y ≔ x in M`.  Deep patterns can also be used in pattern-matching abstractions, although multiple matches cannot: a pattern-matching abstraction is (currently) always a function of *one* variable.  Multiple and deep matches are (with one exception, discussed below) a *purely syntactic* abbreviation: the condensed forms are expanded automatically to the nested match forms before even being typechecked.
+Multiple and deep matches can be combined.  In general, for a multiple match on a comma-separated list of a positive number of discriminees, the left-hand side of each branch must be a comma-separated list of the same number of *patterns*.  Each pattern is either a variable, an underscore, or a constructor applied to some number of other patterns.  Plain variable patterns are equivalent to let-bindings: `match x [ y ↦ M ]` is the same as `let y ≔ x in M`.  Multiple and deep matches are (with one exception, discussed below) a *purely syntactic* abbreviation: the condensed forms are expanded automatically to the nested match forms before even being typechecked.
+
+Multiple and deep patterns can also be used in pattern-matching abstractions.  In the case of a multiple match, the number of variables abstracted over is determined by the number of patterns in the branches.  Thus, for instance, `andb` can also be defined by:
+```
+def andb : Bool → Bool → Bool ≔ [
+| true.  , true.  ↦ true.
+| true.  , false. ↦ false.
+| false. , _      ↦ false.
+]
+```
+An empty pattern-matching lambda `[ ]`, however, can currently only be a function of one variable.
 
 All the pattern variables of each branch must be distinct: they cannot shadow each other.  Allowing them to shadow each other would be a recipe for confusion, because replacing a match by its expanded version alters the order in which variables appear.  For instance, the nested match
 ```

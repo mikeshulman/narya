@@ -48,6 +48,28 @@ def even (n : ℕ) : Type ≔ match n [
 | suc. (suc. n) ↦ data [ even_plus2. (_ : even n) ]
 ]
 
+{` Matching lambdas can be deep `}
+def minus2 : ℕ → ℕ ≔ [
+| zero. ↦ zero.
+| suc. zero. ↦ zero.
+| suc. (suc. n) ↦ n
+]
+
+echo minus2 4
+
+{` Matching lambdas can be multiple `}
+def bothzero : ℕ → ℕ → bool ≔ [
+| zero. , zero. ↦ true.
+| zero. , suc. _ ↦ false.
+| suc. _ , _ ↦ false.
+]
+
+echo bothzero 0 2
+
+echo bothzero 2 0
+
+echo bothzero 0 0
+
 def ⊥ : Type ≔ data []
 
 def one_not_even : even 1 → ⊥ ≔ [ ]

@@ -106,6 +106,24 @@
    ￮ Constant even defined
   
    ￫ info[I0000]
+   ￮ Constant minus2 defined
+  
+  2
+    : ℕ
+  
+   ￫ info[I0000]
+   ￮ Constant bothzero defined
+  
+  false.
+    : bool
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+   ￫ info[I0000]
    ￮ Constant ⊥ defined
   
    ￫ info[I0000]

@@ -1128,16 +1128,13 @@ let () =
     {
       process =
         (fun ctx obs loc ws ->
-          let x = Names.default () in
-          let ctx = Matchscope.ext (Matchscope.make ctx) (Some x) in
+          let ctx = Matchscope.ext (Matchscope.make ctx) None in
+          let x = Matchscope.last_num ctx in
           let _, ws = take LBracket ws in
           let ws = must_start_with (Op "|") ws in
           let branches = get_branches ctx (Suc Zero) obs ws in
-          let mtch =
-            process_branches ctx
-              [ Left (Term (unlocated (Ident ([ x ], [])))) ]
-              Emp branches loc `Implicit in
-          { value = Lam ({ value = Some x; loc = None }, `Normal, mtch); loc });
+          let mtch = process_branches ctx [ Right x ] Emp branches loc `Implicit in
+          { value = Lam ({ value = None; loc = None }, `Normal, mtch); loc });
     }
 
 let rec pp_patterns obs ws =

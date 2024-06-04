@@ -28,6 +28,20 @@ def fib (n : ℕ) : ℕ ≔ match n [
 echo fib 6
 echo fib 7
 
+{` Explicit matches can also be deep `}
+def fib' (n : ℕ) : ℕ ≔ match n return _ ↦ ℕ [
+| zero. ↦ 1
+| suc. zero. ↦ 1
+| suc. (suc. n) ↦ fib' n + fib' (suc. n)
+]
+
+{` Nondep matches can also be deep `}
+def fib'' (n : ℕ) : ℕ ≔ match n return _ ↦ _ [
+| zero. ↦ 1
+| suc. zero. ↦ 1
+| suc. (suc. n) ↦ fib'' n + fib'' (suc. n)
+]
+
 def even (n : ℕ) : Type ≔ match n [
 | zero. ↦ data [ even_zero. ]
 | suc. zero. ↦ data [ ]

@@ -97,6 +97,12 @@
     : ℕ
   
    ￫ info[I0000]
+   ￮ Constant fib' defined
+  
+   ￫ info[I0000]
+   ￮ Constant fib'' defined
+  
+   ￫ info[I0000]
    ￮ Constant even defined
   
    ￫ info[I0000]

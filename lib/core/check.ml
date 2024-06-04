@@ -265,7 +265,6 @@ let rec check :
           realize status (Term.Act (cx, fa)))
   | Lam ({ value = x; _ }, cube, body), Pi (_, doms, cods), _ -> (
       (* TODO: Move this into a helper function, it's too long to go in here. *)
-      (* An abstraction can check with any energy, but at chemical energy it forces realization to kinetic from here on. *)
       let m = CubeOf.dim doms in
       match D.compare (TubeOf.inst tyargs) m with
       | Neq -> fatal (Dimension_mismatch ("checking lambda", TubeOf.inst tyargs, m))
@@ -404,15 +403,9 @@ let rec check :
       let stm, sty = synth (Kinetic `Nolet) ctx tm in
       check_nondep_match status ctx stm sty branches (Some i) ty
   (* We don't need to deal with `Explicit matches here, since they can always synthesize a type and hence be caught by the catch-all for checking synthesizing terms, below. *)
-  | Empty_co_match, Pi _, _ ->
-      (* Checking [] at a pi-type interprets it as a pattern-matching lambda over an empty datatype. *)
-      let x = { value = Some "x"; loc = None } in
-      let tm = { value = Var (Top, None); loc = None } in
-      let refutables = { refutables = (fun _ -> []) } in
-      let body =
-        { value = Synth (Match { tm; sort = `Implicit; branches = Emp; refutables }); loc = tm.loc }
-      in
-      check status ctx { value = Raw.Lam (x, `Normal, body); loc = tm.loc } ty
+  (* Checking [] at a pi-type interprets it as a pattern-matching lambda over some empty datatype. *)
+  | Empty_co_match, Pi _, Potential _ -> check_empty_match_lam ctx ty `First
+  | Empty_co_match, Pi _, Kinetic l -> kinetic_of_potential l ctx tm ty "matching lambda"
   (* Otherwise, we interpret it as a comatch into an empty codatatype. *)
   | Empty_co_match, _, _ -> check status ctx { value = Struct (Noeta, Abwd.empty); loc = tm.loc } ty
   | Refute (tms, i), _, Potential _ -> check_refute status ctx tms ty i None
@@ -1084,6 +1077,62 @@ and check_refute :
           | Missing_constructor_in_match c ->
               check_refute status ctx tms ty i (Some (Option.value missing ~default:c))
           | _ -> fatal_diagnostic d)
+
+(* Try empty-matching against each successive domain in an iterated pi-type. *)
+and check_empty_match_lam :
+    type a b. (a, b) Ctx.t -> kinetic value -> [ `First | `Notfirst ] -> (b, potential) term =
+ fun ctx ty first ->
+  let (Fullinst (type k) ((uty, tyargs) : uninst * (D.zero, k, k, normal) TubeOf.t)) =
+    full_inst ty "check_empty_match_lam" in
+  match uty with
+  | Pi (_, doms, cods) -> (
+      let dim = CubeOf.dim doms in
+      match D.compare (TubeOf.inst tyargs) dim with
+      | Neq ->
+          fatal (Dimension_mismatch ("checking empty matching lambda", TubeOf.inst tyargs, dim))
+      | Eq -> (
+          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus dim) in
+          let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
+          let output = tyof_app cods tyargs newargs in
+          let module S = struct
+            type 'c t =
+              | Ok : kinetic value option * (a, 'c, 'ac) N.plus * k sface_of option -> 'c t
+          end in
+          let module Build = NICubeOf.Traverse (S) in
+          match
+            Build.build_left dim
+              {
+                build =
+                  (fun fb -> function
+                    | Ok (firstty, ab, fa) ->
+                        let ty = (Binding.value (CubeOf.find newnfs fb)).ty in
+                        let firstty = Option.value firstty ~default:ty in
+                        if is_empty ty then
+                          Fwrap (NFamOf None, Ok (Some firstty, Suc ab, Some (SFace_of fb)))
+                        else Fwrap (NFamOf None, Ok (Some firstty, Suc ab, fa)));
+              }
+              (Ok (None, Zero, None))
+          with
+          | Wrap (names, Ok (firstty, af, fa)) -> (
+              let xs = Variables (D.zero, D.zero_plus dim, names) in
+              let ctx = Ctx.vis ctx D.zero (D.zero_plus dim) names newnfs af in
+              match (fa, first) with
+              | Some (SFace_of fa), _ ->
+                  Lam (xs, Match { tm = Var (Top fa); dim; branches = Constr.Map.empty })
+              | None, `Notfirst -> Term.Lam (xs, check_empty_match_lam ctx output `Notfirst)
+              | None, `First ->
+                  Reporter.try_with
+                    (fun () -> Term.Lam (xs, check_empty_match_lam ctx output `Notfirst))
+                    ~fatal:(fun d ->
+                      match d.message with
+                      | Invalid_refutation -> (
+                          let (Fullinst (uvarty, _)) = full_inst (Option.get firstty) "is_empty" in
+                          match uvarty with
+                          | Neu { alignment = Lawful (Data { constrs; _ }); _ } ->
+                              fatal (Missing_constructor_in_match (fst (Bwd_extra.head constrs)))
+                          | _ -> fatal (Matching_on_nondatatype (PUninst (ctx, uvarty))))
+                      | _ -> fatal_diagnostic d))))
+  | _ -> fatal Invalid_refutation
 
 and is_empty (varty : kinetic value) : bool =
   let (Fullinst (uvarty, _)) = full_inst varty "is_empty" in

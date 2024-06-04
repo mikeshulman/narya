@@ -2,6 +2,12 @@
 
 open Bwd
 
+(* Find the leftmost element of a bwd *)
+let rec head = function
+  | Emp -> raise Not_found
+  | Snoc (Emp, x) -> x
+  | Snoc (xs, _) -> head xs
+
 (* Split off the first element of a Bwd.t, if it is nonempty. *)
 let rec split_first = function
   | Emp -> None

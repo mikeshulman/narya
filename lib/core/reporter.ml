@@ -595,7 +595,7 @@ module Code = struct
     | Inconsistent_patterns -> text "inconsistent patterns in match"
     | Overlapping_patterns -> text "overlapping patterns in match"
     | No_remaining_patterns -> text "no remaining patterns while parsing match"
-    | Invalid_refutation -> text "invalid refutation: no remaining discriminee has an empty type"
+    | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
     | Duplicate_pattern_variable x ->
         textf "variable name '%s' used more than once in match patterns" x
 end

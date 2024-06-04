@@ -127,6 +127,29 @@
    ￮ Constant ⊥ defined
   
    ￫ info[I0000]
+   ￮ Constant abort1 defined
+  
+   ￫ info[I0000]
+   ￮ Constant abort2 defined
+  
+   ￫ info[I0000]
+   ￮ Constant Gel defined
+  
+   ￫ info[I0000]
+   ￮ Constant ⊤ defined
+  
+   ￫ hint[H0403]
+   ￭ multi.ny
+   82 | def ⊤eq⊥ : Id Type ⊤ ⊥ ≔ Gel ⊤ ⊥ []
+      ^ matching lambda encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ info[I0000]
+   ￮ Constant ⊤eq⊥ defined
+  
+   ￫ info[I0000]
+   ￮ Constant foo defined
+  
+   ￫ info[I0000]
    ￮ Constant one_not_even defined
   
    ￫ info[I0000]
@@ -134,9 +157,6 @@
   
    ￫ info[I0000]
    ￮ Constant suc_even_not_even' defined
-  
-   ￫ info[I0000]
-   ￮ Constant ⊤ defined
   
    ￫ info[I0000]
    ￮ Constant sum defined
@@ -204,7 +224,7 @@
    ￫ error[E1309]
    ￭ command-line exec string
    1 | def neg (x : bool) : bool ≔ match x [ true. ↦ false. | false. ↦ . ]
-     ^ invalid refutation: no remaining discriminee has an empty type
+     ^ invalid refutation: no discriminee has an empty type
   
   [1]
 
@@ -260,5 +280,21 @@
    ￭ command-line exec string
    1 | def proj1 (A B : Type) (u : prod A B) : A ≔ match u return _ ↦ A [ pair. x x ↦ x ]
      ^ variable name 'x' used more than once in match patterns
+  
+  [1]
+
+  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def foo : bool → bool → bool ≔ [ ]'
+   ￫ error[E1300]
+   ￭ command-line exec string
+   1 | def foo : bool → bool → bool ≔ [ ]
+     ^ missing match clause for constructor true
+  
+  [1]
+
+  $ narya -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def foo : Type → bool → bool ≔ [ ]'
+   ￫ error[E1200]
+   ￭ command-line exec string
+   1 | def foo : Type → bool → bool ≔ [ ]
+     ^ can't match on variable belonging to non-datatype Type
   
   [1]

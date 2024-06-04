@@ -649,7 +649,6 @@ def andb : Bool → Bool → Bool ≔ [
 | false. , _      ↦ false.
 ]
 ```
-An empty pattern-matching lambda `[ ]`, however, can currently only be a function of one variable.
 
 All the pattern variables of each branch must be distinct: they cannot shadow each other.  Allowing them to shadow each other would be a recipe for confusion, because replacing a match by its expanded version alters the order in which variables appear.  For instance, the nested match
 ```
@@ -779,6 +778,13 @@ def foo' (u : A ⊔ B) (v : P u) : A ≔ match v, u [
 ]
 ```
 In general, when cases for one or more constructors are obviously missing from a match, Narya will inspect all the pattern variables and discriminees that would be available in that branch, and if it finds one whose type is empty, it inserts a match against that term.  Here by "empty" we mean that it was literally declared as a datatype with no constructors: there is no unification like in Agda to rule out impossible indices (although see the remarks about canonical types defined by case trees, below).  This is the exception mentioned above in which the expansion of multiple and deep matches requires some typechecking information: namely, whether the type of some variable is an empty datatype.
+
+As a particular case, if any of the discriminees belong directly to an empty datatype, then all the branches can be omitted.  Similarly, an empty pattern-matching lambda abstraction `[ ]` can be a multivariable function, although in this case there are no branches to indicate the number of arguments; instead Narya inspects the possibly-iterated function type it is being checked at, looking through the domains one at a time until it finds an empty one.  Thus the following are both valid:
+```
+def bar (x : Bool) (y : ⊥) : ⊥ ≔ match x, y [ ]
+
+def bar' : Bool → ⊥ → ⊥ ≔ [ ]
+```
 
 However, Narya will not perform *additional* matches in order to expose an inhabitant of an empty datatype (this is probably an undecidable problem in general).  For example, consider the following nested match:
 ```

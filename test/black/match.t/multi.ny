@@ -72,6 +72,18 @@ echo bothzero 0 0
 
 def ⊥ : Type ≔ data []
 
+{` Empty matching lambdas can also be multiple `}
+def abort1 : ⊥ → Type → ⊥ ≔ [ ]
+def abort2 : Type → ⊥ → ⊥ ≔ [ ]
+
+{` Matching lambdas can be higher-dimensional `}
+def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig a b ↦ ( ungel : R a b )
+def ⊤ : Type ≔ sig ()
+def ⊤eq⊥ : Id Type ⊤ ⊥ ≔ Gel ⊤ ⊥ []
+
+def foo : Id Π ⊤ ⊥ ⊤eq⊥ (_ ↦ ⊤) (_ ↦ ⊥) (_ _ _ ↦ ⊤eq⊥) (x ↦ x) (x ↦ x) ≔ [ ]
+
+{` Later variables can be empty `}
 def one_not_even : even 1 → ⊥ ≔ [ ]
 
 def suc_even_not_even (n : ℕ) (e : even n) (e1 : even (suc. n)) : ⊥ ≔ match n, e, e1 [
@@ -84,8 +96,6 @@ def suc_even_not_even (n : ℕ) (e : even n) (e1 : even (suc. n)) : ⊥ ≔ matc
 def suc_even_not_even' (n : ℕ) (e : even n) (e1 : even (suc. n)) : ⊥ ≔ match n, e, e1 [
 | suc. (suc. n) , even_plus2. e , even_plus2. e1 ↦ suc_even_not_even n e e1
 ]
-
-def ⊤ : Type ≔ sig ()
 
 def sum (A B : Type) : Type ≔ data [ inl. (_:A) | inr. (_:B) ]
 

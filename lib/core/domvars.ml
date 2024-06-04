@@ -49,10 +49,13 @@ let rec ext_tel :
     (b, c, bc) Telescope.t ->
     (a, c, ac) Fwn.bplus ->
     (e, c, n, ec) Tbwd.snocs ->
-    (ac, ec) Ctx.t * (n, bc) env * (n, kinetic value) CubeOf.t list =
+    (ac, ec) Ctx.t
+    * (n, bc) env
+    * (n, kinetic value) CubeOf.t list
+    * (n, Ctx.Binding.t) CubeOf.t list =
  fun ctx env xs tel ac ec ->
   match (xs, tel, ac, ec) with
-  | [], Emp, Zero, Zero -> (ctx, env, [])
+  | [], Emp, Zero, Zero -> (ctx, env, [], [])
   | x :: xs, Ext (x', rty, rest), Suc ac, Suc ec ->
       let newvars, newnfs =
         dom_vars (Ctx.length ctx)
@@ -62,7 +65,7 @@ let rec ext_tel :
         match x with
         | Some x -> Some x
         | None -> x' in
-      let ctx, env, vars =
+      let ctx, env, vars, nfs =
         ext_tel (Ctx.cube_vis ctx x newnfs) (Ext (env, CubeOf.singleton newvars)) xs rest ac ec
       in
-      (ctx, env, newvars :: vars)
+      (ctx, env, newvars :: vars, newnfs :: nfs)

@@ -26,11 +26,13 @@ module Raw = struct
     (* An Act can also sometimes check, if its body checks and the degeneracy is a pure permutation.  But otherwise, it synthesizes and so must its body.  *)
     | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
     (* A Match can also sometimes check, but synthesizes if it has an explicit return type or if it is nondependent and its first branch synthesizes. *)
-    | Match :
-        'a synth located
+    | Match : {
+        tm : 'a synth located;
         (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
-        * [ `Implicit | `Explicit of 'a check located | `Nondep of int located ]
-        * 'a branch list
+        sort : [ `Implicit | `Explicit of 'a check located | `Nondep of int located ];
+        branches : (Constr.t, 'a branch) Abwd.t;
+        refutables : 'a refutables;
+      }
         -> 'a synth
 
   and _ check =
@@ -50,17 +52,19 @@ module Raw = struct
         -> 'a check
     (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data. *)
     | Hole : (string option, 'a) Bwv.t -> 'a check
+    (* Empty match against the first one of the arguments belonging to an empty type. *)
+    | Refute : 'a synth located list * [ `Explicit | `Implicit ] -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
     | Branch :
-        Constr.t located
-        * (string option, 'b) Vec.t
-        * ('a, 'b, 'ab) Fwn.bplus located
-        * 'ab check located
+        (string option, 'b) Vec.t * ('a, 'b, 'ab) Fwn.bplus located * 'ab check located
         -> 'a branch
 
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
+
+  (* A raw match stores the information about the pattern variables available from previous matches that could be used to refute missing cases.  But it can't store them as raw terms, since they have to be in the correct context extended by the new pattern variables generated in any such case.  So it stores them as a callback that puts them in any such extended context. *)
+  and 'a refutables = { refutables : 'b 'ab. ('a, 'b, 'ab) Fwn.bplus -> 'ab synth located list }
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
   and (_, _, _) tel =
@@ -144,9 +148,14 @@ module rec Term : sig
     | Branch :
         ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
         -> ('a, 'n) branch
+    | Refute
 
   and _ canonical =
-    | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    | Data : {
+        indices : 'i Fwn.t;
+        constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
+      }
+        -> 'a canonical
     | Codata : {
         eta : potential eta;
         opacity : opacity;
@@ -225,11 +234,17 @@ end = struct
     | Branch :
         ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
         -> ('a, 'n) branch
+    (* A branch that was refuted during typechecking doesn't need a body to compute with, but we still mark its presence as a signal that it should be stuck (this can occur when normalizing in an inconsistent context). *)
+    | Refute
 
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =
     (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
-    | Data : 'i Fwn.t * ('a, 'i) dataconstr Constr.Map.t -> 'a canonical
+    | Data : {
+        indices : 'i Fwn.t;
+        constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
+      }
+        -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
     | Codata : {
         eta : potential eta;
@@ -367,13 +382,14 @@ module rec Value : sig
     | Unrealized : potential evaluation
     | Canonical : canonical -> potential evaluation
 
+  and ('m, 'j, 'ij) data_args = {
+    dim : 'm D.t;
+    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
+    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+  }
+
   and canonical =
-    | Data : {
-        dim : 'm D.t;
-        indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
-        constrs : ('m, 'ij) dataconstr Constr.Map.t;
-      }
-        -> canonical
+    | Data : ('m, 'j, 'ij) data_args -> canonical
     | Codata : {
         eta : potential eta;
         opacity : opacity;
@@ -482,15 +498,16 @@ end = struct
     | Unrealized : potential evaluation
     | Canonical : canonical -> potential evaluation
 
+  (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  A datatype value has a vector of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
+  and ('m, 'j, 'ij) data_args = {
+    dim : 'm D.t;
+    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
+    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+  }
+
   (* A canonical type value is either a datatype or a codatatype/record. *)
   and canonical =
-    (* A datatype value has a vector of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
-    | Data : {
-        dim : 'm D.t;
-        indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
-        constrs : ('m, 'ij) dataconstr Constr.Map.t;
-      }
-        -> canonical
+    | Data : ('m, 'j, 'ij) data_args -> canonical
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
     | Codata : {
         eta : potential eta;

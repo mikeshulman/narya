@@ -30,6 +30,11 @@ let rec of_list_map : type a b. (a -> b) -> a list -> b wrapped =
 
 let of_list : type a. a list -> a wrapped = fun xs -> of_list_map (fun x -> x) xs
 
+let rec to_list_map : type a b n. (a -> b) -> (a, n) t -> b list =
+ fun f -> function
+  | [] -> []
+  | x :: xs -> f x :: to_list_map f xs
+
 let rec to_list : type a n. (a, n) t -> a list = function
   | [] -> []
   | x :: xs -> x :: to_list xs

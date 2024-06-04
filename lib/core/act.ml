@@ -114,7 +114,7 @@ and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
   | Data { dim; indices; constrs } ->
       let (Of fa) = deg_plus_to ~on:"data" s dim in
       let indices = Fillvec.map (fun ixs -> act_normal_cube ixs fa) indices in
-      let constrs = Constr.Map.map (fun c -> act_dataconstr c fa) constrs in
+      let constrs = Abwd.map (fun c -> act_dataconstr c fa) constrs in
       Data { dim = dom_deg fa; indices; constrs }
   | Codata { eta; opacity; env; ins; fields } ->
       let (Of fa) = deg_plus_to ~on:"codata" s (dom_ins ins) in

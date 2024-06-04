@@ -138,15 +138,11 @@
  1 | ( (x) ≔ a )
    ^ invalid field in tuple
 
- ￫ error[E0200]
- ￭ user-supplied term
- 1 | [ _ ↦ a ]
-   ^ parse error
+ ￫ error[E0400]
+ ￮ non-synthesizing term in synthesizing position (top-level unsynth)
 
- ￫ error[E0200]
- ￭ user-supplied term
- 1 | [ (x) ↦ a ]
-   ^ parse error
+ ￫ error[E0400]
+ ￮ non-synthesizing term in synthesizing position (top-level unsynth)
 
  ￫ error[E0200]
  ￭ user-supplied term

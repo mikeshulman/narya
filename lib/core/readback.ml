@@ -72,7 +72,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           match readback_at_record ptm pty with
           | Some res -> Act (res, p)
           | None -> readback_val ctx tm))
-  | Neu { alignment = Lawful (Data (_, _, constrs)); _ }, Constr (xconstr, xn, xargs) -> (
+  | Neu { alignment = Lawful (Data { constrs; _ }); _ }, Constr (xconstr, xn, xargs) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
         Abwd.find_opt xconstr constrs <|> Anomaly "constr not found in readback" in
       match (D.compare xn (TubeOf.inst tyargs), D.compare (TubeOf.inst tyargs) (dim_env env)) with

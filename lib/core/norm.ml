@@ -353,12 +353,12 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
                       | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
                       | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
                       | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
-                  | Lawful (Data (dim, (Unfilled _ as indices), constrs)) -> (
+                  | Lawful (Data { dim; indices = Unfilled _ as indices; constrs }) -> (
                       match D.compare dim k with
                       | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
                       | Eq ->
                           let indices = Fillvec.snoc indices newarg in
-                          let alignment = Lawful (Data (dim, indices, constrs)) in
+                          let alignment = Lawful (Data { dim; indices; constrs }) in
                           Val (Uninst (Neu { head; args; alignment }, ty)))
                   | _ -> fatal (Anomaly "invalid application of type"))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
@@ -545,7 +545,7 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical
         Abwd.map
           (fun (Term.Dataconstr { args; indices }) -> Value.Dataconstr { env; args; indices })
           constrs in
-      Data (dim_env env, Fillvec.empty indices, constrs)
+      Data { dim = dim_env env; indices = Fillvec.empty indices; constrs }
   | Codata { eta; opacity; dim; fields } ->
       let (Id_ins ins) = id_ins (dim_env env) dim in
       Codata { eta; opacity; env; ins; fields }

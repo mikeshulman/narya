@@ -302,7 +302,7 @@ let rec check :
         {
           (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
           head = Const { name; _ };
-          alignment = Lawful (Data (dim, Filled ty_indices, constrs));
+          alignment = Lawful (Data { dim; indices = Filled ty_indices; constrs });
           _;
         },
       _ ) -> (
@@ -560,7 +560,7 @@ and synth_or_check_nondep_match :
       {
         head = Const { name; _ };
         args = _;
-        alignment = Lawful (Data (dim, Filled indices, constrs));
+        alignment = Lawful (Data { dim; indices = Filled indices; constrs });
       } -> (
       (match i with
       | Some { value; loc } ->
@@ -691,7 +691,7 @@ and synth_dep_match :
       {
         head = Const { name; ins };
         args = varty_args;
-        alignment = Lawful (Data (dim, Filled var_indices, constrs));
+        alignment = Lawful (Data { dim; indices = Filled var_indices; constrs });
       } -> (
       match (is_id_ins ins, D.compare dim (TubeOf.inst inst_args)) with
       | _, Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
@@ -815,10 +815,7 @@ and check_var_match :
         alignment =
           Lawful
             (Data (type m j ij)
-              ((dim, Filled var_indices, data_constrs) :
-                m D.t
-                * ((m, normal) CubeOf.t, j, ij) Fillvec.t
-                * (Constr.t, (m, ij) Value.dataconstr) Abwd.t));
+              ({ dim; indices = Filled var_indices; constrs = data_constrs } : (m, j, ij) data_args));
       } -> (
       match D.compare dim (TubeOf.inst inst_args) with
       | Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
@@ -961,7 +958,12 @@ and check_var_match :
                 (* Since "index_vals" is just a Bwv of Cubes of *values*, we extract the corresponding collection of *normals* from the type.  The main use of this will be to substitute for the index variables, so instead of assembling them into another Bwv of Cubes, we make a hashtable associating those index variables to the corresponding normals.  We also include in the same hashtable the lower-dimensional applications of the same constructor, to be substituted for the instantiation variables. *)
                 let (Fullinst (ucty, _)) = full_inst constr_nf.ty "check_var_match (inner)" in
                 match ucty with
-                | Neu { alignment = Lawful (Data (constrdim, Filled indices, _)); _ } -> (
+                | Neu
+                    {
+                      alignment =
+                        Lawful (Data { dim = constrdim; indices = Filled indices; constrs = _ });
+                      _;
+                    } -> (
                     match
                       ( D.compare constrdim dim,
                         Fwn.compare (Vec.length index_terms) (Vec.length indices) )
@@ -1115,7 +1117,7 @@ and check_refute :
 and is_empty (varty : kinetic value) : bool =
   let (Fullinst (uvarty, _)) = full_inst varty "is_empty" in
   match uvarty with
-  | Neu { alignment = Lawful (Data (_, _, Emp)); _ } -> true
+  | Neu { alignment = Lawful (Data { constrs = Emp; _ }); _ } -> true
   | _ -> false
 
 and check_data :

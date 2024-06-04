@@ -382,12 +382,14 @@ module rec Value : sig
     | Unrealized : potential evaluation
     | Canonical : canonical -> potential evaluation
 
+  and ('m, 'j, 'ij) data_args = {
+    dim : 'm D.t;
+    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
+    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+  }
+
   and canonical =
-    | Data :
-        'm D.t
-        * (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t
-        * (Constr.t, ('m, 'ij) dataconstr) Abwd.t
-        -> canonical
+    | Data : ('m, 'j, 'ij) data_args -> canonical
     | Codata : {
         eta : potential eta;
         opacity : opacity;
@@ -496,15 +498,16 @@ end = struct
     | Unrealized : potential evaluation
     | Canonical : canonical -> potential evaluation
 
+  (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  A datatype value has a vector of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
+  and ('m, 'j, 'ij) data_args = {
+    dim : 'm D.t;
+    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
+    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+  }
+
   (* A canonical type value is either a datatype or a codatatype/record. *)
   and canonical =
-    (* A datatype value has a vector of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
-    | Data :
-        (* Unfortunately, it appears that we can't use an inline record for this constructor, because we need to be able to bind its existential types explicitly, and there's no syntax to do that with an inline record (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721). *)
-        'm D.t
-        * (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t
-        * (Constr.t, ('m, 'ij) dataconstr) Abwd.t
-        -> canonical
+    | Data : ('m, 'j, 'ij) data_args -> canonical
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
     | Codata : {
         eta : potential eta;

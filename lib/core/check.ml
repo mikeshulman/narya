@@ -195,6 +195,39 @@ type (_, _, _) checkable_branch =
     }
       -> ('a, 'm, 'ij) checkable_branch
 
+(* This preprocesssing step pairs each user-provided branch with the corresponding constructor information from the datatype. *)
+let merge_branches name user_branches data_constrs =
+  let user_branches, leftovers =
+    Bwd.fold_left
+      (fun (userbrs, databrs) (constr, Branch (xs, { value = plus_args; loc }, body)) ->
+        (* We check at the preprocessing stage that there are no duplicate constructors in the match. *)
+        if Abwd.mem constr userbrs then fatal ?loc (Duplicate_constructor_in_match constr);
+        let databrs, databr = Abwd.extract constr databrs in
+        let (Value.Dataconstr { env; args = argtys; indices = index_terms }) =
+          Reporter.with_loc loc @@ fun () ->
+          databr <|> No_such_constructor_in_match (PConstant name, constr) in
+        (* We also check during preprocessing that the user has supplied the right number of pattern variable arguments to the constructor.  The positive result of this check is then recorded in the common existential types bound by Checkable_branch. *)
+        match Fwn.compare (Fwn.bplus_right plus_args) (Telescope.length argtys) with
+        | Neq ->
+            fatal ?loc
+              (Wrong_number_of_arguments_to_pattern
+                 ( constr,
+                   Fwn.to_int (Fwn.bplus_right plus_args) - Fwn.to_int (Telescope.length argtys) ))
+        | Eq ->
+            let br =
+              Checkable_branch { xs; plus_args; body = Some body; env; argtys; index_terms } in
+            (Snoc (userbrs, (constr, br)), databrs))
+      (Bwd.Emp, data_constrs) user_branches in
+  (* If there are any constructors in the datatype left over that the user didn't supply branches for, we add them to the list at the end.  They will be tested for refutability. *)
+  Bwd_extra.append user_branches
+    (Bwd.map
+       (fun (c, Value.Dataconstr { env; args = argtys; indices = index_terms }) ->
+         let b = Telescope.length argtys in
+         let (Bplus plus_args) = Fwn.bplus b in
+         let xs = Vec.init (fun () -> (None, ())) b () in
+         (c, Checkable_branch { xs; body = None; plus_args; env; argtys; index_terms }))
+       leftovers)
+
 exception Case_tree_construct_in_let
 
 (* The output of checking a telescope includes an extended context. *)
@@ -560,7 +593,10 @@ and synth_or_check_nondep_match :
       {
         head = Const { name; _ };
         args = _;
-        alignment = Lawful (Data { dim; indices = Filled indices; constrs });
+        alignment =
+          Lawful
+            (Data (type m j ij)
+              ({ dim; indices = Filled indices; constrs = data_constrs } : (m, j, ij) data_args));
       } -> (
       (match i with
       | Some { value; loc } ->
@@ -576,65 +612,54 @@ and synth_or_check_nondep_match :
               (match motive with
               | Some ty -> Some ty
               | None -> None) in
-          (* We now iterate through the branches supplied by the user, typechecking them and inserting them in the match tree. *)
+          (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
+          let user_branches = merge_branches name brs data_constrs in
+          (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
           let branches =
             Bwd.fold_left
-              (fun branches (constr, Branch (xs, user_args, body)) ->
-                if Constr.Map.mem constr branches then
-                  fatal ?loc:user_args.loc (Duplicate_constructor_in_match constr);
-                (* Get the argument types and index terms for the constructor of this branch. *)
-                let (Dataconstr { env; args = argtys; indices = _ }) =
-                  Reporter.with_loc user_args.loc @@ fun () ->
-                  Abwd.find_opt constr constrs
-                  <|> No_such_constructor_in_match (PConstant name, constr) in
+              (fun branches
+                   ( constr,
+                     (Checkable_branch { xs; body; plus_args; env; argtys; index_terms = _ } :
+                       (a, m, ij) checkable_branch) ) ->
                 let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
-                (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
-                match Fwn.compare (Fwn.bplus_right user_args.value) (Telescope.length argtys) with
-                | Neq ->
-                    fatal ?loc:user_args.loc
-                      (Wrong_number_of_arguments_to_pattern
-                         ( constr,
-                           Fwn.to_int (Fwn.bplus_right user_args.value)
-                           - Fwn.to_int (Telescope.length argtys) ))
-                | Eq -> (
-                    (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                    let newctx, _, _, _ = ext_tel ctx env xs argtys user_args.value efc in
-                    let perm = Tbwd.id_perm in
-                    let status = make_match_status status tm dim branches efc None perm constr in
-                    (* Finally, we recurse into the "body" of the branch. *)
-                    match !ty with
-                    | Some motive ->
-                        (* If we have a type, check against it. *)
+                (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
+                let newctx, _, _, _ = ext_tel ctx env xs argtys plus_args efc in
+                let perm = Tbwd.id_perm in
+                let status = make_match_status status tm dim branches efc None perm constr in
+                (* Finally, we recurse into the "body" of the branch. *)
+                match !ty with
+                | Some motive -> (
+                    (* If we have a type, check against it. *)
+                    match body with
+                    | Some body ->
                         branches
                         |> Constr.Map.add constr
                              (Term.Branch (efc, perm, check status newctx body motive))
-                    | None -> (
-                        (* If we don't have a type yet, try to synthesize a type from this branch. *)
-                        match body with
-                        | { value = Synth value; loc } ->
-                            let sbr, sty = synth status newctx { value; loc } in
-                            (* The type synthesized is only valid for the whole match if it doesn't depend on the pattern variables.  We check that by reading it back into the original context. *)
-                            Reporter.try_with ~fatal:(fun d ->
-                                match d.message with
-                                | No_such_level _ ->
-                                    fatal
-                                      (Invalid_synthesized_type
-                                         ("first branch of match", PVal (newctx, sty)))
-                                | _ -> fatal_diagnostic d)
-                            @@ fun () ->
-                            discard (readback_val ctx sty);
-                            ty := Some sty;
-                            branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr))
-                        | _ ->
-                            fatal
-                              (Nonsynthesizing
-                                 "first branch in synthesizing match without return annotation"))))
-              Constr.Map.empty brs in
-          (* Coverage check *)
-          Abwd.iter
-            (fun c _ ->
-              if not (Constr.Map.mem c branches) then fatal (Missing_constructor_in_match c))
-            constrs;
+                    (* TODO: Check for refutations *)
+                    | None -> fatal (Missing_constructor_in_match constr))
+                | None -> (
+                    (* If we don't have a type yet, try to synthesize a type from this branch. *)
+                    match body with
+                    | Some { value = Synth value; loc } ->
+                        let sbr, sty = synth status newctx { value; loc } in
+                        (* The type synthesized is only valid for the whole match if it doesn't depend on the pattern variables.  We check that by reading it back into the original context. *)
+                        Reporter.try_with ~fatal:(fun d ->
+                            match d.message with
+                            | No_such_level _ ->
+                                fatal
+                                  (Invalid_synthesized_type
+                                     ("first branch of match", PVal (newctx, sty)))
+                            | _ -> fatal_diagnostic d)
+                        @@ fun () ->
+                        discard (readback_val ctx sty);
+                        ty := Some sty;
+                        branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr))
+                    | None -> fatal (Nonsynthesizing "match with zero branches")
+                    | _ ->
+                        fatal
+                          (Nonsynthesizing
+                             "first branch in synthesizing match without return annotation")))
+              Constr.Map.empty user_branches in
           match (motive, !ty) with
           | Some _, _ -> (Match { tm; dim; branches }, Not_some)
           | None, Some ty -> (Match { tm; dim; branches }, Not_none ty)
@@ -691,7 +716,10 @@ and synth_dep_match :
       {
         head = Const { name; ins };
         args = varty_args;
-        alignment = Lawful (Data { dim; indices = Filled var_indices; constrs });
+        alignment =
+          Lawful
+            (Data (type m j ij)
+              ({ dim; indices = Filled var_indices; constrs = data_constrs } : (m, j, ij) data_args));
       } -> (
       match (is_id_ins ins, D.compare dim (TubeOf.inst inst_args)) with
       | _, Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
@@ -713,60 +741,44 @@ and synth_dep_match :
               let emotivety = eval_term (Ctx.env ctx) motivety in
               let cmotive = check (Kinetic `Nolet) ctx motive emotivety in
               let emotive = eval_term (Ctx.env ctx) cmotive in
-              (* We now iterate through the branches supplied by the user, typechecking them and inserting them in the match tree. *)
+              (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
+              let user_branches = merge_branches name brs data_constrs in
+              (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
               let branches =
                 Bwd.fold_left
-                  (fun branches (constr, Branch (xs, user_args, body)) ->
-                    if Constr.Map.mem constr branches then
-                      fatal ?loc:user_args.loc (Duplicate_constructor_in_match constr);
-                    (* Get the argument types and index terms for the constructor of this branch. *)
-                    let (Dataconstr { env; args = argtys; indices = index_terms }) =
-                      Reporter.with_loc user_args.loc @@ fun () ->
-                      Abwd.find_opt constr constrs
-                      <|> No_such_constructor_in_match (PConstant name, constr) in
+                  (fun branches
+                       ( constr,
+                         (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
+                           (a, m, ij) checkable_branch) ) ->
                     let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
-                    (* The user needs to have supplied the right number of pattern variable arguments to the constructor. *)
-                    match
-                      Fwn.compare (Fwn.bplus_right user_args.value) (Telescope.length argtys)
-                    with
-                    | Neq ->
-                        fatal ?loc:user_args.loc
-                          (Wrong_number_of_arguments_to_pattern
-                             ( constr,
-                               Fwn.to_int (Fwn.bplus_right user_args.value)
-                               - Fwn.to_int (Telescope.length argtys) ))
-                    | Eq ->
-                        (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                        let newctx, newenv, newvars, _ =
-                          ext_tel ctx env xs argtys user_args.value efc in
-                        let perm = Tbwd.id_perm in
-                        let status =
-                          make_match_status status ctm dim branches efc None perm constr in
-                        (* To get the type at which to typecheck the body of the branch, we have to evaluate the general dependent motive at the indices of this constructor, its boundaries, and itself.  First we compute the indices. *)
-                        let index_vals =
-                          Vec.mmap (fun [ ixtm ] -> eval_with_boundary newenv ixtm) [ index_terms ]
-                        in
-                        let bmotive = Vec.fold_left apply_singletons emotive index_vals in
-                        (* Now we compute the constructor and its boundaries. *)
-                        let constr_vals =
-                          CubeOf.build dim
-                            {
-                              build =
-                                (fun fa ->
-                                  Value.Constr
-                                    (constr, dom_sface fa, List.map (CubeOf.subcube fa) newvars));
-                            } in
-                        let bmotive = apply_singletons bmotive constr_vals in
-                        (* Finally, we recurse into the "body" of the branch. *)
+                    (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
+                    let newctx, newenv, newvars, _ = ext_tel ctx env xs argtys plus_args efc in
+                    let perm = Tbwd.id_perm in
+                    let status = make_match_status status ctm dim branches efc None perm constr in
+                    (* To get the type at which to typecheck the body of the branch, we have to evaluate the general dependent motive at the indices of this constructor, its boundaries, and itself.  First we compute the indices. *)
+                    let index_vals =
+                      Vec.mmap (fun [ ixtm ] -> eval_with_boundary newenv ixtm) [ index_terms ]
+                    in
+                    let bmotive = Vec.fold_left apply_singletons emotive index_vals in
+                    (* Now we compute the constructor and its boundaries. *)
+                    let constr_vals =
+                      CubeOf.build dim
+                        {
+                          build =
+                            (fun fa ->
+                              Value.Constr
+                                (constr, dom_sface fa, List.map (CubeOf.subcube fa) newvars));
+                        } in
+                    let bmotive = apply_singletons bmotive constr_vals in
+                    (* Finally, we recurse into the "body" of the branch. *)
+                    match body with
+                    | Some body ->
                         branches
                         |> Constr.Map.add constr
-                             (Term.Branch (efc, perm, check status newctx body bmotive)))
-                  Constr.Map.empty brs in
-              (* Coverage check *)
-              Abwd.iter
-                (fun c _ ->
-                  if not (Constr.Map.mem c branches) then fatal (Missing_constructor_in_match c))
-                constrs;
+                             (Term.Branch (efc, perm, check status newctx body bmotive))
+                    (* TODO: Check for refutations *)
+                    | None -> fatal (Missing_constructor_in_match constr))
+                  Constr.Map.empty user_branches in
               (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
               let result =
                 Vec.fold_left
@@ -862,41 +874,9 @@ and check_var_match :
                     [ args ])
             params;
           (* If all of those checks succeed, we continue on the path of a variable match.  But note that this call is still inside the try_with, so it can still fail and revert back to a non-dependent term match. *)
-          (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree.  We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
-          let (user_branches : (Constr.t, (a, m, ij) checkable_branch) Abwd.t), leftovers =
-            Bwd.fold_left
-              (fun (userbrs, databrs) (constr, Branch (xs, { value = plus_args; loc }, body)) ->
-                (* We check at the preprocessing stage that there are no duplicate constructors in the match. *)
-                if Abwd.mem constr userbrs then fatal ?loc (Duplicate_constructor_in_match constr);
-                let databrs, databr = Abwd.extract constr databrs in
-                let (Value.Dataconstr { env; args = argtys; indices = index_terms }) =
-                  Reporter.with_loc loc @@ fun () ->
-                  databr <|> No_such_constructor_in_match (PConstant name, constr) in
-                (* We also check during preprocessing that the user has supplied the right number of pattern variable arguments to the constructor.  The positive result of this check is then recorded in the common existential types bound by Checkable_branch. *)
-                match Fwn.compare (Fwn.bplus_right plus_args) (Telescope.length argtys) with
-                | Neq ->
-                    fatal ?loc
-                      (Wrong_number_of_arguments_to_pattern
-                         ( constr,
-                           Fwn.to_int (Fwn.bplus_right plus_args)
-                           - Fwn.to_int (Telescope.length argtys) ))
-                | Eq ->
-                    let br =
-                      Checkable_branch { xs; plus_args; body = Some body; env; argtys; index_terms }
-                    in
-                    (Snoc (userbrs, (constr, br)), databrs))
-              (Bwd.Emp, data_constrs) brs in
-          (* If there are any constructors in the datatype left over that the user didn't supply branches for, we add them to the list at the end.  They will be tested for refutability. *)
-          let user_branches =
-            Bwd_extra.append user_branches
-              (Bwd.map
-                 (fun (c, Value.Dataconstr { env; args = argtys; indices = index_terms }) ->
-                   let b = Telescope.length argtys in
-                   let (Bplus plus_args) = Fwn.bplus b in
-                   let xs = Vec.init (fun () -> (None, ())) b () in
-                   (c, Checkable_branch { xs; body = None; plus_args; env; argtys; index_terms }))
-                 leftovers) in
-          (* Now we iterate through the branches. *)
+          (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
+          let user_branches = merge_branches name brs data_constrs in
+          (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
           let branches =
             Bwd.fold_left
               (fun branches

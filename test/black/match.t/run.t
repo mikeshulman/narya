@@ -109,6 +109,9 @@
    ￮ Constant suc_even_not_even defined
   
    ￫ info[I0000]
+   ￮ Constant suc_even_not_even' defined
+  
+   ￫ info[I0000]
    ￮ Constant ⊤ defined
   
    ￫ info[I0000]
@@ -118,6 +121,15 @@
    ￮ Constant sum⊥ defined
   
    ￫ info[I0000]
+   ￮ Constant sum⊥' defined
+  
+   ￫ info[I0001]
+   ￮ Axiom oops assumed
+  
+  sum⊥' Type (inr. oops)
+    : Type
+  
+   ￫ info[I0000]
    ￮ Constant is_zero defined
   
    ￫ info[I0000]
@@ -125,6 +137,12 @@
   
    ￫ info[I0000]
    ￮ Constant is_zero_eq_zero' defined
+  
+   ￫ info[I0000]
+   ￮ Constant is_zero_eq_zero_rev defined
+  
+   ￫ info[I0000]
+   ￮ Constant is_zero_eq_zero_rev' defined
   
 
 

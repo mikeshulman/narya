@@ -775,6 +775,7 @@ let () =
     {
       process =
         (fun ctx obs loc _ ->
+          let refutables = { refutables = (fun _ -> []) } in
           match obs with
           | Term tm :: Term ({ value = Notn n; loc = mloc } as motive) :: obs ->
               if equal (notn n) abs then
@@ -786,11 +787,13 @@ let () =
                       `Nondep ({ value = N.to_int (N.plus_right mn); loc = vars.loc } : int located)
                     in
                     let branches = process_simple_branches ctx obs Emp in
-                    { value = Synth (Match { tm; sort; branches }); loc }
+                    let value = Synth (Match { tm; sort; branches; refutables }) in
+                    { value; loc }
                 | _ ->
                     let sort = `Explicit (process ctx motive) in
                     let branches = process_simple_branches ctx obs Emp in
-                    { value = Synth (Match { tm; sort; branches }); loc }
+                    let value = Synth (Match { tm; sort; branches; refutables }) in
+                    { value; loc }
               else fatal ?loc:mloc Parse_error
           | _ -> fatal (Anomaly "invalid notation arguments for match"));
     }
@@ -1046,7 +1049,16 @@ let rec process_branches :
                 @@ fun () ->
                 Raw.Branch (names, locate am loc, process_branches newxctx newxs seen newbrs loc))
           cbranches in
-      locate (Synth (Match { tm = process_obs_or_ix xctx x; sort = `Implicit; branches })) loc
+      let tm = process_obs_or_ix xctx x in
+      let refutables =
+        {
+          refutables =
+            (fun plus_args ->
+              let xctx, _ = Matchscope.exts plus_args xctx in
+              Bwd_extra.prepend_map (process_ix xctx) seen
+                (Vec.to_list_map (process_obs_or_ix xctx) xs));
+        } in
+      locate (Synth (Match { tm; sort = `Implicit; branches; refutables })) loc
 
 let rec get_discriminees :
     observation list ->

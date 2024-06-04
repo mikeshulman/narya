@@ -31,6 +31,7 @@ module Raw = struct
         (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
         sort : [ `Implicit | `Explicit of 'a check located | `Nondep of int located ];
         branches : (Constr.t, 'a branch) Abwd.t;
+        refutables : 'a refutables;
       }
         -> 'a synth
 
@@ -61,6 +62,9 @@ module Raw = struct
         -> 'a branch
 
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
+
+  (* A raw match stores the information about the pattern variables available from previous matches that could be used to refute missing cases.  But it can't store them as raw terms, since they have to be in the correct context extended by the new pattern variables generated in any such case.  So it stores them as a callback that puts them in any such extended context. *)
+  and 'a refutables = { refutables : 'b 'ab. ('a, 'b, 'ab) Fwn.bplus -> 'ab synth located list }
 
   (* An ('a, 'b, 'ab) tel is a raw telescope of length 'b in context 'a, with 'ab = 'a+'b the extended context. *)
   and (_, _, _) tel =
@@ -144,6 +148,7 @@ module rec Term : sig
     | Branch :
         ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
         -> ('a, 'n) branch
+    | Refute
 
   and _ canonical =
     | Data : {
@@ -229,6 +234,8 @@ end = struct
     | Branch :
         ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
         -> ('a, 'n) branch
+    (* A branch that was refuted during typechecking doesn't need a body to compute with, but we still mark its presence as a signal that it should be stuck (this can occur when normalizing in an inconsistent context). *)
+    | Refute
 
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =

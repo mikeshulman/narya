@@ -282,7 +282,9 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                   (* If we have a branch with a matching constructor, then our constructor must be applied to exactly the right number of elements (in dargs).  In that case, we pick them out and add them to the environment. *)
                   let env = take_args env plus_dim dargs plus in
                   (* Then we proceed recursively with the body of that branch. *)
-                  eval (permute_env perm env) body))
+                  eval (permute_env perm env) body)
+          (* If this constructor belongs to a refuted case, it must be that we are in an inconsistent context with some neutral belonging to an empty type.  In that case, the match must be stuck. *)
+          | Some Refute -> Unrealized)
       (* Otherwise, the case tree doesn't reduce. *)
       | _ -> Unrealized)
   | Realize tm -> Realize (eval_term env tm)

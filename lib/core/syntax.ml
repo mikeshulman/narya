@@ -462,8 +462,7 @@ end = struct
   (* A neutral has an "alignment".
      - A True neutral is an ordinary neutral that will never reduce further, such as an application of a variable or axiom, or of a defined constant with a neutral argument in a matching position.
      - A Chaotic neutral has a head defined by a case tree but isn't fully applied, so it might reduce further if it is applied to further arguments or field projections.  Thus it stores a value that should be either an abstraction or a struct, but does not test as equal to that value.
-     - A Lawful neutral has a head defined by a case tree that will doesn't reduce, but if it is applied to enough arguments it obtains a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.).
-     Alignments are parametrized over the class of head for a neutral that can have such an alignment.  Only constant-headed neutrals can have chaotic or lawful alignments; variables are always true neutral.  This is because alignments are ignored by readback, and so the information they contain must be reconstructible from the read-back term, which is possible for the case tree that is stored with a constant in the global environment, but not for a variable. *)
+     - A Lawful neutral has a head defined by a case tree that will doesn't reduce, but if it is applied to enough arguments it obtains a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.). *)
   and alignment =
     | True : alignment
     | Chaotic : potential value -> alignment
@@ -474,7 +473,7 @@ end = struct
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also has an alignment, which must be an allowed alignment for its class of head. *)
+    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also has an alignment. *)
     | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
 
   and _ value =

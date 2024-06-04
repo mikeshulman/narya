@@ -130,6 +130,12 @@
     : Type
   
    ￫ info[I0000]
+   ￮ Constant sum⊥'' defined
+  
+   ￫ info[I0000]
+   ￮ Constant sum⊥''' defined
+  
+   ￫ info[I0000]
    ￮ Constant is_zero defined
   
    ￫ info[I0000]

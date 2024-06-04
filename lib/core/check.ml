@@ -623,7 +623,7 @@ and synth_or_check_nondep_match :
                        (a, m, ij) checkable_branch) ) ->
                 let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
                 (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                let newctx, _, _, _ = ext_tel ctx env xs argtys plus_args efc in
+                let newctx, _, _, newnfs = ext_tel ctx env xs argtys plus_args efc in
                 let perm = Tbwd.id_perm in
                 let status = make_match_status status tm dim branches efc None perm constr in
                 (* Finally, we recurse into the "body" of the branch. *)
@@ -635,8 +635,9 @@ and synth_or_check_nondep_match :
                         branches
                         |> Constr.Map.add constr
                              (Term.Branch (efc, perm, check status newctx body motive))
-                    (* TODO: Check for refutations *)
-                    | None -> fatal (Missing_constructor_in_match constr))
+                    | None ->
+                        if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
+                        else fatal (Missing_constructor_in_match constr))
                 | None -> (
                     (* If we don't have a type yet, try to synthesize a type from this branch. *)
                     match body with
@@ -752,7 +753,7 @@ and synth_dep_match :
                            (a, m, ij) checkable_branch) ) ->
                     let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
                     (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                    let newctx, newenv, newvars, _ = ext_tel ctx env xs argtys plus_args efc in
+                    let newctx, newenv, newvars, newnfs = ext_tel ctx env xs argtys plus_args efc in
                     let perm = Tbwd.id_perm in
                     let status = make_match_status status ctm dim branches efc None perm constr in
                     (* To get the type at which to typecheck the body of the branch, we have to evaluate the general dependent motive at the indices of this constructor, its boundaries, and itself.  First we compute the indices. *)
@@ -776,8 +777,9 @@ and synth_dep_match :
                         branches
                         |> Constr.Map.add constr
                              (Term.Branch (efc, perm, check status newctx body bmotive))
-                    (* TODO: Check for refutations *)
-                    | None -> fatal (Missing_constructor_in_match constr))
+                    | None ->
+                        if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
+                        else fatal (Missing_constructor_in_match constr))
                   Constr.Map.empty user_branches in
               (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
               let result =
@@ -995,20 +997,9 @@ and check_var_match :
                                 branches |> Constr.Map.add constr (Term.Branch (efc, perm, branch))
                             (* If not, then we look for something to refute. *)
                             | None ->
-                                let module CM = CubeOf.Monadic (Monad.State (Bool)) in
                                 (* First we check whether any of the new pattern variables created by this match belong to an empty datatype. *)
                                 if
-                                  List.fold_left
-                                    (fun s nfs ->
-                                      snd
-                                        (CM.miterM
-                                           {
-                                             it =
-                                               (fun _ [ x ] s ->
-                                                 ((), s || is_empty (Binding.value x).ty));
-                                           }
-                                           [ nfs ] s))
-                                    false newnfs
+                                  any_empty newnfs
                                   || (* Otherwise, we check the stored "refutables", which include all the previous and succeeding pattern variables. *)
                                   List.fold_left
                                     (fun s x ->
@@ -1099,6 +1090,14 @@ and is_empty (varty : kinetic value) : bool =
   match uvarty with
   | Neu { alignment = Lawful (Data { constrs = Emp; _ }); _ } -> true
   | _ -> false
+
+and any_empty : type n. (n, Binding.t) CubeOf.t list -> bool =
+ fun nfss ->
+  let module CM = CubeOf.Monadic (Monad.State (Bool)) in
+  List.fold_left
+    (fun s nfs ->
+      snd (CM.miterM { it = (fun _ [ x ] s -> ((), s || is_empty (Binding.value x).ty)) } [ nfs ] s))
+    false nfss
 
 and check_data :
     type a b i bi.

@@ -207,6 +207,8 @@ val tface_plus :
 
 type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface
 
+val pface_of_sface : ('m, 'n) sface -> [ `Proper of ('m, 'n) pface | `Id of ('m, 'n) Eq.t ]
+
 val sface_plus_tface :
   ('k, 'm) sface ->
   ('m, 'n, 'mn) D.plus ->

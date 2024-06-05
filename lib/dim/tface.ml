@@ -61,15 +61,14 @@ let rec tface_plus :
 type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface
 
 (* Any strict face is either a proper face or the top face. *)
-(*
-let rec pface_of_sface : type m n. (m, n) sface -> (m, n) pface option = function
-  | Zero -> None
-  | End (fa, e) -> Some (End (fa, D.zero_plus (cod_sface fa), e))
+let rec pface_of_sface : type m n. (m, n) sface -> [ `Proper of (m, n) pface | `Id of (m, n) Eq.t ]
+    = function
+  | Zero -> `Id Eq
+  | End (fa, e) -> `Proper (End (fa, D.zero_plus (cod_sface fa), e))
   | Mid fa -> (
       match pface_of_sface fa with
-      | Some fb -> Some (Mid fb)
-      | None -> None)
-*)
+      | `Proper fb -> `Proper (Mid fb)
+      | `Id Eq -> `Id Eq)
 
 (* Any strict face can be added to a tube face on the left to get another tube face. *)
 

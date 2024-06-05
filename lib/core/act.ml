@@ -284,3 +284,11 @@ and act_normal_cube : type m n. (n, normal) CubeOf.t -> (m, n) deg -> (m, normal
 
 (* A version that takes the degeneracy wrapped. *)
 let act_any : type s. s value -> any_deg -> s value = fun v (Any s) -> act_value v s
+
+(* Now that we know how to act on values, we can look up single values in an environment.  *)
+let lookup : type n b. (n, b) env -> b Term.index -> kinetic value =
+ fun env (Index (v, fa)) ->
+  let (Looked_up (Op (f, s), entry)) = lookup_cube env v (id_op (dim_env env)) in
+  match D.compare (cod_sface fa) (CubeOf.dim entry) with
+  | Eq -> act_value (CubeOf.find (CubeOf.find entry fa) f) s
+  | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry))

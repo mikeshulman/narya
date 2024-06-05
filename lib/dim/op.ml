@@ -46,6 +46,11 @@ let op_plus_op :
   let (Plus middle) = D.plus (dom_sface d2) in
   Op (sface_plus_sface d1 mn middle d2, deg_plus_deg s1 middle kl s2)
 
+let plus_op :
+    type m n mn m l ml. m D.t -> (m, n, mn) D.plus -> (m, l, ml) D.plus -> (l, n) op -> (ml, mn) op
+    =
+ fun m mn ml op -> op_plus_op (id_op m) mn ml op
+
 type _ op_of = Of : ('m, 'n) op -> 'n op_of
 type _ op_of_plus = Of : ('m, 'n) sface * 'm deg_of_plus -> 'n op_of_plus
 

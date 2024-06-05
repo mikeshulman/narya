@@ -219,13 +219,13 @@ and readback_ordered_env :
     =
  fun ctx env envctx ->
   match envctx with
-  | Emp ->
-      let (Emp n) = Permute.env_top env in
-      Emp n
+  | Emp -> Emp (dim_env env)
   | Lock envctx -> readback_ordered_env ctx env envctx
   | Snoc (envctx, entry, _) -> (
-      let (Ext (env', xss)) = Permute.env_top env in
-      let tmenv = readback_ordered_env ctx env' envctx in
+      let (Looked_up (Op (fc, fd), xss)) = lookup_cube env Now (id_op (dim_env env)) in
+      let xss =
+        CubeOf.mmap { map = (fun _ [ ys ] -> act_value_cube (CubeOf.subcube fc ys) fd) } [ xss ]
+      in
       match entry with
       | Vis { bindings; _ } | Invis bindings ->
           let tmxss =
@@ -256,6 +256,8 @@ and readback_ordered_env :
                       [ xs ]);
               }
               [ xss ] in
+          let env = remove_env env Now in
+          let tmenv = readback_ordered_env ctx env envctx in
           Ext (tmenv, tmxss))
 
 (* Read back a context of values into a context of terms. *)

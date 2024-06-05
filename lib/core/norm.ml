@@ -17,31 +17,6 @@ open Act
 
    These possibilities are encoded in an "evaluation", defined in Syntax.Value.  The point is that, just as with the representation of terms, there is enough commonality between the two (application of lambdas and field projection from structs) that we don't want to duplicate the code, so we define the evaluation functions to return an "evaluation" result that is a GADT parametrized by the kind of energy of the term. *)
 
-(* Look up a value in an environment by variable index.  The result has to have a degeneracy action applied (from the actions stored in the environment).  Thus this depends on being able to act on a value by a degeneracy, so we can't define it until after act.ml is loaded (unless we do open recursive trickery). *)
-let lookup : type n b. (n, b) env -> b index -> kinetic value =
- fun env v ->
-  (* We traverse the environment, accumulating operator actions as we go, until we find the specified index. *)
-  let rec lookup : type m n b. (n, b) env -> b index -> (m, n) op -> kinetic value =
-   fun env v op ->
-    match (env, v) with
-    (* Since there's an index, the environment can't be empty. *)
-    | Emp _, _ -> .
-    (* If we encounter an operator action, we accumulate it. *)
-    | Act (env, op'), _ -> lookup env v (comp_op op' op)
-    (* If the environment is permuted, we apply the permutation to the index. *)
-    | Permute (p, env), Index (v, fa) ->
-        let (Permute_insert (v, _)) = Tbwd.permute_insert v p in
-        lookup env (Index (v, fa)) op
-    (* If we encounter a variable that isn't ours, we skip it and proceed. *)
-    | Ext (env, _), Index (Later v, fa) -> lookup env (Index (v, fa)) op
-    (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy. *)
-    | Ext (_, entry), Index (Now, fa) -> (
-        let (Op (f, s)) = op in
-        match D.compare (cod_sface fa) (CubeOf.dim entry) with
-        | Eq -> act_value (CubeOf.find (CubeOf.find entry fa) f) s
-        | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry))) in
-  lookup env v (id_op (dim_env env))
-
 (* The master evaluation function. *)
 let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
  fun env tm ->

@@ -574,3 +574,37 @@ let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf
 let val_of_norm_tube :
     type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
+
+(* Look up a cube of values in an environment by variable index, accumulating operator actions as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
+
+type (_, _) looked_up_cube =
+  | Looked_up : ('m, 'n) op * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('m, 'k) looked_up_cube
+
+let rec lookup_cube :
+    type m n k a b. (n, b) env -> (a, k, b) Tbwd.insert -> (m, n) op -> (m, k) looked_up_cube =
+ fun env v op ->
+  match (env, v) with
+  (* Since there's an index, the environment can't be empty. *)
+  | Emp _, _ -> .
+  (* If we encounter an operator action, we accumulate it. *)
+  | Act (env, op'), _ -> lookup_cube env v (comp_op op' op)
+  (* If the environment is permuted, we apply the permutation to the index. *)
+  | Permute (p, env), v ->
+      let (Permute_insert (v, _)) = Tbwd.permute_insert v p in
+      lookup_cube env v op
+  (* If we encounter a variable that isn't ours, we skip it and proceed. *)
+  | Ext (env, _), Later v -> lookup_cube env v op
+  (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy. *)
+  | Ext (_, entry), Now -> Looked_up (op, entry)
+
+(* Remove an entry from an environment *)
+let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a) env =
+ fun env v ->
+  match (env, v) with
+  | Emp _, _ -> .
+  | Act (env, op), _ -> Act (remove_env env v, op)
+  | Permute (p, env), v ->
+      let (Permute_insert (v', p')) = Tbwd.permute_insert v p in
+      Permute (p', remove_env env v')
+  | Ext (env, xs), Later v -> Ext (remove_env env v, xs)
+  | Ext (env, _), Now -> env

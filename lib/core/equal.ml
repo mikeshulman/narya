@@ -6,6 +6,7 @@ open Value
 open Inst
 open Domvars
 open Norm
+open Act
 open Monad.ZeroOps (Monad.Maybe)
 open Bwd
 module ListM = Mlist.Monadic (Monad.Maybe)
@@ -282,8 +283,16 @@ and equal_ordered_env :
   | Snoc (envctx, entry, _) -> (
       let open Monad.Ops (Monad.Maybe) in
       let open CubeOf.Monadic (Monad.Maybe) in
-      let (Ext (env1', xss1)) = Permute.env_top env1 in
-      let (Ext (env2', xss2)) = Permute.env_top env2 in
+      let (Looked_up (Op (fc1, fd1), xss1)) = lookup_cube env1 Now (id_op (dim_env env1)) in
+      let xss1 =
+        CubeOf.mmap { map = (fun _ [ ys ] -> act_value_cube (CubeOf.subcube fc1 ys) fd1) } [ xss1 ]
+      in
+      let (Looked_up (Op (fc2, fd2), xss2)) = lookup_cube env2 Now (id_op (dim_env env2)) in
+      let xss2 =
+        CubeOf.mmap { map = (fun _ [ ys ] -> act_value_cube (CubeOf.subcube fc2 ys) fd2) } [ xss2 ]
+      in
+      let env1' = remove_env env1 Now in
+      let env2' = remove_env env2 Now in
       let* () = equal_ordered_env lvl env1' env2' envctx in
       match entry with
       | Vis { bindings; _ } | Invis bindings ->

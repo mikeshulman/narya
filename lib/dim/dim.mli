@@ -21,6 +21,7 @@ module Endpoints : sig
 end
 
 val to_int : 'a D.t -> int
+val is_pos : 'a D.t -> bool
 
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
 

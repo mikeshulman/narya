@@ -131,8 +131,8 @@ and term : type b s. formatter -> (b, s) term -> unit =
 and canonical : type b. formatter -> b canonical -> unit =
  fun ppf c ->
   match c with
-  | Data { indices; constrs } ->
-      fprintf ppf "Data (%d, (%s))" (Fwn.to_int indices)
+  | Data { indices; constrs; discrete = _ } ->
+      fprintf ppf "Data (%d, (%s), ?)" (Fwn.to_int indices)
         (String.concat "," (Bwd_extra.to_list_map (fun (c, _) -> Constr.to_string c) constrs))
   | Codata { eta; fields; _ } ->
       fprintf ppf "Codata (%s, (%s))"

@@ -114,7 +114,7 @@ module Code = struct
     | Unbound_variable_in_notation : string list -> t
     | Head_already_has_notation : string -> t
     | Constant_assumed : printable * int -> t
-    | Constant_defined : printable list * int -> t
+    | Constant_defined : (printable * bool) list * int -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
@@ -538,17 +538,23 @@ module Code = struct
     | Constant_defined (names, h) -> (
         match names with
         | [] -> textf "Anomaly: no constant defined"
-        | [ name ] ->
-            if h > 1 then textf "Constant %a defined, containing %d holes" pp_printed (print name) h
+        | [ (name, discrete) ] ->
+            let discrete = if discrete then " (discrete)" else "" in
+            if h > 1 then
+              textf "Constant %a defined%s, containing %d holes" pp_printed (print name) discrete h
             else if h = 1 then
-              textf "Constant %a defined, containing 1 hole" pp_printed (print name)
-            else textf "Constant %a defined" pp_printed (print name)
+              textf "Constant %a defined%s, containing 1 hole" pp_printed (print name) discrete
+            else textf "Constant %a defined%s" pp_printed (print name) discrete
         | _ ->
             (if h > 1 then textf "@[<v 2>Constants defined mutually, containing %d holes:@,%a@]" h
              else if h = 1 then textf "@[<v 2>Constants defined mutually, containing 1 hole:@,%a@]"
              else textf "@[<v 2>Constants defined mutually:@,%a@]")
               (fun ppf names ->
-                pp_print_list (fun ppf name -> pp_printed ppf (print name)) ppf names)
+                pp_print_list
+                  (fun ppf (name, discrete) ->
+                    pp_printed ppf (print name);
+                    if discrete then pp_print_string ppf " (discrete)")
+                  ppf names)
               names)
     | Notation_defined name -> textf "Notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)

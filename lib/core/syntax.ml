@@ -164,6 +164,7 @@ module rec Term : sig
     | Data : {
         indices : 'i Fwn.t;
         constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
+        discrete : bool;
       }
         -> 'a canonical
     | Codata : {
@@ -251,6 +252,7 @@ end = struct
     | Data : {
         indices : 'i Fwn.t;
         constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
+        discrete : bool;
       }
         -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
@@ -393,6 +395,7 @@ module rec Value : sig
     dim : 'm D.t;
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+    discrete : bool;
   }
 
   and canonical =
@@ -512,6 +515,7 @@ end = struct
     dim : 'm D.t;
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+    discrete : bool;
   }
 
   (* A canonical type value is either a datatype or a codatatype/record. *)
@@ -620,3 +624,26 @@ let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a)
   | LazyExt (env, xs), Later v -> LazyExt (remove_env env v, xs)
   | Ext (env, _), Now -> env
   | LazyExt (env, _), Now -> env
+
+module Discreteness = Algaeff.Reader.Make (Bool)
+
+module Discrete = Algaeff.State.Make (struct
+  type t = bool Constant.Map.t
+end)
+
+let is_discrete : kinetic value -> bool = function
+  | Uninst (tm, _) | Inst { tm; _ } -> (
+      match tm with
+      | Neu { alignment = Lawful (Data { discrete = true; _ }); _ } -> true
+      (* TODO: In a mutual block, this is not the correct test: it considers all the mutually defined types to be "discrete" even if they don't later turn out to be.  At present we are disallowing discreteness for all mutual families. *)
+      | Neu { head = Const { name; _ }; _ } when Constant.Map.mem name (Discrete.get ()) -> true
+      (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
+      | _ -> false)
+  | _ -> false
+
+let const_head_of : kinetic value -> Constant.t option = function
+  | Uninst (tm, _) | Inst { tm; _ } -> (
+      match tm with
+      | Neu { head = Const { name; _ }; _ } -> Some name
+      | _ -> None)
+  | _ -> None

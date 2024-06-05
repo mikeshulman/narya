@@ -137,6 +137,8 @@ let run f =
       raise (Failure "Fatal error"))
   @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->
+  Discreteness.run ~env:false @@ fun () ->
+  Discrete.run ~init:Constant.Map.empty @@ fun () ->
   Parser.Pi.install ();
   f ()
 

@@ -5,6 +5,10 @@ type dim_wrapped = Wrap : 'n D.t -> dim_wrapped
 
 let to_int = D.to_int
 
+let is_pos : type n. n D.t -> bool = function
+  | Nat Zero -> false
+  | Nat (Suc _) -> true
+
 module Endpoints = Endpoints
 include Arith
 include Deg

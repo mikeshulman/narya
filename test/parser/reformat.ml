@@ -3,6 +3,7 @@ open Testutil.Print
 (* TODO: Some of the pretty-printing routines yield blank spaces at the end of lines, though they otherwise look nice.  It would be nice if we could tweak them to not do that, or failing that do some postprocessing to remove the extra spaces. *)
 
 let test_reformat () =
+  Testutil.Repl.run @@ fun () ->
   (* Application spines, with field projections *)
   set_margin 20;
   reformat "blah blah blah blah blah blah blah blah blah blah blah";

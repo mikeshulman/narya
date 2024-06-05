@@ -48,6 +48,7 @@ These options are discussed further below.
 - `-arity N`: Set the arity of parametricity to N (1 ≤ N ≤ 9)
 - `-direction X`: Set the symbol and names for reflexivity
 - `-internal` and `-external`: Set whether parametricity is internal (default) or external
+- `-discreteness`: Enable strictly parametrically discrete types
 - `-dtt`: Poor man's dTT mode (`-arity 1 -direction d -external`)
 
 ### Execution
@@ -1415,6 +1416,7 @@ The combination `-arity 1 -direction d -external` is a version of [displayed typ
 3. As noted above, display in Narya computes only up to isomorphism, and in the case of `Type` only up to retract up to isomorphism.
 4. (A syntactic difference only) Generic degeneracies in Narya must be parenthesized, so we write `A⁽ᵈ⁾` instead of `Aᵈ`.
 
+
 ### Higher datatypes and codatatypes
 
 There are many possible kinds of datatypes and codatatypes that make use of higher-dimensional structure.  Narya does not yet implement Higher Inductive Types, in which the output of a constructor can be a higher-dimensional version of the datatype, nor the dual sort of "higher coinductive type" in which the *input* of a method is a higher-dimensional version of the codatatype.  However, it does permit the *displayed coinductive types* of dTT and their generalization to other kinds of parametricity, in which the *output* of a corecursive *method* is a higher-dimensional version of the codatatype.  This permits, for example, the definition of the type of semi-simplicial types from the dTT paper:
@@ -1422,6 +1424,38 @@ There are many possible kinds of datatypes and codatatypes that make use of high
 def SST : Type ≔ codata [
 | X .z : Type
 | X .s : (X .z) → SST⁽ᵈ⁾ X
+]
+```
+
+### Parametrically discrete types
+
+Discreteness is an experimental feature.  A (strictly parametrically) *discrete* type, in the sense meant here, is one whose higher-dimensional versions are all definitionally subsingletons.  That is, if `b1 : A⁽ᵈ⁾ a` and `b2 : A⁽ᵈ⁾ a`, then `b1` and `b2` are convertible (this is implemented as an η-rule).  Discreteness is currently restricted to arity 1 (including dTT), and can be enabled by the `-discreteness` flag (which is not included in `-dtt`).  When discreteness is enabled, a declared type will be discrete if
+
+1. It is a datatype;
+2. It has no parameters;
+3. It has no indices; and
+4. All the arguments of all of its constructors are either itself or previously defined discrete types.
+
+Of the types mentioned as examples above, the discrete ones are `ℕ`, `Bool`, and `⊥`.  Some other examples of discrete types are integers and binary trees:
+```
+def ℤ : Type ≔ data [
+| zero.
+| suc. (_:ℕ)
+| negsuc. (_:ℕ)
+]
+
+def btree : Type ≔ data [
+| leaf.
+| node. (_:btree) (_:btree)
+]
+```
+Types defined in mutual families are never discrete.  (This could be improved, if there is interest.)
+
+The higher-dimensional versions of a discrete datatype are also still themselves datatypes, so they have constructors and can be matched on.  In fact it should be possible to prove internally *without* `-discreteness` that these types are always propositionally contractible.  In particular, they are inhabited, so discreteness just adds some strictness, making them *definitionally* singletons.  For example, here is the proof that the displayed versions of `ℕ` are inhabited:
+```
+def ℕ.d (n : ℕ) : ℕ⁽ᵈ⁾ n ≔ match n [
+| zero. ↦ zero.
+| suc. n ↦ suc. (ℕ.d n)
 ]
 ```
 

@@ -333,7 +333,7 @@ let rec check :
         {
           (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
           head = Const { name; _ };
-          alignment = Lawful (Data { dim; indices = Filled ty_indices; constrs });
+          alignment = Lawful (Data { dim; indices = Filled ty_indices; constrs; discrete = _ });
           _;
         },
       _ ) -> (
@@ -420,10 +420,17 @@ let rec check :
           let dim = TubeOf.inst tyargs in
           let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
           check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields)
-  | Data constrs, _, Potential _ ->
+  | Data constrs, _, Potential (_, args, _) ->
       (* For a datatype, the type to check against might not be a universe, it could include indices. *)
       let (Wrap num_indices) = Fwn.of_int (typefam ctx ty) in
-      check_data status ctx ty num_indices Abwd.empty (Bwd.to_list constrs)
+      (* If discreteness is on, then a datatype with no parameters or indices can be discrete.  (This is just a starting point; the arguments of all the constructors are also required to be either discrete or simply recursive.) *)
+      let discrete =
+        Discreteness.read ()
+        &&
+        match (num_indices, args) with
+        | Zero, Emp -> true
+        | _ -> false in
+      check_data status ctx ty num_indices Abwd.empty (Bwd.to_list constrs) ~discrete
   | Codata _, _, Potential _ ->
       fatal (Checking_canonical_at_nonuniverse ("codatatype", PVal (ctx, ty)))
   | Record _, _, Potential _ ->
@@ -588,7 +595,8 @@ and synth_or_check_nondep_match :
         alignment =
           Lawful
             (Data (type m j ij)
-              ({ dim; indices = Filled indices; constrs = data_constrs } : (m, j, ij) data_args));
+              ({ dim; indices = Filled indices; constrs = data_constrs; discrete = _ } :
+                (m, j, ij) data_args));
       } -> (
       (match i with
       | Some { value; loc } ->
@@ -712,7 +720,8 @@ and synth_dep_match :
         alignment =
           Lawful
             (Data (type m j ij)
-              ({ dim; indices = Filled var_indices; constrs = data_constrs } : (m, j, ij) data_args));
+              ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _ } :
+                (m, j, ij) data_args));
       } -> (
       match (is_id_ins ins, D.compare dim (TubeOf.inst inst_args)) with
       | _, Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
@@ -821,7 +830,8 @@ and check_var_match :
         alignment =
           Lawful
             (Data (type m j ij)
-              ({ dim; indices = Filled var_indices; constrs = data_constrs } : (m, j, ij) data_args));
+              ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _ } :
+                (m, j, ij) data_args));
       } -> (
       match D.compare dim (TubeOf.inst inst_args) with
       | Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
@@ -935,7 +945,9 @@ and check_var_match :
                 | Neu
                     {
                       alignment =
-                        Lawful (Data { dim = constrdim; indices = Filled indices; constrs = _ });
+                        Lawful
+                          (Data
+                            { dim = constrdim; indices = Filled indices; constrs = _; discrete = _ });
                       _;
                     } -> (
                     match
@@ -1155,21 +1167,29 @@ and check_data :
     i Fwn.t ->
     (Constr.t, (b, i) Term.dataconstr) Abwd.t ->
     (Constr.t * a Raw.dataconstr located) list ->
+    discrete:bool ->
     (b, potential) term =
- fun status ctx ty num_indices checked_constrs raw_constrs ->
+ fun status ctx ty num_indices checked_constrs raw_constrs ~discrete ->
   match (raw_constrs, status) with
-  | [], _ -> Canonical (Data { indices = num_indices; constrs = checked_constrs })
+  | [], Potential (head, _, _) ->
+      (match head with
+      | Constant c -> Discrete.modify (Constant.Map.add c discrete)
+      | _ -> ());
+      Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete })
   | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
       Potential (head, current_apps, hyp) ) -> (
       with_loc loc @@ fun () ->
       (* Temporarily bind the current constant to the up-until-now value. *)
       run_with_definition head
-        (hyp (Term.Canonical (Data { indices = num_indices; constrs = checked_constrs })))
+        (hyp
+           (Term.Canonical
+              (Data { indices = num_indices; constrs = checked_constrs; discrete = false })))
       @@ fun () ->
       match (Abwd.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
       | None, Some output -> (
-          let (Checked_tel (args, newctx)) = check_tel ctx args in
+          let Checked_tel (args, newctx), argsdisc = check_tel ctx args in
+          let discrete = discrete && argsdisc in
           let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
           match eval_term (Ctx.env newctx) coutput with
           | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; alignment = _ }, _)
@@ -1183,7 +1203,7 @@ and check_data :
                   | Eq ->
                       check_data status ctx ty num_indices
                         (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }))
-                        raw_constrs
+                        raw_constrs ~discrete
                   | _ ->
                       (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
                       fatal (Anomaly "length of indices mismatch"))
@@ -1192,10 +1212,11 @@ and check_data :
       | None, None -> (
           match num_indices with
           | Zero ->
-              let (Checked_tel (args, _)) = check_tel ctx args in
+              let Checked_tel (args, _), argsdisc = check_tel ctx args in
+              let discrete = discrete && argsdisc in
               check_data status ctx ty Fwn.zero
                 (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }))
-                raw_constrs
+                raw_constrs ~discrete
           | Suc _ -> fatal (Missing_constructor_type c)))
 
 and get_indices :
@@ -1673,14 +1694,15 @@ and check_at_tel :
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
 (* Given a context and a raw telescope, we can check it to produce a checked telescope and also a new context extended by that telescope. *)
-and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel =
+and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel * bool =
  fun ctx tel ->
   match tel with
-  | Emp -> Checked_tel (Emp, ctx)
+  | Emp -> (Checked_tel (Emp, ctx), true)
   | Ext (x, ty, tys) ->
       let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
       let ety = eval_term (Ctx.env ctx) cty in
       let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
       let ctx = Ctx.cube_vis ctx x newnfs in
-      let (Checked_tel (ctys, ctx)) = check_tel ctx tys in
-      Checked_tel (Ext (x, cty, ctys), ctx)
+      let Checked_tel (ctys, ctx), discrete = check_tel ctx tys in
+      let discrete = discrete && is_discrete ety in
+      (Checked_tel (Ext (x, cty, ctys), ctx), discrete)

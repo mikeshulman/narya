@@ -23,6 +23,7 @@ let arity = ref 2
 let refl_char = ref 'e'
 let refl_strings = ref [ "refl"; "Id" ]
 let internal = ref true
+let discreteness = ref false
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -56,6 +57,7 @@ let speclist =
       "Names for parametricity direction and reflexivity (default = e,refl,Id)" );
     ("-internal", Arg.Set internal, "Set parametricity to internal (default)");
     ("-external", Arg.Clear internal, "Set parametricity to external");
+    ("-discreteness", Arg.Set discreteness, "Enable discreteness");
     ( "-dtt",
       Unit
         (fun () ->
@@ -220,8 +222,10 @@ let () =
       exit 1)
   @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->
+  Core.Syntax.Discreteness.run ~env:!discreteness @@ fun () ->
   Parser.Pi.install ();
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
+  if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
   Dim.Endpoints.set_len !arity;
   Dim.Endpoints.set_char !refl_char;
   Dim.Endpoints.set_names !refl_strings;

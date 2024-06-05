@@ -297,18 +297,16 @@ let execute : Command.t -> unit = function
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
-      Core.Command.execute (Axiom (const, params, process ctx ty));
-      let h = Core.Eternity.end_command () in
-      emit (Constant_assumed (PConstant const, h))
+      Core.Command.execute (Axiom (const, params, process ctx ty))
   | Def defs ->
-      let [ names; cdefs; printables ] =
+      let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
             if Option.is_some (Scope.lookup d.name) then
               emit (Constant_already_defined (String.concat "." d.name));
             let c = Scope.define d.name in
-            [ d.name; (c, d); PConstant c ])
-          [ defs ] (Cons (Cons (Cons Nil))) in
+            [ d.name; (c, d) ])
+          [ defs ] (Cons (Cons Nil)) in
       Reporter.try_with ~fatal:(fun d ->
           List.iter
             (fun c ->
@@ -324,17 +322,15 @@ let execute : Command.t -> unit = function
                 let (Processed_tel (params, ctx)) = process_tel Emp parameters in
                 match ty with
                 | Some (Term ty) ->
-                    Core.Command.Def_check
-                      { const; params; ty = process ctx ty; tm = process ctx tm }
+                    ( const,
+                      Core.Command.Def_check { params; ty = process ctx ty; tm = process ctx tm } )
                 | None -> (
                     match process ctx tm with
                     | { value = Synth tm; loc } ->
-                        Def_synth { const; params; tm = { value = tm; loc } }
+                        (const, Def_synth { params; tm = { value = tm; loc } })
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
-      Core.Command.execute (Def defs);
-      let h = Core.Eternity.end_command () in
-      emit (Constant_defined (printables, h))
+      Core.Command.execute (Def defs)
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
       match rtm.value with

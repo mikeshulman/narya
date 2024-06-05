@@ -286,12 +286,12 @@ and equal_ordered_env :
       let (Looked_up (force1, Op (fc1, fd1), xss1)) = lookup_cube env1 Now (id_op (dim_env env1)) in
       let xss1 =
         CubeOf.mmap
-          { map = (fun _ [ ys ] -> act_value_cube_lazy force1 (CubeOf.subcube fc1 ys) fd1) }
+          { map = (fun _ [ ys ] -> act_value_cube force1 (CubeOf.subcube fc1 ys) fd1) }
           [ xss1 ] in
       let (Looked_up (force2, Op (fc2, fd2), xss2)) = lookup_cube env2 Now (id_op (dim_env env2)) in
       let xss2 =
         CubeOf.mmap
-          { map = (fun _ [ ys ] -> act_value_cube_lazy force2 (CubeOf.subcube fc2 ys) fd2) }
+          { map = (fun _ [ ys ] -> act_value_cube force2 (CubeOf.subcube fc2 ys) fd2) }
           [ xss2 ] in
       let env1' = remove_env env1 Now in
       let env2' = remove_env env2 Now in

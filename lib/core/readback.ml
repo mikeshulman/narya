@@ -224,7 +224,7 @@ and readback_ordered_env :
       let (Looked_up (force, Op (fc, fd), xss)) = lookup_cube env Now (id_op (dim_env env)) in
       let xss =
         CubeOf.mmap
-          { map = (fun _ [ ys ] -> act_value_cube_lazy force (CubeOf.subcube fc ys) fd) }
+          { map = (fun _ [ ys ] -> act_value_cube force (CubeOf.subcube fc ys) fd) }
           [ xss ] in
       match entry with
       | Vis { bindings; _ } | Invis bindings ->

@@ -49,7 +49,6 @@ type (_, _, _) act_closure =
 let rec act_value : type m n s. s value -> (m, n) deg -> s value =
  fun v s ->
   match v with
-  | Lazy (lazy v) -> act_value v s
   | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, Lazy.from_val (act_ty v ty s))
   | Inst { tm; dim; args; tys } ->
       let (Of fa) = deg_plus_to s (TubeOf.uninst args) ~on:"instantiation" in
@@ -169,12 +168,11 @@ and act_binder : type mn kn s. (mn, s) binder -> (kn, mn) deg -> (kn, s) binder 
 and act_normal : type a b. normal -> (a, b) deg -> normal =
  fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }
 
-(* When acting on a neutral or normal, we also need to specify the type of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions (as well as the instantiated term).  This function computes this "type of acted terms".  It has to be passed the term as well as the type because the instantiation of the result may involve that term, e.g. if x : A then refl x : Id A x x. *)
-and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) deg -> kinetic value
-    =
+(* When acting on a neutral or normal, we also need to specify the type of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions (as well as the instantiated term).  This function computes this "type of acted terms".  In general, it has to be passed the term as well as the type because the instantiation of the result may involve that term, e.g. if x : A then refl x : Id A x x; but we allow that term to be omitted in case the degeneracy is a pure symmetry in which case this doesn't happen. *)
+and gact_ty :
+    type a b. ?err:Code.t -> kinetic value option -> kinetic value -> (a, b) deg -> kinetic value =
  fun ?err tm tmty s ->
   match tmty with
-  | Lazy (lazy tmty) -> act_ty ?err tm tmty s
   | Inst { tm = ty; dim; args; tys = _ } -> (
       (* A type must be fully instantiated, so in particular tys is trivial. *)
       match D.compare (TubeOf.uninst args) D.zero with
@@ -183,8 +181,6 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           (* We check that the degeneracy can be extended to match the instantiation dimension.  If this fails, it is sometimes a bug, but sometimes a user error, e.g. when trying to symmetrize a 1-dimensional thing.  So we allow the caller to provide the error code. *)
           let (Of fa) = deg_plus_to s (TubeOf.inst args) ?err ~on:"instantiated type" in
-          (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
-          let args' = TubeOf.plus_cube args (CubeOf.singleton { tm; ty = tmty }) in
           (* We build the new arguments by factorization and action.  Note that the one missing face would be "act_value tm s", which would be an infinite loop in case tm is a neutral.  (Hence why we can't just call act_normal_cube and then take the boundary.) *)
           let args =
             TubeOf.build D.zero
@@ -193,7 +189,16 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
                 build =
                   (fun fb ->
                     let (Op (fd, fc)) = deg_sface fa (sface_of_tface fb) in
-                    act_normal (CubeOf.find args' fd) fc);
+                    let ftm =
+                      (* The arguments of a full instantiation are missing only the top face, which is filled in by the term belonging to it. *)
+                      match (pface_of_sface fd, tm) with
+                      | `Proper fd, _ -> TubeOf.find args fd
+                      | `Id Eq, Some tm -> { tm; ty = tmty }
+                      | `Id _, None ->
+                          fatal
+                            (Anomaly "term missing in action on instantiated type by non-symmetry")
+                    in
+                    act_normal ftm fc);
               } in
           Inst { tm = act_uninst ty s; dim = pos_deg dim fa; args; tys = TubeOf.empty D.zero })
   | Uninst (ty, (lazy uu)) -> (
@@ -205,26 +210,29 @@ and act_ty : type a b. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) d
           fatal
             (Option.value ~default:(Anomaly "invalid degeneracy action on uninstantiated type") err)
       | Eq, Uninst (UU z, _) -> (
-          match D.compare z D.zero with
-          | Neq -> fatal (Anomaly "acting on non-fully-instantiated type as a type")
-          | Eq -> (
-              match D.compare_zero (dom_deg fa) with
-              | Zero -> Uninst (act_uninst ty fa, lazy uu)
-              | Pos dim ->
-                  let args =
-                    TubeOf.build D.zero
-                      (D.zero_plus (dom_deg fa))
-                      {
-                        build =
-                          (fun fb ->
-                            let (Op (_, fc)) = deg_sface fa (sface_of_tface fb) in
-                            act_normal { tm; ty = tmty } fc);
-                      } in
-                  Inst { tm = act_uninst ty fa; dim; args; tys = TubeOf.empty D.zero }))
+          match (D.compare z D.zero, D.compare_zero (dom_deg fa), tm) with
+          | Neq, _, _ -> fatal (Anomaly "acting on non-fully-instantiated type as a type")
+          | Eq, Zero, _ -> Uninst (act_uninst ty fa, lazy uu)
+          | Eq, Pos _, None -> fatal (Anomaly "term missing in action on uninstantiated type")
+          | Eq, Pos dim, Some tm ->
+              let args =
+                TubeOf.build D.zero
+                  (D.zero_plus (dom_deg fa))
+                  {
+                    build =
+                      (fun fb ->
+                        let (Op (_, fc)) = deg_sface fa (sface_of_tface fb) in
+                        act_normal { tm; ty = tmty } fc);
+                  } in
+              Inst { tm = act_uninst ty fa; dim; args; tys = TubeOf.empty D.zero })
       | _ -> fatal (Anomaly "acting on non-type as if a type"))
   | Lam _ -> fatal (Anomaly "a lambda-abstraction cannot be a type to act on")
   | Struct _ -> fatal (Anomaly "a struct cannot be a type to act on")
   | Constr _ -> fatal (Anomaly "a constructor cannot be a type to act on")
+
+and act_ty :
+    type a b p. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) deg -> kinetic value =
+ fun ?err tm tmty s -> gact_ty ?err (Some tm) tmty s
 
 (* Action on a head *)
 and act_head : type a b. head -> (a, b) deg -> head =
@@ -272,6 +280,17 @@ and act_value_cube : type m n s. (n, s value) CubeOf.t -> (m, n) deg -> (m, s va
           act_value (CubeOf.find xs fd) fc);
     }
 
+and act_value_cube_lazy :
+    type m n s a. (a -> s value) -> (n, a) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =
+ fun force xs fa ->
+  CubeOf.build (dom_deg fa)
+    {
+      build =
+        (fun fb ->
+          let (Op (fd, fc)) = deg_sface fa fb in
+          act_value (force (CubeOf.find xs fd)) fc);
+    }
+
 and act_normal_cube : type m n. (n, normal) CubeOf.t -> (m, n) deg -> (m, normal) CubeOf.t =
  fun xs fa ->
   CubeOf.build (dom_deg fa)
@@ -288,7 +307,7 @@ let act_any : type s. s value -> any_deg -> s value = fun v (Any s) -> act_value
 (* Now that we know how to act on values, we can look up single values in an environment.  *)
 let lookup : type n b. (n, b) env -> b Term.index -> kinetic value =
  fun env (Index (v, fa)) ->
-  let (Looked_up (Op (f, s), entry)) = lookup_cube env v (id_op (dim_env env)) in
+  let (Looked_up (force, Op (f, s), entry)) = lookup_cube env v (id_op (dim_env env)) in
   match D.compare (cod_sface fa) (CubeOf.dim entry) with
-  | Eq -> act_value (CubeOf.find (CubeOf.find entry fa) f) s
+  | Eq -> act_value (force (CubeOf.find (CubeOf.find entry fa) f)) s
   | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry))

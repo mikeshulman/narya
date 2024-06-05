@@ -25,7 +25,6 @@ let dim : formatter -> 'a D.t -> unit =
 let rec dvalue : type s. int -> formatter -> s value -> unit =
  fun depth ppf v ->
   match v with
-  | Lazy (lazy v) -> value ppf v
   | Uninst (tm, ty) ->
       if depth > 0 then fprintf ppf "Uninst (%a, %a)" uninst tm (dvalue (depth - 1)) (Lazy.force ty)
       else fprintf ppf "Uninst (%a, ?)" uninst tm
@@ -103,6 +102,7 @@ and env : type b n. formatter -> (n, b) Value.env -> unit =
   match e with
   | Emp d -> fprintf ppf "Emp %a" dim d
   | Ext (e, _) -> fprintf ppf "%a <: ?" env e
+  | LazyExt (e, _) -> fprintf ppf "%a <: ?" env e
   | Act (e, Op (f, d)) -> fprintf ppf "%a <* (%s,%s)" env e (string_of_sface f) (string_of_deg d)
   | Permute (_, e) -> fprintf ppf "(%a) permuted(?)" env e
 

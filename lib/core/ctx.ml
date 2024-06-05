@@ -302,11 +302,11 @@ module Ordered = struct
 
   and env_entry : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (D.zero, (b, n) snoc) env =
    fun ctx v ->
-    Ext
+    LazyExt
       ( env ctx,
         CubeOf.mmap
           (* We wrap the value in a Lazy because it might be Unknown or Delayed, but we don't want an error reported unless such a value is actually *used*. *)
-          { map = (fun _ [ x ] -> CubeOf.singleton (Lazy (lazy (Binding.value x).tm))) }
+          { map = (fun _ [ x ] -> CubeOf.singleton (lazy (Binding.value x).tm)) }
           [ v ] )
 
   (* Extend a context by one new variable, without a value but with an assigned type. *)

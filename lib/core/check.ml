@@ -248,15 +248,14 @@ let rec check :
       clet
   (* An action can always synthesize, but can also check if its degeneracy is a pure permutation, since then the type of the argument can be inferred by applying the inverse permutation to the ambient type. *)
   | Synth (Act (str, fa, x) as stm), _, _ -> (
+      (* TODO: Once we have multiple directions, this will need to be more sophisticated. *)
       match D.compare (dom_deg fa) (cod_deg fa) with
       | Neq -> check_of_synth status ctx stm tm.loc ty
       | Eq ->
           let fainv = perm_inv fa in
           let ty_fainv =
-            act_ty
-              (Lazy (lazy (fatal (Anomaly "term used in action by inverse symmetry"))))
-              ty fainv
-              ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa)) in
+            gact_ty None ty fainv ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa))
+          in
           let cx =
             (* A pure permutation shouldn't ever be locking, but we may as well keep this here for consistency.  *)
             if locking fa then

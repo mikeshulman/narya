@@ -382,7 +382,6 @@ module rec Value : sig
     | Struct :
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
         -> 's value
-    | Lazy : 's value Lazy.t -> 's value
 
   and _ evaluation =
     | Val : 's value -> 's evaluation
@@ -419,6 +418,9 @@ module rec Value : sig
 
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
+    | LazyExt :
+        ('n, 'b) env * ('k, ('n, kinetic value Lazy.t) CubeOf.t) CubeOf.t
+        -> ('n, ('b, 'k) snoc) env
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
@@ -496,7 +498,6 @@ end = struct
     | Struct :
         (Field.t, 's evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
         -> 's value
-    | Lazy : 's value Lazy.t -> 's value
 
   (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
   and _ evaluation =
@@ -542,6 +543,9 @@ end = struct
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
     (* Here the k-cube denotes a "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, while each of them has an n-cube of values representing a value and its boundaries. *)
+    | LazyExt :
+        ('n, 'b) env * ('k, ('n, kinetic value Lazy.t) CubeOf.t) CubeOf.t
+        -> ('n, ('b, 'k) snoc) env
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
@@ -560,6 +564,7 @@ let var : level -> kinetic value -> kinetic value =
 let rec dim_env : type n b. (n, b) env -> n D.t = function
   | Emp n -> n
   | Ext (e, _) -> dim_env e
+  | LazyExt (e, _) -> dim_env e
   | Act (_, op) -> dom_op op
   | Permute (_, e) -> dim_env e
 
@@ -577,8 +582,11 @@ let val_of_norm_tube :
 
 (* Look up a cube of values in an environment by variable index, accumulating operator actions as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
 
+(* Since some entries in an environment are lazy and some aren't, we return a cube whose entries belong to an existential type, along with a function to force any element of that type into a value. *)
 type (_, _) looked_up_cube =
-  | Looked_up : ('m, 'n) op * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('m, 'k) looked_up_cube
+  | Looked_up :
+      ('a -> kinetic value) * ('m, 'n) op * ('k, ('n, 'a) CubeOf.t) CubeOf.t
+      -> ('m, 'k) looked_up_cube
 
 let rec lookup_cube :
     type m n k a b. (n, b) env -> (a, k, b) Tbwd.insert -> (m, n) op -> (m, k) looked_up_cube =
@@ -594,8 +602,10 @@ let rec lookup_cube :
       lookup_cube env v op
   (* If we encounter a variable that isn't ours, we skip it and proceed. *)
   | Ext (env, _), Later v -> lookup_cube env v op
-  (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy. *)
-  | Ext (_, entry), Now -> Looked_up (op, entry)
+  | LazyExt (env, _), Later v -> lookup_cube env v op
+  (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy.  The forcing function is the identity if the entry is not lazy, and Lazy.force if it is lazy. *)
+  | Ext (_, entry), Now -> Looked_up ((fun x -> x), op, entry)
+  | LazyExt (_, entry), Now -> Looked_up (Lazy.force, op, entry)
 
 (* Remove an entry from an environment *)
 let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a) env =
@@ -607,4 +617,6 @@ let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a)
       let (Permute_insert (v', p')) = Tbwd.permute_insert v p in
       Permute (p', remove_env env v')
   | Ext (env, xs), Later v -> Ext (remove_env env v, xs)
+  | LazyExt (env, xs), Later v -> LazyExt (remove_env env v, xs)
   | Ext (env, _), Now -> env
+  | LazyExt (env, _), Now -> env

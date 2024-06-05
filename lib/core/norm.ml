@@ -230,10 +230,11 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           } in
       Val (CubeOf.find_top pis).tm
   | Let (_, v, body) ->
+      (* We evaluate let-bindings lazily, on the chance they aren't actually used. *)
       let args =
-        CubeOf.build (dim_env env) { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) v) }
-      in
-      eval (Ext (env, CubeOf.singleton args)) body
+        CubeOf.build (dim_env env)
+          { build = (fun fa -> lazy (eval_term (Act (env, op_of_sface fa)) v)) } in
+      eval (LazyExt (env, CubeOf.singleton args)) body
   (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
   | Act (x, s) ->
       let k = dim_env env in
@@ -493,9 +494,10 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
   let n = cod_right_ins ins in
   let mn = plus_of_ins ins in
   let perm = perm_of_ins ins in
+  (* The arguments have to be acted on by degeneracies to form the appropriate cube.  But not all the arguments may be actually used, so we do these actions lazily. *)
   match
     eval
-      (Ext
+      (LazyExt
          ( env,
            CubeOf.build n
              {
@@ -508,7 +510,7 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
                            let (Plus kj) = D.plus (dom_sface fs) in
                            let frfs = sface_plus_sface fr mn kj fs in
                            let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
-                           act_value (CubeOf.find argstbl fa) fb);
+                           lazy (act_value (CubeOf.find argstbl fa) fb));
                      });
              } ))
       body
@@ -543,7 +545,8 @@ and eval_env :
   match tmenv with
   | Emp _ -> Emp mn
   | Ext (tmenv, xss) ->
-      Ext
+      (* We make everything lazy, since we can, and not everything may end up being used. *)
+      LazyExt
         ( eval_env env m_n tmenv,
           CubeOf.mmap
             {
@@ -554,7 +557,7 @@ and eval_env :
                       build =
                         (fun fab ->
                           let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                          eval_term (Act (env, op_of_sface fa)) (CubeOf.find xs fb));
+                          lazy (eval_term (Act (env, op_of_sface fa)) (CubeOf.find xs fb)));
                     });
             }
             [ xss ] )

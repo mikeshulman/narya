@@ -51,7 +51,7 @@ let lookup_field : type n. n t -> n index -> Field.t -> string list option =
     | Snoc (_, Variables (_, mn, _), fields), Index (Now, fa) ->
         let open Monad.Ops (Monad.Maybe) in
         let (SFace_of_plus (_, fb, fc)) = sface_of_plus mn fa in
-        let* () = is_id_sface fc in
+        let* _ = is_id_sface fc in
         let* y = Abwd.find_opt f fields in
         return (cubevar y fb) in
   lookup ctx x

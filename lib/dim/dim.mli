@@ -42,7 +42,7 @@ val deg_plus_deg :
 val plus_deg :
   'm D.t -> ('m, 'n, 'mn) D.plus -> ('m, 'l, 'ml) D.plus -> ('l, 'n) deg -> ('ml, 'mn) deg
 
-val is_id_deg : ('m, 'n) deg -> unit option
+val is_id_deg : ('m, 'n) deg -> ('m, 'n) Eq.t option
 val pos_deg : 'n D.pos -> ('m, 'n) deg -> 'm D.pos
 val deg_equiv : ('m, 'n) deg -> ('k, 'l) deg -> unit option
 val deg_zero : 'a D.t -> ('a, D.zero) deg
@@ -79,7 +79,7 @@ type (_, _) sface
 val id_sface : 'n D.t -> ('n, 'n) sface
 val dom_sface : ('m, 'n) sface -> 'm D.t
 val cod_sface : ('m, 'n) sface -> 'n D.t
-val is_id_sface : ('m, 'n) sface -> unit option
+val is_id_sface : ('m, 'n) sface -> ('m, 'n) Eq.t option
 val comp_sface : ('n, 'k) sface -> ('m, 'n) sface -> ('m, 'k) sface
 val sface_zero : ('n, D.zero) sface -> ('n, D.zero) Eq.t
 
@@ -465,6 +465,7 @@ val deg_sface : ('n, 'k) deg -> ('m, 'n) sface -> ('m, 'k) op
 val comp_op : ('n, 'k) op -> ('m, 'n) op -> ('m, 'k) op
 val dom_op : ('m, 'n) op -> 'm D.t
 val cod_op : ('m, 'n) op -> 'n D.t
+val is_id_op : ('m, 'n) op -> ('m, 'n) Eq.t option
 val op_of_deg : ('m, 'n) deg -> ('m, 'n) op
 val op_of_sface : ('m, 'n) sface -> ('m, 'n) op
 

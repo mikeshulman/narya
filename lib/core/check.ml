@@ -385,7 +385,7 @@ let rec check :
                       | Some () -> ()
                       | None -> (
                           match is_id_sface fa with
-                          | Some () ->
+                          | Some _ ->
                               fatal
                                 (Unequal_indices
                                    (PNormal (ctx, { tm = t1; ty = t2.ty }), PNormal (ctx, t2)))

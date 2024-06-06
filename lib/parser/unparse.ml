@@ -180,7 +180,7 @@ let rec get_spine :
   (* We have to look through identity degeneracies here. *)
   | Act (body, s) -> (
       match is_id_deg s with
-      | Some () -> get_spine body
+      | Some _ -> get_spine body
       | None -> `App (tm, Emp))
   | tm -> `App (tm, Emp)
 
@@ -380,7 +380,7 @@ and unparse_field_var :
       | None -> None)
   | Act (tm, deg) -> (
       match is_id_deg deg with
-      | Some () -> unparse_field_var vars tm fld
+      | Some _ -> unparse_field_var vars tm fld
       | None -> None)
   | _ -> None
 
@@ -457,7 +457,7 @@ and unparse_act :
     (lt, ls, rt, rs) parse located =
  fun vars tm s li ri ->
   match is_id_deg s with
-  | Some () -> tm.unparse li ri
+  | Some _ -> tm.unparse li ri
   | None -> (
       match name_of_deg s with
       | Some str -> unparse_spine vars (`Degen str) (Snoc (Emp, tm)) li ri
@@ -658,7 +658,7 @@ let rec unparse_ctx :
           (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
           let do_binding fab (b : b Termctx.binding) (res : S.t) : unit * S.t =
             match (hasfields, is_id_sface fab) with
-            | Has_fields, Some () -> ((), res)
+            | Has_fields, Some _ -> ((), res)
             | _ ->
                 let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
                 let tm =

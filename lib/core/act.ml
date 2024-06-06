@@ -296,7 +296,7 @@ end
 let short_circuit : type m n a. (m, n) deg -> a -> ((m, n) deg -> a) -> a =
  fun s x act ->
   match is_id_deg s with
-  | Some () -> x
+  | Some _ -> x
   | None -> act s
 
 let act_value tm s = short_circuit s tm (Act.act_value tm)

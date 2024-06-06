@@ -31,10 +31,13 @@ let rec cod_sface : type m n. (m, n) sface -> n D.t = function
       let (Nat s) = cod_sface f in
       Nat (Suc s)
 
-let rec is_id_sface : type m n. (m, n) sface -> unit option = function
-  | Zero -> Some ()
+let rec is_id_sface : type m n. (m, n) sface -> (m, n) Eq.t option = function
+  | Zero -> Some Eq
   | End _ -> None
-  | Mid f -> is_id_sface f
+  | Mid f -> (
+      match is_id_sface f with
+      | Some Eq -> Some Eq
+      | None -> None)
 
 let rec comp_sface : type m n k. (n, k) sface -> (m, n) sface -> (m, k) sface =
  fun a b ->

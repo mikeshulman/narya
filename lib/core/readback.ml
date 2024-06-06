@@ -185,7 +185,7 @@ and readback_at_tel :
                     let fa = sface_of_tface fa in
                     let argty =
                       inst
-                        (eval_term (Act (env, op_of_sface fa)) ty)
+                        (eval_term (act_env env (op_of_sface fa)) ty)
                         (TubeOf.build D.zero
                            (D.zero_plus (dom_sface fa))
                            {
@@ -242,7 +242,7 @@ and readback_ordered_env :
                             let k = dom_sface fb in
                             let ty =
                               inst
-                                (eval_term (Act (env, op_of_sface fb)) ty)
+                                (eval_term (act_env env (op_of_sface fb)) ty)
                                 (TubeOf.build k (D.plus_zero k)
                                    {
                                      build =

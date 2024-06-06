@@ -60,7 +60,7 @@ let rec ext_tel :
       let newvars, newnfs =
         dom_vars (Ctx.length ctx)
           (CubeOf.build (dim_env env)
-             { build = (fun fa -> Norm.eval_term (Act (env, op_of_sface fa)) rty) }) in
+             { build = (fun fa -> Norm.eval_term (act_env env (op_of_sface fa)) rty) }) in
       let x =
         match x with
         | Some x -> Some x

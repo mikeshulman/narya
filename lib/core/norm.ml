@@ -34,7 +34,8 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                   build =
                     (fun fa ->
                       (* To compute those lower-dimensional versions, we recursively evaluate the same constant in lower-dimensional contexts. *)
-                      let tm = eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Const name) in
+                      let tm =
+                        eval_term (act_env env (op_of_sface (sface_of_tface fa))) (Const name) in
                       (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a normal term it had to be annotated with its type. *)
                       match tm with
                       | Uninst (Neu _, (lazy ty)) -> { tm; ty }
@@ -61,8 +62,9 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                build =
                  (fun fa ->
                    let tm =
-                     eval_term (Act (env, op_of_sface (sface_of_tface fa))) (Meta (meta, Kinetic))
-                   in
+                     eval_term
+                       (act_env env (op_of_sface (sface_of_tface fa)))
+                       (Meta (meta, Kinetic)) in
                    match tm with
                    | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                    | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
@@ -123,7 +125,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                     let fa = sface_of_tface fa in
                     let Eq = D.plus_uniq (cod_plus_of_tface fcd) n_k in
                     (* Thus tm is p+q dimensional. *)
-                    let tm = eval_term (Act (env, op_of_sface fb)) (TubeOf.find args fcd) in
+                    let tm = eval_term (act_env env (op_of_sface fb)) (TubeOf.find args fcd) in
                     (* So its type needs to be fully instantiated at that dimension. *)
                     let ty =
                       inst ty
@@ -166,7 +168,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                 (* ...we decompose it as a sum of a face "fa" of m and a face "fb" of n... *)
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
                 (* ...and evaluate the supplied argument indexed by the face fb of n, in an environment acted on by the face fa of m. *)
-                eval_term (Act (env, op_of_sface fa)) (CubeOf.find args fb));
+                eval_term (act_env env (op_of_sface fa)) (CubeOf.find args fb));
           } in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
@@ -194,7 +196,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
             build =
               (fun fab ->
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                eval_term (Act (env, op_of_sface fa)) (CubeOf.find doms fb));
+                eval_term (act_env env (op_of_sface fa)) (CubeOf.find doms fb));
           } in
       let cods =
         BindCube.build mn
@@ -202,7 +204,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
             build =
               (fun fab ->
                 let (SFace_of_plus (k_l, fa, fb)) = sface_of_plus m_n fab in
-                eval_binder (Act (env, op_of_sface fa)) k_l (CodCube.find cods fb));
+                eval_binder (act_env env (op_of_sface fa)) k_l (CodCube.find cods fb));
           } in
       (* However, because the result will be an Uninst, we need to know its type as well.  The starting n-dimensional pi-type (which is itself uninstantiated) lies in a full instantiation of the n-dimensional universe at lower-dimensional pi-types formed from subcubes of its domains and codomains.  Accordingly, the resulting (m+n)-dimensional pi-type will like in a full instantiation of the (m+n)-dimensional universe at lower-dimensional pi-types obtained by evaluating these at appropriately split faces.  Since each of them *also* belongs to a universe instantiated similarly, and needs to know its type not just because it is an uninst but because it is a normal, we build the whole cube at once and then take its top. *)
       let pitbl = Hashtbl.create 10 in
@@ -233,7 +235,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       (* We evaluate let-bindings lazily, on the chance they aren't actually used. *)
       let args =
         CubeOf.build (dim_env env)
-          { build = (fun fa -> lazy (eval_term (Act (env, op_of_sface fa)) v)) } in
+          { build = (fun fa -> lazy (eval_term (act_env env (op_of_sface fa)) v)) } in
       eval (LazyExt (env, CubeOf.singleton args)) body
   (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
   | Act (x, s) ->
@@ -275,7 +277,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
 and eval_with_boundary :
     type m n mn a. (m, a) env -> (a, kinetic) term -> (m, kinetic value) CubeOf.t =
  fun env tm ->
-  CubeOf.build (dim_env env) { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) tm) }
+  CubeOf.build (dim_env env) { build = (fun fa -> eval_term (act_env env (op_of_sface fa)) tm) }
 
 (* A helper function that doesn't get the correct types if we define it inline. *)
 and eval_args :
@@ -291,7 +293,7 @@ and eval_args :
       build =
         (fun fab ->
           let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-          eval_term (Act (env, op_of_sface fa)) (CubeOf.find tms fb));
+          eval_term (act_env env (op_of_sface fa)) (CubeOf.find tms fb));
     }
 
 (* Apply a function value to an argument (with its boundaries). *)
@@ -557,7 +559,7 @@ and eval_env :
                       build =
                         (fun fab ->
                           let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                          lazy (eval_term (Act (env, op_of_sface fa)) (CubeOf.find xs fb)));
+                          lazy (eval_term (act_env env (op_of_sface fa)) (CubeOf.find xs fb)));
                     });
             }
             [ xss ] )

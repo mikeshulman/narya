@@ -576,6 +576,16 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
 let dim_binder : type m s. (m, s) binder -> m D.t = function
   | Bind b -> dom_ins b.ins
 
+(* Smart constructor that composes actions and cancels identities *)
+let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
+ fun env s ->
+  match env with
+  | Act (env, s') -> act_env env (comp_op s' s)
+  | _ -> (
+      match is_id_op s with
+      | Some Eq -> env
+      | None -> Act (env, s))
+
 (* Project out a cube or tube of values from a cube or tube of normals *)
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =
  fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]

@@ -142,7 +142,7 @@ module Act = struct
 
   and act_dataconstr : type m n i. (n, i) dataconstr -> (m, n) deg -> (m, i) dataconstr =
    fun (Dataconstr { env; args; indices }) s ->
-    let env = Act (env, op_of_deg s) in
+    let env = act_env env (op_of_deg s) in
     Dataconstr { env; args; indices }
 
   and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
@@ -179,7 +179,7 @@ module Act = struct
       =
    fun env ins fa ->
     let (Insfact (fc, ins)) = insfact (comp_deg (perm_of_ins ins) fa) (plus_of_ins ins) in
-    Act_closure (Act (env, op_of_deg fc), ins)
+    Act_closure (act_env env (op_of_deg fc), ins)
 
   and act_binder : type mn kn s. (mn, s) binder -> (kn, mn) deg -> (kn, s) binder =
    fun (Bind { env; ins; body }) fa ->
@@ -272,7 +272,7 @@ module Act = struct
     (* Acting on a metavariable is similar to a constant, but now the inner degeneracy acts on the stored environment. *)
     | Meta { meta; env; ins } ->
         let (Insfact_comp (deg, ins, _, _)) = insfact_comp ins s in
-        Meta { meta; env = Act (env, op_of_deg deg); ins }
+        Meta { meta; env = act_env env (op_of_deg deg); ins }
 
   (* Action on a Bwd of applications (each of which is just the argument and its boundary).  Pushes the degeneracy past the stored insertions, factoring it each time and leaving an appropriate insertion on the outside.  Also returns the innermost degeneracy, for acting on the head with. *)
   and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =

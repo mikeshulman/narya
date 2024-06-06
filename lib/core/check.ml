@@ -372,7 +372,7 @@ let rec check :
           let constr_indices =
             Vec.mmap
               (fun [ ix ] ->
-                CubeOf.build dim { build = (fun fa -> eval_term (Act (env, op_of_sface fa)) ix) })
+                CubeOf.build dim { build = (fun fa -> eval_term (act_env env (op_of_sface fa)) ix) })
               [ constr_indices ] in
           (* The last thing to do is check that these indices are equal to those of the type we are checking against.  (So a constructor application "checks against the parameters but synthesizes the indices" in some sense.)  I *think* it should suffice to check the top-dimensional ones, the lower-dimensional ones being automatic.  For now, we check all of them, raising an anomaly in case I was wrong about that.  *)
           Vec.miter
@@ -895,7 +895,7 @@ and check_var_match :
                   Vec.mmap
                     (fun [ ixtm ] ->
                       CubeOf.build dim
-                        { build = (fun fa -> eval_term (Act (newenv, op_of_sface fa)) ixtm) })
+                        { build = (fun fa -> eval_term (act_env newenv (op_of_sface fa)) ixtm) })
                     [ index_terms ] in
                 (* Assemble a term consisting of the constructor applied to the new variables, along with its boundary, and their types.  To compute their types, we have to extract the datatype applied to its parameters only, pass to boundaries if necessary, and then re-apply it to the new indices. *)
                 let argtbl = Hashtbl.create 10 in
@@ -1662,7 +1662,7 @@ and check_at_tel :
                     let fa = sface_of_tface fa in
                     let argty =
                       inst
-                        (eval_term (Act (env, op_of_sface fa)) ty)
+                        (eval_term (act_env env (op_of_sface fa)) ty)
                         (TubeOf.build D.zero
                            (D.zero_plus (dom_sface fa))
                            {

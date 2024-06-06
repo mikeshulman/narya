@@ -297,12 +297,10 @@ module Act = struct
     | Deferred_eval (env, tm, ins) ->
         let (Insfact_comp (fa, ins, _, _)) = insfact_comp ins s in
         ref (Deferred_eval (act_env env (op_of_deg fa), tm, ins))
-    | Deferred_act (tm, s') -> (
+    | Deferred (tm, s') ->
         let (DegExt (_, _, fa)) = comp_deg_extending s' s in
-        match is_id_deg fa with
-        | Some Eq -> ref (Ready tm)
-        | None -> ref (Deferred_act (tm, fa)))
-    | Ready tm -> ref (Deferred_act (tm, s))
+        ref (Deferred (tm, fa))
+    | Ready tm -> ref (Deferred ((fun () -> tm), s))
 end
 
 let short_circuit : type m n a. (m, n) deg -> a -> ((m, n) deg -> a) -> a =
@@ -324,11 +322,3 @@ let act_lazy_eval v s = Act.act_lazy_eval v s
 let act_value_cube :
     type a s m n. (a -> s value) -> (n, a) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =
  fun force xs s -> act_cube { act = (fun x s -> act_value (force x) s) } xs s
-
-(* Now that we know how to act on values, we can look up single values in an environment.  *)
-let lookup : type n b. (n, b) env -> b Term.index -> kinetic value =
- fun env (Index (v, fa)) ->
-  let (Looked_up (force, Op (f, s), entry)) = lookup_cube env v (id_op (dim_env env)) in
-  match D.compare (cod_sface fa) (CubeOf.dim entry) with
-  | Eq -> act_value (force (CubeOf.find (CubeOf.find entry fa) f)) s
-  | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry))

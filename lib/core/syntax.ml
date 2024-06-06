@@ -422,7 +422,7 @@ module rec Value : sig
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
     | LazyExt :
-        ('n, 'b) env * ('k, ('n, kinetic value Lazy.t) CubeOf.t) CubeOf.t
+        ('n, 'b) env * ('k, ('n, kinetic lazy_eval) CubeOf.t) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
@@ -430,7 +430,7 @@ module rec Value : sig
 
   and 's lazy_state =
     | Deferred_eval : ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion -> 's lazy_state
-    | Deferred_act : 's evaluation * ('m, 'n) deg -> 's lazy_state
+    | Deferred : (unit -> 's evaluation) * ('m, 'n) deg -> 's lazy_state
     | Ready : 's evaluation -> 's lazy_state
 
   and 's lazy_eval = 's lazy_state ref
@@ -555,7 +555,7 @@ end = struct
     | Emp : 'n D.t -> ('n, emp) env
     (* Here the k-cube denotes a "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, while each of them has an n-cube of values representing a value and its boundaries. *)
     | LazyExt :
-        ('n, 'b) env * ('k, ('n, kinetic value Lazy.t) CubeOf.t) CubeOf.t
+        ('n, 'b) env * ('k, ('n, kinetic lazy_eval) CubeOf.t) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
@@ -564,7 +564,7 @@ end = struct
   (* An 's lazy_eval behaves from the outside like an 's evaluation Lazy.t.  But internally, instead of storing an arbitrary thunk, it stores a term and an environment in which to evaluate it (plus an outer insertion that can't be pushed into the environment).  This allows it to accept degeneracy actions and incorporate them into the environment, so that when it's eventually forced the term only has to be traversed once.  If it's already been forced, it can still accept multiple degeneracy actions and wait to traverse the value until it's forced again.  *)
   and 's lazy_state =
     | Deferred_eval : ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion -> 's lazy_state
-    | Deferred_act : 's evaluation * ('m, 'n) deg -> 's lazy_state
+    | Deferred : (unit -> 's evaluation) * ('m, 'n) deg -> 's lazy_state
     | Ready : 's evaluation -> 's lazy_state
 
   and 's lazy_eval = 's lazy_state ref
@@ -605,6 +605,9 @@ let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
 let lazy_eval : type n b s. (n, b) env -> (b, s) term -> s lazy_eval =
  fun env tm -> ref (Deferred_eval (env, tm, ins_zero (dim_env env)))
 
+let defer : type s. (unit -> s evaluation) -> s lazy_eval =
+ fun tm -> ref (Deferred (tm, id_deg D.zero))
+
 (* Project out a cube or tube of values from a cube or tube of normals *)
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =
  fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
@@ -612,33 +615,6 @@ let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf
 let val_of_norm_tube :
     type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
-
-(* Look up a cube of values in an environment by variable index, accumulating operator actions as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
-
-(* Since some entries in an environment are lazy and some aren't, we return a cube whose entries belong to an existential type, along with a function to force any element of that type into a value. *)
-type (_, _) looked_up_cube =
-  | Looked_up :
-      ('a -> kinetic value) * ('m, 'n) op * ('k, ('n, 'a) CubeOf.t) CubeOf.t
-      -> ('m, 'k) looked_up_cube
-
-let rec lookup_cube :
-    type m n k a b. (n, b) env -> (a, k, b) Tbwd.insert -> (m, n) op -> (m, k) looked_up_cube =
- fun env v op ->
-  match (env, v) with
-  (* Since there's an index, the environment can't be empty. *)
-  | Emp _, _ -> .
-  (* If we encounter an operator action, we accumulate it. *)
-  | Act (env, op'), _ -> lookup_cube env v (comp_op op' op)
-  (* If the environment is permuted, we apply the permutation to the index. *)
-  | Permute (p, env), v ->
-      let (Permute_insert (v, _)) = Tbwd.permute_insert v p in
-      lookup_cube env v op
-  (* If we encounter a variable that isn't ours, we skip it and proceed. *)
-  | Ext (env, _), Later v -> lookup_cube env v op
-  | LazyExt (env, _), Later v -> lookup_cube env v op
-  (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy.  The forcing function is the identity if the entry is not lazy, and Lazy.force if it is lazy. *)
-  | Ext (_, entry), Now -> Looked_up ((fun x -> x), op, entry)
-  | LazyExt (_, entry), Now -> Looked_up (Lazy.force, op, entry)
 
 (* Remove an entry from an environment *)
 let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a) env =

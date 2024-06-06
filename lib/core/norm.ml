@@ -9,6 +9,12 @@ open Value
 open Inst
 open Act
 
+(* Since some entries in an environment are lazy and some aren't, lookup_cube returns a cube whose entries belong to an existential type, along with a function to force any element of that type into a value. *)
+type (_, _) looked_up_cube =
+  | Looked_up :
+      ('a -> kinetic value) * ('m, 'n) op * ('k, ('n, 'a) CubeOf.t) CubeOf.t
+      -> ('m, 'k) looked_up_cube
+
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
    1. Produce a new partially-evaluated case tree that isn't fully applied yet.  This is actually represented by a value that's either a Lam or a Struct.
@@ -235,7 +241,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       (* We evaluate let-bindings lazily, on the chance they aren't actually used. *)
       let args =
         CubeOf.build (dim_env env)
-          { build = (fun fa -> lazy (eval_term (act_env env (op_of_sface fa)) v)) } in
+          { build = (fun fa -> lazy_eval (act_env env (op_of_sface fa)) v) } in
       eval (LazyExt (env, CubeOf.singleton args)) body
   (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
   | Act (x, s) ->
@@ -512,7 +518,7 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
                            let (Plus kj) = D.plus (dom_sface fs) in
                            let frfs = sface_plus_sface fr mn kj fs in
                            let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
-                           lazy (act_value (CubeOf.find argstbl fa) fb));
+                           act_lazy_eval (defer (fun () -> Val (CubeOf.find argstbl fa))) fb);
                      });
              } ))
       body
@@ -559,7 +565,7 @@ and eval_env :
                       build =
                         (fun fab ->
                           let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                          lazy (eval_term (act_env env (op_of_sface fa)) (CubeOf.find xs fb)));
+                          lazy_eval (act_env env (op_of_sface fa)) (CubeOf.find xs fb));
                     });
             }
             [ xss ] )
@@ -583,8 +589,8 @@ and force_eval : type s. s lazy_eval -> s evaluation =
       let etm = act_evaluation (eval env tm) (perm_of_ins ins) in
       lev := Ready etm;
       etm
-  | Deferred_act (tm, s) ->
-      let etm = act_evaluation tm s in
+  | Deferred (tm, s) ->
+      let etm = act_evaluation (tm ()) s in
       lev := Ready etm;
       etm
   | Ready etm -> etm
@@ -593,6 +599,33 @@ and force_eval_term : kinetic lazy_eval -> kinetic value =
  fun v ->
   let (Val v) = force_eval v in
   v
+
+(* Look up a cube of values in an environment by variable index, accumulating operator actions as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
+and lookup_cube :
+    type m n k a b. (n, b) env -> (a, k, b) Tbwd.insert -> (m, n) op -> (m, k) looked_up_cube =
+ fun env v op ->
+  match (env, v) with
+  (* Since there's an index, the environment can't be empty. *)
+  | Emp _, _ -> .
+  (* If we encounter an operator action, we accumulate it. *)
+  | Act (env, op'), _ -> lookup_cube env v (comp_op op' op)
+  (* If the environment is permuted, we apply the permutation to the index. *)
+  | Permute (p, env), v ->
+      let (Permute_insert (v, _)) = Tbwd.permute_insert v p in
+      lookup_cube env v op
+  (* If we encounter a variable that isn't ours, we skip it and proceed. *)
+  | Ext (env, _), Later v -> lookup_cube env v op
+  | LazyExt (env, _), Later v -> lookup_cube env v op
+  (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy.  The forcing function is the identity if the entry is not lazy, and force_eval_term if it is lazy. *)
+  | Ext (_, entry), Now -> Looked_up ((fun x -> x), op, entry)
+  | LazyExt (_, entry), Now -> Looked_up (force_eval_term, op, entry)
+
+and lookup : type n b. (n, b) env -> b Term.index -> kinetic value =
+ fun env (Index (v, fa)) ->
+  let (Looked_up (force, Op (f, s), entry)) = lookup_cube env v (id_op (dim_env env)) in
+  match D.compare (cod_sface fa) (CubeOf.dim entry) with
+  | Eq -> act_value (force (CubeOf.find (CubeOf.find entry fa) f)) s
+  | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry))
 
 (* Apply a function to all the values in a cube one by one as 0-dimensional applications, rather than as one n-dimensional application. *)
 let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> kinetic value =

@@ -176,7 +176,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
   | Struct (_, dim, fields) ->
       let (Plus mn) = D.plus (dim_env env) in
       let ins = ins_zero (D.plus_out dim mn) in
-      Val (Struct (Abwd.map (fun (tm, l) -> (lazy (eval env tm), l)) fields, ins))
+      Val (Struct (Abwd.map (fun (tm, l) -> (lazy_eval env tm, l)) fields, ins))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -392,7 +392,7 @@ and field : type n. kinetic value -> Field.t -> kinetic value =
       let xv =
         Abwd.find_opt fld fields <|> Anomaly ("missing field in eval struct: " ^ Field.to_string fld)
       in
-      let (Val x) = Lazy.force (fst xv) in
+      let (Val x) = force_eval (fst xv) in
       x
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
       let Wrap n, newty = tyof_field_withdim tm ty fld in
@@ -406,7 +406,7 @@ and field : type n. kinetic value -> Field.t -> kinetic value =
               (* This can happen correctly during checking a recursive case tree, where the body of one field refers to its not-yet-defined self or other not-yet-defined fields. *)
               Uninst (Neu { head; args; alignment = True }, newty)
           | Some x -> (
-              match Lazy.force (fst x) with
+              match force_eval (fst x) with
               | Realize x -> x
               | Val x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
               | Unrealized -> Uninst (Neu { head; args; alignment = True }, newty)

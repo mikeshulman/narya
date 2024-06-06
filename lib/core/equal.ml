@@ -56,12 +56,12 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
                 match Abwd.find_opt fld xfld with
                 | Some xv -> xv
                 | None -> fatal (Anomaly "missing field in equality-check") in
-              let (Val xtm) = Lazy.force (fst xv) in
+              let (Val xtm) = force_eval (fst xv) in
               let yv =
                 match Abwd.find_opt fld yfld with
                 | Some yv -> yv
                 | None -> fatal (Anomaly "missing field in equality-check") in
-              let (Val ytm) = Lazy.force (fst yv) in
+              let (Val ytm) = force_eval (fst yv) in
               equal_at ctx xtm ytm (tyof_field x ty fld))
             [ fields ]
       | Struct _, _ | _, Struct _ -> fail

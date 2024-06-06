@@ -44,8 +44,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
             let fields =
               Abwd.mapi
                 (fun fld (fldtm, l) ->
-                  match Lazy.force fldtm with
-                  | Val x -> (readback_at ctx x (tyof_field tm ty fld), l))
+                  (readback_at ctx (force_eval_term fldtm) (tyof_field tm ty fld), l))
                 tmflds in
             Some (Term.Struct (Eta, dim, fields))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)

@@ -37,11 +37,12 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
 
 and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 
-and fields :
-    type s. formatter -> (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t -> unit =
+and fields : type s. formatter -> (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t -> unit
+    =
  fun ppf -> function
   | Emp -> fprintf ppf "Emp"
-  | Snoc (flds, (f, ((lazy v), l))) ->
+  | Snoc (flds, (f, (v, l))) ->
+      let v = Norm.force_eval v in
       fprintf ppf "%a <: (%s, %a, %s)" fields flds (Field.to_string f) evaluation v
         (match l with
         | `Unlabeled -> "`Unlabeled"

@@ -1362,7 +1362,7 @@ and check_fields :
     n D.t ->
     Field.t list ->
     (Field.t option, a check located) Abwd.t ->
-    (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
@@ -1391,7 +1391,7 @@ and check_field :
     Field.t list ->
     kinetic value ->
     (Field.t option, a check located) Abwd.t ->
-    (Field.t, s evaluation Lazy.t * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
@@ -1406,14 +1406,14 @@ and check_field :
   match Abwd.find_opt (Some fld) tms with
   | Some tm ->
       let ctm = check (mkstatus `Labeled status) ctx tm ety in
-      let etms = Abwd.add fld (lazy (eval (Ctx.env ctx) ctm), `Labeled) etms in
+      let etms = Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, `Labeled) etms in
       let ctms = Snoc (ctms, (fld, (ctm, `Labeled))) in
       check_fields status eta ctx ty dim fields tms etms ctms
   | None -> (
       match Abwd.find_opt_and_update_key None (Some fld) tms with
       | Some (tm, tms) ->
           let ctm = check (mkstatus `Unlabeled status) ctx tm ety in
-          let etms = Abwd.add fld (lazy (eval (Ctx.env ctx) ctm), `Unlabeled) etms in
+          let etms = Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, `Unlabeled) etms in
           let ctms = Snoc (ctms, (fld, (ctm, `Unlabeled))) in
           check_fields status eta ctx ty dim fields tms etms ctms
       | None -> fatal (Missing_field_in_tuple fld))

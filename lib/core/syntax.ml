@@ -363,7 +363,7 @@ module rec Value : sig
   and alignment =
     | True : alignment
     | Chaotic : potential value -> alignment
-    | Lawful : canonical -> alignment
+    | Lawful : 'm canonical -> alignment
 
   and uninst =
     | UU : 'n D.t -> uninst
@@ -389,10 +389,10 @@ module rec Value : sig
     | Val : 's value -> 's evaluation
     | Realize : kinetic value -> potential evaluation
     | Unrealized : potential evaluation
-    | Canonical : canonical -> potential evaluation
+    | Canonical : 'm canonical -> potential evaluation
 
-  and canonical =
-    | Data : ('m, 'j, 'ij) data_args -> canonical
+  and _ canonical =
+    | Data : ('m, 'j, 'ij) data_args -> 'm canonical
     | Codata : {
         eta : potential eta;
         opacity : opacity;
@@ -400,7 +400,7 @@ module rec Value : sig
         ins : ('mn, 'm, 'n) insertion;
         fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
       }
-        -> canonical
+        -> 'mn canonical
 
   and ('m, 'j, 'ij) data_args = {
     dim : 'm D.t;
@@ -476,7 +476,7 @@ end = struct
   and alignment =
     | True : alignment
     | Chaotic : potential value -> alignment
-    | Lawful : canonical -> alignment
+    | Lawful : 'm canonical -> alignment
 
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
@@ -516,12 +516,12 @@ end = struct
     | Val : 's value -> 's evaluation
     | Realize : kinetic value -> potential evaluation
     | Unrealized : potential evaluation
-    | Canonical : canonical -> potential evaluation
+    | Canonical : 'm canonical -> potential evaluation
 
   (* A canonical type value is either a datatype or a codatatype/record. *)
-  and canonical =
+  and _ canonical =
     (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definition below. *)
-    | Data : ('m, 'j, 'ij) data_args -> canonical
+    | Data : ('m, 'j, 'ij) data_args -> 'm canonical
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
     | Codata : {
         eta : potential eta;
@@ -531,7 +531,7 @@ end = struct
         (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
         fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
       }
-        -> canonical
+        -> 'mn canonical
 
   (* A datatype value stores: *)
   and ('m, 'j, 'ij) data_args = {
@@ -581,6 +581,8 @@ end
 
 open Value
 
+type any_canonical = Any : 'm canonical -> any_canonical
+
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : level -> kinetic value -> kinetic value =
  fun level ty ->
@@ -599,6 +601,10 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
 (* And likewise every binder *)
 let dim_binder : type m s. (m, s) binder -> m D.t = function
   | Bind b -> dom_ins b.ins
+
+let dim_canonical : type m. m canonical -> m D.t = function
+  | Data { dim; _ } -> dim
+  | Codata { ins; _ } -> dom_ins ins
 
 (* Smart constructor that composes actions and cancels identities *)
 let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =

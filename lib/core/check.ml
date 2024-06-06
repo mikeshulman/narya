@@ -594,10 +594,11 @@ and synth_or_check_nondep_match :
         head = Const { name; _ };
         args = _;
         alignment =
-          Lawful
-            (Data (type m j ij)
-              ({ dim; indices = Filled indices; constrs = data_constrs; discrete = _; tyfam = _ } :
-                (m, j, ij) data_args));
+          Lawful (type m)
+            (Data (type j ij)
+               ({ dim; indices = Filled indices; constrs = data_constrs; discrete = _; tyfam = _ } :
+                 (_, j, ij) data_args) :
+              m canonical);
       } -> (
       (match i with
       | Some { value; loc } ->
@@ -719,16 +720,17 @@ and synth_dep_match :
         head = Const { name; ins };
         args = _;
         alignment =
-          Lawful
-            (Data (type m j ij)
-              ({
-                 dim;
-                 indices = Filled var_indices;
-                 constrs = data_constrs;
-                 discrete = _;
-                 tyfam = (lazy tyfam);
-               } :
-                (m, j, ij) data_args));
+          Lawful (type m)
+            (Data (type j ij)
+               ({
+                  dim;
+                  indices = Filled var_indices;
+                  constrs = data_constrs;
+                  discrete = _;
+                  tyfam = (lazy tyfam);
+                } :
+                 (_, j, ij) data_args) :
+              m canonical);
       } -> (
       match (is_id_ins ins, D.compare dim (TubeOf.inst inst_args)) with
       | _, Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
@@ -815,16 +817,17 @@ and check_var_match :
         head = Const { name; _ };
         args = varty_args;
         alignment =
-          Lawful
-            (Data (type m j ij)
-              ({
-                 dim;
-                 indices = Filled var_indices;
-                 constrs = data_constrs;
-                 discrete = _;
-                 tyfam = _;
-               } :
-                (m, j, ij) data_args));
+          Lawful (type m)
+            (Data (type j ij)
+               ({
+                  dim;
+                  indices = Filled var_indices;
+                  constrs = data_constrs;
+                  discrete = _;
+                  tyfam = _;
+                } :
+                 (_, j, ij) data_args) :
+              m canonical);
       } -> (
       match D.compare dim (TubeOf.inst inst_args) with
       | Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))

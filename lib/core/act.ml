@@ -115,16 +115,20 @@ module Act = struct
     | Unrealized -> Unrealized
     | Realize tm -> Realize (act_value tm s)
     | Val tm -> Val (act_value tm s)
-    | Canonical c -> Canonical (act_canonical c s)
+    | Canonical c ->
+        let (Any c) = act_canonical c s in
+        Canonical c
 
   and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
    fun alignment s ->
     match alignment with
     | True -> True
     | Chaotic tm -> Chaotic (act_value tm s)
-    | Lawful tm -> Lawful (act_canonical tm s)
+    | Lawful c ->
+        let (Any c) = act_canonical c s in
+        Lawful c
 
-  and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
+  and act_canonical : type m n nk. nk canonical -> (m, n) deg -> any_canonical =
    fun tm s ->
     match tm with
     | Data { dim; tyfam; indices; constrs; discrete } ->
@@ -134,11 +138,11 @@ module Act = struct
           Fillvec.map (fun ixs -> act_cube { act = (fun x s -> act_normal x s) } ixs fa) indices
         in
         let constrs = Abwd.map (fun c -> act_dataconstr c fa) constrs in
-        Data { dim = dom_deg fa; tyfam; indices; constrs; discrete }
+        Any (Data { dim = dom_deg fa; tyfam; indices; constrs; discrete })
     | Codata { eta; opacity; env; ins; fields } ->
         let (Of fa) = deg_plus_to ~on:"codata" s (dom_ins ins) in
         let (Act_closure (env, ins)) = act_closure env ins fa in
-        Codata { eta; opacity; env; ins; fields }
+        Any (Codata { eta; opacity; env; ins; fields })
 
   and act_dataconstr : type m n i. (n, i) dataconstr -> (m, n) deg -> (m, i) dataconstr =
    fun (Dataconstr { env; args; indices }) s ->
@@ -311,7 +315,6 @@ let short_circuit : type m n a. (m, n) deg -> a -> ((m, n) deg -> a) -> a =
   | None -> act s
 
 let act_value tm s = short_circuit s tm (Act.act_value tm)
-let act_canonical tm s = short_circuit s tm (Act.act_canonical tm)
 let act_normal tm s = short_circuit s tm (Act.act_normal tm)
 let gact_ty ?err tm ty s = short_circuit s ty (Act.gact_ty ?err tm ty)
 let act_ty ?err tm ty s = short_circuit s ty (Act.act_ty ?err tm ty)

@@ -4,7 +4,6 @@ open Syntax
 open Value
 
 val act_value : 's value -> ('m, 'n) deg -> 's value
-val act_canonical : canonical -> ('m, 'n) deg -> canonical
 val act_normal : normal -> ('a, 'b) deg -> normal
 val gact_ty : ?err:Code.t -> kinetic value option -> kinetic value -> ('a, 'b) deg -> kinetic value
 val act_ty : ?err:Code.t -> kinetic value -> kinetic value -> ('a, 'b) deg -> kinetic value

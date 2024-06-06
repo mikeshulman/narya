@@ -285,7 +285,9 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       (* Otherwise, the case tree doesn't reduce. *)
       | _ -> Unrealized)
   | Realize tm -> Realize (eval_term env tm)
-  | Canonical c -> Canonical (eval_canonical env c)
+  | Canonical c ->
+      let (Any c) = eval_canonical env c in
+      Canonical c
 
 and eval_with_boundary :
     type m n mn a. (m, a) env -> (a, kinetic) term -> (m, kinetic value) CubeOf.t =
@@ -517,32 +519,28 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
   let mn = plus_of_ins ins in
   let perm = perm_of_ins ins in
   (* The arguments have to be acted on by degeneracies to form the appropriate cube.  But not all the arguments may be actually used, so we do these actions lazily. *)
-  match
-    eval
-      (LazyExt
-         ( env,
-           CubeOf.build n
-             {
-               build =
-                 (fun fs ->
-                   CubeOf.build m
-                     {
-                       build =
-                         (fun fr ->
-                           let (Plus kj) = D.plus (dom_sface fs) in
-                           let frfs = sface_plus_sface fr mn kj fs in
-                           let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
-                           act_lazy_eval (defer (fun () -> Val (CubeOf.find argstbl fa))) fb);
-                     });
-             } ))
-      body
-  with
-  | Unrealized -> Unrealized
-  | Realize v -> Realize (act_value v perm)
-  | Val v -> Val (act_value v perm)
-  | Canonical c -> Canonical (act_canonical c perm)
+  act_evaluation
+    (eval
+       (LazyExt
+          ( env,
+            CubeOf.build n
+              {
+                build =
+                  (fun fs ->
+                    CubeOf.build m
+                      {
+                        build =
+                          (fun fr ->
+                            let (Plus kj) = D.plus (dom_sface fs) in
+                            let frfs = sface_plus_sface fr mn kj fs in
+                            let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
+                            act_lazy_eval (defer (fun () -> Val (CubeOf.find argstbl fa))) fb);
+                      });
+              } ))
+       body)
+    perm
 
-and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical =
+and eval_canonical : type m a. (m, a) env -> a Term.canonical -> any_canonical =
  fun env can ->
   match can with
   | Data { indices; constrs; discrete } ->
@@ -551,10 +549,10 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical
         Abwd.map
           (fun (Term.Dataconstr { args; indices }) -> Value.Dataconstr { env; args; indices })
           constrs in
-      Data { dim = dim_env env; tyfam; indices = Fillvec.empty indices; constrs; discrete }
+      Any (Data { dim = dim_env env; tyfam; indices = Fillvec.empty indices; constrs; discrete })
   | Codata { eta; opacity; dim; fields } ->
       let (Id_ins ins) = id_ins (dim_env env) dim in
-      Codata { eta; opacity; env; ins; fields }
+      Any (Codata { eta; opacity; env; ins; fields })
 
 and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
  fun env tm ->

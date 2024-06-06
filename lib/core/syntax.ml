@@ -427,6 +427,13 @@ module rec Value : sig
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
+
+  and 's lazy_state =
+    | Deferred_eval : ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion -> 's lazy_state
+    | Deferred_act : 's evaluation * ('m, 'n) deg -> 's lazy_state
+    | Ready : 's evaluation -> 's lazy_state
+
+  and 's lazy_eval = 's lazy_state ref
 end = struct
   (* Here is the recursive application of the functor Cube.  First we define a module to pass as its argument, with type defined to equal the yet-to-be-defined binder, referred to recursively. *)
   module BindFam = struct
@@ -553,6 +560,14 @@ end = struct
     | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
+
+  (* An 's lazy_eval behaves from the outside like an 's evaluation Lazy.t.  But internally, instead of storing an arbitrary thunk, it stores a term and an environment in which to evaluate it (plus an outer insertion that can't be pushed into the environment).  This allows it to accept degeneracy actions and incorporate them into the environment, so that when it's eventually forced the term only has to be traversed once.  If it's already been forced, it can still accept multiple degeneracy actions and wait to traverse the value until it's forced again.  *)
+  and 's lazy_state =
+    | Deferred_eval : ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion -> 's lazy_state
+    | Deferred_act : 's evaluation * ('m, 'n) deg -> 's lazy_state
+    | Ready : 's evaluation -> 's lazy_state
+
+  and 's lazy_eval = 's lazy_state ref
 end
 
 open Value
@@ -585,6 +600,10 @@ let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
       match is_id_op s with
       | Some Eq -> env
       | None -> Act (env, s))
+
+(* Create a lazy evaluation *)
+let lazy_eval : type n b s. (n, b) env -> (b, s) term -> s lazy_eval =
+ fun env tm -> ref (Deferred_eval (env, tm, ins_zero (dim_env env)))
 
 (* Project out a cube or tube of values from a cube or tube of normals *)
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =

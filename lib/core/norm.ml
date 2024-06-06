@@ -575,6 +575,25 @@ and apply_binder_term : type n. (n, kinetic) binder -> (n, kinetic value) CubeOf
   let (Val v) = apply_binder b arg in
   v
 
+and force_eval : type s. s lazy_eval -> s evaluation =
+ fun lev ->
+  match !lev with
+  | Deferred_eval (env, tm, ins) ->
+      (* TODO: In an ideal world, there would be one function that would traverse the term once doing both "eval" and "act" by the insertion. *)
+      let etm = act_evaluation (eval env tm) (perm_of_ins ins) in
+      lev := Ready etm;
+      etm
+  | Deferred_act (tm, s) ->
+      let etm = act_evaluation tm s in
+      lev := Ready etm;
+      etm
+  | Ready etm -> etm
+
+and force_eval_term : kinetic lazy_eval -> kinetic value =
+ fun v ->
+  let (Val v) = force_eval v in
+  v
+
 (* Apply a function to all the values in a cube one by one as 0-dimensional applications, rather than as one n-dimensional application. *)
 let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> kinetic value =
  fun fn xs ->

@@ -291,6 +291,19 @@ module Act = struct
         (* Finally, we recurse and assemble the result. *)
         let new_s, new_rest = act_apps rest fa in
         (new_s, Snoc (new_rest, App (new_arg, new_ins)))
+
+  and act_lazy_eval : type s m n. s lazy_eval -> (m, n) deg -> s lazy_eval =
+   fun lev s ->
+    match !lev with
+    | Deferred_eval (env, tm, ins) ->
+        let (Insfact_comp (fa, ins, _, _)) = insfact_comp ins s in
+        ref (Deferred_eval (act_env env (op_of_deg fa), tm, ins))
+    | Deferred_act (tm, s') -> (
+        let (DegExt (_, _, fa)) = comp_deg_extending s' s in
+        match is_id_deg fa with
+        | Some Eq -> ref (Ready tm)
+        | None -> ref (Deferred_act (tm, fa)))
+    | Ready tm -> ref (Deferred_act (tm, s))
 end
 
 let short_circuit : type m n a. (m, n) deg -> a -> ((m, n) deg -> a) -> a =
@@ -304,6 +317,10 @@ let act_canonical tm s = short_circuit s tm (Act.act_canonical tm)
 let act_normal tm s = short_circuit s tm (Act.act_normal tm)
 let gact_ty ?err tm ty s = short_circuit s ty (Act.gact_ty ?err tm ty)
 let act_ty ?err tm ty s = short_circuit s ty (Act.act_ty ?err tm ty)
+let act_evaluation ev s = short_circuit s ev (Act.act_evaluation ev)
+
+(* This one has the short-circuit built in. *)
+let act_lazy_eval v s = Act.act_lazy_eval v s
 
 let act_value_cube :
     type a s m n. (a -> s value) -> (n, a) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =

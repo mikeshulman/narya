@@ -127,13 +127,14 @@ module Act = struct
   and act_canonical : type m n. canonical -> (m, n) deg -> canonical =
    fun tm s ->
     match tm with
-    | Data { dim; indices; constrs; discrete } ->
+    | Data { dim; tyfam; indices; constrs; discrete } ->
         let (Of fa) = deg_plus_to ~on:"data" s dim in
+        let tyfam = lazy (act_normal (Lazy.force tyfam) fa) in
         let indices =
           Fillvec.map (fun ixs -> act_cube { act = (fun x s -> act_normal x s) } ixs fa) indices
         in
         let constrs = Abwd.map (fun c -> act_dataconstr c fa) constrs in
-        Data { dim = dom_deg fa; indices; constrs; discrete }
+        Data { dim = dom_deg fa; tyfam; indices; constrs; discrete }
     | Codata { eta; opacity; env; ins; fields } ->
         let (Of fa) = deg_plus_to ~on:"codata" s (dom_ins ins) in
         let (Act_closure (env, ins)) = act_closure env ins fa in

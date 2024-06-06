@@ -391,13 +391,6 @@ module rec Value : sig
     | Unrealized : potential evaluation
     | Canonical : canonical -> potential evaluation
 
-  and ('m, 'j, 'ij) data_args = {
-    dim : 'm D.t;
-    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
-    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
-    discrete : bool;
-  }
-
   and canonical =
     | Data : ('m, 'j, 'ij) data_args -> canonical
     | Codata : {
@@ -408,6 +401,14 @@ module rec Value : sig
         fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
       }
         -> canonical
+
+  and ('m, 'j, 'ij) data_args = {
+    dim : 'm D.t;
+    tyfam : normal Lazy.t;
+    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
+    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+    discrete : bool;
+  }
 
   and (_, _) dataconstr =
     | Dataconstr : {
@@ -517,16 +518,9 @@ end = struct
     | Unrealized : potential evaluation
     | Canonical : canonical -> potential evaluation
 
-  (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  A datatype value has a vector of some indices to which it has been applied, the number of remaining indices to which it must be applied, and a family of constructors.  Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
-  and ('m, 'j, 'ij) data_args = {
-    dim : 'm D.t;
-    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
-    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
-    discrete : bool;
-  }
-
   (* A canonical type value is either a datatype or a codatatype/record. *)
   and canonical =
+    (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definition below. *)
     | Data : ('m, 'j, 'ij) data_args -> canonical
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
     | Codata : {
@@ -539,6 +533,21 @@ end = struct
       }
         -> canonical
 
+  (* A datatype value stores: *)
+  and ('m, 'j, 'ij) data_args = {
+    (* The dimension to which it is substituted *)
+    dim : 'm D.t;
+    (* The type family after being applied to the parameters but not the indices. *)
+    tyfam : normal Lazy.t;
+    (* The indices applied so far, and the number remaining *)
+    indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
+    (* All the constructors *)
+    constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
+    (* Whether it is discrete *)
+    discrete : bool;
+  }
+
+  (* Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
   and (_, _) dataconstr =
     | Dataconstr : {
         env : ('m, 'a) env;

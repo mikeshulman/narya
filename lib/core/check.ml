@@ -333,7 +333,8 @@ let rec check :
         {
           (* The insertion should always be trivial, since datatypes are always 0-dimensional. *)
           head = Const { name; _ };
-          alignment = Lawful (Data { dim; indices = Filled ty_indices; constrs; discrete = _ });
+          alignment =
+            Lawful (Data { dim; indices = Filled ty_indices; constrs; discrete = _; tyfam = _ });
           _;
         },
       _ ) -> (
@@ -595,7 +596,7 @@ and synth_or_check_nondep_match :
         alignment =
           Lawful
             (Data (type m j ij)
-              ({ dim; indices = Filled indices; constrs = data_constrs; discrete = _ } :
+              ({ dim; indices = Filled indices; constrs = data_constrs; discrete = _; tyfam = _ } :
                 (m, j, ij) data_args));
       } -> (
       (match i with
@@ -716,95 +717,81 @@ and synth_dep_match :
   | Neu
       {
         head = Const { name; ins };
-        args = varty_args;
+        args = _;
         alignment =
           Lawful
             (Data (type m j ij)
-              ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _ } :
+              ({
+                 dim;
+                 indices = Filled var_indices;
+                 constrs = data_constrs;
+                 discrete = _;
+                 tyfam = (lazy tyfam);
+               } :
                 (m, j, ij) data_args));
       } -> (
       match (is_id_ins ins, D.compare dim (TubeOf.inst inst_args)) with
       | _, Neq -> fatal (Dimension_mismatch ("var match", dim, TubeOf.inst inst_args))
       | None, _ -> fatal (Anomaly "match variable has nonidentity degeneracy")
-      | Some (), Eq -> (
-          let tmparams, tmindices = Vec.take_bwd (Vec.length var_indices) varty_args in
-          (* To compute the type at which to check the motive, we re-apply the datatype constant to its parameters only, and then extract its type. *)
-          let uvarty_params =
+      | Some (), Eq ->
+          let motivety = motive_of_family ctx tyfam.tm tyfam.ty in
+          let emotivety = eval_term (Ctx.env ctx) motivety in
+          let cmotive = check (Kinetic `Nolet) ctx motive emotivety in
+          let emotive = eval_term (Ctx.env ctx) cmotive in
+          (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
+          let user_branches = merge_branches name brs data_constrs in
+          (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
+          let branches =
             Bwd.fold_left
-              (fun fn arg ->
-                match arg with
-                | Value.App (Arg args, _) -> apply_term fn (val_of_norm_cube args)
-                | Value.App (Field fld, _) -> field fn fld)
-              (eval_term (Emp dim) (Const name))
-              tmparams in
-          match uvarty_params with
-          | Uninst (_, (lazy uvarty_params_ty)) ->
-              let motivety = motive_of_family ctx uvarty_params uvarty_params_ty in
-              let emotivety = eval_term (Ctx.env ctx) motivety in
-              let cmotive = check (Kinetic `Nolet) ctx motive emotivety in
-              let emotive = eval_term (Ctx.env ctx) cmotive in
-              (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
-              let user_branches = merge_branches name brs data_constrs in
-              (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-              let branches =
-                Bwd.fold_left
-                  (fun branches
-                       ( constr,
-                         (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
-                           (a, m, ij) checkable_branch) ) ->
-                    let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
-                    (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-                    let newctx, newenv, newvars, newnfs = ext_tel ctx env xs argtys plus_args efc in
-                    let perm = Tbwd.id_perm in
-                    let status = make_match_status status ctm dim branches efc None perm constr in
-                    (* To get the type at which to typecheck the body of the branch, we have to evaluate the general dependent motive at the indices of this constructor, its boundaries, and itself.  First we compute the indices. *)
-                    let index_vals =
-                      Vec.mmap (fun [ ixtm ] -> eval_with_boundary newenv ixtm) [ index_terms ]
-                    in
-                    let bmotive = Vec.fold_left apply_singletons emotive index_vals in
-                    (* Now we compute the constructor and its boundaries. *)
-                    let constr_vals =
-                      CubeOf.build dim
-                        {
-                          build =
-                            (fun fa ->
-                              Value.Constr
-                                (constr, dom_sface fa, List.map (CubeOf.subcube fa) newvars));
-                        } in
-                    let bmotive = apply_singletons bmotive constr_vals in
-                    (* Finally, we recurse into the "body" of the branch. *)
-                    match body with
-                    | Some body ->
-                        branches
-                        |> Constr.Map.add constr
-                             (Term.Branch (efc, perm, check status newctx body bmotive))
-                    | None ->
-                        if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
-                        else fatal (Missing_constructor_in_match constr))
-                  Constr.Map.empty user_branches in
-              (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
-              let result =
-                Vec.fold_left
-                  (fun fn xs ->
-                    match xs with
-                    | Value.App (Arg xs, _) ->
-                        snd
-                          (MC.miterM
-                             {
-                               it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm)));
-                             }
-                             [ xs ] fn)
-                    | App (Field _, _) -> fatal (Anomaly "field is not an index"))
-                  emotive tmindices in
-              let result =
+              (fun branches
+                   ( constr,
+                     (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
+                       (a, m, ij) checkable_branch) ) ->
+                let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
+                (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
+                let newctx, newenv, newvars, newnfs = ext_tel ctx env xs argtys plus_args efc in
+                let perm = Tbwd.id_perm in
+                let status = make_match_status status ctm dim branches efc None perm constr in
+                (* To get the type at which to typecheck the body of the branch, we have to evaluate the general dependent motive at the indices of this constructor, its boundaries, and itself.  First we compute the indices. *)
+                let index_vals =
+                  Vec.mmap (fun [ ixtm ] -> eval_with_boundary newenv ixtm) [ index_terms ] in
+                let bmotive = Vec.fold_left apply_singletons emotive index_vals in
+                (* Now we compute the constructor and its boundaries. *)
+                let constr_vals =
+                  CubeOf.build dim
+                    {
+                      build =
+                        (fun fa ->
+                          Value.Constr (constr, dom_sface fa, List.map (CubeOf.subcube fa) newvars));
+                    } in
+                let bmotive = apply_singletons bmotive constr_vals in
+                (* Finally, we recurse into the "body" of the branch. *)
+                match body with
+                | Some body ->
+                    branches
+                    |> Constr.Map.add constr
+                         (Term.Branch (efc, perm, check status newctx body bmotive))
+                | None ->
+                    if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
+                    else fatal (Missing_constructor_in_match constr))
+              Constr.Map.empty user_branches in
+          (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
+          let result =
+            Vec.fold_left
+              (fun fn xs ->
                 snd
-                  (MT.miterM
+                  (MC.miterM
                      { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
-                     [ inst_args ] result) in
-              let result = apply_term result (CubeOf.singleton (eval_term (Ctx.env ctx) ctm)) in
-              (* We readback the result so we can store it in the term, so that when evaluating it we know what its type must be without having to do all the work again. *)
-              (Match { tm = ctm; dim; branches }, result)
-          | _ -> fatal (Anomaly "uvarty_params not uninst")))
+                     [ xs ] fn))
+              emotive var_indices in
+          let result =
+            snd
+              (MT.miterM
+                 { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
+                 [ inst_args ] result) in
+          let result = apply_term result (CubeOf.singleton (eval_term (Ctx.env ctx) ctm)) in
+          (* We readback the result so we can store it in the term, so that when evaluating it we know what its type must be without having to do all the work again. *)
+          (Match { tm = ctm; dim; branches }, result))
   | _ -> fatal (Matching_on_nondatatype (PUninst (ctx, uvarty)))
 
 (* Check a match against a well-behaved variable, which can only appear in a case tree and refines not only the goal but the context (possibly with permutation). *)
@@ -830,7 +817,13 @@ and check_var_match :
         alignment =
           Lawful
             (Data (type m j ij)
-              ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _ } :
+              ({
+                 dim;
+                 indices = Filled var_indices;
+                 constrs = data_constrs;
+                 discrete = _;
+                 tyfam = _;
+               } :
                 (m, j, ij) data_args));
       } -> (
       match D.compare dim (TubeOf.inst inst_args) with
@@ -947,7 +940,13 @@ and check_var_match :
                       alignment =
                         Lawful
                           (Data
-                            { dim = constrdim; indices = Filled indices; constrs = _; discrete = _ });
+                            {
+                              dim = constrdim;
+                              indices = Filled indices;
+                              constrs = _;
+                              discrete = _;
+                              tyfam = _;
+                            });
                       _;
                     } -> (
                     match

@@ -53,6 +53,11 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           match eval (Emp dim) tree with
           | Realize x -> Val x
           | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
+          | Canonical (Data d) ->
+              let rec newtm =
+                Uninst (Neu { head; args = Emp; alignment = Lawful (Data { d with tyfam }) }, ty)
+              and tyfam = lazy { tm = newtm; ty = Lazy.force ty } in
+              Val newtm
           | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
           (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a potential hole. *)
           | Unrealized -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
@@ -344,13 +349,20 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
                       | Realize x -> Val x
                       | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
                       | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
+                      | Canonical (Data d) ->
+                          let rec newtm =
+                            Uninst
+                              (Neu { head; args; alignment = Lawful (Data { d with tyfam }) }, ty)
+                          and tyfam = lazy { tm = newtm; ty = Lazy.force ty } in
+                          Val newtm
                       | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
-                  | Lawful (Data { dim; indices = Unfilled _ as indices; constrs; discrete }) -> (
+                  | Lawful (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete })
+                    -> (
                       match D.compare dim k with
                       | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
                       | Eq ->
                           let indices = Fillvec.snoc indices newarg in
-                          let alignment = Lawful (Data { dim; indices; constrs; discrete }) in
+                          let alignment = Lawful (Data { dim; tyfam; indices; constrs; discrete }) in
                           Val (Uninst (Neu { head; args; alignment }, ty)))
                   | _ -> fatal (Anomaly "invalid application of type"))
               | _ -> fatal (Anomaly "invalid application of non-function uninst")))
@@ -534,11 +546,12 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> Value.canonical
  fun env can ->
   match can with
   | Data { indices; constrs; discrete } ->
+      let tyfam = lazy (fatal (Anomaly "tyfam unset")) in
       let constrs =
         Abwd.map
           (fun (Term.Dataconstr { args; indices }) -> Value.Dataconstr { env; args; indices })
           constrs in
-      Data { dim = dim_env env; indices = Fillvec.empty indices; constrs; discrete }
+      Data { dim = dim_env env; tyfam; indices = Fillvec.empty indices; constrs; discrete }
   | Codata { eta; opacity; dim; fields } ->
       let (Id_ins ins) = id_ins (dim_env env) dim in
       Codata { eta; opacity; env; ins; fields }

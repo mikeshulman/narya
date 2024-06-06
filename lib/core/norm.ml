@@ -249,7 +249,9 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Plus km) = D.plus (dom_deg s) in
       let (Plus kn) = D.plus (cod_deg s) in
       let ks = plus_deg k kn km s in
-      Val (act_value (eval_term env x) ks)
+      (* We push as much of the resulting degeneracy into the environment as possible, in hopes that the remaining insertion outside will be trivial and act_value will be able to short-circuit.  (Ideally, the insertion would be carried through by eval for a single traversal in all cases.) *)
+      let (Insfact (fa, ins)) = insfact ks kn in
+      Val (act_value (eval_term (act_env env (op_of_deg fa)) x) (perm_of_ins ins))
   | Match { tm; dim = match_dim; branches } -> (
       let env_dim = dim_env env in
       let (Plus plus_dim) = D.plus match_dim in

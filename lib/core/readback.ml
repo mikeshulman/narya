@@ -6,7 +6,6 @@ open Dim
 open Syntax
 open Term
 open Value
-open Inst
 open Domvars
 open Act
 open Norm
@@ -21,9 +20,8 @@ let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =
 
 and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a, kinetic) term =
  fun ctx tm ty ->
-  let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
-  match (uty, tm) with
-  | Pi (_, doms, cods), Lam ((Variables (m, mn, xs) as x), body) -> (
+  match (view_type ty "readback_at", tm) with
+  | Pi (_, doms, cods, tyargs), Lam ((Variables (m, mn, xs) as x), body) -> (
       let k = CubeOf.dim doms in
       let l = dim_binder body in
       match (D.compare (TubeOf.inst tyargs) k, D.compare k l) with
@@ -35,9 +33,9 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))
-  | Neu { alignment = Lawful (Codata { eta = Eta; opacity; fields; env = _; ins }); _ }, _ -> (
+  | Canonical (_, Codata { eta = Eta; opacity; fields; env = _; ins }, _), _ -> (
       let dim = cod_left_ins ins in
-      let readback_at_record tm ty =
+      let readback_at_record (tm : kinetic value) ty =
         match (tm, opacity) with
         (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
         | Struct (tmflds, _), _ ->
@@ -71,14 +69,12 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           match readback_at_record ptm pty with
           | Some res -> Act (res, p)
           | None -> readback_val ctx tm))
-  | Neu { alignment = Lawful (Data { constrs; _ }); _ }, Constr (xconstr, xn, xargs) -> (
+  | Canonical (_, Data { constrs; _ }, tyargs), Constr (xconstr, xn, xargs) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
         Abwd.find_opt xconstr constrs <|> Anomaly "constr not found in readback" in
-      match (D.compare xn (TubeOf.inst tyargs), D.compare (TubeOf.inst tyargs) (dim_env env)) with
-      | Neq, _ -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
-      | _, Neq ->
-          fatal (Dimension_mismatch ("reading back constrs", TubeOf.inst tyargs, dim_env env))
-      | Eq, Eq ->
+      match D.compare xn (TubeOf.inst tyargs) with
+      | Neq -> fatal (Dimension_mismatch ("reading back constrs", xn, TubeOf.inst tyargs))
+      | Eq ->
           let tyarg_args =
             TubeOf.mmap
               {

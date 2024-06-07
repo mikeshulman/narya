@@ -5,7 +5,6 @@ open Dim
 open Syntax
 open Raw
 open Term
-open Inst
 open Norm
 open Check
 open Readback

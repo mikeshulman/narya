@@ -645,25 +645,27 @@ let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a)
   | Ext (env, _), Now -> env
   | LazyExt (env, _), Now -> env
 
+(* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
+let rec universe : type n. n D.t -> kinetic value = fun n -> Uninst (UU n, lazy (universe_ty n))
+and universe_nf : type n. n D.t -> normal = fun n -> { tm = universe n; ty = universe_ty n }
+
+and universe_ty : type n. n D.t -> kinetic value =
+ fun n ->
+  match D.compare_zero n with
+  | Zero -> universe D.zero
+  | Pos n' ->
+      let args =
+        TubeOf.build D.zero (D.zero_plus n)
+          {
+            build =
+              (fun fa ->
+                let m = dom_tface fa in
+                universe_nf m);
+          } in
+      Inst { tm = UU n; dim = n'; args; tys = TubeOf.empty D.zero }
+
 module Discreteness = Algaeff.Reader.Make (Bool)
 
 module Discrete = Algaeff.State.Make (struct
   type t = bool Constant.Map.t
 end)
-
-let is_discrete : kinetic value -> bool = function
-  | Uninst (tm, _) | Inst { tm; _ } -> (
-      match tm with
-      | Neu { alignment = Lawful (Data { discrete = true; _ }); _ } -> true
-      (* TODO: In a mutual block, this is not the correct test: it considers all the mutually defined types to be "discrete" even if they don't later turn out to be.  At present we are disallowing discreteness for all mutual families. *)
-      | Neu { head = Const { name; _ }; _ } when Constant.Map.mem name (Discrete.get ()) -> true
-      (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
-      | _ -> false)
-  | _ -> false
-
-let const_head_of : kinetic value -> Constant.t option = function
-  | Uninst (tm, _) | Inst { tm; _ } -> (
-      match tm with
-      | Neu { head = Const { name; _ }; _ } -> Some name
-      | _ -> None)
-  | _ -> None

@@ -339,7 +339,7 @@ let execute : Command.t -> unit = function
           let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
-          let bty = Readback.readback_at Ctx.empty ety (Inst.universe D.zero) in
+          let bty = Readback.readback_at Ctx.empty ety (Syntax.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           let uty = unparse Names.empty bty Interval.entire Interval.entire in
           let ppf = Format.std_formatter in

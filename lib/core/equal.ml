@@ -3,7 +3,6 @@ open Reporter
 open Dim
 open Syntax
 open Value
-open Inst
 open Domvars
 open Norm
 open Act
@@ -24,32 +23,22 @@ let rec equal_nf : int -> normal -> normal -> unit option =
 and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit option =
  fun ctx x y ty ->
   (* The type must be fully instantiated. *)
-  let (Fullinst (uty, tyargs)) = full_inst ty "equal_at" in
-  match uty with
+  match view_type ty "equal_at" with
   (* The only interesting thing here happens when the type is one with an eta-rule, such as a pi-type. *)
-  | Pi (_, doms, cods) -> (
-      let k = CubeOf.dim doms in
-      (* The pi-type must be instantiated at the correct dimension. *)
-      match D.compare (TubeOf.inst tyargs) k with
-      | Neq -> fatal (Dimension_mismatch ("equality at pi", TubeOf.inst tyargs, k))
-      | Eq ->
-          (* Create variables for all the boundary domains. *)
-          let newargs, _ = dom_vars ctx doms in
-          (* Calculate the output type of the application to those variables *)
-          let output = tyof_app cods tyargs newargs in
-          (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
-          equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output)
-  (* In the case of a codatatype/record, the insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it.  And its dimension gets checked by tyof_field.  In fact because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the data here except whether it has eta and what the list of field names is. *)
-  | Neu { alignment = Lawful (Codata { eta = Eta; fields; _ }); _ } ->
+  | Pi (_, doms, cods, tyargs) ->
+      let newargs, _ = dom_vars ctx doms in
+      let output = tyof_app cods tyargs newargs in
+      equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output
+  (* In the case of a codatatype/record, the insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it.  And its dimension gets checked by tyof_field.  In fact because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the data here except whether it has eta, whether it has an insertion (since if it does, it's not really a record type), and what the list of field names is. *)
+  | Canonical (_, Codata { eta = Eta; fields; ins; _ }, _) when Option.is_some (is_id_ins ins) ->
       (* In the eta case, we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
       BwdM.miterM
         (fun [ (fld, _) ] -> equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
         [ fields ]
   (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
-  | Neu { alignment = Lawful (Data { dim; discrete; _ }); _ } when discrete && is_pos dim ->
-      return ()
+  | Canonical (_, Data { dim; discrete; _ }, _) when discrete && is_pos dim -> return ()
   (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  We require the datatype to be applied to all its indices, and we check the dimension. *)
-  | Neu { alignment = Lawful (Data { constrs; _ }); _ } -> (
+  | Canonical (_, Data { constrs; _ }, tyargs) -> (
       match (x, y) with
       | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
           let (Dataconstr { env; args = argtys; indices = _ }) =

@@ -31,7 +31,7 @@
  ￫ error[E0700]
  ￭ user-supplied term
  1 | x0 x1 x2 x3 ↦ refl f x0 x1 x2
-   ^ checking abstraction against non-function type refl A
+   ^ checking abstraction against non-function type refl A (f x0) (f x1)
 
  ￫ error[E0400]
  ￭ user-supplied term
@@ -58,15 +58,18 @@
  1 | g
    ^ unbound variable: g
 
- ￫ error[E0504]
+ ￫ error[E0401]
  ￭ user-supplied term
  1 | a
-   ^ type not fully instantiated in typechecking
+   ^ term synthesized type A but is being checked against type refl A
 
- ￫ error[E0504]
+ ￫ error[E0401]
  ￭ user-supplied term
  1 | a
-   ^ type not fully instantiated in typechecking
+   ^ term synthesized type
+       A
+     but is being checked against type
+       A⁽ᵉᵉ⁾ a a (refl a) a a (refl a)
 
  ￫ error[E0200]
  ￭ user-supplied term

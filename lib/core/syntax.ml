@@ -143,7 +143,7 @@ module rec Term : sig
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
+        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t * 's energy
         -> ('a, 's) term
     | Match : {
         tm : ('a, kinetic) term;
@@ -225,7 +225,7 @@ end = struct
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t
+        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t * 's energy
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
     | Match : {
@@ -382,7 +382,9 @@ module rec Value : sig
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
     | Struct :
-        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
+        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t
+        * ('m, 'n, 'k) insertion
+        * 's energy
         -> 's value
 
   and _ evaluation =
@@ -507,7 +509,9 @@ end = struct
     | Lam : 'k variables * ('k, 's) binder -> 's value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
     | Struct :
-        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t * ('m, 'n, 'k) insertion
+        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t
+        * ('m, 'n, 'k) insertion
+        * 's energy
         -> 's value
 
   (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)

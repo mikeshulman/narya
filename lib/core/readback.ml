@@ -38,21 +38,21 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
       let readback_at_record (tm : kinetic value) ty =
         match (tm, opacity) with
         (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
-        | Struct (tmflds, _), _ ->
+        | Struct (tmflds, _, energy), _ ->
             let fields =
               Abwd.mapi
                 (fun fld (fldtm, l) ->
                   (readback_at ctx (force_eval_term fldtm) (tyof_field tm ty fld), l))
                 tmflds in
-            Some (Term.Struct (Eta, dim, fields))
+            Some (Term.Struct (Eta, dim, fields, energy))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
         | (_, `Transparent l | Uninst (Neu { alignment = Chaotic _; _ }, _), `Translucent l)
           when Display.read () ->
             let fields =
               Abwd.mapi
-                (fun fld _ -> (readback_at ctx (field tm fld) (tyof_field tm ty fld), l))
+                (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field tm ty fld), l))
                 fields in
-            Some (Struct (Eta, dim, fields))
+            Some (Struct (Eta, dim, fields, Kinetic))
         (* If the term is not a struct and the record type is not transparent/translucent, we pass off to synthesizing readback. *)
         | _ -> None in
       match is_id_ins ins with

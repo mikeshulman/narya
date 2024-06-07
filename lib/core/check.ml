@@ -1261,7 +1261,7 @@ and check_struct :
             | None -> fatal (Anomaly "missing field in check"))
         | None, _ -> fatal (Extra_field_in_tuple None))
       tms in
-  Term.Struct (eta, dim, fields)
+  Term.Struct (eta, dim, fields, energy status)
 
 and check_fields :
     type a b s n.
@@ -1278,12 +1278,12 @@ and check_fields :
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
  fun status eta ctx ty dim fields tms etms ctms ->
   (* The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
-  let str = Value.Struct (etms, ins_zero dim) in
+  let str = Value.Struct (etms, ins_zero dim, energy status) in
   match (fields, status) with
   | [], _ -> (tms, ctms)
   | fld :: fields, Potential (name, args, hyp) ->
       (* Temporarily bind the current constant to the up-until-now value. *)
-      run_with_definition name (hyp (Term.Struct (eta, dim, ctms))) @@ fun () ->
+      run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = head_of_potential name in
       let prev_etm = Uninst (Neu { head; args; alignment = Chaotic str }, Lazy.from_val ty) in
@@ -1310,7 +1310,7 @@ and check_field :
     | Kinetic l -> Kinetic l
     | Potential (c, args, hyp) ->
         let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
-        let hyp tm = hyp (Term.Struct (eta, dim, Snoc (ctms, (fld, (tm, lbl))))) in
+        let hyp tm = hyp (Term.Struct (eta, dim, Snoc (ctms, (fld, (tm, lbl))), energy status)) in
         Potential (c, args, hyp) in
   let ety = tyof_field prev_etm ty fld in
   match Abwd.find_opt (Some fld) tms with

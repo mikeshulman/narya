@@ -284,11 +284,11 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           } in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
-  | Field (tm, fld) -> Val (field (eval_term env tm) fld)
-  | Struct (_, dim, fields) ->
+  | Field (tm, fld) -> field (eval_term env tm) fld
+  | Struct (_, dim, fields, energy) ->
       let (Plus mn) = D.plus (dim_env env) in
       let ins = ins_zero (D.plus_out dim mn) in
-      Val (Struct (Abwd.map (fun (tm, l) -> (lazy_eval env tm, l)) fields, ins))
+      Val (Struct (Abwd.map (fun (tm, l) -> (lazy_eval env tm, l)) fields, ins, energy))
   | Constr (constr, n, args) ->
       let m = dim_env env in
       let (Plus m_n) = D.plus n in
@@ -498,40 +498,39 @@ and tyof_app :
   inst (apply_binder_term (BindCube.find_top cods) args) out_args
 
 (* Compute a field of a structure. *)
-and field : type n. kinetic value -> Field.t -> kinetic value =
+and field : type n s. s value -> Field.t -> s evaluation =
  fun tm fld ->
   match view_term tm with
-  (* TODO: Is it okay to ignore the insertion here? *)
-  | Struct (fields, _) ->
-      let xv =
-        Abwd.find_opt fld fields <|> Anomaly ("missing field in eval struct: " ^ Field.to_string fld)
-      in
-      force_eval_term (fst xv)
+  (* TODO: Is it okay to ignore the insertion here?  I'm currently assuming that it must be zero if this field projection is well-typed. *)
+  | Struct (fields, _, energy) -> (
+      match (Abwd.find_opt fld fields, energy) with
+      | Some xv, _ -> force_eval (fst xv)
+      | None, Potential -> Unrealized
+      | None, Kinetic -> fatal (Anomaly ("missing field in eval struct: " ^ Field.to_string fld)))
   | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
       let Wrap n, newty = tyof_field_withdim tm ty fld in
       let newty = Lazy.from_val newty in
       let args = Snoc (args, App (Field fld, ins_zero n)) in
       match alignment with
-      | True -> Uninst (Neu { head; args; alignment = True }, newty)
-      | Chaotic (Struct (fields, _)) -> (
-          match Abwd.find_opt fld fields with
-          | None ->
-              (* This can happen correctly during checking a recursive case tree, where the body of one field refers to its not-yet-defined self or other not-yet-defined fields. *)
-              Uninst (Neu { head; args; alignment = True }, newty)
-          | Some x -> (
-              match force_eval (fst x) with
-              | Realize x -> x
-              | Val x -> Uninst (Neu { head; args; alignment = Chaotic x }, newty)
-              | Unrealized -> Uninst (Neu { head; args; alignment = True }, newty)
-              | Canonical (Data d) ->
-                  let rec newtm =
-                    Uninst (Neu { head; args; alignment = Lawful (Data { d with tyfam }) }, newty)
-                  and tyfam = lazy { tm = newtm; ty = Lazy.force newty } in
-                  newtm
-              | Canonical c -> Uninst (Neu { head; args; alignment = Lawful c }, newty)))
-      | Chaotic _ -> fatal (Anomaly "field projection of non-struct case tree")
+      | True -> Val (Uninst (Neu { head; args; alignment = True }, newty))
+      | Chaotic tm -> (
+          match field tm fld with
+          | Realize x -> Val x
+          | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, newty))
+          | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, newty))
+          | Canonical (Data d) ->
+              let rec newtm =
+                Uninst (Neu { head; args; alignment = Lawful (Data { d with tyfam }) }, newty)
+              and tyfam = lazy { tm = newtm; ty = Lazy.force newty } in
+              Val newtm
+          | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, newty)))
       | Lawful _ -> fatal (Anomaly "field projection of canonical type"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
+
+and field_term : type n. kinetic value -> Field.t -> kinetic value =
+ fun x fld ->
+  let (Val v) = field x fld in
+  v
 
 (* Given a term and its record type, compute the type and dimension of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
 and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.or_index) :
@@ -575,7 +574,7 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
                      {
                        map =
                          (fun _ [ arg ] ->
-                           let tm = field arg.tm fldname in
+                           let (Val tm) = field arg.tm fldname in
                            let _, _, ty = tyof_field_withname arg.tm arg.ty fld in
                            { tm; ty });
                      }

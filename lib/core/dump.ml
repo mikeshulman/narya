@@ -31,7 +31,7 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
   | Inst { tm; dim = d; args = _; tys = _ } ->
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
   | Lam (_, _) -> fprintf ppf "Lam ?"
-  | Struct (f, _) -> fprintf ppf "Struct (%a)" fields f
+  | Struct (f, _, _) -> fprintf ppf "Struct (%a)" fields f
   | Constr (c, d, args) ->
       fprintf ppf "Constr (%s, %a, (%a))" (Constr.to_string c) dim d
         (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") value)
@@ -125,9 +125,9 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Lam (_, body) -> fprintf ppf "Lam (?, %a)" term body
   | Constr (c, _, _) -> fprintf ppf "Constr (%s, ?, ?)" (Constr.to_string c)
   | Act (tm, s) -> fprintf ppf "Act (%a, %s)" term tm (string_of_deg s)
-  | Let (_, _, _) -> fprintf ppf "Let (?,?,?)"
-  | Struct (_, _, _) -> fprintf ppf "Struct (?,?,?)"
-  | Match _ -> fprintf ppf "Match (?,?,?)"
+  | Let (_, _, _) -> fprintf ppf "Let ?"
+  | Struct (_, _, _, _) -> fprintf ppf "Struct ?"
+  | Match _ -> fprintf ppf "Match ?"
   | Realize tm -> fprintf ppf "Realize (%a)" term tm
   | Canonical c -> fprintf ppf "Canonical (%a)" canonical c
 

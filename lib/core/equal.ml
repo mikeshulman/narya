@@ -45,27 +45,6 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
       BwdM.miterM
         (fun [ (fld, _) ] -> equal_at ctx (field x fld) (field y fld) (tyof_field x ty fld))
         [ fields ]
-  | Neu { alignment = Lawful (Codata { eta = Noeta; fields; _ }); _ } -> (
-      (* At a record-type without eta, two structs are equal if their insertions and corresponding fields are equal, and a struct is not equal to any other term.  We have to handle these cases here, though, because once we get to equal_val we don't have the type information, which is not stored in a struct. *)
-      match (x, y) with
-      | Struct (xfld, xins), Struct (yfld, yins) ->
-          let* () = deg_equiv (perm_of_ins xins) (perm_of_ins yins) in
-          BwdM.miterM
-            (fun [ (fld, _) ] ->
-              let xv =
-                match Abwd.find_opt fld xfld with
-                | Some xv -> xv
-                | None -> fatal (Anomaly "missing field in equality-check") in
-              let (Val xtm) = force_eval (fst xv) in
-              let yv =
-                match Abwd.find_opt fld yfld with
-                | Some yv -> yv
-                | None -> fatal (Anomaly "missing field in equality-check") in
-              let (Val ytm) = force_eval (fst yv) in
-              equal_at ctx xtm ytm (tyof_field x ty fld))
-            [ fields ]
-      | Struct _, _ | _, Struct _ -> fail
-      | _ -> equal_val ctx x y)
   (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
   | Neu { alignment = Lawful (Data { dim; discrete; _ }); _ } when discrete && is_pos dim ->
       return ()

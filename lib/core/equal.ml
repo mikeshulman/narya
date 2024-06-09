@@ -113,6 +113,7 @@ and equal_val : int -> kinetic value -> kinetic value -> unit option =
       | _ -> fail)
   | Lam _, _ | _, Lam _ -> fatal (Anomaly "unexpected lambda in synthesizing equality-check")
   | Struct _, _ | _, Struct _ -> fatal (Anomaly "unexpected struct in synthesizing equality-check")
+  | Constr _, _ | _, Constr _ -> fatal (Anomaly "unexpected constr in synthesizing equality-check")
   | _, _ -> fail
 
 (* Subroutine of equal_val.  Like it, equality of the types is part of the conclusion, not a hypothesis.  *)

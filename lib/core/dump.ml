@@ -33,7 +33,9 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
   | Lam (_, _) -> fprintf ppf "Lam ?"
   | Struct (f, _) -> fprintf ppf "Struct (%a)" fields f
   | Constr (c, d, args) ->
-      fprintf ppf "Constr (%s, %a, %d)" (Constr.to_string c) dim d (List.length args)
+      fprintf ppf "Constr (%s, %a, (%a))" (Constr.to_string c) dim d
+        (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") value)
+        (List.map CubeOf.find_top args)
 
 and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 

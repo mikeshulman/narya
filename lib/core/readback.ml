@@ -54,7 +54,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
             Some (Struct (Eta, dim, fields, Kinetic))
         | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
             match force_eval value with
-            | Val _ ->
+            | Val (Struct _) ->
                 let fields =
                   Abwd.mapi
                     (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field tm ty fld), l))

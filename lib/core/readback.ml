@@ -46,13 +46,21 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 tmflds in
             Some (Term.Struct (Eta, dim, fields, energy))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
-        | (_, `Transparent l | Uninst (Neu { value = Val _; _ }, _), `Translucent l)
-          when Display.read () ->
+        | _, `Transparent l when Display.read () ->
             let fields =
               Abwd.mapi
                 (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field tm ty fld), l))
                 fields in
             Some (Struct (Eta, dim, fields, Kinetic))
+        | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
+            match force_eval value with
+            | Val _ ->
+                let fields =
+                  Abwd.mapi
+                    (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field tm ty fld), l))
+                    fields in
+                Some (Struct (Eta, dim, fields, Kinetic))
+            | _ -> None)
         (* If the term is not a struct and the record type is not transparent/translucent, we pass off to synthesizing readback. *)
         | _ -> None in
       match is_id_ins ins with

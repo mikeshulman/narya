@@ -363,7 +363,7 @@ module rec Value : sig
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    | Neu : { head : head; args : app Bwd.t; value : potential evaluation } -> uninst
+    | Neu : { head : head; args : app Bwd.t; value : potential lazy_eval } -> uninst
 
   and _ value =
     | Uninst : uninst * kinetic value Lazy.t -> kinetic value
@@ -474,7 +474,7 @@ end = struct
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
     (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
-    | Neu : { head : head; args : app Bwd.t; value : potential evaluation } -> uninst
+    | Neu : { head : head; args : app Bwd.t; value : potential lazy_eval } -> uninst
 
   and _ value =
     (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
@@ -577,13 +577,6 @@ open Value
 
 type any_canonical = Any : 'm canonical -> any_canonical
 
-(* Given a De Bruijn level and a type, build the variable of that level having that type. *)
-let var : level -> kinetic value -> kinetic value =
- fun level ty ->
-  Uninst
-    ( Neu { head = Var { level; deg = id_deg D.zero }; args = Emp; value = Unrealized },
-      Lazy.from_val ty )
-
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function
   | Emp n -> n
@@ -634,6 +627,13 @@ let field_lazy : type s. s lazy_eval -> Field.t -> s lazy_eval =
   | Deferred_eval (env, tm, ins, apps) -> ref (Deferred_eval (env, tm, ins, Snoc (apps, fld)))
   | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, fld)))
   | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, fld)))
+
+(* Given a De Bruijn level and a type, build the variable of that level having that type. *)
+let var : level -> kinetic value -> kinetic value =
+ fun level ty ->
+  Uninst
+    ( Neu { head = Var { level; deg = id_deg D.zero }; args = Emp; value = ready Unrealized },
+      Lazy.from_val ty )
 
 (* Project out a cube or tube of values from a cube or tube of normals *)
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =

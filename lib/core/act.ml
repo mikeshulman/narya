@@ -148,7 +148,7 @@ module Act = struct
         let Any s', args = act_apps args s in
         let head = act_head head s' in
         (* We act on the alignment separately with the original s, since (e.g.) a chaotic alignment is a "value" of the entire application spine, not just the head. *)
-        let value = act_evaluation value s in
+        let value = act_lazy_eval value s in
         Neu { head; args; value }
     | UU nk ->
         let (Of fa) = deg_plus_to s nk ~on:"universe" in

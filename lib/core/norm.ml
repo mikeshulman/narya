@@ -85,7 +85,7 @@ type view_type =
 
 let view_term : type s. s value -> s value = fun tm -> tm
 
-let view_type ?severity (ty : kinetic value) (err : string) : view_type =
+let rec view_type ?severity (ty : kinetic value) (err : string) : view_type =
   let (Fullinst (uty, tyargs)) = full_inst ?severity ty err in
   match uty with
   | UU n -> (
@@ -104,18 +104,21 @@ let view_type ?severity (ty : kinetic value) (err : string) : view_type =
           Pi (x, doms, cods, tyargs)
       | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.inst tyargs))
       | Neq, _ -> fatal (Dimension_mismatch ("view pi-type", CubeOf.dim doms, TubeOf.inst tyargs)))
-  | Neu { head; args = _; value = Canonical c } -> (
-      match
-        (D.compare (dim_canonical c) (TubeOf.inst tyargs), D.compare (TubeOf.uninst tyargs) D.zero)
-      with
-      | Eq, Eq ->
-          let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
-          Canonical (head, c, tyargs)
-      | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
-      | Neq, _ -> fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs))
-      )
-  | Neu { value = Unrealized; _ } | Neu { value = Val _; _ } -> Neutral
-  | Neu { value = Realize _; _ } -> fatal (Anomaly "realized neutral")
+  | Neu { head; args = _; value } -> (
+      match force_eval value with
+      | Canonical c -> (
+          match
+            ( D.compare (dim_canonical c) (TubeOf.inst tyargs),
+              D.compare (TubeOf.uninst tyargs) D.zero )
+          with
+          | Eq, Eq ->
+              let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
+              Canonical (head, c, tyargs)
+          | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
+          | Neq, _ ->
+              fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs)))
+      | Unrealized | Val _ -> Neutral
+      | Realize _ -> fatal (Anomaly "realized neutral"))
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
@@ -126,7 +129,7 @@ let view_type ?severity (ty : kinetic value) (err : string) : view_type =
    These possibilities are encoded in an "evaluation", defined in Syntax.Value.  The point is that, just as with the representation of terms, there is enough commonality between the two (application of lambdas and field projection from structs) that we don't want to duplicate the code, so we define the evaluation functions to return an "evaluation" result that is a GADT parametrized by the kind of energy of the term. *)
 
 (* The master evaluation function. *)
-let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
+and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
  fun env tm ->
   match tm with
   | Var v -> Val (lookup env v)
@@ -155,12 +158,12 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           match eval (Emp dim) tree with
           | Realize x -> Val x
           | Canonical (Data d) as value ->
-              let newtm = Uninst (Neu { head; args = Emp; value }, ty) in
+              let newtm = Uninst (Neu { head; args = Emp; value = ready value }, ty) in
               if Option.is_none !(d.tyfam) then
                 d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
               Val newtm
-          | value -> Val (Uninst (Neu { head; args = Emp; value }, ty)))
-      | Axiom _ -> Val (Uninst (Neu { head; args = Emp; value = Unrealized }, ty)))
+          | value -> Val (Uninst (Neu { head; args = Emp; value = ready value }, ty)))
+      | Axiom _ -> Val (Uninst (Neu { head; args = Emp; value = ready Unrealized }, ty)))
   | Meta (meta, ambient) -> (
       let dim = dim_env env in
       let head = Value.Meta { meta; env; ins = ins_zero dim } in
@@ -184,7 +187,7 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       | Metadef { tm = `None; _ }, Potential -> Unrealized
       (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)
       | Metadef { tm = `None; ty; _ }, Kinetic ->
-          Val (Uninst (Neu { head; args = Emp; value = Unrealized }, lazy (make_ty meta ty)))
+          Val (Uninst (Neu { head; args = Emp; value = ready Unrealized }, lazy (make_ty meta ty)))
       (* If a metavariable has a definition that fits with the current energy, we simply evaluate that definition. *)
       | Metadef { tm = `Nonrec tm; energy = Potential; _ }, Potential -> eval env tm
       | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Kinetic -> eval env tm
@@ -193,7 +196,8 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           (* If a potential metavariable with a definition is used in a kinetic context, and doesn't evaluate yet to a kinetic result, we again have to build a neutral. *)
           match eval env tm with
           | Realize tm -> Val tm
-          | value -> Val (Uninst (Neu { head; args = Emp; value }, lazy (make_ty meta ty)))))
+          | value ->
+              Val (Uninst (Neu { head; args = Emp; value = ready value }, lazy (make_ty meta ty)))))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
       eval (eval_env env m_n metaenv) (Term.Meta (meta, Kinetic))
@@ -433,17 +437,18 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               let ty = lazy (tyof_app cods tyargs arg) in
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
               let args = Snoc (args, App (Arg newarg, ins_zero k)) in
-              match value with
-              | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, ty))
+              match force_eval value with
+              | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, ty))
               | Val tm -> (
                   match apply tm arg with
                   | Realize x -> Val x
                   | Canonical (Data d) ->
-                      let newtm = Uninst (Neu { head; args; value = Canonical (Data d) }, ty) in
+                      let newtm =
+                        Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, ty) in
                       if Option.is_none !(d.tyfam) then
                         d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
                       Val newtm
-                  | value -> Val (Uninst (Neu { head; args; value }, ty)))
+                  | value -> Val (Uninst (Neu { head; args; value = ready value }, ty)))
               | Canonical (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete })
                 -> (
                   match D.compare dim k with
@@ -452,7 +457,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
                       let indices = Fillvec.snoc indices newarg in
                       let value =
                         Value.Canonical (Data { dim; tyfam; indices; constrs; discrete }) in
-                      Val (Uninst (Neu { head; args; value }, ty)))
+                      Val (Uninst (Neu { head; args; value = ready value }, ty)))
               | _ -> fatal (Anomaly "invalid application of type")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
@@ -505,17 +510,17 @@ and field : type n s. s value -> Field.t -> s evaluation =
       let Wrap n, newty = tyof_field_withdim tm ty fld in
       let newty = Lazy.from_val newty in
       let args = Snoc (args, App (Field fld, ins_zero n)) in
-      match value with
-      | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, newty))
+      match force_eval value with
+      | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
       | Val tm -> (
           match field tm fld with
           | Realize x -> Val x
           | Canonical (Data d) ->
-              let newtm = Uninst (Neu { head; args; value = Canonical (Data d) }, newty) in
+              let newtm = Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty) in
               if Option.is_none !(d.tyfam) then
                 d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
               Val newtm
-          | value -> Val (Uninst (Neu { head; args; value }, newty)))
+          | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
       | Canonical _ -> fatal (Anomaly "field projection of canonical type")
       | Realize _ -> fatal (Anomaly "realized neutral"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))

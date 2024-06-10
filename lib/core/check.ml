@@ -504,7 +504,7 @@ and synth_or_check_let :
       let tm =
         match eval (Ctx.env ctx) sv with
         | Realize x -> x
-        | value -> Uninst (Neu { head; args = Emp; value }, Lazy.from_val svty) in
+        | value -> Uninst (Neu { head; args = Emp; value = ready value }, Lazy.from_val svty) in
       (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
   (* Either way, we end up with a checked term 'v' and a normal form 'nf'.  We use the latter to extend the context. *)
   let newctx = Ctx.ext_let ctx name nf in
@@ -794,13 +794,16 @@ and check_var_match :
       let seen = Hashtbl.create 10 in
       let is_fresh x =
         match x.tm with
-        | Uninst (Neu { head = Var { level; deg }; args = Emp; value = Unrealized }, _) ->
-            if Option.is_none (is_id_deg deg) then
-              fatal (Matching_wont_refine ("index variable has degeneracy", PNormal (ctx, x)));
-            if Hashtbl.mem seen level then
-              fatal (Matching_wont_refine ("duplicate variable in indices", PNormal (ctx, x)));
-            Hashtbl.add seen level ();
-            level
+        | Uninst (Neu { head = Var { level; deg }; args = Emp; value }, _) -> (
+            match force_eval value with
+            | Unrealized ->
+                if Option.is_none (is_id_deg deg) then
+                  fatal (Matching_wont_refine ("index variable has degeneracy", PNormal (ctx, x)));
+                if Hashtbl.mem seen level then
+                  fatal (Matching_wont_refine ("duplicate variable in indices", PNormal (ctx, x)));
+                Hashtbl.add seen level ();
+                level
+            | _ -> fatal (Anomaly "local variable bound to a potential term"))
         | _ -> fatal (Matching_wont_refine ("index is not a free variable", PNormal (ctx, x))) in
       Reporter.try_with ~fatal:(fun d ->
           match d.message with
@@ -1179,7 +1182,9 @@ and with_codata_so_far :
     Value.Canonical
       (Codata { eta; opacity; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields })
   in
-  let prev_ety = Uninst (Neu { head; args; value }, Lazy.from_val (inst (universe dim) tyargs)) in
+  let prev_ety =
+    Uninst (Neu { head; args; value = ready value }, Lazy.from_val (inst (universe dim) tyargs))
+  in
   let _, domvars =
     dom_vars (Ctx.length ctx)
       (TubeOf.plus_cube
@@ -1288,7 +1293,7 @@ and check_fields :
       run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = head_of_potential name in
-      let prev_etm = Uninst (Neu { head; args; value = Val str }, Lazy.from_val ty) in
+      let prev_etm = Uninst (Neu { head; args; value = ready (Val str) }, Lazy.from_val ty) in
       check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
   | fld :: fields, Kinetic _ -> check_field status eta ctx ty dim fld fields str tms etms ctms
 

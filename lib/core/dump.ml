@@ -63,8 +63,7 @@ and uninst : formatter -> uninst -> unit =
   match u with
   | UU n -> fprintf ppf "UU %a" dim n
   | Pi (_, _, _) -> fprintf ppf "Pi ?"
-  | Neu { head = h; args = a; value = v } ->
-      fprintf ppf "Neu (%a, (%a), %a)" head h args a evaluation v
+  | Neu { head = h; args = a; value = _ } -> fprintf ppf "Neu (%a, (%a), ?)" head h args a
 
 and args : formatter -> app Bwd.t -> unit =
  fun ppf args ->

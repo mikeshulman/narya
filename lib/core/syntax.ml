@@ -447,7 +447,7 @@ end = struct
 
   module BindCube = Cube (BindFam)
 
-  (* The head of an elimination spine is either a variable or a constant.  We define this type to be parametrized over a pair of dummy indices indicating which it is, so that most of the time we can treat them equally by parametrizing over the index, but in some places (e.g. alignment) we can specify that only one kind of head is allowed. *)
+  (* The head of an elimination spine is a variable, a constant, or a substituted metavariable.  *)
   type head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
     | Var : { level : level; deg : ('m, 'n) deg } -> head

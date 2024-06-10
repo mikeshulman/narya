@@ -319,9 +319,7 @@ let act_normal tm s = short_circuit s tm (Act.act_normal tm)
 let gact_ty ?err tm ty s = short_circuit s ty (Act.gact_ty ?err tm ty)
 let act_ty ?err tm ty s = short_circuit s ty (Act.act_ty ?err tm ty)
 let act_evaluation ev s = short_circuit s ev (Act.act_evaluation ev)
-
-(* This one has the short-circuit built in. *)
-let act_lazy_eval v s = Act.act_lazy_eval v s
+let act_lazy_eval v s = short_circuit s v (Act.act_lazy_eval v)
 
 let act_value_cube :
     type a s m n. (a -> s value) -> (n, a) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =

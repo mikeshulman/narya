@@ -686,13 +686,15 @@ and apply_binder_term : type n. (n, kinetic) binder -> (n, kinetic value) CubeOf
 and force_eval : type s. s lazy_eval -> s evaluation =
  fun lev ->
   match !lev with
-  | Deferred_eval (env, tm, ins) ->
+  | Deferred_eval (env, tm, ins, apps) ->
       (* TODO: In an ideal world, there would be one function that would traverse the term once doing both "eval" and "act" by the insertion. *)
       let etm = act_evaluation (eval env tm) (perm_of_ins ins) in
+      let etm = Bwd.fold_left app_eval etm apps in
       lev := Ready etm;
       etm
-  | Deferred (tm, s) ->
+  | Deferred (tm, s, apps) ->
       let etm = act_evaluation (tm ()) s in
+      let etm = Bwd.fold_left app_eval etm apps in
       lev := Ready etm;
       etm
   | Ready etm -> etm
@@ -701,6 +703,22 @@ and force_eval_term : kinetic lazy_eval -> kinetic value =
  fun v ->
   let (Val v) = force_eval v in
   v
+
+(* Apply something to an 'app', calling either 'apply' or 'field'. *)
+and app_eval : type s. s evaluation -> app -> s evaluation =
+ fun ev x ->
+  let app : type s. s value -> app -> s evaluation =
+   fun tm x ->
+    match x with
+    | App (Arg xs, ins) -> act_evaluation (apply tm (val_of_norm_cube xs)) (perm_of_ins ins)
+    | App (Field fld, ins) -> act_evaluation (field tm fld) (perm_of_ins ins) in
+  match ev with
+  | Val v -> app v x
+  | Realize v ->
+      let (Val v) = app v x in
+      Realize v
+  | Unrealized -> Unrealized
+  | Canonical _ -> fatal (Anomaly "app on canonical type")
 
 (* Look up a cube of values in an environment by variable index, accumulating operator actions as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
 and lookup_cube :

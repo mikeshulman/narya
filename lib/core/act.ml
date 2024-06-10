@@ -299,13 +299,15 @@ module Act = struct
   and act_lazy_eval : type s m n. s lazy_eval -> (m, n) deg -> s lazy_eval =
    fun lev s ->
     match !lev with
-    | Deferred_eval (env, tm, ins) ->
+    | Deferred_eval (env, tm, ins, apps) ->
+        let Any s, apps = act_apps apps s in
         let (Insfact_comp (fa, ins, _, _)) = insfact_comp ins s in
-        ref (Deferred_eval (act_env env (op_of_deg fa), tm, ins))
-    | Deferred (tm, s') ->
+        ref (Deferred_eval (act_env env (op_of_deg fa), tm, ins, apps))
+    | Deferred (tm, s', apps) ->
+        let Any s, apps = act_apps apps s in
         let (DegExt (_, _, fa)) = comp_deg_extending s' s in
-        ref (Deferred (tm, fa))
-    | Ready tm -> ref (Deferred ((fun () -> tm), s))
+        ref (Deferred (tm, fa, apps))
+    | Ready tm -> ref (Deferred ((fun () -> tm), s, Emp))
 end
 
 let short_circuit : type m n a. (m, n) deg -> a -> ((m, n) deg -> a) -> a =

@@ -432,8 +432,10 @@ module rec Value : sig
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 
   and 's lazy_state =
-    | Deferred_eval : ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion -> 's lazy_state
-    | Deferred : (unit -> 's evaluation) * ('m, 'n) deg -> 's lazy_state
+    | Deferred_eval :
+        ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion * app Bwd.t
+        -> 's lazy_state
+    | Deferred : (unit -> 's evaluation) * ('m, 'n) deg * app Bwd.t -> 's lazy_state
     | Ready : 's evaluation -> 's lazy_state
 
   and 's lazy_eval = 's lazy_state ref
@@ -499,7 +501,7 @@ end = struct
         dim : 'k D.pos;
         (* The arguments for a tube of some dimensions *)
         args : ('n, 'k, 'nk, normal) TubeOf.t;
-        (* The types of the arguments remaining to be supplied.  In other words, the type *of* this instantiation is "Inst (UU k, tys)". *)
+        (* The types of the arguments remaining to be supplied.  In other words, the type *of* this instantiation is "Inst (UU n, tys)". *)
         tys : (D.zero, 'n, 'n, kinetic value) TubeOf.t;
       }
         -> kinetic value
@@ -576,8 +578,10 @@ end = struct
 
   (* An 's lazy_eval behaves from the outside like an 's evaluation Lazy.t.  But internally, instead of storing an arbitrary thunk, it stores a term and an environment in which to evaluate it (plus an outer insertion that can't be pushed into the environment).  This allows it to accept degeneracy actions and incorporate them into the environment, so that when it's eventually forced the term only has to be traversed once.  If it's already been forced, it can still accept multiple degeneracy actions and wait to traverse the value until it's forced again.  *)
   and 's lazy_state =
-    | Deferred_eval : ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion -> 's lazy_state
-    | Deferred : (unit -> 's evaluation) * ('m, 'n) deg -> 's lazy_state
+    | Deferred_eval :
+        ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion * app Bwd.t
+        -> 's lazy_state
+    | Deferred : (unit -> 's evaluation) * ('m, 'n) deg * app Bwd.t -> 's lazy_state
     | Ready : 's evaluation -> 's lazy_state
 
   and 's lazy_eval = 's lazy_state ref
@@ -622,10 +626,28 @@ let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
 
 (* Create a lazy evaluation *)
 let lazy_eval : type n b s. (n, b) env -> (b, s) term -> s lazy_eval =
- fun env tm -> ref (Deferred_eval (env, tm, ins_zero (dim_env env)))
+ fun env tm -> ref (Deferred_eval (env, tm, ins_zero (dim_env env), Emp))
 
 let defer : type s. (unit -> s evaluation) -> s lazy_eval =
- fun tm -> ref (Deferred (tm, id_deg D.zero))
+ fun tm -> ref (Deferred (tm, id_deg D.zero, Emp))
+
+let ready : type s. s evaluation -> s lazy_eval = fun ev -> ref (Ready ev)
+
+let apply_lazy : type n s. s lazy_eval -> (n, normal) CubeOf.t -> s lazy_eval =
+ fun lev xs ->
+  let xs = App (Arg xs, ins_zero (CubeOf.dim xs)) in
+  match !lev with
+  | Deferred_eval (env, tm, ins, apps) -> ref (Deferred_eval (env, tm, ins, Snoc (apps, xs)))
+  | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, xs)))
+  | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, xs)))
+
+let field_lazy : type s. s lazy_eval -> Field.t -> s lazy_eval =
+ fun lev fld ->
+  let fld = App (Field fld, ins_zero D.zero) in
+  match !lev with
+  | Deferred_eval (env, tm, ins, apps) -> ref (Deferred_eval (env, tm, ins, Snoc (apps, fld)))
+  | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, fld)))
+  | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, fld)))
 
 (* Project out a cube or tube of values from a cube or tube of normals *)
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =

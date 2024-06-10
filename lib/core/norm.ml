@@ -726,13 +726,21 @@ and app_eval : type s. s evaluation -> app -> s evaluation =
     match x with
     | App (Arg xs, ins) -> act_evaluation (apply tm (val_of_norm_cube xs)) (perm_of_ins ins)
     | App (Field fld, ins) -> act_evaluation (field tm fld) (perm_of_ins ins) in
-  match ev with
-  | Val v -> app v x
-  | Realize v ->
+  match (ev, x) with
+  | Val v, _ -> app v x
+  | Realize v, _ ->
       let (Val v) = app v x in
       Realize v
-  | Unrealized -> Unrealized
-  | Canonical _ -> fatal (Anomaly "app on canonical type")
+  | Unrealized, _ -> Unrealized
+  | ( Canonical (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete }),
+      App (Arg arg, ins) ) -> (
+      match (D.compare dim (CubeOf.dim arg), is_id_ins ins) with
+      | Neq, _ -> fatal (Dimension_mismatch ("adding indices to a datatype", dim, CubeOf.dim arg))
+      | _, None -> fatal (Anomaly "nonidentity insertion on datatype")
+      | Eq, Some () ->
+          let indices = Fillvec.snoc indices arg in
+          Canonical (Data { dim; tyfam; indices; constrs; discrete }))
+  | Canonical _, _ -> fatal (Anomaly "app on canonical type")
 
 (* Look up a cube of values in an environment by variable index, accumulating operator actions as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
 and lookup_cube :

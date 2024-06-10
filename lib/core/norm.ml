@@ -116,8 +116,13 @@ and view_type ?severity (ty : kinetic value) (err : string) : view_type =
       | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.inst tyargs))
       | Neq, _ -> fatal (Dimension_mismatch ("view pi-type", CubeOf.dim doms, TubeOf.inst tyargs)))
   | Neu { head; args = _; value } -> (
+      (* Glued evaluation: when viewing a type, we force its value and proceed to view that value instead. *)
       match force_eval value with
       | Canonical c -> (
+          (match c with
+          | Data d when Option.is_none !(d.tyfam) ->
+              d.tyfam := Some (lazy { tm = ty; ty = inst (universe (TubeOf.inst tyargs)) tyargs })
+          | _ -> ());
           match
             ( D.compare (dim_canonical c) (TubeOf.inst tyargs),
               D.compare (TubeOf.uninst tyargs) D.zero )
@@ -128,8 +133,8 @@ and view_type ?severity (ty : kinetic value) (err : string) : view_type =
           | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
           | Neq, _ ->
               fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs)))
-      | Unrealized | Val _ -> Neutral
-      | Realize _ -> fatal (Anomaly "realized neutral"))
+      | Realize v -> view_type ?severity (inst v tyargs) err
+      | _ -> Neutral)
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 

@@ -118,6 +118,7 @@ let print (tm : string) : unit =
   | { value = Synth rtm; loc } ->
       let ctm, ety = synth (Kinetic `Nolet) Ctx.empty { value = rtm; loc } in
       let etm = eval_term (Emp D.zero) ctm in
+      Display.run ~env:true @@ fun () ->
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in
       pp_term `None Format.std_formatter (Term utm);

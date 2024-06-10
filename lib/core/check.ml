@@ -501,14 +501,13 @@ and synth_or_check_let :
         (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
-      let make_neutral alignment =
-        Uninst (Neu { head; args = Emp; alignment }, Lazy.from_val svty) in
+      let make_neutral value = Uninst (Neu { head; args = Emp; value }, Lazy.from_val svty) in
       let tm =
         match eval (Ctx.env ctx) sv with
-        | Val x -> make_neutral (Chaotic x)
+        | Val x -> make_neutral (Val x)
         | Realize x -> x
-        | Unrealized -> make_neutral True
-        | Canonical x -> make_neutral (Lawful x) in
+        | Unrealized -> make_neutral Unrealized
+        | Canonical x -> make_neutral (Canonical x) in
       (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
   (* Either way, we end up with a checked term 'v' and a normal form 'nf'.  We use the latter to extend the context. *)
   let newctx = Ctx.ext_let ctx name nf in
@@ -798,7 +797,7 @@ and check_var_match :
       let seen = Hashtbl.create 10 in
       let is_fresh x =
         match x.tm with
-        | Uninst (Neu { head = Var { level; deg }; args = Emp; alignment = True }, _) ->
+        | Uninst (Neu { head = Var { level; deg }; args = Emp; value = Unrealized }, _) ->
             if Option.is_none (is_id_deg deg) then
               fatal (Matching_wont_refine ("index variable has degeneracy", PNormal (ctx, x)));
             if Hashtbl.mem seen level then
@@ -1108,7 +1107,7 @@ and check_data :
           let discrete = discrete && argsdisc in
           let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
           match eval_term (Ctx.env newctx) coutput with
-          | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; alignment = _ }, _)
+          | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; value = _ }, _)
             -> (
               match head with
               | Constant cc when cc = out_head && Option.is_some (is_id_ins ins) -> (
@@ -1179,11 +1178,11 @@ and with_codata_so_far :
  fun (Potential (h, args, hyp)) eta ctx opacity dim tyargs checked_fields cont ->
   (* We can always create a constant with the (0,0,0) insertion, even if its dimension is actually higher. *)
   let head = head_of_potential h in
-  let alignment =
-    Lawful (Codata { eta; opacity; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields })
+  let value =
+    Value.Canonical
+      (Codata { eta; opacity; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields })
   in
-  let prev_ety =
-    Uninst (Neu { head; args; alignment }, Lazy.from_val (inst (universe dim) tyargs)) in
+  let prev_ety = Uninst (Neu { head; args; value }, Lazy.from_val (inst (universe dim) tyargs)) in
   let _, domvars =
     dom_vars (Ctx.length ctx)
       (TubeOf.plus_cube
@@ -1292,7 +1291,7 @@ and check_fields :
       run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = head_of_potential name in
-      let prev_etm = Uninst (Neu { head; args; alignment = Chaotic str }, Lazy.from_val ty) in
+      let prev_etm = Uninst (Neu { head; args; value = Val str }, Lazy.from_val ty) in
       check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
   | fld :: fields, Kinetic _ -> check_field status eta ctx ty dim fld fields str tms etms ctms
 

@@ -360,15 +360,10 @@ module rec Value : sig
       }
         -> ('mn, 's) binder
 
-  and alignment =
-    | True : alignment
-    | Chaotic : potential value -> alignment
-    | Lawful : 'm canonical -> alignment
-
   and uninst =
     | UU : 'n D.t -> uninst
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
+    | Neu : { head : head; args : app Bwd.t; value : potential evaluation } -> uninst
 
   and _ value =
     | Uninst : uninst * kinetic value Lazy.t -> kinetic value
@@ -473,22 +468,13 @@ end = struct
       }
         -> ('mn, 's) binder
 
-  (* A neutral has an "alignment".
-     - A True neutral is an ordinary neutral that will never reduce further, such as an application of a variable or axiom, or of a defined constant with a neutral argument in a matching position.
-     - A Chaotic neutral has a head defined by a case tree but isn't fully applied, so it might reduce further if it is applied to further arguments or field projections.  Thus it stores a value that should be either an abstraction or a struct, but does not test as equal to that value.
-     - A Lawful neutral has a head defined by a case tree that will doesn't reduce, but if it is applied to enough arguments it obtains a specified behavior as a canonical type (datatype, record type, codatatype, function-type, etc.). *)
-  and alignment =
-    | True : alignment
-    | Chaotic : potential value -> alignment
-    | Lawful : 'm canonical -> alignment
-
   (* An (m+n)-dimensional type is "instantiated" by applying it a "boundary tube" to get an m-dimensional type.  This operation is supposed to be functorial in dimensions, so in the normal forms we prevent it from being applied more than once in a row.  We have a separate class of "uninstantiated" values, and then every actual value is instantiated exactly once.  This means that even non-type neutrals must be "instantiated", albeit trivially. *)
   and uninst =
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also has an alignment. *)
-    | Neu : { head : head; args : app Bwd.t; alignment : alignment } -> uninst
+    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
+    | Neu : { head : head; args : app Bwd.t; value : potential evaluation } -> uninst
 
   and _ value =
     (* An uninstantiated term, together with its type.  The 0-dimensional universe is morally an infinite data structure Uninst (UU 0, (Uninst (UU 0, Uninst (UU 0, ... )))), so we make the type lazy. *)
@@ -595,7 +581,7 @@ type any_canonical = Any : 'm canonical -> any_canonical
 let var : level -> kinetic value -> kinetic value =
  fun level ty ->
   Uninst
-    ( Neu { head = Var { level; deg = id_deg D.zero }; args = Emp; alignment = True },
+    ( Neu { head = Var { level; deg = id_deg D.zero }; args = Emp; value = Unrealized },
       Lazy.from_val ty )
 
 (* Every context morphism has a valid dimension. *)

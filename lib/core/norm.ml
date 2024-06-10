@@ -104,7 +104,7 @@ let view_type ?severity (ty : kinetic value) (err : string) : view_type =
           Pi (x, doms, cods, tyargs)
       | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.inst tyargs))
       | Neq, _ -> fatal (Dimension_mismatch ("view pi-type", CubeOf.dim doms, TubeOf.inst tyargs)))
-  | Neu { head; args = _; alignment = Lawful c } -> (
+  | Neu { head; args = _; value = Canonical c } -> (
       match
         (D.compare (dim_canonical c) (TubeOf.inst tyargs), D.compare (TubeOf.uninst tyargs) D.zero)
       with
@@ -114,7 +114,8 @@ let view_type ?severity (ty : kinetic value) (err : string) : view_type =
       | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
       | Neq, _ -> fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs))
       )
-  | Neu { alignment = True; _ } | Neu { alignment = Chaotic _; _ } -> Neutral
+  | Neu { value = Unrealized; _ } | Neu { value = Val _; _ } -> Neutral
+  | Neu { value = Realize _; _ } -> fatal (Anomaly "realized neutral")
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
@@ -153,16 +154,16 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       | Defined tree -> (
           match eval (Emp dim) tree with
           | Realize x -> Val x
-          | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
+          | Val x -> Val (Uninst (Neu { head; args = Emp; value = Val x }, ty))
           | Canonical (Data d) ->
-              let newtm = Uninst (Neu { head; args = Emp; alignment = Lawful (Data d) }, ty) in
+              let newtm = Uninst (Neu { head; args = Emp; value = Canonical (Data d) }, ty) in
               if Option.is_none !(d.tyfam) then
                 d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
               Val newtm
-          | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
+          | Canonical c -> Val (Uninst (Neu { head; args = Emp; value = Canonical c }, ty))
           (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a potential hole. *)
-          | Unrealized -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
-      | Axiom _ -> Val (Uninst (Neu { head; args = Emp; alignment = True }, ty)))
+          | Unrealized -> Val (Uninst (Neu { head; args = Emp; value = Unrealized }, ty)))
+      | Axiom _ -> Val (Uninst (Neu { head; args = Emp; value = Unrealized }, ty)))
   | Meta (meta, ambient) -> (
       let dim = dim_env env in
       let head = Value.Meta { meta; env; ins = ins_zero dim } in
@@ -181,13 +182,13 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                    | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                    | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
              }) in
-      let make_neutral meta ty alignment =
-        Uninst (Neu { head; args = Emp; alignment }, lazy (make_ty meta ty)) in
+      let make_neutral meta ty value =
+        Uninst (Neu { head; args = Emp; value }, lazy (make_ty meta ty)) in
       match (Global.find_meta_opt meta <|> Undefined_metavariable (PMeta meta), ambient) with
       (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
       | Metadef { tm = `None; _ }, Potential -> Unrealized
       (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)
-      | Metadef { tm = `None; ty; _ }, Kinetic -> Val (make_neutral meta ty True)
+      | Metadef { tm = `None; ty; _ }, Kinetic -> Val (make_neutral meta ty Unrealized)
       (* If a metavariable has a definition that fits with the current energy, we simply evaluate that definition. *)
       | Metadef { tm = `Nonrec tm; energy = Potential; _ }, Potential -> eval env tm
       | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Kinetic -> eval env tm
@@ -195,10 +196,10 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       | Metadef { tm = `Nonrec tm; energy = Potential; ty; _ }, Kinetic -> (
           (* If a potential metavariable with a definition is used in a kinetic context, and doesn't evaluate yet to a kinetic result, we again have to build a neutral. *)
           match eval env tm with
-          | Val v -> Val (make_neutral meta ty (Chaotic v))
+          | Val v -> Val (make_neutral meta ty (Val v))
           | Realize tm -> Val tm
-          | Unrealized -> Val (make_neutral meta ty True)
-          | Canonical v -> Val (make_neutral meta ty (Lawful v))))
+          | Unrealized -> Val (make_neutral meta ty Unrealized)
+          | Canonical v -> Val (make_neutral meta ty (Canonical v))))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
       eval (eval_env env m_n metaenv) (Term.Meta (meta, Kinetic))
@@ -423,7 +424,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
       | Neq -> fatal (Dimension_mismatch ("applying a lambda", dim_binder body, m))
       | Eq -> apply_binder body arg)
   (* If it is a neutral application... *)
-  | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
+  | Uninst (Neu { head; args; value }, (lazy ty)) -> (
       (* ... we check that it is fully instantiated... *)
       match view_type ty "apply" with
       | Pi (_, doms, cods, tyargs) -> (
@@ -438,27 +439,28 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               let ty = lazy (tyof_app cods tyargs arg) in
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
               let args = Snoc (args, App (Arg newarg, ins_zero k)) in
-              match alignment with
-              | True -> Val (Uninst (Neu { head; args; alignment = True }, ty))
-              | Chaotic tm -> (
+              match value with
+              | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, ty))
+              | Val tm -> (
                   match apply tm arg with
                   | Realize x -> Val x
-                  | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
-                  | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
+                  | Val x -> Val (Uninst (Neu { head; args; value = Val x }, ty))
+                  | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, ty))
                   | Canonical (Data d) ->
-                      let newtm = Uninst (Neu { head; args; alignment = Lawful (Data d) }, ty) in
+                      let newtm = Uninst (Neu { head; args; value = Canonical (Data d) }, ty) in
                       if Option.is_none !(d.tyfam) then
                         d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
                       Val newtm
-                  | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
-              | Lawful (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete })
+                  | Canonical c -> Val (Uninst (Neu { head; args; value = Canonical c }, ty)))
+              | Canonical (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete })
                 -> (
                   match D.compare dim k with
                   | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
                   | Eq ->
                       let indices = Fillvec.snoc indices newarg in
-                      let alignment = Lawful (Data { dim; tyfam; indices; constrs; discrete }) in
-                      Val (Uninst (Neu { head; args; alignment }, ty)))
+                      let value =
+                        Value.Canonical (Data { dim; tyfam; indices; constrs; discrete }) in
+                      Val (Uninst (Neu { head; args; value }, ty)))
               | _ -> fatal (Anomaly "invalid application of type")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
@@ -507,24 +509,25 @@ and field : type n s. s value -> Field.t -> s evaluation =
       | Some xv, _ -> force_eval (fst xv)
       | None, Potential -> Unrealized
       | None, Kinetic -> fatal (Anomaly ("missing field in eval struct: " ^ Field.to_string fld)))
-  | Uninst (Neu { head; args; alignment }, (lazy ty)) -> (
+  | Uninst (Neu { head; args; value }, (lazy ty)) -> (
       let Wrap n, newty = tyof_field_withdim tm ty fld in
       let newty = Lazy.from_val newty in
       let args = Snoc (args, App (Field fld, ins_zero n)) in
-      match alignment with
-      | True -> Val (Uninst (Neu { head; args; alignment = True }, newty))
-      | Chaotic tm -> (
+      match value with
+      | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, newty))
+      | Val tm -> (
           match field tm fld with
           | Realize x -> Val x
-          | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, newty))
-          | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, newty))
+          | Val x -> Val (Uninst (Neu { head; args; value = Val x }, newty))
+          | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, newty))
           | Canonical (Data d) ->
-              let newtm = Uninst (Neu { head; args; alignment = Lawful (Data d) }, newty) in
+              let newtm = Uninst (Neu { head; args; value = Canonical (Data d) }, newty) in
               if Option.is_none !(d.tyfam) then
                 d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
               Val newtm
-          | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, newty)))
-      | Lawful _ -> fatal (Anomaly "field projection of canonical type"))
+          | Canonical c -> Val (Uninst (Neu { head; args; value = Canonical c }, newty)))
+      | Canonical _ -> fatal (Anomaly "field projection of canonical type")
+      | Realize _ -> fatal (Anomaly "realized neutral"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 and field_term : type n. kinetic value -> Field.t -> kinetic value =

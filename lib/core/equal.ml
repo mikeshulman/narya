@@ -120,8 +120,8 @@ module Equal = struct
         match D.compare m n with
         | Eq -> return ()
         | _ -> fail)
-    | ( Neu { head = head1; args = args1; alignment = _ },
-        Neu { head = head2; args = args2; alignment = _ } ) ->
+    | Neu { head = head1; args = args1; value = _ }, Neu { head = head2; args = args2; value = _ }
+      ->
         (* To check two neutral applications are equal, with their types, we first check if the functions are equal, including their types and hence also their domains and codomains (and also they have the same insertion applied outside).  An alignment doesn't affect definitional equality. *)
         let* () = equal_head lvl head1 head2 in
         (* Then we recursively check that all their arguments are equal. *)

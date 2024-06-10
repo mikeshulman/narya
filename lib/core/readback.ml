@@ -46,7 +46,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 tmflds in
             Some (Term.Struct (Eta, dim, fields, energy))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
-        | (_, `Transparent l | Uninst (Neu { alignment = Chaotic _; _ }, _), `Translucent l)
+        | (_, `Transparent l | Uninst (Neu { value = Val _; _ }, _), `Translucent l)
           when Display.read () ->
             let fields =
               Abwd.mapi
@@ -126,7 +126,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
                   let sargs = CubeOf.subcube fa args in
                   readback_val sctx (apply_binder_term (BindCube.find cods fa) sargs));
             } )
-  | Neu { head; args; alignment = _ } ->
+  | Neu { head; args; value = _ } ->
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
           Term.Act

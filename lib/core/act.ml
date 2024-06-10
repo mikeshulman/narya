@@ -119,15 +119,6 @@ module Act = struct
         let (Any c) = act_canonical c s in
         Canonical c
 
-  and act_alignment : type m n. alignment -> (m, n) deg -> alignment =
-   fun alignment s ->
-    match alignment with
-    | True -> True
-    | Chaotic tm -> Chaotic (act_value tm s)
-    | Lawful c ->
-        let (Any c) = act_canonical c s in
-        Lawful c
-
   and act_canonical : type m n nk. nk canonical -> (m, n) deg -> any_canonical =
    fun tm s ->
     match tm with
@@ -152,13 +143,13 @@ module Act = struct
   and act_uninst : type m n. uninst -> (m, n) deg -> uninst =
    fun tm s ->
     match tm with
-    | Neu { head; args; alignment } ->
+    | Neu { head; args; value } ->
         (* We act on the applications from the outside (last) to the inside, since the degeneracy has to be factored and may leave neutral insertions behind.  The resulting inner degeneracy then acts on the head. *)
         let Any s', args = act_apps args s in
         let head = act_head head s' in
         (* We act on the alignment separately with the original s, since (e.g.) a chaotic alignment is a "value" of the entire application spine, not just the head. *)
-        let alignment = act_alignment alignment s in
-        Neu { head; args; alignment }
+        let value = act_evaluation value s in
+        Neu { head; args; value }
     | UU nk ->
         let (Of fa) = deg_plus_to s nk ~on:"universe" in
         UU (dom_deg fa)

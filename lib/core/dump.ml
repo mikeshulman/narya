@@ -63,8 +63,8 @@ and uninst : formatter -> uninst -> unit =
   match u with
   | UU n -> fprintf ppf "UU %a" dim n
   | Pi (_, _, _) -> fprintf ppf "Pi ?"
-  | Neu { head = h; args = a; alignment = al } ->
-      fprintf ppf "Neu (%a, (%a), %a)" head h args a alignment al
+  | Neu { head = h; args = a; value = v } ->
+      fprintf ppf "Neu (%a, (%a), %a)" head h args a evaluation v
 
 and args : formatter -> app Bwd.t -> unit =
  fun ppf args ->
@@ -79,13 +79,6 @@ and arg : type n. formatter -> n arg -> unit =
  fun ppf -> function
   | Arg xs -> value ppf (CubeOf.find_top xs).tm
   | Field fld -> fprintf ppf ".%s" (Field.to_string fld)
-
-and alignment : formatter -> alignment -> unit =
- fun ppf al ->
-  match al with
-  | True -> fprintf ppf "True"
-  | Chaotic v -> fprintf ppf "Chaotic (%a)" value v
-  | Lawful _ -> fprintf ppf "Lawful ?"
 
 and head : formatter -> head -> unit =
  fun ppf h ->

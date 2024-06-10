@@ -43,12 +43,18 @@ and fields : type s. formatter -> (Field.t, s lazy_eval * [ `Labeled | `Unlabele
     =
  fun ppf -> function
   | Emp -> fprintf ppf "Emp"
-  | Snoc (flds, (f, (v, l))) ->
-      let v = Norm.force_eval v in
-      fprintf ppf "%a <: (%s, %a, %s)" fields flds (Field.to_string f) evaluation v
-        (match l with
-        | `Unlabeled -> "`Unlabeled"
-        | `Labeled -> "`Labeled")
+  | Snoc (flds, (f, (v, l))) -> (
+      match !v with
+      | Ready v ->
+          fprintf ppf "%a <: (%s, %a, %s)" fields flds (Field.to_string f) evaluation v
+            (match l with
+            | `Unlabeled -> "`Unlabeled"
+            | `Labeled -> "`Labeled")
+      | _ ->
+          fprintf ppf "%a <: (%s, ?, %s)" fields flds (Field.to_string f)
+            (match l with
+            | `Unlabeled -> "`Unlabeled"
+            | `Labeled -> "`Labeled"))
 
 and evaluation : type s. formatter -> s evaluation -> unit =
  fun ppf v ->

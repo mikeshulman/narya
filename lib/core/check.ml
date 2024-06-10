@@ -333,7 +333,7 @@ let rec check :
                   {
                     map =
                       (fun fa [ tm ] ->
-                        match tm.tm with
+                        match view_term tm.tm with
                         | Constr (tmname, n, tmargs) ->
                             if tmname <> constr then
                               fatal (Missing_instantiation_constructor (constr, `Constr tmname))

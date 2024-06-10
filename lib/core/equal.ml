@@ -66,7 +66,7 @@ module Equal = struct
                     {
                       map =
                         (fun _ [ tm ] ->
-                          match tm.tm with
+                          match view_term tm.tm with
                           | Constr (tmname, _, tmargs) ->
                               if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
                               else fatal (Anomaly "inst arg wrong constr in equality at datatype")

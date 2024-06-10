@@ -20,7 +20,8 @@ let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =
 
 and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a, kinetic) term =
  fun ctx tm ty ->
-  match (view_type ty "readback_at", tm) with
+  let view = if Display.read () then view_term tm else tm in
+  match (view_type ty "readback_at", view) with
   | Pi (_, doms, cods, tyargs), Lam ((Variables (m, mn, xs) as x), body) -> (
       let k = CubeOf.dim doms in
       let l = dim_binder body in
@@ -88,7 +89,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
               {
                 map =
                   (fun _ [ tm ] ->
-                    match tm.tm with
+                    match view_term tm.tm with
                     | Constr (tmname, _, tmargs) ->
                         if tmname = xconstr then List.map (fun a -> CubeOf.find_top a) tmargs
                         else fatal (Anomaly "inst arg wrong constr in readback at datatype")
@@ -104,12 +105,28 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
   | _ -> readback_val ctx tm
 
 and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =
- fun n x ->
+ fun ctx x ->
   match x with
-  | Uninst (u, _) -> readback_uninst n u
+  | Uninst ((Neu { value; _ } as u), ty) when Display.read () -> (
+      match force_eval value with
+      | Realize v -> readback_at ctx v (Lazy.force ty)
+      | _ -> readback_uninst ctx u)
+  | Uninst (u, _) -> readback_uninst ctx u
+  | Inst { tm = Neu { value; _ } as tm; dim = _; args; tys } when Display.read () -> (
+      match force_eval value with
+      | Realize v ->
+          let univs =
+            TubeOf.build D.zero (TubeOf.plus tys) { build = (fun fa -> universe_ty (dom_tface fa)) }
+          in
+          readback_at ctx (inst v args)
+            (inst (universe (TubeOf.inst tys)) (norm_of_vals_tube tys univs))
+      | _ ->
+          let tm = readback_uninst ctx tm in
+          let args = TubeOf.mmap { map = (fun _ [ x ] -> readback_nf ctx x) } [ args ] in
+          Inst (tm, args))
   | Inst { tm; dim = _; args; tys = _ } ->
-      let tm = readback_uninst n tm in
-      let args = TubeOf.mmap { map = (fun _ [ x ] -> readback_nf n x) } [ args ] in
+      let tm = readback_uninst ctx tm in
+      let args = TubeOf.mmap { map = (fun _ [ x ] -> readback_nf ctx x) } [ args ] in
       Inst (tm, args)
   | Lam _ -> fatal (Anomaly "unexpected lambda in synthesizing readback")
   | Struct _ -> fatal (Anomaly "unexpected struct in synthesizing readback")

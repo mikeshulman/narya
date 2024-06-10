@@ -31,6 +31,9 @@ let act_cube : type a b m n. (a, b) actor -> (n, a) CubeOf.t -> (m, n) deg -> (m
           actor.act (CubeOf.find xs fd) fc);
     }
 
+(* Forward recursion to Norm *)
+let forward_view_term : (kinetic value -> kinetic value) ref = ref (fun x -> x)
+
 module Act = struct
   (* When acting on a cube of variables that's at least partially split up into normal variables, we have a problem if the degeneracy mixes up the dimensions that are normal with the dimensions that are cube.  We could get around this by storing an 'insertion' rather than a D.plus in a 'variables', but we wouldn't be able to *use* that usefully anywhere, since there's no way to create a partially-cube variable in syntax.  So instead, if the dimensions get mixed up we just give up the split and make it fully-cube using only the previous top variable.  *)
   let act_variables : type m n. n variables -> (m, n) deg -> m variables =
@@ -189,7 +192,7 @@ module Act = struct
       type a b. ?err:Code.t -> kinetic value option -> kinetic value -> (a, b) deg -> kinetic value
       =
    fun ?err tm tmty s ->
-    match tmty with
+    match !forward_view_term tmty with
     | Inst { tm = ty; dim; args; tys = _ } -> (
         (* A type must be fully instantiated, so in particular tys is trivial. *)
         match D.compare (TubeOf.uninst args) D.zero with

@@ -776,7 +776,7 @@ and inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kinetic 
   match D.compare_zero n with
   | Zero -> tm
   | Pos dim2 -> (
-      match tm with
+      match view_term tm with
       | Inst { tm; dim = _; args = args1; tys = tys1 } -> (
           match D.compare (TubeOf.out args2) (TubeOf.uninst args1) with
           | Neq ->
@@ -793,18 +793,14 @@ and inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kinetic 
               Inst { tm; dim = D.pos_plus dim2 nk; args; tys })
       | Uninst (tm, (lazy ty)) -> (
           (* In this case, the type must be a fully instantiated universe of the right dimension, and the remaining types come from its instantiation arguments. *)
-          let (Fullinst (ty, tyargs)) = full_inst ty "inst" in
-          match ty with
-          | UU k -> (
-              match (D.compare k (TubeOf.out args2), D.compare k (TubeOf.out tyargs)) with
-              | Neq, _ ->
-                  fatal
-                    (Dimension_mismatch ("instantiating an uninstantiated type", k, TubeOf.out args2))
-              | _, Neq ->
+          match view_type ty "inst" with
+          | UU tyargs -> (
+              match D.compare (TubeOf.inst tyargs) (TubeOf.out args2) with
+              | Neq ->
                   fatal
                     (Dimension_mismatch
-                       ("instantiating an uninstantiated type", k, TubeOf.out tyargs))
-              | Eq, Eq ->
+                       ("instantiating an uninstantiated type", TubeOf.out tyargs, TubeOf.out args2))
+              | Eq ->
                   let tys =
                     val_of_norm_tube
                       (TubeOf.middle (D.zero_plus (TubeOf.uninst args2)) (TubeOf.plus args2) tyargs)
@@ -1006,3 +1002,5 @@ let is_discrete : kinetic value -> bool =
       true
       (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
   | _ -> false
+
+let () = Act.forward_view_term := view_term

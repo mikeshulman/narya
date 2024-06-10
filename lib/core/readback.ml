@@ -100,8 +100,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
               dim_env env,
               readback_at_tel ctx env
                 (List.fold_right (fun a args -> CubeOf.find_top a :: args) xargs [])
-                argtys
-                (TubeOf.mmap { map = (fun _ [ args ] -> args) } [ tyarg_args ]) ))
+                argtys tyarg_args ))
   | _ -> readback_val ctx tm
 
 and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =

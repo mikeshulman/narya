@@ -83,9 +83,20 @@ type view_type =
   | Canonical : head * 'k canonical * (D.zero, 'k, 'k, normal) TubeOf.t -> view_type
   | Neutral : view_type
 
-let view_term : type s. s value -> s value = fun tm -> tm
+let rec view_term : type s. s value -> s value =
+ fun tm ->
+  match tm with
+  | Uninst (Neu { value; _ }, ty) -> (
+      (* Glued evaluation: when viewing a term, we force its value and proceed to view that value instead. *)
+      match force_eval value with
+      | Realize v -> view_term v
+      | Canonical (Data d) when Option.is_none !(d.tyfam) ->
+          d.tyfam := Some (lazy { tm; ty = Lazy.force ty });
+          tm
+      | _ -> tm)
+  | _ -> tm
 
-let rec view_type ?severity (ty : kinetic value) (err : string) : view_type =
+and view_type ?severity (ty : kinetic value) (err : string) : view_type =
   let (Fullinst (uty, tyargs)) = full_inst ?severity ty err in
   match uty with
   | UU n -> (

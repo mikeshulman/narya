@@ -448,7 +448,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
           | Neq -> fatal (Dimension_mismatch ("applying a neutral function", CubeOf.dim arg, k))
           | Eq -> (
               (* We annotate the new argument by its type, extracted from the domain type of the function being applied. *)
-              let newarg = norm_of_vals arg doms in
+              let newarg = norm_of_vals_cube arg doms in
               (* We compute the output type of the application. *)
               let ty = lazy (tyof_app cods tyargs arg) in
               (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
@@ -850,32 +850,39 @@ and inst_tys : kinetic value -> full_value_tube = function
   | Inst { tm = _; dim = _; args = _; tys } -> Full_tube tys
   | _ -> fatal (Anomaly "invalid type, has no instantiation arguments")
 
-(* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals. *)
-and norm_of_vals :
+(* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals.  Since we have to instantiate the types at the *normal* version of the terms, which is what we are computing, we also add the results to a hashtable as we create them so we can access them randomly later.  And since we have to do this sometimes with cubes and sometimes with tubes, we first define the content of the operation as a helper function. *)
+
+and norm_of_val :
+    type m n.
+    (n sface_of, normal) Hashtbl.t -> (m, n) sface -> kinetic value -> kinetic value -> normal =
+ fun new_tm_tbl fab tm ty ->
+  let args =
+    TubeOf.build D.zero
+      (D.zero_plus (dom_sface fab))
+      {
+        build = (fun fc -> Hashtbl.find new_tm_tbl (SFace_of (comp_sface fab (sface_of_tface fc))));
+      } in
+  let ty = inst ty args in
+  let newtm = { tm; ty } in
+  Hashtbl.add new_tm_tbl (SFace_of fab) newtm;
+  newtm
+
+and norm_of_vals_cube :
     type k. (k, kinetic value) CubeOf.t -> (k, kinetic value) CubeOf.t -> (k, normal) CubeOf.t =
  fun tms tys ->
-  (* Since we have to instantiate the types at the *normal* version of the terms, which is what we are computing, we also add the results to a hashtable as we create them so we can access them randomly later. *)
   let new_tm_tbl = Hashtbl.create 10 in
-  let new_tms =
-    CubeOf.mmap
-      {
-        map =
-          (fun fab [ tm; ty ] ->
-            let args =
-              TubeOf.build D.zero
-                (D.zero_plus (dom_sface fab))
-                {
-                  build =
-                    (fun fc ->
-                      Hashtbl.find new_tm_tbl (SFace_of (comp_sface fab (sface_of_tface fc))));
-                } in
-            let ty = inst ty args in
-            let newtm = { tm; ty } in
-            Hashtbl.add new_tm_tbl (SFace_of fab) newtm;
-            newtm);
-      }
-      [ tms; tys ] in
-  new_tms
+  CubeOf.mmap { map = (fun fab [ tm; ty ] -> norm_of_val new_tm_tbl fab tm ty) } [ tms; tys ]
+
+and norm_of_vals_tube :
+    type n k nk.
+    (n, k, nk, kinetic value) TubeOf.t ->
+    (n, k, nk, kinetic value) TubeOf.t ->
+    (n, k, nk, normal) TubeOf.t =
+ fun tms tys ->
+  let new_tm_tbl = Hashtbl.create 10 in
+  TubeOf.mmap
+    { map = (fun fab [ tm; ty ] -> norm_of_val new_tm_tbl (sface_of_tface fab) tm ty) }
+    [ tms; tys ]
 
 (* Apply a function to all the values in a cube one by one as 0-dimensional applications, rather than as one n-dimensional application. *)
 let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> kinetic value =

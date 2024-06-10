@@ -155,9 +155,9 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
           | Realize x -> Val x
           | Val x -> Val (Uninst (Neu { head; args = Emp; alignment = Chaotic x }, ty))
           | Canonical (Data d) ->
-              let rec newtm =
-                Uninst (Neu { head; args = Emp; alignment = Lawful (Data { d with tyfam }) }, ty)
-              and tyfam = lazy { tm = newtm; ty = Lazy.force ty } in
+              let newtm = Uninst (Neu { head; args = Emp; alignment = Lawful (Data d) }, ty) in
+              if Option.is_none !(d.tyfam) then
+                d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
               Val newtm
           | Canonical c -> Val (Uninst (Neu { head; args = Emp; alignment = Lawful c }, ty))
           (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a potential hole. *)
@@ -446,9 +446,9 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
                   | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, ty))
                   | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, ty))
                   | Canonical (Data d) ->
-                      let rec newtm =
-                        Uninst (Neu { head; args; alignment = Lawful (Data { d with tyfam }) }, ty)
-                      and tyfam = lazy { tm = newtm; ty = Lazy.force ty } in
+                      let newtm = Uninst (Neu { head; args; alignment = Lawful (Data d) }, ty) in
+                      if Option.is_none !(d.tyfam) then
+                        d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
                       Val newtm
                   | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, ty)))
               | Lawful (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete })
@@ -519,9 +519,9 @@ and field : type n s. s value -> Field.t -> s evaluation =
           | Val x -> Val (Uninst (Neu { head; args; alignment = Chaotic x }, newty))
           | Unrealized -> Val (Uninst (Neu { head; args; alignment = True }, newty))
           | Canonical (Data d) ->
-              let rec newtm =
-                Uninst (Neu { head; args; alignment = Lawful (Data { d with tyfam }) }, newty)
-              and tyfam = lazy { tm = newtm; ty = Lazy.force newty } in
+              let newtm = Uninst (Neu { head; args; alignment = Lawful (Data d) }, newty) in
+              if Option.is_none !(d.tyfam) then
+                d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
               Val newtm
           | Canonical c -> Val (Uninst (Neu { head; args; alignment = Lawful c }, newty)))
       | Lawful _ -> fatal (Anomaly "field projection of canonical type"))
@@ -633,7 +633,7 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> any_canonical =
  fun env can ->
   match can with
   | Data { indices; constrs; discrete } ->
-      let tyfam = lazy (fatal (Anomaly "tyfam unset")) in
+      let tyfam = ref None in
       let constrs =
         Abwd.map
           (fun (Term.Dataconstr { args; indices }) -> Value.Dataconstr { env; args; indices })

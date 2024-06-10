@@ -133,7 +133,7 @@ module Act = struct
     match tm with
     | Data { dim; tyfam; indices; constrs; discrete } ->
         let (Of fa) = deg_plus_to ~on:"data" s dim in
-        let tyfam = lazy (act_normal (Lazy.force tyfam) fa) in
+        let tyfam = ref (Option.map (fun x -> lazy (act_normal (Lazy.force x) fa)) !tyfam) in
         let indices =
           Fillvec.map (fun ixs -> act_cube { act = (fun x s -> act_normal x s) } ixs fa) indices
         in

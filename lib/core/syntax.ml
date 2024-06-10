@@ -406,7 +406,7 @@ module rec Value : sig
 
   and ('m, 'j, 'ij) data_args = {
     dim : 'm D.t;
-    tyfam : normal Lazy.t;
+    tyfam : normal Lazy.t option ref;
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
     discrete : bool;
@@ -542,7 +542,7 @@ end = struct
     (* The dimension to which it is substituted *)
     dim : 'm D.t;
     (* The type family after being applied to the parameters but not the indices. *)
-    tyfam : normal Lazy.t;
+    tyfam : normal Lazy.t option ref;
     (* The indices applied so far, and the number remaining *)
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     (* All the constructors *)

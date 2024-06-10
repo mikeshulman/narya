@@ -695,7 +695,10 @@ and synth_dep_match :
              (_, j, ij) data_args),
          inst_args ) :
         _ * m canonical * _) ->
-      let tyfam = Lazy.force tyfam in
+      let tyfam =
+        match !tyfam with
+        | Some tyfam -> Lazy.force tyfam
+        | None -> fatal (Anomaly "tyfam unset") in
       let emotivety = eval_term (Ctx.env ctx) (motive_of_family ctx tyfam.tm tyfam.ty) in
       let cmotive = check (Kinetic `Nolet) ctx motive emotivety in
       let emotive = eval_term (Ctx.env ctx) cmotive in
@@ -776,7 +779,10 @@ and check_var_match :
              (_, j, ij) data_args),
          inst_args ) :
         _ * m canonical * _) ->
-      let tyfam = Lazy.force tyfam in
+      let tyfam =
+        match !tyfam with
+        | Some tyfam -> Lazy.force tyfam
+        | None -> fatal (Anomaly "tyfam unset") in
       let tyfam_args : (D.zero, m, m, normal) TubeOf.t =
         match view_type tyfam.ty "check_var_match tyfam" with
         | Pi (_, _, _, tyfam_args) -> (

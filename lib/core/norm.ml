@@ -154,15 +154,12 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       | Defined tree -> (
           match eval (Emp dim) tree with
           | Realize x -> Val x
-          | Val x -> Val (Uninst (Neu { head; args = Emp; value = Val x }, ty))
-          | Canonical (Data d) ->
-              let newtm = Uninst (Neu { head; args = Emp; value = Canonical (Data d) }, ty) in
+          | Canonical (Data d) as value ->
+              let newtm = Uninst (Neu { head; args = Emp; value }, ty) in
               if Option.is_none !(d.tyfam) then
                 d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
               Val newtm
-          | Canonical c -> Val (Uninst (Neu { head; args = Emp; value = Canonical c }, ty))
-          (* It is actually possible to have a true neutral case tree in the empty context, e.g. a constant without arguments defined to equal a potential hole. *)
-          | Unrealized -> Val (Uninst (Neu { head; args = Emp; value = Unrealized }, ty)))
+          | value -> Val (Uninst (Neu { head; args = Emp; value }, ty)))
       | Axiom _ -> Val (Uninst (Neu { head; args = Emp; value = Unrealized }, ty)))
   | Meta (meta, ambient) -> (
       let dim = dim_env env in
@@ -182,13 +179,12 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                    | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                    | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
              }) in
-      let make_neutral meta ty value =
-        Uninst (Neu { head; args = Emp; value }, lazy (make_ty meta ty)) in
       match (Global.find_meta_opt meta <|> Undefined_metavariable (PMeta meta), ambient) with
       (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
       | Metadef { tm = `None; _ }, Potential -> Unrealized
       (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)
-      | Metadef { tm = `None; ty; _ }, Kinetic -> Val (make_neutral meta ty Unrealized)
+      | Metadef { tm = `None; ty; _ }, Kinetic ->
+          Val (Uninst (Neu { head; args = Emp; value = Unrealized }, lazy (make_ty meta ty)))
       (* If a metavariable has a definition that fits with the current energy, we simply evaluate that definition. *)
       | Metadef { tm = `Nonrec tm; energy = Potential; _ }, Potential -> eval env tm
       | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Kinetic -> eval env tm
@@ -196,10 +192,8 @@ let rec eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       | Metadef { tm = `Nonrec tm; energy = Potential; ty; _ }, Kinetic -> (
           (* If a potential metavariable with a definition is used in a kinetic context, and doesn't evaluate yet to a kinetic result, we again have to build a neutral. *)
           match eval env tm with
-          | Val v -> Val (make_neutral meta ty (Val v))
           | Realize tm -> Val tm
-          | Unrealized -> Val (make_neutral meta ty Unrealized)
-          | Canonical v -> Val (make_neutral meta ty (Canonical v))))
+          | value -> Val (Uninst (Neu { head; args = Emp; value }, lazy (make_ty meta ty)))))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
       eval (eval_env env m_n metaenv) (Term.Meta (meta, Kinetic))
@@ -444,14 +438,12 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               | Val tm -> (
                   match apply tm arg with
                   | Realize x -> Val x
-                  | Val x -> Val (Uninst (Neu { head; args; value = Val x }, ty))
-                  | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, ty))
                   | Canonical (Data d) ->
                       let newtm = Uninst (Neu { head; args; value = Canonical (Data d) }, ty) in
                       if Option.is_none !(d.tyfam) then
                         d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
                       Val newtm
-                  | Canonical c -> Val (Uninst (Neu { head; args; value = Canonical c }, ty)))
+                  | value -> Val (Uninst (Neu { head; args; value }, ty)))
               | Canonical (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete })
                 -> (
                   match D.compare dim k with
@@ -518,14 +510,12 @@ and field : type n s. s value -> Field.t -> s evaluation =
       | Val tm -> (
           match field tm fld with
           | Realize x -> Val x
-          | Val x -> Val (Uninst (Neu { head; args; value = Val x }, newty))
-          | Unrealized -> Val (Uninst (Neu { head; args; value = Unrealized }, newty))
           | Canonical (Data d) ->
               let newtm = Uninst (Neu { head; args; value = Canonical (Data d) }, newty) in
               if Option.is_none !(d.tyfam) then
                 d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
               Val newtm
-          | Canonical c -> Val (Uninst (Neu { head; args; value = Canonical c }, newty)))
+          | value -> Val (Uninst (Neu { head; args; value }, newty)))
       | Canonical _ -> fatal (Anomaly "field projection of canonical type")
       | Realize _ -> fatal (Anomaly "realized neutral"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))

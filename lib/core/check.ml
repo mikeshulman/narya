@@ -501,13 +501,10 @@ and synth_or_check_let :
         (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
-      let make_neutral value = Uninst (Neu { head; args = Emp; value }, Lazy.from_val svty) in
       let tm =
         match eval (Ctx.env ctx) sv with
-        | Val x -> make_neutral (Val x)
         | Realize x -> x
-        | Unrealized -> make_neutral Unrealized
-        | Canonical x -> make_neutral (Canonical x) in
+        | value -> Uninst (Neu { head; args = Emp; value }, Lazy.from_val svty) in
       (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
   (* Either way, we end up with a checked term 'v' and a normal form 'nf'.  We use the latter to extend the context. *)
   let newctx = Ctx.ext_let ctx name nf in

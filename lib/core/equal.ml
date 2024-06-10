@@ -37,7 +37,7 @@ and equal_at : int -> kinetic value -> kinetic value -> kinetic value -> unit op
         [ fields ]
   (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
   | Canonical (_, Data { dim; discrete; _ }, _) when discrete && is_pos dim -> return ()
-  (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  Again, we handle these cases here because we can use the datatype information to give types to the arguments of the constructor.  We require the datatype to be applied to all its indices, and we check the dimension. *)
+  (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  We handle these cases here because we can use the datatype information to give types to the arguments of the constructor. *)
   | Canonical (_, Data { constrs; _ }, tyargs) -> (
       match (x, y) with
       | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (

@@ -45,7 +45,7 @@ module Code = struct
     | Not_enough_lambdas : int -> t
     | Not_enough_arguments_to_function : t
     | Not_enough_arguments_to_instantiation : t
-    | Type_not_fully_instantiated : string -> t
+    | Type_not_fully_instantiated : string * 'n D.t -> t
     | Instantiating_zero_dimensional_type : printable -> t
     | Unequal_synthesized_type : printable * printable -> t
     | Checking_tuple_at_degenerated_record : printable -> t
@@ -139,6 +139,7 @@ module Code = struct
     | No_remaining_patterns : t
     | Invalid_refutation : t
     | Duplicate_pattern_variable : string -> t
+    | Type_expected : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -241,6 +242,7 @@ module Code = struct
     | No_remaining_patterns -> Bug
     | Invalid_refutation -> Error
     | Duplicate_pattern_variable _ -> Error
+    | Type_expected _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -276,6 +278,7 @@ module Code = struct
     | Synthesizing_recursion _ -> "E0402"
     | Bare_case_tree_construct _ -> "H0403"
     | Invalid_synthesized_type _ -> "E0404"
+    | Type_expected _ -> "E0405"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
@@ -392,7 +395,8 @@ module Code = struct
         text "not enough arguments for a higher-dimensional function application"
     | Not_enough_arguments_to_instantiation ->
         text "not enough arguments to instantiate a higher-dimensional type"
-    | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
+    | Type_not_fully_instantiated (str, n) ->
+        textf "type not fully instantiated in %s (need %d more dimensions)" str (to_int n)
     | Instantiating_zero_dimensional_type ty ->
         textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
           (print ty)
@@ -604,6 +608,7 @@ module Code = struct
     | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
     | Duplicate_pattern_variable x ->
         textf "variable name '%s' used more than once in match patterns" x
+    | Type_expected str -> textf "Expected type while %s" str
 end
 
 include Asai.StructuredReporter.Make (Code)

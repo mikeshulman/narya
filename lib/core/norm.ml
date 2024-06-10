@@ -24,14 +24,14 @@ let full_inst ?severity (ty : kinetic value) (err : string) : full_inst =
   | Uninst (ty, (lazy (Uninst (UU n, _)))) -> (
       match D.compare n D.zero with
       | Eq -> Fullinst (ty, TubeOf.empty D.zero)
-      | Neq -> fatal ?severity (Type_not_fully_instantiated err))
-  | Uninst _ -> fatal ?severity (Type_not_fully_instantiated err)
+      | Neq -> fatal ?severity (Type_not_fully_instantiated (err, n)))
+  | Uninst _ -> fatal ?severity (Type_expected err)
   | Inst { tm = ty; dim = _; args; tys = _ } -> (
       match D.compare (TubeOf.uninst args) D.zero with
       | Eq ->
           let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
           Fullinst (ty, args)
-      | Neq -> fatal ?severity (Type_not_fully_instantiated err))
+      | Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst args)))
   | _ -> fatal ?severity (Anomaly ("expected type in " ^ err))
 
 (* A full tube of values, returned by inst_tys below. *)
@@ -93,7 +93,7 @@ let view_type ?severity (ty : kinetic value) (err : string) : view_type =
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
           UU tyargs
-      | _, Neq -> fatal ?severity (Type_not_fully_instantiated err)
+      | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
       | Neq, _ -> fatal (Dimension_mismatch ("view universe", n, TubeOf.inst tyargs)))
   | Pi (x, doms, cods) -> (
       match
@@ -102,7 +102,7 @@ let view_type ?severity (ty : kinetic value) (err : string) : view_type =
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
           Pi (x, doms, cods, tyargs)
-      | _, Neq -> fatal ?severity (Type_not_fully_instantiated err)
+      | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.inst tyargs))
       | Neq, _ -> fatal (Dimension_mismatch ("view pi-type", CubeOf.dim doms, TubeOf.inst tyargs)))
   | Neu { head; args = _; alignment = Lawful c } -> (
       match
@@ -111,7 +111,7 @@ let view_type ?severity (ty : kinetic value) (err : string) : view_type =
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
           Canonical (head, c, tyargs)
-      | _, Neq -> fatal ?severity (Type_not_fully_instantiated err)
+      | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
       | Neq, _ -> fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs))
       )
   | Neu { alignment = True; _ } | Neu { alignment = Chaotic _; _ } -> Neutral

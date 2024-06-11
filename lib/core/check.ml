@@ -502,9 +502,14 @@ and synth_or_check_let :
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
       let tm =
-        match eval (Ctx.env ctx) sv with
-        | Realize x -> x
-        | value -> Uninst (Neu { head; args = Emp; value = ready value }, Lazy.from_val svty) in
+        if GluedEval.read () then
+          (* Glued evaluation: we delay evaluating the term until it's needed. *)
+          Uninst (Neu { head; args = Emp; value = lazy_eval (Ctx.env ctx) sv }, Lazy.from_val svty)
+        else
+          match eval (Ctx.env ctx) sv with
+          | Realize x -> x
+          | value -> Uninst (Neu { head; args = Emp; value = ready value }, Lazy.from_val svty)
+      in
       (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
   (* Either way, we end up with a checked term 'v' and a normal form 'nf'.  We use the latter to extend the context. *)
   let newctx = Ctx.ext_let ctx name nf in

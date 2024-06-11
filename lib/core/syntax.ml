@@ -473,7 +473,7 @@ end = struct
     | UU : 'n D.t -> uninst
     (* Pis must store not just the domain type but all its boundary types.  These domain and boundary types are not fully instantiated.  Note the codomains are stored in a cube of binders. *)
     | Pi : string option * ('k, kinetic value) CubeOf.t * ('k, unit) BindCube.t -> uninst
-    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  *)
+    (* A neutral is an application spine: a head with a list of applications.  Note that when we inject it into 'value' with Uninst below, it also stores its type (as do all the other uninsts).  It also stores (lazily) the up-to-now result of evaluating that application spine.  If that result is "Unrealized", then it is a "true neutral", the sort of neutral that is permanently stuck and usually appears in paper proofs of normalization.  If it is "Val" then the spine is still waiting for further arguments for its case tree to compute, while if it is "Canonical" then the case tree has already evaluated to a canonical type.  If it is "Realized" then the case tree has already evaluated to an ordinary value; this should only happen when glued evaluation is in effect. *)
     | Neu : { head : head; args : app Bwd.t; value : potential lazy_eval } -> uninst
 
   and _ value =
@@ -529,7 +529,7 @@ end = struct
   and ('m, 'j, 'ij) data_args = {
     (* The dimension to which it is substituted *)
     dim : 'm D.t;
-    (* The type family after being applied to the parameters but not the indices. *)
+    (* The datatype family after being applied to the parameters but not the indices, e.g. "Vec A".  This is an option ref because it gets set a little later than the rest of the fields are computed, since only when working with the embedding of neutrals into normals do we have the application spine and its type available.  *)
     tyfam : normal Lazy.t option ref;
     (* The indices applied so far, and the number remaining *)
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
@@ -562,7 +562,7 @@ end = struct
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 
-  (* An 's lazy_eval behaves from the outside like an 's evaluation Lazy.t.  But internally, instead of storing an arbitrary thunk, it stores a term and an environment in which to evaluate it (plus an outer insertion that can't be pushed into the environment).  This allows it to accept degeneracy actions and incorporate them into the environment, so that when it's eventually forced the term only has to be traversed once.  If it's already been forced, it can still accept multiple degeneracy actions and wait to traverse the value until it's forced again.  *)
+  (* An 's lazy_eval behaves from the outside like an 's evaluation Lazy.t.  But internally, in addition to being able to store an arbitrary thunk, it can also store a term and an environment in which to evaluate it (plus an outer insertion that can't be pushed into the environment).  This allows it to accept degeneracy actions and incorporate them into the environment, so that when it's eventually forced the term only has to be traversed once.  It can also accumulate degeneracies on an arbitrary thunk (which could, of course, be a constant value that was already forced, but now is deferred again until it's done accumulating degeneracy actions).  Both kinds of deferred values can also store more arguments and field projections for it to be applied to; this is only used in glued evaluation. *)
   and 's lazy_state =
     | Deferred_eval :
         ('m, 'b) env * ('b, 's) term * ('mn, 'm, 'n) insertion * app Bwd.t
@@ -676,8 +676,16 @@ and universe_ty : type n. n D.t -> kinetic value =
           } in
       Inst { tm = UU n; dim = n'; args; tys = TubeOf.empty D.zero }
 
+(* Whether the -discreteness flag is on globally *)
 module Discreteness = Algaeff.Reader.Make (Bool)
 
+(* Which constants currently being defined are discrete.  Currently (June 2024) at most a singleton, since mutual discrete families are disallowed. *)
 module Discrete = Algaeff.State.Make (struct
   type t = bool Constant.Map.t
 end)
+
+(* Glued evaluation is basically implemented, but currently disabled because it is very slow -- too much memory allocation, and OCaml 5 doesn't have memory profiling tools available yet to debug it.  So we disable it globally with this flag.  But all the regular tests pass with the flag enabled, and should continue to be run and to pass, so that once we are able to debug it it is still otherwise working. *)
+module GluedEval = struct
+  let toggle = false
+  let read () = toggle
+end

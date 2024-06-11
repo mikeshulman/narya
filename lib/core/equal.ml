@@ -13,6 +13,10 @@ module BwdM = Mbwd.Monadic (Monad.Maybe)
 
 (* Eta-expanding equality checks.  In all functions, the integer is the current De Bruijn level, i.e. the length of the current context (we don't need any other information about the context). *)
 
+module Mode = Algaeff.Reader.Make (struct
+  type t = [ `Rigid | `Full ]
+end)
+
 module Equal = struct
   (* Compare two normal forms that are *assumed* to have the same type. *)
   let rec equal_nf : int -> normal -> normal -> unit option =
@@ -41,6 +45,10 @@ module Equal = struct
     | Canonical (_, Data { dim; discrete; _ }, _) when discrete && is_pos dim -> return ()
     (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  We handle these cases here because we can use the datatype information to give types to the arguments of the constructor. *)
     | Canonical (_, Data { constrs; _ }, tyargs) -> (
+        let x, y =
+          match Mode.read () with
+          | `Rigid -> (x, y)
+          | `Full -> (view_term x, view_term y) in
         match (x, y) with
         | Constr (xconstr, xn, xargs), Constr (yconstr, yn, yargs) -> (
             let (Dataconstr { env; args = argtys; indices = _ }) =
@@ -87,6 +95,10 @@ module Equal = struct
   (* "Synthesizing" equality check of two values, now *not* assumed a priori to have the same type.  If this function concludes that they are equal, then the equality of their types is part of that conclusion. *)
   and equal_val : int -> kinetic value -> kinetic value -> unit option =
    fun n x y ->
+    let x, y =
+      match Mode.read () with
+      | `Rigid -> (x, y)
+      | `Full -> (view_term x, view_term y) in
     match (x, y) with
     (* Since an Inst has a positive amount of instantiation, it can never equal an Uninst.  We don't need to check that the types agree, since equal_uninst concludes equality of types rather than assumes it. *)
     | Uninst (u, _), Uninst (v, _) -> equal_uninst n u v
@@ -311,6 +323,11 @@ module Equal = struct
             return ())
 end
 
-let equal_at ctx x y ty = Equal.equal_at ctx x y ty
-let equal_val ctx x y = Equal.equal_val ctx x y
-let equal_arg ctx x y = Equal.equal_arg ctx x y
+let fallback f =
+  match Mode.run ~env:`Rigid f with
+  | None -> if GluedEval.read () then Mode.run ~env:`Full f else None
+  | Some () -> Some ()
+
+let equal_at ctx x y ty = fallback @@ fun () -> Equal.equal_at ctx x y ty
+let equal_val ctx x y = fallback @@ fun () -> Equal.equal_val ctx x y
+let equal_arg ctx x y = fallback @@ fun () -> Equal.equal_arg ctx x y

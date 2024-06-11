@@ -85,16 +85,18 @@ type view_type =
 
 let rec view_term : type s. s value -> s value =
  fun tm ->
-  match tm with
-  | Uninst (Neu { value; _ }, ty) -> (
-      (* Glued evaluation: when viewing a term, we force its value and proceed to view that value instead. *)
-      match force_eval value with
-      | Realize v -> view_term v
-      | Canonical (Data d) when Option.is_none !(d.tyfam) ->
-          d.tyfam := Some (lazy { tm; ty = Lazy.force ty });
-          tm
-      | _ -> tm)
-  | _ -> tm
+  if GluedEval.read () then
+    match tm with
+    | Uninst (Neu { value; _ }, ty) -> (
+        (* For glued evaluation, when viewing a term, we force its value and proceed to view that value instead. *)
+        match force_eval value with
+        | Realize v -> view_term v
+        | Canonical (Data d) when Option.is_none !(d.tyfam) ->
+            d.tyfam := Some (lazy { tm; ty = Lazy.force ty });
+            tm
+        | _ -> tm)
+    | _ -> tm
+  else tm
 
 and view_type ?severity (ty : kinetic value) (err : string) : view_type =
   let (Fullinst (uty, tyargs)) = full_inst ?severity ty err in
@@ -171,14 +173,18 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let head = Const { name; ins = ins_zero dim } in
       match defn with
       | Defined tree -> (
-          match eval (Emp dim) tree with
-          | Realize x -> Val x
-          | Canonical (Data d) as value ->
-              let newtm = Uninst (Neu { head; args = Emp; value = ready value }, ty) in
-              if Option.is_none !(d.tyfam) then
-                d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
-              Val newtm
-          | value -> Val (Uninst (Neu { head; args = Emp; value = ready value }, ty)))
+          if GluedEval.read () then
+            (* Glued evaluation: we evaluate the definition lazily and return a neutral with that lazy evaluation stored. *)
+            Val (Uninst (Neu { head; args = Emp; value = lazy_eval (Emp dim) tree }, ty))
+          else
+            match eval (Emp dim) tree with
+            | Realize x -> Val x
+            | Canonical (Data d) as value ->
+                let newtm = Uninst (Neu { head; args = Emp; value = ready value }, ty) in
+                if Option.is_none !(d.tyfam) then
+                  d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
+                Val newtm
+            | value -> Val (Uninst (Neu { head; args = Emp; value = ready value }, ty)))
       | Axiom _ -> Val (Uninst (Neu { head; args = Emp; value = ready Unrealized }, ty)))
   | Meta (meta, ambient) -> (
       let dim = dim_env env in
@@ -209,11 +215,17 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Kinetic -> eval env tm
       | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Potential -> Realize (eval_term env tm)
       | Metadef { tm = `Nonrec tm; energy = Potential; ty; _ }, Kinetic -> (
-          (* If a potential metavariable with a definition is used in a kinetic context, and doesn't evaluate yet to a kinetic result, we again have to build a neutral. *)
-          match eval env tm with
-          | Realize tm -> Val tm
-          | value ->
-              Val (Uninst (Neu { head; args = Emp; value = ready value }, lazy (make_ty meta ty)))))
+          if GluedEval.read () then
+            (* A defined potential metavariable in kinetic context evaluates to a glued neutral, with its evaluated definition stored lazily. *)
+            Val
+              (Uninst (Neu { head; args = Emp; value = lazy_eval env tm }, lazy (make_ty meta ty)))
+          else
+            (* If a potential metavariable with a definition is used in a kinetic context, and doesn't evaluate yet to a kinetic result, we again have to build a neutral. *)
+            match eval env tm with
+            | Realize tm -> Val tm
+            | value ->
+                Val (Uninst (Neu { head; args = Emp; value = ready value }, lazy (make_ty meta ty)))
+          ))
   | MetaEnv (meta, metaenv) ->
       let (Plus m_n) = D.plus (dim_term_env metaenv) in
       eval (eval_env env m_n metaenv) (Term.Meta (meta, Kinetic))
@@ -450,31 +462,38 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               (* We annotate the new argument by its type, extracted from the domain type of the function being applied. *)
               let newarg = norm_of_vals_cube arg doms in
               (* We compute the output type of the application. *)
-              let ty = lazy (tyof_app cods tyargs arg) in
-              (* Then we add the new argument to the existing application spine, and possibly evaluate further with a case tree. *)
+              let newty = lazy (tyof_app cods tyargs arg) in
+              (* We add the new argument to the existing application spine. *)
               let args = Snoc (args, App (Arg newarg, ins_zero k)) in
-              match force_eval value with
-              | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, ty))
-              | Val tm -> (
-                  match apply tm arg with
-                  | Realize x -> Val x
-                  | Canonical (Data d) ->
-                      let newtm =
-                        Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, ty) in
-                      if Option.is_none !(d.tyfam) then
-                        d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force ty });
-                      Val newtm
-                  | value -> Val (Uninst (Neu { head; args; value = ready value }, ty)))
-              | Canonical (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete })
-                -> (
-                  match D.compare dim k with
-                  | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
-                  | Eq ->
-                      let indices = Fillvec.snoc indices newarg in
-                      let value =
-                        Value.Canonical (Data { dim; tyfam; indices; constrs; discrete }) in
-                      Val (Uninst (Neu { head; args; value = ready value }, ty)))
-              | _ -> fatal (Anomaly "invalid application of type")))
+              if GluedEval.read () then
+                (* We add the argument to the lazy value and return a glued neutral. *)
+                let value = apply_lazy value newarg in
+                Val (Uninst (Neu { head; args; value }, newty))
+              else
+                (* We evaluate further with a case tree. *)
+                match force_eval value with
+                | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
+                | Val tm -> (
+                    match apply tm arg with
+                    | Realize x -> Val x
+                    | Canonical (Data d) ->
+                        let newtm =
+                          Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty)
+                        in
+                        if Option.is_none !(d.tyfam) then
+                          d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
+                        Val newtm
+                    | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
+                | Canonical
+                    (Data { dim; tyfam; indices = Unfilled _ as indices; constrs; discrete }) -> (
+                    match D.compare dim k with
+                    | Neq -> fatal (Dimension_mismatch ("apply", dim, k))
+                    | Eq ->
+                        let indices = Fillvec.snoc indices newarg in
+                        let value =
+                          Value.Canonical (Data { dim; tyfam; indices; constrs; discrete }) in
+                        Val (Uninst (Neu { head; args; value = ready value }, newty)))
+                | _ -> fatal (Anomaly "invalid application of type")))
       | _ -> fatal (Anomaly "invalid application by non-function"))
   | _ -> fatal (Anomaly "invalid application of non-function")
 
@@ -526,19 +545,23 @@ and field : type n s. s value -> Field.t -> s evaluation =
       let Wrap n, newty = tyof_field_withdim tm ty fld in
       let newty = Lazy.from_val newty in
       let args = Snoc (args, App (Field fld, ins_zero n)) in
-      match force_eval value with
-      | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
-      | Val tm -> (
-          match field tm fld with
-          | Realize x -> Val x
-          | Canonical (Data d) ->
-              let newtm = Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty) in
-              if Option.is_none !(d.tyfam) then
-                d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
-              Val newtm
-          | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
-      | Canonical _ -> fatal (Anomaly "field projection of canonical type")
-      | Realize _ -> fatal (Anomaly "realized neutral"))
+      if GluedEval.read () then
+        let value = field_lazy value fld in
+        Val (Uninst (Neu { head; args; value }, newty))
+      else
+        match force_eval value with
+        | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
+        | Val tm -> (
+            match field tm fld with
+            | Realize x -> Val x
+            | Canonical (Data d) ->
+                let newtm = Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty) in
+                if Option.is_none !(d.tyfam) then
+                  d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
+                Val newtm
+            | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
+        | Canonical _ -> fatal (Anomaly "field projection of canonical type")
+        | Realize _ -> fatal (Anomaly "realized neutral"))
   | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld))
 
 and field_term : type n. kinetic value -> Field.t -> kinetic value =
@@ -992,15 +1015,16 @@ let rec tyof_inst :
       } in
   inst (universe m) margs
 
+(* Check whether a given type should be considered as discrete in the current typechecking context.  This means it is either: *)
 let is_discrete : kinetic value -> bool =
  fun ty ->
   match view_type ty "is_discrete" with
-  | Canonical (_, Data { discrete = true; _ }, _) ->
-      true
-      (* TODO: In a mutual block, this is not the correct test: it considers all the mutually defined types to be "discrete" even if they don't later turn out to be.  At present we are disallowing discreteness for all mutual families. *)
-  | Canonical (Const { name; _ }, _, _) when Constant.Map.mem name (Discrete.get ()) ->
-      true
-      (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
+  (* 1. A previously defined discrete type, or *)
+  | Canonical (_, Data { discrete = true; _ }, _) -> true
+  (* 2. The type currently being defined. *)
+  (* TODO: In a mutual block, this is not the correct test: it considers all the mutually defined types to be "discrete" even if they don't later turn out to be.  At present we are disallowing discreteness for all mutual families. *)
+  | Canonical (Const { name; _ }, _, _) when Constant.Map.mem name (Discrete.get ()) -> true
+  (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
   | _ -> false
 
 let () = Act.forward_view_term := view_term

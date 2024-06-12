@@ -15,27 +15,8 @@ type (_, _) looked_up_cube =
       ('a -> kinetic value) * ('m, 'n) op * ('k, ('n, 'a) CubeOf.t) CubeOf.t
       -> ('m, 'k) looked_up_cube
 
-(* Ensure that a value is a fully instantiated type, and extract its relevant pieces.  In most situations, the failure of this is a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
-type full_inst = Fullinst : uninst * (D.zero, 'k, 'k, normal) TubeOf.t -> full_inst
-
-let full_inst ?severity (ty : kinetic value) (err : string) : full_inst =
-  match ty with
-  (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
-  | Uninst (ty, (lazy (Uninst (UU n, _)))) -> (
-      match D.compare n D.zero with
-      | Eq -> Fullinst (ty, TubeOf.empty D.zero)
-      | Neq -> fatal ?severity (Type_not_fully_instantiated (err, n)))
-  | Uninst _ -> fatal ?severity (Type_expected err)
-  | Inst { tm = ty; dim = _; args; tys = _ } -> (
-      match D.compare (TubeOf.uninst args) D.zero with
-      | Eq ->
-          let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
-          Fullinst (ty, args)
-      | Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst args)))
-  | _ -> fatal ?severity (Anomaly ("expected type in " ^ err))
-
-(* A full tube of values, returned by inst_tys below. *)
-type full_value_tube = Full_tube : (D.zero, 'n, 'n, kinetic value) TubeOf.t -> full_value_tube
+(* A full tube of objects. *)
+type _ full_tube = Full_tube : (D.zero, 'n, 'n, 'a) TubeOf.t -> 'a full_tube
 
 (* Require that the supplied list contains exactly b (which is a Fwn) arguments, rearrange each mn-cube argument into an n-cube of m-cubes, and add all of them to the given environment. *)
 let rec take_args :
@@ -98,8 +79,23 @@ let rec view_term : type s. s value -> s value =
     | _ -> tm
   else tm
 
+(* Viewing a type fails if the argument is not fully instantiated.  In most situations this would be a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
 and view_type ?severity (ty : kinetic value) (err : string) : view_type =
-  let (Fullinst (uty, tyargs)) = full_inst ?severity ty err in
+  let uty, Full_tube tyargs =
+    match ty with
+    (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
+    | Uninst (ty, (lazy (Uninst (UU n, _)))) -> (
+        match D.compare n D.zero with
+        | Eq -> (ty, Full_tube (TubeOf.empty D.zero))
+        | Neq -> fatal ?severity (Type_not_fully_instantiated (err, n)))
+    | Uninst _ -> fatal ?severity (Type_expected err)
+    | Inst { tm = ty; dim = _; args; tys = _ } -> (
+        match D.compare (TubeOf.uninst args) D.zero with
+        | Eq ->
+            let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
+            (ty, Full_tube args)
+        | Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst args)))
+    | _ -> fatal ?severity (Anomaly ("expected type in " ^ err)) in
   match uty with
   | UU n -> (
       match (D.compare n (TubeOf.inst tyargs), D.compare (TubeOf.uninst tyargs) D.zero) with
@@ -863,7 +859,7 @@ and inst_args :
     [ tys ]
 
 (* Given a *type*, hence an element of a fully instantiated universe, extract the arguments of the instantiation of that universe.  These were stored in the extra arguments of Uninst and Inst. *)
-and inst_tys : kinetic value -> full_value_tube = function
+and inst_tys : kinetic value -> kinetic value full_tube = function
   | Uninst (_, (lazy (Uninst (UU z, _)))) -> (
       match D.compare z D.zero with
       | Eq -> Full_tube (TubeOf.empty D.zero)

@@ -324,4 +324,4 @@ let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.
   | Lock ctx -> Lock (readback_ordered_ctx ctx)
 
 let readback_ctx : type a b. (a, b) Ctx.t -> (a, b) Termctx.t = function
-  | Permute (p, ctx) -> Permute (p, readback_ordered_ctx ctx)
+  | Permute (p, _, ctx) -> Permute (p, readback_ordered_ctx ctx)

@@ -964,7 +964,9 @@ let rec eval_ordered_ctx : type a b. (a, b) Termctx.ordered -> (a, b) Ctx.Ordere
   | Lock ctx -> Lock (eval_ordered_ctx ctx)
 
 let eval_ctx : type a b. (a, b) Termctx.t -> (a, b) Ctx.t = function
-  | Termctx.Permute (p, ctx) -> Permute (p, eval_ordered_ctx ctx)
+  | Termctx.Permute (p, ctx) ->
+      let ctx = eval_ordered_ctx ctx in
+      Permute (p, Ctx.Ordered.env ctx, ctx)
 
 (* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
 let rec tyof_inst :

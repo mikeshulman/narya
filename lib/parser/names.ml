@@ -143,7 +143,7 @@ let rec of_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> b t = function
   | Lock ctx -> of_ordered_ctx ctx
 
 let of_ctx : type a b. (a, b) Ctx.t -> b t = function
-  | Permute (_, ctx) -> of_ordered_ctx ctx
+  | Permute (_, _, ctx) -> of_ordered_ctx ctx
 
 (* Add a cube of variables WITHOUT replacing them by fresh versions.  Should only be used when the variables have already been so replaced, as in the output of uniquify_vars below. *)
 let unsafe_add : 'b t -> 'n variables -> (Field.t, string) Abwd.t -> ('b, 'n) snoc t =

@@ -1615,7 +1615,7 @@ and check_at_tel :
         (Wrong_number_of_arguments_to_constructor
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
-(* Given a context and a raw telescope, we can check it to produce a checked telescope and also a new context extended by that telescope. *)
+(* Given a context and a raw telescope, we can check it to produce a checked telescope and also a new context extended by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype. *)
 and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel * bool =
  fun ctx tel ->
   match tel with

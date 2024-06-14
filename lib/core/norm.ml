@@ -1019,9 +1019,12 @@ let is_discrete : kinetic value -> bool =
   match view_type ty "is_discrete" with
   (* 1. A previously defined discrete type, or *)
   | Canonical (_, Data { discrete = true; _ }, _) -> true
-  (* 2. The type currently being defined. *)
+  (* 2. The type currently being defined, at dimension zero. *)
   (* TODO: In a mutual block, this is not the correct test: it considers all the mutually defined types to be "discrete" even if they don't later turn out to be.  At present we are disallowing discreteness for all mutual families. *)
-  | Canonical (Const { name; _ }, _, _) when Constant.Map.mem name (Discrete.get ()) -> true
+  | Canonical (Const { name; _ }, _, tyargs) when Constant.Map.mem name (Discrete.get ()) -> (
+      match D.compare (TubeOf.inst tyargs) D.zero with
+      | Eq -> true
+      | Neq -> false)
   (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
   | _ -> false
 

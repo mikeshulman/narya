@@ -53,7 +53,7 @@ These options are discussed further below.
 
 ### Execution
 
-When the Narya executable is run, it loads and typechecks all the files given on its command line, in order.  As usual, the special filename `-` refers to standard input.  It then does the same for any strings supplied on the command line with `-e`.  Finally, if `-i` was given, it enters interactive mode.
+When the Narya executable is run, it loads all the files given on its command line and any strings supplied on the command line with `-e`.  As usual, the special filename `-` refers to standard input.  Files and strings are loaded in the order they are given on the command line.  Lastly, if `-i` was given anywhere on the command line, Narya enters interactive mode.
 
 There is currently no importing or exporting: all definitions from all sources go into the same flat namespace, so for instance in interactive mode you can refer to definitions made in files that were loaded previously.  There is also no compilation or caching: everything must be typechecked and loaded anew at every invocation.
 

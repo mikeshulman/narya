@@ -8,15 +8,13 @@ open Lwt
 open LTerm_text
 
 let usage_msg = "narya [options] <file1> [<file2> ...]"
-let input_files = ref Emp
-let anon_arg filename = input_files := Snoc (!input_files, filename)
+let inputs = ref Emp
+let anon_arg filename = inputs := Snoc (!inputs, `File filename)
 let reformat = ref false
 let verbose = ref false
 let compact = ref false
 let unicode = ref true
 let typecheck = ref true
-let input_strings = ref Emp
-let use_stdin = ref false
 let interactive = ref false
 let proofgeneral = ref false
 let arity = ref 2
@@ -40,9 +38,9 @@ let speclist =
     ("-i", Arg.Set interactive, "");
     ("-proofgeneral", Arg.Set proofgeneral, "Enter proof general interaction mode");
     ( "-exec",
-      Arg.String (fun str -> input_strings := Snoc (!input_strings, str)),
+      Arg.String (fun str -> inputs := Snoc (!inputs, `String str)),
       "Execute a string, after all files loaded (also -e)" );
-    ("-e", Arg.String (fun str -> input_strings := Snoc (!input_strings, str)), "");
+    ("-e", Arg.String (fun str -> inputs := Snoc (!inputs, `String str)), "");
     ("-verbose", Arg.Set verbose, "Show verbose messages (also -v)");
     ("-v", Arg.Set verbose, "");
     ("-no-check", Arg.Clear typecheck, "Don't typecheck and execute code (only parse it)");
@@ -67,18 +65,12 @@ let speclist =
           internal := false),
       "Abbreviation for -arity 1 -direction d -external" );
     ("--help", Arg.Unit (fun () -> ()), "");
-    ("-", Arg.Set use_stdin, "");
+    ("-", Arg.Unit (fun () -> inputs := Snoc (!inputs, `Stdin)), "");
   ]
 
 let () =
   Arg.parse speclist anon_arg usage_msg;
-  if
-    Bwd.is_empty !input_files
-    && (not !use_stdin)
-    && Bwd.is_empty !input_strings
-    && (not !interactive)
-    && not !proofgeneral
-  then (
+  if Bwd.is_empty !inputs && (not !interactive) && not !proofgeneral then (
     Printf.fprintf stderr "No input files specified\n";
     Arg.usage speclist usage_msg;
     exit 1)
@@ -231,11 +223,13 @@ let () =
   Dim.Endpoints.set_names !refl_strings;
   Dim.Endpoints.set_internal !internal;
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
-  Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
-  (if !use_stdin then
-     let content = In_channel.input_all stdin in
-     execute (`String { content; title = Some "stdin" }));
   Mbwd.miter
-    (fun [ content ] -> execute (`String { content; title = Some "command-line exec string" }))
-    [ !input_strings ];
+    (fun [ input ] ->
+      match input with
+      | `File filename -> execute (`File filename)
+      | `String content -> execute (`String { content; title = Some "command-line exec string" })
+      | `Stdin ->
+          let content = In_channel.input_all stdin in
+          execute (`String { content; title = Some "stdin" }))
+    [ !inputs ];
   if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()

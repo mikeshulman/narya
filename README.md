@@ -9,10 +9,10 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ### Compilation
 
-Narya requires OCaml version 5.1.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
+Narya requires OCaml version 5.2.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
 
 ```
-opam switch create 5.1.0
+opam switch create 5.2.0
 opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib
 
 cd ../narya
@@ -21,7 +21,7 @@ dune runtest
 dune install
 ```
 
-This will make the executable `narya` available in a directory such as `~/.opam/5.1.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
+This will make the executable `narya` available in a directory such as `~/.opam/5.2.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
 
 ### Command-line flags

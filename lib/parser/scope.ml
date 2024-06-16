@@ -1,10 +1,10 @@
 open Core
-open Notation
+open User
 module Trie = Yuujinchou.Trie
 
 (* Parameter module for Yuujinchou *)
 module P = struct
-  type data = [ `Constant of Constant.t | `Notation of Notation.t ]
+  type data = [ `Constant of Constant.t | `Notation of PrintKey.t * permuted_notation ]
 
   (* Currently we have no nontrivial tags, hooks, or contexts. *)
   type tag = unit

@@ -6,24 +6,15 @@ open Postprocess
 open Syntax
 open Format
 open Print
+open User
 module TokMap = Map.Make (Token)
 module StringMap = Map.Make (String)
-
-module PrintKey = struct
-  type t = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t * int ]
-
-  let compare : t -> t -> int = compare
-end
-
-module PrintMap = Map.Make (PrintKey)
 
 module EntryPair = struct
   type ('x, 'a) t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
 end
 
 module EntryMap = No.Map.Make (EntryPair)
-
-type permuted_notation = { notn : Notation.t; pat_vars : string list; val_vars : string list }
 
 (* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation state", which can be used for parsing, and let other modules manipulate those states by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a state, remove some, and then create a new state with just those.) *)
 type t = {
@@ -114,11 +105,9 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
 (* Add a notation along with the information about how to unparse a constant or constructor into that notation. *)
 let add_with_print : PrintKey.t -> permuted_notation -> t -> t =
  fun key notn state ->
-  if PrintMap.mem key state.unparse then state
-  else
-    let (Wrap n) = notn.notn in
-    let state = add n state in
-    { state with unparse = state.unparse |> PrintMap.add key notn }
+  let (Wrap n) = notn.notn in
+  let state = add n state in
+  { state with unparse = state.unparse |> PrintMap.add key notn }
 
 type pattern =
   [ `Op of Token.t * space * Whitespace.t list
@@ -167,7 +156,7 @@ let add_user :
     PrintKey.t ->
     string list ->
     t ->
-    t * Notation.t =
+    t * PrintKey.t * permuted_notation * bool =
  fun name fixity pattern key val_vars state ->
   let n = make name fixity in
   set_tree n (user_tree fixity n pattern);
@@ -227,15 +216,9 @@ let add_user :
       pp_user true ppf pattern obs ws `None;
       pp_close_box ppf ();
       pp_space ppf space);
-  let state = add n state in
-  (if PrintMap.mem key state.unparse then
-     let keyname =
-       match key with
-       | `Constr (c, _) -> Constr.to_string c ^ "."
-       | `Constant c -> String.concat "." (Scope.name_of c) in
-     emit (Head_already_has_notation keyname));
-  let notn : Notation.t = Wrap n in
-  ({ state with unparse = state.unparse |> PrintMap.add key { notn; pat_vars; val_vars } }, notn)
+  let notn = { notn = Wrap n; pat_vars; val_vars } in
+  let shadow = PrintMap.mem key state.unparse in
+  (add_with_print key notn state, key, notn, shadow)
 
 module S = Algaeff.State.Make (struct
   type nonrec t = t
@@ -247,12 +230,17 @@ module Current = struct
 
   let add_user :
       type left tight right.
-      string -> (left, tight, right) fixity -> pattern -> PrintKey.t -> string list -> Notation.t =
+      string ->
+      (left, tight, right) fixity ->
+      pattern ->
+      PrintKey.t ->
+      string list ->
+      PrintKey.t * permuted_notation * bool =
    fun name fixity pattern key val_vars ->
     let state = S.get () in
-    let state, notn = add_user name fixity pattern key val_vars state in
+    let state, key, notn, shadow = add_user name fixity pattern key val_vars state in
     S.set state;
-    notn
+    (key, notn, shadow)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find_opt No.plus_omega (S.get ()).tighters)).strict

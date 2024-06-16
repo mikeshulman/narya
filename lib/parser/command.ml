@@ -396,10 +396,16 @@ let execute : Command.t -> unit = function
           (args, []) pattern in
       if not (List.is_empty unbound) then
         fatal (Unbound_variable_in_notation (List.map fst unbound));
-      let n =
+      let key, notn, shadow =
         State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args)
       in
-      Scope.include_singleton (notation_name, (`Notation n, ()));
+      Scope.include_singleton (notation_name, (`Notation (key, notn), ()));
+      (if shadow then
+         let keyname =
+           match key with
+           | `Constr (c, _) -> Constr.to_string c ^ "."
+           | `Constant c -> String.concat "." (Scope.name_of c) in
+         emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
   | Require { file; _ } ->
       let trie = Units.get (`File file) false in

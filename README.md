@@ -62,7 +62,7 @@ In interactive mode, commands typed by the user are executed as they are entered
 
 ### Commands
 
-In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
+In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
 
 1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
@@ -82,7 +82,9 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
 5. `require FILE`
 
-   Execute the file `FILE`, which must be specified as a double-quoted string, and import its definitions into the current namespace.  This is like copying the contents of that file into the current one, except that (1) no file will be executed more than during a single run, and (2) while other files required by that file will also be executed (if they haven't yet been), their definitions are not imported into the *current* namespace.  The filename `FILE` can be either absolute, or relative to the location of the file currently being loaded.  Circular dependencies are not allowed.
+   Execute the file at location `FILE`, which must be specified as a double-quoted string (either absolute or relative to the location of the current file), and import its definitions and notations into the current namespace.  The commands in `FILE` do not have access to any other definitions except those from other files that it `require`s, and the definitions and notations from files `require`d by `FILE` are not imported into the current namespace (unless those files are also `require`d by the current file).  No file will be executed more than during a single run, even if it is `require`d by multiple other files.  Circular dependencies are not allowed.
+   
+   The syntax and behavior of this command is very likely to change in the future, as we add support for library resolution and namespace management.  The present version is just a stand-in that gives low-level access to the primitive "loading a file from the filesystem" functionality.
 
 6. `quit`
 

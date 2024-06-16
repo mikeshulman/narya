@@ -88,4 +88,14 @@ let with_compile : type a. trie -> (trie -> Asai.Range.source -> trie) -> (unit 
       } in
   Loading.run ~env:{ cwd = Sys.getcwd (); parents = Emp } @@ fun () -> go f
 
-let run ~init_visible f = Scope.run ~init_visible f
+let run ~(init_visible : trie) f =
+  Scope.run ~init_visible @@ fun () ->
+  State.run_on
+    (Seq.fold_left
+       (fun state (_, (data, _)) ->
+         match data with
+         | `Notation (key, notn) -> state |> State.add_with_print key notn
+         | _ -> state)
+       !Builtins.builtins
+       (Trie.to_seq (Trie.find_subtree [ "notation" ] init_visible)))
+    f

@@ -1,6 +1,6 @@
 Testing notation commands
 
-  $ narya -v -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y := f x y'
+  $ narya -v -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y := f x y' -e 'def ff (x y : A) : A := x & y' -e 'axiom a : A' -e 'echo ff a a'
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -9,6 +9,15 @@ Testing notation commands
   
    ￫ info[I0002]
    ￮ Notation f defined
+  
+   ￫ info[I0000]
+   ￮ Constant ff defined
+  
+   ￫ info[I0001]
+   ￮ Axiom a assumed
+  
+  a & a
+    : A
   
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y.z := f x y.z'
@@ -57,7 +66,7 @@ Testing notation commands
   
   [1]
 
-  $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0.5 f : x "&" y := f x y'
+  $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0.5 f : x "&" y := f x y' -e 'def ff (x y : A) : A := x & y'
 
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0.1 f : x "&" y := f x y'
@@ -118,7 +127,13 @@ Testing notation commands
   
   [1]
 
-  $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y := f x y' -e 'notation 0 f2 : x "%" y := f x y'
+  $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y := f x y' -e 'notation 0 f2 : x "%" y := f x y' -e 'def ff (x y : A) : A := x & y' -e 'def ff2 (x y : A) : A := x % y' -e 'axiom a : A' -e 'echo ff a a' -e 'echo ff2 a a'
    ￫ warning[E2211]
    ￮ replacing printing notation for f (previous notation will still be parseable)
+  
+  a % a
+    : A
+  
+  a % a
+    : A
   

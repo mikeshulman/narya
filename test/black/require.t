@@ -205,3 +205,38 @@ A file isn't loaded twice even if referred to in different ways
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny
   
+
+Notations are imported from explicitly required files, but not transitively.
+
+  $ cat >n1.ny <<EOF
+  > axiom A:Type
+  > axiom f : A -> A -> A
+  > axiom a:A
+  > EOF
+
+  $ cat >n2.ny <<EOF
+  > require "n1.ny"
+  > notation 0 f : x "&" y := f x y
+  > EOF
+
+  $ cat >n3.ny <<EOF
+  > require "n1.ny"
+  > require "n2.ny"
+  > notation 0 f2 : x "%" y := f x y
+  > EOF
+
+  $ narya n1.ny n3.ny -e 'echo a % a'
+  a % a
+    : A
+  
+
+  $ narya n1.ny n3.ny -e 'echo a & a'
+  a
+    : A
+  
+   ￫ error[E0200]
+   ￭ command-line exec string
+   1 | echo a & a
+     ^ parse error
+  
+  [1]

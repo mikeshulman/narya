@@ -402,7 +402,7 @@ let execute : Command.t -> unit = function
       Scope.include_singleton (notation_name, (`Notation n, ()));
       emit (Notation_defined (String.concat "." name))
   | Require { file; _ } ->
-      let trie = Scope.get_unit (`File file) false in
+      let trie = Units.get (`File file) false in
       Scope.import_subtree ([], trie)
   | Quit _ -> fatal Quit
   | Bof _ -> ()

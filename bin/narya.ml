@@ -93,7 +93,7 @@ let rec batch first ws p src =
 
 let execute init_visible (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
-  Scope.run ~init_visible @@ fun () ->
+  Units.run ~init_visible @@ fun () ->
   let p, src = Command.Parse.start_parse source in
   let ws = batch true [] p src in
   if !reformat then (
@@ -224,21 +224,20 @@ let () =
   Dim.Endpoints.set_internal !internal;
   (* The initial namespace for all compilation units. *)
   let init = Parser.Pi.install Scope.Trie.empty in
-  Scope.with_units init execute @@ fun () ->
+  Units.with_compile init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with
-      | `File filename -> Scope.load_unit (`File filename)
+      | `File filename -> Units.load (`File filename)
       | `Stdin ->
           let content = In_channel.input_all stdin in
-          Scope.load_unit (`String { content; title = Some "stdin" })
+          Units.load (`String { content; title = Some "stdin" })
       (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
       | `String content ->
-          Scope.load_unit ~init:(Scope.all_units ())
+          Units.load ~init:(Units.all ())
             (`String { content; title = Some "command-line exec string" }))
     [ !inputs ];
   (* Interactive mode also has all the other units loaded. *)
   if !interactive then
-    Scope.run ~init_visible:(Scope.all_units ()) @@ fun () -> Lwt_main.run (interact ())
-  else if !proofgeneral then
-    Scope.run ~init_visible:(Scope.all_units ()) @@ fun () -> interact_pg ()
+    Units.run ~init_visible:(Units.all ()) @@ fun () -> Lwt_main.run (interact ())
+  else if !proofgeneral then Units.run ~init_visible:(Units.all ()) @@ fun () -> interact_pg ()

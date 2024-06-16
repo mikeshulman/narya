@@ -1,11 +1,11 @@
-Require files
+Import files
 
   $ cat >one.ny <<EOF
   > axiom A : Type
   > EOF
 
   $ cat >two.ny <<EOF
-  > require "one.ny"
+  > import "one.ny"
   > axiom a0 : A
   > EOF
 
@@ -56,13 +56,13 @@ Command-line strings see namespaces from explicitly loaded files only
 Requiring a file multiple times
 
   $ cat >three.ny <<EOF
-  > require "one.ny"
+  > import "one.ny"
   > axiom a1 : A
   > EOF
 
   $ cat >twothree.ny <<EOF
-  > require "two.ny"
-  > require "three.ny"
+  > import "two.ny"
+  > import "three.ny"
   > axiom a2 : Id A a0 a1
 
   $ narya -v twothree.ny
@@ -101,9 +101,9 @@ Requiring a file multiple times
   [1]
 
   $ cat >four.ny <<EOF
-  > require "one.ny"
-  > require "two.ny"
-  > require "three.ny"
+  > import "one.ny"
+  > import "two.ny"
+  > import "three.ny"
   > axiom a2 : Id A a0 a1
 
   $ narya -v four.ny
@@ -141,23 +141,23 @@ Requiring a file multiple times
 Circular dependency
 
   $ cat >foo.ny <<EOF
-  > require "bar.ny"
+  > import "bar.ny"
   > EOF
 
   $ cat >bar.ny <<EOF
-  > require "foo.ny"
+  > import "foo.ny"
   > EOF
 
   $ narya foo.ny
    ￫ error[E2300]
-   ￮ circular dependency:
+   ￮ circular imports:
      $TESTCASE_ROOT/foo.ny
-       requires $TESTCASE_ROOT/bar.ny
-       requires $TESTCASE_ROOT/foo.ny
+       imports $TESTCASE_ROOT/bar.ny
+       imports $TESTCASE_ROOT/foo.ny
   
   [1]
 
-Require is relative to the file's directory
+Import is relative to the file's directory
 
   $ mkdir subdir
 
@@ -166,11 +166,11 @@ Require is relative to the file's directory
   > EOF
 
   $ cat >subdir/two.ny <<EOF
-  > require "one.ny"
+  > import "one.ny"
   > axiom a : A
   > EOF
 
-  $ narya -v -e 'require "subdir/two.ny"'
+  $ narya -v -e 'import "subdir/two.ny"'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
   
@@ -192,7 +192,7 @@ Require is relative to the file's directory
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ narya -v subdir/one.ny -e 'require "subdir/two.ny"'
+  $ narya -v subdir/one.ny -e 'import "subdir/two.ny"'
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -206,7 +206,7 @@ A file isn't loaded twice even if referred to in different ways
    ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny
   
 
-Notations are imported from explicitly required files, but not transitively.
+Notations are used from explicitly imported files, but not transitively.
 
   $ cat >n1.ny <<EOF
   > axiom A:Type
@@ -215,13 +215,13 @@ Notations are imported from explicitly required files, but not transitively.
   > EOF
 
   $ cat >n2.ny <<EOF
-  > require "n1.ny"
+  > import "n1.ny"
   > notation 0 f : x "&" y := f x y
   > EOF
 
   $ cat >n3.ny <<EOF
-  > require "n1.ny"
-  > require "n2.ny"
+  > import "n1.ny"
+  > import "n2.ny"
   > notation 0 f2 : x "%" y := f x y
   > EOF
 

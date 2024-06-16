@@ -140,7 +140,7 @@ module Code = struct
     | Invalid_refutation : t
     | Duplicate_pattern_variable : string -> t
     | Type_expected : string -> t
-    | Circular_dependency : string list -> t
+    | Circular_import : string list -> t
     | Loading_file : string -> t
     | File_loaded : string -> t
 
@@ -246,7 +246,7 @@ module Code = struct
     | Invalid_refutation -> Error
     | Duplicate_pattern_variable _ -> Error
     | Type_expected _ -> Error
-    | Circular_dependency _ -> Error
+    | Circular_import _ -> Error
     | Loading_file _ -> Info
     | File_loaded _ -> Info
 
@@ -366,8 +366,8 @@ module Code = struct
     | Notation_variable_used_twice _ -> "E2209"
     | Unbound_variable_in_notation _ -> "E2210"
     | Head_already_has_notation _ -> "E2211"
-    (* require *)
-    | Circular_dependency _ -> "E2300"
+    (* import *)
+    | Circular_import _ -> "E2300"
     (* Interactive proof *)
     | Open_holes -> "E3000"
     (* Command progress and success *)
@@ -619,12 +619,12 @@ module Code = struct
     | Duplicate_pattern_variable x ->
         textf "variable name '%s' used more than once in match patterns" x
     | Type_expected str -> textf "expected type while %s" str
-    | Circular_dependency files ->
-        textf "circular dependency:@,@[<v 2>%a@]"
+    | Circular_import files ->
+        textf "circular imports:@,@[<v 2>%a@]"
           (pp_print_list
              ~pp_sep:(fun ppf () ->
                pp_print_cut ppf ();
-               pp_print_string ppf "requires ")
+               pp_print_string ppf "imports ")
              pp_print_string)
           files
     | Loading_file file -> textf "loading file: %s" file

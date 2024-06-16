@@ -65,7 +65,7 @@ let with_compile : type a. trie -> (trie -> Asai.Range.source -> trie) -> (unit 
                         (* Otherwise, we have to load it.  First we check for circular dependencies. *)
                         (let parents = (Loading.read ()).parents in
                          if Bwd.exists (fun x -> x = file) parents then
-                           fatal (Circular_dependency (Bwd.to_list (Snoc (parents, file)))));
+                           fatal (Circular_import (Bwd.to_list (Snoc (parents, file)))));
                         (* Then we load it, in its directory and with itself added to the list of parents, and then add it to the table and (possibly) 'all'. *)
                         if not top then emit (Loading_file file);
                         let trie =

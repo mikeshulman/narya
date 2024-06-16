@@ -50,7 +50,7 @@ module Command = struct
         args : (string * Whitespace.t list) list;
       }
         -> t
-    | Require of { wsreq : Whitespace.t list; file : string; wsfile : Whitespace.t list }
+    | Import of { wsimport : Whitespace.t list; file : string; wsfile : Whitespace.t list }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -214,11 +214,11 @@ module Parse = struct
            args;
          })
 
-  let require =
-    let* wsreq = token Require in
+  let import =
+    let* wsimport = token Import in
     step "" (fun state _ (tok, wsfile) ->
         match tok with
-        | String file -> Some (Require { wsreq; file; wsfile }, state)
+        | String file -> Some (Import { wsimport; file; wsfile }, state)
         | _ -> None)
 
   let quit =
@@ -233,7 +233,7 @@ module Parse = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command () = bof </> axiom </> def_and </> echo </> notation </> require </> quit </> eof
+  let command () = bof </> axiom </> def_and </> echo </> notation </> import </> quit </> eof
 
   let command_or_echo () =
     command ()
@@ -407,7 +407,7 @@ let execute : Command.t -> unit = function
            | `Constant c -> String.concat "." (Scope.name_of c) in
          emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
-  | Require { file; _ } ->
+  | Import { file; _ } ->
       let trie = Units.get (`File file) false in
       Scope.import_subtree ([], trie)
   | Quit _ -> fatal Quit
@@ -569,10 +569,10 @@ let pp_command : formatter -> t -> Whitespace.t list =
             rest in
       pp_close_box ppf ();
       rest
-  | Require { wsreq; file; wsfile } ->
+  | Import { wsimport; file; wsfile } ->
       pp_open_hvbox ppf 2;
-      pp_tok ppf Require;
-      pp_ws `Nobreak ppf wsreq;
+      pp_tok ppf Import;
+      pp_ws `Nobreak ppf wsimport;
       pp_print_string ppf "\"";
       pp_print_string ppf file;
       pp_print_string ppf "\"";

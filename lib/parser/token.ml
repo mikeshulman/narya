@@ -36,6 +36,7 @@ type t =
   | Data
   | Codata
   | Notation
+  | Require
   | Let
   | In
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
@@ -168,6 +169,7 @@ let to_string = function
   | Data -> "data"
   | Codata -> "codata"
   | Notation -> "notation"
+  | Require -> "require"
   | Let -> "let"
   | In -> "in"
   | Op s -> s

@@ -91,14 +91,16 @@ let rec batch first ws p src =
     let p, src = Command.Parse.restart_parse p src in
     batch false ws p src)
 
-let execute (source : Asai.Range.source) =
+let execute init_visible (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
+  Scope.run ~init_visible @@ fun () ->
   let p, src = Command.Parse.start_parse source in
   let ws = batch true [] p src in
   if !reformat then (
     let ws = Whitespace.ensure_ending_newlines 2 ws in
     Print.pp_ws `None std_formatter ws;
-    Format.close_box ())
+    Format.close_box ());
+  Scope.get_export ()
 
 let ( let* ) f o = Lwt.bind f o
 
@@ -220,16 +222,23 @@ let () =
   Dim.Endpoints.set_char !refl_char;
   Dim.Endpoints.set_names !refl_strings;
   Dim.Endpoints.set_internal !internal;
-  let init_visible = Parser.Pi.install Scope.Trie.empty in
-  Scope.run ~init_visible @@ fun () ->
-  (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
+  (* The initial namespace for all compilation units. *)
+  let init = Parser.Pi.install Scope.Trie.empty in
+  Scope.with_units init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with
-      | `File filename -> execute (`File filename)
-      | `String content -> execute (`String { content; title = Some "command-line exec string" })
+      | `File filename -> Scope.load_unit (`File filename)
       | `Stdin ->
           let content = In_channel.input_all stdin in
-          execute (`String { content; title = Some "stdin" }))
+          Scope.load_unit (`String { content; title = Some "stdin" })
+      (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
+      | `String content ->
+          Scope.load_unit ~init:(Scope.all_units ())
+            (`String { content; title = Some "command-line exec string" }))
     [ !inputs ];
-  if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()
+  (* Interactive mode also has all the other units loaded. *)
+  if !interactive then
+    Scope.run ~init_visible:(Scope.all_units ()) @@ fun () -> Lwt_main.run (interact ())
+  else if !proofgeneral then
+    Scope.run ~init_visible:(Scope.all_units ()) @@ fun () -> interact_pg ()

@@ -50,6 +50,7 @@ module Command = struct
         args : (string * Whitespace.t list) list;
       }
         -> t
+    | Require of { wsreq : Whitespace.t list; file : string; wsfile : Whitespace.t list }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -213,6 +214,13 @@ module Parse = struct
            args;
          })
 
+  let require =
+    let* wsreq = token Require in
+    step "" (fun state _ (tok, wsfile) ->
+        match tok with
+        | String file -> Some (Require { wsreq; file; wsfile }, state)
+        | _ -> None)
+
   let quit =
     let* wsquit = token Quit in
     return (Command.Quit wsquit)
@@ -225,7 +233,7 @@ module Parse = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command () = bof </> axiom </> def_and </> echo </> notation </> quit </> eof
+  let command () = bof </> axiom </> def_and </> echo </> notation </> require </> quit </> eof
 
   let command_or_echo () =
     command ()
@@ -389,6 +397,9 @@ let execute : Command.t -> unit = function
         fatal (Unbound_variable_in_notation (List.map fst unbound));
       State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
       emit (Notation_defined (String.concat "." name))
+  | Require { file; _ } ->
+      let trie = Scope.get_unit (`File file) false in
+      Scope.import_subtree ([], trie)
   | Quit _ -> fatal Quit
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
@@ -546,6 +557,17 @@ let pp_command : formatter -> t -> Whitespace.t list =
             let wslast, rest = Whitespace.split wslast in
             pp_ws `None ppf wslast;
             rest in
+      pp_close_box ppf ();
+      rest
+  | Require { wsreq; file; wsfile } ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Require;
+      pp_ws `Nobreak ppf wsreq;
+      pp_print_string ppf "\"";
+      pp_print_string ppf file;
+      pp_print_string ppf "\"";
+      let ws, rest = Whitespace.split wsfile in
+      pp_ws `None ppf ws;
       pp_close_box ppf ();
       rest
   | Quit ws -> ws

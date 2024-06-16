@@ -55,7 +55,7 @@ These options are discussed further below.
 
 When the Narya executable is run, it loads all the files given on its command line and any strings supplied on the command line with `-e`.  As usual, the special filename `-` refers to standard input.  Files and strings are loaded in the order they are given on the command line.  Lastly, if `-i` was given anywhere on the command line, Narya enters interactive mode.
 
-There is currently no importing or exporting: all definitions from all sources go into the same flat namespace, so for instance in interactive mode you can refer to definitions made in files that were loaded previously.  There is also no compilation or caching: everything must be typechecked and loaded anew at every invocation.
+When in interactive mode or loading a command-line `-e` string, all definitions from all files and strings specified previously on the command line are available (but not those loaded transitively by `require`).  However, when loading a file (including standard input), definitions from other files are not available by default, even if those files were specified earlier on the command line; you have to explicitly `require` them (see below).  There is no compilation or caching yet: everything must be typechecked and loaded anew at every invocation.
 
 In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit interactive mode, or enter the command `quit`.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
 
@@ -80,7 +80,11 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
 
-5. `quit`
+5. `require FILE`
+
+   Execute the file `FILE`, which must be specified as a double-quoted string, and import its definitions into the current namespace.  This is like copying the contents of that file into the current one, except that (1) no file will be executed more than during a single run, and (2) while other files required by that file will also be executed (if they haven't yet been), their definitions are not imported into the *current* namespace.  The filename `FILE` can be either absolute, or relative to the location of the file currently being loaded.  Circular dependencies are not allowed.
+
+6. `quit`
 
    Terminate execution immediately.  Whenever this command is found, loading of the current file or command-line string ceases, no further files or strings will be loaded, and interactive mode will be exited or skipped.  (You can also exit interactive mode by typing Control+D.)
    

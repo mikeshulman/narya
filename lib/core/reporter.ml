@@ -140,6 +140,9 @@ module Code = struct
     | Invalid_refutation : t
     | Duplicate_pattern_variable : string -> t
     | Type_expected : string -> t
+    | Circular_dependency : string list -> t
+    | Loading_file : string -> t
+    | File_loaded : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -243,6 +246,9 @@ module Code = struct
     | Invalid_refutation -> Error
     | Duplicate_pattern_variable _ -> Error
     | Type_expected _ -> Error
+    | Circular_dependency _ -> Error
+    | Loading_file _ -> Info
+    | File_loaded _ -> Info
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -360,12 +366,16 @@ module Code = struct
     | Notation_variable_used_twice _ -> "E2209"
     | Unbound_variable_in_notation _ -> "E2210"
     | Head_already_has_notation _ -> "E2211"
+    (* require *)
+    | Circular_dependency _ -> "E2300"
     (* Interactive proof *)
     | Open_holes -> "E3000"
-    (* Command success *)
+    (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
     | Notation_defined _ -> "I0002"
+    | Loading_file _ -> "I0003"
+    | File_loaded _ -> "I0004"
     (* Events during command execution *)
     | Hole_generated _ -> "I0100"
     (* Control of execution *)
@@ -608,7 +618,17 @@ module Code = struct
     | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
     | Duplicate_pattern_variable x ->
         textf "variable name '%s' used more than once in match patterns" x
-    | Type_expected str -> textf "Expected type while %s" str
+    | Type_expected str -> textf "expected type while %s" str
+    | Circular_dependency files ->
+        textf "circular dependency:@,@[<v 2>%a@]"
+          (pp_print_list
+             ~pp_sep:(fun ppf () ->
+               pp_print_cut ppf ();
+               pp_print_string ppf "requires ")
+             pp_print_string)
+          files
+    | Loading_file file -> textf "loading file: %s" file
+    | File_loaded file -> textf "file loaded: %s" file
 end
 
 include Asai.StructuredReporter.Make (Code)

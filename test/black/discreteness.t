@@ -1,8 +1,5 @@
-  $ cat >isprop.ny <<EOF
-  > axiom t1 : T
-  > axiom t2 : T
+  $ cat >jd.ny <<EOF
   > def Jd (X:Type) (x:X) : X → Type ≔ data [ rfl. : Jd X x x ]
-  > def test : Jd T t1 t2 ≔ rfl.
   > EOF
 
 Arbitrary types are not discrete:
@@ -13,10 +10,10 @@ Arbitrary types are not discrete:
   > def T ≔ A⁽ᵈ⁾ a
   > EOF
 
-  $ narya -arity 1 -direction d arb.ny isprop.ny
+  $ narya -arity 1 -direction d arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -27,10 +24,10 @@ Arbitrary types are not discrete:
 
 They remain so even when discreteness is on:
 
-  $ narya -arity 1 -direction d -discreteness arb.ny isprop.ny
+  $ narya -arity 1 -direction d -discreteness arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -47,7 +44,7 @@ There are no discrete datatypes if discreteness is off:
   > def T ≔ ℕ⁽ᵈ⁾ n
   > EOF
 
-  $ narya -v -arity 1 -direction d natd.ny isprop.ny
+  $ narya -v -arity 1 -direction d natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant ℕ defined
   
@@ -57,18 +54,12 @@ There are no discrete datatypes if discreteness is off:
    ￫ info[I0000]
    ￮ Constant T defined
   
-   ￫ info[I0001]
-   ￮ Axiom t1 assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom t2 assumed
-  
    ￫ info[I0000]
    ￮ Constant Jd defined
   
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -83,22 +74,16 @@ Discrete datatypes are not themselves propositions:
   > def T : Type ≔ data [ zero. | suc. (_:T) ]
   > EOF
 
-  $ narya -v -arity 1 -direction d -discreteness nat.ny isprop.ny
+  $ narya -v -arity 1 -direction d -discreteness nat.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant T defined (discrete)
-  
-   ￫ info[I0001]
-   ￮ Axiom t1 assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom t2 assumed
   
    ￫ info[I0000]
    ￮ Constant Jd defined
   
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -115,7 +100,7 @@ But their degenerate versions are:
   > def T ≔ ℕ⁽ᵈ⁾ n
   > EOF
 
-  $ narya -v -arity 1 -direction d -discreteness natd.ny isprop.ny
+  $ narya -v -arity 1 -direction d -discreteness natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant ℕ defined (discrete)
   
@@ -124,12 +109,6 @@ But their degenerate versions are:
   
    ￫ info[I0000]
    ￮ Constant T defined
-  
-   ￫ info[I0001]
-   ￮ Axiom t1 assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom t2 assumed
   
    ￫ info[I0000]
    ￮ Constant Jd defined
@@ -146,7 +125,7 @@ Non-discrete datatypes are not discrete:
   > axiom l : List A
   > def T ≔ (List A)⁽ᵈ⁾ l
 
-  $ narya -v -arity 1 -direction d -discreteness param.ny isprop.ny
+  $ narya -v -arity 1 -direction d -discreteness param.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant List defined
   
@@ -159,18 +138,12 @@ Non-discrete datatypes are not discrete:
    ￫ info[I0000]
    ￮ Constant T defined
   
-   ￫ info[I0001]
-   ￮ Axiom t1 assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom t2 assumed
-  
    ￫ info[I0000]
    ￮ Constant Jd defined
   
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -186,7 +159,7 @@ Non-discrete datatypes are not discrete:
   > axiom z : iszero n
   > def T ≔ (iszero n)⁽ᵈ⁾ z
 
-  $ narya -v -arity 1 -direction d -discreteness index.ny isprop.ny
+  $ narya -v -arity 1 -direction d -discreteness index.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant ℕ defined (discrete)
   
@@ -202,18 +175,12 @@ Non-discrete datatypes are not discrete:
    ￫ info[I0000]
    ￮ Constant T defined
   
-   ￫ info[I0001]
-   ￮ Axiom t1 assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom t2 assumed
-  
    ￫ info[I0000]
    ￮ Constant Jd defined
   
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -227,7 +194,7 @@ Non-discrete datatypes are not discrete:
   > axiom f : foo
   > def T ≔ foo⁽ᵈ⁾ f
 
-  $ narya -v -arity 1 -direction d -discreteness constr.ny isprop.ny
+  $ narya -v -arity 1 -direction d -discreteness constr.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant foo defined
   
@@ -237,18 +204,12 @@ Non-discrete datatypes are not discrete:
    ￫ info[I0000]
    ￮ Constant T defined
   
-   ￫ info[I0001]
-   ￮ Axiom t1 assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom t2 assumed
-  
    ￫ info[I0000]
    ￮ Constant Jd defined
   
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index
@@ -264,7 +225,7 @@ Non-discrete datatypes are not discrete:
   > def T ≔ even⁽ᵈ⁾ e
   > EOF
 
-  $ narya -v -arity 1 -direction d -discreteness mutual.ny isprop.ny
+  $ narya -v -arity 1 -direction d -discreteness mutual.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constants defined mutually:
        even
@@ -276,18 +237,12 @@ Non-discrete datatypes are not discrete:
    ￫ info[I0000]
    ￮ Constant T defined
   
-   ￫ info[I0001]
-   ￮ Axiom t1 assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom t2 assumed
-  
    ￫ info[I0000]
    ￮ Constant Jd defined
   
    ￫ error[E1003]
-   ￭ isprop.ny
-   4 | def test : Jd T t1 t2 ≔ rfl.
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
      ^ index
          t1
        of constructor application doesn't match the corresponding index

@@ -41,8 +41,8 @@ let assume (name : string) (ty : string) : unit =
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let rty = parse_term ty in
@@ -59,8 +59,8 @@ let def (name : string) (ty : string) (tm : string) : unit =
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let rty = parse_term ty in
@@ -129,18 +129,17 @@ let run f =
   Parser.Unparse.install ();
   Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
-  Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
+  Readback.Display.run ~env:false @@ fun () ->
+  Discreteness.run ~env:false @@ fun () ->
+  Discrete.run ~init:Constant.Map.empty @@ fun () ->
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
-  Discreteness.run ~env:false @@ fun () ->
-  Discrete.run ~init:Constant.Map.empty @@ fun () ->
-  Parser.Pi.install ();
-  f ()
+  let init_visible = Parser.Pi.install Scope.Trie.empty in
+  Scope.run ~init_visible @@ fun () -> f ()
 
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

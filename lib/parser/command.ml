@@ -10,10 +10,11 @@ open Format
 open Uuseg_string
 open Print
 open Reporter
+module Trie = Yuujinchou.Trie
 
 type def = {
   wsdef : Whitespace.t list;
-  name : Scope.Trie.path;
+  name : Trie.path;
   wsname : Whitespace.t list;
   parameters : Parameter.t list;
   wscolon : Whitespace.t list;
@@ -26,7 +27,7 @@ module Command = struct
   type t =
     | Axiom of {
         wsaxiom : Whitespace.t list;
-        name : Scope.Trie.path;
+        name : Trie.path;
         wsname : Whitespace.t list;
         parameters : Parameter.t list;
         wscolon : Whitespace.t list;
@@ -39,12 +40,12 @@ module Command = struct
         wsnotation : Whitespace.t list;
         wstight : Whitespace.t list; (* Empty for outfix *)
         wsellipsis : Whitespace.t list; (* Empty for non-associative *)
-        name : Scope.Trie.path;
+        name : Trie.path;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
         pattern : State.pattern;
         wscoloneq : Whitespace.t list;
-        head : [ `Constr of string | `Constant of Scope.Trie.path ];
+        head : [ `Constr of string | `Constant of Trie.path ];
         wshead : Whitespace.t list;
         args : (string * Whitespace.t list) list;
       }
@@ -120,8 +121,8 @@ module Parse = struct
     let* tm = C.term [] in
     return (Command.Echo { wsecho; tm })
 
-  let tightness_and_name :
-      (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
+  let tightness_and_name : (No.wrapped option * Whitespace.t list * Trie.path * Whitespace.t list) t
+      =
     let* tloc, tight_or_name = located ident in
     (let* name, wsname = ident in
      let tight, wstight = tight_or_name in
@@ -292,8 +293,8 @@ let execute : Command.t -> unit = function
         emit (Constant_already_defined (String.concat "." name));
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
@@ -310,8 +311,8 @@ let execute : Command.t -> unit = function
       Reporter.try_with ~fatal:(fun d ->
           List.iter
             (fun c ->
-              Scope.S.modify_visible (Yuujinchou.Language.except c);
-              Scope.S.modify_export (Yuujinchou.Language.except c))
+              Scope.modify_visible (Yuujinchou.Language.except c);
+              Scope.modify_export (Yuujinchou.Language.except c))
             names;
           Reporter.fatal_diagnostic d)
       @@ fun () ->
@@ -360,8 +361,8 @@ let execute : Command.t -> unit = function
       (* TODO: Should the "name" of a notation actually be a Constant.t, to be looked up in the scope? *)
       let _ = Scope.define notation_name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except notation_name);
-          Scope.S.modify_export (Yuujinchou.Language.except notation_name);
+          Scope.modify_visible (Yuujinchou.Language.except notation_name);
+          Scope.modify_export (Yuujinchou.Language.except notation_name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let head =

@@ -195,7 +195,6 @@ let () =
   Parser.Unparse.install ();
   Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
-  Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run
     ~env:
@@ -205,6 +204,8 @@ let () =
         chars = (if !unicode then `Unicode else `ASCII);
       }
   @@ fun () ->
+  Readback.Display.run ~env:false @@ fun () ->
+  Core.Syntax.Discreteness.run ~env:!discreteness @@ fun () ->
   Reporter.run
     ~emit:(fun d ->
       if !verbose || d.severity = Error || d.severity = Warning then
@@ -213,15 +214,14 @@ let () =
       Terminal.display ~output:stderr d;
       exit 1)
   @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
-  Core.Syntax.Discreteness.run ~env:!discreteness @@ fun () ->
-  Parser.Pi.install ();
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
   if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
   Dim.Endpoints.set_len !arity;
   Dim.Endpoints.set_char !refl_char;
   Dim.Endpoints.set_names !refl_strings;
   Dim.Endpoints.set_internal !internal;
+  let init_visible = Parser.Pi.install Scope.Trie.empty in
+  Scope.run ~init_visible @@ fun () ->
   (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
   Mbwd.miter
     (fun [ input ] ->

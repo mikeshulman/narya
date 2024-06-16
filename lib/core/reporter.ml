@@ -556,10 +556,10 @@ module Code = struct
               (fun ppf names ->
                 pp_print_list
                   (fun ppf (name, discrete) ->
-                    pp_printed ppf (print name);
+                    pp_printed ppf name;
                     if discrete then pp_print_string ppf " (discrete)")
                   ppf names)
-              names)
+              (List.map (fun (name, discrete) -> (print name, discrete)) names))
     | Notation_defined name -> textf "Notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
     | Comment_end_in_string ->

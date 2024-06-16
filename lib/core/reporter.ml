@@ -98,7 +98,7 @@ module Code = struct
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
     | No_such_level : printable -> t
-    | Constant_already_defined : string -> t
+    | Name_already_defined : string -> t
     | Invalid_constant_name : string -> t
     | Too_many_commands : t
     | Invalid_tightness : string -> t
@@ -204,7 +204,7 @@ module Code = struct
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
     | No_such_level _ -> Bug
-    | Constant_already_defined _ -> Warning
+    | Name_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
     | Too_many_commands -> Error
     | Invalid_tightness _ -> Error
@@ -351,7 +351,7 @@ module Code = struct
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
-    | Constant_already_defined _ -> "E2100"
+    | Name_already_defined _ -> "E2100"
     | Invalid_constant_name _ -> "E2101"
     (* notation *)
     | Invalid_tightness _ -> "E2200"
@@ -526,7 +526,7 @@ module Code = struct
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
-    | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
+    | Name_already_defined name -> textf "name already defined: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"
     | Fixity_mismatch ->

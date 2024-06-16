@@ -167,7 +167,7 @@ let add_user :
     PrintKey.t ->
     string list ->
     t ->
-    t =
+    t * Notation.t =
  fun name fixity pattern key val_vars state ->
   let n = make name fixity in
   set_tree n (user_tree fixity n pattern);
@@ -234,7 +234,8 @@ let add_user :
        | `Constr (c, _) -> Constr.to_string c ^ "."
        | `Constant c -> String.concat "." (Scope.name_of c) in
      emit (Head_already_has_notation keyname));
-  { state with unparse = state.unparse |> PrintMap.add key { notn = Wrap n; pat_vars; val_vars } }
+  let notn : Notation.t = Wrap n in
+  ({ state with unparse = state.unparse |> PrintMap.add key { notn; pat_vars; val_vars } }, notn)
 
 module S = Algaeff.State.Make (struct
   type nonrec t = t
@@ -246,8 +247,12 @@ module Current = struct
 
   let add_user :
       type left tight right.
-      string -> (left, tight, right) fixity -> pattern -> PrintKey.t -> string list -> unit =
-   fun name fixity pattern key val_vars -> S.modify (add_user name fixity pattern key val_vars)
+      string -> (left, tight, right) fixity -> pattern -> PrintKey.t -> string list -> Notation.t =
+   fun name fixity pattern key val_vars ->
+    let state = S.get () in
+    let state, notn = add_user name fixity pattern key val_vars state in
+    S.set state;
+    notn
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find_opt No.plus_omega (S.get ()).tighters)).strict

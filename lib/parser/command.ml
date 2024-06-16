@@ -295,10 +295,17 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
+(* We currently allow names used for constants to be redefined, but once a name is used for a notation, it can't be shadowed by a constant. *)
+let check_constant_name name =
+  match Scope.resolve name with
+  | Some (`Constant _, ()) -> emit (Name_already_defined (String.concat "." name))
+  | Some (_, ()) ->
+      fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
+  | None -> ()
+
 let execute : Command.t -> unit = function
   | Axiom { name; parameters; ty = Term ty; _ } ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
+      check_constant_name name;
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
@@ -311,8 +318,7 @@ let execute : Command.t -> unit = function
       let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
-            if Option.is_some (Scope.lookup d.name) then
-              emit (Constant_already_defined (String.concat "." d.name));
+            check_constant_name d.name;
             let c = Scope.define d.name in
             [ d.name; (c, d) ])
           [ defs ] (Cons (Cons Nil)) in
@@ -364,15 +370,10 @@ let execute : Command.t -> unit = function
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
       let notation_name = "notation" :: name in
+      (* A notation name can't be redefining anything. *)
       if Option.is_some (Scope.lookup notation_name) then
-        emit (Constant_already_defined (String.concat "." notation_name));
-      (* TODO: Should the "name" of a notation actually be a Constant.t, to be looked up in the scope? *)
-      let _ = Scope.define notation_name in
-      Reporter.try_with ~fatal:(fun d ->
-          Scope.modify_visible (Yuujinchou.Language.except notation_name);
-          Scope.modify_export (Yuujinchou.Language.except notation_name);
-          Reporter.fatal_diagnostic d)
-      @@ fun () ->
+        fatal ~severity:Asai.Diagnostic.Error
+          (Name_already_defined (String.concat "." notation_name));
       let head =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)
@@ -395,7 +396,10 @@ let execute : Command.t -> unit = function
           (args, []) pattern in
       if not (List.is_empty unbound) then
         fatal (Unbound_variable_in_notation (List.map fst unbound));
-      State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
+      let n =
+        State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args)
+      in
+      Scope.include_singleton (notation_name, (`Notation n, ()));
       emit (Notation_defined (String.concat "." name))
   | Require { file; _ } ->
       let trie = Scope.get_unit (`File file) false in

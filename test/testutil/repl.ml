@@ -37,8 +37,7 @@ let assume (name : string) (ty : string) : unit =
   let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
+      Parser.Command.check_constant_name name;
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
@@ -55,8 +54,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
+      Parser.Command.check_constant_name name;
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);

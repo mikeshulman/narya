@@ -43,5 +43,5 @@ Redefining commands
 
   $ narya -e 'axiom A:Type' -e 'axiom A:Type'
    ￫ warning[E2100]
-   ￮ redefining constant: A
+   ￮ name already defined: A
   

@@ -1,11 +1,12 @@
 open Bwd
 open Core
 open Reporter
+open Notation
 module Trie = Yuujinchou.Trie
 
 (* Parameter module for Yuujinchou *)
 module P = struct
-  type data = Constant.t
+  type data = [ `Constant of Constant.t | `Notation of Notation.t ]
 
   (* Currently we have no nontrivial tags, hooks, or contexts. *)
   type tag = unit
@@ -36,14 +37,18 @@ end
 include Yuujinchou.Scope.Make (P)
 
 (* Look up a name to get a constant. *)
-let lookup name = Option.map fst (resolve name)
+let lookup name =
+  match resolve name with
+  | Some (`Constant c, ()) -> Some c
+  | Some (`Notation _, ()) -> None
+  | None -> None
 
 (* Backwards lookup of a constant to find its name. *)
 let find_data trie x =
   Seq.find_map (fun (path, (data, _)) -> if data = x then Some path else None) (Trie.to_seq trie)
 
 let name_of c =
-  match find_data (get_visible ()) c with
+  match find_data (get_visible ()) (`Constant c) with
   | Some name -> name
   (* TODO: Better to munge the original name. *)
   | None -> [ "_UNNAMED_CONSTANT" ]
@@ -51,7 +56,7 @@ let name_of c =
 (* Create a new Constant.t and define a name to equal it. *)
 let define name =
   let c = Constant.make () in
-  include_singleton (name, (c, ()));
+  include_singleton (name, (`Constant c, ()));
   c
 
 (* For separate compilation, we expect the executable to know how to load compilation units and compute their resulting export namespaces.  We wrap this in an effect, so that it can also be invoked *during* the loading of some other unit, with a 'require' command.  We also include an effect that combines all the top-level namespaces (i.e. those not only loaded "transitively" through require) so far into a single one.  The boolean argument to load_unit indicates whether it is being invoked from top level, and the namespace is a starting visible one to override the default.  *)

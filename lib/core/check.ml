@@ -1353,7 +1353,7 @@ and synth :
           | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field x.tm x.ty fld)
           | None -> fatal (Anomaly "level not found in field view")))
   | Const name, _ ->
-      let ty, _ = Global.find_opt name <|> Undefined_constant (PConstant name) in
+      let ty, _ = Global.find name in
       (realize status (Const name), eval_term (Emp D.zero) ty)
   | Field (tm, fld), _ ->
       let stm, sty = synth (Kinetic `Nolet) ctx tm in

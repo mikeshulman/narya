@@ -5,8 +5,8 @@ open Term
 
 type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term
 
-val find_opt : Constant.t -> ((emp, kinetic) term * definition) option
-val find_meta_opt : ('b, 's) Meta.t -> (unit, 'b * 's) Eternity.metadef option
+val find : Constant.t -> (emp, kinetic) term * definition
+val find_meta : ('b, 's) Meta.t -> (unit, 'b * 's) Eternity.metadef
 val locked : unit -> bool
 val run_empty : (unit -> 'a) -> 'a
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit

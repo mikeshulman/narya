@@ -3,6 +3,7 @@
 open Util
 open Syntax
 open Term
+open Reporter
 
 (* In contrast to the "Global" state which stores constants and their definitions, the "Eternal" state stores metavariables and their definitions.  Like its Asimovian namesake, Eternity exists outside the ordinary timestream.  Eternal metavariables aren't scoped and aren't affected by import and sectioning commands, but even more importantly, each such metavariable stores its own copy of the Global state when it was created.  This way we can "go back in time" to when that metavariable was created and be sure that any solution of that metavariable would have been valid in its original location. *)
 
@@ -19,7 +20,7 @@ type (_, _) metadef =
     }
       -> (unit, 'b * 's) metadef
 
-(* As with Global, we track Galactic state using a State effect.  In this case, the state is an intrinsically well-typed map, since metavariables are parametrized by their context length and energy. *)
+(* As with Global, we track Eternal state using a State effect.  In this case, the state is an intrinsically well-typed map, since metavariables are parametrized by their context length and energy. *)
 
 module Map = Meta.Map.Make (struct
   type ('x, 'bs) t = ('x, 'bs) metadef
@@ -34,7 +35,7 @@ end
 module S = Algaeff.State.Make (StateData)
 
 (* Don't use this directly!  Call Global.find_meta_opt, which passes off to this if it doesn't find a definitional-local metavariable. *)
-let find_opt meta = Map.find_opt (MetaKey meta) (S.get ()).map
+let find meta = Map.find_opt (MetaKey meta) (S.get ()).map <|> Undefined_metavariable (PMeta meta)
 
 let add :
     type a b s.

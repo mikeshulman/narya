@@ -679,7 +679,7 @@ and universe_ty : type n. n D.t -> kinetic value =
 (* Whether the -discreteness flag is on globally *)
 module Discreteness = Algaeff.Reader.Make (Bool)
 
-(* Which constants currently being defined are discrete.  Currently (June 2024) at most a singleton, since mutual discrete families are disallowed. *)
+(* Which constants currently being defined are discrete.  The *keys* of the map are *all* the constants currently being defined, while the *values* of the map indicate whether we have *already decided* that that constant is discrete.  *)
 module Discrete = Algaeff.State.Make (struct
   type t = bool Constant.Map.t
 end)

@@ -18,7 +18,7 @@ module Map : module type of Meta.Map.Make (struct
   type ('x, 'bs) t = ('x, 'bs) metadef
 end)
 
-val find_opt : ('a, 'b) Meta.t -> (unit, 'a * 'b) metadef option
+val find : ('a, 'b) Meta.t -> (unit, 'a * 'b) metadef
 
 val add :
   ('b, 's) Meta.t ->

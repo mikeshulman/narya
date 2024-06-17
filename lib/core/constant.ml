@@ -12,4 +12,6 @@ let make () : t =
   counter := !counter + 1;
   !counter
 
-module Map = Map.Make (Constant)
+module Map = struct
+  include Map.Make (Constant)
+end

@@ -23,19 +23,19 @@ module S = Algaeff.State.Make (struct
   type t = data
 end)
 
-let find_opt c =
+let find c =
   let d = S.get () in
   match (Constant.Map.find_opt c d.constants, d.locked) with
   | Some (Ok (_, Axiom `Nonparametric)), true -> fatal (Locked_axiom (PConstant c))
-  | Some (Ok (ty, tm)), _ -> Some (ty, tm)
+  | Some (Ok (ty, tm)), _ -> (ty, tm)
   | Some (Error e), _ -> fatal e
-  | None, _ -> None
+  | None, _ -> fatal (Undefined_constant (PConstant c))
 
-let find_meta_opt m =
+let find_meta m =
   let d = S.get () in
   match Eternity.Map.find_opt (MetaKey m) d.metas with
-  | Some x -> Some x
-  | None -> Eternity.find_opt m
+  | Some x -> x
+  | None -> Eternity.find m
 
 let locked () = (S.get ()).locked
 

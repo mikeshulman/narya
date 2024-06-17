@@ -3,6 +3,8 @@ open Core
 open Reporter
 module Trie = Yuujinchou.Trie
 
+(* Compilation units (i.e. files).  This module is called "Units" because "Unit" is the module "struct type t = unit end".  (-: *)
+
 type trie = (Scope.P.data, Scope.P.tag) Trie.t
 
 (* For separate compilation, we expect the executable to know how to load compilation units and compute their resulting export namespaces.  We wrap this in an effect, so that it can also be invoked *during* the loading of some other unit, with a 'require' command.  We also include an effect that combines all the top-level namespaces (i.e. those not only loaded "transitively" through require) so far into a single one.  The boolean argument to load_unit indicates whether it is being invoked from top level, and the namespace is a starting visible one to override the default.  *)
@@ -19,6 +21,8 @@ let load ?init source =
   ()
 
 let all () = Effect.perform All_units
+
+(* We store effectually the current directory and a list of all files whose loading is currently in progress, i.e. the path of imports that led us to the current file.  The former is used for making filenames absolute; the latter is used to check for circular imports. *)
 
 module Loadstate = struct
   type t = { cwd : FilePath.filename; parents : FilePath.filename Bwd.t }

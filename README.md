@@ -82,9 +82,9 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
 5. `import FILE`
 
-   Execute the file at location `FILE`, which must be specified as a double-quoted string (either absolute or relative to the location of the current file), and import its definitions and notations into the current namespace.  The commands in `FILE` do not have access to any other definitions except those from other files that it `require`s, and the definitions and notations from files `require`d by `FILE` are not imported into the current namespace (unless those files are also `require`d by the current file).  No file will be executed more than during a single run, even if it is `require`d by multiple other files.  Circular dependencies are not allowed.
-   
-   The syntax and behavior of this command is very likely to change in the future, as we add support for library resolution and namespace management.  The present version is just a stand-in that gives low-level access to the primitive "loading a file from the filesystem" functionality.
+   Add the extension `.ny` to the double-quoted string `FILE`, execute the file at that location (either absolute or relative to the location of the current file), and add its definitions and notations to the current namespace.  That is, the disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
+
+   The commands in `FILE.ny` cannot access any definitions from other files, including the current one, except those that it imports itself; and the definitions and notations from files imported by `FILE.ny` are not added to the current namespace (unless it also imports those files directly).  No file will be executed more than once during a single run, even if it is imported by multiple other files.  Circular imports are not allowed.
 
 6. `quit`
 

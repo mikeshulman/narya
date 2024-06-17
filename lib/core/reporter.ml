@@ -143,6 +143,7 @@ module Code = struct
     | Circular_import : string list -> t
     | Loading_file : string -> t
     | File_loaded : string -> t
+    | Library_has_extension : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -249,6 +250,7 @@ module Code = struct
     | Circular_import _ -> Error
     | Loading_file _ -> Info
     | File_loaded _ -> Info
+    | Library_has_extension _ -> Warning
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -368,6 +370,7 @@ module Code = struct
     | Head_already_has_notation _ -> "E2211"
     (* import *)
     | Circular_import _ -> "E2300"
+    | Library_has_extension _ -> "W2301"
     (* Interactive proof *)
     | Open_holes -> "E3000"
     (* Command progress and success *)
@@ -629,6 +632,7 @@ module Code = struct
           files
     | Loading_file file -> textf "loading file: %s" file
     | File_loaded file -> textf "file loaded: %s" file
+    | Library_has_extension file -> textf "putative library name '%s' has extension" file
 end
 
 include Asai.StructuredReporter.Make (Code)

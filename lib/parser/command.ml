@@ -408,6 +408,8 @@ let execute : Command.t -> unit = function
          emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
   | Import { file; _ } ->
+      if FilePath.check_extension file "ny" then emit (Library_has_extension file);
+      let file = FilePath.add_extension file "ny" in
       let trie = Units.get (`File file) false in
       Scope.import_subtree ([], trie)
   | Quit _ -> fatal Quit

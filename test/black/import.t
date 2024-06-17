@@ -5,7 +5,7 @@ Import files
   > EOF
 
   $ cat >two.ny <<EOF
-  > import "one.ny"
+  > import "one"
   > axiom a0 : A
   > EOF
 
@@ -56,13 +56,13 @@ Command-line strings see namespaces from explicitly loaded files only
 Requiring a file multiple times
 
   $ cat >three.ny <<EOF
-  > import "one.ny"
+  > import "one"
   > axiom a1 : A
   > EOF
 
   $ cat >twothree.ny <<EOF
-  > import "two.ny"
-  > import "three.ny"
+  > import "two"
+  > import "three"
   > axiom a2 : Id A a0 a1
 
   $ narya -v twothree.ny
@@ -101,9 +101,9 @@ Requiring a file multiple times
   [1]
 
   $ cat >four.ny <<EOF
-  > import "one.ny"
-  > import "two.ny"
-  > import "three.ny"
+  > import "one"
+  > import "two"
+  > import "three"
   > axiom a2 : Id A a0 a1
 
   $ narya -v four.ny
@@ -141,11 +141,11 @@ Requiring a file multiple times
 Circular dependency
 
   $ cat >foo.ny <<EOF
-  > import "bar.ny"
+  > import "bar"
   > EOF
 
   $ cat >bar.ny <<EOF
-  > import "foo.ny"
+  > import "foo"
   > EOF
 
   $ narya foo.ny
@@ -166,11 +166,11 @@ Import is relative to the file's directory
   > EOF
 
   $ cat >subdir/two.ny <<EOF
-  > import "one.ny"
+  > import "one"
   > axiom a : A
   > EOF
 
-  $ narya -v -e 'import "subdir/two.ny"'
+  $ narya -v -e 'import "subdir/two"'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
   
@@ -192,7 +192,7 @@ Import is relative to the file's directory
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ narya -v subdir/one.ny -e 'import "subdir/two.ny"'
+  $ narya -v subdir/one.ny -e 'import "subdir/two"'
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -215,13 +215,13 @@ Notations are used from explicitly imported files, but not transitively.
   > EOF
 
   $ cat >n2.ny <<EOF
-  > import "n1.ny"
+  > import "n1"
   > notation 0 f : x "&" y := f x y
   > EOF
 
   $ cat >n3.ny <<EOF
-  > import "n1.ny"
-  > import "n2.ny"
+  > import "n1"
+  > import "n2"
   > notation 0 f2 : x "%" y := f x y
   > EOF
 

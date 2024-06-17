@@ -62,7 +62,7 @@ This "weak K" is mentioned in the "Pattern-matching without K" paper as justifyi
 The following indexed datatype appears in Agda bug #1025.
 
   $ cat >foo.ny <<EOF
-  > import "jd.ny"
+  > import "jd"
   > axiom A : Type
   > axiom a : A
   > def Foo : Jd A a a → Type ≔ data [ foo. : Foo rfl. ]

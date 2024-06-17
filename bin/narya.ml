@@ -95,11 +95,22 @@ let execute init_visible (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
   Units.run ~init_visible @@ fun () ->
   let p, src = Command.Parse.start_parse source in
-  let ws = batch true [] p src in
-  if !reformat then (
-    let ws = Whitespace.ensure_ending_newlines 2 ws in
-    Print.pp_ws `None std_formatter ws;
-    Format.close_box ());
+  Reporter.try_with
+    (fun () ->
+      let ws = batch true [] p src in
+      if !reformat then (
+        let ws = Whitespace.ensure_ending_newlines 2 ws in
+        Print.pp_ws `None std_formatter ws;
+        Format.close_box ()))
+    ~fatal:(fun d ->
+      match d.message with
+      | Quit _ ->
+          let src =
+            match source with
+            | `File name -> Some name
+            | `String { title; _ } -> title in
+          Reporter.emit (Quit src)
+      | _ -> Reporter.fatal_diagnostic d);
   Scope.get_export ()
 
 let ( let* ) f o = Lwt.bind f o
@@ -136,7 +147,7 @@ let rec repl terminal history buf =
           ~fatal:(fun d ->
             Terminal.display ~output:stdout d;
             match d.message with
-            | Quit -> exit 0
+            | Quit _ -> exit 0
             | _ -> ())
           (fun () ->
             match Command.parse_single str with

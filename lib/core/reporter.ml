@@ -128,7 +128,7 @@ module Code = struct
     | Locked_axiom : printable -> t
     | Hole_generated : ('b, 's) Meta.t * printable -> t
     | Open_holes : t
-    | Quit : t
+    | Quit : string option -> t
     | Synthesizing_recursion : printable -> t
     | Invalid_synthesized_type : string * printable -> t
     | Unrecognized_attribute : t
@@ -235,7 +235,7 @@ module Code = struct
     | Locked_axiom _ -> Error
     | Hole_generated _ -> Info
     | Open_holes -> Error
-    | Quit -> Info
+    | Quit _ -> Info
     | Synthesizing_recursion _ -> Error
     | Invalid_synthesized_type _ -> Error
     | Unrecognized_attribute -> Error
@@ -382,7 +382,7 @@ module Code = struct
     (* Events during command execution *)
     | Hole_generated _ -> "I0100"
     (* Control of execution *)
-    | Quit -> "I0200"
+    | Quit _ -> "I0200"
     (* Debugging *)
     | Show _ -> "I9999"
 
@@ -604,8 +604,9 @@ module Code = struct
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
     | Hole_generated (n, ty) ->
         textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
-    | Open_holes -> text "There are open holes"
-    | Quit -> text "Goodbye!"
+    | Open_holes -> text "there are open holes"
+    | Quit (Some src) -> textf "execution of %s terminated by quit" src
+    | Quit None -> text "execution terminated by quit"
     | Synthesizing_recursion c ->
         textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
     | Invalid_synthesized_type (str, ty) ->

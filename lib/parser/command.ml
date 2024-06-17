@@ -412,7 +412,7 @@ let execute : Command.t -> unit = function
       let file = FilePath.add_extension file "ny" in
       let trie = Units.get (`File file) false in
       Scope.import_subtree ([], trie)
-  | Quit _ -> fatal Quit
+  | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 

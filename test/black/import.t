@@ -240,3 +240,33 @@ Notations are used from explicitly imported files, but not transitively.
      ^ parse error
   
   [1]
+
+Quitting in imports quits only that file
+
+  $ cat >qone.ny <<EOF
+  > axiom A : Type
+  > quit
+  > axiom B : Type
+  > EOF
+
+  $ cat >qtwo.ny <<EOF
+  > import "qone"
+  > axiom a0 : A
+  > EOF
+
+  $ narya -v qtwo.ny
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/qone.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom A assumed
+  
+   ￫ info[I0200]
+   ￮ execution of qone.ny terminated by quit
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/qone.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  

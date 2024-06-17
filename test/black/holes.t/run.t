@@ -341,7 +341,7 @@
    ￮ Constant idafam defined
   
    ￫ error[E3000]
-   ￮ There are open holes
+   ￮ there are open holes
   
   [1]
 

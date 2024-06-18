@@ -36,7 +36,7 @@ module Loading = Algaeff.State.Make (Loadstate)
 
 (* This is how the executable supplies a callback that loads files.  It will always be passed a reduced absolute filename.  We take care of calling that function as needed and caching the results in a hashtable for future calls.  We also compute the result of combining all the units, but lazily since we'll only need it if there are command-line strings, stdin, or interactive.  The first argument is a default initial visible namespace, which can be overridden. *)
 let with_execute :
-    type a. trie -> (trie -> Asai.Range.source -> trie * Compunit.t) -> (unit -> a) -> a =
+    type a. trie -> (trie -> Compunit.t -> Asai.Range.source -> trie) -> (unit -> a) -> a =
  fun init execute f ->
   let table : (FilePath.filename, trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20 in
   let all : trie Lazy.t ref = ref (Lazy.from_val Trie.empty) in
@@ -77,9 +77,10 @@ let with_execute :
                         (let parents = (Loading.get ()).parents in
                          if Bwd.exists (fun x -> x = file) parents then
                            fatal (Circular_import (Bwd.to_list (Snoc (parents, file)))));
-                        (* Then we load it, in its directory and with itself added to the list of parents, and then add it to the table and (possibly) 'all'. *)
+                        (* Then we load it, in its directory and with itself added to the list of parents. *)
                         if not top then emit (Loading_file file);
-                        let trie, compunit =
+                        let compunit = Compunit.make file in
+                        let trie =
                           Loading.run
                             ~init:
                               {
@@ -88,16 +89,18 @@ let with_execute :
                                 imports = Emp;
                               }
                           @@ fun () ->
-                          go @@ fun () -> execute start (`File file) in
+                          go @@ fun () -> execute start compunit (`File file) in
+                        (* Then we add it to the table and (possibly) 'all'. *)
                         if not top then emit (File_loaded file);
                         Hashtbl.add table file (trie, compunit, top);
                         if top then add_to_all trie;
+                        (* And we save it as a file that was imported by the current file. *)
                         Loading.modify (fun s ->
                             { s with imports = Snoc (s.imports, (compunit, file)) });
                         continue k trie)
                 | `String _ ->
                     (* In the case of a string input there is no caching and no change of state, since it can't be "required" from another file.  But we still have the option of adding it to "all".  *)
-                    let trie, _ = go @@ fun () -> execute start source in
+                    let trie = go @@ fun () -> execute start Compunit.basic source in
                     if top then add_to_all trie;
                     continue k trie)
             | All_units ->

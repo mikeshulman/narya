@@ -1,7 +1,6 @@
 open Bwd
 open Util
 open Core
-open Reporter
 open Parser
 open Format
 open React
@@ -92,15 +91,9 @@ let rec batch first ws p src =
     let p, src = Command.Parse.restart_parse p src in
     batch false ws p src)
 
-let execute init_visible (source : Asai.Range.source) =
+let execute init_visible compunit (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
   Units.run ~init_visible @@ fun () ->
-  let compunit =
-    match source with
-    | `File file ->
-        if FilePath.is_relative file then fatal (Anomaly "relative file path in execute");
-        Compunit.make file
-    | `String _ -> Compunit.basic in
   let p, src = Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
@@ -119,7 +112,7 @@ let execute init_visible (source : Asai.Range.source) =
             | `String { title; _ } -> title in
           Reporter.emit (Quit src)
       | _ -> Reporter.fatal_diagnostic d);
-  (Scope.get_export (), compunit)
+  Scope.get_export ()
 
 let ( let* ) f o = Lwt.bind f o
 

@@ -94,7 +94,7 @@ Requiring a file multiple times
    ￮ file loaded: $TESTCASE_ROOT/three.ny
   
    ￫ error[E0300]
-   ￭ twothree.ny
+   ￭ $TESTCASE_ROOT/twothree.ny
    3 | axiom a2 : Id A a0 a1
      ^ unbound variable: A
   
@@ -262,7 +262,7 @@ Quitting in imports quits only that file
    ￮ Axiom A assumed
   
    ￫ info[I0200]
-   ￮ execution of qone.ny terminated by quit
+   ￮ execution of $TESTCASE_ROOT/qone.ny terminated by quit
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/qone.ny

@@ -9,7 +9,7 @@
    ￮ Constant id defined
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    7 | def f : A → B ≔ ?
      ^ hole ?0 generated:
        
@@ -20,7 +20,7 @@
    ￮ Constant f defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    9 | def f' : A → B ≔ x ↦ ?
      ^ hole ?1 generated:
        
@@ -35,7 +35,7 @@
    ￮ Constant ℕ defined
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    17 | | zero. ↦ ?
       ^ hole ?2 generated:
         
@@ -45,7 +45,7 @@
         ℕ
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    18 | | suc. n ↦ ?
       ^ hole ?3 generated:
         
@@ -62,7 +62,7 @@
    ￮ Axiom P assumed
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    23 | def anop : ℕ → ℕ → (x : ℕ) → P x ≔ n n0 n ↦ ?
       ^ hole ?4 generated:
         
@@ -76,7 +76,7 @@
    ￮ Constant anop defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    26 | def anop' : ℕ → ℕ → (x : ℕ) → P x ≔ n0 n n ↦ ?
       ^ hole ?5 generated:
         
@@ -90,7 +90,7 @@
    ￮ Constant anop' defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    28 | def anop'' : ℕ → ℕ → (x : ℕ) → P x ≔ n _ n ↦ ?
       ^ hole ?6 generated:
         
@@ -104,7 +104,7 @@
    ￮ Constant anop'' defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    31 | def anop''' : ℕ → ℕ → (x : ℕ) → P x ≔ H _ n ↦ ?
       ^ hole ?7 generated:
         
@@ -121,7 +121,7 @@
    ￮ Constant Σ defined
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    39 | def pp : Σ Type (X ↦ X) ≔ ( ? , ? )
       ^ hole ?8 generated:
         
@@ -129,7 +129,7 @@
         Type
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    39 | def pp : Σ Type (X ↦ X) ≔ ( ? , ? )
       ^ hole ?9 generated:
         
@@ -140,7 +140,7 @@
    ￮ Constant pp defined, containing 2 holes
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    42 | def pp' : Σ Type (X ↦ X) ≔ ( id ? , ? )
       ^ hole ?10 generated:
         
@@ -148,7 +148,7 @@
         Type
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    42 | def pp' : Σ Type (X ↦ X) ≔ ( id ? , ? )
       ^ hole ?11 generated:
         
@@ -159,7 +159,7 @@
    ￮ Constant pp' defined, containing 2 holes
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    48 |   baz : ?,
       ^ hole ?12 generated:
         
@@ -171,7 +171,7 @@
    ￮ Constant foo defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    53 |   baz : (x:bar) → ?,
       ^ hole ?13 generated:
         
@@ -184,7 +184,7 @@
    ￮ Constant foo' defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    57 |   one : ?,
       ^ hole ?14 generated:
         
@@ -199,7 +199,7 @@
    ￮ Constant gel0 defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    62 |   two : ?
       ^ hole ?15 generated:
         
@@ -215,7 +215,7 @@
    ￮ Constant gel1 defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    66 |   one : ?,
       ^ hole ?16 generated:
         
@@ -227,7 +227,7 @@
         Type
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    67 |   two : ?
       ^ hole ?17 generated:
         
@@ -243,7 +243,7 @@
    ￮ Constant gel2 defined, containing 2 holes
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    71 | | x .one : ?
       ^ hole ?18 generated:
         
@@ -256,7 +256,7 @@
         Type
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    72 | | x .two : ?
       ^ hole ?19 generated:
         
@@ -278,7 +278,7 @@
    ￮ Constant AC defined
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    83 |   a ≔ ?,
       ^ hole ?20 generated:
         
@@ -286,7 +286,7 @@
         ℕ → A
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    84 |   c ≔ ?
       ^ hole ?21 generated:
         
@@ -312,7 +312,7 @@
     : refl Π A A (refl A) (_ ↦ A) (_ ↦ A) (_ ⤇ refl A) ida ida
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    98 | def ideqid'' : Id (A -> A) ida ida := ((x |-> x) : Id (A -> A ) ida ida -> Id (A -> A) ida ida) (u u u |-> ?)
       ^ hole ?22 generated:
         
@@ -326,7 +326,7 @@
    ￮ Constant ideqid'' defined, containing 1 hole
   
    ￫ info[I0100]
-   ￭ holes.ny
+   ￭ $TESTCASE_ROOT/holes.ny
    101 | def afam : Type → Type ≔ X ↦ id ?
        ^ hole ?23 generated:
          
@@ -350,7 +350,7 @@
    ￮ Constant f defined
   
    ￫ info[I0100]
-   ￭ dtt-holes.ny
+   ￭ $TESTCASE_ROOT/dtt-holes.ny
    4 | def g (X : Type) : Type⁽ᵈ⁾ X ≔ (f ?)⁽ᵈ⁾
      ^ hole ?0 generated:
        
@@ -359,7 +359,7 @@
        Type
   
    ￫ error[E0401]
-   ￭ dtt-holes.ny
+   ￭ $TESTCASE_ROOT/dtt-holes.ny
    4 | def g (X : Type) : Type⁽ᵈ⁾ X ≔ (f ?)⁽ᵈ⁾
      ^ term synthesized type
          Type⁽ᵈ⁾ ?0{…}

@@ -10,13 +10,17 @@ end
 type t = Compunit.t
 
 let counter = ref 0
+let by_file : (string, t) Hashtbl.t = Hashtbl.create 20
 
 (* The zeroth compilation unit includes predefined constants as well as those from command-line exec strings, stdin, and interactive mode. *)
 let basic : t = 0
 
-let make () : t =
+let make file : t =
   counter := !counter + 1;
+  Hashtbl.add by_file file !counter;
   !counter
+
+let get file = Hashtbl.find by_file file
 
 (* Constants and metavariables are identified by their compilation unit together with another autonumber.  We can store those autonumber counters in dynamic arrays, since compilation units are integers and can be used as array indices.  To avoid exposing the definition of Compunit.t as int outside this module, we expose a dynamic array module that does just what we need. *)
 module IntArray = struct

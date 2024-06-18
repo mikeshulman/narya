@@ -1,6 +1,7 @@
 open Bwd
 open Util
 open Core
+open Reporter
 open Parser
 open Format
 open React
@@ -96,7 +97,9 @@ let execute init_visible (source : Asai.Range.source) =
   Units.run ~init_visible @@ fun () ->
   let compunit =
     match source with
-    | `File _ -> Compunit.make ()
+    | `File file ->
+        if FilePath.is_relative file then fatal (Anomaly "relative file path in execute");
+        Compunit.make file
     | `String _ -> Compunit.basic in
   let p, src = Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->

@@ -7,7 +7,8 @@ end
 type t = Compunit.t
 
 val basic : t
-val make : unit -> t
+val make : string -> t
+val get : string -> t
 
 module IntArray : sig
   type t

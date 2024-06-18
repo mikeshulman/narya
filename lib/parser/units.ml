@@ -34,7 +34,7 @@ end
 
 module Loading = Algaeff.State.Make (Loadstate)
 
-(* This is how the executable supplies a callback that loads files.  We take care of calling that function as needed and caching the results in a hashtable for future calls.  We also compute the result of combining all the units, but lazily since we'll only need it if there are command-line strings, stdin, or interactive.  The first argument is a default initial visible namespace, which can be overridden. *)
+(* This is how the executable supplies a callback that loads files.  It will always be passed a reduced absolute filename.  We take care of calling that function as needed and caching the results in a hashtable for future calls.  We also compute the result of combining all the units, but lazily since we'll only need it if there are command-line strings, stdin, or interactive.  The first argument is a default initial visible namespace, which can be overridden. *)
 let with_compile :
     type a. trie -> (trie -> Asai.Range.source -> trie * Compunit.t) -> (unit -> a) -> a =
  fun init compute f ->
@@ -88,7 +88,7 @@ let with_compile :
                                 imports = Emp;
                               }
                           @@ fun () ->
-                          go @@ fun () -> compute start source in
+                          go @@ fun () -> compute start (`File file) in
                         if not top then emit (File_loaded file);
                         Hashtbl.add table file (trie, compunit, top);
                         if top then add_to_all trie;

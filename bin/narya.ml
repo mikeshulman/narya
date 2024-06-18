@@ -244,7 +244,7 @@ let () =
   (* The initial namespace for all compilation units. *)
   let init = Parser.Pi.install Scope.Trie.empty in
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
-  Units.with_compile init execute @@ fun () ->
+  Units.with_execute init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with

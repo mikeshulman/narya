@@ -303,10 +303,12 @@ let check_constant_name name =
       fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
   | None -> ()
 
-let execute : Command.t -> unit = function
+let execute : Command.t -> unit =
+ fun cmd ->
+  match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
       check_constant_name name;
-      let const = Scope.define name in
+      let const = Scope.define (Compunit.Current.read ()) name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
           Scope.modify_export (Yuujinchou.Language.except name);
@@ -319,7 +321,7 @@ let execute : Command.t -> unit = function
         Mlist.pmap
           (fun [ d ] ->
             check_constant_name d.name;
-            let c = Scope.define d.name in
+            let c = Scope.define (Compunit.Current.read ()) d.name in
             [ d.name; (c, d) ])
           [ defs ] (Cons (Cons Nil)) in
       Reporter.try_with ~fatal:(fun d ->

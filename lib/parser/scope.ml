@@ -50,7 +50,7 @@ let name_of c =
   | None -> [ "_UNNAMED_CONSTANT" ]
 
 (* Create a new Constant.t and define a name to equal it. *)
-let define name =
-  let c = Constant.make () in
+let define compunit name =
+  let c = Constant.make compunit in
   include_singleton (name, (`Constant c, ()));
   c

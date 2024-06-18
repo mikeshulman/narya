@@ -94,7 +94,12 @@ let rec batch first ws p src =
 let execute init_visible (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
   Units.run ~init_visible @@ fun () ->
+  let compunit =
+    match source with
+    | `File _ -> Compunit.make ()
+    | `String _ -> Compunit.basic in
   let p, src = Command.Parse.start_parse source in
+  Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
     (fun () ->
       let ws = batch true [] p src in
@@ -235,6 +240,7 @@ let () =
   Dim.Endpoints.set_internal !internal;
   (* The initial namespace for all compilation units. *)
   let init = Parser.Pi.install Scope.Trie.empty in
+  Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   Units.with_compile init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->

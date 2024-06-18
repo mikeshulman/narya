@@ -6,7 +6,7 @@ end
 
 type t = Constant.t
 
-val make : unit -> t
+val make : Compunit.t -> t
 
 module Map : sig
   type 'a t
@@ -16,4 +16,5 @@ module Map : sig
   val mem : Constant.t -> 'a t -> bool
   val add : Constant.t -> 'a -> 'a t -> 'a t
   val update : Constant.t -> ('a option -> 'a option) -> 'a t -> 'a t
+  val remove : Constant.t -> 'a t -> 'a t
 end

@@ -20,6 +20,16 @@ type (_, _) metadef =
     }
       -> (unit, 'b * 's) metadef
 
+let link_def : type x y. (Compunit.t -> Compunit.t) -> (x, y) metadef -> (x, y) metadef =
+ fun f (Metadef d) ->
+  let termctx = Termctx.link f d.termctx in
+  let ty = Link.term f d.ty in
+  let tm =
+    match d.tm with
+    | `None -> `None
+    | `Nonrec tm -> `Nonrec (Link.term f tm) in
+  Metadef { d with termctx; ty; tm }
+
 (* As with Global, we track Eternal state using a State effect.  In this case, the state is an intrinsically well-typed map, since metavariables are parametrized by their context length and energy. *)
 
 module Map = Meta.Map.Make (struct

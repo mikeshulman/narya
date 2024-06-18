@@ -14,6 +14,8 @@ type (_, _) metadef =
     }
       -> (unit, 'b * 's) metadef
 
+val link_def : (Compunit.t -> Compunit.t) -> ('x, 'y) metadef -> ('x, 'y) metadef
+
 module Map : module type of Meta.Map.Make (struct
   type ('x, 'bs) t = ('x, 'bs) metadef
 end)

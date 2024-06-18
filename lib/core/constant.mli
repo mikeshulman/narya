@@ -7,6 +7,7 @@ end
 type t = Constant.t
 
 val make : Compunit.t -> t
+val remake : (Compunit.t -> Compunit.t) -> t -> t
 
 module Map : sig
   type 'a t

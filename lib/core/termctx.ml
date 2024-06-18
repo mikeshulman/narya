@@ -36,3 +36,29 @@ type ('a, 'b) t = Permute : ('a, 'i) N.perm * ('i, 'b) ordered -> ('a, 'b) t
 
 (* When printing a hole we also use a Termctx, since that's what we store anyway, and we would also have to read back a value context anyway in order to unparse it. *)
 type printable += PHole : (string option, 'a) Bwv.t * ('a, 'b) t * ('b, kinetic) term -> printable
+
+let link_entry : type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) entry -> (b, f, mn) entry =
+ fun f e ->
+  match e with
+  | Vis v ->
+      let bindings =
+        CubeOf.mmap
+          { map = (fun _ [ b ] -> { ty = Link.term f b.ty; tm = Option.map (Link.term f) b.tm }) }
+          [ v.bindings ] in
+      Vis { v with bindings }
+  | Invis bindings ->
+      let bindings =
+        CubeOf.mmap
+          { map = (fun _ [ b ] -> { ty = Link.term f b.ty; tm = Option.map (Link.term f) b.tm }) }
+          [ bindings ] in
+      Invis bindings
+
+let rec link_ordered : type a b. (Compunit.t -> Compunit.t) -> (a, b) ordered -> (a, b) ordered =
+ fun f ctx ->
+  match ctx with
+  | Emp -> Emp
+  | Snoc (ctx, e, ax) -> Snoc (link_ordered f ctx, link_entry f e, ax)
+  | Lock ctx -> Lock (link_ordered f ctx)
+
+let link : type a b. (Compunit.t -> Compunit.t) -> (a, b) t -> (a, b) t =
+ fun f (Permute (p, ctx)) -> Permute (p, link_ordered f ctx)

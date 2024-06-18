@@ -17,6 +17,8 @@ let make compunit : t =
   let number = Compunit.IntArray.inc counters compunit in
   (compunit, number)
 
+let remake f (c, i) = (f c, i)
+
 (* Data associated to constants is also stored in a map whose domain is their paired identities. *)
 module Map = struct
   module IntMap = Map.Make (Int)

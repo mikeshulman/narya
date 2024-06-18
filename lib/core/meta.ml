@@ -25,6 +25,9 @@ let make : type b s. Compunit.t -> sort -> b Dbwd.t -> s energy -> (b, s) t =
   let number = Compunit.IntArray.inc counters compunit in
   { compunit; number; sort; len; energy }
 
+let remake : type b s. (Compunit.t -> Compunit.t) -> (b, s) t -> (b, s) t =
+ fun f m -> { m with compunit = f m.compunit }
+
 let name : type b s. (b, s) t -> string =
  fun x ->
   match x.sort with

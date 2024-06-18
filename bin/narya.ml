@@ -116,7 +116,7 @@ let execute init_visible (source : Asai.Range.source) =
             | `String { title; _ } -> title in
           Reporter.emit (Quit src)
       | _ -> Reporter.fatal_diagnostic d);
-  Scope.get_export ()
+  (Scope.get_export (), compunit)
 
 let ( let* ) f o = Lwt.bind f o
 

@@ -25,15 +25,20 @@ let all () = Effect.perform All_units
 (* We store effectually the current directory and a list of all files whose loading is currently in progress, i.e. the path of imports that led us to the current file.  The former is used for making filenames absolute; the latter is used to check for circular imports. *)
 
 module Loadstate = struct
-  type t = { cwd : FilePath.filename; parents : FilePath.filename Bwd.t }
+  type t = {
+    cwd : FilePath.filename;
+    parents : FilePath.filename Bwd.t;
+    imports : (Compunit.t * FilePath.filename) Bwd.t;
+  }
 end
 
-module Loading = Algaeff.Reader.Make (Loadstate)
+module Loading = Algaeff.State.Make (Loadstate)
 
 (* This is how the executable supplies a callback that loads files.  We take care of calling that function as needed and caching the results in a hashtable for future calls.  We also compute the result of combining all the units, but lazily since we'll only need it if there are command-line strings, stdin, or interactive.  The first argument is a default initial visible namespace, which can be overridden. *)
-let with_compile : type a. trie -> (trie -> Asai.Range.source -> trie) -> (unit -> a) -> a =
+let with_compile :
+    type a. trie -> (trie -> Asai.Range.source -> trie * Compunit.t) -> (unit -> a) -> a =
  fun init compute f ->
-  let table : (FilePath.filename, trie * bool) Hashtbl.t = Hashtbl.create 20 in
+  let table : (FilePath.filename, trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20 in
   let all : trie Lazy.t ref = ref (Lazy.from_val Trie.empty) in
   let add_to_all trie =
     let old = !all in
@@ -55,42 +60,51 @@ let with_compile : type a. trie -> (trie -> Asai.Range.source -> trie) -> (unit 
                     (* We normalize the file path to a reduced absolute one, so we can use it for a hashtable key. *)
                     let file =
                       if FilePath.is_relative file then
-                        FilePath.make_absolute (Loading.read ()).cwd file
+                        FilePath.make_absolute (Loading.get ()).cwd file
                       else file in
                     let file = FilePath.reduce file in
                     match Hashtbl.find_opt table file with
-                    | Some (trie, top') ->
+                    | Some (trie, compunit, top') ->
                         (* If we already loaded that file, we just return its saved export namespace, but we may need to add it to the 'all' namespace if it wasn't already there. *)
                         if top && not top' then (
                           add_to_all trie;
-                          Hashtbl.add table file (trie, true));
+                          Hashtbl.add table file (trie, compunit, true));
+                        Loading.modify (fun s ->
+                            { s with imports = Snoc (s.imports, (compunit, file)) });
                         continue k trie
                     | None ->
                         (* Otherwise, we have to load it.  First we check for circular dependencies. *)
-                        (let parents = (Loading.read ()).parents in
+                        (let parents = (Loading.get ()).parents in
                          if Bwd.exists (fun x -> x = file) parents then
                            fatal (Circular_import (Bwd.to_list (Snoc (parents, file)))));
                         (* Then we load it, in its directory and with itself added to the list of parents, and then add it to the table and (possibly) 'all'. *)
                         if not top then emit (Loading_file file);
-                        let trie =
-                          Loading.scope (fun s ->
-                              { cwd = FilePath.dirname file; parents = Snoc (s.parents, file) })
+                        let trie, compunit =
+                          Loading.run
+                            ~init:
+                              {
+                                cwd = FilePath.dirname file;
+                                parents = Snoc ((Loading.get ()).parents, file);
+                                imports = Emp;
+                              }
                           @@ fun () ->
                           go @@ fun () -> compute start source in
                         if not top then emit (File_loaded file);
-                        Hashtbl.add table file (trie, top);
+                        Hashtbl.add table file (trie, compunit, top);
                         if top then add_to_all trie;
+                        Loading.modify (fun s ->
+                            { s with imports = Snoc (s.imports, (compunit, file)) });
                         continue k trie)
                 | `String _ ->
                     (* In the case of a string input there is no caching and no change of state, since it can't be "required" from another file.  But we still have the option of adding it to "all".  *)
-                    let trie = go @@ fun () -> compute start source in
+                    let trie, _ = go @@ fun () -> compute start source in
                     if top then add_to_all trie;
                     continue k trie)
             | All_units ->
                 Option.some @@ fun (k : (a, _) continuation) -> continue k (Lazy.force !all)
             | _ -> None);
       } in
-  Loading.run ~env:{ cwd = Sys.getcwd (); parents = Emp } @@ fun () -> go f
+  Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp } @@ fun () -> go f
 
 let run ~(init_visible : trie) f =
   Scope.run ~init_visible @@ fun () ->

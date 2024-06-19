@@ -1,9 +1,13 @@
 open Bwd
+open Util
 open Core
 open Reporter
+open User
 module Trie = Yuujinchou.Trie
 
 (* Compilation units (i.e. files).  This module is called "Units" because "Unit" is the module "struct type t = unit end".  (-: *)
+
+let __COMPILE_VERSION__ = 1
 
 type trie = (Scope.P.data, Scope.P.tag) Trie.t
 
@@ -42,10 +46,78 @@ end
 
 module Loading = Algaeff.State.Make (Loadstate)
 
+let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : trie) =
+  let ofile = FilePath.replace_extension file "nyo" in
+  Out_channel.with_open_bin ofile @@ fun chan ->
+  Marshal.to_channel chan __COMPILE_VERSION__ [];
+  Marshal.to_channel chan compunit [];
+  Marshal.to_channel chan (Loading.get ()).imports [];
+  Global.to_channel_unit chan compunit [];
+  Marshal.to_channel chan
+    (Trie.map
+       (fun _ -> function
+         | `Constant c, tag -> (`Constant c, tag)
+         | `Notation (u, _), tag -> (`Notation u, tag))
+       trie)
+    []
+
+let unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compunit.t)
+    (file : FilePath.filename) =
+  let ofile = FilePath.replace_extension file "nyo" in
+  (* To load a compiled file, first of all both the compiled file and its source file must exist, and the compiled file must be newer than the source. *)
+  if FileUtil.test Is_file file && FileUtil.test (Is_newer_than file) ofile then
+    (* Now we can start loading things. *)
+    In_channel.with_open_bin ofile @@ fun chan ->
+    (* We check it was compiled with the same version as us. *)
+    let old_version = (Marshal.from_channel chan : int) in
+    if old_version = __COMPILE_VERSION__ then
+      let old_compunit = (Marshal.from_channel chan : Compunit.t) in
+      (* Now we make sure none of the files *it* imports have been modified more recently than the compilation, and that they have all been compiled. *)
+      let old_imports = (Marshal.from_channel chan : (Compunit.t * FilePath.filename) Bwd.t) in
+      if
+        Bwd.for_all
+          (fun (_, ifile) ->
+            let oifile = FilePath.replace_extension file "nyo" in
+            FileUtil.test Is_file oifile
+            && FileUtil.test (Is_newer_than ifile) oifile
+            && FileUtil.test (Is_older_than ofile) ifile)
+          old_imports
+      then (
+        (* If so, we load all those files.  We don't need their returned namespaces, since we aren't typechecking our compiled file. *)
+        Mbwd.miter
+          (fun [ (_, ifile) ] ->
+            let _ = get_file ifile in
+            ())
+          [ old_imports ];
+        (* We create a hashtable mapping the old compunits to new ones. *)
+        let table = Hashtbl.create 20 in
+        Mbwd.miter (fun [ (i, ifile) ] -> Hashtbl.add table i (lookup ifile)) [ old_imports ];
+        Hashtbl.add table old_compunit compunit;
+        (* Now we load the definitions from the compiled file, replacing all the old compunits by the new ones. *)
+        Global.from_channel_unit (Hashtbl.find table) chan compunit;
+        Some
+          (Trie.map
+             (fun _ (data, tag) ->
+               match data with
+               | `Constant c -> (`Constant (Constant.remake (Hashtbl.find table) c), tag)
+               | `Notation (User u) ->
+                   (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
+                   let key =
+                     match u.key with
+                     | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
+                     | `Constr (c, i) -> `Constr (c, i) in
+                   let u = User { u with key } in
+                   (`Notation (u, State.make_user u), tag))
+             (Marshal.from_channel chan
+               : ([ `Constant of Constant.t | `Notation of user_notation ], Scope.P.tag) Trie.t)))
+      else None
+    else None
+  else None
+
 (* This is how the executable supplies a callback that loads files.  It will always be passed a reduced absolute filename.  We take care of calling that function as needed and caching the results in a hashtable for future calls.  We also compute the result of combining all the units, but lazily since we'll only need it if there are command-line strings, stdin, or interactive.  The first argument is a default initial visible namespace, which can be overridden. *)
 let with_execute :
-    type a. trie -> (trie -> Compunit.t -> Asai.Range.source -> trie) -> (unit -> a) -> a =
- fun init execute f ->
+    type a. bool -> trie -> (trie -> Compunit.t -> Asai.Range.source -> trie) -> (unit -> a) -> a =
+ fun source_only init execute f ->
   let table : (FilePath.filename, trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20 in
   let all : trie Lazy.t ref = ref (Lazy.from_val Trie.empty) in
   let add_to_all trie =
@@ -64,6 +136,7 @@ let with_execute :
                 Option.some @@ fun (k : (a, _) continuation) ->
                 match source with
                 | `File (file, top) -> (
+                    if not (FilePath.check_extension file "ny") then fatal (Invalid_filename file);
                     (* We normalize the file path to a reduced absolute one, so we can use it for a hashtable key. *)
                     let file =
                       if FilePath.is_relative file then
@@ -85,8 +158,10 @@ let with_execute :
                          if Bwd.exists (fun x -> x = file) parents then
                            fatal (Circular_import (Bwd.to_list (Snoc (parents, file)))));
                         (* Then we load it, in its directory and with itself added to the list of parents. *)
-                        if not top then emit (Loading_file file);
                         let compunit = Compunit.make file in
+                        let rename i =
+                          let _, c, _ = Hashtbl.find table i in
+                          c in
                         let trie =
                           Loading.run
                             ~init:
@@ -96,12 +171,22 @@ let with_execute :
                                 imports = Emp;
                               }
                           @@ fun () ->
-                          go @@ fun () -> execute init compunit (`File file) in
-                        (* Then we add it to the table and (possibly) 'all'. *)
-                        if not top then emit (File_loaded file);
-                        Hashtbl.add table file (trie, compunit, top);
-                        if top then add_to_all trie;
-                        (* And we save it as a file that was imported by the current file. *)
+                          (* If there's a compiled version, and we aren't in source-only mode, we load that; otherwise we load it from source. *)
+                          let trie, which =
+                            go @@ fun () ->
+                            match if source_only then None else unmarshal compunit rename file with
+                            | Some trie -> (trie, `Compiled)
+                            | None ->
+                                if not top then emit (Loading_file file);
+                                (execute init compunit (`File file), `Source) in
+                          (* Then we add it to the table and (possibly) 'all'. *)
+                          if not top then emit (File_loaded (file, which));
+                          Hashtbl.add table file (trie, compunit, top);
+                          if top then add_to_all trie;
+                          (* We save the compiled version *)
+                          marshal compunit file trie;
+                          trie in
+                        (* Now we record it as a file that was imported by the current file. *)
                         Loading.modify (fun s ->
                             { s with imports = Snoc (s.imports, (compunit, file)) });
                         continue k trie)

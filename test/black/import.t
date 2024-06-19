@@ -9,7 +9,7 @@ Import files
   > axiom a0 : A
   > EOF
 
-  $ narya -v two.ny
+  $ narya -source-only -v two.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
@@ -17,7 +17,7 @@ Import files
    ￮ Axiom A assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/one.ny
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
    ￮ Axiom a0 assumed
@@ -25,7 +25,7 @@ Import files
 
 Command-line strings see namespaces from explicitly loaded files only
 
-  $ narya -v two.ny -e 'axiom a1 : A'
+  $ narya -source-only -v two.ny -e 'axiom a1 : A'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
@@ -33,7 +33,7 @@ Command-line strings see namespaces from explicitly loaded files only
    ￮ Axiom A assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/one.ny
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
    ￮ Axiom a0 assumed
@@ -45,7 +45,7 @@ Command-line strings see namespaces from explicitly loaded files only
   
   [1]
 
-  $ narya -v one.ny -e 'axiom a1 : A'
+  $ narya -source-only -v one.ny -e 'axiom a1 : A'
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -65,7 +65,7 @@ Requiring a file multiple times
   > import "three"
   > axiom a2 : Id A a0 a1
 
-  $ narya -v twothree.ny
+  $ narya -source-only -v twothree.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/two.ny
   
@@ -76,13 +76,13 @@ Requiring a file multiple times
    ￮ Axiom A assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/one.ny
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
    ￮ Axiom a0 assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/two.ny
+   ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
   
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/three.ny
@@ -91,7 +91,7 @@ Requiring a file multiple times
    ￮ Axiom a1 assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/three.ny
+   ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ error[E0300]
    ￭ $TESTCASE_ROOT/twothree.ny
@@ -106,7 +106,7 @@ Requiring a file multiple times
   > import "three"
   > axiom a2 : Id A a0 a1
 
-  $ narya -v four.ny
+  $ narya -source-only -v four.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
@@ -114,7 +114,7 @@ Requiring a file multiple times
    ￮ Axiom A assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/one.ny
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/two.ny
@@ -123,7 +123,7 @@ Requiring a file multiple times
    ￮ Axiom a0 assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/two.ny
+   ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
   
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/three.ny
@@ -132,7 +132,7 @@ Requiring a file multiple times
    ￮ Axiom a1 assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/three.ny
+   ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ info[I0001]
    ￮ Axiom a2 assumed
@@ -148,7 +148,7 @@ Circular dependency
   > import "foo"
   > EOF
 
-  $ narya foo.ny
+  $ narya -source-only foo.ny
    ￫ error[E2300]
    ￮ circular imports:
      $TESTCASE_ROOT/foo.ny
@@ -170,7 +170,7 @@ Import is relative to the file's directory
   > axiom a : A
   > EOF
 
-  $ narya -v -e 'import "subdir/two"'
+  $ narya -source-only -v -e 'import "subdir/two"'
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
   
@@ -181,18 +181,18 @@ Import is relative to the file's directory
    ￮ Axiom A assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny
+   ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (source)
   
    ￫ info[I0001]
    ￮ Axiom a assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny
+   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
   
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ narya -v subdir/one.ny -e 'import "subdir/two"'
+  $ narya -source-only -v subdir/one.ny -e 'import "subdir/two"'
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -203,7 +203,7 @@ A file isn't loaded twice even if referred to in different ways
    ￮ Axiom a assumed
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny
+   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
   
 
 Notations are used from explicitly imported files, but not transitively.
@@ -225,12 +225,12 @@ Notations are used from explicitly imported files, but not transitively.
   > notation 0 f2 : x "%" y := f x y
   > EOF
 
-  $ narya n1.ny n3.ny -e 'echo a % a'
+  $ narya -source-only n1.ny n3.ny -e 'echo a % a'
   a % a
     : A
   
 
-  $ narya n1.ny n3.ny -e 'echo a & a'
+  $ narya -source-only n1.ny n3.ny -e 'echo a & a'
   a
     : A
   
@@ -254,7 +254,7 @@ Quitting in imports quits only that file
   > axiom a0 : A
   > EOF
 
-  $ narya -v qtwo.ny
+  $ narya -source-only -v qtwo.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/qone.ny
   
@@ -265,7 +265,7 @@ Quitting in imports quits only that file
    ￮ execution of $TESTCASE_ROOT/qone.ny terminated by quit
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/qone.ny
+   ￮ file loaded: $TESTCASE_ROOT/qone.ny (source)
   
    ￫ info[I0001]
    ￮ Axiom a0 assumed

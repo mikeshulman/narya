@@ -7,6 +7,8 @@ type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, p
 
 val find : Constant.t -> (emp, kinetic) term * definition
 val find_meta : ('b, 's) Meta.t -> (unit, 'b * 's) Eternity.metadef
+val to_channel_unit : Out_channel.t -> Compunit.t -> Marshal.extern_flags list -> unit
+val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit
 val locked : unit -> bool
 val run_empty : (unit -> 'a) -> 'a
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit

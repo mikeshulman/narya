@@ -140,5 +140,24 @@ module Map = struct
             }
             x)
         m
+
+    let to_channel_unit :
+        type b. Out_channel.t -> Compunit.t -> b t -> Marshal.extern_flags list -> unit =
+     fun chan i map flags -> Marshal.to_channel chan (Compunit.Map.find_opt i map) flags
+
+    let from_channel_unit : type b. In_channel.t -> b mapper -> Compunit.t -> b t -> b t =
+     fun chan f i m ->
+      match (Marshal.from_channel chan : b Map.t option) with
+      | Some n ->
+          Compunit.Map.add i
+            (Map.map
+               {
+                 map =
+                   (fun { kinetic; potential } ->
+                     { kinetic = IntMap.map f.map kinetic; potential = IntMap.map f.map potential });
+               }
+               n)
+            m
+      | None -> m
   end
 end

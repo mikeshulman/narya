@@ -142,8 +142,9 @@ module Code = struct
     | Type_expected : string -> t
     | Circular_import : string list -> t
     | Loading_file : string -> t
-    | File_loaded : string -> t
+    | File_loaded : string * [ `Compiled | `Source ] -> t
     | Library_has_extension : string -> t
+    | Invalid_filename : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -251,6 +252,7 @@ module Code = struct
     | Loading_file _ -> Info
     | File_loaded _ -> Info
     | Library_has_extension _ -> Warning
+    | Invalid_filename _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -371,6 +373,7 @@ module Code = struct
     (* import *)
     | Circular_import _ -> "E2300"
     | Library_has_extension _ -> "W2301"
+    | Invalid_filename _ -> "E2302"
     (* Interactive proof *)
     | Open_holes -> "E3000"
     (* Command progress and success *)
@@ -632,8 +635,10 @@ module Code = struct
              pp_print_string)
           files
     | Loading_file file -> textf "loading file: %s" file
-    | File_loaded file -> textf "file loaded: %s" file
+    | File_loaded (file, `Compiled) -> textf "file loaded: %s (compiled)" file
+    | File_loaded (file, `Source) -> textf "file loaded: %s (source)" file
     | Library_has_extension file -> textf "putative library name '%s' has extension" file
+    | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
 end
 
 include Asai.StructuredReporter.Make (Code)

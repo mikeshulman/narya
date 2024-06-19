@@ -37,6 +37,21 @@ let find_meta m =
   | Some x -> x
   | None -> Eternity.find m
 
+let to_channel_unit chan i flags =
+  let d = S.get () in
+  Constant.Map.to_channel_unit chan i d.constants flags;
+  Eternity.Map.to_channel_unit chan i d.metas flags
+
+let from_channel_unit f chan i =
+  let d = S.get () in
+  let constants =
+    Constant.Map.from_channel_unit chan
+      (Result.map (fun (tm, df) -> (Link.term f tm, df)))
+      i d.constants in
+  let metas =
+    Eternity.Map.from_channel_unit chan { map = (fun df -> Eternity.link_def f df) } i d.metas in
+  S.set { d with constants; metas }
+
 let locked () = (S.get ()).locked
 
 let add_to c ty df (d : data) =

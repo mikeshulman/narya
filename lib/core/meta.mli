@@ -17,4 +17,13 @@ module Key : sig
   type 'b t = 'b key
 end
 
-module Map : MAP_MAKER with module Key = Key
+module Map : sig
+  module Key = Key
+
+  module Make : functor (F : Fam2) -> sig
+    include MAP with module Key := Key and module F := F
+
+    val to_channel_unit : Out_channel.t -> Compunit.t -> 'b t -> Marshal.extern_flags list -> unit
+    val from_channel_unit : In_channel.t -> 'b mapper -> Compunit.t -> 'b t -> 'b t
+  end
+end

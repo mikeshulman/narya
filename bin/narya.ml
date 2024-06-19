@@ -22,6 +22,7 @@ let refl_char = ref 'e'
 let refl_strings = ref [ "refl"; "Id" ]
 let internal = ref true
 let discreteness = ref false
+let source_only = ref false
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -56,6 +57,7 @@ let speclist =
     ("-internal", Arg.Set internal, "Set parametricity to internal (default)");
     ("-external", Arg.Clear internal, "Set parametricity to external");
     ("-discreteness", Arg.Set discreteness, "Enable discreteness");
+    ("-source-only", Arg.Set source_only, "Load all files from source (ignore compiled versions)");
     ( "-dtt",
       Unit
         (fun () ->
@@ -237,7 +239,7 @@ let () =
   (* The initial namespace for all compilation units. *)
   let init = Parser.Pi.install Scope.Trie.empty in
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
-  Units.with_execute init execute @@ fun () ->
+  Units.with_execute !source_only init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with

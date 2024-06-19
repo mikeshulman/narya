@@ -473,6 +473,15 @@ module Internal (G : Gen) (GM : MAP_MAKER with module Key = G) (F : Fam2) = stru
             Map.DM.update n
               (Option.map (fun (Map.M.Wrapmap zs) -> Map.M.Wrapmap (remove bc c zs)))
               xs )
+
+  type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+
+  let rec map : type a b. a mapper -> (a, b) Map.map -> (a, b) Map.map =
+   fun f m ->
+    match m with
+    | Empty -> Empty
+    | Entry (x, xs) ->
+        Entry (Option.map f.map x, Map.DM.map { map = (fun (Wrapmap x) -> Wrapmap (map f x)) } xs)
 end
 
 module Map (G : Gen) (GM : MAP_MAKER with module Key := G) : MAP_MAKER with module Key := Make(G) =
@@ -509,6 +518,11 @@ struct
      fun b map ->
       let (To_fwd (c, bc)) = W.to_fwd b in
       remove bc c map
+
+    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+
+    let map : type a b. a mapper -> (a, emp) Map.map -> (a, emp) Map.map =
+     fun f m -> map { map = (fun x -> f.map x) } m
 
     type 'a t = ('a, emp) Map.map
   end

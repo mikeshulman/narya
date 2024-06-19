@@ -125,5 +125,20 @@ module Map = struct
      fun key value map -> update key (fun _ -> Some value) map
 
     let remove : type b g. g Key.t -> b t -> b t = fun key map -> update key (fun _ -> None) map
+
+    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+
+    let map : type a. a mapper -> a t -> a t =
+     fun f m ->
+      Compunit.Map.map
+        (fun x ->
+          Map.map
+            {
+              map =
+                (fun { kinetic; potential } ->
+                  { kinetic = IntMap.map f.map kinetic; potential = IntMap.map f.map potential });
+            }
+            x)
+        m
   end
 end

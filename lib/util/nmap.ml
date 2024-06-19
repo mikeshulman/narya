@@ -47,6 +47,14 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
           match mn with
           | Zero -> Entry (None, xs)
           | Suc mn -> Entry (x, remove mn xs))
+
+    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+
+    let rec map : type a m. a mapper -> (a, m) map -> (a, m) map =
+     fun f m ->
+      match m with
+      | Empty -> Empty
+      | Entry (x, xs) -> Entry (Option.map f.map x, map f xs)
   end
 
   let find_opt : type b m n. n N.t -> (b, N.zero) map -> (b, n) F.t option =
@@ -70,6 +78,11 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
    fun n map ->
     let (Of_bwn (_, mn)) = Fwn.of_bwn n in
     Internal.remove mn map
+
+  type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+
+  let map : type b. b mapper -> (b, N.zero) map -> (b, N.zero) map =
+   fun f m -> Internal.map { map = f.map } m
 
   type 'b t = ('b, N.zero) map
 

@@ -3,18 +3,24 @@ open Core
 open Reporter
 open Notation
 open Postprocess
-open Syntax
 open Format
 open Print
 open User
 module TokMap = Map.Make (Token)
-module StringMap = Map.Make (String)
 
 module EntryPair = struct
   type ('x, 'a) t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
 end
 
 module EntryMap = No.Map.Make (EntryPair)
+
+module PrintKey = struct
+  type t = printkey
+
+  let compare : t -> t -> int = compare
+end
+
+module PrintMap = Map.Make (PrintKey)
 
 (* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation state", which can be used for parsing, and let other modules manipulate those states by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a state, remove some, and then create a new state with just those.) *)
 type t = {
@@ -103,11 +109,11 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   { s with tighters; left_opens }
 
 (* Add a notation along with the information about how to unparse a constant or constructor into that notation. *)
-let add_with_print : PrintKey.t -> permuted_notation -> t -> t =
- fun key notn state ->
+let add_with_print : permuted_notation -> t -> t =
+ fun notn state ->
   let (Wrap n) = notn.notn in
   let state = add n state in
-  { state with unparse = state.unparse |> PrintMap.add key notn }
+  { state with unparse = state.unparse |> PrintMap.add notn.key notn }
 
 type pattern =
   [ `Op of Token.t * space * Whitespace.t list
@@ -147,78 +153,30 @@ let user_tree :
   | `Var _ :: `Var _ :: _, _ -> fatal Missing_notation_symbol
   | [ `Var _ ], _ -> fatal Zero_notation_symbols
 
-let add_user :
-    type left tight right.
-    string ->
-    (left, tight, right) fixity ->
-    (* The space tag on the last element is ignored. *)
-    pattern ->
-    PrintKey.t ->
-    string list ->
-    t ->
-    t * PrintKey.t * permuted_notation * bool =
- fun name fixity pattern key val_vars state ->
+let make_user : user_notation -> permuted_notation =
+ fun (User { name; fixity; pattern; key; val_vars }) ->
   let n = make name fixity in
-  set_tree n (user_tree fixity n pattern);
   let pat_vars =
     List.filter_map
       (function
         | `Op _ | `Ellipsis _ -> None
         | `Var (x, _, _) -> Some x)
       pattern in
+  set_tree n (user_tree fixity n pattern);
   set_processor n
-    {
-      process =
-        (fun ctx obs loc _ ->
-          let args =
-            List.fold_left2
-              (fun acc k (Term x) -> acc |> StringMap.add k (process ctx x))
-              StringMap.empty pat_vars obs in
-          let value =
-            match key with
-            | `Constant c ->
-                let spine =
-                  List.fold_left
-                    (fun acc k -> Raw.App ({ value = acc; loc }, StringMap.find k args))
-                    (Const c) val_vars in
-                Raw.Synth spine
-            | `Constr (c, _) ->
-                let args = List.map (fun k -> StringMap.find k args) val_vars in
-                Raw.Constr ({ value = c; loc }, args) in
-          { value; loc });
-    };
-  let rec pp_user first ppf pat obs ws space =
-    match (pat, obs) with
-    | [], [] -> taken_last ws
-    | [], _ :: _ -> fatal (Anomaly "invalid notation arguments")
-    | `Op (op, br, _) :: pat, _ ->
-        let wsop, ws = take op ws in
-        pp_tok ppf op;
-        pp_ws (if List.is_empty pat then space else br) ppf wsop;
-        pp_user false ppf pat obs ws space
-    | `Ellipsis _ :: _, _ -> fatal (Unimplemented "internal ellipsis in notation pattern")
-    | [ `Var (_, br, _) ], [ x ] -> (
-        match x with
-        | Term { value = Notn m; _ } when equal (notn m) n ->
-            pp_user false ppf pattern (args m) (whitespace m) br
-        | _ ->
-            pp_term space ppf x;
-            taken_last ws)
-    | `Var (_, br, _) :: pat, x :: obs ->
-        (match (first, x) with
-        | true, Term { value = Notn m; _ } when equal (notn m) n ->
-            pp_user true ppf pattern (args m) (whitespace m) br
-        | _ -> pp_term br ppf x);
-        pp_user false ppf pat obs ws space
-    | `Var _ :: _, [] -> fatal (Anomaly "invalid notation arguments") in
+    { process = (fun ctx obs loc _ -> process_user key pat_vars val_vars ctx obs loc) };
   set_print n (fun space ppf obs ws ->
       pp_open_hvbox ppf 0;
-      pp_user true ppf pattern obs ws `None;
+      pp_user pattern n true ppf pattern obs ws `None;
       pp_close_box ppf ();
       pp_space ppf space);
-  let notn = { notn = Wrap n; pat_vars; val_vars } in
-  let shadow = PrintMap.mem key state.unparse in
-  (add_with_print key notn state, key, notn, shadow)
+  { key; notn = Wrap n; pat_vars; val_vars }
+
+let add_user : user_notation -> t -> t * (permuted_notation * bool) =
+ fun user state ->
+  let notn = make_user user in
+  let shadow = PrintMap.mem notn.key state.unparse in
+  (add_with_print notn state, (notn, shadow))
 
 module S = Algaeff.State.Make (struct
   type nonrec t = t
@@ -228,19 +186,12 @@ module Current = struct
   let add : type left tight right. (left, tight, right) notation -> unit =
    fun notn -> S.modify (add notn)
 
-  let add_user :
-      type left tight right.
-      string ->
-      (left, tight, right) fixity ->
-      pattern ->
-      PrintKey.t ->
-      string list ->
-      PrintKey.t * permuted_notation * bool =
-   fun name fixity pattern key val_vars ->
+  let add_user : user_notation -> permuted_notation * bool =
+   fun user ->
     let state = S.get () in
-    let state, key, notn, shadow = add_user name fixity pattern key val_vars state in
+    let state, (notn, shadow) = add_user user state in
     S.set state;
-    (key, notn, shadow)
+    (notn, shadow)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find_opt No.plus_omega (S.get ()).tighters)).strict

@@ -132,7 +132,7 @@ and (_, _, _, _) parse =
       ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
       -> ('lt, 'ls, 'rt, 'rs) parse
 
-(* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object).  The whitespace argument should be ignored, but we include it so that complicated notation processing functions can be shared between the processor and the printer. *)
+(* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object).  The whitespace argument is often ignored, but it allows complicated notation processing functions to be shared between the processor and the printer, and sometimes the processing functions need to inspect the sequence of tokens which is stored with the whitespace. *)
 and processor = {
   process :
     'n.
@@ -441,3 +441,15 @@ let merge :
     type t1 t2 s1 s2.
     (t2, s2, t1, s1) Interval.subset -> (t1, s1) entry -> (t2, s2) entry -> (t1, s1) entry =
  fun sub xs ys -> merge_tmap sub xs ys
+
+(* Printable notations *)
+
+(* TODO: Rename these.  "head"?  And think about what files they should be in. *)
+type printkey = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t * int ]
+
+type permuted_notation = {
+  key : printkey;
+  notn : Notation.t;
+  pat_vars : string list;
+  val_vars : string list;
+}

@@ -16,7 +16,7 @@ module StringMap = Map.Make (String)
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
 let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
-  let* { notn; pat_vars; val_vars } =
+  let* { key = _; notn; pat_vars; val_vars } =
     match head with
     | `Term (Const c) -> State.Current.unparse (`Constant c)
     | `Constr c -> State.Current.unparse (`Constr (c, Bwd.length args))

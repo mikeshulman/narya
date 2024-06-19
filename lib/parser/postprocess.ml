@@ -7,6 +7,7 @@ open Reporter
 open Notation
 open Asai.Range
 open Monad.Ops (Monad.Maybe)
+module StringMap = Map.Make (String)
 
 (* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse located -> string option =
@@ -173,3 +174,30 @@ and process_vars :
       let pty = process ctx ty in
       let (Processed_tel (tel, ctx)) = process_vars (Bwv.snoc ctx name) names (Term ty) parameters in
       Processed_tel (Ext (name, pty, tel), ctx)
+
+let process_user :
+    type n.
+    printkey ->
+    string list ->
+    string list ->
+    (string option, n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    n check located =
+ fun key pat_vars val_vars ctx obs loc ->
+  let args =
+    List.fold_left2
+      (fun acc k (Term x) -> acc |> StringMap.add k (process ctx x))
+      StringMap.empty pat_vars obs in
+  let value =
+    match key with
+    | `Constant c ->
+        let spine =
+          List.fold_left
+            (fun acc k -> Raw.App ({ value = acc; loc }, StringMap.find k args))
+            (Const c) val_vars in
+        Raw.Synth spine
+    | `Constr (c, _) ->
+        let args = List.map (fun k -> StringMap.find k args) val_vars in
+        Raw.Constr ({ value = c; loc }, args) in
+  { value; loc }

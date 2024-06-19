@@ -10,6 +10,7 @@ open Format
 open Uuseg_string
 open Print
 open Reporter
+open User
 module Trie = Yuujinchou.Trie
 
 type def = {
@@ -376,7 +377,7 @@ let execute : Command.t -> unit =
       if Option.is_some (Scope.lookup notation_name) then
         fatal ~severity:Asai.Diagnostic.Error
           (Name_already_defined (String.concat "." notation_name));
-      let head =
+      let key =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)
         | `Constant c -> (
@@ -398,13 +399,14 @@ let execute : Command.t -> unit =
           (args, []) pattern in
       if not (List.is_empty unbound) then
         fatal (Unbound_variable_in_notation (List.map fst unbound));
-      let key, notn, shadow =
-        State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args)
+      let user =
+        User { name = String.concat "." name; fixity; pattern; key; val_vars = List.map fst args }
       in
-      Scope.include_singleton (notation_name, (`Notation (key, notn), ()));
+      let notn, shadow = State.Current.add_user user in
+      Scope.include_singleton (notation_name, (`Notation (user, notn), ()));
       (if shadow then
          let keyname =
-           match key with
+           match notn.key with
            | `Constr (c, _) -> Constr.to_string c ^ "."
            | `Constant c -> String.concat "." (Scope.name_of c) in
          emit (Head_already_has_notation keyname));

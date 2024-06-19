@@ -115,7 +115,7 @@ let run ~(init_visible : trie) f =
     (Seq.fold_left
        (fun state (_, (data, _)) ->
          match data with
-         | `Notation (key, notn) -> state |> State.add_with_print key notn
+         | `Notation (user, _) -> fst (State.add_user user state)
          | _ -> state)
        !Builtins.builtins
        (Trie.to_seq (Trie.find_subtree [ "notation" ] init_visible)))

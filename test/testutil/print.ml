@@ -3,10 +3,7 @@ open Parser
 open Print
 open Core
 
-let () =
-  Dim.Endpoints.set_len 2;
-  Dim.Endpoints.set_internal true
-
+let () = Arity.install ()
 let margin = ref 80
 let set_margin n = margin := n
 

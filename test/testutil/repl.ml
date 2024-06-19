@@ -15,9 +15,7 @@ open Value
 open Raw
 open Asai.Range
 
-let () =
-  Dim.Endpoints.set_len 2;
-  Dim.Endpoints.set_internal true
+let () = Arity.install ()
 
 let parse_term (tm : string) : N.zero check located =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in

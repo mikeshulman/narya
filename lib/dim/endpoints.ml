@@ -1,84 +1,32 @@
 open Util
 
-(* We parametrize over an abstract module specifying how many endpoints our cubes have. *)
+(* We parametrize over an abstract module specifying how many endpoints our cubes have.  Internally it just counts them with a stored natural number *)
 
-type 'l len = ..
+type 'l len = 'l N.t
 type wrapped = Wrap : 'l len -> wrapped
 type 'l t = 'l len * 'l N.index
 
-module type Data_sig = sig
-  val wrapped : unit -> wrapped
-  val uniq : 'l1 'l2. 'l1 len -> 'l2 len -> ('l1, 'l2) Eq.t
-  val len : 'l len -> 'l N.t
-end
-
-module Data_unset = struct
-  let wrapped : unit -> wrapped = fun _ -> raise (Failure "arity unset (wrapped)")
-
-  let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Eq.t =
-   fun _ _ -> raise (Failure "arity unset (uniq)")
-
-  let len : type l. l len -> l N.t = fun _ -> raise (Failure "arity unset (len)")
-end
-
-module type Nat = sig
-  type t
-
-  val len : t N.t
-end
-
-module Zero : Nat = struct
-  type t = N.zero
-
-  let len = N.zero
-end
-
-module Suc (X : Nat) : Nat = struct
-  type t = X.t N.suc
-
-  let len = N.suc X.len
-end
-
-let rec module_of_int (x : int) =
-  if x < 0 then raise (Invalid_argument "module_of_int")
-  else if x = 0 then (module Zero : Nat)
-  else
-    let module X = (val module_of_int (x - 1) : Nat) in
-    (module Suc (X) : Nat)
-
-module Data (X : Nat) = struct
-  type _ len += Len : X.t len
-
-  let wrapped () = Wrap Len
-
-  let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Eq.t =
-   fun l1 l2 ->
-    match (l1, l2) with
-    | Len, Len -> Eq
-    | _ -> raise (Failure "arity can only be set once")
-
-  let len : type l. l len -> l N.t = function
-    | Len -> X.len
-    | _ -> raise (Failure "arity can only be set once")
-end
-
-let data : (module Data_sig) ref = ref (module Data_unset : Data_sig)
+let data : wrapped option ref = ref None
 
 let set_len x =
-  let module X = (val module_of_int x : Nat) in
-  data := (module Data (X) : Data_sig)
+  match !data with
+  | Some _ -> raise (Failure "arity can only be set once")
+  | None ->
+      let (Plus_something x) = N.plus_of_int x in
+      data := Some (Wrap (Nat x))
 
 let wrapped () =
-  let module M = (val !data : Data_sig) in
-  M.wrapped ()
+  match !data with
+  | Some x -> x
+  | None -> raise (Failure "arity unset")
 
-let uniq l1 l2 =
-  let module M = (val !data : Data_sig) in
-  M.uniq l1 l2
+let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Eq.t =
+ fun l1 l2 ->
+  match N.compare l1 l2 with
+  | Eq -> Eq
+  | _ -> raise (Failure "unexpected arity")
 
-let len l =
-  let module M = (val !data : Data_sig) in
-  M.len l
+let len l = l
 
 let indices : type l. l len -> (l t, l) Bwv.t =
  fun l -> Bwv.map (fun i -> (l, i)) (Bwv.all_indices (len l))

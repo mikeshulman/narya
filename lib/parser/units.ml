@@ -46,10 +46,17 @@ end
 
 module Loading = Algaeff.State.Make (Loadstate)
 
+module FlagData = struct
+  type t = { marshal : Out_channel.t -> unit; unmarshal : In_channel.t -> (unit, string) Result.t }
+end
+
+module Flags = Algaeff.Reader.Make (FlagData)
+
 let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : trie) =
   let ofile = FilePath.replace_extension file "nyo" in
   Out_channel.with_open_bin ofile @@ fun chan ->
   Marshal.to_channel chan __COMPILE_VERSION__ [];
+  (Flags.read ()).marshal chan;
   Marshal.to_channel chan compunit [];
   Marshal.to_channel chan (Loading.get ()).imports [];
   Global.to_channel_unit chan compunit [];
@@ -70,47 +77,53 @@ let unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compunit.t)
     In_channel.with_open_bin ofile @@ fun chan ->
     (* We check it was compiled with the same version as us. *)
     let old_version = (Marshal.from_channel chan : int) in
-    if old_version = __COMPILE_VERSION__ then
-      let old_compunit = (Marshal.from_channel chan : Compunit.t) in
-      (* Now we make sure none of the files *it* imports have been modified more recently than the compilation, and that they have all been compiled. *)
-      let old_imports = (Marshal.from_channel chan : (Compunit.t * FilePath.filename) Bwd.t) in
-      if
-        Bwd.for_all
-          (fun (_, ifile) ->
-            let oifile = FilePath.replace_extension file "nyo" in
-            FileUtil.test Is_file oifile
-            && FileUtil.test (Is_newer_than ifile) oifile
-            && FileUtil.test (Is_older_than ofile) ifile)
-          old_imports
-      then (
-        (* If so, we load all those files.  We don't need their returned namespaces, since we aren't typechecking our compiled file. *)
-        Mbwd.miter
-          (fun [ (_, ifile) ] ->
-            let _ = get_file ifile in
-            ())
-          [ old_imports ];
-        (* We create a hashtable mapping the old compunits to new ones. *)
-        let table = Hashtbl.create 20 in
-        Mbwd.miter (fun [ (i, ifile) ] -> Hashtbl.add table i (lookup ifile)) [ old_imports ];
-        Hashtbl.add table old_compunit compunit;
-        (* Now we load the definitions from the compiled file, replacing all the old compunits by the new ones. *)
-        Global.from_channel_unit (Hashtbl.find table) chan compunit;
-        Some
-          (Trie.map
-             (fun _ (data, tag) ->
-               match data with
-               | `Constant c -> (`Constant (Constant.remake (Hashtbl.find table) c), tag)
-               | `Notation (User u) ->
-                   (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
-                   let key =
-                     match u.key with
-                     | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
-                     | `Constr (c, i) -> `Constr (c, i) in
-                   let u = User { u with key } in
-                   (`Notation (u, State.make_user u), tag))
-             (Marshal.from_channel chan
-               : ([ `Constant of Constant.t | `Notation of user_notation ], Scope.P.tag) Trie.t)))
-      else None
+    if old_version = __COMPILE_VERSION__ then (
+      (* We also check it was compiled with the same type theory flags as us. *)
+      match (Flags.read ()).unmarshal chan with
+      | Ok () ->
+          let old_compunit = (Marshal.from_channel chan : Compunit.t) in
+          (* Now we make sure none of the files *it* imports have been modified more recently than the compilation, and that they have all been compiled. *)
+          let old_imports = (Marshal.from_channel chan : (Compunit.t * FilePath.filename) Bwd.t) in
+          if
+            Bwd.for_all
+              (fun (_, ifile) ->
+                let oifile = FilePath.replace_extension file "nyo" in
+                FileUtil.test Is_file oifile
+                && FileUtil.test (Is_newer_than ifile) oifile
+                && FileUtil.test (Is_older_than ofile) ifile)
+              old_imports
+          then (
+            (* If so, we load all those files.  We don't need their returned namespaces, since we aren't typechecking our compiled file. *)
+            Mbwd.miter
+              (fun [ (_, ifile) ] ->
+                let _ = get_file ifile in
+                ())
+              [ old_imports ];
+            (* We create a hashtable mapping the old compunits to new ones. *)
+            let table = Hashtbl.create 20 in
+            Mbwd.miter (fun [ (i, ifile) ] -> Hashtbl.add table i (lookup ifile)) [ old_imports ];
+            Hashtbl.add table old_compunit compunit;
+            (* Now we load the definitions from the compiled file, replacing all the old compunits by the new ones. *)
+            Global.from_channel_unit (Hashtbl.find table) chan compunit;
+            Some
+              (Trie.map
+                 (fun _ (data, tag) ->
+                   match data with
+                   | `Constant c -> (`Constant (Constant.remake (Hashtbl.find table) c), tag)
+                   | `Notation (User u) ->
+                       (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
+                       let key =
+                         match u.key with
+                         | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
+                         | `Constr (c, i) -> `Constr (c, i) in
+                       let u = User { u with key } in
+                       (`Notation (u, State.make_user u), tag))
+                 (Marshal.from_channel chan
+                   : ([ `Constant of Constant.t | `Notation of user_notation ], Scope.P.tag) Trie.t)))
+          else None
+      | Error flags ->
+          emit (Incompatible_flags (file, flags));
+          None)
     else None
   else None
 

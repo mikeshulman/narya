@@ -96,7 +96,15 @@ By contrast, when in interactive mode or executing a command-line `-e` string, a
 
 No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both `b.ny` and `c.ny` import `d.ny`, and `a.ny` imports both `b.ny` and `c.ny`, any effectual commands like `echo` in `d.ny` will only happen once, there will only be one copy of the definitions from `d.ny` in the namespace of `a.ny`, and the definitions from `b.ny` and `c.ny` are compatible.  Circular imports are not allowed (and are checked for).
 
-In addition, whenever a file `FILE.ny` is successfully executed, Narya writes a "compiled" version of that file in the same directory called `FILE.nyo`.  Then whenever `FILE.ny` is to be executed again, either because it was specified on the command line or imported by another file, if `FILE.nyo` exists next to it and `FILE.ny` has not been modified more recently than `FILE.nyo`, and none of the files imported by `FILE.ny` are newer than it or their compiled versions, then `FILE.nyo` is loaded directly instead of re-executing `FILE.ny`, skipping the typechecking step.  This can be much faster.  But if desired, it can be turned off with the `-source-only` flag.
+In addition, whenever a file `FILE.ny` is successfully executed, Narya writes a "compiled" version of that file in the same directory called `FILE.nyo`.  Then whenever `FILE.ny` is to be executed again, either because it was specified on the command line or imported by another file, if
+
+1. `-source-only` was not specified,
+1. `FILE.nyo` exists in the same directory,
+2. the same type theory flags (`-arity`, `-direction`, `-internal`/`-external`, and `-discreteness`) are in effect now as when `FILE.nyo` was compiled,
+3. `FILE.ny` has not been modified more recently than `FILE.nyo`, and
+4. none of the files imported by `FILE.ny` are newer than it or their compiled versions,
+
+then `FILE.nyo` is loaded directly instead of re-executing `FILE.ny`, skipping the typechecking step.  This can be much faster.  If any of these conditions fail, then `FILE.ny` is executed from source as usual, and a new compiled version `FILE.nyo` is saved, overwriting the previous one.
 
 Currently, effectual commands like `echo` are *not* re-executed when a file loaded from its compiled version (they are not even stored in the compiled version).  Thus, if you executed a file to see its output, and you want to run it again to see the same output again, you have to either modify the file or use `-source-only` and wait for it to be re-typechecked as well.  This may change in the future.
 

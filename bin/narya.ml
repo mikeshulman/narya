@@ -207,8 +207,31 @@ let rec interact_pg () =
     interact_pg ()
   with End_of_file -> ()
 
+let marshal_flags chan =
+  Marshal.to_channel chan !arity [];
+  Marshal.to_channel chan !refl_char [];
+  Marshal.to_channel chan !refl_strings [];
+  Marshal.to_channel chan !internal [];
+  Marshal.to_channel chan !discreteness []
+
+let unmarshal_flags chan =
+  let ar = (Marshal.from_channel chan : int) in
+  let rc = (Marshal.from_channel chan : char) in
+  let rs = (Marshal.from_channel chan : string list) in
+  let int = (Marshal.from_channel chan : bool) in
+  let disc = (Marshal.from_channel chan : bool) in
+  if ar = !arity && rc = !refl_char && rs = !refl_strings && int = !internal && disc = !discreteness
+  then Ok ()
+  else
+    Error
+      (Printf.sprintf "-arity %d -direction %s %s%s" ar
+         (String.concat "," (String.make 1 rc :: rs))
+         (if int then "-internal" else "-external")
+         (if disc then " -discreteness" else ""))
+
 let () =
   Parser.Unparse.install ();
+  Units.Flags.run ~env:{ marshal = marshal_flags; unmarshal = unmarshal_flags } @@ fun () ->
   Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Builtins.run @@ fun () ->

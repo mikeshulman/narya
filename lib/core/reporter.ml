@@ -145,6 +145,7 @@ module Code = struct
     | File_loaded : string * [ `Compiled | `Source ] -> t
     | Library_has_extension : string -> t
     | Invalid_filename : string -> t
+    | Incompatible_flags : string * string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -253,6 +254,7 @@ module Code = struct
     | File_loaded _ -> Info
     | Library_has_extension _ -> Warning
     | Invalid_filename _ -> Error
+    | Incompatible_flags _ -> Warning
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -374,6 +376,7 @@ module Code = struct
     | Circular_import _ -> "E2300"
     | Library_has_extension _ -> "W2301"
     | Invalid_filename _ -> "E2302"
+    | Incompatible_flags _ -> "W2303"
     (* Interactive proof *)
     | Open_holes -> "E3000"
     (* Command progress and success *)
@@ -639,6 +642,8 @@ module Code = struct
     | File_loaded (file, `Source) -> textf "file loaded: %s (source)" file
     | Library_has_extension file -> textf "putative library name '%s' has extension" file
     | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
+    | Incompatible_flags (file, flags) ->
+        textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
 end
 
 include Asai.StructuredReporter.Make (Code)

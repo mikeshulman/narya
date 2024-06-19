@@ -19,6 +19,54 @@ Import compiled files
    ￮ Axiom a0 assumed
   
 
+Modified files are recompiled
+
+  $ touch one.ny
+
+  $ narya -v two.ny
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/one.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom A assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  
+
+Files are recompiled if the flags change
+
+  $ narya -dtt -v two.ny
+   ￫ warning[W2303]
+   ￮ file '$TESTCASE_ROOT/two.ny' was compiled with incompatible flags -arity 2 -direction e,refl,Id -internal, recompiling
+  
+   ￫ warning[W2303]
+   ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -arity 2 -direction e,refl,Id -internal, recompiling
+  
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/one.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom A assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  
+
+  $ narya two.ny
+   ￫ warning[W2303]
+   ￮ file '$TESTCASE_ROOT/two.ny' was compiled with incompatible flags -arity 1 -direction d -external, recompiling
+  
+   ￫ warning[W2303]
+   ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -arity 1 -direction d -external, recompiling
+  
+
 Requiring a file multiple times
 
   $ cat >three.ny <<EOF
@@ -43,6 +91,42 @@ Requiring a file multiple times
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/three.ny (compiled)
+  
+   ￫ info[I0001]
+   ￮ Axiom a2 assumed
+  
+
+Files are recompiled if their dependencies need to be
+
+  $ touch one.ny
+
+  $ narya -v four.ny
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/one.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom A assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
+  
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/two.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
+  
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/three.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom a1 assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ info[I0001]
    ￮ Axiom a2 assumed

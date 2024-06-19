@@ -37,12 +37,11 @@ let assume (name : string) (ty : string) : unit =
   let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
+      Parser.Command.check_constant_name name;
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let rty = parse_term ty in
@@ -55,12 +54,11 @@ let def (name : string) (ty : string) (tm : string) : unit =
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
+      Parser.Command.check_constant_name name;
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let rty = parse_term ty in
@@ -129,18 +127,17 @@ let run f =
   Parser.Unparse.install ();
   Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
-  Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
+  Readback.Display.run ~env:false @@ fun () ->
+  Discreteness.run ~env:false @@ fun () ->
+  Discrete.run ~init:Constant.Map.empty @@ fun () ->
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
-  Discreteness.run ~env:false @@ fun () ->
-  Discrete.run ~init:Constant.Map.empty @@ fun () ->
-  Parser.Pi.install ();
-  f ()
+  let init_visible = Parser.Pi.install Scope.Trie.empty in
+  Scope.run ~init_visible @@ fun () -> f ()
 
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

@@ -98,7 +98,7 @@ module Code = struct
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
     | No_such_level : printable -> t
-    | Constant_already_defined : string -> t
+    | Name_already_defined : string -> t
     | Invalid_constant_name : string -> t
     | Too_many_commands : t
     | Invalid_tightness : string -> t
@@ -128,7 +128,7 @@ module Code = struct
     | Locked_axiom : printable -> t
     | Hole_generated : ('b, 's) Meta.t * printable -> t
     | Open_holes : t
-    | Quit : t
+    | Quit : string option -> t
     | Synthesizing_recursion : printable -> t
     | Invalid_synthesized_type : string * printable -> t
     | Unrecognized_attribute : t
@@ -140,6 +140,10 @@ module Code = struct
     | Invalid_refutation : t
     | Duplicate_pattern_variable : string -> t
     | Type_expected : string -> t
+    | Circular_import : string list -> t
+    | Loading_file : string -> t
+    | File_loaded : string -> t
+    | Library_has_extension : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -201,7 +205,7 @@ module Code = struct
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
     | No_such_level _ -> Bug
-    | Constant_already_defined _ -> Warning
+    | Name_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
     | Too_many_commands -> Error
     | Invalid_tightness _ -> Error
@@ -231,7 +235,7 @@ module Code = struct
     | Locked_axiom _ -> Error
     | Hole_generated _ -> Info
     | Open_holes -> Error
-    | Quit -> Info
+    | Quit _ -> Info
     | Synthesizing_recursion _ -> Error
     | Invalid_synthesized_type _ -> Error
     | Unrecognized_attribute -> Error
@@ -243,6 +247,10 @@ module Code = struct
     | Invalid_refutation -> Error
     | Duplicate_pattern_variable _ -> Error
     | Type_expected _ -> Error
+    | Circular_import _ -> Error
+    | Loading_file _ -> Info
+    | File_loaded _ -> Info
+    | Library_has_extension _ -> Warning
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -345,7 +353,7 @@ module Code = struct
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
-    | Constant_already_defined _ -> "E2100"
+    | Name_already_defined _ -> "E2100"
     | Invalid_constant_name _ -> "E2101"
     (* notation *)
     | Invalid_tightness _ -> "E2200"
@@ -360,16 +368,21 @@ module Code = struct
     | Notation_variable_used_twice _ -> "E2209"
     | Unbound_variable_in_notation _ -> "E2210"
     | Head_already_has_notation _ -> "E2211"
+    (* import *)
+    | Circular_import _ -> "E2300"
+    | Library_has_extension _ -> "W2301"
     (* Interactive proof *)
     | Open_holes -> "E3000"
-    (* Command success *)
+    (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
     | Notation_defined _ -> "I0002"
+    | Loading_file _ -> "I0003"
+    | File_loaded _ -> "I0004"
     (* Events during command execution *)
     | Hole_generated _ -> "I0100"
     (* Control of execution *)
-    | Quit -> "I0200"
+    | Quit _ -> "I0200"
     (* Debugging *)
     | Show _ -> "I9999"
 
@@ -516,7 +529,7 @@ module Code = struct
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
-    | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
+    | Name_already_defined name -> textf "name already defined: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"
     | Fixity_mismatch ->
@@ -556,10 +569,10 @@ module Code = struct
               (fun ppf names ->
                 pp_print_list
                   (fun ppf (name, discrete) ->
-                    pp_printed ppf (print name);
+                    pp_printed ppf name;
                     if discrete then pp_print_string ppf " (discrete)")
                   ppf names)
-              names)
+              (List.map (fun (name, discrete) -> (print name, discrete)) names))
     | Notation_defined name -> textf "Notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
     | Comment_end_in_string ->
@@ -591,8 +604,9 @@ module Code = struct
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
     | Hole_generated (n, ty) ->
         textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
-    | Open_holes -> text "There are open holes"
-    | Quit -> text "Goodbye!"
+    | Open_holes -> text "there are open holes"
+    | Quit (Some src) -> textf "execution of %s terminated by quit" src
+    | Quit None -> text "execution terminated by quit"
     | Synthesizing_recursion c ->
         textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
     | Invalid_synthesized_type (str, ty) ->
@@ -608,7 +622,18 @@ module Code = struct
     | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
     | Duplicate_pattern_variable x ->
         textf "variable name '%s' used more than once in match patterns" x
-    | Type_expected str -> textf "Expected type while %s" str
+    | Type_expected str -> textf "expected type while %s" str
+    | Circular_import files ->
+        textf "circular imports:@,@[<v 2>%a@]"
+          (pp_print_list
+             ~pp_sep:(fun ppf () ->
+               pp_print_cut ppf ();
+               pp_print_string ppf "imports ")
+             pp_print_string)
+          files
+    | Loading_file file -> textf "loading file: %s" file
+    | File_loaded file -> textf "file loaded: %s" file
+    | Library_has_extension file -> textf "putative library name '%s' has extension" file
 end
 
 include Asai.StructuredReporter.Make (Code)

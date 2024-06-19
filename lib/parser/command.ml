@@ -10,10 +10,11 @@ open Format
 open Uuseg_string
 open Print
 open Reporter
+module Trie = Yuujinchou.Trie
 
 type def = {
   wsdef : Whitespace.t list;
-  name : Scope.Trie.path;
+  name : Trie.path;
   wsname : Whitespace.t list;
   parameters : Parameter.t list;
   wscolon : Whitespace.t list;
@@ -26,7 +27,7 @@ module Command = struct
   type t =
     | Axiom of {
         wsaxiom : Whitespace.t list;
-        name : Scope.Trie.path;
+        name : Trie.path;
         wsname : Whitespace.t list;
         parameters : Parameter.t list;
         wscolon : Whitespace.t list;
@@ -39,16 +40,17 @@ module Command = struct
         wsnotation : Whitespace.t list;
         wstight : Whitespace.t list; (* Empty for outfix *)
         wsellipsis : Whitespace.t list; (* Empty for non-associative *)
-        name : Scope.Trie.path;
+        name : Trie.path;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
         pattern : State.pattern;
         wscoloneq : Whitespace.t list;
-        head : [ `Constr of string | `Constant of Scope.Trie.path ];
+        head : [ `Constr of string | `Constant of Trie.path ];
         wshead : Whitespace.t list;
         args : (string * Whitespace.t list) list;
       }
         -> t
+    | Import of { wsimport : Whitespace.t list; file : string; wsfile : Whitespace.t list }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -120,8 +122,8 @@ module Parse = struct
     let* tm = C.term [] in
     return (Command.Echo { wsecho; tm })
 
-  let tightness_and_name :
-      (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
+  let tightness_and_name : (No.wrapped option * Whitespace.t list * Trie.path * Whitespace.t list) t
+      =
     let* tloc, tight_or_name = located ident in
     (let* name, wsname = ident in
      let tight, wstight = tight_or_name in
@@ -212,6 +214,13 @@ module Parse = struct
            args;
          })
 
+  let import =
+    let* wsimport = token Import in
+    step "" (fun state _ (tok, wsfile) ->
+        match tok with
+        | String file -> Some (Import { wsimport; file; wsfile }, state)
+        | _ -> None)
+
   let quit =
     let* wsquit = token Quit in
     return (Command.Quit wsquit)
@@ -224,7 +233,7 @@ module Parse = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command () = bof </> axiom </> def_and </> echo </> notation </> quit </> eof
+  let command () = bof </> axiom </> def_and </> echo </> notation </> import </> quit </> eof
 
   let command_or_echo () =
     command ()
@@ -286,14 +295,21 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
+(* We currently allow names used for constants to be redefined, but once a name is used for a notation, it can't be shadowed by a constant. *)
+let check_constant_name name =
+  match Scope.resolve name with
+  | Some (`Constant _, ()) -> emit (Name_already_defined (String.concat "." name))
+  | Some (_, ()) ->
+      fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
+  | None -> ()
+
 let execute : Command.t -> unit = function
   | Axiom { name; parameters; ty = Term ty; _ } ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
+      check_constant_name name;
       let const = Scope.define name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
@@ -302,16 +318,15 @@ let execute : Command.t -> unit = function
       let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
-            if Option.is_some (Scope.lookup d.name) then
-              emit (Constant_already_defined (String.concat "." d.name));
+            check_constant_name d.name;
             let c = Scope.define d.name in
             [ d.name; (c, d) ])
           [ defs ] (Cons (Cons Nil)) in
       Reporter.try_with ~fatal:(fun d ->
           List.iter
             (fun c ->
-              Scope.S.modify_visible (Yuujinchou.Language.except c);
-              Scope.S.modify_export (Yuujinchou.Language.except c))
+              Scope.modify_visible (Yuujinchou.Language.except c);
+              Scope.modify_export (Yuujinchou.Language.except c))
             names;
           Reporter.fatal_diagnostic d)
       @@ fun () ->
@@ -355,15 +370,10 @@ let execute : Command.t -> unit = function
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
       let notation_name = "notation" :: name in
+      (* A notation name can't be redefining anything. *)
       if Option.is_some (Scope.lookup notation_name) then
-        emit (Constant_already_defined (String.concat "." notation_name));
-      (* TODO: Should the "name" of a notation actually be a Constant.t, to be looked up in the scope? *)
-      let _ = Scope.define notation_name in
-      Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except notation_name);
-          Scope.S.modify_export (Yuujinchou.Language.except notation_name);
-          Reporter.fatal_diagnostic d)
-      @@ fun () ->
+        fatal ~severity:Asai.Diagnostic.Error
+          (Name_already_defined (String.concat "." notation_name));
       let head =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)
@@ -386,9 +396,23 @@ let execute : Command.t -> unit = function
           (args, []) pattern in
       if not (List.is_empty unbound) then
         fatal (Unbound_variable_in_notation (List.map fst unbound));
-      State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
+      let key, notn, shadow =
+        State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args)
+      in
+      Scope.include_singleton (notation_name, (`Notation (key, notn), ()));
+      (if shadow then
+         let keyname =
+           match key with
+           | `Constr (c, _) -> Constr.to_string c ^ "."
+           | `Constant c -> String.concat "." (Scope.name_of c) in
+         emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
-  | Quit _ -> fatal Quit
+  | Import { file; _ } ->
+      if FilePath.check_extension file "ny" then emit (Library_has_extension file);
+      let file = FilePath.add_extension file "ny" in
+      let trie = Units.get (`File file) false in
+      Scope.import_subtree ([], trie)
+  | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
@@ -545,6 +569,17 @@ let pp_command : formatter -> t -> Whitespace.t list =
             let wslast, rest = Whitespace.split wslast in
             pp_ws `None ppf wslast;
             rest in
+      pp_close_box ppf ();
+      rest
+  | Import { wsimport; file; wsfile } ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Import;
+      pp_ws `Nobreak ppf wsimport;
+      pp_print_string ppf "\"";
+      pp_print_string ppf file;
+      pp_print_string ppf "\"";
+      let ws, rest = Whitespace.split wsfile in
+      pp_ws `None ppf ws;
       pp_close_box ppf ();
       rest
   | Quit ws -> ws

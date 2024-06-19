@@ -91,14 +91,27 @@ let rec batch first ws p src =
     let p, src = Command.Parse.restart_parse p src in
     batch false ws p src)
 
-let execute (source : Asai.Range.source) =
+let execute init_visible (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
+  Units.run ~init_visible @@ fun () ->
   let p, src = Command.Parse.start_parse source in
-  let ws = batch true [] p src in
-  if !reformat then (
-    let ws = Whitespace.ensure_ending_newlines 2 ws in
-    Print.pp_ws `None std_formatter ws;
-    Format.close_box ())
+  Reporter.try_with
+    (fun () ->
+      let ws = batch true [] p src in
+      if !reformat then (
+        let ws = Whitespace.ensure_ending_newlines 2 ws in
+        Print.pp_ws `None std_formatter ws;
+        Format.close_box ()))
+    ~fatal:(fun d ->
+      match d.message with
+      | Quit _ ->
+          let src =
+            match source with
+            | `File name -> Some name
+            | `String { title; _ } -> title in
+          Reporter.emit (Quit src)
+      | _ -> Reporter.fatal_diagnostic d);
+  Scope.get_export ()
 
 let ( let* ) f o = Lwt.bind f o
 
@@ -134,7 +147,7 @@ let rec repl terminal history buf =
           ~fatal:(fun d ->
             Terminal.display ~output:stdout d;
             match d.message with
-            | Quit -> exit 0
+            | Quit _ -> exit 0
             | _ -> ())
           (fun () ->
             match Command.parse_single str with
@@ -195,7 +208,6 @@ let () =
   Parser.Unparse.install ();
   Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
-  Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run
     ~env:
@@ -205,6 +217,8 @@ let () =
         chars = (if !unicode then `Unicode else `ASCII);
       }
   @@ fun () ->
+  Readback.Display.run ~env:false @@ fun () ->
+  Core.Syntax.Discreteness.run ~env:!discreteness @@ fun () ->
   Reporter.run
     ~emit:(fun d ->
       if !verbose || d.severity = Error || d.severity = Warning then
@@ -213,23 +227,28 @@ let () =
       Terminal.display ~output:stderr d;
       exit 1)
   @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
-  Core.Syntax.Discreteness.run ~env:!discreteness @@ fun () ->
-  Parser.Pi.install ();
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
   if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
   Dim.Endpoints.set_len !arity;
   Dim.Endpoints.set_char !refl_char;
   Dim.Endpoints.set_names !refl_strings;
   Dim.Endpoints.set_internal !internal;
-  (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
+  (* The initial namespace for all compilation units. *)
+  let init = Parser.Pi.install Scope.Trie.empty in
+  Units.with_compile init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with
-      | `File filename -> execute (`File filename)
-      | `String content -> execute (`String { content; title = Some "command-line exec string" })
+      | `File filename -> Units.load (`File filename)
       | `Stdin ->
           let content = In_channel.input_all stdin in
-          execute (`String { content; title = Some "stdin" }))
+          Units.load (`String { content; title = Some "stdin" })
+      (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
+      | `String content ->
+          Units.load ~init:(Units.all ())
+            (`String { content; title = Some "command-line exec string" }))
     [ !inputs ];
-  if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()
+  (* Interactive mode also has all the other units loaded. *)
+  if !interactive then
+    Units.run ~init_visible:(Units.all ()) @@ fun () -> Lwt_main.run (interact ())
+  else if !proofgeneral then Units.run ~init_visible:(Units.all ()) @@ fun () -> interact_pg ()

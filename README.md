@@ -55,14 +55,14 @@ These options are discussed further below.
 
 When the Narya executable is run, it loads all the files given on its command line and any strings supplied on the command line with `-e`.  As usual, the special filename `-` refers to standard input.  Files and strings are loaded in the order they are given on the command line.  Lastly, if `-i` was given anywhere on the command line, Narya enters interactive mode.
 
-There is currently no importing or exporting: all definitions from all sources go into the same flat namespace, so for instance in interactive mode you can refer to definitions made in files that were loaded previously.  There is also no compilation or caching: everything must be typechecked and loaded anew at every invocation.
+When in interactive mode or loading a command-line `-e` string, all definitions from all files and strings specified previously on the command line are available (but not those loaded transitively by `import`).  However, when loading a file (including standard input), definitions from other files are not available by default, even if those files were specified earlier on the command line; you have to explicitly `import` them (see below).  There is no compilation or caching yet: everything must be typechecked and loaded anew at every invocation.
 
 In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit interactive mode, or enter the command `quit`.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
 
 
 ### Commands
 
-In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
+In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
 
 1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
@@ -80,9 +80,15 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
 
-5. `quit`
+5. `import FILE`
 
-   Terminate execution immediately.  Whenever this command is found, loading of the current file or command-line string ceases, no further files or strings will be loaded, and interactive mode will be exited or skipped.  (You can also exit interactive mode by typing Control+D.)
+   Add the extension `.ny` to the double-quoted string `FILE`, execute the file at that location (either absolute or relative to the location of the current file), and add its definitions and notations to the current namespace.  That is, the disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
+
+   The commands in `FILE.ny` cannot access any definitions from other files, including the current one, except those that it imports itself; and the definitions and notations from files imported by `FILE.ny` are not added to the current namespace (unless it also imports those files directly).  No file will be executed more than once during a single run, even if it is imported by multiple other files.  Circular imports are not allowed.
+
+6. `quit`
+
+   Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
    
 
 ## Built-in types

@@ -414,7 +414,7 @@ let execute : Command.t -> unit =
   | Import { file; _ } ->
       if FilePath.check_extension file "ny" then emit (Library_has_extension file);
       let file = FilePath.add_extension file "ny" in
-      let trie = Units.get (`File file) false in
+      let trie = Units.get_file file in
       Scope.import_subtree ([], trie)
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()

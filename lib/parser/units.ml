@@ -10,16 +10,24 @@ type trie = (Scope.P.data, Scope.P.tag) Trie.t
 (* For separate compilation, we expect the executable to know how to load compilation units and compute their resulting export namespaces.  We wrap this in an effect, so that it can also be invoked *during* the loading of some other unit, with a 'require' command.  We also include an effect that combines all the top-level namespaces (i.e. those not only loaded "transitively" through require) so far into a single one.  The boolean argument to load_unit indicates whether it is being invoked from top level, and the namespace is a starting visible one to override the default.  *)
 
 type _ Effect.t +=
-  | Load_unit : Asai.Range.source * trie option * bool -> trie Effect.t
+  | Load_unit :
+      [ `File of string * bool | `String of string option * string * trie option ]
+      -> trie Effect.t
   | All_units : trie Effect.t
 
-let get ?init source top = Effect.perform (Load_unit (source, init, top))
-
-(* This is the version that is called *by* the executable, since it doesn't have any use for the resulting namespace, and it is always loading at top-level. *)
-let load ?init source =
-  let _ = get ?init source true in
+(* These are the versions that are called by the executable, since it doesn't have any use for the resulting namespace, and it is always loading at top-level. *)
+let load_file file =
+  let _ = Effect.perform (Load_unit (`File (file, true))) in
   ()
 
+let load_string title content init =
+  let _ = Effect.perform (Load_unit (`String (title, content, init))) in
+  ()
+
+(* This version is called by the 'import' command, which is not at top-level, and cares about the namespace. *)
+let get_file file = Effect.perform (Load_unit (`File (file, false)))
+
+(* Get the top-level namespace *)
 let all () = Effect.perform All_units
 
 (* We store effectually the current directory and a list of all files whose loading is currently in progress, i.e. the path of imports that led us to the current file.  The former is used for making filenames absolute; the latter is used to check for circular imports. *)
@@ -52,11 +60,10 @@ let with_execute :
         effc =
           (fun (type a) (eff : a Effect.t) ->
             match eff with
-            | Load_unit (source, start, top) -> (
-                let start = Option.value start ~default:init in
+            | Load_unit source -> (
                 Option.some @@ fun (k : (a, _) continuation) ->
                 match source with
-                | `File file -> (
+                | `File (file, top) -> (
                     (* We normalize the file path to a reduced absolute one, so we can use it for a hashtable key. *)
                     let file =
                       if FilePath.is_relative file then
@@ -89,7 +96,7 @@ let with_execute :
                                 imports = Emp;
                               }
                           @@ fun () ->
-                          go @@ fun () -> execute start compunit (`File file) in
+                          go @@ fun () -> execute init compunit (`File file) in
                         (* Then we add it to the table and (possibly) 'all'. *)
                         if not top then emit (File_loaded file);
                         Hashtbl.add table file (trie, compunit, top);
@@ -98,10 +105,15 @@ let with_execute :
                         Loading.modify (fun s ->
                             { s with imports = Snoc (s.imports, (compunit, file)) });
                         continue k trie)
-                | `String _ ->
-                    (* In the case of a string input there is no caching and no change of state, since it can't be "required" from another file.  But we still have the option of adding it to "all".  *)
-                    let trie = go @@ fun () -> execute start Compunit.basic source in
-                    if top then add_to_all trie;
+                | `String (title, content, start) ->
+                    (* In the case of a string input there is no caching and no change of state, since it can't be "required" from another file.  But a string is always at top-level, so we always add it to 'all'.  *)
+                    let trie =
+                      go @@ fun () ->
+                      execute
+                        (Option.value start ~default:init)
+                        Compunit.basic
+                        (`String { title; content }) in
+                    add_to_all trie;
                     continue k trie)
             | All_units ->
                 Option.some @@ fun (k : (a, _) continuation) -> continue k (Lazy.force !all)

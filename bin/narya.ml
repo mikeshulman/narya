@@ -241,14 +241,13 @@ let () =
   Mbwd.miter
     (fun [ input ] ->
       match input with
-      | `File filename -> Units.load (`File filename)
+      | `File filename -> Units.load_file filename
       | `Stdin ->
           let content = In_channel.input_all stdin in
-          Units.load (`String { content; title = Some "stdin" })
+          Units.load_string (Some "stdin") content None
       (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
       | `String content ->
-          Units.load ~init:(Units.all ())
-            (`String { content; title = Some "command-line exec string" }))
+          Units.load_string (Some "command-line exec string") content (Some (Units.all ())))
     [ !inputs ];
   (* Interactive mode also has all the other units loaded. *)
   if !interactive then

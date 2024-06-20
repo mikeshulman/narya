@@ -106,7 +106,7 @@ In addition, whenever a file `FILE.ny` is successfully executed, Narya writes a 
 
 then `FILE.nyo` is loaded directly instead of re-executing `FILE.ny`, skipping the typechecking step.  This can be much faster.  If any of these conditions fail, then `FILE.ny` is executed from source as usual, and a new compiled version `FILE.nyo` is saved, overwriting the previous one.
 
-Currently, effectual commands like `echo` are *not* re-executed when a file loaded from its compiled version (they are not even stored in the compiled version).  Thus, if you executed a file to see its output, and you want to run it again to see the same output again, you have to either modify the file or use `-source-only` and wait for it to be re-typechecked as well.  This may change in the future.
+At least currently, effectual commands like `echo` are *not* re-executed when a file loaded from its compiled version (they are not even stored in the compiled version).  Thus, if you executed a file to see its output, and you want to run it again to see the same output again, you have to either modify the file or use `-source-only` and wait for it to be re-typechecked as well.
 
 
 ## Built-in types

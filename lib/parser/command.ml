@@ -351,6 +351,7 @@ let execute : Command.t -> unit =
       Core.Command.execute (Def defs)
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
+      Units.Loading.modify (fun s -> { s with actions = true });
       match rtm.value with
       | Synth stm ->
           Readback.Display.run ~env:true @@ fun () ->

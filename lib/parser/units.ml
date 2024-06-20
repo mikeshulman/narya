@@ -41,6 +41,7 @@ module Loadstate = struct
     cwd : FilePath.filename;
     parents : FilePath.filename Bwd.t;
     imports : (Compunit.t * FilePath.filename) Bwd.t;
+    actions : bool;
   }
 end
 
@@ -66,7 +67,8 @@ let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : trie) =
          | `Constant c, tag -> (`Constant c, tag)
          | `Notation (u, _), tag -> (`Notation u, tag))
        trie)
-    []
+    [];
+  Marshal.to_channel chan (Loading.get ()).actions []
 
 let unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compunit.t)
     (file : FilePath.filename) =
@@ -105,21 +107,25 @@ let unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compunit.t)
             Hashtbl.add table old_compunit compunit;
             (* Now we load the definitions from the compiled file, replacing all the old compunits by the new ones. *)
             Global.from_channel_unit (Hashtbl.find table) chan compunit;
-            Some
-              (Trie.map
-                 (fun _ (data, tag) ->
-                   match data with
-                   | `Constant c -> (`Constant (Constant.remake (Hashtbl.find table) c), tag)
-                   | `Notation (User u) ->
-                       (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
-                       let key =
-                         match u.key with
-                         | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
-                         | `Constr (c, i) -> `Constr (c, i) in
-                       let u = User { u with key } in
-                       (`Notation (u, State.make_user u), tag))
-                 (Marshal.from_channel chan
-                   : ([ `Constant of Constant.t | `Notation of user_notation ], Scope.P.tag) Trie.t)))
+            let trie =
+              Trie.map
+                (fun _ (data, tag) ->
+                  match data with
+                  | `Constant c -> (`Constant (Constant.remake (Hashtbl.find table) c), tag)
+                  | `Notation (User u) ->
+                      (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
+                      let key =
+                        match u.key with
+                        | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
+                        | `Constr (c, i) -> `Constr (c, i) in
+                      let u = User { u with key } in
+                      (`Notation (u, State.make_user u), tag))
+                (Marshal.from_channel chan
+                  : ([ `Constant of Constant.t | `Notation of user_notation ], Scope.P.tag) Trie.t)
+            in
+            (* We check whether the compiled file had any actions, and issue a warning if so *)
+            if (Marshal.from_channel chan : bool) then emit (Actions_in_compiled_file ofile);
+            Some trie)
           else None
       | Error flags ->
           emit (Incompatible_flags (file, flags));
@@ -182,6 +188,7 @@ let with_execute :
                                 cwd = FilePath.dirname file;
                                 parents = Snoc ((Loading.get ()).parents, file);
                                 imports = Emp;
+                                actions = false;
                               }
                           @@ fun () ->
                           (* If there's a compiled version, and we aren't in source-only mode, we load that; otherwise we load it from source. *)
@@ -217,7 +224,8 @@ let with_execute :
                 Option.some @@ fun (k : (a, _) continuation) -> continue k (Lazy.force !all)
             | _ -> None);
       } in
-  Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp } @@ fun () -> go f
+  Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp; actions = false }
+  @@ fun () -> go f
 
 let run ~(init_visible : trie) f =
   Scope.run ~init_visible @@ fun () ->

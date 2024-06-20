@@ -262,3 +262,19 @@ Dimensions work in files loaded from source
   a2
     : refl A a0 a1
   
+Echos are not re-executed in compiled files
+
+  $ cat >echo.ny <<EOF
+  > axiom A:Type
+  > echo A
+  > EOF
+
+  $ narya echo.ny
+  A
+    : Type
+  
+
+  $ narya echo.ny
+   ￫ warning[W2400]
+   ￮ not re-executing 'echo' commands when loading compiled file $TESTCASE_ROOT/echo.nyo
+  

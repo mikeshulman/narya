@@ -174,7 +174,7 @@ and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
       Act (Const name, deg)
   | Meta { meta; env; ins } ->
       let perm = deg_of_ins ins (plus_of_ins ins) in
-      let (Metadef { termctx; _ }) = Global.find_meta meta in
+      let (Metadef { termctx; _ }) = Eternity.find meta in
       Act (MetaEnv (meta, readback_env ctx env termctx), perm)
 
 and readback_at_tel :

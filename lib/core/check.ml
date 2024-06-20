@@ -467,8 +467,7 @@ and kinetic_of_potential :
       let cv = check tmstatus ctx tm ty in
       let vty = readback_val ctx ty in
       let termctx = readback_ctx ctx in
-      Global.add_meta meta
-        (Metadef { vars = None; termctx; tm = `Nonrec cv; ty = vty; energy = Potential });
+      Global.add_meta meta ~vars:None ~termctx ~tm:(`Nonrec cv) ~ty:vty ~energy:Potential;
       Term.Meta (meta, Kinetic)
 
 and synth_or_check_let :
@@ -499,8 +498,7 @@ and synth_or_check_let :
       (* Now we define the global value of that metavariable to be the term and type just synthesized. *)
       let vty = readback_val ctx svty in
       let termctx = readback_ctx ctx in
-      Global.add_meta meta
-        (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
+      Global.add_meta meta ~vars:None ~termctx ~tm:(`Nonrec sv) ~ty:vty ~energy:Potential;
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
       let tm =
@@ -1408,8 +1406,7 @@ and synth :
           let sv, svty = synth tmstatus ctx tm in
           let vty = readback_val ctx svty in
           let termctx = readback_ctx ctx in
-          Global.add_meta meta
-            (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
+          Global.add_meta meta ~vars:None ~termctx ~tm:(`Nonrec sv) ~ty:vty ~energy:Potential;
           (Term.Meta (meta, Kinetic), svty))
   | Match { tm; sort = `Explicit motive; branches; refutables = _ }, Potential _ ->
       synth_dep_match status ctx tm branches motive

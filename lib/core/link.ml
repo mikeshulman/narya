@@ -62,3 +62,50 @@ and env : type a n b. (Compunit.t -> Compunit.t) -> (a, n, b) env -> (a, n, b) e
           CubeOf.mmap
             { map = (fun _ [ xs ] -> CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ xs ]) }
             [ xss ] )
+
+let entry :
+    type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) Termctx.entry -> (b, f, mn) Termctx.entry
+    =
+ fun f e ->
+  match e with
+  | Vis v ->
+      let bindings =
+        CubeOf.mmap
+          {
+            map =
+              (fun _ [ (b : (b, mn) Tbwd.snoc Termctx.binding) ] : (b, mn) Tbwd.snoc Termctx.binding ->
+                { ty = term f b.ty; tm = Option.map (term f) b.tm });
+          }
+          [ v.bindings ] in
+      Vis { v with bindings }
+  | Invis bindings ->
+      let bindings =
+        CubeOf.mmap
+          {
+            map =
+              (fun _ [ (b : (b, mn) Tbwd.snoc Termctx.binding) ] : (b, mn) Tbwd.snoc Termctx.binding ->
+                { ty = term f b.ty; tm = Option.map (term f) b.tm });
+          }
+          [ bindings ] in
+      Invis bindings
+
+let rec termctx_ordered :
+    type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.ordered -> (a, b) Termctx.ordered =
+ fun f ctx ->
+  match ctx with
+  | Emp -> Emp
+  | Snoc (ctx, e, ax) -> Snoc (termctx_ordered f ctx, entry f e, ax)
+  | Lock ctx -> Lock (termctx_ordered f ctx)
+
+let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.t -> (a, b) Termctx.t =
+ fun f (Permute (p, ctx)) -> Permute (p, termctx_ordered f ctx)
+
+let metainfo : type x y. (Compunit.t -> Compunit.t) -> (x, y) Metadef.info -> (x, y) Metadef.info =
+ fun f (Metainfo d) ->
+  let termctx = termctx f d.termctx in
+  let ty = term f d.ty in
+  let tm =
+    match d.tm with
+    | `None -> `None
+    | `Nonrec tm -> `Nonrec (term f tm) in
+  Metainfo { d with termctx; ty; tm }

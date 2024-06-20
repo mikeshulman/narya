@@ -2,25 +2,7 @@ open Util
 open Syntax
 open Term
 
-type ('b, 's) meta_value = [ `None | `Nonrec of ('b, 's) term ]
-
-type (_, _) metadef =
-  | Metadef : {
-      vars : (string option, 'a) Bwv.t option;
-      termctx : ('a, 'b) Termctx.t;
-      ty : ('b, kinetic) term;
-      tm : ('b, 's) meta_value;
-      energy : 's energy;
-    }
-      -> (unit, 'b * 's) metadef
-
-val link_def : (Compunit.t -> Compunit.t) -> ('x, 'y) metadef -> ('x, 'y) metadef
-
-module Map : module type of Meta.Map.Make (struct
-  type ('x, 'bs) t = ('x, 'bs) metadef
-end)
-
-val find : ('a, 'b) Meta.t -> (unit, 'a * 'b) metadef
+val find : ('a, 'b) Meta.t -> ('a, 'b) Metadef.def
 
 val add :
   ('b, 's) Meta.t ->

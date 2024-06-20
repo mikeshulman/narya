@@ -496,11 +496,13 @@ let rec process_tuple :
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
+    Whitespace.alist ->
     n check located =
- fun first flds found ctx obs loc ->
+ fun first flds found ctx obs loc ws ->
   match obs with
   | [] -> { value = Raw.Struct (Eta, flds); loc }
   | Term { value = Notn n; loc } :: obs when equal (notn n) coloneq -> (
+      let ws = Option.fold ~none:ws ~some:snd (take_opt (Op ",") ws) in
       match args n with
       | [ Term { value = Ident ([ x ], _); loc = xloc }; Term tm ] ->
           let tm = process ctx tm in
@@ -508,19 +510,26 @@ let rec process_tuple :
           if Field.Set.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
           else
             process_tuple false (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
+              ws
       | [ Term { value = Placeholder _; _ }; Term tm ] ->
           let tm = process ctx tm in
-          process_tuple false (Abwd.add None tm flds) found ctx obs loc
+          process_tuple false (Abwd.add None tm flds) found ctx obs loc ws
       | Term x :: _ -> fatal ?loc:x.loc Invalid_field_in_tuple
       | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
-  | [ Term body ] when first -> process ctx body
+  | [ Term body ] when first && Option.is_none (take_opt (Op ",") ws) -> process ctx body
   | Term tm :: obs ->
       let tm = process ctx tm in
-      process_tuple false (Abwd.add None tm flds) found ctx obs loc
+      let ws = Option.fold ~none:ws ~some:snd (take_opt (Op ",") ws) in
+      process_tuple false (Abwd.add None tm flds) found ctx obs loc ws
 
 let () =
   set_processor parens
-    { process = (fun ctx obs loc _ -> process_tuple true Abwd.empty Field.Set.empty ctx obs loc) }
+    {
+      process =
+        (fun ctx obs loc ws ->
+          let _, ws = take LParen ws in
+          process_tuple true Abwd.empty Field.Set.empty ctx obs loc ws);
+    }
 
 let pp_coloneq space ppf obs ws =
   let wscoloneq, ws = take Coloneq ws in

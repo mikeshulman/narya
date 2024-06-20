@@ -355,9 +355,11 @@ Like record types, tuples can have zero fields:
 ```
 def ⋆ : ⊤ ≔ ()
 ```
-They can also have only one field, although in this case the field must be labeled (if only with an underscore), since an unlabeled 1-tuple would look just like an ordinary parenthesized term:
+They can also have only one field, although the naïve notation `(M)` isn't allowed for this case since it would clash with ordinary parenthesized terms.  To write a 1-tuple you can label the field, perhaps with an underscore, or you can add a trailing comma:
 ```
-def wrapped_zero : wrapped_nat ≔ (_ ≔ zero)
+def wrapped_zero : wrapped_nat ≔ (unwrap ≔ zero.)
+def wrapped_zero : wrapped_nat ≔ (_ ≔ zero.)
+def wrapped_zero : wrapped_nat ≔ (zero. ,)
 ```
 
 Syntactically, tuples are an outfix notation that includes the parentheses, rather than an infix meaning of the comma; thus the parentheses are always required.  Tuples are not associative: neither `(a, (b, c))` nor `((a, b), c)` can be written as `(a,b,c)`.  The latter belongs to a record type with three fields, whereas the former two belong to a record type with two fields, one of which is itself a record type with two fields.  (This aligns with the behavior of functional programming languages such as Haskell and OCaml.)

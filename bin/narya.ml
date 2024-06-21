@@ -262,7 +262,14 @@ let () =
   (* The initial namespace for all compilation units. *)
   let init = Parser.Pi.install Scope.Trie.empty in
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
-  Units.with_execute !source_only init execute @@ fun () ->
+  let top_files =
+    Bwd.fold_right
+      (fun input acc ->
+        match input with
+        | `File file -> FilePath.make_absolute (Sys.getcwd ()) file :: acc
+        | _ -> acc)
+      !inputs [] in
+  Units.with_execute !source_only top_files init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with

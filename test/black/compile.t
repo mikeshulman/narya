@@ -41,9 +41,6 @@ Files are recompiled if the flags change
 
   $ narya -dtt -v two.ny
    ￫ warning[W2303]
-   ￮ file '$TESTCASE_ROOT/two.ny' was compiled with incompatible flags -arity 2 -direction e,refl,Id -internal, recompiling
-  
-   ￫ warning[W2303]
    ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -arity 2 -direction e,refl,Id -internal, recompiling
   
    ￫ info[I0003]
@@ -60,9 +57,6 @@ Files are recompiled if the flags change
   
 
   $ narya two.ny
-   ￫ warning[W2303]
-   ￮ file '$TESTCASE_ROOT/two.ny' was compiled with incompatible flags -arity 1 -direction d -external, recompiling
-  
    ￫ warning[W2303]
    ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -arity 1 -direction d -external, recompiling
   
@@ -178,7 +172,10 @@ Import is relative to the file's directory
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ narya -v subdir/one.ny -e 'import "subdir/two"'
+  $ narya -v -e 'import "subdir/one"' -e 'import "subdir/two"'
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (compiled)
+  
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (compiled)
   
@@ -269,12 +266,12 @@ Echos are not re-executed in compiled files
   > echo A
   > EOF
 
-  $ narya echo.ny
+  $ narya -e 'import "echo"'
   A
     : Type
   
 
-  $ narya echo.ny
+  $ narya -e 'import "echo"'
    ￫ warning[W2400]
    ￮ not re-executing 'echo' commands when loading compiled file $TESTCASE_ROOT/echo.nyo
   

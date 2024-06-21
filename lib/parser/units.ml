@@ -134,8 +134,14 @@ let unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compunit.t)
 
 (* This is how the executable supplies a callback that loads files.  It will always be passed a reduced absolute filename.  We take care of calling that function as needed and caching the results in a hashtable for future calls.  We also compute the result of combining all the units, but lazily since we'll only need it if there are command-line strings, stdin, or interactive.  The first argument is a default initial visible namespace, which can be overridden. *)
 let with_execute :
-    type a. bool -> trie -> (trie -> Compunit.t -> Asai.Range.source -> trie) -> (unit -> a) -> a =
- fun source_only init execute f ->
+    type a.
+    bool ->
+    string list ->
+    trie ->
+    (trie -> Compunit.t -> Asai.Range.source -> trie) ->
+    (unit -> a) ->
+    a =
+ fun source_only top_files init execute f ->
   let table : (FilePath.filename, trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20 in
   let all : trie Lazy.t ref = ref (Lazy.from_val Trie.empty) in
   let add_to_all trie =
@@ -187,12 +193,16 @@ let with_execute :
                             actions = false;
                           }
                       @@ fun () ->
-                      (* If there's a compiled version, and we aren't in source-only mode, we load that; otherwise we load it from source. *)
+                      (* If there's a compiled version, and we aren't in source-only mode, and this file wasn't specified explicitly on the command-line, we try loading the compiled version. *)
                       let trie, which =
                         go @@ fun () ->
-                        match if source_only then None else unmarshal compunit rename file with
+                        match
+                          if source_only || List.mem file top_files then None
+                          else unmarshal compunit rename file
+                        with
                         | Some trie -> (trie, `Compiled)
                         | None ->
+                            (* If we are in source-only mode, or this file was specified explicitly on the command-line, or if unmarshal failed (e.g. the compiled file is outdated), we load it from source. *)
                             if not top then emit (Loading_file file);
                             (execute init compunit (`File file), `Source) in
                       (* Then we add it to the table and (possibly) 'all'. *)

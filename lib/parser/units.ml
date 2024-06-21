@@ -14,22 +14,21 @@ type trie = (Scope.P.data, Scope.P.tag) Trie.t
 (* For separate compilation, we expect the executable to know how to load compilation units and compute their resulting export namespaces.  We wrap this in an effect, so that it can also be invoked *during* the loading of some other unit, with a 'require' command.  We also include an effect that combines all the top-level namespaces (i.e. those not only loaded "transitively" through require) so far into a single one.  The boolean argument to load_unit indicates whether it is being invoked from top level, and the namespace is a starting visible one to override the default.  *)
 
 type _ Effect.t +=
-  | Load_unit :
-      [ `File of string * bool | `String of string option * string * trie option ]
-      -> trie Effect.t
+  | Load_file : string * bool -> trie Effect.t
+  | Load_string : string option * string * trie option -> trie Effect.t
   | All_units : trie Effect.t
 
 (* These are the versions that are called by the executable, since it doesn't have any use for the resulting namespace, and it is always loading at top-level. *)
 let load_file file =
-  let _ = Effect.perform (Load_unit (`File (file, true))) in
+  let _ = Effect.perform (Load_file (file, true)) in
   ()
 
 let load_string title content init =
-  let _ = Effect.perform (Load_unit (`String (title, content, init))) in
+  let _ = Effect.perform (Load_string (title, content, init)) in
   ()
 
 (* This version is called by the 'import' command, which is not at top-level, and cares about the namespace. *)
-let get_file file = Effect.perform (Load_unit (`File (file, false)))
+let get_file file = Effect.perform (Load_file (file, false))
 
 (* Get the top-level namespace *)
 let all () = Effect.perform All_units
@@ -151,75 +150,73 @@ let with_execute :
         effc =
           (fun (type a) (eff : a Effect.t) ->
             match eff with
-            | Load_unit source -> (
+            | Load_file (file, top) -> (
                 Option.some @@ fun (k : (a, _) continuation) ->
-                match source with
-                | `File (file, top) -> (
-                    if not (FilePath.check_extension file "ny") then fatal (Invalid_filename file);
-                    (* We normalize the file path to a reduced absolute one, so we can use it for a hashtable key. *)
-                    let file =
-                      if FilePath.is_relative file then
-                        FilePath.make_absolute (Loading.get ()).cwd file
-                      else file in
-                    let file = FilePath.reduce file in
-                    match Hashtbl.find_opt table file with
-                    | Some (trie, compunit, top') ->
-                        (* If we already loaded that file, we just return its saved export namespace, but we may need to add it to the 'all' namespace if it wasn't already there. *)
-                        if top && not top' then (
-                          add_to_all trie;
-                          Hashtbl.add table file (trie, compunit, true));
-                        Loading.modify (fun s ->
-                            { s with imports = Snoc (s.imports, (compunit, file)) });
-                        continue k trie
-                    | None ->
-                        (* Otherwise, we have to load it.  First we check for circular dependencies. *)
-                        (let parents = (Loading.get ()).parents in
-                         if Bwd.exists (fun x -> x = file) parents then
-                           fatal (Circular_import (Bwd.to_list (Snoc (parents, file)))));
-                        (* Then we load it, in its directory and with itself added to the list of parents. *)
-                        let compunit = Compunit.make file in
-                        let rename i =
-                          let _, c, _ = Hashtbl.find table i in
-                          c in
-                        let trie =
-                          Loading.run
-                            ~init:
-                              {
-                                cwd = FilePath.dirname file;
-                                parents = Snoc ((Loading.get ()).parents, file);
-                                imports = Emp;
-                                actions = false;
-                              }
-                          @@ fun () ->
-                          (* If there's a compiled version, and we aren't in source-only mode, we load that; otherwise we load it from source. *)
-                          let trie, which =
-                            go @@ fun () ->
-                            match if source_only then None else unmarshal compunit rename file with
-                            | Some trie -> (trie, `Compiled)
-                            | None ->
-                                if not top then emit (Loading_file file);
-                                (execute init compunit (`File file), `Source) in
-                          (* Then we add it to the table and (possibly) 'all'. *)
-                          if not top then emit (File_loaded (file, which));
-                          Hashtbl.add table file (trie, compunit, top);
-                          if top then add_to_all trie;
-                          (* We save the compiled version *)
-                          marshal compunit file trie;
-                          trie in
-                        (* Now we record it as a file that was imported by the current file. *)
-                        Loading.modify (fun s ->
-                            { s with imports = Snoc (s.imports, (compunit, file)) });
-                        continue k trie)
-                | `String (title, content, start) ->
-                    (* In the case of a string input there is no caching and no change of state, since it can't be "required" from another file.  But a string is always at top-level, so we always add it to 'all'.  *)
+                if not (FilePath.check_extension file "ny") then fatal (Invalid_filename file);
+                (* We normalize the file path to a reduced absolute one, so we can use it for a hashtable key. *)
+                let file =
+                  if FilePath.is_relative file then FilePath.make_absolute (Loading.get ()).cwd file
+                  else file in
+                let file = FilePath.reduce file in
+                match Hashtbl.find_opt table file with
+                | Some (trie, compunit, top') ->
+                    (* If we already loaded that file, we just return its saved export namespace, but we may need to add it to the 'all' namespace if it wasn't already there. *)
+                    if top && not top' then (
+                      add_to_all trie;
+                      Hashtbl.add table file (trie, compunit, true));
+                    Loading.modify (fun s ->
+                        { s with imports = Snoc (s.imports, (compunit, file)) });
+                    continue k trie
+                | None ->
+                    (* Otherwise, we have to load it.  First we check for circular dependencies. *)
+                    (let parents = (Loading.get ()).parents in
+                     if Bwd.exists (fun x -> x = file) parents then
+                       fatal (Circular_import (Bwd.to_list (Snoc (parents, file)))));
+                    (* Then we load it, in its directory and with itself added to the list of parents. *)
+                    let compunit = Compunit.make file in
+                    let rename i =
+                      let _, c, _ = Hashtbl.find table i in
+                      c in
                     let trie =
-                      go @@ fun () ->
-                      execute
-                        (Option.value start ~default:init)
-                        Compunit.basic
-                        (`String { title; content }) in
-                    add_to_all trie;
+                      Loading.run
+                        ~init:
+                          {
+                            cwd = FilePath.dirname file;
+                            parents = Snoc ((Loading.get ()).parents, file);
+                            imports = Emp;
+                            actions = false;
+                          }
+                      @@ fun () ->
+                      (* If there's a compiled version, and we aren't in source-only mode, we load that; otherwise we load it from source. *)
+                      let trie, which =
+                        go @@ fun () ->
+                        match if source_only then None else unmarshal compunit rename file with
+                        | Some trie -> (trie, `Compiled)
+                        | None ->
+                            if not top then emit (Loading_file file);
+                            (execute init compunit (`File file), `Source) in
+                      (* Then we add it to the table and (possibly) 'all'. *)
+                      if not top then emit (File_loaded (file, which));
+                      Hashtbl.add table file (trie, compunit, top);
+                      if top then add_to_all trie;
+                      (* We save the compiled version *)
+                      marshal compunit file trie;
+                      trie in
+                    (* Now we record it as a file that was imported by the current file. *)
+                    Loading.modify (fun s ->
+                        { s with imports = Snoc (s.imports, (compunit, file)) });
                     continue k trie)
+            | Load_string (title, content, start) ->
+                Option.some @@ fun (k : (a, _) continuation) ->
+                (* In the case of a string input there is no caching and no change of state, since it can't be "required" from another file.  But a string is always at top-level, so we always add it to 'all'.  *)
+                let trie =
+                  go @@ fun () ->
+                  execute
+                    (Option.value start ~default:init)
+                    Compunit.basic
+                    (`String { title; content }) in
+                add_to_all trie;
+                continue k trie
             | All_units ->
                 Option.some @@ fun (k : (a, _) continuation) -> continue k (Lazy.force !all)
             | _ -> None);

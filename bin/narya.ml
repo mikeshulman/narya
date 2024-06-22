@@ -14,7 +14,7 @@ let reformat = ref false
 let verbose = ref false
 let compact = ref false
 let unicode = ref true
-let typecheck = ref true
+let execute = ref true
 let interactive = ref false
 let proofgeneral = ref false
 let arity = ref 2
@@ -44,7 +44,7 @@ let speclist =
     ("-e", Arg.String (fun str -> inputs := Snoc (!inputs, `String str)), "");
     ("-verbose", Arg.Set verbose, "Show verbose messages (also -v)");
     ("-v", Arg.Set verbose, "");
-    ("-no-check", Arg.Clear typecheck, "Don't typecheck and execute code (only parse it)");
+    ("-no-check", Arg.Clear execute, "Don't typecheck and execute code (only parse it)");
     ("-reformat", Arg.Set reformat, "Display reformatted code on stdout");
     ("-noncompact", Arg.Clear compact, "Reformat code noncompactly (default)");
     ("-compact", Arg.Set compact, "Reformat code compactly");
@@ -79,43 +79,6 @@ let () =
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
-let rec batch first ws p src =
-  let cmd = Command.Parse.final p in
-  if cmd = Eof then if Eternity.unsolved () then Reporter.fatal Open_holes else ws
-  else (
-    if !typecheck then Parser.Command.execute cmd;
-    let ws =
-      if !reformat then (
-        let ws = if first then ws else Whitespace.ensure_starting_newlines 2 ws in
-        Print.pp_ws `None std_formatter ws;
-        Parser.Command.pp_command std_formatter cmd)
-      else [] in
-    let p, src = Command.Parse.restart_parse p src in
-    batch false ws p src)
-
-let execute init_visible compunit (source : Asai.Range.source) =
-  if !reformat then Format.open_vbox 0;
-  Units.run ~init_visible @@ fun () ->
-  let p, src = Command.Parse.start_parse source in
-  Compunit.Current.run ~env:compunit @@ fun () ->
-  Reporter.try_with
-    (fun () ->
-      let ws = batch true [] p src in
-      if !reformat then (
-        let ws = Whitespace.ensure_ending_newlines 2 ws in
-        Print.pp_ws `None std_formatter ws;
-        Format.close_box ()))
-    ~fatal:(fun d ->
-      match d.message with
-      | Quit _ ->
-          let src =
-            match source with
-            | `File name -> Some name
-            | `String { title; _ } -> title in
-          Reporter.emit (Quit src)
-      | _ -> Reporter.fatal_diagnostic d);
-  Scope.get_export ()
-
 let ( let* ) f o = Lwt.bind f o
 
 class read_line terminal history prompt =
@@ -145,6 +108,7 @@ let rec repl terminal history buf =
       if str = "" then (
         let str = Buffer.contents buf in
         let* () = Lwt_io.flush Lwt_io.stdout in
+        (* In interactive mode, we display all messages verbosely, and don't quit on fatal errors except for the Quit command. *)
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d ->
@@ -154,14 +118,14 @@ let rec repl terminal history buf =
             | _ -> ())
           (fun () ->
             match Command.parse_single str with
-            | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
+            | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
             | ws, Some cmd ->
-                if !typecheck then Parser.Command.execute cmd;
-                if !reformat then (
-                  Print.pp_ws `None std_formatter ws;
-                  let last = Parser.Command.pp_command std_formatter cmd in
-                  Print.pp_ws `None std_formatter last;
-                  Format.pp_print_newline std_formatter ()));
+                if !execute then Execute.execute_command cmd;
+                Execute.reformat_maybe @@ fun ppf ->
+                Print.pp_ws `None ppf ws;
+                let last = Parser.Command.pp_command ppf cmd in
+                Print.pp_ws `None ppf last;
+                Format.pp_print_newline ppf ());
         LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
       else (
@@ -188,7 +152,7 @@ let interact () =
           let* () = LTerm_history.save history history_file in
           Lwt.fail exn)
 
-let rec interact_pg () =
+let rec interact_pg () : unit =
   print_endline "[narya]";
   try
     let str = read_line () in
@@ -197,13 +161,13 @@ let rec interact_pg () =
       ~fatal:(fun d -> Terminal.display ~output:stdout d)
       (fun () ->
         match Command.parse_single str with
-        | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
+        | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
         | ws, Some cmd ->
-            if !typecheck then Parser.Command.execute cmd;
-            if !reformat then (
-              Print.pp_ws `None std_formatter ws;
-              let last = Parser.Command.pp_command std_formatter cmd in
-              Print.pp_ws `None std_formatter last));
+            if !execute then Execute.execute_command cmd;
+            Execute.reformat_maybe @@ fun ppf ->
+            Print.pp_ws `None ppf ws;
+            let last = Parser.Command.pp_command ppf cmd in
+            Print.pp_ws `None ppf last);
     interact_pg ()
   with End_of_file -> ()
 
@@ -231,7 +195,7 @@ let unmarshal_flags chan =
 
 let () =
   Parser.Unparse.install ();
-  Units.Flags.run ~env:{ marshal = marshal_flags; unmarshal = unmarshal_flags } @@ fun () ->
+  Parser.Scope.M.run @@ fun () ->
   Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Builtins.run @@ fun () ->
@@ -260,7 +224,6 @@ let () =
   Dim.Endpoints.set_names !refl_strings;
   Dim.Endpoints.set_internal !internal;
   (* The initial namespace for all compilation units. *)
-  let init = Parser.Pi.install Scope.Trie.empty in
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   let top_files =
     Bwd.fold_right
@@ -269,19 +232,38 @@ let () =
         | `File file -> FilePath.make_absolute (Sys.getcwd ()) file :: acc
         | _ -> acc)
       !inputs [] in
-  Units.with_execute !source_only top_files init execute @@ fun () ->
+  Execute.Flags.run
+    ~env:
+      {
+        marshal = marshal_flags;
+        unmarshal = unmarshal_flags;
+        execute = !execute;
+        source_only = !source_only;
+        init_visible = Parser.Pi.install Scope.Trie.empty;
+        top_files;
+        reformatter = (if !reformat then Some std_formatter else None);
+      }
+  @@ fun () ->
+  Execute.Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp; actions = false }
+  @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with
-      | `File filename -> Units.load_file filename
+      | `File filename ->
+          let _ = Execute.load_file filename true in
+          ()
       | `Stdin ->
           let content = In_channel.input_all stdin in
-          Units.load_string (Some "stdin") content None
+          let _ = Execute.load_string (Some "stdin") content in
+          ()
       (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
       | `String content ->
-          Units.load_string (Some "command-line exec string") content (Some (Units.all ())))
+          let _ =
+            Execute.load_string ~init_visible:(Execute.get_all ()) (Some "command-line exec string")
+              content in
+          ())
     [ !inputs ];
   (* Interactive mode also has all the other units loaded. *)
-  if !interactive then
-    Units.run ~init_visible:(Units.all ()) @@ fun () -> Lwt_main.run (interact ())
-  else if !proofgeneral then Units.run ~init_visible:(Units.all ()) @@ fun () -> interact_pg ()
+  let init_visible = Execute.get_all () in
+  Execute.run_with_scope ~init_visible @@ fun () ->
+  if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()

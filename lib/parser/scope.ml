@@ -28,8 +28,6 @@ module M = struct
 
   let union_root ~prefix ?context_export t r =
     Trie.union_root ~prefix (Perform.shadow context_export) t r
-
-  let modify ?prefix op trie = run (fun () -> modify ?prefix op trie)
 end
 
 (* The Yuujinchou Scope instance, that manages a pair of import/export scopes with effects. *)

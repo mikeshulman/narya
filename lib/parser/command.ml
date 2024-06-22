@@ -385,8 +385,13 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
-let execute : Command.t -> unit =
- fun cmd ->
+(* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
+let execute :
+    action_taken:(unit -> unit) ->
+    get_file:(string -> (Scope.P.data, Scope.P.tag) Trie.t) ->
+    Command.t ->
+    unit =
+ fun ~action_taken ~get_file cmd ->
   match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
       Scope.check_constant_name name;
@@ -432,7 +437,7 @@ let execute : Command.t -> unit =
       Core.Command.execute (Def defs)
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
-      Units.Loading.modify (fun s -> { s with actions = true });
+      action_taken ();
       match rtm.value with
       | Synth stm ->
           Readback.Display.run ~env:true @@ fun () ->
@@ -496,7 +501,7 @@ let execute : Command.t -> unit =
   | Import { file; op; _ } ->
       if FilePath.check_extension file "ny" then emit (Library_has_extension file);
       let file = FilePath.add_extension file "ny" in
-      let trie = Units.get_file file in
+      let trie = get_file file in
       let trie =
         match op with
         | Some (_, op) -> Scope.M.modify (process_modifier op) trie

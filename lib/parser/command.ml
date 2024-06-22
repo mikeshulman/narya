@@ -11,6 +11,7 @@ open Uuseg_string
 open Print
 open Reporter
 open User
+open Modifier
 module Trie = Yuujinchou.Trie
 
 type def = {
@@ -51,7 +52,12 @@ module Command = struct
         args : (string * Whitespace.t list) list;
       }
         -> t
-    | Import of { wsimport : Whitespace.t list; file : string; wsfile : Whitespace.t list }
+    | Import of {
+        wsimport : Whitespace.t list;
+        file : string;
+        wsfile : Whitespace.t list;
+        op : (Whitespace.t list * modifier) option;
+      }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -215,12 +221,95 @@ module Parse = struct
            args;
          })
 
+  let path =
+    ident
+    </> let* wsdot = token Dot in
+        return ([], wsdot)
+
+  let rec modifier () =
+    let* m =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ "all" ] -> Some (`All ws, state)
+          | Ident [ "id" ] -> Some (`Id ws, state)
+          | Ident [ "only" ] -> Some (`Only ws, state)
+          | In -> Some (`In ws, state)
+          | Ident [ "none" ] -> Some (`None ws, state)
+          | Ident [ "except" ] -> Some (`Except ws, state)
+          | Ident [ "renaming" ] -> Some (`Renaming ws, state)
+          | Ident [ "seq" ] -> Some (`Seq ws, state)
+          | Ident [ "union" ] -> Some (`Union ws, state)
+          | _ -> None) in
+    match m with
+    | `All wsall -> return (All { wsall })
+    | `Id wsid -> return (Id { wsid })
+    | `Only wsonly ->
+        let* path, wspath = path in
+        return (Only { wsonly; path; wspath })
+    | `In wsin ->
+        let* path, wspath = path in
+        let* op = modifier () in
+        return (In { wsin; path; wspath; op })
+    | `None wsnone -> return (MNone { wsnone })
+    | `Except wsexcept ->
+        let* path, wspath = path in
+        return (Except { wsexcept; path; wspath })
+    | `Renaming wsrenaming ->
+        let* source, wssource = path in
+        let* target, wstarget = path in
+        return (Renaming { wsrenaming; source; wssource; target; wstarget })
+    | `Seq wsseq ->
+        let* wslparen = token LParen in
+        let* ops =
+          zero_or_more_fold_left Emp
+            (fun x y -> return (Snoc (x, y)))
+            (backtrack
+               (let* op = modifier () in
+                let* wssemi = token (Op ";") in
+                return (op, wssemi))
+               "") in
+        let* lastop = optional (modifier ()) in
+        let ops =
+          Bwd.fold_right
+            (fun x y -> x :: y)
+            ops
+            (Option.fold ~none:[] ~some:(fun x -> [ (x, []) ]) lastop) in
+        let* wsrparen = token RParen in
+        return (Seq { wsseq; wslparen; ops; wsrparen })
+    | `Union wsunion ->
+        let* wslparen = token LParen in
+        let* ops =
+          zero_or_more_fold_left Emp
+            (fun x y -> return (Snoc (x, y)))
+            (backtrack
+               (let* op = modifier () in
+                let* wssemi = token (Op ";") in
+                return (op, wssemi))
+               "") in
+        let* lastop = optional (modifier ()) in
+        let ops =
+          Bwd.fold_right
+            (fun x y -> x :: y)
+            ops
+            (Option.fold ~none:[] ~some:(fun x -> [ (x, []) ]) lastop) in
+        let* wsrparen = token RParen in
+        return (Union { wsunion; wslparen; ops; wsrparen })
+
   let import =
     let* wsimport = token Import in
-    step "" (fun state _ (tok, wsfile) ->
-        match tok with
-        | String file -> Some (Import { wsimport; file; wsfile }, state)
-        | _ -> None)
+    let* file, wsfile =
+      step "" (fun state _ (tok, wsfile) ->
+          match tok with
+          | String file -> Some ((file, wsfile), state)
+          | _ -> None) in
+    let* op =
+      optional
+        (backtrack
+           (let* wsbar = token (Op "|") in
+            let* m = modifier () in
+            return (wsbar, m))
+           "") in
+    return (Import { wsimport; file; wsfile; op })
 
   let quit =
     let* wsquit = token Quit in
@@ -373,7 +462,7 @@ let execute : Command.t -> unit =
           pp_print_newline ppf ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
-      let notation_name = "notation" :: name in
+      let notation_name = "notations" :: name in
       (* A notation name can't be redefining anything. *)
       if Option.is_some (Scope.lookup notation_name) then
         fatal ~severity:Asai.Diagnostic.Error
@@ -412,10 +501,14 @@ let execute : Command.t -> unit =
            | `Constant c -> String.concat "." (Scope.name_of c) in
          emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
-  | Import { file; _ } ->
+  | Import { file; op; _ } ->
       if FilePath.check_extension file "ny" then emit (Library_has_extension file);
       let file = FilePath.add_extension file "ny" in
       let trie = Units.get_file file in
+      let trie =
+        match op with
+        | Some (_, op) -> Scope.M.modify (process_modifier op) trie
+        | None -> trie in
       Scope.import_subtree ([], trie);
       Seq.iter
         (fun (_, (data, _)) ->
@@ -424,7 +517,7 @@ let execute : Command.t -> unit =
               let _ = State.Current.add_user user in
               ()
           | _ -> ())
-        (Trie.to_seq (Trie.find_subtree [ "notation" ] trie))
+        (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
@@ -584,17 +677,27 @@ let pp_command : formatter -> t -> Whitespace.t list =
             rest in
       pp_close_box ppf ();
       rest
-  | Import { wsimport; file; wsfile } ->
+  | Import { wsimport; file; wsfile; op } -> (
       pp_open_hvbox ppf 2;
       pp_tok ppf Import;
       pp_ws `Nobreak ppf wsimport;
       pp_print_string ppf "\"";
       pp_print_string ppf file;
       pp_print_string ppf "\"";
-      let ws, rest = Whitespace.split wsfile in
-      pp_ws `None ppf ws;
-      pp_close_box ppf ();
-      rest
+      match op with
+      | None ->
+          let ws, rest = Whitespace.split wsfile in
+          pp_ws `None ppf ws;
+          pp_close_box ppf ();
+          rest
+      | Some (wsbar, op) ->
+          pp_ws `Break ppf wsfile;
+          pp_tok ppf (Op "|");
+          pp_ws `Nobreak ppf wsbar;
+          let ws, rest = Whitespace.split (pp_modifier ppf op) in
+          pp_ws `None ppf ws;
+          pp_close_box ppf ();
+          rest)
   | Quit ws -> ws
   | Bof ws -> ws
   | Eof -> []

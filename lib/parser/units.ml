@@ -243,5 +243,5 @@ let run ~(init_visible : trie) f =
          | `Notation (user, _) -> fst (State.add_user user state)
          | _ -> state)
        !Builtins.builtins
-       (Trie.to_seq (Trie.find_subtree [ "notation" ] init_visible)))
+       (Trie.to_seq (Trie.find_subtree [ "notations" ] init_visible)))
     f

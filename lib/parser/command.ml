@@ -385,19 +385,11 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
-(* We currently allow names used for constants to be redefined, but once a name is used for a notation, it can't be shadowed by a constant. *)
-let check_constant_name name =
-  match Scope.resolve name with
-  | Some (`Constant _, ()) -> emit (Name_already_defined (String.concat "." name))
-  | Some (_, ()) ->
-      fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
-  | None -> ()
-
 let execute : Command.t -> unit =
  fun cmd ->
   match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
-      check_constant_name name;
+      Scope.check_constant_name name;
       let const = Scope.define (Compunit.Current.read ()) name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
@@ -410,7 +402,7 @@ let execute : Command.t -> unit =
       let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
-            check_constant_name d.name;
+            Scope.check_constant_name d.name;
             let c = Scope.define (Compunit.Current.read ()) d.name in
             [ d.name; (c, d) ])
           [ defs ] (Cons (Cons Nil)) in

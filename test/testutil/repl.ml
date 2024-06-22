@@ -35,7 +35,7 @@ let assume (name : string) (ty : string) : unit =
   let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
-      Parser.Command.check_constant_name name;
+      Scope.check_constant_name name;
       let const = Scope.define Compunit.basic name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
@@ -52,7 +52,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
-      Parser.Command.check_constant_name name;
+      Scope.check_constant_name name;
       let const = Scope.define Compunit.basic name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
@@ -69,16 +69,6 @@ let def (name : string) (ty : string) (tm : string) : unit =
         check (Potential (Constant const, Emp, fun x -> x)) Ctx.empty rtm ety in
       Global.add const cty (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
-
-(* For other commands, we piggyback on ordinary parsing.  *)
-let parse_and_execute_command str =
-  match Command.parse_single str with
-  | _, Some cmd -> Command.execute cmd
-  | _, None -> ()
-
-let cmd ?(quiet = false) (str : string) : unit =
-  if quiet then Reporter.try_with ~emit:(fun _ -> ()) @@ fun () -> parse_and_execute_command str
-  else parse_and_execute_command str
 
 let equal_at (tm1 : string) (tm2 : string) (ty : string) : unit =
   let rty = parse_term ty in

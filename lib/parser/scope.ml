@@ -1,4 +1,5 @@
 open Core
+open Reporter
 open Notation
 module Trie = Yuujinchou.Trie
 
@@ -56,3 +57,11 @@ let define compunit name =
   let c = Constant.make compunit in
   include_singleton (name, (`Constant c, ()));
   c
+
+(* We currently allow names used for constants to be redefined by other constants.  But once a name is used for a notation, it can't be shadowed by a constant.  (And the name of a notation can't be anything used before, although that is checked elsewhere.) *)
+let check_constant_name name =
+  match resolve name with
+  | Some (`Constant _, ()) -> emit (Name_already_defined (String.concat "." name))
+  | Some (_, ()) ->
+      fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
+  | None -> ()

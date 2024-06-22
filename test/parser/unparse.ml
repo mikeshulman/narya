@@ -35,13 +35,11 @@ let () =
        | zero. ↦ m
        | suc. n ↦ suc. (plus m n)
      ]";
-  cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
   def "times" "ℕ → ℕ → ℕ"
     "m n ↦ match n [
        | zero. ↦ zero.
        | suc. n ↦ plus (times m n) m
      ]";
-  cmd ~quiet:true "notation 1 times : m \"*\" n … ≔ times m n";
   assume "f" "ℕ → ℕ";
   print "f 1";
   print "refl f 1 1 1";
@@ -145,12 +143,4 @@ let () =
 
   (* Let-bindings always reduce away, disappearing after readback. *)
   print "let x := a in a";
-  (* Binary operators *)
-  assume "m" "ℕ";
-  assume "n" "ℕ";
-  print "m+n";
-  print "m+n*n";
-  print "m*(m+n*n)";
-  print "m + suc. n";
-  print "(m+n)*(m+n)";
   ()

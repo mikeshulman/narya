@@ -79,17 +79,24 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
 
-5. `import "FILE"`
-
-   `import "FILE" | MOD`
-
+5. ```
+   import "FILE"
+   import "FILE" | MOD
+   ```
    Add the extension `.ny` to the double-quoted string `FILE` and import the file at that location (either absolute or relative to the location of the current file), with the optional modifier `MOD` applied to its namespace (see below).  The disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
-
-   `import NAME`
-   
-   `import NAME | MOD`
-
+   ```
+   import NAME
+   import NAME | MOD
+   ```
    Import the namespace rooted at `NAME` into the current top-level namespace, with the optional modifier `MOD` applied to it first.
+
+   ```
+   export "FILE"
+   export "FILE" | MOD
+   export NAME
+   export NAME | MOD
+   ```
+   Same as above, but also export the new names to other files that import this one.
 
 6. `quit`
 
@@ -177,7 +184,9 @@ In particular, identifiers may start with a digit, or even consist entirely of d
 
 The command `import FILE` executes another Narya file and adds (some of) its definitions and notations to the current namespace.  The commands in the imported file cannot access any definitions from other files, including the current one, except those that it imports itself.  Importing is not transitive: if `a.ny` imports `b.ny`, and `b.ny` imports `c.ny`, then the definitions from `c.ny` do not appear in the namespace of `a.ny` unless it also imports `c.ny` explicitly.
 
-By contrast, when in interactive mode or executing a command-line `-e` string, all definitions from all files and strings that were explicitly specified previously on the command line are available.  This does not carry over transitively to files imported by them.  Standard input (indicated by `-` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in `-e` strings and interactive mode.
+More precisely, there are two namespaces at any time: the "import" namespace, which determines the names that are available to use in the current file, and the "export" namespace, which determines the names that will be made available to other files that import this one.  The command `import` only affects the import namespace, but the variant using the word `export` instead affects both.
+
+By contrast, when in interactive mode or executing a command-line `-e` string, all definitions from all files and strings that were explicitly specified previously on the command line are available, even if not exported.  This does not carry over transitively to files imported by them.  Standard input (indicated by `-` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in `-e` strings and interactive mode.
 
 No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both `b.ny` and `c.ny` import `d.ny`, and `a.ny` imports both `b.ny` and `c.ny`, any effectual commands like `echo` in `d.ny` will only happen once, there will only be one copy of the definitions from `d.ny` in the namespace of `a.ny`, and the definitions from `b.ny` and `c.ny` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is `narya one.ny two.ny` but `one.ny` imports `two.ny`, then `two.ny` will be executed during `one.ny` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was alread yexecuted.
 
@@ -214,7 +223,7 @@ import a | renaming one uno
 ```
 the names `a.one` and `uno` will refer to `1` while the names `a.two` and `two` will refer to `2`.
 
-Imported names also remain available in their original locations; there is no way to remove a name from the scope once it is added.  In addition, names imported this way are not *exported* from the current file when it it loaded by another file.  That is, if the above example is in a file `"foo.ny"`, then if some other file says `import "foo"` then it will only be able to access the original names `a.one` and `a.two`, not the new ones `uno` and `two`.
+Imported names also remain available in their original locations; there is no way to remove a name from the scope once it is added.  In addition, names imported this way are not *exported* from the current file when it it loaded by another file.  That is, if the above example is in a file `"foo.ny"`, then if some other file says `import "foo"` then it will only be able to access the original names `a.one` and `a.two`, not the new ones `uno` and `two`.  But, of course, they are exported if the variant called `export` is used instead.
 
 
 ### Importing notations

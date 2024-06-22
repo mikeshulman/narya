@@ -54,6 +54,7 @@ module Command = struct
         -> t
     | Import of {
         wsimport : Whitespace.t list;
+        export : bool;
         origin : [ `File of string | `Path of Trie.path ];
         wsorigin : Whitespace.t list;
         op : (Whitespace.t list * modifier) option;
@@ -296,7 +297,11 @@ module Parse = struct
         return (Union { wsunion; wslparen; ops; wsrparen })
 
   let import =
-    let* wsimport = token Import in
+    let* wsimport, export =
+      (let* wsimport = token Import in
+       return (wsimport, false))
+      </> let* wsimport = token Export in
+          return (wsimport, true) in
     let* origin, wsorigin =
       step "" (fun state _ (tok, ws) ->
           match tok with
@@ -311,7 +316,7 @@ module Parse = struct
             let* m = modifier () in
             return (wsbar, m))
            "") in
-    return (Import { wsimport; origin; wsorigin; op })
+    return (Import { wsimport; export; origin; wsorigin; op })
 
   let quit =
     let* wsquit = token Quit in
@@ -500,7 +505,7 @@ let execute :
            | `Constant c -> String.concat "." (Scope.name_of c) in
          emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
-  | Import { origin; op; _ } ->
+  | Import { export; origin; op; _ } ->
       let trie =
         match origin with
         | `File file ->
@@ -512,7 +517,7 @@ let execute :
         match op with
         | Some (_, op) -> Scope.M.modify (process_modifier op) trie
         | None -> trie in
-      Scope.import_subtree ([], trie);
+      if export then Scope.include_subtree ([], trie) else Scope.import_subtree ([], trie);
       Seq.iter
         (fun (_, (data, _)) ->
           match data with
@@ -680,9 +685,9 @@ let pp_command : formatter -> t -> Whitespace.t list =
             rest in
       pp_close_box ppf ();
       rest
-  | Import { wsimport; origin; wsorigin; op } -> (
+  | Import { wsimport; export; origin; wsorigin; op } -> (
       pp_open_hvbox ppf 2;
-      pp_tok ppf Import;
+      pp_tok ppf (if export then Export else Import);
       pp_ws `Nobreak ppf wsimport;
       (match origin with
       | `File file ->

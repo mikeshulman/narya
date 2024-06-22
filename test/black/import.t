@@ -53,6 +53,31 @@ Command-line strings see namespaces from explicitly loaded files only
    ￮ Axiom a1 assumed
   
 
+Unless we explicitly export them:
+
+  $ cat >etwo.ny <<EOF
+  > export "one"
+  > axiom a0 : A
+  > EOF
+
+  $ narya -source-only -v etwo.ny -e 'axiom a1 : A'
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/one.ny
+  
+   ￫ info[I0001]
+   ￮ Axiom A assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  
+   ￫ info[I0001]
+   ￮ Axiom a1 assumed
+  
+
+
 Requiring a file multiple times
 
   $ cat >three.ny <<EOF

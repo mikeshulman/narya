@@ -37,6 +37,7 @@ type t =
   | Codata
   | Notation
   | Import
+  | Export
   | Let
   | In
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
@@ -170,6 +171,7 @@ let to_string = function
   | Codata -> "codata"
   | Notation -> "notation"
   | Import -> "import"
+  | Export -> "export"
   | Let -> "let"
   | In -> "in"
   | Op s -> s

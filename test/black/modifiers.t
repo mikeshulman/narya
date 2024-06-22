@@ -127,3 +127,23 @@ But this doesn't affect the export namespace:
      ^ unbound variable: b
   
   [1]
+
+Unless we tell it to:
+
+  $ cat >exportns.ny <<EOF
+  > axiom a.b : Type
+  > axiom a.c : Type
+  > export a
+  > echo b
+  > EOF
+
+  $ narya exportns.ny -e 'echo a.b echo b'
+  a.b
+    : Type
+  
+  a.b
+    : Type
+  
+  a.b
+    : Type
+  

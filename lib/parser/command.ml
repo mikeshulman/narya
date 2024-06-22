@@ -54,8 +54,8 @@ module Command = struct
         -> t
     | Import of {
         wsimport : Whitespace.t list;
-        file : string;
-        wsfile : Whitespace.t list;
+        origin : [ `File of string | `Path of Trie.path ];
+        wsorigin : Whitespace.t list;
         op : (Whitespace.t list * modifier) option;
       }
     | Quit of Whitespace.t list
@@ -297,10 +297,12 @@ module Parse = struct
 
   let import =
     let* wsimport = token Import in
-    let* file, wsfile =
-      step "" (fun state _ (tok, wsfile) ->
+    let* origin, wsorigin =
+      step "" (fun state _ (tok, ws) ->
           match tok with
-          | String file -> Some ((file, wsfile), state)
+          | String file -> Some ((`File file, ws), state)
+          | Ident x -> Some ((`Path x, ws), state)
+          | Dot -> Some ((`Path [], ws), state)
           | _ -> None) in
     let* op =
       optional
@@ -309,7 +311,7 @@ module Parse = struct
             let* m = modifier () in
             return (wsbar, m))
            "") in
-    return (Import { wsimport; file; wsfile; op })
+    return (Import { wsimport; origin; wsorigin; op })
 
   let quit =
     let* wsquit = token Quit in
@@ -498,10 +500,14 @@ let execute :
            | `Constant c -> String.concat "." (Scope.name_of c) in
          emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
-  | Import { file; op; _ } ->
-      if FilePath.check_extension file "ny" then emit (Library_has_extension file);
-      let file = FilePath.add_extension file "ny" in
-      let trie = get_file file in
+  | Import { origin; op; _ } ->
+      let trie =
+        match origin with
+        | `File file ->
+            if FilePath.check_extension file "ny" then emit (Library_has_extension file);
+            let file = FilePath.add_extension file "ny" in
+            get_file file
+        | `Path path -> Trie.find_subtree path (Scope.get_visible ()) in
       let trie =
         match op with
         | Some (_, op) -> Scope.M.modify (process_modifier op) trie
@@ -674,21 +680,25 @@ let pp_command : formatter -> t -> Whitespace.t list =
             rest in
       pp_close_box ppf ();
       rest
-  | Import { wsimport; file; wsfile; op } -> (
+  | Import { wsimport; origin; wsorigin; op } -> (
       pp_open_hvbox ppf 2;
       pp_tok ppf Import;
       pp_ws `Nobreak ppf wsimport;
-      pp_print_string ppf "\"";
-      pp_print_string ppf file;
-      pp_print_string ppf "\"";
+      (match origin with
+      | `File file ->
+          pp_print_string ppf "\"";
+          pp_print_string ppf file;
+          pp_print_string ppf "\""
+      | `Path [] -> pp_tok ppf Dot
+      | `Path path -> pp_utf_8 ppf (String.concat "." path));
       match op with
       | None ->
-          let ws, rest = Whitespace.split wsfile in
+          let ws, rest = Whitespace.split wsorigin in
           pp_ws `None ppf ws;
           pp_close_box ppf ();
           rest
       | Some (wsbar, op) ->
-          pp_ws `Break ppf wsfile;
+          pp_ws `Break ppf wsorigin;
           pp_tok ppf (Op "|");
           pp_ws `Nobreak ppf wsbar;
           let ws, rest = Whitespace.split (pp_modifier ppf op) in

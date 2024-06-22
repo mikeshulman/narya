@@ -79,11 +79,17 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
 
-5. `import FILE`
+5. `import "FILE"`
 
-   `import FILE | MOD`
+   `import "FILE" | MOD`
 
    Add the extension `.ny` to the double-quoted string `FILE` and import the file at that location (either absolute or relative to the location of the current file), with the optional modifier `MOD` applied to its namespace (see below).  The disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
+
+   `import NAME`
+   
+   `import NAME | MOD`
+
+   Import the namespace rooted at `NAME` into the current top-level namespace, with the optional modifier `MOD` applied to it first.
 
 6. `quit`
 
@@ -195,6 +201,20 @@ By default, an `import` command merges the namespace of the imported file with t
 The `NAME`s in all these commands are ordinary identifiers, with one additional option: a bare period `.` represents the root namespace.  Thus `renaming nat .` will rename `nat.plus` to just `plus` and `nat.times` to just `times`, discarding everything that doesn't start with `nat`.  On the other hand, `renaming . foo` will add `foo` to the beginning of everything.  In particular, therefore, `import "arith" | renaming . arith` is the standard sort of "qualified import" that will import definitions like `nat.plus` from a file like `"arith.ny"` but renamed to `arith.nat.plus`.
 
 Currently, you can and must specify explicitly the qualifying namespace prefix; it has no automatic relationship to the imported filename or path.  More generally, the full syntax for Yuujinchou modifiers is rather verbose, so we may introduce abbreviated versions of some common operations.  Feedback is welcome about what those should be.
+
+
+### Importing namespaces
+
+The first argument of the `import` command can also be a namespace, with the effect that the contents of that namespace are merged with the root, possibly with a modifier applied.  Thus, for instance, after the following:
+
+```
+axiom a.one : ℕ ≔ 1
+axiom a.two : ℕ ≔ 2
+import a | renaming one uno
+```
+the names `a.one` and `uno` will refer to `1` while the names `a.two` and `two` will refer to `2`.
+
+Imported names also remain available in their original locations; there is no way to remove a name from the scope once it is added.  In addition, names imported this way are not *exported* from the current file when it it loaded by another file.  That is, if the above example is in a file `"foo.ny"`, then if some other file says `import "foo"` then it will only be able to access the original names `a.one` and `a.two`, not the new ones `uno` and `two`.
 
 
 ### Importing notations

@@ -92,3 +92,38 @@ Or import some of the notations but not others
      ^ parse error
   
   [1]
+
+We can also import from a namespace rather than a file.
+
+  $ narya -e 'axiom a.b : Type axiom a.c : Type import a echo b'
+  a.b
+    : Type
+  
+
+  $ narya -e 'axiom a.b : Type axiom a.c : Type import a | renaming b d echo d'
+  a.b
+    : Type
+  
+
+But this doesn't affect the export namespace:
+
+  $ cat >importns.ny <<EOF
+  > axiom a.b : Type
+  > axiom a.c : Type
+  > import a
+  > echo b
+  > EOF
+
+  $ narya importns.ny -e 'echo a.b echo b'
+  a.b
+    : Type
+  
+  a.b
+    : Type
+  
+   ￫ error[E0300]
+   ￭ command-line exec string
+   1 | echo a.b echo b
+     ^ unbound variable: b
+  
+  [1]

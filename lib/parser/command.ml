@@ -416,7 +416,15 @@ let execute : Command.t -> unit =
       if FilePath.check_extension file "ny" then emit (Library_has_extension file);
       let file = FilePath.add_extension file "ny" in
       let trie = Units.get_file file in
-      Scope.import_subtree ([], trie)
+      Scope.import_subtree ([], trie);
+      Seq.iter
+        (fun (_, (data, _)) ->
+          match data with
+          | `Notation (user, _) ->
+              let _ = State.Current.add_user user in
+              ()
+          | _ -> ())
+        (Trie.to_seq (Trie.find_subtree [ "notation" ] trie))
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")

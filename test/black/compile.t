@@ -204,11 +204,17 @@ Notations are used from explicitly imported files, but not transitively.
   $ narya n2.ny
 
   $ narya n1.ny n3.ny -e 'echo a % a'
+   ￫ warning[E2211]
+   ￮ replacing printing notation for f (previous notation will still be parseable)
+  
   a % a
     : A
   
 
   $ narya n1.ny n3.ny -e 'echo a & a'
+   ￫ warning[E2211]
+   ￮ replacing printing notation for f (previous notation will still be parseable)
+  
   a
     : A
   

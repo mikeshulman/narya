@@ -226,11 +226,17 @@ Notations are used from explicitly imported files, but not transitively.
   > EOF
 
   $ narya -source-only n1.ny n3.ny -e 'echo a % a'
+   ￫ warning[E2211]
+   ￮ replacing printing notation for f (previous notation will still be parseable)
+  
   a % a
     : A
   
 
   $ narya -source-only n1.ny n3.ny -e 'echo a & a'
+   ￫ warning[E2211]
+   ￮ replacing printing notation for f (previous notation will still be parseable)
+  
   a
     : A
   
@@ -240,6 +246,20 @@ Notations are used from explicitly imported files, but not transitively.
      ^ parse error
   
   [1]
+
+  $ cat >n4.ny <<EOF
+  > import "n1"
+  > import "n3"
+  > echo a % a
+  > EOF
+
+  $ narya -source-only n4.ny
+   ￫ warning[E2211]
+   ￮ replacing printing notation for f (previous notation will still be parseable)
+  
+  a % a
+    : A
+  
 
 Quitting in imports quits only that file
 

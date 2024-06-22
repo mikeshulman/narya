@@ -428,7 +428,8 @@ let rec check :
   (* If the user left a hole, we create an eternal metavariable. *)
   | Hole vars, _ ->
       let energy = energy status in
-      let meta = Meta.make `Hole (Ctx.dbwd ctx) energy in
+      (* Holes aren't numbered by the file they appear in. *)
+      let meta = Meta.make Compunit.basic `Hole (Ctx.dbwd ctx) energy in
       let ty, termctx =
         Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
       Eternity.add meta vars termctx ty energy;
@@ -461,7 +462,7 @@ and kinetic_of_potential :
   | `Let -> raise Case_tree_construct_in_let
   | `Nolet ->
       emit (Bare_case_tree_construct sort);
-      let meta = Meta.make (`Def (sort, None)) (Ctx.dbwd ctx) Potential in
+      let meta = Meta.make (Compunit.Current.read ()) (`Def (sort, None)) (Ctx.dbwd ctx) Potential in
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
       let cv = check tmstatus ctx tm ty in
       let vty = readback_val ctx ty in
@@ -490,7 +491,8 @@ and synth_or_check_let :
     (* If that fails, the bound term is also allowed to be a case tree, i.e. a potential term.  But in a checked "let" expression, the term being bound is a kinetic one, and must be so that its value can be put into the environment when the term is evaluated.  We deal with this by binding a *metavariable* to the bound term and then taking the value of that metavariable as the kinetic term to actually be bound.  *)
     | Case_tree_construct_in_let ->
       (* First we make the metavariable. *)
-      let meta = Meta.make (`Def ("let", name)) (Ctx.dbwd ctx) Potential in
+      let meta =
+        Meta.make (Compunit.Current.read ()) (`Def ("let", name)) (Ctx.dbwd ctx) Potential in
       (* A new status in which to check the value of that metavariable; now it is the "current constant" being defined. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
       let sv, svty = synth tmstatus ctx v in
@@ -1353,7 +1355,7 @@ and synth :
           | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field x.tm x.ty fld)
           | None -> fatal (Anomaly "level not found in field view")))
   | Const name, _ ->
-      let ty, _ = Global.find_opt name <|> Undefined_constant (PConstant name) in
+      let ty, _ = Global.find name in
       (realize status (Const name), eval_term (Emp D.zero) ty)
   | Field (tm, fld), _ ->
       let stm, sty = synth (Kinetic `Nolet) ctx tm in
@@ -1399,7 +1401,9 @@ and synth :
       | `Nolet ->
           emit (Bare_case_tree_construct "match");
           (* A match in a kinetic synthesizing position, we can treat like a let-binding that returns the bound (metavariable) value.  Of course we can shortcut the binding by just inserting the metavariable as the result.  This code is copied and slightly modified from synth_or_check_let.  *)
-          let meta = Meta.make (`Def ("match", None)) (Ctx.dbwd ctx) Potential in
+          let meta =
+            Meta.make (Compunit.Current.read ()) (`Def ("match", None)) (Ctx.dbwd ctx) Potential
+          in
           let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
           let sv, svty = synth tmstatus ctx tm in
           let vty = readback_val ctx svty in

@@ -10,7 +10,7 @@ Arbitrary types are not discrete:
   > def T ≔ A⁽ᵈ⁾ a
   > EOF
 
-  $ narya -arity 1 -direction d arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -arity 1 -direction d arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ error[E1003]
    ￭ command-line exec string
    1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
@@ -24,7 +24,7 @@ Arbitrary types are not discrete:
 
 They remain so even when discreteness is on:
 
-  $ narya -arity 1 -direction d -discreteness arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -arity 1 -direction d -discreteness arb.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ error[E1003]
    ￭ command-line exec string
    1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
@@ -44,7 +44,7 @@ There are no discrete datatypes if discreteness is off:
   > def T ≔ ℕ⁽ᵈ⁾ n
   > EOF
 
-  $ narya -v -arity 1 -direction d natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -v -arity 1 -direction d natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant ℕ defined
   
@@ -74,7 +74,7 @@ Discrete datatypes are not themselves propositions:
   > def T : Type ≔ data [ zero. | suc. (_:T) ]
   > EOF
 
-  $ narya -v -arity 1 -direction d -discreteness nat.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -v -arity 1 -direction d -discreteness nat.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant T defined (discrete)
   
@@ -100,7 +100,7 @@ But their degenerate versions are:
   > def T ≔ ℕ⁽ᵈ⁾ n
   > EOF
 
-  $ narya -v -arity 1 -direction d -discreteness natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -v -arity 1 -direction d -discreteness natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant ℕ defined (discrete)
   
@@ -125,7 +125,7 @@ Non-discrete datatypes are not discrete:
   > axiom l : List A
   > def T ≔ (List A)⁽ᵈ⁾ l
 
-  $ narya -v -arity 1 -direction d -discreteness param.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -v -arity 1 -direction d -discreteness param.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant List defined
   
@@ -159,7 +159,7 @@ Non-discrete datatypes are not discrete:
   > axiom z : iszero n
   > def T ≔ (iszero n)⁽ᵈ⁾ z
 
-  $ narya -v -arity 1 -direction d -discreteness index.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -v -arity 1 -direction d -discreteness index.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant ℕ defined (discrete)
   
@@ -194,7 +194,7 @@ Non-discrete datatypes are not discrete:
   > axiom f : foo
   > def T ≔ foo⁽ᵈ⁾ f
 
-  $ narya -v -arity 1 -direction d -discreteness constr.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -v -arity 1 -direction d -discreteness constr.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constant foo defined
   
@@ -225,7 +225,7 @@ Non-discrete datatypes are not discrete:
   > def T ≔ even⁽ᵈ⁾ e
   > EOF
 
-  $ narya -v -arity 1 -direction d -discreteness mutual.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+  $ narya -source-only -v -arity 1 -direction d -discreteness mutual.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
    ￮ Constants defined mutually:
        even
@@ -253,7 +253,7 @@ Non-discrete datatypes are not discrete:
 
 Some other discrete types:
 
-  $ narya -v -arity 1 -direction d -discreteness -e 'def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]' -e 'def ℤ : Type ≔ data [ zero. | suc. (_:ℕ) | negsuc. (_:ℕ) ]' -e 'def btree : Type ≔ data [ leaf. | node. (_:btree) (_:btree) ]'
+  $ narya -source-only -v -arity 1 -direction d -discreteness -e 'def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]' -e 'def ℤ : Type ≔ data [ zero. | suc. (_:ℕ) | negsuc. (_:ℕ) ]' -e 'def btree : Type ≔ data [ leaf. | node. (_:btree) (_:btree) ]'
    ￫ info[I0000]
    ￮ Constant ℕ defined (discrete)
   

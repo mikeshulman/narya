@@ -28,7 +28,7 @@
    ￮ Constant wa3 defined
   
    ￫ error[E0401]
-   ￭ wrap.ny
+   ￭ $TESTCASE_ROOT/wrap.ny
    7 | def wa4 : wrapA := (a)
      ^ term synthesized type A but is being checked against type wrapA
   

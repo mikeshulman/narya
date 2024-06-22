@@ -149,7 +149,7 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
   | Var v -> Val (lookup env v)
   | Const name -> (
       let dim = dim_env env in
-      let cty, defn = Global.find_opt name <|> Undefined_constant (PConstant name) in
+      let cty, defn = Global.find name in
       (* Its type must also be instantiated at the lower-dimensional versions of itself. *)
       let ty =
         lazy
@@ -200,7 +200,7 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                    | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                    | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
              }) in
-      match (Global.find_meta_opt meta <|> Undefined_metavariable (PMeta meta), ambient) with
+      match (Global.find_meta meta, ambient) with
       (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
       | Metadef { tm = `None; _ }, Potential -> Unrealized
       (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)
@@ -1019,7 +1019,7 @@ let is_discrete : kinetic value -> bool =
   match view_type ty "is_discrete" with
   (* 1. A previously defined discrete type, or *)
   | Canonical (_, Data { discrete = true; _ }, _) -> true
-  (* 2. The type currently being defined, at dimension zero. *)
+  (* 2. The type currently being defined, at dimension zero.  Note that the *value* of this type in the Discrete map will be false, since we haven't *yet* decided that it *is* discrete; so we use 'mem' rather than 'find' to just check that it *is* currently being defined.  *)
   (* TODO: In a mutual block, this is not the correct test: it considers all the mutually defined types to be "discrete" even if they don't later turn out to be.  At present we are disallowing discreteness for all mutual families. *)
   | Canonical (Const { name; _ }, _, tyargs) when Constant.Map.mem name (Discrete.get ()) -> (
       match D.compare (TubeOf.inst tyargs) D.zero with

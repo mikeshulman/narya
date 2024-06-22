@@ -22,6 +22,7 @@ let refl_char = ref 'e'
 let refl_strings = ref [ "refl"; "Id" ]
 let internal = ref true
 let discreteness = ref false
+let source_only = ref false
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -56,6 +57,7 @@ let speclist =
     ("-internal", Arg.Set internal, "Set parametricity to internal (default)");
     ("-external", Arg.Clear internal, "Set parametricity to external");
     ("-discreteness", Arg.Set discreteness, "Enable discreteness");
+    ("-source-only", Arg.Set source_only, "Load all files from source (ignore compiled versions)");
     ( "-dtt",
       Unit
         (fun () ->
@@ -91,10 +93,11 @@ let rec batch first ws p src =
     let p, src = Command.Parse.restart_parse p src in
     batch false ws p src)
 
-let execute init_visible (source : Asai.Range.source) =
+let execute init_visible compunit (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
   Units.run ~init_visible @@ fun () ->
   let p, src = Command.Parse.start_parse source in
+  Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
     (fun () ->
       let ws = batch true [] p src in
@@ -204,8 +207,31 @@ let rec interact_pg () =
     interact_pg ()
   with End_of_file -> ()
 
+let marshal_flags chan =
+  Marshal.to_channel chan !arity [];
+  Marshal.to_channel chan !refl_char [];
+  Marshal.to_channel chan !refl_strings [];
+  Marshal.to_channel chan !internal [];
+  Marshal.to_channel chan !discreteness []
+
+let unmarshal_flags chan =
+  let ar = (Marshal.from_channel chan : int) in
+  let rc = (Marshal.from_channel chan : char) in
+  let rs = (Marshal.from_channel chan : string list) in
+  let int = (Marshal.from_channel chan : bool) in
+  let disc = (Marshal.from_channel chan : bool) in
+  if ar = !arity && rc = !refl_char && rs = !refl_strings && int = !internal && disc = !discreteness
+  then Ok ()
+  else
+    Error
+      (Printf.sprintf "-arity %d -direction %s %s%s" ar
+         (String.concat "," (String.make 1 rc :: rs))
+         (if int then "-internal" else "-external")
+         (if disc then " -discreteness" else ""))
+
 let () =
   Parser.Unparse.install ();
+  Units.Flags.run ~env:{ marshal = marshal_flags; unmarshal = unmarshal_flags } @@ fun () ->
   Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
   Builtins.run @@ fun () ->
@@ -235,18 +261,25 @@ let () =
   Dim.Endpoints.set_internal !internal;
   (* The initial namespace for all compilation units. *)
   let init = Parser.Pi.install Scope.Trie.empty in
-  Units.with_compile init execute @@ fun () ->
+  Compunit.Current.run ~env:Compunit.basic @@ fun () ->
+  let top_files =
+    Bwd.fold_right
+      (fun input acc ->
+        match input with
+        | `File file -> FilePath.make_absolute (Sys.getcwd ()) file :: acc
+        | _ -> acc)
+      !inputs [] in
+  Units.with_execute !source_only top_files init execute @@ fun () ->
   Mbwd.miter
     (fun [ input ] ->
       match input with
-      | `File filename -> Units.load (`File filename)
+      | `File filename -> Units.load_file filename
       | `Stdin ->
           let content = In_channel.input_all stdin in
-          Units.load (`String { content; title = Some "stdin" })
+          Units.load_string (Some "stdin") content None
       (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
       | `String content ->
-          Units.load ~init:(Units.all ())
-            (`String { content; title = Some "command-line exec string" }))
+          Units.load_string (Some "command-line exec string") content (Some (Units.all ())))
     [ !inputs ];
   (* Interactive mode also has all the other units loaded. *)
   if !interactive then

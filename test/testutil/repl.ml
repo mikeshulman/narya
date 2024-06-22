@@ -15,9 +15,7 @@ open Value
 open Raw
 open Asai.Range
 
-let () =
-  Dim.Endpoints.set_len 2;
-  Dim.Endpoints.set_internal true
+let () = Arity.install ()
 
 let parse_term (tm : string) : N.zero check located =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
@@ -38,7 +36,7 @@ let assume (name : string) (ty : string) : unit =
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
       Parser.Command.check_constant_name name;
-      let const = Scope.define name in
+      let const = Scope.define Compunit.basic name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
           Scope.modify_export (Yuujinchou.Language.except name);
@@ -55,7 +53,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       Parser.Command.check_constant_name name;
-      let const = Scope.define name in
+      let const = Scope.define Compunit.basic name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
           Scope.modify_export (Yuujinchou.Language.except name);
@@ -132,6 +130,7 @@ let run f =
   Readback.Display.run ~env:false @@ fun () ->
   Discreteness.run ~env:false @@ fun () ->
   Discrete.run ~init:Constant.Map.empty @@ fun () ->
+  Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))

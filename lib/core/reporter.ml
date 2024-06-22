@@ -142,8 +142,11 @@ module Code = struct
     | Type_expected : string -> t
     | Circular_import : string list -> t
     | Loading_file : string -> t
-    | File_loaded : string -> t
+    | File_loaded : string * [ `Compiled | `Source ] -> t
     | Library_has_extension : string -> t
+    | Invalid_filename : string -> t
+    | Incompatible_flags : string * string -> t
+    | Actions_in_compiled_file : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -251,6 +254,9 @@ module Code = struct
     | Loading_file _ -> Info
     | File_loaded _ -> Info
     | Library_has_extension _ -> Warning
+    | Invalid_filename _ -> Error
+    | Incompatible_flags _ -> Warning
+    | Actions_in_compiled_file _ -> Warning
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -371,6 +377,10 @@ module Code = struct
     (* import *)
     | Circular_import _ -> "E2300"
     | Library_has_extension _ -> "W2301"
+    | Invalid_filename _ -> "E2302"
+    | Incompatible_flags _ -> "W2303"
+    (* echo *)
+    | Actions_in_compiled_file _ -> "W2400"
     (* Interactive proof *)
     | Open_holes -> "E3000"
     (* Command progress and success *)
@@ -632,8 +642,14 @@ module Code = struct
              pp_print_string)
           files
     | Loading_file file -> textf "loading file: %s" file
-    | File_loaded file -> textf "file loaded: %s" file
+    | File_loaded (file, `Compiled) -> textf "file loaded: %s (compiled)" file
+    | File_loaded (file, `Source) -> textf "file loaded: %s (source)" file
     | Library_has_extension file -> textf "putative library name '%s' has extension" file
+    | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
+    | Incompatible_flags (file, flags) ->
+        textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
+    | Actions_in_compiled_file file ->
+        textf "not re-executing 'echo' commands when loading compiled file %s" file
 end
 
 include Asai.StructuredReporter.Make (Code)

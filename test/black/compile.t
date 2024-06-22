@@ -1,4 +1,4 @@
-Import files
+Import compiled files
 
   $ cat >one.ny <<EOF
   > axiom A : Type
@@ -9,7 +9,21 @@ Import files
   > axiom a0 : A
   > EOF
 
-  $ narya -source-only -v two.ny
+  $ narya one.ny
+
+  $ narya -v two.ny
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (compiled)
+  
+   ￫ info[I0001]
+   ￮ Axiom a0 assumed
+  
+
+Modified files are recompiled
+
+  $ touch one.ny
+
+  $ narya -v two.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
@@ -23,9 +37,12 @@ Import files
    ￮ Axiom a0 assumed
   
 
-Command-line strings see namespaces from explicitly loaded files only
+Files are recompiled if the flags change
 
-  $ narya -source-only -v two.ny -e 'axiom a1 : A'
+  $ narya -dtt -v two.ny
+   ￫ warning[W2303]
+   ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -arity 2 -direction e,refl,Id -internal, recompiling
+  
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
@@ -38,19 +55,10 @@ Command-line strings see namespaces from explicitly loaded files only
    ￫ info[I0001]
    ￮ Axiom a0 assumed
   
-   ￫ error[E0300]
-   ￭ command-line exec string
-   1 | axiom a1 : A
-     ^ unbound variable: A
-  
-  [1]
 
-  $ narya -source-only -v one.ny -e 'axiom a1 : A'
-   ￫ info[I0001]
-   ￮ Axiom A assumed
-  
-   ￫ info[I0001]
-   ￮ Axiom a1 assumed
+  $ narya two.ny
+   ￫ warning[W2303]
+   ￮ file '$TESTCASE_ROOT/one.ny' was compiled with incompatible flags -arity 1 -direction d -external, recompiling
   
 
 Requiring a file multiple times
@@ -60,45 +68,7 @@ Requiring a file multiple times
   > axiom a1 : A
   > EOF
 
-  $ cat >twothree.ny <<EOF
-  > import "two"
-  > import "three"
-  > axiom a2 : Id A a0 a1
-
-  $ narya -source-only -v twothree.ny
-   ￫ info[I0003]
-   ￮ loading file: $TESTCASE_ROOT/two.ny
-  
-   ￫ info[I0003]
-   ￮ loading file: $TESTCASE_ROOT/one.ny
-  
-   ￫ info[I0001]
-   ￮ Axiom A assumed
-  
-   ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
-  
-   ￫ info[I0001]
-   ￮ Axiom a0 assumed
-  
-   ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
-  
-   ￫ info[I0003]
-   ￮ loading file: $TESTCASE_ROOT/three.ny
-  
-   ￫ info[I0001]
-   ￮ Axiom a1 assumed
-  
-   ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
-  
-   ￫ error[E0300]
-   ￭ $TESTCASE_ROOT/twothree.ny
-   3 | axiom a2 : Id A a0 a1
-     ^ unbound variable: A
-  
-  [1]
+  $ narya three.ny
 
   $ cat >four.ny <<EOF
   > import "one"
@@ -106,7 +76,25 @@ Requiring a file multiple times
   > import "three"
   > axiom a2 : Id A a0 a1
 
-  $ narya -source-only -v four.ny
+  $ narya -v four.ny
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (compiled)
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/two.ny (compiled)
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/three.ny (compiled)
+  
+   ￫ info[I0001]
+   ￮ Axiom a2 assumed
+  
+
+Files are recompiled if their dependencies need to be
+
+  $ touch one.ny
+
+  $ narya -v four.ny
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
@@ -148,7 +136,7 @@ Circular dependency
   > import "foo"
   > EOF
 
-  $ narya -source-only foo.ny
+  $ narya foo.ny
    ￫ error[E2300]
    ￮ circular imports:
      $TESTCASE_ROOT/foo.ny
@@ -170,40 +158,26 @@ Import is relative to the file's directory
   > axiom a : A
   > EOF
 
-  $ narya -source-only -v -e 'import "subdir/two"'
-   ￫ info[I0003]
-   ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
-  
-   ￫ info[I0003]
-   ￮ loading file: $TESTCASE_ROOT/subdir/one.ny
-  
-   ￫ info[I0001]
-   ￮ Axiom A assumed
+  $ narya subdir/one.ny
+
+  $ narya subdir/two.ny
+
+  $ narya -v -e 'import "subdir/two"'
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (compiled)
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (source)
-  
-   ￫ info[I0001]
-   ￮ Axiom a assumed
-  
-   ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
+   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (compiled)
   
 
 A file isn't loaded twice even if referred to in different ways
 
-  $ narya -source-only -v subdir/one.ny -e 'import "subdir/two"'
-   ￫ info[I0001]
-   ￮ Axiom A assumed
-  
-   ￫ info[I0003]
-   ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
-  
-   ￫ info[I0001]
-   ￮ Axiom a assumed
+  $ narya -v -e 'import "subdir/one"' -e 'import "subdir/two"'
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (compiled)
   
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
+   ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (compiled)
   
 
 Notations are used from explicitly imported files, but not transitively.
@@ -225,12 +199,16 @@ Notations are used from explicitly imported files, but not transitively.
   > notation 0 f2 : x "%" y := f x y
   > EOF
 
-  $ narya -source-only n1.ny n3.ny -e 'echo a % a'
+  $ narya n1.ny
+
+  $ narya n2.ny
+
+  $ narya n1.ny n3.ny -e 'echo a % a'
   a % a
     : A
   
 
-  $ narya -source-only n1.ny n3.ny -e 'echo a & a'
+  $ narya n1.ny n3.ny -e 'echo a & a'
   a
     : A
   
@@ -249,24 +227,51 @@ Quitting in imports quits only that file
   > axiom B : Type
   > EOF
 
+  $ narya qone.ny
+
   $ cat >qtwo.ny <<EOF
   > import "qone"
   > axiom a0 : A
   > EOF
 
-  $ narya -source-only -v qtwo.ny
-   ￫ info[I0003]
-   ￮ loading file: $TESTCASE_ROOT/qone.ny
-  
-   ￫ info[I0001]
-   ￮ Axiom A assumed
-  
-   ￫ info[I0200]
-   ￮ execution of $TESTCASE_ROOT/qone.ny terminated by quit
-  
+  $ narya -v qtwo.ny
    ￫ info[I0004]
-   ￮ file loaded: $TESTCASE_ROOT/qone.ny (source)
+   ￮ file loaded: $TESTCASE_ROOT/qone.ny (compiled)
   
    ￫ info[I0001]
    ￮ Axiom a0 assumed
+  
+Dimensions work in files loaded from source
+
+  $ cat >dim.ny <<EOF
+  > axiom A:Type
+  > axiom a0:A
+  > axiom a1:A
+  > axiom a2 : Id A a0 a1
+  > EOF
+
+  $ narya dim.ny
+
+  $ narya -v -e 'import "dim" echo a2'
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/dim.ny (compiled)
+  
+  a2
+    : refl A a0 a1
+  
+Echos are not re-executed in compiled files
+
+  $ cat >echo.ny <<EOF
+  > axiom A:Type
+  > echo A
+  > EOF
+
+  $ narya -e 'import "echo"'
+  A
+    : Type
+  
+
+  $ narya -e 'import "echo"'
+   ￫ warning[W2400]
+   ￮ not re-executing 'echo' commands when loading compiled file $TESTCASE_ROOT/echo.nyo
   

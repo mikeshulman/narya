@@ -10,6 +10,7 @@ open Format
 open Uuseg_string
 open Print
 open Reporter
+open User
 module Trie = Yuujinchou.Trie
 
 type def = {
@@ -303,10 +304,12 @@ let check_constant_name name =
       fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
   | None -> ()
 
-let execute : Command.t -> unit = function
+let execute : Command.t -> unit =
+ fun cmd ->
+  match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
       check_constant_name name;
-      let const = Scope.define name in
+      let const = Scope.define (Compunit.Current.read ()) name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
           Scope.modify_export (Yuujinchou.Language.except name);
@@ -319,7 +322,7 @@ let execute : Command.t -> unit = function
         Mlist.pmap
           (fun [ d ] ->
             check_constant_name d.name;
-            let c = Scope.define d.name in
+            let c = Scope.define (Compunit.Current.read ()) d.name in
             [ d.name; (c, d) ])
           [ defs ] (Cons (Cons Nil)) in
       Reporter.try_with ~fatal:(fun d ->
@@ -348,6 +351,7 @@ let execute : Command.t -> unit = function
       Core.Command.execute (Def defs)
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
+      Units.Loading.modify (fun s -> { s with actions = true });
       match rtm.value with
       | Synth stm ->
           Readback.Display.run ~env:true @@ fun () ->
@@ -374,7 +378,7 @@ let execute : Command.t -> unit = function
       if Option.is_some (Scope.lookup notation_name) then
         fatal ~severity:Asai.Diagnostic.Error
           (Name_already_defined (String.concat "." notation_name));
-      let head =
+      let key =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)
         | `Constant c -> (
@@ -396,13 +400,14 @@ let execute : Command.t -> unit = function
           (args, []) pattern in
       if not (List.is_empty unbound) then
         fatal (Unbound_variable_in_notation (List.map fst unbound));
-      let key, notn, shadow =
-        State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args)
+      let user =
+        User { name = String.concat "." name; fixity; pattern; key; val_vars = List.map fst args }
       in
-      Scope.include_singleton (notation_name, (`Notation (key, notn), ()));
+      let notn, shadow = State.Current.add_user user in
+      Scope.include_singleton (notation_name, (`Notation (user, notn), ()));
       (if shadow then
          let keyname =
-           match key with
+           match notn.key with
            | `Constr (c, _) -> Constr.to_string c ^ "."
            | `Constant c -> String.concat "." (Scope.name_of c) in
          emit (Head_already_has_notation keyname));
@@ -410,7 +415,7 @@ let execute : Command.t -> unit = function
   | Import { file; _ } ->
       if FilePath.check_extension file "ny" then emit (Library_has_extension file);
       let file = FilePath.add_extension file "ny" in
-      let trie = Units.get (`File file) false in
+      let trie = Units.get_file file in
       Scope.import_subtree ([], trie)
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()

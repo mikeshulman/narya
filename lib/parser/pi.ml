@@ -6,7 +6,7 @@ open Check
 open Notation
 open Postprocess
 
-let const = Constant.make ()
+let const = Constant.make Compunit.basic
 
 let install trie =
   let ctx = Ctx.empty in

@@ -85,6 +85,7 @@ let execute : t -> unit = function
       let h = Eternity.end_command () in
       emit (Constant_assumed (PConstant const, h))
   | Def defs ->
+      (* The Discrete map is supposed to include all the constants currently being defined, but we start them all out set to false since we haven't yet checked that any of them are discrete. *)
       let init =
         List.fold_left (fun map (c, _) -> map |> Constant.Map.add c false) Constant.Map.empty defs
       in
@@ -94,5 +95,10 @@ let execute : t -> unit = function
       check_defs defs;
       let h = Eternity.end_command () in
       let printables =
-        List.map (fun (c, _) -> (PConstant c, Constant.Map.find c (Discrete.get ()))) defs in
+        List.map
+          (fun (c, _) ->
+            ( PConstant c,
+              Constant.Map.find_opt c (Discrete.get ())
+              <|> Anomaly "undefined just-defined constant" ))
+          defs in
       emit (Constant_defined (printables, h))

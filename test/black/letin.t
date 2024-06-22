@@ -10,7 +10,7 @@ Testing let-bindings
   > axiom f : (x:A) → B x → B x
   > EOF
 
-  $ narya -v pre.ny -e "def a0' : A := let id ≔ ((x ↦ x) : A → A) in id a0" -e "def test : Id A a0 a0' := refl a0"
+  $ narya -source-only -v pre.ny -e "def a0' : A := let id ≔ ((x ↦ x) : A → A) in id a0" -e "def test : Id A a0 a0' := refl a0"
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -39,7 +39,7 @@ Testing let-bindings
    ￮ Constant test defined
   
 
-  $ narya -v pre.ny -e "def a0' : A := let id : A → A ≔ x ↦ x in id a0" -e "def test : Id A a0 a0' := refl a0"
+  $ narya -source-only -v pre.ny -e "def a0' : A := let id : A → A ≔ x ↦ x in id a0" -e "def test : Id A a0 a0' := refl a0"
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -70,7 +70,7 @@ Testing let-bindings
 
 It matters what the variable is bound to:
 
-  $ narya -v pre.ny -e "def a0' : A := let id : A → A ≔ x ↦ a1 in id a0" -e "def untest : Id A a0 a0' := refl a0"
+  $ narya -source-only -v pre.ny -e "def a0' : A := let id : A → A ≔ x ↦ a1 in id a0" -e "def untest : Id A a0 a0' := refl a0"
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -107,7 +107,7 @@ It matters what the variable is bound to:
 
 Ap on let:
 
-  $ narya -v pre.ny -e "def a2' := refl ((y ↦ let id : A → A ≔ x ↦ x in id y) : A → A) a0 a1 a2" -e "def test : Id (Id A a0 a1) a2 a2' := refl a2"
+  $ narya -source-only -v pre.ny -e "def a2' := refl ((y ↦ let id : A → A ≔ x ↦ x in id y) : A → A) a0 a1 a2" -e "def test : Id (Id A a0 a1) a2 a2' := refl a2"
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -138,7 +138,7 @@ Ap on let:
 
 Let affects typechecking:
 
-  $ narya -v pre.ny -e "def b' : B a0 := let x ≔ a0 in f x b" -e "def untest : B a0 ≔ ((x ↦ f x b) : A → B a0) a0"
+  $ narya -source-only -v pre.ny -e "def b' : B a0 := let x ≔ a0 in f x b" -e "def untest : B a0 ≔ ((x ↦ f x b) : A → B a0) a0"
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -172,7 +172,7 @@ Let affects typechecking:
 
 Let can check in addition to synthesize:
 
-  $ narya -v pre.ny -e "def aconst : A → A ≔ let x ≔ a0 in y ↦ x"
+  $ narya -source-only -v pre.ny -e "def aconst : A → A ≔ let x ≔ a0 in y ↦ x"
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -200,7 +200,7 @@ Let can check in addition to synthesize:
 
 Let is allowed in case trees:
 
-  $ narya -v pre.ny -e "def atree : A → A ≔ let x ≔ a0 in y ↦ y" -e "echo atree"
+  $ narya -source-only -v pre.ny -e "def atree : A → A ≔ let x ≔ a0 in y ↦ y" -e "echo atree"
    ￫ info[I0001]
    ￮ Axiom A assumed
   
@@ -236,7 +236,7 @@ Let can contain case trees:
   > axiom u : bool
   > EOF
 
-  $ narya -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool := match x [ true. |-> false. | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+  $ narya -source-only -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool := match x [ true. |-> false. | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
    ￮ Constant bool defined
   
@@ -256,7 +256,7 @@ Let can contain case trees:
     : bool
   
 
-  $ narya -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool -> bool := y |-> match y [ true. |-> false. | false. |-> true. ] in n x' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+  $ narya -source-only -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool -> bool := y |-> match y [ true. |-> false. | false. |-> true. ] in n x' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
    ￮ Constant bool defined
   
@@ -278,7 +278,7 @@ Let can contain case trees:
 
 Synthesizing matches don't need to be annotated
 
-  $ narya -v letcase.ny -e 'def not : bool -> bool := x |-> let n := match x [ true. |-> (false. : bool) | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+  $ narya -source-only -v letcase.ny -e 'def not : bool -> bool := x |-> let n := match x [ true. |-> (false. : bool) | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
    ￮ Constant bool defined
   
@@ -334,7 +334,7 @@ Let doesn't make a case tree unless it needs to:
 
 Matches outside case trees can be implicitly wrapped in a let-binding:
 
-  $ narya -v letcase.ny -e 'def not (b : bool) : bool ≔ ((x ↦ x) : bool → bool) (match b [ true. ↦ false. | false. ↦ true. ])' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+  $ narya -source-only -v letcase.ny -e 'def not (b : bool) : bool ≔ ((x ↦ x) : bool → bool) (match b [ true. ↦ false. | false. ↦ true. ])' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
    ￮ Constant bool defined
   

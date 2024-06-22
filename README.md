@@ -2,7 +2,7 @@
 
 Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Directional, Higher/Parametric/Displayed Observational Type Theory, but a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with Id/Bridge types satisfying parametricity, of variable arity and internality.  There is a parser with user-definable mixfix notations, and user-definable record types, inductive datatypes and type families, and coinductive codatatypes, with functions definable by matching and comatching case trees.
 
-Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  But on the other side of the coin, feedback on anything and everything is welcome.  In particular, please report all crashes, bugs, unexpected errors, and other unexpected, surprising, or unintuitive behavior.
+Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  (I try to make breaking changes as GitHub pull requests, so if you watch the repository you should at least get notified of them.)  But on the other side of the coin, feedback on anything and everything is welcome.  In particular, please report all crashes, bugs, unexpected errors, and other unexpected, surprising, or unintuitive behavior, either in GitHub issues or by direct email.
 
 
 ## Top level interface
@@ -16,7 +16,7 @@ opam switch create 5.2.0
 opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib
 
 cd ../narya
-dune build @install
+dune build
 dune runtest
 dune install
 ```
@@ -33,6 +33,7 @@ The Narya executable accepts at least the following command-line flags.
 - `-interactive` or `-i`: Enter interactive mode (see below)
 - `-exec STRING` or `-e STRING`: Execute a string argument (see below)
 - `-no-check`: Don't typecheck and execute code (only parse it)
+- `-source-only`: Load all files from source, ignoring any compiled versions
 
 #### Formatting output
 
@@ -53,9 +54,7 @@ These options are discussed further below.
 
 ### Execution
 
-When the Narya executable is run, it loads all the files given on its command line and any strings supplied on the command line with `-e`.  As usual, the special filename `-` refers to standard input.  Files and strings are loaded in the order they are given on the command line.  Lastly, if `-i` was given anywhere on the command line, Narya enters interactive mode.
-
-When in interactive mode or loading a command-line `-e` string, all definitions from all files and strings specified previously on the command line are available (but not those loaded transitively by `import`).  However, when loading a file (including standard input), definitions from other files are not available by default, even if those files were specified earlier on the command line; you have to explicitly `import` them (see below).  There is no compilation or caching yet: everything must be typechecked and loaded anew at every invocation.
+When the Narya executable is run, it loads all the files given on its command line and any strings supplied on the command line with `-e`.  As usual, the special filename `-` refers to standard input.  Files and strings are loaded in the order they are given on the command line; all files must have the extension `.ny`.  Lastly, if `-i` was given anywhere on the command line, Narya enters interactive mode.
 
 In interactive mode, commands typed by the user are executed as they are entered.  Since many commands span multiple lines, Narya waits for a blank line before parsing and executing the command(s) being entered.  Make sure to enter a blank line before starting a new command; interactive commands must be entered and executed one at a time.  The result of the command is printed (more verbosely than is usual when loading a file) and then the user can enter more commands.  Type Control+D to exit interactive mode, or enter the command `quit`.  In addition, in interactive mode you can enter a term instead of a command, and Narya will assume you mean to `echo` it (see below).
 
@@ -82,14 +81,37 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
 5. `import FILE`
 
-   Add the extension `.ny` to the double-quoted string `FILE`, execute the file at that location (either absolute or relative to the location of the current file), and add its definitions and notations to the current namespace.  That is, the disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
-
-   The commands in `FILE.ny` cannot access any definitions from other files, including the current one, except those that it imports itself; and the definitions and notations from files imported by `FILE.ny` are not added to the current namespace (unless it also imports those files directly).  No file will be executed more than once during a single run, even if it is imported by multiple other files.  Circular imports are not allowed.
+   Add the extension `.ny` to the double-quoted string `FILE` and import the file at that location (either absolute or relative to the location of the current file).  The disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
 
 6. `quit`
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
    
+
+### File imports
+
+As noted above, the command `import` executes another Narya file and adds its definitions and notations to the current namespace.  The commands in the imported file cannot access any definitions from other files, including the current one, except those that it imports itself.  Importing is not transitive: if `a.ny` imports `b.ny`, and `b.ny` imports `c.ny`, then the definitions from `c.ny` do not appear in the namespace of `a.ny` unless it also imports `c.ny` explicitly.
+
+By contrast, when in interactive mode or executing a command-line `-e` string, all definitions from all files and strings that were explicitly specified previously on the command line are available.  This does not carry over transitively to files imported by them.  Standard input (indicated by `-` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in `-e` strings and interactive mode.
+
+No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both `b.ny` and `c.ny` import `d.ny`, and `a.ny` imports both `b.ny` and `c.ny`, any effectual commands like `echo` in `d.ny` will only happen once, there will only be one copy of the definitions from `d.ny` in the namespace of `a.ny`, and the definitions from `b.ny` and `c.ny` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is `narya one.ny two.ny` but `one.ny` imports `two.ny`, then `two.ny` will be executed during `one.ny` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was alread yexecuted.
+
+
+### Compilation
+
+Whenever a file `FILE.ny` is successfully executed, Narya writes a "compiled" version of that file in the same directory called `FILE.nyo`.  Then in future runs of Narya, whenever `FILE.ny` is to be executed, if
+
+1. `-source-only` was not specified,
+2. `FILE.ny` was not specified explicitly on the command-line (so that it must have been imported by another file),
+3. `FILE.nyo` exists in the same directory,
+4. the same type theory flags (`-arity`, `-direction`, `-internal`/`-external`, and `-discreteness`) are in effect now as when `FILE.nyo` was compiled,
+5. `FILE.ny` has not been modified more recently than `FILE.nyo`, and
+6. none of the files imported by `FILE.ny` are newer than it or their compiled versions,
+
+then `FILE.nyo` is loaded directly instead of re-executing `FILE.ny`, skipping the typechecking step.  This can be much faster.  If any of these conditions fail, then `FILE.ny` is executed from source as usual, and a new compiled version `FILE.nyo` is saved, overwriting the previous one.
+
+Effectual commands like `echo` are *not* re-executed when a file is loaded from its compiled version (they are not even stored in the compiled version).  Since this may be surprising, Narya issues a warning when loading a compiled version of a file that originally contained `echo` commands.  Since files explicitly specified on the command-line are never loaded from a compiled version, the best way to avoid this warning is to avoid `echo` statements in "library" files that are intended to be imported by other files.  Of course, you can also use `-source-only` to prevent all loading from compiled files.
+
 
 ## Built-in types
 

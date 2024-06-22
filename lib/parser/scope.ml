@@ -1,10 +1,10 @@
 open Core
-open User
+open Notation
 module Trie = Yuujinchou.Trie
 
 (* Parameter module for Yuujinchou *)
 module P = struct
-  type data = [ `Constant of Constant.t | `Notation of PrintKey.t * permuted_notation ]
+  type data = [ `Constant of Constant.t | `Notation of User.user_notation * permuted_notation ]
 
   (* Currently we have no nontrivial tags, hooks, or contexts. *)
   type tag = unit
@@ -50,7 +50,7 @@ let name_of c =
   | None -> [ "_UNNAMED_CONSTANT" ]
 
 (* Create a new Constant.t and define a name to equal it. *)
-let define name =
-  let c = Constant.make () in
+let define compunit name =
+  let c = Constant.make compunit in
   include_singleton (name, (`Constant c, ()));
   c

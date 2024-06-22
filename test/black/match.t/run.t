@@ -33,7 +33,7 @@
    ￮ Constant contra defined
   
    ￫ hint[E1101]
-   ￭ matchterm.ny
+   ￭ $TESTCASE_ROOT/matchterm.ny
    12 | def doublematch (n : ℕ) : bool ≔ match n [ zero. ↦ false. | suc. k ↦ match n [ zero. ↦ true. | suc. _ ↦ false. ]]
       ^ match will not refine the goal or context (discriminee is let-bound): n
   
@@ -139,7 +139,7 @@
    ￮ Constant ⊤ defined
   
    ￫ hint[H0403]
-   ￭ multi.ny
+   ￭ $TESTCASE_ROOT/multi.ny
    82 | def ⊤eq⊥ : Id Type ⊤ ⊥ ≔ Gel ⊤ ⊥ []
       ^ matching lambda encountered outside case tree, wrapping in implicit let-binding
   

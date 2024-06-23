@@ -126,6 +126,16 @@ module Tbwd = struct
         let (Append ab) = append xs in
         Append (Append_cons ab)
 
+  (* Extend an insertion by the identity *)
+  type (_, _) insert_into = Insert_into : ('a, 'n, 'b) insert -> ('n, 'b) insert_into
+
+  let rec insert_append :
+      type a n b c bc. (a, n, b) insert -> (b, c, bc) append -> (n, bc) insert_into =
+   fun ins bc ->
+    match bc with
+    | Append_nil -> Insert_into ins
+    | Append_cons bc -> insert_append (Later ins) bc
+
   (* Extend a permutation by the identity *)
   let rec permute_append :
       type a b c ac bc. (a, b) permute -> (a, c, ac) append -> (b, c, bc) append -> (ac, bc) permute
@@ -226,7 +236,7 @@ module Tbwd = struct
         let (Flat_cons (n, ns)) = ns in
         let (Plus m) = N.plus (Fwn.fplus_left n) in
         let (Bplus_flatten_append (ps, mn)) = bplus_flatten_append (Flat_snoc (ms, m)) ns mnp in
-        Bplus_flatten_append (ps, Fwn.assocr m n mn)
+        Bplus_flatten_append (ps, Fwn.bfplus_assocr m n mn)
 
   (* If we remove an entry from a flattenable list, the result is again flattenable, and the missing entry can be added to its flattening to obtain the original one.  (Note that the latter fact uses commutativity of addition for nat). *)
   type (_, _, _) flatten_uninsert =

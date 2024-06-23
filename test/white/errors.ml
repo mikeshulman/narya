@@ -29,9 +29,9 @@ let () =
   let () = unsynth ~print:() "sym a2" ~short:"E0601" in
   let () = unsynth ~print:() "g" ~code:(Unbound_variable "g") in
   let ida, _ = synth "Id A" in
-  let () = uncheck ~print:() "a" ida ~code:(Type_not_fully_instantiated "typechecking") in
+  let () = uncheck ~print:() "a" ida ~short:"E0401" in
   let idida, _ = synth "Id (Id A) a a (refl a) a a (refl a)" in
-  let () = uncheck ~print:() "a" idida ~code:(Type_not_fully_instantiated "typechecking") in
+  let () = uncheck ~print:() "a" idida ~short:"E0401" in
   let () = assert (Option.is_none (Core.Equal.equal_val 0 aa ida)) in
 
   (* Parse errors. *)
@@ -51,8 +51,8 @@ let () =
     unsynth ~print:() "a ↦ ( fst ≔ a, fst ≔ a )"
       ~code:(Duplicate_field_in_tuple (Core.Field.intern "fst")) in
   let () = unsynth ~print:() "( (x) ≔ a )" ~code:Invalid_field_in_tuple in
-  let () = unsynth ~print:() "[ _ ↦ a ]" ~code:Parse_error in
-  let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:Parse_error in
+  let () = unsynth ~print:() "[ _ ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
+  let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
   let () = unsynth ~print:() "[ | | .head |-> 0 | .tail |-> f ]" ~code:Parse_error in
 
   (* Records and datatypes *)

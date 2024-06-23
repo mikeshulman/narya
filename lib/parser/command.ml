@@ -10,10 +10,12 @@ open Format
 open Uuseg_string
 open Print
 open Reporter
+open User
+module Trie = Yuujinchou.Trie
 
 type def = {
   wsdef : Whitespace.t list;
-  name : Scope.Trie.path;
+  name : Trie.path;
   wsname : Whitespace.t list;
   parameters : Parameter.t list;
   wscolon : Whitespace.t list;
@@ -26,7 +28,7 @@ module Command = struct
   type t =
     | Axiom of {
         wsaxiom : Whitespace.t list;
-        name : Scope.Trie.path;
+        name : Trie.path;
         wsname : Whitespace.t list;
         parameters : Parameter.t list;
         wscolon : Whitespace.t list;
@@ -39,16 +41,17 @@ module Command = struct
         wsnotation : Whitespace.t list;
         wstight : Whitespace.t list; (* Empty for outfix *)
         wsellipsis : Whitespace.t list; (* Empty for non-associative *)
-        name : Scope.Trie.path;
+        name : Trie.path;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
         pattern : State.pattern;
         wscoloneq : Whitespace.t list;
-        head : [ `Constr of string | `Constant of Scope.Trie.path ];
+        head : [ `Constr of string | `Constant of Trie.path ];
         wshead : Whitespace.t list;
         args : (string * Whitespace.t list) list;
       }
         -> t
+    | Import of { wsimport : Whitespace.t list; file : string; wsfile : Whitespace.t list }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -120,8 +123,8 @@ module Parse = struct
     let* tm = C.term [] in
     return (Command.Echo { wsecho; tm })
 
-  let tightness_and_name :
-      (No.wrapped option * Whitespace.t list * Scope.Trie.path * Whitespace.t list) t =
+  let tightness_and_name : (No.wrapped option * Whitespace.t list * Trie.path * Whitespace.t list) t
+      =
     let* tloc, tight_or_name = located ident in
     (let* name, wsname = ident in
      let tight, wstight = tight_or_name in
@@ -139,6 +142,7 @@ module Parse = struct
         match tok with
         | String str -> (
             match Lexer.single str with
+            (* Currently we hard code a `Nobreak after each symbol in a notation. *)
             | Some tok -> Some (`Op (tok, `Nobreak, ws), state)
             | None -> fatal (Invalid_notation_symbol str))
         | _ -> None)
@@ -146,6 +150,7 @@ module Parse = struct
   let pattern_var =
     let* x, ws = ident in
     match x with
+    (* Currently we hard code a `Break after each variable in a notation. *)
     | [ x ] -> return (`Var (x, `Break, ws))
     | _ -> fatal (Invalid_variable x)
 
@@ -210,6 +215,13 @@ module Parse = struct
            args;
          })
 
+  let import =
+    let* wsimport = token Import in
+    step "" (fun state _ (tok, wsfile) ->
+        match tok with
+        | String file -> Some (Import { wsimport; file; wsfile }, state)
+        | _ -> None)
+
   let quit =
     let* wsquit = token Quit in
     return (Command.Quit wsquit)
@@ -222,7 +234,7 @@ module Parse = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command () = bof </> axiom </> def_and </> echo </> notation </> quit </> eof
+  let command () = bof </> axiom </> def_and </> echo </> notation </> import </> quit </> eof
 
   let command_or_echo () =
     command ()
@@ -284,34 +296,40 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
-let execute : Command.t -> unit = function
+(* We currently allow names used for constants to be redefined, but once a name is used for a notation, it can't be shadowed by a constant. *)
+let check_constant_name name =
+  match Scope.resolve name with
+  | Some (`Constant _, ()) -> emit (Name_already_defined (String.concat "." name))
+  | Some (_, ()) ->
+      fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
+  | None -> ()
+
+let execute : Command.t -> unit =
+ fun cmd ->
+  match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
-      let const = Scope.define name in
+      check_constant_name name;
+      let const = Scope.define (Compunit.Current.read ()) name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
-      Core.Command.execute (Axiom (const, params, process ctx ty));
-      let h = Core.Galaxy.end_command () in
-      emit (Constant_assumed (PConstant const, h))
+      Core.Command.execute (Axiom (const, params, process ctx ty))
   | Def defs ->
-      let [ names; cdefs; printables ] =
+      let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
-            if Option.is_some (Scope.lookup d.name) then
-              emit (Constant_already_defined (String.concat "." d.name));
-            let c = Scope.define d.name in
-            [ d.name; (c, d); PConstant c ])
-          [ defs ] (Cons (Cons (Cons Nil))) in
+            check_constant_name d.name;
+            let c = Scope.define (Compunit.Current.read ()) d.name in
+            [ d.name; (c, d) ])
+          [ defs ] (Cons (Cons Nil)) in
       Reporter.try_with ~fatal:(fun d ->
           List.iter
             (fun c ->
-              Scope.S.modify_visible (Yuujinchou.Language.except c);
-              Scope.S.modify_export (Yuujinchou.Language.except c))
+              Scope.modify_visible (Yuujinchou.Language.except c);
+              Scope.modify_export (Yuujinchou.Language.except c))
             names;
           Reporter.fatal_diagnostic d)
       @@ fun () ->
@@ -322,25 +340,25 @@ let execute : Command.t -> unit = function
                 let (Processed_tel (params, ctx)) = process_tel Emp parameters in
                 match ty with
                 | Some (Term ty) ->
-                    Core.Command.Def_check
-                      { const; params; ty = process ctx ty; tm = process ctx tm }
+                    ( const,
+                      Core.Command.Def_check { params; ty = process ctx ty; tm = process ctx tm } )
                 | None -> (
                     match process ctx tm with
                     | { value = Synth tm; loc } ->
-                        Def_synth { const; params; tm = { value = tm; loc } }
+                        (const, Def_synth { params; tm = { value = tm; loc } })
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
-      Core.Command.execute (Def defs);
-      let h = Core.Galaxy.end_command () in
-      emit (Constant_defined (printables, h))
+      Core.Command.execute (Def defs)
   | Echo { tm = Term tm; _ } -> (
       let rtm = process Emp tm in
+      Units.Loading.modify (fun s -> { s with actions = true });
       match rtm.value with
       | Synth stm ->
-          let ctm, ety = Check.synth Ctx.empty { value = stm; loc = rtm.loc } in
+          Readback.Display.run ~env:true @@ fun () ->
+          let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
           let etm = Norm.eval_term (Emp D.zero) ctm in
           let btm = Readback.readback_at Ctx.empty etm ety in
-          let bty = Readback.readback_at Ctx.empty ety (Inst.universe D.zero) in
+          let bty = Readback.readback_at Ctx.empty ety (Syntax.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           let uty = unparse Names.empty bty Interval.entire Interval.entire in
           let ppf = Format.std_formatter in
@@ -356,18 +374,13 @@ let execute : Command.t -> unit = function
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
       let notation_name = "notation" :: name in
+      (* A notation name can't be redefining anything. *)
       if Option.is_some (Scope.lookup notation_name) then
-        emit (Constant_already_defined (String.concat "." notation_name));
-      (* TODO: Should the "name" of a notation actually be a Constant.t, to be looked up in the scope? *)
-      let _ = Scope.define notation_name in
-      Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except notation_name);
-          Scope.S.modify_export (Yuujinchou.Language.except notation_name);
-          Reporter.fatal_diagnostic d)
-      @@ fun () ->
-      let head =
+        fatal ~severity:Asai.Diagnostic.Error
+          (Name_already_defined (String.concat "." notation_name));
+      let key =
         match head with
-        | `Constr c -> `Constr (Constr.intern c)
+        | `Constr c -> `Constr (Constr.intern c, List.length args)
         | `Constant c -> (
             match Scope.lookup c with
             | Some c -> `Constant c
@@ -387,9 +400,32 @@ let execute : Command.t -> unit = function
           (args, []) pattern in
       if not (List.is_empty unbound) then
         fatal (Unbound_variable_in_notation (List.map fst unbound));
-      State.Current.add_user (String.concat "." name) fixity pattern head (List.map fst args);
+      let user =
+        User { name = String.concat "." name; fixity; pattern; key; val_vars = List.map fst args }
+      in
+      let notn, shadow = State.Current.add_user user in
+      Scope.include_singleton (notation_name, (`Notation (user, notn), ()));
+      (if shadow then
+         let keyname =
+           match notn.key with
+           | `Constr (c, _) -> Constr.to_string c ^ "."
+           | `Constant c -> String.concat "." (Scope.name_of c) in
+         emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
-  | Quit _ -> fatal Quit
+  | Import { file; _ } ->
+      if FilePath.check_extension file "ny" then emit (Library_has_extension file);
+      let file = FilePath.add_extension file "ny" in
+      let trie = Units.get_file file in
+      Scope.import_subtree ([], trie);
+      Seq.iter
+        (fun (_, (data, _)) ->
+          match data with
+          | `Notation (user, _) ->
+              let _ = State.Current.add_user user in
+              ()
+          | _ -> ())
+        (Trie.to_seq (Trie.find_subtree [ "notation" ] trie))
+  | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
 
@@ -546,6 +582,17 @@ let pp_command : formatter -> t -> Whitespace.t list =
             let wslast, rest = Whitespace.split wslast in
             pp_ws `None ppf wslast;
             rest in
+      pp_close_box ppf ();
+      rest
+  | Import { wsimport; file; wsfile } ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Import;
+      pp_ws `Nobreak ppf wsimport;
+      pp_print_string ppf "\"";
+      pp_print_string ppf file;
+      pp_print_string ppf "\"";
+      let ws, rest = Whitespace.split wsfile in
+      pp_ws `None ppf ws;
       pp_close_box ppf ();
       rest
   | Quit ws -> ws

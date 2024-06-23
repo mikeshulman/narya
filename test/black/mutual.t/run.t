@@ -116,10 +116,10 @@
        ty
   
    ￫ warning[E2100]
-   ￮ redefining constant: ctx
+   ￮ name already defined: ctx
   
    ￫ warning[E2100]
-   ￮ redefining constant: ty
+   ￮ name already defined: ty
   
    ￫ info[I0000]
    ￮ Constants defined mutually:

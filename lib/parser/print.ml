@@ -242,3 +242,28 @@ let pp_hole ppf ctx ty =
   pp_print_cut ppf ();
   pp_term `None ppf ty;
   pp_close_box ppf ()
+
+let rec pp_user pattern n first ppf pat obs ws space =
+  match (pat, obs) with
+  | [], [] -> taken_last ws
+  | [], _ :: _ -> fatal (Anomaly "invalid notation arguments")
+  | `Op (op, br, _) :: pat, _ ->
+      let wsop, ws = take op ws in
+      pp_tok ppf op;
+      pp_ws (if List.is_empty pat then space else br) ppf wsop;
+      pp_user pattern n false ppf pat obs ws space
+  | `Ellipsis _ :: _, _ -> fatal (Unimplemented "internal ellipsis in notation pattern")
+  | [ `Var (_, br, _) ], [ x ] -> (
+      match x with
+      | Term { value = Notn m; _ } when equal (notn m) n ->
+          pp_user pattern n false ppf pattern (args m) (whitespace m) br
+      | _ ->
+          pp_term space ppf x;
+          taken_last ws)
+  | `Var (_, br, _) :: pat, x :: obs ->
+      (match (first, x) with
+      | true, Term { value = Notn m; _ } when equal (notn m) n ->
+          pp_user pattern n true ppf pattern (args m) (whitespace m) br
+      | _ -> pp_term br ppf x);
+      pp_user pattern n false ppf pat obs ws space
+  | `Var _ :: _, [] -> fatal (Anomaly "invalid notation arguments")

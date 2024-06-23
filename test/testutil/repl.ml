@@ -12,13 +12,10 @@ open Check
 open Syntax
 open Term
 open Value
-open Inst
 open Raw
 open Asai.Range
 
-let () =
-  Dim.Endpoints.set_len 2;
-  Dim.Endpoints.set_internal true
+let () = Arity.install ()
 
 let parse_term (tm : string) : N.zero check located =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
@@ -28,21 +25,21 @@ let parse_term (tm : string) : N.zero check located =
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let check_type (rty : N.zero check located) : (emp, kinetic) term =
-  Reporter.trace "when checking type" @@ fun () -> check Kinetic Ctx.empty rty (universe D.zero)
+  Reporter.trace "when checking type" @@ fun () ->
+  check (Kinetic `Nolet) Ctx.empty rty (universe D.zero)
 
 let check_term (rtm : N.zero check located) (ety : kinetic value) : (emp, kinetic) term =
-  Reporter.trace "when checking term" @@ fun () -> check Kinetic Ctx.empty rtm ety
+  Reporter.trace "when checking term" @@ fun () -> check (Kinetic `Nolet) Ctx.empty rtm ety
 
 let assume (name : string) (ty : string) : unit =
   let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
-      let const = Scope.define name in
+      Parser.Command.check_constant_name name;
+      let const = Scope.define Compunit.basic name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let rty = parse_term ty in
@@ -55,12 +52,11 @@ let def (name : string) (ty : string) (tm : string) : unit =
   match Parse.Term.final p with
   | Term { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
-      if Option.is_some (Scope.lookup name) then
-        emit (Constant_already_defined (String.concat "." name));
-      let const = Scope.define name in
+      Parser.Command.check_constant_name name;
+      let const = Scope.define Compunit.basic name in
       Reporter.try_with ~fatal:(fun d ->
-          Scope.S.modify_visible (Yuujinchou.Language.except name);
-          Scope.S.modify_export (Yuujinchou.Language.except name);
+          Scope.modify_visible (Yuujinchou.Language.except name);
+          Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
       let rty = parse_term ty in
@@ -70,7 +66,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
       Reporter.trace "when checking case tree" @@ fun () ->
       let tree =
         Global.run_with const cty (Axiom `Parametric) @@ fun () ->
-        check (Potential (const, Emp, fun x -> x)) Ctx.empty rtm ety in
+        check (Potential (Constant const, Emp, fun x -> x)) Ctx.empty rtm ety in
       Global.add const cty (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
 
@@ -116,8 +112,9 @@ let print (tm : string) : unit =
   let rtm = parse_term tm in
   match rtm with
   | { value = Synth rtm; loc } ->
-      let ctm, ety = synth Ctx.empty { value = rtm; loc } in
+      let ctm, ety = synth (Kinetic `Nolet) Ctx.empty { value = rtm; loc } in
       let etm = eval_term (Emp D.zero) ctm in
+      Display.run ~env:true @@ fun () ->
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in
       pp_term `None Format.std_formatter (Term utm);
@@ -126,17 +123,20 @@ let print (tm : string) : unit =
 
 let run f =
   Parser.Unparse.install ();
-  Galaxy.run_empty @@ fun () ->
+  Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
-  Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
+  Readback.Display.run ~env:false @@ fun () ->
+  Discreteness.run ~env:false @@ fun () ->
+  Discrete.run ~init:Constant.Map.empty @@ fun () ->
+  Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
-  Parser.Pi.install ();
-  f ()
+  let init_visible = Parser.Pi.install Scope.Trie.empty in
+  Scope.run ~init_visible @@ fun () -> f ()
 
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

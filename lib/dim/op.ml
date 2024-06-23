@@ -1,3 +1,4 @@
+open Util
 open Deg
 open Sface
 open Face
@@ -36,6 +37,12 @@ let dom_op : type m n. (m, n) op -> m D.t = function
 let cod_op : type m n. (m, n) op -> n D.t = function
   | Op (f, _) -> cod_sface f
 
+let is_id_op : type m n. (m, n) op -> (m, n) Eq.t option =
+ fun (Op (a, b)) ->
+  match (is_id_sface a, is_id_deg b) with
+  | Some Eq, Some Eq -> Some Eq
+  | _ -> None
+
 let op_of_deg : type m n. (m, n) deg -> (m, n) op = fun s -> Op (id_sface (cod_deg s), s)
 let op_of_sface : type m n. (m, n) sface -> (m, n) op = fun f -> Op (f, id_deg (dom_sface f))
 
@@ -45,6 +52,11 @@ let op_plus_op :
  fun (Op (d1, s1)) mn kl (Op (d2, s2)) ->
   let (Plus middle) = D.plus (dom_sface d2) in
   Op (sface_plus_sface d1 mn middle d2, deg_plus_deg s1 middle kl s2)
+
+let plus_op :
+    type m n mn m l ml. m D.t -> (m, n, mn) D.plus -> (m, l, ml) D.plus -> (l, n) op -> (ml, mn) op
+    =
+ fun m mn ml op -> op_plus_op (id_op m) mn ml op
 
 type _ op_of = Of : ('m, 'n) op -> 'n op_of
 type _ op_of_plus = Of : ('m, 'n) sface * 'm deg_of_plus -> 'n op_of_plus

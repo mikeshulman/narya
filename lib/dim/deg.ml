@@ -87,12 +87,15 @@ let plus_deg :
  fun m mn ml s -> deg_plus_deg (id_deg m) mn ml s
 
 (* Check whether a degeneracy is an identity *)
-let rec is_id_deg : type m n. (m, n) deg -> unit option = function
+let rec is_id_deg : type m n. (m, n) deg -> (m, n) Eq.t option = function
   | Zero n -> (
       match N.compare n D.zero with
-      | Eq -> Some ()
+      | Eq -> Some Eq
       | Neq -> None)
-  | Suc (p, Top) -> is_id_deg p
+  | Suc (p, Top) -> (
+      match is_id_deg p with
+      | Some Eq -> Some Eq
+      | None -> None)
   | Suc (_, Pop _) -> None
 
 (* A degeneracy of a positive dimension is still positive *)
@@ -148,7 +151,11 @@ let perm_plus_perm : type m n mn. m perm -> (m, n, mn) D.plus -> n perm -> mn pe
 let plus_perm : type m n mn. m D.t -> (m, n, mn) D.plus -> n perm -> mn perm =
  fun m mn s -> plus_deg m mn mn s
 
-let is_id_perm : type n. n perm -> unit option = fun p -> is_id_deg p
+let is_id_perm : type n. n perm -> unit option =
+ fun p ->
+  match is_id_deg p with
+  | Some _ -> Some ()
+  | None -> None
 
 (* The inverse of a permutation *)
 

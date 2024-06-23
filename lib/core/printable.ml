@@ -3,6 +3,11 @@ open Term
 open Value
 open Reporter
 
+let phead : head -> printable = function
+  | Const { name; _ } -> PConstant name
+  | Meta { meta; _ } -> PMeta meta
+  | _ -> PString "(variable)"
+
 type printable +=
   | PLevel : level -> printable
   | PTerm : ('a, 'b) Ctx.t * ('b, kinetic) term -> printable

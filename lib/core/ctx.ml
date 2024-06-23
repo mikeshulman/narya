@@ -205,7 +205,7 @@ module Ordered = struct
       let (Plus kl) = D.plus (dom_sface fb) in
       let fab = sface_plus_sface fa mn kl fb in
       let x = CubeOf.find xs fab in
-      (Found (Binding.level x, Binding.value x, Top fab), NFamOf.NFamOf ()) in
+      (Found (Binding.level x, Binding.value x, Index (Now, fab)), NFamOf.NFamOf ()) in
     match acc with
     | Found (i, x, v) -> (Found (i, x, v), NFamOf ())
     | Unfound (Suc p, (Pop k, fa)) -> (Unfound (p, (k, fa)), NFamOf ())
@@ -238,7 +238,7 @@ module Ordered = struct
       [ `Var of level option * normal * (b, n) snoc index | `Field of level * normal * Field.t ] =
    fun ctx e pf k ->
     let pop = function
-      | `Var (i, x, v) -> `Var (i, x, Pop v)
+      | `Var (i, x, Index (v, fa)) -> `Var (i, x, Index (Later v, fa))
       | `Field f -> `Field f in
     match e with
     | Vis { dim; plusdim; vars; bindings; hasfields = _; fields; fplus } -> (
@@ -284,45 +284,47 @@ module Ordered = struct
     match
       miterM
         {
-          it = (fun fa [ x ] s -> if Binding.level x = Some i then ((), Some (Top fa)) else ((), s));
+          it =
+            (fun fa [ x ] s ->
+              if Binding.level x = Some i then ((), Some (Index (Now, fa))) else ((), s));
         }
         [ vars ] None
     with
     | (), Some v -> Some v
-    | (), None -> Option.map (fun v -> Pop v) (find_level ctx i)
+    | (), None -> Option.map (fun (Index (v, fa)) -> Index (Later v, fa)) (find_level ctx i)
 
   (* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with any boundaries. *)
+
+  let env_entry :
+      type n. (n, Binding.t) CubeOf.t -> (n, (D.zero, kinetic lazy_eval) CubeOf.t) CubeOf.t =
+   fun v ->
+    CubeOf.mmap
+      (* We wrap the value in a Lazy because it might be Unknown or Delayed, but we don't want an error reported unless such a value is actually *used*. *)
+      { map = (fun _ [ x ] -> CubeOf.singleton (defer (fun () -> Val (Binding.value x).tm))) }
+      [ v ]
+
+  (* This function traverses the entire context and computes the corresponding environment.  However, when we add permutations to environments below, we will also store a precomputed environment, so this function only needs to be called when the context has been globally modified. *)
   let rec env : type a b. (a, b) t -> (D.zero, b) env = function
     | Emp -> Emp D.zero
-    | Snoc (ctx, Vis { bindings; _ }, _) -> env_entry ctx bindings
-    | Snoc (ctx, Invis bindings, _) -> env_entry ctx bindings
+    | Snoc (ctx, Vis { bindings; _ }, _) -> LazyExt (env ctx, env_entry bindings)
+    | Snoc (ctx, Invis bindings, _) -> LazyExt (env ctx, env_entry bindings)
     | Lock ctx -> env ctx
 
-  and env_entry : type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> (D.zero, (b, n) snoc) env =
-   fun ctx v ->
-    Ext
-      ( env ctx,
-        CubeOf.mmap
-          (* We wrap the value in a Lazy because it might be Unknown or Delayed, but we don't want an error reported unless such a value is actually *used*. *)
-          { map = (fun _ [ x ] -> CubeOf.singleton (Lazy (lazy (Binding.value x).tm))) }
-          [ v ] )
-
-  (* Evaluate a case tree or term in (the environment of) a context.  Thus, replace its De Bruijn indices with De Bruijn levels, and substitute the values of variables with definitions. *)
-  let eval : type a b s. (a, b) t -> (b, s) term -> s evaluation =
-   fun ctx tm -> Norm.eval (env ctx) tm
-
-  let eval_term : type a b. (a, b) t -> (b, kinetic) term -> kinetic value =
-   fun ctx tm -> Norm.eval_term (env ctx) tm
-
   (* Extend a context by one new variable, without a value but with an assigned type. *)
-  let ext : type a b. (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) snoc) t =
+  let ext :
+      type a b.
+      (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) snoc) t * Binding.t =
    fun ctx x ty ->
     let n = length ctx in
-    cube_vis ctx x (CubeOf.singleton (Binding.make (Some (n, 0)) { tm = var (n, 0) ty; ty }))
+    let b = Binding.make (Some (n, 0)) { tm = var (n, 0) ty; ty } in
+    (cube_vis ctx x (CubeOf.singleton b), b)
 
   (* Extend a context by one new variable with an assigned value. *)
-  let ext_let : type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t =
-   fun ctx x v -> cube_vis ctx x (CubeOf.singleton (Binding.make None v))
+  let ext_let :
+      type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t * Binding.t =
+   fun ctx x v ->
+    let b = Binding.make None v in
+    (cube_vis ctx x (CubeOf.singleton b), b)
 
   (* Generate a case tree consisting of a sequence of abstractions corresponding to the (checked) variables in a context.  The context must contain NO LET-BOUND VARIABLES, including field-access variables, since abstracting over them would not be well-defined.  (In general, we couldn't just omit them, because some of the variables in a cube could be bound but not others, and cubes in the context yield cube abstractions.  However, at least when this comment was written, this function was only used for contexts consisting entirely of 0-dimensional cubes without let-bound variables.) *)
   let rec lam : type a b. (a, b) t -> (b, potential) term -> (emp, potential) term =
@@ -335,42 +337,81 @@ module Ordered = struct
     | Snoc (ctx, Invis bindings, _) when all_free bindings ->
         lam ctx (Lam (singleton_variables (CubeOf.dim bindings) None, tree))
     | _ -> fatal (Anomaly "let-bound variable in Ctx.lam")
+
+  (* Delete some level variables from a context by making their bindings into "unknown".  This will cause readback to raise No_such_level if it encounters one of those variables, which can then be trapped as an occurs-check. *)
+  let rec forget_levels : type a b. (a, b) t -> (level -> bool) -> (a, b) t =
+   fun ctx forget ->
+    let forget_bindings : type n. (n, Binding.t) CubeOf.t -> (n, Binding.t) CubeOf.t =
+     fun bindings ->
+      CubeOf.mmap
+        {
+          map =
+            (fun _ [ b ] ->
+              match Binding.level b with
+              | Some x when forget x -> Binding.unknown ()
+              | _ -> b);
+        }
+        [ bindings ] in
+    match ctx with
+    | Emp -> Emp
+    | Lock ctx -> Lock (forget_levels ctx forget)
+    | Snoc (ctx, Vis ({ bindings; _ } as e), af) ->
+        Snoc (ctx, Vis { e with bindings = forget_bindings bindings }, af)
+    | Snoc (ctx, Invis bindings, af) -> Snoc (ctx, Invis (forget_bindings bindings), af)
 end
 
-(* Now we define contexts that add a permutation of the raw indices. *)
-type ('a, 'b) t = Permute : ('a, 'i) N.perm * ('i, 'b) Ordered.t -> ('a, 'b) t
+(* Now we define contexts that add a permutation of the raw indices.  For efficiency reasons we also precompute its environment as the context is built and store it. *)
+
+type ('a, 'b) t = Permute : ('a, 'i) N.perm * (D.zero, 'b) env * ('i, 'b) Ordered.t -> ('a, 'b) t
 
 (* Nearly all the operations on ordered contexts are lifted to either ignore the permutations or add identities on the right. *)
 
-let vis (Permute (p, ctx)) m mn xs vars af =
+let vis (Permute (p, env, ctx)) m mn xs vars af =
   let (Plus bf) = N.plus (N.plus_right af) in
-  Permute (N.perm_plus p af bf, Ordered.vis ctx m mn xs vars bf)
+  Permute
+    (N.perm_plus p af bf, LazyExt (env, Ordered.env_entry vars), Ordered.vis ctx m mn xs vars bf)
 
 let cube_vis ctx x vars =
   let m = CubeOf.dim vars in
   vis ctx m (D.plus_zero m) (NICubeOf.singleton x) vars (Suc Zero)
 
-let vis_fields (Permute (p, ctx)) xs vars fields fplus af =
+let vis_fields (Permute (p, env, ctx)) xs vars fields fplus af =
   let (Plus bf) = N.plus (N.plus_right af) in
-  Permute (N.perm_plus p af bf, Ordered.vis_fields ctx xs vars fields fplus bf)
+  Permute
+    ( N.perm_plus p af bf,
+      LazyExt (env, Ordered.env_entry vars),
+      Ordered.vis_fields ctx xs vars fields fplus bf )
 
-let invis (Permute (p, ctx)) vars = Permute (p, Ordered.invis ctx vars)
-let lock (Permute (p, ctx)) = Permute (p, Ordered.lock ctx)
-let raw_length (Permute (p, ctx)) = N.perm_dom (Ordered.raw_length ctx) p
-let length (Permute (_, ctx)) = Ordered.length ctx
-let empty = Permute (N.id_perm N.zero, Ordered.empty)
-let dbwd (Permute (_, ctx)) = Ordered.dbwd ctx
-let apps (Permute (_, ctx)) = Ordered.apps ctx
+let invis (Permute (p, env, ctx)) vars =
+  Permute (p, LazyExt (env, Ordered.env_entry vars), Ordered.invis ctx vars)
+
+let lock (Permute (p, env, ctx)) = Permute (p, env, Ordered.lock ctx)
+let raw_length (Permute (p, _, ctx)) = N.perm_dom (Ordered.raw_length ctx) p
+let length (Permute (_, _, ctx)) = Ordered.length ctx
+let empty = Permute (N.id_perm N.zero, Emp D.zero, Ordered.empty)
+let dbwd (Permute (_, _, ctx)) = Ordered.dbwd ctx
+let apps (Permute (_, _, ctx)) = Ordered.apps ctx
 
 (* Lookup is the only place where the permutations are used nontrivially: we apply the permutation to the raw index before looking it up. *)
-let lookup (Permute (p, ctx)) i = Ordered.lookup ctx (N.perm_apply p (fst i), snd i)
-let find_level (Permute (_, ctx)) x = Ordered.find_level ctx x
-let env (Permute (_, ctx)) = Ordered.env ctx
-let eval (Permute (_, ctx)) tm = Ordered.eval ctx tm
-let eval_term (Permute (_, ctx)) tm = Ordered.eval_term ctx tm
-let ext (Permute (p, ctx)) xs ty = Permute (Insert (p, Top), Ordered.ext ctx xs ty)
-let ext_let (Permute (p, ctx)) xs tm = Permute (Insert (p, Top), Ordered.ext_let ctx xs tm)
-let lam (Permute (_, ctx)) tm = Ordered.lam ctx tm
+let lookup (Permute (p, _, ctx)) i = Ordered.lookup ctx (N.perm_apply p (fst i), snd i)
+let find_level (Permute (_, _, ctx)) x = Ordered.find_level ctx x
+
+(* To get the environment, we can now just return the precomputed one. *)
+let env (Permute (_, env, _)) = env
+
+let ext (Permute (p, env, ctx)) xs ty =
+  let ctx, b = Ordered.ext ctx xs ty in
+  Permute (Insert (p, Top), LazyExt (env, Ordered.env_entry (CubeOf.singleton b)), ctx)
+
+let ext_let (Permute (p, env, ctx)) xs tm =
+  let ctx, b = Ordered.ext_let ctx xs tm in
+  Permute (Insert (p, Top), LazyExt (env, Ordered.env_entry (CubeOf.singleton b)), ctx)
+
+let lam (Permute (_, _, ctx)) tm = Ordered.lam ctx tm
+
+let forget_levels (Permute (p, _, ctx)) forget =
+  let ctx = Ordered.forget_levels ctx forget in
+  Permute (p, Ordered.env ctx, ctx)
 
 (* Augment an ordered context by the identity permutation *)
-let of_ordered ctx = Permute (N.id_perm (Ordered.raw_length ctx), ctx)
+let of_ordered ctx = Permute (N.id_perm (Ordered.raw_length ctx), Ordered.env ctx, ctx)

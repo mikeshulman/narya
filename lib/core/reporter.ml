@@ -12,6 +12,8 @@ type printable +=
   | PString : string -> printable
   | PConstant of Constant.t
   | PMeta : ('b, 's) Meta.t -> printable
+  | PField : Field.t -> printable
+  | PConstr : Constr.t -> printable
 
 (* The function that actually does the work of printing a "printable" will be defined in Parser.Unparse.  But we need to be able to "call" that function in this file to define "default_text" that converts structured messages to text.  Thus, in this file we define a mutable global variable to contain that function, starting with a dummy function, and call its value to print "printable"s; then in Parser.Unparse we will set the value of that variable after defining the function it should contain. *)
 
@@ -43,7 +45,7 @@ module Code = struct
     | Not_enough_lambdas : int -> t
     | Not_enough_arguments_to_function : t
     | Not_enough_arguments_to_instantiation : t
-    | Type_not_fully_instantiated : string -> t
+    | Type_not_fully_instantiated : string * 'n D.t -> t
     | Instantiating_zero_dimensional_type : printable -> t
     | Unequal_synthesized_type : printable * printable -> t
     | Checking_tuple_at_degenerated_record : printable -> t
@@ -84,22 +86,19 @@ module Code = struct
     | Applying_nonfunction_nontype : printable * printable -> t
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : printable -> t
-    | Invalid_match_index : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
+    | Wrong_number_of_arguments_to_motive : int -> t
     | No_such_constructor_in_match : printable * Constr.t -> t
     | Duplicate_constructor_in_match : Constr.t -> t
     | Duplicate_constructor_in_data : Constr.t -> t
-    | Index_variable_in_index_value : t
     | Matching_on_nondatatype : printable -> t
-    | Matching_on_let_bound_variable : printable -> t
-    | Matching_on_record_field : Field.t -> t
+    | Matching_wont_refine : string * printable -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
     | Anomaly : string -> t
-    | No_permutation : t
     | No_such_level : printable -> t
-    | Constant_already_defined : string -> t
+    | Name_already_defined : string -> t
     | Invalid_constant_name : string -> t
     | Too_many_commands : t
     | Invalid_tightness : string -> t
@@ -115,13 +114,13 @@ module Code = struct
     | Unbound_variable_in_notation : string list -> t
     | Head_already_has_notation : string -> t
     | Constant_assumed : printable * int -> t
-    | Constant_defined : printable list * int -> t
+    | Constant_defined : (printable * bool) list * int -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
     | Error_printing_error : t -> t
     | Checking_canonical_at_nonuniverse : string * printable -> t
-    | Canonical_type_outside_case_tree : string -> t
+    | Bare_case_tree_construct : string -> t
     | Wrong_boundary_of_record : int -> t
     | Invalid_constructor_type : Constr.t -> t
     | Missing_constructor_type : Constr.t -> t
@@ -129,8 +128,25 @@ module Code = struct
     | Locked_axiom : printable -> t
     | Hole_generated : ('b, 's) Meta.t * printable -> t
     | Open_holes : t
-    | Quit : t
+    | Quit : string option -> t
     | Synthesizing_recursion : printable -> t
+    | Invalid_synthesized_type : string * printable -> t
+    | Unrecognized_attribute : t
+    | Invalid_degeneracy_action : string * 'nk D.t * 'n D.t -> t
+    | Wrong_number_of_patterns : t
+    | Inconsistent_patterns : t
+    | Overlapping_patterns : t
+    | No_remaining_patterns : t
+    | Invalid_refutation : t
+    | Duplicate_pattern_variable : string -> t
+    | Type_expected : string -> t
+    | Circular_import : string list -> t
+    | Loading_file : string -> t
+    | File_loaded : string * [ `Compiled | `Source ] -> t
+    | Library_has_extension : string -> t
+    | Invalid_filename : string -> t
+    | Incompatible_flags : string * string -> t
+    | Actions_in_compiled_file : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -181,21 +197,18 @@ module Code = struct
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy _ -> Error
-    | Invalid_match_index _ -> Error
     | Wrong_number_of_arguments_to_pattern _ -> Error
+    | Wrong_number_of_arguments_to_motive _ -> Error
     | No_such_constructor_in_match _ -> Error
     | Duplicate_constructor_in_match _ -> Error
     | Duplicate_constructor_in_data _ -> Error
-    | Index_variable_in_index_value -> Error
     | Matching_on_nondatatype _ -> Error
-    | Matching_on_let_bound_variable _ -> Hint
-    | Matching_on_record_field _ -> Hint
+    | Matching_wont_refine _ -> Hint
     | Dimension_mismatch _ -> Bug (* Sometimes Error? *)
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
-    | No_permutation -> Error
     | No_such_level _ -> Bug
-    | Constant_already_defined _ -> Warning
+    | Name_already_defined _ -> Warning
     | Invalid_constant_name _ -> Error
     | Too_many_commands -> Error
     | Invalid_tightness _ -> Error
@@ -217,7 +230,7 @@ module Code = struct
     | Comment_end_in_string -> Warning
     | Error_printing_error _ -> Bug
     | Checking_canonical_at_nonuniverse _ -> Error
-    | Canonical_type_outside_case_tree _ -> Error
+    | Bare_case_tree_construct _ -> Hint
     | Wrong_boundary_of_record _ -> Error
     | Invalid_constructor_type _ -> Error
     | Missing_constructor_type _ -> Error
@@ -225,8 +238,25 @@ module Code = struct
     | Locked_axiom _ -> Error
     | Hole_generated _ -> Info
     | Open_holes -> Error
-    | Quit -> Info
+    | Quit _ -> Info
     | Synthesizing_recursion _ -> Error
+    | Invalid_synthesized_type _ -> Error
+    | Unrecognized_attribute -> Error
+    | Invalid_degeneracy_action _ -> Bug
+    | Wrong_number_of_patterns -> Error
+    | Inconsistent_patterns -> Error
+    | Overlapping_patterns -> Error
+    | No_remaining_patterns -> Bug
+    | Invalid_refutation -> Error
+    | Duplicate_pattern_variable _ -> Error
+    | Type_expected _ -> Error
+    | Circular_import _ -> Error
+    | Loading_file _ -> Info
+    | File_loaded _ -> Info
+    | Library_has_extension _ -> Warning
+    | Invalid_filename _ -> Error
+    | Incompatible_flags _ -> Warning
+    | Actions_in_compiled_file _ -> Warning
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -234,6 +264,7 @@ module Code = struct
     | Anomaly _ -> "E0000"
     | No_such_level _ -> "E0001"
     | Error_printing_error _ -> "E0002"
+    | Invalid_degeneracy_action _ -> "E0003"
     (* Unimplemented future features *)
     | Unimplemented _ -> "E0100"
     | Unsupported_numeral _ -> "E0101"
@@ -246,6 +277,7 @@ module Code = struct
     | Invalid_numeral _ -> "E0205"
     | Invalid_degeneracy _ -> "E0206"
     | No_relative_precedence _ -> "E0207"
+    | Unrecognized_attribute -> "E0208"
     | Comment_end_in_string -> "E0250"
     | Encoding_error -> "E0299"
     (* Scope errors *)
@@ -254,10 +286,13 @@ module Code = struct
     | Undefined_metavariable _ -> "E0302"
     | Locked_variable -> "E0310"
     | Locked_axiom _ -> "E0311"
-    (* Bidirectional typechecking *)
+    (* Bidirectional typechecking and case trees *)
     | Nonsynthesizing _ -> "E0400"
     | Unequal_synthesized_type _ -> "E0401"
     | Synthesizing_recursion _ -> "E0402"
+    | Bare_case_tree_construct _ -> "H0403"
+    | Invalid_synthesized_type _ -> "E0404"
+    | Type_expected _ -> "E0405"
     (* Dimensions *)
     | Dimension_mismatch _ -> "E0500"
     | Not_enough_lambdas _ -> "E0501"
@@ -289,19 +324,23 @@ module Code = struct
     (* Matches *)
     (* - Match variable *)
     | Unnamed_variable_in_match -> "E1100"
-    | Matching_on_let_bound_variable _ -> "E1101"
-    | Matching_on_record_field _ -> "E1102"
+    | Matching_wont_refine _ -> "E1101"
     (* - Match type *)
     | Matching_on_nondatatype _ -> "E1200"
     | Matching_datatype_has_degeneracy _ -> "E1201"
-    | Invalid_match_index _ -> "E1202"
     (* - Match branches *)
     | Missing_constructor_in_match _ -> "E1300"
     | No_such_constructor_in_match _ -> "E1301"
     | Duplicate_constructor_in_match _ -> "E1302"
     | Wrong_number_of_arguments_to_pattern _ -> "E1303"
-    | Index_variable_in_index_value -> "E1304"
-    | No_permutation -> "E1305"
+    | Duplicate_pattern_variable _ -> "E1304"
+    | Wrong_number_of_patterns -> "E1305"
+    | Inconsistent_patterns -> "E1306"
+    | Overlapping_patterns -> "E1307"
+    | No_remaining_patterns -> "E1308"
+    | Invalid_refutation -> "E1309"
+    (* - Match motive *)
+    | Wrong_number_of_arguments_to_motive _ -> "E1400"
     (* Comatches *)
     | Comatching_at_noncodata _ -> "E1400"
     | Comatching_at_degenerated_codata _ -> "E1401"
@@ -311,17 +350,16 @@ module Code = struct
     | Invalid_method_in_comatch -> "E1405"
     (* Canonical types *)
     | Checking_canonical_at_nonuniverse _ -> "E1500"
-    | Canonical_type_outside_case_tree _ -> "E1501"
-    | Duplicate_field_in_record _ -> "E1502"
-    | Duplicate_method_in_codata _ -> "E1503"
-    | Duplicate_constructor_in_data _ -> "E1504"
-    | Wrong_boundary_of_record _ -> "E1505"
-    | Invalid_constructor_type _ -> "E1506"
-    | Missing_constructor_type _ -> "E1507"
+    | Duplicate_field_in_record _ -> "E1501"
+    | Duplicate_method_in_codata _ -> "E1502"
+    | Duplicate_constructor_in_data _ -> "E1503"
+    | Wrong_boundary_of_record _ -> "E1504"
+    | Invalid_constructor_type _ -> "E1505"
+    | Missing_constructor_type _ -> "E1506"
     (* Commands *)
     | Too_many_commands -> "E2000"
     (* def *)
-    | Constant_already_defined _ -> "E2100"
+    | Name_already_defined _ -> "E2100"
     | Invalid_constant_name _ -> "E2101"
     (* notation *)
     | Invalid_tightness _ -> "E2200"
@@ -336,16 +374,25 @@ module Code = struct
     | Notation_variable_used_twice _ -> "E2209"
     | Unbound_variable_in_notation _ -> "E2210"
     | Head_already_has_notation _ -> "E2211"
+    (* import *)
+    | Circular_import _ -> "E2300"
+    | Library_has_extension _ -> "W2301"
+    | Invalid_filename _ -> "E2302"
+    | Incompatible_flags _ -> "W2303"
+    (* echo *)
+    | Actions_in_compiled_file _ -> "W2400"
     (* Interactive proof *)
     | Open_holes -> "E3000"
-    (* Command success *)
+    (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
     | Notation_defined _ -> "I0002"
+    | Loading_file _ -> "I0003"
+    | File_loaded _ -> "I0004"
     (* Events during command execution *)
     | Hole_generated _ -> "I0100"
     (* Control of execution *)
-    | Quit -> "I0200"
+    | Quit _ -> "I0200"
     (* Debugging *)
     | Show _ -> "I9999"
 
@@ -371,7 +418,8 @@ module Code = struct
         text "not enough arguments for a higher-dimensional function application"
     | Not_enough_arguments_to_instantiation ->
         text "not enough arguments to instantiate a higher-dimensional type"
-    | Type_not_fully_instantiated str -> textf "type not fully instantiated in %s" str
+    | Type_not_fully_instantiated (str, n) ->
+        textf "type not fully instantiated in %s (need %d more dimensions)" str (to_int n)
     | Instantiating_zero_dimensional_type ty ->
         textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
           (print ty)
@@ -467,10 +515,6 @@ module Code = struct
     | Matching_datatype_has_degeneracy ty ->
         textf "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"
           pp_printed (print ty)
-    | Invalid_match_index tm ->
-        textf
-          "@[<hv 0>match variable has invalid or duplicate index:@;<1 2>%a@ match indices must be distinct free variables without degeneracies@]"
-          pp_printed (print tm)
     | Wrong_number_of_arguments_to_pattern (c, n) ->
         if n > 0 then
           textf "too many arguments to constructor %s in match pattern (%d extra)"
@@ -478,28 +522,24 @@ module Code = struct
         else
           textf "not enough arguments to constructor %s in match pattern (need %d more)"
             (Constr.to_string c) (abs n)
+    | Wrong_number_of_arguments_to_motive n ->
+        textf "wrong number of arguments for match motive: should be %d" n
     | No_such_constructor_in_match (d, c) ->
         textf "datatype %a being matched against has no constructor %s" pp_printed (print d)
           (Constr.to_string c)
     | Duplicate_constructor_in_match c ->
         textf "constructor %s appears twice in match" (Constr.to_string c)
-    | Index_variable_in_index_value -> text "free index variable occurs in inferred index value"
     | Matching_on_nondatatype ty ->
         textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
           (print ty)
-    | Matching_on_let_bound_variable name ->
-        textf "matching on let-bound variable %a doesn't refine the type" pp_printed (print name)
-    | Matching_on_record_field fld ->
-        textf "matching on record field %s doesn't refine the type" (Field.to_string fld)
+    | Matching_wont_refine (msg, d) ->
+        textf "match will not refine the goal or context (%s): %a" msg pp_printed (print d)
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
-    | No_permutation ->
-        textf
-          "unable to find a consistent permutation of the context;@ this probably indicates a cyclic dependency among index terms@ or an attempt to prove a version of Axiom K"
-    | Constant_already_defined name -> textf "redefining constant: %a" pp_utf_8 name
+    | Name_already_defined name -> textf "name already defined: %a" pp_utf_8 name
     | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
     | Too_many_commands -> text "too many commands: enter one at a time"
     | Fixity_mismatch ->
@@ -525,18 +565,24 @@ module Code = struct
     | Constant_defined (names, h) -> (
         match names with
         | [] -> textf "Anomaly: no constant defined"
-        | [ name ] ->
-            if h > 1 then textf "Constant %a defined, containing %d holes" pp_printed (print name) h
+        | [ (name, discrete) ] ->
+            let discrete = if discrete then " (discrete)" else "" in
+            if h > 1 then
+              textf "Constant %a defined%s, containing %d holes" pp_printed (print name) discrete h
             else if h = 1 then
-              textf "Constant %a defined, containing 1 hole" pp_printed (print name)
-            else textf "Constant %a defined" pp_printed (print name)
+              textf "Constant %a defined%s, containing 1 hole" pp_printed (print name) discrete
+            else textf "Constant %a defined%s" pp_printed (print name) discrete
         | _ ->
             (if h > 1 then textf "@[<v 2>Constants defined mutually, containing %d holes:@,%a@]" h
              else if h = 1 then textf "@[<v 2>Constants defined mutually, containing 1 hole:@,%a@]"
              else textf "@[<v 2>Constants defined mutually:@,%a@]")
               (fun ppf names ->
-                pp_print_list (fun ppf name -> pp_printed ppf (print name)) ppf names)
-              names)
+                pp_print_list
+                  (fun ppf (name, discrete) ->
+                    pp_printed ppf name;
+                    if discrete then pp_print_string ppf " (discrete)")
+                  ppf names)
+              (List.map (fun (name, discrete) -> (print name, discrete)) names))
     | Notation_defined name -> textf "Notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
     | Comment_end_in_string ->
@@ -545,7 +591,8 @@ module Code = struct
         textf "error while printing message:@ %a" (fun ppf () -> default_text e ppf) ()
     | Checking_canonical_at_nonuniverse (tm, ty) ->
         textf "checking %s at non-universe %a" tm pp_printed (print ty)
-    | Canonical_type_outside_case_tree str -> textf "type %s can only occur in case trees" str
+    | Bare_case_tree_construct str ->
+        textf "%s encountered outside case tree, wrapping in implicit let-binding" str
     | Duplicate_method_in_codata fld ->
         textf "duplicate method in codatatype: %s" (Field.to_string fld)
     | Duplicate_field_in_record fld ->
@@ -567,10 +614,42 @@ module Code = struct
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
     | Hole_generated (n, ty) ->
         textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
-    | Open_holes -> text "There are open holes"
-    | Quit -> text "Goodbye!"
+    | Open_holes -> text "there are open holes"
+    | Quit (Some src) -> textf "execution of %s terminated by quit" src
+    | Quit None -> text "execution terminated by quit"
     | Synthesizing_recursion c ->
         textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
+    | Invalid_synthesized_type (str, ty) ->
+        textf "type %a synthesized by %s is invalid for entire term" pp_printed (print ty) str
+    | Unrecognized_attribute -> textf "unrecognized attribute"
+    | Invalid_degeneracy_action (str, nk, n) ->
+        textf "invalid degeneracy action on %s: dimension %d doesn't factor through codomain %d" str
+          (to_int nk) (to_int n)
+    | Wrong_number_of_patterns -> text "wrong number of patterns for match"
+    | Inconsistent_patterns -> text "inconsistent patterns in match"
+    | Overlapping_patterns -> text "overlapping patterns in match"
+    | No_remaining_patterns -> text "no remaining patterns while parsing match"
+    | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
+    | Duplicate_pattern_variable x ->
+        textf "variable name '%s' used more than once in match patterns" x
+    | Type_expected str -> textf "expected type while %s" str
+    | Circular_import files ->
+        textf "circular imports:@,@[<v 2>%a@]"
+          (pp_print_list
+             ~pp_sep:(fun ppf () ->
+               pp_print_cut ppf ();
+               pp_print_string ppf "imports ")
+             pp_print_string)
+          files
+    | Loading_file file -> textf "loading file: %s" file
+    | File_loaded (file, `Compiled) -> textf "file loaded: %s (compiled)" file
+    | File_loaded (file, `Source) -> textf "file loaded: %s (source)" file
+    | Library_has_extension file -> textf "putative library name '%s' has extension" file
+    | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
+    | Incompatible_flags (file, flags) ->
+        textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
+    | Actions_in_compiled_file file ->
+        textf "not re-executing 'echo' commands when loading compiled file %s" file
 end
 
 include Asai.StructuredReporter.Make (Code)

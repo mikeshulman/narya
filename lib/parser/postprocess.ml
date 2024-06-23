@@ -7,6 +7,7 @@ open Reporter
 open Notation
 open Asai.Range
 open Monad.Ops (Monad.Maybe)
+module StringMap = Map.Make (String)
 
 (* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse located -> string option =
@@ -71,11 +72,9 @@ let rec process :
   | Field _ -> fatal (Anomaly "field is head")
   | Superscript (Some x, str, _) -> (
       match deg_of_string str with
-      | Some (Any s) -> (
+      | Some (Any s) ->
           let body = process ctx x in
-          match body.value with
-          | Synth arg -> { value = Synth (Act (str, s, { value = arg; loc = body.loc })); loc }
-          | _ -> fatal ?loc:body.loc (Nonsynthesizing "argument of degeneracy"))
+          { value = Synth (Act (str, s, body)); loc }
       | None -> fatal (Invalid_degeneracy str))
   | Superscript (None, _, _) -> fatal (Anomaly "degeneracy is head")
 
@@ -100,11 +99,10 @@ and process_apps :
   match process_head ctx tm with
   | `Deg (str, Any s) -> (
       match args with
-      | (Term arg, loc) :: args -> (
-          match process ctx arg with
-          | { value = Synth arg; _ } ->
-              process_apply ctx { value = Act (str, s, { value = arg; loc }); loc } args
-          | { loc; _ } -> fatal ?loc (Nonsynthesizing "argument of degeneracy"))
+      | (Term arg, loc) :: args ->
+          process_apply ctx
+            { value = Act (str, s, { value = (process ctx arg).value; loc }); loc }
+            args
       | [] -> fatal ?loc:tm.loc (Anomaly "TODO"))
   | `Constr c ->
       let c = { value = c; loc = tm.loc } in
@@ -124,18 +122,13 @@ and process_head :
     (lt, ls, rt, rs) parse located ->
     [ `Deg of string * any_deg | `Constr of Constr.t | `Fn of n synth located ] =
  fun ctx tm ->
-  let process_fn () =
-    let tm = process ctx tm in
-    match tm.value with
-    | Synth value -> `Fn { value; loc = tm.loc }
-    | _ -> fatal (Anomaly "") in
   match tm.value with
   | Constr (ident, _) -> `Constr (Constr.intern ident)
   | Ident ([ str ], _) -> (
       match deg_of_name str with
       | Some s -> `Deg (str, s)
-      | None -> process_fn ())
-  | _ -> process_fn ()
+      | None -> `Fn (process_synth ctx tm "function"))
+  | _ -> `Fn (process_synth ctx tm "function")
 
 and process_apply :
     type n.
@@ -149,6 +142,14 @@ and process_apply :
   | (Term { value = Field (fld, _); _ }, loc) :: args ->
       process_apply ctx { value = Field (fn, Field.intern_ori fld); loc } args
   | (Term arg, loc) :: args -> process_apply ctx { value = Raw.App (fn, process ctx arg); loc } args
+
+and process_synth :
+    type n lt ls rt rs.
+    (string option, n) Bwv.t -> (lt, ls, rt, rs) parse located -> string -> n synth located =
+ fun ctx x str ->
+  match process ctx x with
+  | { value = Synth value; loc } -> { value; loc }
+  | { loc; _ } -> fatal ?loc (Nonsynthesizing str)
 
 type _ processed_tel =
   | Processed_tel : ('n, 'k, 'nk) Raw.tel * (string option, 'nk) Bwv.t -> 'n processed_tel
@@ -173,3 +174,30 @@ and process_vars :
       let pty = process ctx ty in
       let (Processed_tel (tel, ctx)) = process_vars (Bwv.snoc ctx name) names (Term ty) parameters in
       Processed_tel (Ext (name, pty, tel), ctx)
+
+let process_user :
+    type n.
+    printkey ->
+    string list ->
+    string list ->
+    (string option, n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    n check located =
+ fun key pat_vars val_vars ctx obs loc ->
+  let args =
+    List.fold_left2
+      (fun acc k (Term x) -> acc |> StringMap.add k (process ctx x))
+      StringMap.empty pat_vars obs in
+  let value =
+    match key with
+    | `Constant c ->
+        let spine =
+          List.fold_left
+            (fun acc k -> Raw.App ({ value = acc; loc }, StringMap.find k args))
+            (Const c) val_vars in
+        Raw.Synth spine
+    | `Constr (c, _) ->
+        let args = List.map (fun k -> StringMap.find k args) val_vars in
+        Raw.Constr ({ value = c; loc }, args) in
+  { value; loc }

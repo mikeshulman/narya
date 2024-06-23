@@ -6,6 +6,8 @@ open Monoid
 module D : MonoidPos
 module Dmap : MAP_MAKER with module Key := D
 
+type dim_wrapped = Wrap : 'n D.t -> dim_wrapped
+
 module Endpoints : sig
   type 'l len
   type wrapped = Wrap : 'l len -> wrapped
@@ -19,6 +21,7 @@ module Endpoints : sig
 end
 
 val to_int : 'a D.t -> int
+val is_pos : 'a D.t -> bool
 
 type (_, _) factor = Factor : ('n, 'k, 'nk) D.plus -> ('nk, 'n) factor
 
@@ -39,7 +42,7 @@ val deg_plus_deg :
 val plus_deg :
   'm D.t -> ('m, 'n, 'mn) D.plus -> ('m, 'l, 'ml) D.plus -> ('l, 'n) deg -> ('ml, 'mn) deg
 
-val is_id_deg : ('m, 'n) deg -> unit option
+val is_id_deg : ('m, 'n) deg -> ('m, 'n) Eq.t option
 val pos_deg : 'n D.pos -> ('m, 'n) deg -> 'm D.pos
 val deg_equiv : ('m, 'n) deg -> ('k, 'l) deg -> unit option
 val deg_zero : 'a D.t -> ('a, D.zero) deg
@@ -76,7 +79,7 @@ type (_, _) sface
 val id_sface : 'n D.t -> ('n, 'n) sface
 val dom_sface : ('m, 'n) sface -> 'm D.t
 val cod_sface : ('m, 'n) sface -> 'n D.t
-val is_id_sface : ('m, 'n) sface -> unit option
+val is_id_sface : ('m, 'n) sface -> ('m, 'n) Eq.t option
 val comp_sface : ('n, 'k) sface -> ('m, 'n) sface -> ('m, 'k) sface
 val sface_zero : ('n, D.zero) sface -> ('n, D.zero) Eq.t
 
@@ -204,6 +207,8 @@ val tface_plus :
   ('ml, 'n, 'kl, 'nkl) tface
 
 type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface
+
+val pface_of_sface : ('m, 'n) sface -> [ `Proper of ('m, 'n) pface | `Id of ('m, 'n) Eq.t ]
 
 val sface_plus_tface :
   ('k, 'm) sface ->
@@ -460,11 +465,14 @@ val deg_sface : ('n, 'k) deg -> ('m, 'n) sface -> ('m, 'k) op
 val comp_op : ('n, 'k) op -> ('m, 'n) op -> ('m, 'k) op
 val dom_op : ('m, 'n) op -> 'm D.t
 val cod_op : ('m, 'n) op -> 'n D.t
+val is_id_op : ('m, 'n) op -> ('m, 'n) Eq.t option
 val op_of_deg : ('m, 'n) deg -> ('m, 'n) op
 val op_of_sface : ('m, 'n) sface -> ('m, 'n) op
 
 val op_plus_op :
   ('k, 'm) op -> ('m, 'n, 'mn) D.plus -> ('k, 'l, 'kl) D.plus -> ('l, 'n) op -> ('kl, 'mn) op
+
+val plus_op : 'm D.t -> ('m, 'n, 'mn) D.plus -> ('m, 'l, 'ml) D.plus -> ('l, 'n) op -> ('ml, 'mn) op
 
 type _ op_of = Of : ('m, 'n) op -> 'n op_of
 type _ op_of_plus = Of : ('m, 'n) sface * 'm deg_of_plus -> 'n op_of_plus

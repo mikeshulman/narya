@@ -548,6 +548,25 @@ module Map = struct
       | Minus_omega -> { map with minus_omega = f map.minus_omega }
       | Plus_omega -> { map with plus_omega = f map.plus_omega }
 
+    (* 'map' applies a function to all entries in the map. *)
+
+    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+
+    let rec fin_map : type x a. x mapper -> (x, a) fin_t -> (x, a) fin_t =
+     fun f m ->
+      match m with
+      | Emp -> Emp
+      | Node (None, mmap, pmap) -> Node (None, fin_map f mmap, fin_map f pmap)
+      | Node (Some (ab, z), mmap, pmap) -> Node (Some (ab, f.map z), fin_map f mmap, fin_map f pmap)
+
+    let map : type x a. x mapper -> x t -> x t =
+     fun f { fin; minus_omega; plus_omega } ->
+      {
+        fin = fin_map f fin;
+        minus_omega = Option.map f.map minus_omega;
+        plus_omega = Option.map f.map plus_omega;
+      }
+
     (* 'map_compare' applies one of three polymorphic function to all elements of the map, based on whether their index is less than, greater than, or equal to some specified number, passing a witness of inequality if relevant.  This requires a record type to hold the polymorphic mapper arguments, as well as several helper functions.  *)
 
     type ('x, 'b) map_compare = {

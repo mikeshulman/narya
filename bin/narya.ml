@@ -8,21 +8,21 @@ open Lwt
 open LTerm_text
 
 let usage_msg = "narya [options] <file1> [<file2> ...]"
-let input_files = ref Emp
-let anon_arg filename = input_files := Snoc (!input_files, filename)
+let inputs = ref Emp
+let anon_arg filename = inputs := Snoc (!inputs, `File filename)
 let reformat = ref false
 let verbose = ref false
 let compact = ref false
 let unicode = ref true
 let typecheck = ref true
-let input_strings = ref Emp
-let use_stdin = ref false
 let interactive = ref false
 let proofgeneral = ref false
 let arity = ref 2
 let refl_char = ref 'e'
 let refl_strings = ref [ "refl"; "Id" ]
 let internal = ref true
+let discreteness = ref false
+let source_only = ref false
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -39,9 +39,9 @@ let speclist =
     ("-i", Arg.Set interactive, "");
     ("-proofgeneral", Arg.Set proofgeneral, "Enter proof general interaction mode");
     ( "-exec",
-      Arg.String (fun str -> input_strings := Snoc (!input_strings, str)),
+      Arg.String (fun str -> inputs := Snoc (!inputs, `String str)),
       "Execute a string, after all files loaded (also -e)" );
-    ("-e", Arg.String (fun str -> input_strings := Snoc (!input_strings, str)), "");
+    ("-e", Arg.String (fun str -> inputs := Snoc (!inputs, `String str)), "");
     ("-verbose", Arg.Set verbose, "Show verbose messages (also -v)");
     ("-v", Arg.Set verbose, "");
     ("-no-check", Arg.Clear typecheck, "Don't typecheck and execute code (only parse it)");
@@ -56,6 +56,8 @@ let speclist =
       "Names for parametricity direction and reflexivity (default = e,refl,Id)" );
     ("-internal", Arg.Set internal, "Set parametricity to internal (default)");
     ("-external", Arg.Clear internal, "Set parametricity to external");
+    ("-discreteness", Arg.Set discreteness, "Enable discreteness");
+    ("-source-only", Arg.Set source_only, "Load all files from source (ignore compiled versions)");
     ( "-dtt",
       Unit
         (fun () ->
@@ -65,18 +67,12 @@ let speclist =
           internal := false),
       "Abbreviation for -arity 1 -direction d -external" );
     ("--help", Arg.Unit (fun () -> ()), "");
-    ("-", Arg.Set use_stdin, "");
+    ("-", Arg.Unit (fun () -> inputs := Snoc (!inputs, `Stdin)), "");
   ]
 
 let () =
   Arg.parse speclist anon_arg usage_msg;
-  if
-    Bwd.is_empty !input_files
-    && (not !use_stdin)
-    && Bwd.is_empty !input_strings
-    && (not !interactive)
-    && not !proofgeneral
-  then (
+  if Bwd.is_empty !inputs && (not !interactive) && not !proofgeneral then (
     Printf.fprintf stderr "No input files specified\n";
     Arg.usage speclist usage_msg;
     exit 1)
@@ -85,7 +81,7 @@ module Terminal = Asai.Tty.Make (Core.Reporter.Code)
 
 let rec batch first ws p src =
   let cmd = Command.Parse.final p in
-  if cmd = Eof then if Galaxy.unsolved () then Reporter.fatal Open_holes else ws
+  if cmd = Eof then if Eternity.unsolved () then Reporter.fatal Open_holes else ws
   else (
     if !typecheck then Parser.Command.execute cmd;
     let ws =
@@ -97,14 +93,28 @@ let rec batch first ws p src =
     let p, src = Command.Parse.restart_parse p src in
     batch false ws p src)
 
-let execute (source : Asai.Range.source) =
+let execute init_visible compunit (source : Asai.Range.source) =
   if !reformat then Format.open_vbox 0;
+  Units.run ~init_visible @@ fun () ->
   let p, src = Command.Parse.start_parse source in
-  let ws = batch true [] p src in
-  if !reformat then (
-    let ws = Whitespace.ensure_ending_newlines 2 ws in
-    Print.pp_ws `None std_formatter ws;
-    Format.close_box ())
+  Compunit.Current.run ~env:compunit @@ fun () ->
+  Reporter.try_with
+    (fun () ->
+      let ws = batch true [] p src in
+      if !reformat then (
+        let ws = Whitespace.ensure_ending_newlines 2 ws in
+        Print.pp_ws `None std_formatter ws;
+        Format.close_box ()))
+    ~fatal:(fun d ->
+      match d.message with
+      | Quit _ ->
+          let src =
+            match source with
+            | `File name -> Some name
+            | `String { title; _ } -> title in
+          Reporter.emit (Quit src)
+      | _ -> Reporter.fatal_diagnostic d);
+  Scope.get_export ()
 
 let ( let* ) f o = Lwt.bind f o
 
@@ -140,7 +150,7 @@ let rec repl terminal history buf =
           ~fatal:(fun d ->
             Terminal.display ~output:stdout d;
             match d.message with
-            | Quit -> exit 0
+            | Quit _ -> exit 0
             | _ -> ())
           (fun () ->
             match Command.parse_single str with
@@ -197,11 +207,33 @@ let rec interact_pg () =
     interact_pg ()
   with End_of_file -> ()
 
+let marshal_flags chan =
+  Marshal.to_channel chan !arity [];
+  Marshal.to_channel chan !refl_char [];
+  Marshal.to_channel chan !refl_strings [];
+  Marshal.to_channel chan !internal [];
+  Marshal.to_channel chan !discreteness []
+
+let unmarshal_flags chan =
+  let ar = (Marshal.from_channel chan : int) in
+  let rc = (Marshal.from_channel chan : char) in
+  let rs = (Marshal.from_channel chan : string list) in
+  let int = (Marshal.from_channel chan : bool) in
+  let disc = (Marshal.from_channel chan : bool) in
+  if ar = !arity && rc = !refl_char && rs = !refl_strings && int = !internal && disc = !discreteness
+  then Ok ()
+  else
+    Error
+      (Printf.sprintf "-arity %d -direction %s %s%s" ar
+         (String.concat "," (String.make 1 rc :: rs))
+         (if int then "-internal" else "-external")
+         (if disc then " -discreteness" else ""))
+
 let () =
   Parser.Unparse.install ();
-  Galaxy.run_empty @@ fun () ->
+  Units.Flags.run ~env:{ marshal = marshal_flags; unmarshal = unmarshal_flags } @@ fun () ->
+  Eternity.run_empty @@ fun () ->
   Global.run_empty @@ fun () ->
-  Scope.run @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run
     ~env:
@@ -211,6 +243,8 @@ let () =
         chars = (if !unicode then `Unicode else `ASCII);
       }
   @@ fun () ->
+  Readback.Display.run ~env:false @@ fun () ->
+  Core.Syntax.Discreteness.run ~env:!discreteness @@ fun () ->
   Reporter.run
     ~emit:(fun d ->
       if !verbose || d.severity = Error || d.severity = Warning then
@@ -219,18 +253,35 @@ let () =
       Terminal.display ~output:stderr d;
       exit 1)
   @@ fun () ->
-  Parser.Pi.install ();
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
+  if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
   Dim.Endpoints.set_len !arity;
   Dim.Endpoints.set_char !refl_char;
   Dim.Endpoints.set_names !refl_strings;
   Dim.Endpoints.set_internal !internal;
-  (* TODO: If executing multiple files, they should be namespaced as sections.  (And eventually, using bantorra.) *)
-  Mbwd.miter (fun [ filename ] -> execute (`File filename)) [ !input_files ];
-  (if !use_stdin then
-     let content = In_channel.input_all stdin in
-     execute (`String { content; title = Some "stdin" }));
+  (* The initial namespace for all compilation units. *)
+  let init = Parser.Pi.install Scope.Trie.empty in
+  Compunit.Current.run ~env:Compunit.basic @@ fun () ->
+  let top_files =
+    Bwd.fold_right
+      (fun input acc ->
+        match input with
+        | `File file -> FilePath.make_absolute (Sys.getcwd ()) file :: acc
+        | _ -> acc)
+      !inputs [] in
+  Units.with_execute !source_only top_files init execute @@ fun () ->
   Mbwd.miter
-    (fun [ content ] -> execute (`String { content; title = Some "command-line exec string" }))
-    [ !input_strings ];
-  if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()
+    (fun [ input ] ->
+      match input with
+      | `File filename -> Units.load_file filename
+      | `Stdin ->
+          let content = In_channel.input_all stdin in
+          Units.load_string (Some "stdin") content None
+      (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
+      | `String content ->
+          Units.load_string (Some "command-line exec string") content (Some (Units.all ())))
+    [ !inputs ];
+  (* Interactive mode also has all the other units loaded. *)
+  if !interactive then
+    Units.run ~init_visible:(Units.all ()) @@ fun () -> Lwt_main.run (interact ())
+  else if !proofgeneral then Units.run ~init_visible:(Units.all ()) @@ fun () -> interact_pg ()

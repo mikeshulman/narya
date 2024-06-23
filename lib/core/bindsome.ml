@@ -5,6 +5,7 @@ open Dim
 open Reporter
 open Syntax
 open Value
+open Norm
 open Readback
 module Binding = Ctx.Binding
 
@@ -45,7 +46,7 @@ module Ordered = struct
     match newctx with
     | Snoc (newctx, x, ij) ->
         let (Fplus jk) = Fwn.fplus (N.plus_right ij) in
-        let i_jk = Fwn.assocr ij jk ij_k in
+        let i_jk = Fwn.bfplus_assocr ij jk ij_k in
         Split_tel (i_jk, newctx, Cons (x, newtel, jk))
     | Lock newctx -> split_tel_step ij_k newctx (Lock newtel)
 
@@ -93,8 +94,8 @@ module Ordered = struct
     @@ fun () ->
     Some
       {
-        tm = eval_term newctx (readback_nf (Ctx.of_ordered oldctx) nf);
-        ty = eval_term newctx (readback_val (Ctx.of_ordered oldctx) nf.ty);
+        tm = eval_term (Ctx.Ordered.env newctx) (readback_nf (Ctx.of_ordered oldctx) nf);
+        ty = eval_term (Ctx.Ordered.env newctx) (readback_val (Ctx.of_ordered oldctx) nf.ty);
       }
 
   let eval_readback_val :
@@ -108,7 +109,7 @@ module Ordered = struct
         match d.message with
         | No_such_level _ -> None
         | _ -> fatal_diagnostic d)
-    @@ fun () -> Some (eval_term newctx (readback_val (Ctx.of_ordered oldctx) ty))
+    @@ fun () -> Some (eval_term (Ctx.Ordered.env newctx) (readback_val (Ctx.of_ordered oldctx) ty))
 
   (* We define bind_some and its helper functions in reverse order from the order in which they're called, so that each one can call the already-defined next one in line.  We could put them in the other order by making them mutual, but I prefer to avoid mutuality when it's unnecessary, and also this way each one can be next to the definition of its GADT return type.  But it is probably better to read them in reverse order, starting with bind_some lower down.  The call process goes as follows:
 
@@ -335,13 +336,13 @@ type (_, _) bind_some =
       -> ('a, 'b) bind_some
   | None : ('a, 'b) bind_some
 
-let bind_some g (Ctx.Permute (p, ctx)) =
+let bind_some g (Ctx.Permute (p, _, ctx)) =
   match Ordered.bind_some g ctx with
   | Bind_some { raw_perm; checked_perm; oldctx; newctx } ->
       Bind_some
         {
           checked_perm;
-          oldctx = Permute (N.comp_perm p raw_perm, oldctx);
-          newctx = Permute (N.comp_perm p raw_perm, newctx);
+          oldctx = Permute (N.comp_perm p raw_perm, Ctx.Ordered.env oldctx, oldctx);
+          newctx = Permute (N.comp_perm p raw_perm, Ctx.Ordered.env newctx, newctx);
         }
   | None -> None

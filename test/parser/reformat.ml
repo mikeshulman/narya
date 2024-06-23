@@ -3,6 +3,7 @@ open Testutil.Print
 (* TODO: Some of the pretty-printing routines yield blank spaces at the end of lines, though they otherwise look nice.  It would be nice if we could tweak them to not do that, or failing that do some postprocessing to remove the extra spaces. *)
 
 let test_reformat () =
+  Testutil.Repl.run @@ fun () ->
   (* Application spines, with field projections *)
   set_margin 20;
   reformat "blah blah blah blah blah blah blah blah blah blah blah";
@@ -85,6 +86,8 @@ let test_reformat () =
   reformat "[< <]";
   reformat "[> blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah >]";
   reformat "[< blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah <]";
+  Testutil.Repl.cmd ~quiet:true "notation 5 cons : x \":>\" y … ≔ cons. x y";
+  Testutil.Repl.cmd ~quiet:true "notation 5 snoc : … x \"<:\" y ≔ snoc. x y";
   reformat "1 :> 2 :> 3 :> xs";
   reformat "xs <: 1 <: 2 <: 3";
   reformat "x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> xs";
@@ -150,6 +153,9 @@ let test_compactness () =
   reformat
     "[ con. a b |-> [ foo. x |-> ba ba ba | bar. y z |-> y ] | str. u v |-> [ baz. |-> bluh bluh ] ]";
   reformat "(match x [| poo. |-> bah])";
+  reformat "match x, y [ true., false. ↦ 0 | true., true. ↦ 1 ]";
+  reformat
+    "match x [ zero. ↦ 0 | suc. zero. ↦ 1 | suc. (suc. zero.) ↦ 2 | suc. (suc. (suc. n)) ↦ n ]";
 
   (* Canonical types *)
   reformat "codata [ x .head : blah blah blah blah blah blah blah blah | x .tail : Stream A ]";

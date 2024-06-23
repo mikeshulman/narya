@@ -10,15 +10,16 @@ open Notation
 open Builtins
 open Reporter
 open Printable
+open Range
 module StringMap = Map.Make (String)
 
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
 let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
-  let* { notn; pat_vars; val_vars } =
+  let* { key = _; notn; pat_vars; val_vars } =
     match head with
     | `Term (Const c) -> State.Current.unparse (`Constant c)
-    | `Constr c -> State.Current.unparse (`Constr c)
+    | `Constr c -> State.Current.unparse (`Constr (c, Bwd.length args))
     (* TODO: Can we associate notations to Fields too? *)
     | _ -> None in
   (* There's probably a more efficient way to do this that doesn't involve converting to and from forwards lists, but this way is more natural and easier to understand, and I think this is unlikely to be a performance bottleneck. *)
@@ -29,9 +30,10 @@ let get_notation head args =
     | k :: labels, x :: elts -> take_labeled labels elts (acc |> StringMap.add k x) in
   let* first, rest = take_labeled val_vars (Bwd.to_list args) StringMap.empty in
   let first = List.fold_left (fun acc k -> Snoc (acc, StringMap.find k first)) Emp pat_vars in
-  return (notn, first, Bwd.of_list rest)
-
-let unlocated (value : 'a) : 'a located = { value; loc = None }
+  (* Constructors don't belong to a function-type, so their notation can't be applied to "more arguments" as a function.  Thus, if there are more arguments leftover, it means that the constructor is being used at a different datatype that takes a different number of arguments, and so the notation shouldn't be applied at all (just as if there were too few arguments). *)
+  match (head, rest) with
+  | `Constr _, _ :: _ -> None
+  | _ -> return (notn, first, Bwd.of_list rest)
 
 (* Put parentheses around a term. *)
 let parenthesize tm = unlocated (outfix ~notn:parens ~ws:[] ~inner:(Snoc (Emp, Term tm)))
@@ -178,7 +180,7 @@ let rec get_spine :
   (* We have to look through identity degeneracies here. *)
   | Act (body, s) -> (
       match is_id_deg s with
-      | Some () -> get_spine body
+      | Some _ -> get_spine body
       | None -> `App (tm, Emp))
   | tm -> `App (tm, Emp)
 
@@ -194,9 +196,9 @@ let rec unparse :
   match tm with
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> unlocated (Ident (Scope.name_of c, []))
-  | Meta v -> unlocated (Ident ([ Meta.name v ], []))
+  | Meta (v, _) -> unlocated (Ident ([ Meta.name v ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)
-  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ], []))
+  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ^ "{…}" ], []))
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
       unparse_act vars
@@ -240,7 +242,7 @@ let rec unparse :
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (Eta, _, fields) ->
+  | Struct (Eta, _, fields, _) ->
       unlocated
         (outfix ~notn:parens ~ws:[]
            ~inner:
@@ -265,20 +267,6 @@ let rec unparse :
                                  ~right_ok:(No.le_refl No.minus_omega))
                         | `Unlabeled -> tm) ))
                 fields Emp))
-  (* Not yet unparsing comatches *)
-  (*
-  | Struct (Noeta, fields) ->
-      unlocated
-        (outfix ~notn:comatch ~ws:[]
-           ~inner:
-             (Abwd.fold
-                (* Comatches can't have unlabeled fields *)
-                  (fun fld (tm, _) acc ->
-                  Snoc
-                    ( Snoc (acc, Term (unlocated (Field (Field.to_string fld, [])))),
-                      Term (unparse vars tm Interval.entire Interval.entire) ))
-                fields Emp))
-*)
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
       match unparse_numeral tm with
@@ -392,7 +380,7 @@ and unparse_field_var :
       | None -> None)
   | Act (tm, deg) -> (
       match is_id_deg deg with
-      | Some () -> unparse_field_var vars tm fld
+      | Some _ -> unparse_field_var vars tm fld
       | None -> None)
   | _ -> None
 
@@ -469,7 +457,7 @@ and unparse_act :
     (lt, ls, rt, rs) parse located =
  fun vars tm s li ri ->
   match is_id_deg s with
-  | Some () -> tm.unparse li ri
+  | Some _ -> tm.unparse li ri
   | None -> (
       match name_of_deg s with
       | Some str -> unparse_spine vars (`Degen str) (Snoc (Emp, tm)) li ri
@@ -607,7 +595,7 @@ let rec unparse_ctx :
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
     (string * [ `Original | `Renamed ], a) Bwv.t ->
-    (a, b) Termctx.Ordered.t ->
+    (a, b) Termctx.ordered ->
     b Names.t
     * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
     =
@@ -670,7 +658,7 @@ let rec unparse_ctx :
           (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
           let do_binding fab (b : b Termctx.binding) (res : S.t) : unit * S.t =
             match (hasfields, is_id_sface fab) with
-            | Has_fields, Some () -> ((), res)
+            | Has_fields, Some _ -> ((), res)
             | _ ->
                 let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
                 let tm =
@@ -705,9 +693,12 @@ let () =
           Reporter.emit (Error_printing_error d.message);
           Printed ((fun ppf () -> Format.pp_print_string ppf "PRINTING_ERROR"), ()))
       @@ fun () ->
+      Readback.Display.run ~env:true @@ fun () ->
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
       | PString str -> Printed (Uuseg_string.pp_utf_8, str)
+      | PField f -> Printed (Uuseg_string.pp_utf_8, Field.to_string f)
+      | PConstr c -> Printed (Uuseg_string.pp_utf_8, Constr.to_string c)
       | PLevel i -> Printed ((fun ppf i -> Format.fprintf ppf "(%d,%d)" (fst i) (snd i)), i)
       | PTerm (ctx, tm) ->
           Printed

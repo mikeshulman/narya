@@ -31,10 +31,12 @@ type t =
   | Echo
   | Quit
   | Match
+  | Return
   | Sig
   | Data
   | Codata
   | Notation
+  | Import
   | Let
   | In
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
@@ -162,10 +164,12 @@ let to_string = function
   | Echo -> "echo"
   | Quit -> "quit"
   | Match -> "match"
+  | Return -> "return"
   | Sig -> "sig"
   | Data -> "data"
   | Codata -> "codata"
   | Notation -> "notation"
+  | Import -> "import"
   | Let -> "let"
   | In -> "in"
   | Op s -> s

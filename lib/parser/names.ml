@@ -4,10 +4,11 @@ open Dim
 open Core
 open Syntax
 open Term
-open Reporter
 module StringMap = Map.Make (String)
 
 let __DEFAULT_NAME__ = "H"
+let default () = __DEFAULT_NAME__
+let __ANONYMOUS_VARIABLE__ = "_H"
 
 (* Track the used variable names, to generate fresh ones for bound variables if needed. *)
 
@@ -31,12 +32,12 @@ let lookup : type n. n t -> n index -> string list =
    fun ctx x ->
     match (ctx, x) with
     | Emp, _ -> .
-    | Snoc (ctx, _, _), Pop x -> lookup ctx x
-    | Snoc (_, Variables (_, mn, xs), _), Top fa -> (
+    | Snoc (ctx, _, _), Index (Later x, fa) -> lookup ctx (Index (x, fa))
+    | Snoc (_, Variables (_, mn, xs), _), Index (Now, fa) -> (
         let (SFace_of_plus (_, fb, fc)) = sface_of_plus mn fa in
         match NICubeOf.find xs fc with
         | Some x -> cubevar x fb
-        | None -> fatal (Anomaly "reference to anonymous variable")) in
+        | None -> [ __ANONYMOUS_VARIABLE__ ]) in
   lookup ctx x
 
 (* Look up an index variable together with a field, to find a name for the combination, if there is one. *)
@@ -46,11 +47,11 @@ let lookup_field : type n. n t -> n index -> Field.t -> string list option =
    fun ctx x ->
     match (ctx, x) with
     | Emp, _ -> .
-    | Snoc (ctx, _, _), Pop x -> lookup ctx x
-    | Snoc (_, Variables (_, mn, _), fields), Top fa ->
+    | Snoc (ctx, _, _), Index (Later x, fa) -> lookup ctx (Index (x, fa))
+    | Snoc (_, Variables (_, mn, _), fields), Index (Now, fa) ->
         let open Monad.Ops (Monad.Maybe) in
         let (SFace_of_plus (_, fb, fc)) = sface_of_plus mn fa in
-        let* () = is_id_sface fc in
+        let* _ = is_id_sface fc in
         let* y = Abwd.find_opt f fields in
         return (cubevar y fb) in
   lookup ctx x
@@ -142,7 +143,7 @@ let rec of_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> b t = function
   | Lock ctx -> of_ordered_ctx ctx
 
 let of_ctx : type a b. (a, b) Ctx.t -> b t = function
-  | Permute (_, ctx) -> of_ordered_ctx ctx
+  | Permute (_, _, ctx) -> of_ordered_ctx ctx
 
 (* Add a cube of variables WITHOUT replacing them by fresh versions.  Should only be used when the variables have already been so replaced, as in the output of uniquify_vars below. *)
 let unsafe_add : 'b t -> 'n variables -> (Field.t, string) Abwd.t -> ('b, 'n) snoc t =

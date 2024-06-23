@@ -229,7 +229,7 @@ x
   blah,
 <]
 
-1 :> 2 :> 3 :> xs
+1 :> 2 :> 3 :> xs 
 
 xs <: 1 <: 2 <: 3
 
@@ -248,6 +248,7 @@ x
 :> x
 :> x
 :> xs
+
 
 xs
 <: x
@@ -518,6 +519,18 @@ match x [
    | poo. ↦ bah 
  ])
 
+match x , y [ 
+  | true. , false. ↦ 0 
+  | true. , true. ↦ 1 
+]
+
+match x [ 
+  | zero. ↦ 0 
+  | suc. zero. ↦ 1 
+  | suc. (suc. zero.) ↦ 2 
+  | suc. (suc. (suc. n)) ↦ n 
+]
+
 codata [
 | x .head : blah blah blah
               blah blah blah
@@ -736,6 +749,16 @@ match x [
 
 (match x [ 
    | poo. ↦ bah ])
+
+match x , y [ 
+  | true. , false. ↦ 0 
+  | true. , true. ↦ 1 ]
+
+match x [ 
+  | zero. ↦ 0 
+  | suc. zero. ↦ 1 
+  | suc. (suc. zero.) ↦ 2 
+  | suc. (suc. (suc. n)) ↦ n ]
 
 codata [
 | x .head : blah blah blah

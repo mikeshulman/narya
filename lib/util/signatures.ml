@@ -27,6 +27,12 @@ module type MAP = sig
   val add : 'g Key.t -> ('b, 'g) F.t -> 'b t -> 'b t
   val update : 'g Key.t -> (('b, 'g) F.t option -> ('b, 'g) F.t option) -> 'b t -> 'b t
   val remove : 'g Key.t -> 'b t -> 'b t
+
+  (* Mapping over intrinsically well-typed maps is complicated.  The mapping function has to be able to deal with any key, hence any parametrizing type for that key, so we have to wrap it up in a record with a polymorphic field.  Moreover, because some implementations of intrinsically well-typed maps shift the key parameter into a factor of the ambient parameter, there are issues with trying to change the ambient parameter.  Fortunately, for current applications, it suffices to keep that parameter the same. *)
+
+  type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+
+  val map : 'a mapper -> 'a t -> 'a t
 end
 
 module type MAP_MAKER = sig

@@ -41,4 +41,8 @@ let merge_opt loc1 loc2 =
 
 let merge_opt3 loc1 loc2 loc3 = merge_opt (merge_opt loc1 loc2) loc3
 let run = S.run
+
+type 'a located = 'a Asai.Range.located
+
 let locate : type a. a -> Asai.Range.t option -> a located = fun value loc -> { value; loc }
+let unlocated (value : 'a) : 'a located = { value; loc = None }

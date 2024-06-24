@@ -937,12 +937,12 @@ let eval_bindings :
             let ety = eval_term (Ctx.Ordered.env tempctx) cty in
             let level = (i, !j) in
             j := !j + 1;
-            let v =
+            let lvl, v =
               match ctm with
-              | None -> ({ tm = var level ety; ty = ety } : normal)
-              | Some ctm -> { tm = eval_term (Ctx.Ordered.env tempctx) ctm; ty = ety } in
+              | None -> (Some level, ({ tm = var level ety; ty = ety } : normal))
+              | Some ctm -> (None, { tm = eval_term (Ctx.Ordered.env tempctx) ctm; ty = ety }) in
             Hashtbl.add argtbl (SFace_of fa) v;
-            Ctx.Binding.specify vb None v);
+            Ctx.Binding.specify vb lvl v);
       }
       [ cbs; vbs ] in
   vbs

@@ -16,7 +16,7 @@ Import compiled files
    ￮ file loaded: $TESTCASE_ROOT/one.ny (compiled)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
 
 Modified files are recompiled
@@ -28,13 +28,13 @@ Modified files are recompiled
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
 
 Files are recompiled if the flags change
@@ -47,13 +47,13 @@ Files are recompiled if the flags change
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
 
   $ narya two.ny
@@ -87,7 +87,7 @@ Requiring a file multiple times
    ￮ file loaded: $TESTCASE_ROOT/three.ny (compiled)
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
 
 Files are recompiled if their dependencies need to be
@@ -99,7 +99,7 @@ Files are recompiled if their dependencies need to be
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
@@ -108,7 +108,7 @@ Files are recompiled if their dependencies need to be
    ￮ loading file: $TESTCASE_ROOT/two.ny
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
@@ -117,13 +117,13 @@ Files are recompiled if their dependencies need to be
    ￮ loading file: $TESTCASE_ROOT/three.ny
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
 
 Circular dependency
@@ -245,7 +245,7 @@ Quitting in imports quits only that file
    ￮ file loaded: $TESTCASE_ROOT/qone.ny (compiled)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
 Dimensions work in files loaded from source
 

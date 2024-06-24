@@ -12,88 +12,88 @@ Testing let-bindings
 
   $ narya -source-only -v pre.ny -e "def a0' : A := let id ≔ ((x ↦ x) : A → A) in id a0" -e "def test : Id A a0 a0' := refl a0"
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0001]
-   ￮ Axiom b assumed
+   ￮ axiom b assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant a0' defined
+   ￮ constant a0' defined
   
    ￫ info[I0000]
-   ￮ Constant test defined
+   ￮ constant test defined
   
 
   $ narya -source-only -v pre.ny -e "def a0' : A := let id : A → A ≔ x ↦ x in id a0" -e "def test : Id A a0 a0' := refl a0"
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0001]
-   ￮ Axiom b assumed
+   ￮ axiom b assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant a0' defined
+   ￮ constant a0' defined
   
    ￫ info[I0000]
-   ￮ Constant test defined
+   ￮ constant test defined
   
 
 It matters what the variable is bound to:
 
   $ narya -source-only -v pre.ny -e "def a0' : A := let id : A → A ≔ x ↦ a1 in id a0" -e "def untest : Id A a0 a0' := refl a0"
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0001]
-   ￮ Axiom b assumed
+   ￮ axiom b assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant a0' defined
+   ￮ constant a0' defined
   
    ￫ error[E0401]
    ￭ command-line exec string
@@ -109,59 +109,59 @@ Ap on let:
 
   $ narya -source-only -v pre.ny -e "def a2' := refl ((y ↦ let id : A → A ≔ x ↦ x in id y) : A → A) a0 a1 a2" -e "def test : Id (Id A a0 a1) a2 a2' := refl a2"
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0001]
-   ￮ Axiom b assumed
+   ￮ axiom b assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant a2' defined
+   ￮ constant a2' defined
   
    ￫ info[I0000]
-   ￮ Constant test defined
+   ￮ constant test defined
   
 
 Let affects typechecking:
 
   $ narya -source-only -v pre.ny -e "def b' : B a0 := let x ≔ a0 in f x b" -e "def untest : B a0 ≔ ((x ↦ f x b) : A → B a0) a0"
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0001]
-   ￮ Axiom b assumed
+   ￮ axiom b assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant b' defined
+   ￮ constant b' defined
   
    ￫ error[E0401]
    ￭ command-line exec string
@@ -174,56 +174,56 @@ Let can check in addition to synthesize:
 
   $ narya -source-only -v pre.ny -e "def aconst : A → A ≔ let x ≔ a0 in y ↦ x"
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0001]
-   ￮ Axiom b assumed
+   ￮ axiom b assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant aconst defined
+   ￮ constant aconst defined
   
 
 Let is allowed in case trees:
 
   $ narya -source-only -v pre.ny -e "def atree : A → A ≔ let x ≔ a0 in y ↦ y" -e "echo atree"
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0001]
-   ￮ Axiom b assumed
+   ￮ axiom b assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant atree defined
+   ￮ constant atree defined
   
   atree
     : A → A
@@ -238,13 +238,13 @@ Let can contain case trees:
 
   $ narya -source-only -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool := match x [ true. |-> false. | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0001]
-   ￮ Axiom u assumed
+   ￮ axiom u assumed
   
    ￫ info[I0000]
-   ￮ Constant not defined
+   ￮ constant not defined
   
   false.
     : bool
@@ -258,13 +258,13 @@ Let can contain case trees:
 
   $ narya -source-only -v letcase.ny -e 'def not : bool -> bool := x |-> let n : bool -> bool := y |-> match y [ true. |-> false. | false. |-> true. ] in n x' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0001]
-   ￮ Axiom u assumed
+   ￮ axiom u assumed
   
    ￫ info[I0000]
-   ￮ Constant not defined
+   ￮ constant not defined
   
   false.
     : bool
@@ -280,10 +280,10 @@ Synthesizing matches don't need to be annotated
 
   $ narya -source-only -v letcase.ny -e 'def not : bool -> bool := x |-> let n := match x [ true. |-> (false. : bool) | false. |-> true. ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0001]
-   ￮ Axiom u assumed
+   ￮ axiom u assumed
   
    ￫ hint[E1101]
    ￭ command-line exec string
@@ -291,7 +291,7 @@ Synthesizing matches don't need to be annotated
      ^ match will not refine the goal or context (match in synthesizing position): 
   
    ￫ info[I0000]
-   ￮ Constant not defined
+   ￮ constant not defined
   
   false.
     : bool
@@ -314,16 +314,16 @@ Let doesn't make a case tree unless it needs to:
 
   $ narya -v letnocase.ny
    ￫ info[I0000]
-   ￮ Constant prod defined
+   ￮ constant prod defined
   
    ￫ info[I0000]
-   ￮ Constant foo defined
+   ￮ constant foo defined
   
   foo
     : prod (Type → Type) Type
   
    ￫ info[I0000]
-   ￮ Constant foo' defined
+   ￮ constant foo' defined
   
   (
     fst ≔ X ↦ X,
@@ -336,10 +336,10 @@ Matches outside case trees can be implicitly wrapped in a let-binding:
 
   $ narya -source-only -v letcase.ny -e 'def not (b : bool) : bool ≔ ((x ↦ x) : bool → bool) (match b [ true. ↦ false. | false. ↦ true. ])' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0001]
-   ￮ Axiom u assumed
+   ￮ axiom u assumed
   
    ￫ hint[H0403]
    ￭ command-line exec string
@@ -347,7 +347,7 @@ Matches outside case trees can be implicitly wrapped in a let-binding:
      ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
-   ￮ Constant not defined
+   ￮ constant not defined
   
   false.
     : bool
@@ -370,10 +370,10 @@ Pattern-matching lambdas can be used in arbitrary places:
   > axiom n : ℕ
   > echo squaredec n
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constant square defined
+   ￮ constant square defined
   
    ￫ hint[H0403]
    ￭ stdin
@@ -381,7 +381,7 @@ Pattern-matching lambdas can be used in arbitrary places:
      ^ match encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
-   ￮ Constant squaredec defined
+   ￮ constant squaredec defined
   
   2
     : ℕ
@@ -390,7 +390,7 @@ Pattern-matching lambdas can be used in arbitrary places:
     : ℕ
   
    ￫ info[I0001]
-   ￮ Axiom n assumed
+   ￮ axiom n assumed
   
   _match.0{…}
     : ℕ

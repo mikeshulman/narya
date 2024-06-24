@@ -1,12 +1,12 @@
   $ narya -v holes.ny
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom B assumed
+   ￮ axiom B assumed
   
    ￫ info[I0000]
-   ￮ Constant id defined
+   ￮ constant id defined
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -17,7 +17,7 @@
        A → B
   
    ￫ info[I0000]
-   ￮ Constant f defined, containing 1 hole
+   ￮ constant f defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -29,10 +29,10 @@
        B
   
    ￫ info[I0000]
-   ￮ Constant f' defined, containing 1 hole
+   ￮ constant f' defined, containing 1 hole
   
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -56,10 +56,10 @@
         ℕ
   
    ￫ info[I0000]
-   ￮ Constant plus defined, containing 2 holes
+   ￮ constant plus defined, containing 2 holes
   
    ￫ info[I0001]
-   ￮ Axiom P assumed
+   ￮ axiom P assumed
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -73,7 +73,7 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop defined, containing 1 hole
+   ￮ constant anop defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -87,7 +87,7 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop' defined, containing 1 hole
+   ￮ constant anop' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -101,7 +101,7 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop'' defined, containing 1 hole
+   ￮ constant anop'' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -115,10 +115,10 @@
         P n
   
    ￫ info[I0000]
-   ￮ Constant anop''' defined, containing 1 hole
+   ￮ constant anop''' defined, containing 1 hole
   
    ￫ info[I0000]
-   ￮ Constant Σ defined
+   ￮ constant Σ defined
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -137,7 +137,7 @@
         pp .fst
   
    ￫ info[I0000]
-   ￮ Constant pp defined, containing 2 holes
+   ￮ constant pp defined, containing 2 holes
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -156,7 +156,7 @@
         ?10{…}
   
    ￫ info[I0000]
-   ￮ Constant pp' defined, containing 2 holes
+   ￮ constant pp' defined, containing 2 holes
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -168,7 +168,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant foo defined, containing 1 hole
+   ￮ constant foo defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -181,7 +181,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant foo' defined, containing 1 hole
+   ￮ constant foo' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -196,7 +196,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel0 defined, containing 1 hole
+   ￮ constant gel0 defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -212,7 +212,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel1 defined, containing 1 hole
+   ￮ constant gel1 defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -240,7 +240,7 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel2 defined, containing 2 holes
+   ￮ constant gel2 defined, containing 2 holes
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -269,13 +269,13 @@
         Type
   
    ￫ info[I0000]
-   ￮ Constant gel3 defined, containing 2 holes
+   ￮ constant gel3 defined, containing 2 holes
   
    ￫ info[I0001]
-   ￮ Axiom C assumed
+   ￮ axiom C assumed
   
    ￫ info[I0000]
-   ￮ Constant AC defined
+   ￮ constant AC defined
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -294,19 +294,19 @@
         C (ac .a 0)
   
    ￫ info[I0000]
-   ￮ Constant ac defined, containing 2 holes
+   ￮ constant ac defined, containing 2 holes
   
    ￫ info[I0000]
-   ￮ Constant ida defined
+   ￮ constant ida defined
   
    ￫ info[I0000]
-   ￮ Constant ideqid defined
+   ￮ constant ideqid defined
   
   u u0 u1 ↦ u1
     : refl Π A A (refl A) (_ ↦ A) (_ ↦ A) (_ ⤇ refl A) ida ida
   
    ￫ info[I0000]
-   ￮ Constant ideqid' defined
+   ￮ constant ideqid' defined
   
   u u0 u00 ↦ u00
     : refl Π A A (refl A) (_ ↦ A) (_ ↦ A) (_ ⤇ refl A) ida ida
@@ -323,7 +323,7 @@
         refl A u1 u0
   
    ￫ info[I0000]
-   ￮ Constant ideqid'' defined, containing 1 hole
+   ￮ constant ideqid'' defined, containing 1 hole
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/holes.ny
@@ -335,10 +335,10 @@
          Type
   
    ￫ info[I0000]
-   ￮ Constant afam defined, containing 1 hole
+   ￮ constant afam defined, containing 1 hole
   
    ￫ info[I0000]
-   ￮ Constant idafam defined
+   ￮ constant idafam defined
   
    ￫ error[E3000]
    ￮ there are open holes
@@ -347,7 +347,7 @@
 
   $ narya -v -dtt dtt-holes.ny
    ￫ info[I0000]
-   ￮ Constant f defined
+   ￮ constant f defined
   
    ￫ info[I0100]
    ￭ $TESTCASE_ROOT/dtt-holes.ny

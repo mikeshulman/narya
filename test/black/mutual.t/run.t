@@ -1,18 +1,18 @@
   $ narya -v even_odd_rec.ny
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constant ⊤ defined
+   ￮ constant ⊤ defined
   
    ￫ info[I0000]
-   ￮ Constant ⊥ defined
+   ￮ constant ⊥ defined
   
    ￫ info[I0000]
-   ￮ Constant even_odd_type defined
+   ￮ constant even_odd_type defined
   
    ￫ info[I0000]
-   ￮ Constant even_odd defined
+   ￮ constant even_odd defined
   
   ⊤
     : Type
@@ -23,39 +23,39 @@
 
   $ narya -v even_odd_sig.ny
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constant even_odd_type defined
+   ￮ constant even_odd_type defined
   
    ￫ info[I0000]
-   ￮ Constant even_odd defined
+   ￮ constant even_odd defined
   
    ￫ info[I0000]
-   ￮ Constant even defined
+   ￮ constant even defined
   
    ￫ info[I0000]
-   ￮ Constant odd defined
+   ￮ constant odd defined
   
    ￫ info[I0000]
-   ￮ Constant sum defined
+   ￮ constant sum defined
   
    ￫ info[I0000]
-   ￮ Constant even_or_odd_suc defined
+   ￮ constant even_or_odd_suc defined
   
    ￫ info[I0000]
-   ￮ Constant all_even_or_odd defined
+   ￮ constant all_even_or_odd defined
   
 
   $ narya -v even_odd_rec_canonical.ny
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constant even_odd_type defined
+   ￮ constant even_odd_type defined
   
    ￫ info[I0000]
-   ￮ Constant even_odd defined
+   ￮ constant even_odd defined
   
   even_odd .even 8
     : Type
@@ -67,51 +67,51 @@
 
   $ narya -v ctx_ty_sig.ny
    ￫ info[I0000]
-   ￮ Constant ctx_ty_type defined
+   ￮ constant ctx_ty_type defined
   
    ￫ info[I0000]
-   ￮ Constant ctx_ty defined
+   ￮ constant ctx_ty defined
   
    ￫ info[I0000]
-   ￮ Constant ctx_ty_tm_type defined
+   ￮ constant ctx_ty_tm_type defined
   
    ￫ info[I0000]
-   ￮ Constant ctx_ty_tm defined
+   ￮ constant ctx_ty_tm defined
   
 
   $ narya -v univ_sig.ny
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0000]
-   ￮ Constant uu_el_type defined
+   ￮ constant uu_el_type defined
   
    ￫ info[I0000]
-   ￮ Constant uu_el defined
+   ￮ constant uu_el defined
   
 
   $ narya -v even_odd_and.ny
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constants defined mutually:
+   ￮ constants defined mutually:
        even
        odd
   
    ￫ info[I0000]
-   ￮ Constant sum defined
+   ￮ constant sum defined
   
    ￫ info[I0000]
-   ￮ Constant even_or_odd_suc defined
+   ￮ constant even_or_odd_suc defined
   
    ￫ info[I0000]
-   ￮ Constant all_even_or_odd defined
+   ￮ constant all_even_or_odd defined
   
 
   $ narya -v ctx_el_and.ny
    ￫ info[I0000]
-   ￮ Constants defined mutually:
+   ￮ constants defined mutually:
        ctx
        ty
   
@@ -122,7 +122,7 @@
    ￮ name already defined: ty
   
    ￫ info[I0000]
-   ￮ Constants defined mutually:
+   ￮ constants defined mutually:
        ctx
        ty
        tm
@@ -130,10 +130,10 @@
 
   $ narya -v univ_and.ny
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0000]
-   ￮ Constants defined mutually:
+   ￮ constants defined mutually:
        uu
        el
   

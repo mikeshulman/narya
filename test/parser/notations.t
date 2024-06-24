@@ -2,19 +2,19 @@ Testing notation commands
 
   $ narya -v -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y := f x y' -e 'def ff (x y : A) : A := x & y' -e 'axiom a : A' -e 'echo ff a a'
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0002]
-   ￮ Notation f defined
+   ￮ notation f defined
   
    ￫ info[I0000]
-   ￮ Constant ff defined
+   ￮ constant ff defined
   
    ￫ info[I0001]
-   ￮ Axiom a assumed
+   ￮ axiom a assumed
   
   a & a
     : A

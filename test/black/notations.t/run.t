@@ -1,30 +1,30 @@
   $ narya -v constrs.ny
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0000]
-   ￮ Constant twos defined
+   ￮ constant twos defined
   
    ￫ info[I0002]
-   ￮ Notation twos.foo defined
+   ￮ notation twos.foo defined
   
    ￫ info[I0000]
-   ￮ Constant threes defined
+   ￮ constant threes defined
   
    ￫ info[I0002]
-   ￮ Notation threes.foo defined
+   ￮ notation threes.foo defined
   
    ￫ info[I0001]
-   ￮ Axiom a assumed
+   ￮ axiom a assumed
   
    ￫ info[I0000]
-   ￮ Constant a2 defined
+   ￮ constant a2 defined
   
   a + a
     : twos
   
    ￫ info[I0000]
-   ￮ Constant a3 defined
+   ￮ constant a3 defined
   
   a * a * a
     : threes

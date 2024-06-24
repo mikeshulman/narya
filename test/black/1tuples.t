@@ -10,22 +10,22 @@
 
   $ narya -v wrap.ny
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a assumed
+   ￮ axiom a assumed
   
    ￫ info[I0000]
-   ￮ Constant wrapA defined
+   ￮ constant wrapA defined
   
    ￫ info[I0000]
-   ￮ Constant wa1 defined
+   ￮ constant wa1 defined
   
    ￫ info[I0000]
-   ￮ Constant wa2 defined
+   ￮ constant wa2 defined
   
    ￫ info[I0000]
-   ￮ Constant wa3 defined
+   ￮ constant wa3 defined
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/wrap.ny

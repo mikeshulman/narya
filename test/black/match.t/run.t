@@ -1,15 +1,15 @@
   $ narya -v matchterm.ny
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constant plus defined
+   ￮ constant plus defined
   
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0000]
-   ￮ Constant plus_is_1 defined
+   ￮ constant plus_is_1 defined
   
   true.
     : bool
@@ -27,10 +27,10 @@
     : bool
   
    ￫ info[I0000]
-   ￮ Constant ⊥ defined
+   ￮ constant ⊥ defined
   
    ￫ info[I0000]
-   ￮ Constant contra defined
+   ￮ constant contra defined
   
    ￫ hint[E1101]
    ￭ $TESTCASE_ROOT/matchterm.ny
@@ -38,42 +38,42 @@
       ^ match will not refine the goal or context (discriminee is let-bound): n
   
    ￫ info[I0000]
-   ￮ Constant doublematch defined
+   ￮ constant doublematch defined
   
    ￫ info[I0000]
-   ￮ Constant doublematch' defined
+   ￮ constant doublematch' defined
   
    ￫ info[I0000]
-   ￮ Constant ⊤ defined
+   ￮ constant ⊤ defined
   
    ￫ info[I0000]
-   ￮ Constant zero_or_suc defined
+   ￮ constant zero_or_suc defined
   
    ￫ info[I0000]
-   ￮ Constant plus_zero_or_suc defined
+   ￮ constant plus_zero_or_suc defined
   
    ￫ info[I0000]
-   ￮ Constant Vec defined
+   ￮ constant Vec defined
   
    ￫ info[I0000]
-   ￮ Constant idvec defined
+   ￮ constant idvec defined
   
    ￫ info[I0000]
-   ￮ Constant nil_or_cons defined
+   ￮ constant nil_or_cons defined
   
    ￫ info[I0000]
-   ￮ Constant idvec_nil_or_cons defined
+   ￮ constant idvec_nil_or_cons defined
   
 
   $ narya -v multi.ny
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constant bool.and defined
+   ￮ constant bool.and defined
   
   true.
     : bool
@@ -82,13 +82,13 @@
     : bool
   
    ￫ info[I0000]
-   ￮ Constant plus defined
+   ￮ constant plus defined
   
    ￫ info[I0002]
-   ￮ Notation plus defined
+   ￮ notation plus defined
   
    ￫ info[I0000]
-   ￮ Constant fib defined
+   ￮ constant fib defined
   
   13
     : ℕ
@@ -97,22 +97,22 @@
     : ℕ
   
    ￫ info[I0000]
-   ￮ Constant fib' defined
+   ￮ constant fib' defined
   
    ￫ info[I0000]
-   ￮ Constant fib'' defined
+   ￮ constant fib'' defined
   
    ￫ info[I0000]
-   ￮ Constant even defined
+   ￮ constant even defined
   
    ￫ info[I0000]
-   ￮ Constant minus2 defined
+   ￮ constant minus2 defined
   
   2
     : ℕ
   
    ￫ info[I0000]
-   ￮ Constant bothzero defined
+   ￮ constant bothzero defined
   
   false.
     : bool
@@ -124,19 +124,19 @@
     : bool
   
    ￫ info[I0000]
-   ￮ Constant ⊥ defined
+   ￮ constant ⊥ defined
   
    ￫ info[I0000]
-   ￮ Constant abort1 defined
+   ￮ constant abort1 defined
   
    ￫ info[I0000]
-   ￮ Constant abort2 defined
+   ￮ constant abort2 defined
   
    ￫ info[I0000]
-   ￮ Constant Gel defined
+   ￮ constant Gel defined
   
    ￫ info[I0000]
-   ￮ Constant ⊤ defined
+   ￮ constant ⊤ defined
   
    ￫ hint[H0403]
    ￭ $TESTCASE_ROOT/multi.ny
@@ -144,55 +144,55 @@
       ^ matching lambda encountered outside case tree, wrapping in implicit let-binding
   
    ￫ info[I0000]
-   ￮ Constant ⊤eq⊥ defined
+   ￮ constant ⊤eq⊥ defined
   
    ￫ info[I0000]
-   ￮ Constant foo defined
+   ￮ constant foo defined
   
    ￫ info[I0000]
-   ￮ Constant one_not_even defined
+   ￮ constant one_not_even defined
   
    ￫ info[I0000]
-   ￮ Constant suc_even_not_even defined
+   ￮ constant suc_even_not_even defined
   
    ￫ info[I0000]
-   ￮ Constant suc_even_not_even' defined
+   ￮ constant suc_even_not_even' defined
   
    ￫ info[I0000]
-   ￮ Constant sum defined
+   ￮ constant sum defined
   
    ￫ info[I0000]
-   ￮ Constant sum⊥ defined
+   ￮ constant sum⊥ defined
   
    ￫ info[I0000]
-   ￮ Constant sum⊥' defined
+   ￮ constant sum⊥' defined
   
    ￫ info[I0001]
-   ￮ Axiom oops assumed
+   ￮ axiom oops assumed
   
   sum⊥' Type (inr. oops)
     : Type
   
    ￫ info[I0000]
-   ￮ Constant sum⊥'' defined
+   ￮ constant sum⊥'' defined
   
    ￫ info[I0000]
-   ￮ Constant sum⊥''' defined
+   ￮ constant sum⊥''' defined
   
    ￫ info[I0000]
-   ￮ Constant is_zero defined
+   ￮ constant is_zero defined
   
    ￫ info[I0000]
-   ￮ Constant is_zero_eq_zero defined
+   ￮ constant is_zero_eq_zero defined
   
    ￫ info[I0000]
-   ￮ Constant is_zero_eq_zero' defined
+   ￮ constant is_zero_eq_zero' defined
   
    ￫ info[I0000]
-   ￮ Constant is_zero_eq_zero_rev defined
+   ￮ constant is_zero_eq_zero_rev defined
   
    ￫ info[I0000]
-   ￮ Constant is_zero_eq_zero_rev' defined
+   ￮ constant is_zero_eq_zero_rev' defined
   
 
 
@@ -230,19 +230,19 @@
 
   $ narya -v -e 'def bool : Type ≔ data [ true. | false. ]' -e 'def ⊥ : Type ≔ data [ ]' -e 'def foo (x : ⊥) (y : bool) : ⊥ ≔ match x, y [ ]' -e 'def foo2 (x : ⊥) (y : bool) : ⊥ ≔ match y, x [ ]' -e 'def unit : Type := data [ star. ]' -e 'def foo3 (x : bool) (y : unit) : ⊥ ≔ match x, y [ ]'
    ￫ info[I0000]
-   ￮ Constant bool defined
+   ￮ constant bool defined
   
    ￫ info[I0000]
-   ￮ Constant ⊥ defined
+   ￮ constant ⊥ defined
   
    ￫ info[I0000]
-   ￮ Constant foo defined
+   ￮ constant foo defined
   
    ￫ info[I0000]
-   ￮ Constant foo2 defined
+   ￮ constant foo2 defined
   
    ￫ info[I0000]
-   ￮ Constant unit defined
+   ￮ constant unit defined
   
    ￫ error[E1300]
    ￭ command-line exec string

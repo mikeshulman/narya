@@ -23,25 +23,25 @@
 
   $ narya -v nat.ny
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0000]
-   ￮ Constant O defined
+   ￮ constant O defined
   
    ￫ info[I0000]
-   ￮ Constant S defined
+   ￮ constant S defined
   
    ￫ info[I0000]
-   ￮ Constant plus defined
+   ￮ constant plus defined
   
    ￫ info[I0000]
-   ￮ Constant times defined
+   ￮ constant times defined
   
    ￫ info[I0002]
-   ￮ Notation plus defined
+   ￮ notation plus defined
   
    ￫ info[I0002]
-   ￮ Notation times defined
+   ￮ notation times defined
   
   6
     : ℕ
@@ -53,13 +53,13 @@
     : ℕ
   
    ￫ info[I0000]
-   ￮ Constant six defined
+   ￮ constant six defined
   
    ￫ info[I0001]
-   ￮ Axiom m assumed
+   ￮ axiom m assumed
   
    ￫ info[I0001]
-   ￮ Axiom n assumed
+   ￮ axiom n assumed
   
   m + n
     : ℕ

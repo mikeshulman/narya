@@ -559,23 +559,23 @@ module Code = struct
     | Head_already_has_notation name ->
         textf "replacing printing notation for %s (previous notation will still be parseable)" name
     | Constant_assumed (name, h) ->
-        if h > 1 then textf "Axiom %a assumed, containing %d holes" pp_printed (print name) h
-        else if h = 1 then textf "Axiom %a assumed, containing 1 hole" pp_printed (print name)
-        else textf "Axiom %a assumed" pp_printed (print name)
+        if h > 1 then textf "axiom %a assumed, containing %d holes" pp_printed (print name) h
+        else if h = 1 then textf "axiom %a assumed, containing 1 hole" pp_printed (print name)
+        else textf "axiom %a assumed" pp_printed (print name)
     | Constant_defined (names, h) -> (
         match names with
-        | [] -> textf "Anomaly: no constant defined"
+        | [] -> textf "anomaly: no constant defined"
         | [ (name, discrete) ] ->
             let discrete = if discrete then " (discrete)" else "" in
             if h > 1 then
-              textf "Constant %a defined%s, containing %d holes" pp_printed (print name) discrete h
+              textf "constant %a defined%s, containing %d holes" pp_printed (print name) discrete h
             else if h = 1 then
-              textf "Constant %a defined%s, containing 1 hole" pp_printed (print name) discrete
-            else textf "Constant %a defined%s" pp_printed (print name) discrete
+              textf "constant %a defined%s, containing 1 hole" pp_printed (print name) discrete
+            else textf "constant %a defined%s" pp_printed (print name) discrete
         | _ ->
-            (if h > 1 then textf "@[<v 2>Constants defined mutually, containing %d holes:@,%a@]" h
-             else if h = 1 then textf "@[<v 2>Constants defined mutually, containing 1 hole:@,%a@]"
-             else textf "@[<v 2>Constants defined mutually:@,%a@]")
+            (if h > 1 then textf "@[<v 2>constants defined mutually, containing %d holes:@,%a@]" h
+             else if h = 1 then textf "@[<v 2>constants defined mutually, containing 1 hole:@,%a@]"
+             else textf "@[<v 2>constants defined mutually:@,%a@]")
               (fun ppf names ->
                 pp_print_list
                   (fun ppf (name, discrete) ->
@@ -583,7 +583,7 @@ module Code = struct
                     if discrete then pp_print_string ppf " (discrete)")
                   ppf names)
               (List.map (fun (name, discrete) -> (print name, discrete)) names))
-    | Notation_defined name -> textf "Notation %s defined" name
+    | Notation_defined name -> textf "notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
     | Comment_end_in_string ->
         text "comment-end sequence `} in quoted string: cannot be commented out"

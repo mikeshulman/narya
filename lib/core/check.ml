@@ -141,8 +141,8 @@ let spine :
 let run_with_definition : type a s c. a potential_head -> (a, potential) term -> (unit -> c) -> c =
  fun head tm f ->
   match head with
-  | Constant c -> Global.run_with_definition c (Global.Defined tm) f
-  | Meta (m, _) -> Global.run_with_meta_definition m tm f
+  | Constant c -> Global.with_definition c (Global.Defined tm) f
+  | Meta (m, _) -> Global.with_meta_definition m tm f
 
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
@@ -221,7 +221,7 @@ let rec check :
           let cx =
             (* A pure permutation shouldn't ever be locking, but we may as well keep this here for consistency.  *)
             if locking fa then
-              Global.run_locked (fun () -> check (Kinetic `Nolet) (Ctx.lock ctx) x ty_fainv)
+              Global.with_locked (fun () -> check (Kinetic `Nolet) (Ctx.lock ctx) x ty_fainv)
             else check (Kinetic `Nolet) ctx x ty_fainv in
           realize status (Term.Act (cx, fa)))
   | Lam ({ value = x; _ }, cube, body), _ -> (
@@ -402,7 +402,7 @@ let rec check :
       let meta = Meta.make_hole (Ctx.dbwd ctx) (energy status) in
       let ty, termctx =
         Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
-      Global.add_eternal_meta meta ~vars ~termctx ~ty ~status;
+      Global.add_hole meta ~vars ~termctx ~ty ~status;
       emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
       Meta (meta, energy status)
   (* And lastly, if we have a synthesizing term, we synthesize it. *)
@@ -1346,7 +1346,7 @@ and synth :
   | Act (str, fa, { value = Synth x; loc }), _ ->
       let x = { value = x; loc } in
       let sx, ety =
-        if locking fa then Global.run_locked (fun () -> synth (Kinetic `Nolet) (Ctx.lock ctx) x)
+        if locking fa then Global.with_locked (fun () -> synth (Kinetic `Nolet) (Ctx.lock ctx) x)
         else synth (Kinetic `Nolet) ctx x in
       let ex = eval_term (Ctx.env ctx) sx in
       ( realize status (Term.Act (sx, fa)),

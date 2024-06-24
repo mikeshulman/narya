@@ -18,10 +18,10 @@ end
 
 module Metamap = Meta.Map.Make (Data)
 module IntMap = Map.Make (Int)
-(* We also keep a list of the unsolved holes, and the number of holes created by the current command. *)
 
+(* We also keep a list of the unsolved holes. *)
 module StateData = struct
-  type t = { map : Metadef.undef Metamap.t; holes : Meta.wrapped IntMap.t; current : int }
+  type t = { map : Metadef.undef Metamap.t; holes : Meta.wrapped IntMap.t }
 end
 
 module S = Algaeff.State.Make (StateData)
@@ -41,7 +41,7 @@ let () =
           return (Metadef.Wrap x.def));
       add =
         (fun m vars termctx ty status ->
-          S.modify (fun { map; holes; current } ->
+          S.modify (fun { map; holes } ->
               {
                 map =
                   Metamap.add (MetaKey m)
@@ -56,19 +56,11 @@ let () =
                     }
                     map;
                 holes = IntMap.add (Meta.hole_number m) (Meta.Wrap m) holes;
-                current = current + 1;
               }));
-      (* At the end of a command, we get the number of holes that were created by that command, and reset the counter to 0 for the next command. *)
-      end_command =
-        (fun () ->
-          let data = S.get () in
-          let current = data.current in
-          S.set { data with current = 0 };
-          current);
     }
 
 let unsolved () = not (IntMap.is_empty (S.get ()).holes)
-let run_empty f = S.run ~init:{ map = Metamap.empty; holes = IntMap.empty; current = 0 } f
+let run_empty f = S.run ~init:{ map = Metamap.empty; holes = IntMap.empty } f
 
 let hole_of_number : int -> Meta.wrapped =
  fun i -> IntMap.find_opt i (S.get ()).holes <|> No_such_hole i
@@ -83,7 +75,6 @@ let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
  fun h tm ->
   S.modify (fun data ->
       {
-        data with
         map =
           Metamap.update (MetaKey h)
             (Option.map

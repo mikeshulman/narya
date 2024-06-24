@@ -64,9 +64,8 @@ let def (name : string) (ty : string) (tm : string) : unit =
       let cty = check_type rty in
       let ety = eval_term (Emp D.zero) cty in
       Reporter.trace "when checking case tree" @@ fun () ->
-      let tree =
-        Global.run_with const cty (Axiom `Parametric) @@ fun () ->
-        check (Potential (Constant const, Emp, fun x -> x)) Ctx.empty rtm ety in
+      Global.add const cty (Axiom `Parametric);
+      let tree = check (Potential (Constant const, Emp, fun x -> x)) Ctx.empty rtm ety in
       Global.add const cty (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
 

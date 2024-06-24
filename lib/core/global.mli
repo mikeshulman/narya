@@ -10,7 +10,6 @@ val find_meta : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped
 val to_channel_unit : Out_channel.t -> Compunit.t -> Marshal.extern_flags list -> unit
 val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit
 val locked : unit -> bool
-val run_empty : (unit -> 'a) -> 'a
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit
 val add_error : Constant.t -> Reporter.Code.t -> unit
 
@@ -22,7 +21,7 @@ val add_meta :
   energy:'s energy ->
   unit
 
-val add_eternal_meta :
+val add_hole :
   ('b, 's) Meta.t ->
   vars:(string option, 'a) Bwv.t ->
   termctx:('a, 'b) Termctx.t ->
@@ -30,15 +29,15 @@ val add_eternal_meta :
   status:('b, 's) Status.status ->
   unit
 
-val run_with : Constant.t -> (emp, kinetic) term -> definition -> (unit -> 'a) -> 'a
-val run_with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a
-val run_with_meta_definition : ('b, 's) Meta.t -> ('b, 's) term -> (unit -> 'a) -> 'a
-val run_locked : (unit -> 'a) -> 'a
+val with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a
+val with_meta_definition : ('b, 's) Meta.t -> ('b, 's) term -> (unit -> 'a) -> 'a
+val with_locked : (unit -> 'a) -> 'a
 
 type data
 
 val get : unit -> data
 val run : init:data -> (unit -> 'a) -> 'a
+val run_empty : (unit -> 'a) -> 'a
 
 type eternity = {
   find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped option;
@@ -50,7 +49,6 @@ type eternity = {
     ('b, kinetic) term ->
     ('b, 's) Status.status ->
     unit;
-  end_command : unit -> int;
 }
 
 val eternity : eternity ref

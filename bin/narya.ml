@@ -265,5 +265,5 @@ let () =
     [ !inputs ];
   (* Interactive mode also has all the other units loaded. *)
   let init_visible = Execute.get_all () in
-  Execute.run_with_scope ~init_visible @@ fun () ->
+  Command.run_with_scope ~init_visible @@ fun () ->
   if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()

@@ -79,19 +79,6 @@ let add_to_all trie =
 
 let get_all () = Lazy.force !loaded_contents
 
-(* Put a given starting namespace into the scope, and also extract the notations from it.  TODO: It would be nice to make this be just Scope.run, but that creates a dependency cycle with Postprocess and Builtins. *)
-let run_with_scope ~init_visible f =
-  Scope.run ~init_visible @@ fun () ->
-  State.run_on
-    (Seq.fold_left
-       (fun state (_, (data, _)) ->
-         match data with
-         | `Notation (user, _) -> fst (State.add_user user state)
-         | _ -> state)
-       !Builtins.builtins
-       (Trie.to_seq (Trie.find_subtree [ "notations" ] init_visible)))
-  @@ f
-
 (* Save all the definitions from a given loaded compilation unit to a compiled disk file, along with other data such as the command-line type theory flags, the imported files, and the (supplied) export namespace. *)
 let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : Scope.trie) =
   let ofile = FilePath.replace_extension file "nyo" in
@@ -245,7 +232,7 @@ and load_string ?init_visible title content =
 and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
     (source : Asai.Range.source) =
   reformat_maybe (fun ppf -> Format.pp_open_vbox ppf 0);
-  run_with_scope ~init_visible @@ fun () ->
+  Command.run_with_scope ~init_visible @@ fun () ->
   let p, src = Parser.Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with

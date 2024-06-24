@@ -392,6 +392,19 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
+(* Put a given starting namespace into the scope, and also extract the notations from it.  TODO: It would be nice to make this be just Scope.run, but that creates a dependency cycle with Postprocess and Builtins. *)
+let run_with_scope ~init_visible f =
+  Scope.run ~init_visible @@ fun () ->
+  State.run_on
+    (Seq.fold_left
+       (fun state (_, (data, _)) ->
+         match data with
+         | `Notation (user, _) -> fst (State.add_user user state)
+         | _ -> state)
+       !Builtins.builtins
+       (Trie.to_seq (Trie.find_subtree [ "notations" ] init_visible)))
+  @@ f
+
 (* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
 let execute :
     action_taken:(unit -> unit) ->

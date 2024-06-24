@@ -27,6 +27,11 @@ module S = Algaeff.State.Make (struct
   type t = data
 end)
 
+let () =
+  S.register_printer (function
+    | `Get -> Some "unhandled Global get effect"
+    | `Set _ -> Some "unhandled Global set effect")
+
 let find c =
   let d = S.get () in
   match (Constant.Map.find_opt c d.constants, d.locked) with

@@ -679,10 +679,18 @@ and universe_ty : type n. n D.t -> kinetic value =
 (* Whether the -discreteness flag is on globally *)
 module Discreteness = Algaeff.Reader.Make (Bool)
 
+let () =
+  Discreteness.register_printer (function `Read -> Some "unhandled Discreteness.read effect")
+
 (* Which constants currently being defined are discrete.  The *keys* of the map are *all* the constants currently being defined, while the *values* of the map indicate whether we have *already decided* that that constant is discrete.  *)
 module Discrete = Algaeff.State.Make (struct
   type t = bool Constant.Map.t
 end)
+
+let () =
+  Discrete.register_printer (function
+    | `Get -> Some "unhandled Discrete.get effect"
+    | `Set _ -> Some "unhandled Discrete.set effect")
 
 (* Glued evaluation is basically implemented, but currently disabled because it is very slow -- too much memory allocation, and OCaml 5 doesn't have memory profiling tools available yet to debug it.  So we disable it globally with this flag.  But all the regular tests pass with the flag enabled, and should continue to be run and to pass, so that once we are able to debug it it is still otherwise working. *)
 module GluedEval = struct

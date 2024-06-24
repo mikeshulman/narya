@@ -30,6 +30,12 @@ module M = struct
     Trie.union_root ~prefix (Perform.shadow context_export) t r
 end
 
+let () =
+  M.register_printer (function
+    | `NotFound _ -> Some "unhandled Modifier.not_found effect"
+    | `Shadow _ -> Some "unhandled Modifier.shadow effect"
+    | `Hook _ -> Some "unhandled Modifier.hook effect")
+
 (* The Yuujinchou Scope instance, that manages a pair of import/export scopes with effects. *)
 include Yuujinchou.Scope.Make (P)
 

@@ -29,6 +29,11 @@ end
 
 module Loading = Algaeff.State.Make (Loadstate)
 
+let () =
+  Loading.register_printer (function
+    | `Get -> Some "unhandled Loading.get effect"
+    | `Set _ -> Some "unhandled Loading.set effect")
+
 (* This reader module is for data that's supplied by the executable, mostly from the command-line, and doesn't change. *)
 module FlagData = struct
   type t = {
@@ -50,6 +55,8 @@ module FlagData = struct
 end
 
 module Flags = Algaeff.Reader.Make (FlagData)
+
+let () = Flags.register_printer (function `Read -> Some "unhandled Flags.read effect")
 
 let reformat_maybe f =
   match (Flags.read ()).reformatter with

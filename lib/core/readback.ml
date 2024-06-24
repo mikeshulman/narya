@@ -13,6 +13,8 @@ open Printable
 module Binding = Ctx.Binding
 module Display = Algaeff.Reader.Make (Bool)
 
+let () = Display.register_printer (function `Read -> Some "unhandled Display.read effect")
+
 (* Readback of values to terms.  Closely follows equality-testing in equal.ml, so most comments are omitted.  However, unlike equality-testing and the "readback" in theoretical NbE, this readback does *not* eta-expand functions and tuples.  It is used for (1) displaying terms to the user, who will usually prefer not to see things eta-expanded, and (2) turning values into terms so that we can re-evaluate them in a new environment, for which purpose eta-expansion is irrelevant. *)
 
 let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =

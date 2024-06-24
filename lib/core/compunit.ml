@@ -41,3 +41,6 @@ module Map = Map.Make (Compunit)
 
 (* The current compilation unit, used for creating new constants and metavariables, is exposed through a reader effect. *)
 module Current = Algaeff.Reader.Make (Compunit)
+
+let () =
+  Current.register_printer (function `Read -> Some "unhandled Compunit.Current.read effect")

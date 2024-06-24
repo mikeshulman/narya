@@ -23,6 +23,11 @@ end
 module S = Algaeff.State.Make (StateData)
 
 let () =
+  S.register_printer (function
+    | `Get -> Some "unhandled eternity get effect"
+    | `Set _ -> Some "unhandled eternity set effect")
+
+let () =
   Global.eternity :=
     {
       find_opt =

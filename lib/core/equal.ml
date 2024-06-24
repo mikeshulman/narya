@@ -17,6 +17,8 @@ module Mode = Algaeff.Reader.Make (struct
   type t = [ `Rigid | `Full ]
 end)
 
+let () = Mode.register_printer (function `Read -> Some "unhandled Equal.Mode.read effect")
+
 module Equal = struct
   (* Compare two normal forms that are *assumed* to have the same type. *)
   let rec equal_nf : int -> normal -> normal -> unit option =

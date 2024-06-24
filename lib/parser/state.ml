@@ -182,6 +182,11 @@ module S = Algaeff.State.Make (struct
   type nonrec t = t
 end)
 
+let () =
+  S.register_printer (function
+    | `Get -> Some "unhandled notation state get effect"
+    | `Set _ -> Some "unhandled notation state set effect")
+
 module Current = struct
   let add : type left tight right. (left, tight, right) notation -> unit =
    fun notn -> S.modify (add notn)

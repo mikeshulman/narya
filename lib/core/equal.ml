@@ -181,7 +181,7 @@ module Equal = struct
     | Meta { meta = meta1; env = env1; ins = i1 }, Meta { meta = meta2; env = env2; ins = i2 } -> (
         match (Meta.compare meta1 meta2, D.compare (cod_left_ins i1) (cod_left_ins i2)) with
         | Eq, Eq ->
-            let (Metadef { termctx; _ }) = Global.find_meta meta1 in
+            let (Wrap (Metadef { termctx; _ })) = Global.find_meta meta1 in
             equal_env lvl env1 env2 termctx
         | _ -> fail)
     | _, _ -> fail

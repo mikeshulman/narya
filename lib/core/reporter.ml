@@ -115,6 +115,7 @@ module Code = struct
     | Head_already_has_notation : string -> t
     | Constant_assumed : printable * int -> t
     | Constant_defined : (printable * bool) list * int -> t
+    | Hole_solved : int -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
@@ -147,6 +148,7 @@ module Code = struct
     | Invalid_filename : string -> t
     | Incompatible_flags : string * string -> t
     | Actions_in_compiled_file : string -> t
+    | No_such_hole : int -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -257,6 +259,8 @@ module Code = struct
     | Invalid_filename _ -> Error
     | Incompatible_flags _ -> Warning
     | Actions_in_compiled_file _ -> Warning
+    | No_such_hole _ -> Error
+    | Hole_solved _ -> Info
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -383,12 +387,14 @@ module Code = struct
     | Actions_in_compiled_file _ -> "W2400"
     (* Interactive proof *)
     | Open_holes -> "E3000"
+    | No_such_hole _ -> "E3001"
     (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
     | Notation_defined _ -> "I0002"
     | Loading_file _ -> "I0003"
     | File_loaded _ -> "I0004"
+    | Hole_solved _ -> "I0005"
     (* Events during command execution *)
     | Hole_generated _ -> "I0100"
     (* Control of execution *)
@@ -650,6 +656,11 @@ module Code = struct
         textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
     | Actions_in_compiled_file file ->
         textf "not re-executing 'echo' commands when loading compiled file %s" file
+    | No_such_hole i -> textf "no open hole numbered %d" i
+    | Hole_solved h ->
+        if h > 1 then textf "hole solved, containing %d new holes" h
+        else if h = 1 then text "hole solved, containing 1 new hole"
+        else text "hole solved"
 end
 
 include Asai.StructuredReporter.Make (Code)

@@ -101,11 +101,11 @@ let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.t -> (a, b)
  fun f (Permute (p, ctx)) -> Permute (p, termctx_ordered f ctx)
 
 let metadef : type x y. (Compunit.t -> Compunit.t) -> (x, y) Metadef.t -> (x, y) Metadef.t =
- fun f (Metadef d) ->
-  let termctx = termctx f d.termctx in
-  let ty = term f d.ty in
-  let tm =
-    match d.tm with
-    | `None -> `None
-    | `Nonrec tm -> `Nonrec (term f tm) in
-  Metadef { d with termctx; ty; tm }
+ fun f (Metadef data) ->
+  let termctx = termctx f data.termctx in
+  let ty = term f data.ty in
+  match data.data with
+  | Undef_meta _ -> Metadef { data = data.data; termctx; ty }
+  | Def_meta d ->
+      let tm = term f d.tm in
+      Metadef { data = Def_meta { d with tm }; termctx; ty }

@@ -38,6 +38,7 @@ type t =
   | Notation
   | Import
   | Export
+  | Solve
   | Let
   | In
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
@@ -172,6 +173,7 @@ let to_string = function
   | Notation -> "notation"
   | Import -> "import"
   | Export -> "export"
+  | Solve -> "solve"
   | Let -> "let"
   | In -> "in"
   | Op s -> s

@@ -6,7 +6,7 @@ open Term
 type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term
 
 val find : Constant.t -> (emp, kinetic) term * definition
-val find_meta : ('b, 's) Meta.t -> (unit, 'b * 's) Metadef.t
+val find_meta : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped
 val to_channel_unit : Out_channel.t -> Compunit.t -> Marshal.extern_flags list -> unit
 val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit
 val locked : unit -> bool
@@ -18,7 +18,7 @@ val add_meta :
   ('b, 's) Meta.t ->
   termctx:('a, 'b) Termctx.t ->
   ty:('b, kinetic) term ->
-  tm:('b, 's) Metadef.value ->
+  tm:('b, 's) term ->
   energy:'s energy ->
   unit
 
@@ -27,12 +27,12 @@ val add_eternal_meta :
   vars:(string option, 'a) Bwv.t ->
   termctx:('a, 'b) Termctx.t ->
   ty:('b, kinetic) term ->
-  energy:'s energy ->
+  status:('b, 's) Status.status ->
   unit
 
 val run_with : Constant.t -> (emp, kinetic) term -> definition -> (unit -> 'a) -> 'a
 val run_with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a
-val run_with_meta_definition : ('b, 's) Meta.t -> ('b, 's) Metadef.value -> (unit -> 'a) -> 'a
+val run_with_meta_definition : ('b, 's) Meta.t -> ('b, 's) term -> (unit -> 'a) -> 'a
 val run_locked : (unit -> 'a) -> 'a
 
 type data
@@ -41,14 +41,14 @@ val get : unit -> data
 val run : init:data -> (unit -> 'a) -> 'a
 
 type eternity = {
-  find_opt : 'b 's. ('b, 's) Meta.t -> (unit, 'b * 's) Metadef.t option;
+  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped option;
   add :
     'a 'b 's.
     ('b, 's) Meta.t ->
-    (string option, 'a) Bwv.t option ->
+    (string option, 'a) Bwv.t ->
     ('a, 'b) Termctx.t ->
     ('b, kinetic) term ->
-    's energy ->
+    ('b, 's) Status.status ->
     unit;
   end_command : unit -> int;
 }

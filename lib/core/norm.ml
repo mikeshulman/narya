@@ -202,15 +202,17 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
              }) in
       match (Global.find_meta meta, ambient) with
       (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
-      | Metadef { tm = `None; _ }, Potential -> Unrealized
+      | Wrap (Metadef { data = Undef_meta _; _ }), Potential -> Unrealized
       (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)
-      | Metadef { tm = `None; ty; _ }, Kinetic ->
+      | Wrap (Metadef { data = Undef_meta _; ty; _ }), Kinetic ->
           Val (Uninst (Neu { head; args = Emp; value = ready Unrealized }, lazy (make_ty meta ty)))
       (* If a metavariable has a definition that fits with the current energy, we simply evaluate that definition. *)
-      | Metadef { tm = `Nonrec tm; energy = Potential; _ }, Potential -> eval env tm
-      | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Kinetic -> eval env tm
-      | Metadef { tm = `Nonrec tm; energy = Kinetic; _ }, Potential -> Realize (eval_term env tm)
-      | Metadef { tm = `Nonrec tm; energy = Potential; ty; _ }, Kinetic -> (
+      | Wrap (Metadef { data = Def_meta { tm; energy = Potential; _ }; _ }), Potential ->
+          eval env tm
+      | Wrap (Metadef { data = Def_meta { tm; energy = Kinetic; _ }; _ }), Kinetic -> eval env tm
+      | Wrap (Metadef { data = Def_meta { tm; energy = Kinetic; _ }; _ }), Potential ->
+          Realize (eval_term env tm)
+      | Wrap (Metadef { data = Def_meta { tm; energy = Potential; _ }; ty; _ }), Kinetic -> (
           if GluedEval.read () then
             (* A defined potential metavariable in kinetic context evaluates to a glued neutral, with its evaluated definition stored lazily. *)
             Val

@@ -59,6 +59,13 @@ module Command = struct
         wsorigin : Whitespace.t list;
         op : (Whitespace.t list * modifier) option;
       }
+    | Solve of {
+        wssolve : Whitespace.t list;
+        number : int;
+        wsnumber : Whitespace.t list;
+        wscoloneq : Whitespace.t list;
+        tm : observation;
+      }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -318,6 +325,17 @@ module Parse = struct
            "") in
     return (Import { wsimport; export; origin; wsorigin; op })
 
+  let solve =
+    let* wssolve = token Solve in
+    let* number, wsnumber =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ num ] -> Some ((int_of_string num, ws), state)
+          | _ -> None) in
+    let* wscoloneq = token Coloneq in
+    let* tm = C.term [] in
+    return (Solve { wssolve; number; wsnumber; wscoloneq; tm })
+
   let quit =
     let* wsquit = token Quit in
     return (Command.Quit wsquit)
@@ -330,7 +348,8 @@ module Parse = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command () = bof </> axiom </> def_and </> echo </> notation </> import </> quit </> eof
+  let command () =
+    bof </> axiom </> def_and </> echo </> notation </> import </> solve </> quit </> eof
 
   let command_or_echo () =
     command ()
@@ -539,6 +558,16 @@ let execute :
               ()
           | _ -> ())
         (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
+  | Solve { number; tm = Term tm; _ } -> (
+      let (Wrap m) = Eternity.hole_of_number number in
+      match Eternity.find m with
+      | ( Wrap (Metadef { data = Undef_meta { vars; status }; termctx; ty }),
+          ({ global; scope; discrete } : Eternity.data) ) ->
+          Global.run ~init:global @@ fun () ->
+          run_with_scope ~init_visible:scope @@ fun () ->
+          Core.Command.execute
+            (Solve (status, termctx, process vars tm, ty, Eternity.solve m, discrete))
+      | _ -> fatal (Anomaly "hole already defined"))
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
@@ -723,6 +752,18 @@ let pp_command : formatter -> t -> Whitespace.t list =
           pp_ws `None ppf ws;
           pp_close_box ppf ();
           rest)
+  | Solve { wssolve; number; wsnumber; wscoloneq; tm = Term tm } ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Solve;
+      pp_ws `Nobreak ppf wssolve;
+      pp_print_int ppf number;
+      pp_ws `Break ppf wsnumber;
+      pp_tok ppf Coloneq;
+      pp_ws `Nobreak ppf wscoloneq;
+      let tm, rest = split_ending_whitespace tm in
+      pp_term `None ppf (Term tm);
+      pp_close_box ppf ();
+      rest
   | Quit ws -> ws
   | Bof ws -> ws
   | Eof -> []

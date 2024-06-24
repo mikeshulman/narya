@@ -11,6 +11,10 @@ val remake : (Compunit.t -> Compunit.t) -> ('b, 's) t -> ('b, 's) t
 val name : ('b, 's) t -> string
 val compare : ('b1, 's1) t -> ('b2, 's2) t -> ('b1 * 's1, 'b2 * 's2) Eq.compare
 
+type wrapped = Wrap : ('b, 's) t -> wrapped
+
+val hole_number : ('b, 's) t -> int
+
 type _ key = MetaKey : ('b, 's) t -> ('b * 's) key
 
 module Key : sig

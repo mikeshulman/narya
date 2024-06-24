@@ -65,6 +65,15 @@ let compare : type b1 s1 b2 s2. (b1, s1) t -> (b2, s2) t -> (b1 * s1, b2 * s2) E
   | true, true, Eq, Eq -> Eq
   | _ -> Neq
 
+(* Hole numbers are exposed to the user for identifying them in solve commands, so we need to look them up and return a metavariable without already knowing its context length or energy. *)
+type wrapped = Wrap : ('b, 's) t -> wrapped
+
+let hole_number : type b s. (b, s) t -> int =
+ fun { identity; _ } ->
+  match identity with
+  | `Hole number -> number
+  | _ -> raise (Failure "not a hole")
+
 (* Since metavariables are parametrized by context length and energy, an intrinsically well-typed map must incorporate those as well. *)
 
 module IdMap = Map.Make (Identity)

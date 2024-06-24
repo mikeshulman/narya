@@ -202,6 +202,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "notation" -> return Notation
   | "import" -> return Import
   | "export" -> return Export
+  | "solve" -> return Solve
   | "." -> return Dot
   | "..." -> return Ellipsis
   | "_" -> return Underscore

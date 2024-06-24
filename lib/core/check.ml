@@ -15,6 +15,7 @@ open Equal
 open Readback
 open Printable
 open Asai.Range
+include Status
 
 let discard : type a. a -> unit = fun _ -> ()
 
@@ -137,41 +138,11 @@ let spine :
     | _ -> (tm, locs, args) in
   spine tm [] []
 
-(* When checking a case tree (a "potential" term), we have to retain some information about the definition being checked.  Specifically, we remember:
-   1. The name of the top-level constant being defined.
-   2. The arguments that it has been applied to so far at this point in the case tree.  These all start out as variables, but after checking matches some of them get substituted by constructor expressions.
-   3. A "hypothesizing" callback that allows us to say "if I were to return such-and-such a term from my current typechecking problem, what would the resulting definition of the top-level constant be?"  This is used when typechecking comatches and codata (and, potentially one day, matches and data as well, such as for HITs) whose later branches depend on the *values* of previous ones.  So as we typecheck the branches of such a thing, we collect a partial definition including all the branches that have been typechecked so far, and temporarily bind the constant to that value while typechecking later branches.  And in order that this is correct, whenever we pass *inside* a case tree construct (lambda, match, or comatch) we wrap the outer callback in an inner one that inserts the correct construct to the hypothesized term.  (It's tempting to think of implementing this with algebraic effects rather than an explicit callback, but I found the purely functional version easier to get correct, even if it does involve passing around more arguments.)
-
-   We parametrize this "status" datatype over the energy of the term (kinetic or potential), since only potential terms have any status to remember.  This implies that status also serves the purpose of recording which kind of term we are checking, so we don't need to pass that around separately. *)
-type _ potential_head =
-  | Constant : Constant.t -> emp potential_head
-  | Meta : ('a, potential) Meta.t * (D.zero, 'a) env -> 'a potential_head
-
-let head_of_potential : type a s. a potential_head -> Value.head = function
-  | Constant name -> Const { name; ins = ins_zero D.zero }
-  | Meta (meta, env) -> Meta { meta; env; ins = ins_zero D.zero }
-
-type (_, _) status =
-  | Kinetic : [ `Let | `Nolet ] -> ('b, kinetic) status
-  | Potential :
-      'a potential_head * app Bwd.t * (('b, potential) term -> ('a, potential) term)
-      -> ('b, potential) status
-
 let run_with_definition : type a s c. a potential_head -> (a, potential) term -> (unit -> c) -> c =
  fun head tm f ->
   match head with
-  | Constant c -> Global.run_with_definition c (Defined tm) f
-  | Meta (m, _) -> Global.run_with_meta_definition m (`Nonrec tm) f
-
-let energy : type b s. (b, s) status -> s energy = function
-  | Kinetic _ -> Kinetic
-  | Potential _ -> Potential
-
-let realize : type b s. (b, s) status -> (b, kinetic) term -> (b, s) term =
- fun status tm ->
-  match status with
-  | Potential _ -> Realize tm
-  | Kinetic _ -> tm
+  | Constant c -> Global.run_with_definition c (Global.Defined tm) f
+  | Meta (m, _) -> Global.run_with_meta_definition m tm f
 
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
@@ -427,14 +398,13 @@ let rec check :
   | Data _, Kinetic l -> kinetic_of_potential l ctx tm ty "data"
   (* If the user left a hole, we create an eternal metavariable. *)
   | Hole vars, _ ->
-      let energy = energy status in
       (* Holes aren't numbered by the file they appear in. *)
-      let meta = Meta.make_hole (Ctx.dbwd ctx) energy in
+      let meta = Meta.make_hole (Ctx.dbwd ctx) (energy status) in
       let ty, termctx =
         Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
-      Global.add_eternal_meta meta ~vars ~termctx ~ty ~energy;
+      Global.add_eternal_meta meta ~vars ~termctx ~ty ~status;
       emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
-      Meta (meta, energy)
+      Meta (meta, energy status)
   (* And lastly, if we have a synthesizing term, we synthesize it. *)
   | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty
 
@@ -467,7 +437,7 @@ and kinetic_of_potential :
       let cv = check tmstatus ctx tm ty in
       let vty = readback_val ctx ty in
       let termctx = readback_ctx ctx in
-      Global.add_meta meta ~termctx ~tm:(`Nonrec cv) ~ty:vty ~energy:Potential;
+      Global.add_meta meta ~termctx ~tm:cv ~ty:vty ~energy:Potential;
       Term.Meta (meta, Kinetic)
 
 and synth_or_check_let :
@@ -497,7 +467,7 @@ and synth_or_check_let :
       (* Now we define the global value of that metavariable to be the term and type just synthesized. *)
       let vty = readback_val ctx svty in
       let termctx = readback_ctx ctx in
-      Global.add_meta meta ~termctx ~tm:(`Nonrec sv) ~ty:vty ~energy:Potential;
+      Global.add_meta meta ~termctx ~tm:sv ~ty:vty ~energy:Potential;
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
       let tm =
@@ -1403,7 +1373,7 @@ and synth :
           let sv, svty = synth tmstatus ctx tm in
           let vty = readback_val ctx svty in
           let termctx = readback_ctx ctx in
-          Global.add_meta meta ~termctx ~tm:(`Nonrec sv) ~ty:vty ~energy:Potential;
+          Global.add_meta meta ~termctx ~tm:sv ~ty:vty ~energy:Potential;
           (Term.Meta (meta, Kinetic), svty))
   | Match { tm; sort = `Explicit motive; branches; refutables = _ }, Potential _ ->
       synth_dep_match status ctx tm branches motive

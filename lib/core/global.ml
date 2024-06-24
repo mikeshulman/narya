@@ -5,6 +5,7 @@ open Tbwd
 open Reporter
 open Syntax
 open Term
+open Status
 
 (* The global environment of constants and definition-local metavariables. *)
 
@@ -17,7 +18,7 @@ end)
 
 type data = {
   constants : ((emp, kinetic) term * definition, Code.t) Result.t Constant.Map.t;
-  metas : unit Metamap.t;
+  metas : Metadef.def Metamap.t;
   locked : bool;
 }
 
@@ -41,14 +42,14 @@ let find c =
   | None, _ -> fatal (Undefined_constant (PConstant c))
 
 type eternity = {
-  find_opt : 'b 's. ('b, 's) Meta.t -> (unit, 'b * 's) Metadef.t option;
+  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped option;
   add :
     'a 'b 's.
     ('b, 's) Meta.t ->
-    (string option, 'a) Bwv.t option ->
+    (string option, 'a) Bwv.t ->
     ('a, 'b) Termctx.t ->
     ('b, kinetic) term ->
-    's energy ->
+    ('b, 's) status ->
     unit;
   end_command : unit -> int;
 }
@@ -66,7 +67,7 @@ let find_meta m =
   | Some d -> d
   | None -> (
       match Metamap.find_opt (MetaKey m) (S.get ()).metas with
-      | Some d -> d
+      | Some d -> Metadef.Wrap d
       | None -> fatal (Anomaly "undefined metavariable"))
 
 let to_channel_unit chan i flags =
@@ -97,10 +98,11 @@ let add_meta m ~termctx ~ty ~tm ~energy =
   S.modify @@ fun d ->
   {
     d with
-    metas = d.metas |> Metamap.add (MetaKey m) (Metadef { vars = None; termctx; ty; tm; energy });
+    metas =
+      d.metas |> Metamap.add (MetaKey m) (Metadef { data = Def_meta { tm; energy }; termctx; ty });
   }
 
-let add_eternal_meta m ~vars ~termctx ~ty ~energy = !eternity.add m (Some vars) termctx ty energy
+let add_eternal_meta m ~vars ~termctx ~ty ~status = !eternity.add m vars termctx ty status
 let run_empty f = S.run ~init:empty f
 
 let run_with c ty df f =
@@ -121,14 +123,7 @@ let run_with_definition c df f =
 let run_with_meta_definition m tm f =
   let d = S.get () in
   S.run
-    ~init:
-      {
-        d with
-        metas =
-          d.metas
-          |> Metamap.update (MetaKey m)
-               (Option.map (fun (Metadef.Metadef df) -> Metadef.Metadef { df with tm }));
-      }
+    ~init:{ d with metas = d.metas |> Metamap.update (MetaKey m) (Option.map (Metadef.define tm)) }
     f
 
 let run_locked f =

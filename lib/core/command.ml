@@ -82,7 +82,7 @@ let execute : t -> unit = function
       let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
       let cty = Telescope.pis params cty in
       Global.add const cty (Axiom `Nonparametric);
-      let h = Eternity.end_command () in
+      let h = Global.end_command () in
       emit (Constant_assumed (PConstant const, h))
   | Def defs ->
       (* The Discrete map is supposed to include all the constants currently being defined, but we start them all out set to false since we haven't yet checked that any of them are discrete. *)
@@ -93,12 +93,12 @@ let execute : t -> unit = function
       Discreteness.run ~env:(Discreteness.read () && List.length defs = 1) @@ fun () ->
       Discrete.run ~init @@ fun () ->
       check_defs defs;
-      let h = Eternity.end_command () in
       let printables =
         List.map
           (fun (c, _) ->
             ( PConstant c,
-              Constant.Map.find_opt c (Discrete.get ())
+              Constant.Map.find_opt c (Syntax.Discrete.get ())
               <|> Anomaly "undefined just-defined constant" ))
           defs in
+      let h = Global.end_command () in
       emit (Constant_defined (printables, h))

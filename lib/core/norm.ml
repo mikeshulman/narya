@@ -200,7 +200,7 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                    | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                    | _ -> fatal (Anomaly "eval of lower-dim meta not neutral/canonical"));
              }) in
-      match (Eternity.find meta, ambient) with
+      match (Global.find_meta meta, ambient) with
       (* If an undefined potential metavariable appears in a case tree, then that branch of the case tree is stuck.  We don't need to return the metavariable itself; it suffices to know that that branch of the case tree is stuck, as the constant whose definition it is should handle all identity/equality checks correctly. *)
       | Metadef { tm = `None; _ }, Potential -> Unrealized
       (* To evaluate an undefined kinetic metavariable, we have to build a neutral. *)

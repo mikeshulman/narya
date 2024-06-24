@@ -100,12 +100,12 @@ let rec termctx_ordered :
 let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.t -> (a, b) Termctx.t =
  fun f (Permute (p, ctx)) -> Permute (p, termctx_ordered f ctx)
 
-let metainfo : type x y. (Compunit.t -> Compunit.t) -> (x, y) Metadef.info -> (x, y) Metadef.info =
- fun f (Metainfo d) ->
+let metadef : type x y. (Compunit.t -> Compunit.t) -> (x, y) Metadef.t -> (x, y) Metadef.t =
+ fun f (Metadef d) ->
   let termctx = termctx f d.termctx in
   let ty = term f d.ty in
   let tm =
     match d.tm with
     | `None -> `None
     | `Nonrec tm -> `Nonrec (term f tm) in
-  Metainfo { d with termctx; ty; tm }
+  Metadef { d with termctx; ty; tm }

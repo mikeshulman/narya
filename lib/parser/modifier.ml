@@ -88,7 +88,7 @@ let rec pp_modifier ppf = function
       List.iter
         (fun (op, ws) ->
           pp_ws `None ppf (pp_modifier ppf op);
-          pp_print_string ppf ";";
+          pp_print_string ppf ",";
           pp_ws `Break ppf ws)
         ops;
       pp_print_string ppf ")";
@@ -101,7 +101,7 @@ let rec pp_modifier ppf = function
       List.iter
         (fun (op, ws) ->
           pp_ws `None ppf (pp_modifier ppf op);
-          pp_print_string ppf ";";
+          pp_print_string ppf ",";
           pp_ws `Break ppf ws)
         ops;
       pp_print_string ppf ")";

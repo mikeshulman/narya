@@ -79,7 +79,8 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
 
-5. ```
+5. 
+   ```
    import "FILE"
    import "FILE" | MOD
    ```
@@ -204,8 +205,8 @@ By default, an `import` command merges the namespace of the imported file with t
 - `except NAME`: Keep everything except the namespace rooted at `NAME`, without renaming anything.  Thus `except nat` will discard `nat.plus` and `nat.times` but keep `int.plus` and `real.plus`.
 - `in NAME MOD`: Apply the modifier `MOD` to the namespace rooted at `NAME`, leaving everything else alone.  Thus `in nat only plus` will keep `nat.plus.assoc` and `nat.plus.comm` and `int.times` but discard `nat.times.assoc`.
 - `renaming NAME1 NAME2`: Rename the namespace rooted at `NAME1` to instead be rooted at `NAME2`, checking that `NAME1` is nonempty, and silently dropping anything already present under `NAME2`.
-- `seq (MOD1; MOD2; …)`: Perform the modifiers `MOD1`, `MOD2`, and so on in order.  In particular, `seq ()` is equivalent to `id`.
-- `union (MOD1; MOD2; …)`: Apply all the modifiers `MOD1`, `MOD2` to the original namespace in parallel and take the union of the results.  In particular, `union ()` is like `none` but doesn't check that there is anything to drop.
+- `seq (MOD1, MOD2, …)`: Perform the modifiers `MOD1`, `MOD2`, and so on in order.  In particular, `seq ()` is equivalent to `id`.
+- `union (MOD1, MOD2, …)`: Apply all the modifiers `MOD1`, `MOD2` to the original namespace in parallel and take the union of the results.  In particular, `union ()` is like `none` but doesn't check that there is anything to drop.
 
 The `NAME`s in all these commands are ordinary identifiers, with one additional option: a bare period `.` represents the root namespace.  Thus `renaming nat .` will rename `nat.plus` to just `plus` and `nat.times` to just `times`, discarding everything that doesn't start with `nat`.  On the other hand, `renaming . foo` will add `foo` to the beginning of everything.  In particular, therefore, `import "arith" | renaming . arith` is the standard sort of "qualified import" that will import definitions like `nat.plus` from a file like `"arith.ny"` but renamed to `arith.nat.plus`.
 

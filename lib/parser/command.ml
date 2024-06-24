@@ -266,7 +266,7 @@ module Parse = struct
             (fun x y -> return (Snoc (x, y)))
             (backtrack
                (let* op = modifier () in
-                let* wssemi = token (Op ";") in
+                let* wssemi = token (Op ",") in
                 return (op, wssemi))
                "") in
         let* lastop = optional (modifier ()) in
@@ -284,7 +284,7 @@ module Parse = struct
             (fun x y -> return (Snoc (x, y)))
             (backtrack
                (let* op = modifier () in
-                let* wssemi = token (Op ";") in
+                let* wssemi = token (Op ",") in
                 return (op, wssemi))
                "") in
         let* lastop = optional (modifier ()) in

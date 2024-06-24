@@ -27,7 +27,7 @@ Renaming a whole subtree, clobbering the rest
   
 Renaming a subtree while preserving the rest
 
-  $ narya -e 'import "nat" | union (id; renaming nums .) echo two'
+  $ narya -e 'import "nat" | union (id, renaming nums .) echo two'
   2
     : Nat
   
@@ -79,7 +79,7 @@ Or exclude the notations but get everything else
 
 Or import some of the notations but not others
 
-  $ narya -e 'import "nat" | in notations union (only plus; only times) echo 1+1 echo 1*1 echo (1-1 : Nat)'
+  $ narya -e 'import "nat" | in notations union (only plus, only times) echo 1+1 echo 1*1 echo (1-1 : Nat)'
   2
     : Nat
   
@@ -88,7 +88,7 @@ Or import some of the notations but not others
   
    ￫ error[E0200]
    ￭ command-line exec string
-   1 | import "nat" | in notations union (only plus; only times) echo 1+1 echo 1*1 echo (1-1 : Nat)
+   1 | import "nat" | in notations union (only plus, only times) echo 1+1 echo 1*1 echo (1-1 : Nat)
      ^ parse error
   
   [1]

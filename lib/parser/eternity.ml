@@ -8,7 +8,7 @@ open Core
    This has nothing to do with undo, which undoes changes to the eternal state as well as the global one.  Rather, it's about ordinary commands that reach back in time, e.g. to fill previously created holes. *)
 
 module Data = struct
-  type ('x, 'bs) data = { global : Global.data }
+  type ('x, 'bs) data = { global : Global.data; scope : Scope.trie; discrete : bool Constant.Map.t }
   type ('x, 'bs) t = { def : ('x, 'bs) Metadef.t; homewhen : ('x, 'bs) data }
 end
 
@@ -43,7 +43,12 @@ let () =
                   Metamap.add (MetaKey m)
                     {
                       def = Metadef { vars; termctx; ty; tm = `None; energy };
-                      homewhen = { global = Global.get () };
+                      homewhen =
+                        {
+                          global = Global.get ();
+                          scope = Scope.get_visible ();
+                          discrete = Syntax.Discrete.get ();
+                        };
                     }
                     map;
                 solved = `Unsolved;

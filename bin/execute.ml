@@ -11,8 +11,6 @@ module Trie = Yuujinchou.Trie
 
 let __COMPILE_VERSION__ = 1
 
-type trie = (Scope.P.data, Scope.P.tag) Trie.t
-
 (* This state module is for data that gets restarted when loading a new file. *)
 module Loadstate = struct
   type t = {
@@ -48,7 +46,7 @@ module FlagData = struct
     (* All the filesnames given explicitly on the command line *)
     top_files : string list;
     (* The initial visible namespace, e.g. the builtin Π. *)
-    init_visible : trie;
+    init_visible : Scope.trie;
     (* The reformatter, if any *)
     reformatter : formatter option;
   }
@@ -69,10 +67,10 @@ let reformat_maybe_ws f =
   | None -> []
 
 (* All the files that have been loaded so far in this run of the program, along with their export namespaces, compilation unit identifiers, and whether they were explicitly invoked on the command line. *)
-let loaded_files : (FilePath.filename, trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20
+let loaded_files : (FilePath.filename, Scope.trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20
 
 (* The complete merged namespace of all the files explicitly given on the command line so far.  Imported into -e and -i.  We compute it lazily because if there is no -e or -i we don't need it. *)
-let loaded_contents : trie Lazy.t ref = ref (Lazy.from_val Trie.empty)
+let loaded_contents : Scope.trie Lazy.t ref = ref (Lazy.from_val Trie.empty)
 
 (* Add something to the complete merged namespace. *)
 let add_to_all trie =
@@ -95,7 +93,7 @@ let run_with_scope ~init_visible f =
   @@ f
 
 (* Save all the definitions from a given loaded compilation unit to a compiled disk file, along with other data such as the command-line type theory flags, the imported files, and the (supplied) export namespace. *)
-let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : trie) =
+let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : Scope.trie) =
   let ofile = FilePath.replace_extension file "nyo" in
   Out_channel.with_open_bin ofile @@ fun chan ->
   Marshal.to_channel chan __COMPILE_VERSION__ [];

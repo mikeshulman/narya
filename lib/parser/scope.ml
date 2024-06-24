@@ -13,6 +13,8 @@ module P = struct
   type context = unit
 end
 
+type trie = (P.data, P.tag) Trie.t
+
 (* Modifier module for Yuujinchou *)
 module M = struct
   include Yuujinchou.Modifier.Make (P)

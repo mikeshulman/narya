@@ -82,7 +82,7 @@ let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
                  ({ def; homewhen } : (Metadef.undef, b * s) Data.t)
                  :
                  (Metadef.undef, b * s) Data.t
-               -> { def = Metadef.define tm def; homewhen }))
+               -> { def = Metadef.define (Some tm) def; homewhen }))
             data.map;
         holes = IntMap.remove (Meta.hole_number h) data.holes;
       })

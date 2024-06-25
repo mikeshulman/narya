@@ -15,7 +15,7 @@ type (_, _, _, _) data =
       status : ('b, 's) status;
     }
       -> (undef, 'a, 'b, 's) data
-  | Def_meta : { tm : ('b, 's) term; energy : 's energy } -> ('d, 'a, 'b, 's) data
+  | Def_meta : { tm : ('b, 's) term option; energy : 's energy } -> ('d, 'a, 'b, 's) data
 
 type (_, _) t =
   | Metadef : {
@@ -26,7 +26,7 @@ type (_, _) t =
       (* This weird-looking parametrization is to match the implementation of Meta.Map. *)
       -> ('d, 'b * 's) t
 
-let define : type d b s. (b, s) term -> (d, b * s) t -> (d, b * s) t =
+let define : type d b s. (b, s) term option -> (d, b * s) t -> (d, b * s) t =
  fun tm m ->
   match m with
   | Metadef { data = Undef_meta { status; _ }; termctx; ty } ->

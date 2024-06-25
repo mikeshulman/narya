@@ -448,7 +448,7 @@ module Map = struct
     (* The empty map *)
     let empty = { fin = Emp; minus_omega = None; plus_omega = None }
 
-    (* 'find' looks up a number in the map and returns its associated value, if any.  (So this is like find_opt for ordinary maps.) *)
+    (* 'find_opt' looks up a number in the map and returns its associated value, if any. *)
 
     let rec fin_find : type x a b c. b fin -> (x, a) fin_t -> (a, b, c) prepend -> (x, c) F.t option
         =
@@ -566,6 +566,26 @@ module Map = struct
         minus_omega = Option.map f.map minus_omega;
         plus_omega = Option.map f.map plus_omega;
       }
+
+    type 'a iterator = { it : 'g. 'g Key.t -> ('a, 'g) F.t -> unit }
+
+    let rec fin_iter : type x a b. x iterator -> (x, a) fin_t -> unit =
+     fun f m ->
+      match m with
+      | Emp -> ()
+      | Node (None, mmap, pmap) ->
+          fin_iter f mmap;
+          fin_iter f pmap
+      | Node (Some (ab, z), mmap, pmap) ->
+          fin_iter f mmap;
+          f.it (Fin (prepend_fin Zero ab)) z;
+          fin_iter f pmap
+
+    let iter : type x a. x iterator -> x t -> unit =
+     fun f { fin; minus_omega; plus_omega } ->
+      Option.iter (f.it Minus_omega) minus_omega;
+      fin_iter f fin;
+      Option.iter (f.it Plus_omega) plus_omega
 
     (* 'map_compare' applies one of three polymorphic function to all elements of the map, based on whether their index is less than, greater than, or equal to some specified number, passing a witness of inequality if relevant.  This requires a record type to hold the polymorphic mapper arguments, as well as several helper functions.  *)
 

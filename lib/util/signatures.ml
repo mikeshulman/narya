@@ -33,6 +33,12 @@ module type MAP = sig
   type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
 
   val map : 'a mapper -> 'a t -> 'a t
+
+  (* Iterating is simpler, but we supply the key as well. *)
+
+  type 'a iterator = { it : 'g. 'g Key.t -> ('a, 'g) F.t -> unit }
+
+  val iter : 'a iterator -> 'a t -> unit
 end
 
 module type MAP_MAKER = sig

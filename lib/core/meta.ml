@@ -169,6 +169,28 @@ module Map = struct
             x)
         m
 
+    type 'a iterator = { it : 'g. 'g Key.t -> ('a, 'g) F.t -> unit }
+
+    let iter : type a. a iterator -> a t -> unit =
+     fun f m ->
+      Compunit.Map.iter
+        (fun compunit x : unit ->
+          Map.iter
+            {
+              it =
+                (fun len { kinetic; potential } ->
+                  IdMap.iter
+                    (fun identity w ->
+                      f.it (MetaKey { compunit; identity; len; energy = Kinetic }) w)
+                    kinetic;
+                  IdMap.iter
+                    (fun identity w ->
+                      f.it (MetaKey { compunit; identity; len; energy = Potential }) w)
+                    potential);
+            }
+            x)
+        m
+
     let to_channel_unit :
         type b. Out_channel.t -> Compunit.t -> b t -> Marshal.extern_flags list -> unit =
      fun chan i map flags -> Marshal.to_channel chan (Compunit.Map.find_opt i map) flags

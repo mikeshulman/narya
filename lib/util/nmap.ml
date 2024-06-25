@@ -55,6 +55,16 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
       match m with
       | Empty -> Empty
       | Entry (x, xs) -> Entry (Option.map f.map x, map f xs)
+
+    type 'a iterator = { it : 'g. 'g N.t -> ('a, 'g) F.t -> unit }
+
+    let rec iter : type a m. a iterator -> m N.t -> (a, m) map -> unit =
+     fun f m map ->
+      match map with
+      | Empty -> ()
+      | Entry (x, xs) ->
+          Option.iter (f.it m) x;
+          iter f (N.suc m) xs
   end
 
   let find_opt : type b m n. n N.t -> (b, N.zero) map -> (b, n) F.t option =
@@ -83,6 +93,11 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
 
   let map : type b. b mapper -> (b, N.zero) map -> (b, N.zero) map =
    fun f m -> Internal.map { map = f.map } m
+
+  type 'a iterator = { it : 'g. 'g N.t -> ('a, 'g) F.t -> unit }
+
+  let iter : type b. b iterator -> (b, N.zero) map -> unit =
+   fun f m -> Internal.iter { it = f.it } N.zero m
 
   type 'b t = ('b, N.zero) map
 

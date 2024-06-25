@@ -482,6 +482,16 @@ module Internal (G : Gen) (GM : MAP_MAKER with module Key = G) (F : Fam2) = stru
     | Empty -> Empty
     | Entry (x, xs) ->
         Entry (Option.map f.map x, Map.DM.map { map = (fun (Wrapmap x) -> Wrapmap (map f x)) } xs)
+
+  type 'a iterator = { it : 'g. 'g W.t -> ('a, 'g) F.t -> unit }
+
+  let rec iter : type a b. a iterator -> b W.t -> (a, b) Map.map -> unit =
+   fun f b m ->
+    match m with
+    | Empty -> ()
+    | Entry (x, xs) ->
+        Option.iter (f.it b) x;
+        Map.DM.iter { it = (fun w (Wrapmap x) -> iter f (W.suc b w) x) } xs
 end
 
 module Map (G : Gen) (GM : MAP_MAKER with module Key := G) : MAP_MAKER with module Key := Make(G) =
@@ -521,8 +531,13 @@ struct
 
     type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
 
-    let map : type a b. a mapper -> (a, emp) Map.map -> (a, emp) Map.map =
+    let map : type a. a mapper -> (a, emp) Map.map -> (a, emp) Map.map =
      fun f m -> map { map = (fun x -> f.map x) } m
+
+    type 'a iterator = { it : 'g. 'g W.t -> ('a, 'g) F.t -> unit }
+
+    let iter : type a. a iterator -> (a, emp) Map.map -> unit =
+     fun f m -> iter { it = (fun w x -> f.it w x) } W.zero m
 
     type 'a t = ('a, emp) Map.map
   end

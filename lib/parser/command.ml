@@ -559,15 +559,16 @@ let execute :
           | _ -> ())
         (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
   | Solve { number; tm = Term tm; _ } -> (
-      let (Wrap m) = Eternity.hole_of_number number in
-      match Eternity.find m with
-      | ( Wrap (Metadef { data = Undef_meta { vars; status }; termctx; ty }),
-          ({ global; scope; discrete } : Eternity.data) ) ->
-          Global.run ~init:global @@ fun () ->
+      let (Find_number
+            (m, Wrap (Metadef { data; termctx; ty }), ({ global; scope; discrete } : Eternity.data)))
+          =
+        Eternity.find_number number in
+      match data with
+      | Undef_meta { vars; status } ->
           run_with_scope ~init_visible:scope @@ fun () ->
           Core.Command.execute
             (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m, discrete))
-      | _ ->
+      | Def_meta _ ->
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))
   | Quit _ -> fatal (Quit None)

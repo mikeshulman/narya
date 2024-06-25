@@ -7,5 +7,8 @@ type data = { global : Global.data; scope : Scope.trie; discrete : bool Constant
 val unsolved : unit -> bool
 val run_empty : (unit -> 'a) -> 'a
 val find : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped * data
-val hole_of_number : int -> Meta.wrapped
+
+type find_number = Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * data -> find_number
+
+val find_number : int -> find_number
 val solve : ('b, 's) Meta.t -> ('b, 's) term -> unit

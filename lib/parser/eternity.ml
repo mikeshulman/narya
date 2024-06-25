@@ -19,7 +19,7 @@ end
 module Metamap = Meta.Map.Make (Data)
 module IntMap = Map.Make (Int)
 
-(* We also keep a list of the unsolved holes. *)
+(* In addition to the types and possibly-definitions of all holes, we keep a list of the unsolved holes. *)
 module StateData = struct
   type t = { map : Metadef.undef Metamap.t; holes : Meta.wrapped IntMap.t }
 end
@@ -62,14 +62,21 @@ let () =
 let unsolved () = not (IntMap.is_empty (S.get ()).holes)
 let run_empty f = S.run ~init:{ map = Metamap.empty; holes = IntMap.empty } f
 
-let hole_of_number : int -> Meta.wrapped =
- fun i -> IntMap.find_opt i (S.get ()).holes <|> No_such_hole i
-
 let find : type b s. (b, s) Meta.t -> (b, s) Metadef.wrapped * data =
  fun m ->
   let ({ def; homewhen } : (Metadef.undef, b * s) Data.t) =
     Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
   (Wrap def, homewhen)
+
+type find_number = Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * data -> find_number
+
+let find_number : int -> find_number =
+ fun i ->
+  let (Wrap (type b s) (m : (b, s) Meta.t)) =
+    IntMap.find_opt i (S.get ()).holes <|> No_such_hole i in
+  let ({ def; homewhen } : (Metadef.undef, b * s) Data.t) =
+    Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
+  Find_number (m, Wrap def, homewhen)
 
 let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
  fun h tm ->

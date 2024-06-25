@@ -4,7 +4,6 @@ open Util
 open Syntax
 open Term
 open Status
-open Reporter
 
 type def = Dummy_def
 type undef = Dummy_undef
@@ -31,7 +30,7 @@ let define : type d b s. (b, s) term option -> (d, b * s) t -> (d, b * s) t =
   match m with
   | Metadef { data = Undef_meta { status; _ }; termctx; ty } ->
       Metadef { data = Def_meta { tm; energy = energy status }; termctx; ty }
-  | Metadef { data = Def_meta _; _ } ->
-      fatal (Anomaly "trying to define already-defined metavariable")
+  | Metadef { data = Def_meta { tm; energy }; termctx; ty } ->
+      Metadef { data = Def_meta { tm; energy }; termctx; ty }
 
 type (_, _) wrapped = Wrap : ('d, 'b * 's) t -> ('b, 's) wrapped

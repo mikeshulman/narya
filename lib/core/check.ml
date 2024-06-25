@@ -417,7 +417,7 @@ and check_of_synth :
   equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
   sval
 
-(* Deal with a potential term in kinetic position *)
+(* Deal with checking a potential term in kinetic position *)
 and kinetic_of_potential :
     type a b.
     [ `Let | `Nolet ] ->
@@ -431,12 +431,17 @@ and kinetic_of_potential :
   | `Let -> raise Case_tree_construct_in_let
   | `Nolet ->
       emit (Bare_case_tree_construct sort);
+      (* We create a metavariable to store the potential value. *)
       let meta = Meta.make_def sort None (Ctx.dbwd ctx) Potential in
+      (* We first define the metavariable without a value, as an "axiom", just as we do for global constants.  This isn't necessary for recursion, since this metavariable can't refer to itself, but so that with_meta_definition will be able to find it for consistency. *)
+      let termctx = readback_ctx ctx in
+      let vty = readback_val ctx ty in
+      Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
+      (* Then we check the value and redefine the metavariable to be that value. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
       let cv = check tmstatus ctx tm ty in
-      let vty = readback_val ctx ty in
-      let termctx = readback_ctx ctx in
       Global.add_meta meta ~termctx ~tm:(Some cv) ~ty:vty ~energy:Potential;
+      (* Finally, we return the metavariable. *)
       Term.Meta (meta, Kinetic)
 
 and synth_or_check_let :
@@ -451,21 +456,33 @@ and synth_or_check_let :
  fun status ctx name v body ty ->
   let v, nf =
     try
-      (* We try checking the bound term first as an ordinary kinetic term. *)
+      (* We first try checking the bound term first as an ordinary kinetic term. *)
       let sv, svty = synth (Kinetic `Let) ctx v in
       let ev = eval_term (Ctx.env ctx) sv in
       (sv, { tm = ev; ty = svty })
     with
-    (* If that fails, the bound term is also allowed to be a case tree, i.e. a potential term.  But in a checked "let" expression, the term being bound is a kinetic one, and must be so that its value can be put into the environment when the term is evaluated.  We deal with this by binding a *metavariable* to the bound term and then taking the value of that metavariable as the kinetic term to actually be bound.  *)
+    (* If that encounters case-tree constructs, then we can allow the bound term to be a case tree, i.e. a potential term.  But in a checked "let" expression, the term being bound is a kinetic one, and must be so that its value can be put into the environment when the term is evaluated.  We deal with this by binding a *metavariable* to the bound term and then taking the value of that metavariable as the kinetic term to actually be bound.  *)
     | Case_tree_construct_in_let ->
       (* First we make the metavariable. *)
       let meta = Meta.make_def "let" name (Ctx.dbwd ctx) Potential in
+      let termctx = readback_ctx ctx in
       (* A new status in which to check the value of that metavariable; now it is the "current constant" being defined. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
-      let sv, svty = synth tmstatus ctx v in
+      let sv, vty, svty =
+        match v.value with
+        | Asc (vtm, rvty) ->
+            (* If the bound term is explicitly ascribed, then we can give the metavariable a type while checking its body.  This is probably irrelevant until we have "let rec", but we do it anyway. *)
+            let vty = check (Kinetic `Nolet) ctx rvty (universe D.zero) in
+            Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
+            let evty = eval_term (Ctx.env ctx) vty in
+            let cv = check tmstatus ctx vtm evty in
+            (cv, vty, evty)
+        | _ ->
+            (* Otherwise, we just synthesize the term. *)
+            let sv, svty = synth tmstatus ctx v in
+            let vty = readback_val ctx svty in
+            (sv, vty, svty) in
       (* Now we define the global value of that metavariable to be the term and type just synthesized. *)
-      let vty = readback_val ctx svty in
-      let termctx = readback_ctx ctx in
       Global.add_meta meta ~termctx ~tm:(Some sv) ~ty:vty ~energy:Potential;
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
@@ -1067,7 +1084,7 @@ and check_data :
   | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
       Potential (head, current_apps, hyp) ) -> (
       with_loc loc @@ fun () ->
-      (* Temporarily bind the current constant to the up-until-now value. *)
+      (* Temporarily bind the current constant to the up-until-now value, for recursive purposes, and also for specifying the output types for indexed inductive families (and presumably, one day, for higher inductive types). *)
       run_with_definition head
         (hyp
            (Term.Canonical
@@ -1136,7 +1153,7 @@ and get_indices :
         output
   | _ -> fatal (Invalid_constructor_type c)
 
-(* The common prefix of checking a codatatype or record type, which dynamically binds the current constant to the up-until-now value.  Since this binding has to scope over the rest of the functions that are specific to codata or records, it uses CPS. *)
+(* The common prefix of checking a codatatype or record type, which returns a (cube of) variables belonging to the up-until-now type so that later fields can refer to earlier ones.  It also dynamically binds the current constant or metavariable, if possible, to that value for recursive purposes.  Since this binding has to scope over the rest of the functions that are specific to codata or records, it uses CPS. *)
 and with_codata_so_far :
     type a b n c.
     (b, potential) status ->
@@ -1262,7 +1279,7 @@ and check_fields :
   match (fields, status) with
   | [], _ -> (tms, ctms)
   | fld :: fields, Potential (name, args, hyp) ->
-      (* Temporarily bind the current constant to the up-until-now value. *)
+      (* Temporarily bind the current constant to the up-until-now value, for (co)recursive purposes. *)
       run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = head_of_potential name in
@@ -1366,7 +1383,7 @@ and synth :
       | `Let -> raise Case_tree_construct_in_let
       | `Nolet ->
           emit (Bare_case_tree_construct "match");
-          (* A match in a kinetic synthesizing position, we can treat like a let-binding that returns the bound (metavariable) value.  Of course we can shortcut the binding by just inserting the metavariable as the result.  This code is copied and slightly modified from synth_or_check_let.  *)
+          (* A match in a kinetic synthesizing position, we can treat like a let-binding that returns the bound (metavariable) value.  Of course we can shortcut the binding by just inserting the metavariable as the result.  This code is copied and modified from synth_or_check_let.  Note that in this case there is no evident way to give the metavariable a type before defining it, which means that with_meta_definition won't be able to set it to anything; but this shouldn't be a problem since there is also no name for this metavariable and hence no way for the user to refer to it in the body, so it doesn't need to have a type or a value. *)
           let meta = Meta.make_def "match" None (Ctx.dbwd ctx) Potential in
           let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
           let sv, svty = synth tmstatus ctx tm in

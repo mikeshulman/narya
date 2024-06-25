@@ -395,3 +395,54 @@ Pattern-matching lambdas can be used in arbitrary places:
   _match.0{…}
     : ℕ
   
+Matches in definitions of datatypes
+
+  $ narya -v - <<EOF
+  > def Bool : Type ≔ data [ true. | false. ]
+  > def Foo (b : Bool) : Type ≔ data [ foo. (_ : match b [ true. ↦ Bool | false. ↦ Bool ]) ]
+  > def f : Foo true. ≔ foo. false.
+  > EOF
+   ￫ info[I0000]
+   ￮ constant Bool defined
+  
+   ￫ hint[H0403]
+   ￭ stdin
+   2 | def Foo (b : Bool) : Type ≔ data [ foo. (_ : match b [ true. ↦ Bool | false. ↦ Bool ]) ]
+     ^ match encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ info[I0000]
+   ￮ constant Foo defined
+  
+   ￫ info[I0000]
+   ￮ constant f defined
+  
+Matches in non-toplevel definitions of datatype
+
+  $ narya -v - <<EOF
+  > def Bool : Type ≔ data [ true. | false. ]
+  > def prod (A B : Type) : Type ≔ sig (fst : A, snd : B)
+  > def Foo (b : Bool) : Type ≔ prod Bool (data [ foo. (_ : match b [ true. ↦ Bool | false. ↦ Bool ]) ])
+  > def f : Foo true. ≔ (true., foo. false.)
+  > EOF
+   ￫ info[I0000]
+   ￮ constant Bool defined
+  
+   ￫ info[I0000]
+   ￮ constant prod defined
+  
+   ￫ hint[H0403]
+   ￭ stdin
+   3 | def Foo (b : Bool) : Type ≔ prod Bool (data [ foo. (_ : match b [ true. ↦ Bool | false. ↦ Bool ]) ])
+     ^ data encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ hint[H0403]
+   ￭ stdin
+   3 | def Foo (b : Bool) : Type ≔ prod Bool (data [ foo. (_ : match b [ true. ↦ Bool | false. ↦ Bool ]) ])
+     ^ match encountered outside case tree, wrapping in implicit let-binding
+  
+   ￫ info[I0000]
+   ￮ constant Foo defined
+  
+   ￫ info[I0000]
+   ￮ constant f defined
+  

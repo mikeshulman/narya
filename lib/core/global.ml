@@ -189,7 +189,7 @@ let get () =
   let d = S.get () in
   (* TODO: We need fold for intrinsically well-typed maps. *)
   let metas = ref d.metas in
-  Metamap.iter { it = (fun m def -> metas := !metas |> Metamap.add m def) } d.metas;
+  Metamap.iter { it = (fun m def -> metas := !metas |> Metamap.add m def) } d.current_metas;
   { d with current_holes = Emp; current_metas = Metamap.empty; metas = !metas }
 
 (* Start with a specified global state.  This is used e.g. for going back in time and solving holes. *)

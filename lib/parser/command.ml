@@ -566,8 +566,10 @@ let execute :
           Global.run ~init:global @@ fun () ->
           run_with_scope ~init_visible:scope @@ fun () ->
           Core.Command.execute
-            (Solve (status, termctx, process vars tm, ty, Eternity.solve m, discrete))
-      | _ -> fatal (Anomaly "hole already defined"))
+            (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m, discrete))
+      | _ ->
+          (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
+          fatal (Anomaly "hole already defined"))
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")

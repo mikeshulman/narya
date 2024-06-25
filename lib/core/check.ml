@@ -403,7 +403,6 @@ let rec check :
       let ty, termctx =
         Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
       Global.add_hole meta ~vars ~termctx ~ty ~status;
-      emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
       Meta (meta, energy status)
   (* And lastly, if we have a synthesizing term, we synthesize it. *)
   | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty

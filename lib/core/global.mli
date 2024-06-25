@@ -4,6 +4,7 @@ open Syntax
 open Term
 
 type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term
+type metamap
 
 val find : Constant.t -> (emp, kinetic) term * definition
 val find_meta : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped
@@ -20,6 +21,8 @@ val add_meta :
   tm:('b, 's) term option ->
   energy:'s energy ->
   unit
+
+val save_metas : metamap -> unit
 
 val add_hole :
   ('b, 's) Meta.t ->
@@ -53,3 +56,4 @@ type eternity = {
 
 val eternity : eternity ref
 val end_command : unit -> int
+val run_command_with : init:data -> (unit -> 'a) -> int * 'a

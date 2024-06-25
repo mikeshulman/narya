@@ -25,7 +25,8 @@ type t =
   | Axiom : Constant.t * (N.zero, 'b, 'c) Raw.tel * 'c check located -> t
   | Def : (Constant.t * defconst) list -> t
   | Solve :
-      ('b, 's) status
+      Global.data
+      * ('b, 's) status
       * ('a, 'b) Termctx.t
       * 'a check located
       * ('b, kinetic) term
@@ -110,11 +111,12 @@ let execute : t -> unit = function
           defs in
       let h = Global.end_command () in
       emit (Constant_defined (printables, h))
-  | Solve (status, termctx, tm, ty, callback, discrete) ->
+  | Solve (global, status, termctx, tm, ty, callback, discrete) ->
       Discrete.run ~init:discrete @@ fun () ->
-      let ctx = Norm.eval_ctx termctx in
-      let ety = Norm.eval_term (Ctx.env ctx) ty in
-      let ctm = Check.check status ctx tm ety in
+      let h, ctm =
+        Global.run_command_with ~init:global @@ fun () ->
+        let ctx = Norm.eval_ctx termctx in
+        let ety = Norm.eval_term (Ctx.env ctx) ty in
+        Check.check status ctx tm ety in
       callback ctm;
-      let h = Global.end_command () in
       emit (Hole_solved h)

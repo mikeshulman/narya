@@ -99,7 +99,11 @@ In a file, conventionally each command begins on a new line, but this is not tec
    ```
    Same as above, but also export the new names to other files that import this one.
 
-6. `quit`
+6. `solve HOLE ≔ TERM`
+
+   Fill hole number `HOLE` with the term `TERM`.
+
+7. `quit`
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
    
@@ -174,7 +178,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let in def and axiom echo quit notation match return sig data codata
+let in def and axiom echo notation import export solve quit match return sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 
@@ -331,15 +335,43 @@ However, the type `A → A` still has to be written again, since a let-binding m
 
 ## Interactive proof
 
-Narya has no truly interactive proof or term-construction mode yet, but it does allow you to leave *holes* in terms.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever, and emits a message showing the type it is being checked against, and all the variables in the context with their types (and definitions, if any).  There is not yet any way to go back and fill a hole *after* it is created, but you can get something of the same effect by just editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.  (And in interactive mode, you can press the up-arrow or Meta+P to get to the previous command, edit it to replace the `?`, and re-execute it, ignoring the resulting warning about redefining the constant.)
+### Holes
 
-A `def` or `axiom` command (or even an `echo` command) containing one or more holes will succeed as long as the term typechecks without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts.  In other words, it will succeed if the term would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself.  (This will be improved in the future.)
+The basic ingredient of interactive proof is a *hole*.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever.  A command containing one or more holes will succeed as long as all the terms in it typecheck without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts, i.e. if it would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself (this may be improved in the future).
 
-If a command containing one or more holes succeeds, you can continue to issue other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N{…}` where `N` is the sequential number of the hole.  (Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.)  Unlike the printing of most terms, `?N{…}` for a hole is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N{…}` (this is what the notation `{…}` is intended to suggest).  This may be improved in future, but it is ameliorated somewhat by the treatment of holes in case trees.
+When a command containing holes finishes succesfully, messages are emitted showing the type and context of every hole in it.  You can then continue to issue other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N{…}` where `N` is the sequential number of the hole.  (Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.)  Unlike the printing of most terms, `?N{…}` for a hole is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N{…}` (this is what the notation `{…}` is intended to suggest).  This may be improved in future, but it is ameliorated somewhat by the treatment of holes in case trees.
 
-Specifically, a hole `?` left in a place where a case tree would be valid to continue is a *case tree hole*, and is treated a bit differently than an ordinary hole.  Obviously, once it is possible to "fill" holes, a case tree hole will be fillable with a case tree rather than just a term.  But currently, the main difference is that evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would constitute the substitution applied to a term hole, and hence not currently printed).
+Specifically, a hole `?` left in a place where a case tree would be valid to continue is a *case tree hole*, and is treated a bit differently than an ordinary hole.  The obvious difference is that a case tree hole can be solved (see below) by a case tree rather than an ordinary term.  But in addition, evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would constitute the substitution applied to a term hole, and hence not currently printed).
 
-When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.
+When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created and not solved, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.
+
+
+### Solving holes
+
+Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The straightforward way to fill a hole is to editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.  In interactive mode, you can simply press the up-arrow or Meta+P to get to the previous command, edit it to replace the `?`, and re-execute it, ignoring the resulting warning about redefining the constant.
+
+However, it is also possible to solve a hole directly with the command `solve`.  This command identifies a hole by its number and supplies a term with which to fill the hole.  For example:
+```
+def f : Type → Type ≔ X ↦ ?
+
+ ￫ info[I0100]
+ ￮ hole ?0 generated:
+   
+   X : Type
+   ----------------------------------------------------------------------
+   Type
+
+ ￫ info[I0000]
+ ￮ constant f defined, containing 1 hole
+
+solve 0 ≔ X
+
+ ￫ info[I0005]
+ ￮ hole solved
+```
+Of course, the term given to `solve` can contain other holes, which will be printed and can themselves be solved later.  The term solving a hole is parsed and typechecked *in the context where the hole was created*: thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
+
+The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole somewhere in a file will change the numbers of all the holes after that point and thus the numbers of all the `solve` commands.  For this reason, the `solve` command is not intended for use in source files, and at some future point might be forbidden therein.  Rather, it is intended as a backend for editor commands that solve holes identified positionally, as in Agda; and also as a primitive for implementing tactic proofs as in Coq and Lean.
 
 
 ## Record types and tuples

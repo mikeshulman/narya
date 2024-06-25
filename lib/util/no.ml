@@ -550,22 +550,28 @@ module Map = struct
 
     (* 'map' applies a function to all entries in the map. *)
 
-    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+    type 'a mapper = { map : 'g. 'g Key.t -> ('a, 'g) F.t -> ('a, 'g) F.t }
 
     let rec fin_map : type x a. x mapper -> (x, a) fin_t -> (x, a) fin_t =
      fun f m ->
       match m with
       | Emp -> Emp
-      | Node (None, mmap, pmap) -> Node (None, fin_map f mmap, fin_map f pmap)
-      | Node (Some (ab, z), mmap, pmap) -> Node (Some (ab, f.map z), fin_map f mmap, fin_map f pmap)
+      | Node (None, mmap, pmap) ->
+          let mmap = fin_map f mmap in
+          let pmap = fin_map f pmap in
+          Node (None, mmap, pmap)
+      | Node (Some (ab, z), mmap, pmap) ->
+          let mmap = fin_map f mmap in
+          let fz = f.map (Fin (prepend_fin Zero ab)) z in
+          let pmap = fin_map f pmap in
+          Node (Some (ab, fz), mmap, pmap)
 
     let map : type x a. x mapper -> x t -> x t =
      fun f { fin; minus_omega; plus_omega } ->
-      {
-        fin = fin_map f fin;
-        minus_omega = Option.map f.map minus_omega;
-        plus_omega = Option.map f.map plus_omega;
-      }
+      let minus_omega = Option.map (f.map Minus_omega) minus_omega in
+      let fin = fin_map f fin in
+      let plus_omega = Option.map (f.map Plus_omega) plus_omega in
+      { fin; minus_omega; plus_omega }
 
     type 'a iterator = { it : 'g. 'g Key.t -> ('a, 'g) F.t -> unit }
 

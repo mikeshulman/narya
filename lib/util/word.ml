@@ -474,14 +474,16 @@ module Internal (G : Gen) (GM : MAP_MAKER with module Key = G) (F : Fam2) = stru
               (Option.map (fun (Map.M.Wrapmap zs) -> Map.M.Wrapmap (remove bc c zs)))
               xs )
 
-  type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+  type 'a mapper = { map : 'g. 'g W.t -> ('a, 'g) F.t -> ('a, 'g) F.t }
 
-  let rec map : type a b. a mapper -> (a, b) Map.map -> (a, b) Map.map =
-   fun f m ->
+  let rec map : type a b. a mapper -> b W.t -> (a, b) Map.map -> (a, b) Map.map =
+   fun f b m ->
     match m with
     | Empty -> Empty
     | Entry (x, xs) ->
-        Entry (Option.map f.map x, Map.DM.map { map = (fun (Wrapmap x) -> Wrapmap (map f x)) } xs)
+        Entry
+          ( Option.map (f.map b) x,
+            Map.DM.map { map = (fun w (Wrapmap x) -> Wrapmap (map f (W.suc b w) x)) } xs )
 
   type 'a iterator = { it : 'g. 'g W.t -> ('a, 'g) F.t -> unit }
 
@@ -529,10 +531,10 @@ struct
       let (To_fwd (c, bc)) = W.to_fwd b in
       remove bc c map
 
-    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+    type 'a mapper = { map : 'g. 'g W.t -> ('a, 'g) F.t -> ('a, 'g) F.t }
 
     let map : type a. a mapper -> (a, emp) Map.map -> (a, emp) Map.map =
-     fun f m -> map { map = (fun x -> f.map x) } m
+     fun f m -> map { map = (fun x -> f.map x) } W.zero m
 
     type 'a iterator = { it : 'g. 'g W.t -> ('a, 'g) F.t -> unit }
 

@@ -48,13 +48,13 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
           | Zero -> Entry (None, xs)
           | Suc mn -> Entry (x, remove mn xs))
 
-    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+    type 'a mapper = { map : 'g. 'g N.t -> ('a, 'g) F.t -> ('a, 'g) F.t }
 
-    let rec map : type a m. a mapper -> (a, m) map -> (a, m) map =
-     fun f m ->
-      match m with
+    let rec map : type a m. a mapper -> m N.t -> (a, m) map -> (a, m) map =
+     fun f m mp ->
+      match mp with
       | Empty -> Empty
-      | Entry (x, xs) -> Entry (Option.map f.map x, map f xs)
+      | Entry (x, xs) -> Entry (Option.map (f.map m) x, map f (N.suc m) xs)
 
     type 'a iterator = { it : 'g. 'g N.t -> ('a, 'g) F.t -> unit }
 
@@ -89,10 +89,10 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
     let (Of_bwn (_, mn)) = Fwn.of_bwn n in
     Internal.remove mn map
 
-  type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+  type 'a mapper = { map : 'g. 'g N.t -> ('a, 'g) F.t -> ('a, 'g) F.t }
 
   let map : type b. b mapper -> (b, N.zero) map -> (b, N.zero) map =
-   fun f m -> Internal.map { map = f.map } m
+   fun f mp -> Internal.map { map = f.map } N.zero mp
 
   type 'a iterator = { it : 'g. 'g N.t -> ('a, 'g) F.t -> unit }
 

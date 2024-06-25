@@ -96,7 +96,7 @@ let from_channel_unit f chan i =
     Constant.Map.from_channel_unit chan
       (Result.map (fun (tm, df) -> (Link.term f tm, df)))
       i d.constants in
-  let metas = Metamap.from_channel_unit chan { map = (fun df -> Link.metadef f df) } i d.metas in
+  let metas = Metamap.from_channel_unit chan { map = (fun _ df -> Link.metadef f df) } i d.metas in
   S.set { d with constants; metas }
 
 let locked () = (S.get ()).locked

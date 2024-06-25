@@ -154,17 +154,28 @@ module Map = struct
 
     let remove : type b g. g Key.t -> b t -> b t = fun key map -> update key (fun _ -> None) map
 
-    type 'a mapper = { map : 'g. ('a, 'g) F.t -> ('a, 'g) F.t }
+    type 'a mapper = { map : 'g. 'g Key.t -> ('a, 'g) F.t -> ('a, 'g) F.t }
 
     let map : type a. a mapper -> a t -> a t =
      fun f m ->
-      Compunit.Map.map
-        (fun x ->
+      Compunit.Map.mapi
+        (fun compunit x ->
           Map.map
             {
               map =
-                (fun { kinetic; potential } ->
-                  { kinetic = IdMap.map f.map kinetic; potential = IdMap.map f.map potential });
+                (fun len { kinetic; potential } ->
+                  {
+                    kinetic =
+                      IdMap.mapi
+                        (fun identity w ->
+                          f.map (MetaKey { compunit; identity; len; energy = Kinetic }) w)
+                        kinetic;
+                    potential =
+                      IdMap.mapi
+                        (fun identity w ->
+                          f.map (MetaKey { compunit; identity; len; energy = Potential }) w)
+                        potential;
+                  });
             }
             x)
         m
@@ -174,7 +185,7 @@ module Map = struct
     let iter : type a. a iterator -> a t -> unit =
      fun f m ->
       Compunit.Map.iter
-        (fun compunit x : unit ->
+        (fun compunit x ->
           Map.iter
             {
               it =
@@ -196,15 +207,26 @@ module Map = struct
      fun chan i map flags -> Marshal.to_channel chan (Compunit.Map.find_opt i map) flags
 
     let from_channel_unit : type b. In_channel.t -> b mapper -> Compunit.t -> b t -> b t =
-     fun chan f i m ->
+     fun chan f compunit m ->
       match (Marshal.from_channel chan : b Map.t option) with
       | Some n ->
-          Compunit.Map.add i
+          Compunit.Map.add compunit
             (Map.map
                {
                  map =
-                   (fun { kinetic; potential } ->
-                     { kinetic = IdMap.map f.map kinetic; potential = IdMap.map f.map potential });
+                   (fun len { kinetic; potential } ->
+                     {
+                       kinetic =
+                         IdMap.mapi
+                           (fun identity w ->
+                             f.map (MetaKey { compunit; identity; len; energy = Kinetic }) w)
+                           kinetic;
+                       potential =
+                         IdMap.mapi
+                           (fun identity w ->
+                             f.map (MetaKey { compunit; identity; len; energy = Potential }) w)
+                           potential;
+                     });
                }
                n)
             m

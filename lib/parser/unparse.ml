@@ -696,6 +696,7 @@ let () =
       Readback.Display.run ~env:true @@ fun () ->
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
+      | PInt i -> Printed (Format.pp_print_int, i)
       | PString str -> Printed (Uuseg_string.pp_utf_8, str)
       | PField f -> Printed (Uuseg_string.pp_utf_8, Field.to_string f)
       | PConstr c -> Printed (Uuseg_string.pp_utf_8, Constr.to_string c)

@@ -9,6 +9,7 @@ type printable = ..
 
 type printable +=
   | PUnit : printable
+  | PInt : int -> printable
   | PString : string -> printable
   | PConstant of Constant.t
   | PMeta : ('b, 's) Meta.t -> printable

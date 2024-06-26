@@ -13,14 +13,17 @@ module Tbwd = struct
     | Zero : ('a, Fwn.zero, 'n, 'a) snocs
     | Suc : (('a, 'n) snoc, 'b, 'n, 'ab) snocs -> ('a, 'b Fwn.suc, 'n, 'ab) snocs
 
-  let rec snocs_snoc : type a b c n. (a, b, n, c) snocs -> ((a, n) snoc, b, n, (c, n) snoc) snocs =
-    function
+  let rec snoc_snocs_eq_snoc :
+      type a b c n. (a, b, n, c) snocs -> ((a, n) snoc, b, n, (c, n) snoc) snocs = function
     | Zero -> Zero
-    | Suc ab -> Suc (snocs_snoc ab)
+    | Suc ab -> Suc (snoc_snocs_eq_snoc ab)
 
-  let snocs_suc : type a b c n. (a, b Fwn.suc, n, c) snocs -> ((a, n) snoc, b, n, c) snocs =
+  let snoc_snocs : type a b c n. (a, b Fwn.suc, n, c) snocs -> ((a, n) snoc, b, n, c) snocs =
     function
     | Suc ab -> ab
+
+  let snocs_suc_eq_snoc : type a b c n. (a, b, n, c) snocs -> (a, b Fwn.suc, n, (c, n) snoc) snocs =
+   fun ab -> Suc (snoc_snocs_eq_snoc ab)
 
   let rec snocs_right : type a b c n. (a, b, n, c) snocs -> b Fwn.t = function
     | Zero -> Zero

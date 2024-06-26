@@ -595,7 +595,7 @@ let rec unparse_ctx :
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
     (string * [ `Original | `Renamed ], a) Bwv.t ->
-    (a, b) Termctx.ordered ->
+    (a, b) Termctx.Ordered.t ->
     b Names.t
     * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
     =

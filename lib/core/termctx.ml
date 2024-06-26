@@ -3,6 +3,7 @@
 open Util
 open Tbwd
 open Dim
+open Dimbwd
 open Reporter
 open Syntax
 open Term
@@ -24,15 +25,48 @@ type (_, _, _) entry =
       -> ('b, 'f, 'mn) entry
   | Invis : ('n, ('b, 'n) snoc binding) CubeOf.t -> ('b, N.zero, 'n) entry
 
-type (_, _) ordered =
-  | Emp : (N.zero, emp) ordered
-  | Snoc :
-      ('a, 'b) ordered * ('b, 'x, 'n) entry * ('a, 'x, 'ax) N.plus
-      -> ('ax, ('b, 'n) snoc) ordered
-  (* A locked context permits no access to the variables behind it. *)
-  | Lock : ('a, 'b) ordered -> ('a, 'b) ordered
+let dim_entry : type b f n. (b, f, n) entry -> n D.t = function
+  | Vis { bindings; _ } | Invis bindings -> CubeOf.dim bindings
 
-type ('a, 'b) t = Permute : ('a, 'i) N.perm * ('i, 'b) ordered -> ('a, 'b) t
+module Ordered = struct
+  type (_, _) t =
+    | Emp : (N.zero, emp) t
+    | Snoc : ('a, 'b) t * ('b, 'x, 'n) entry * ('a, 'x, 'ax) N.plus -> ('ax, ('b, 'n) snoc) t
+    | Lock : ('a, 'b) t -> ('a, 'b) t
+
+  let rec dbwd : type a b. (a, b) t -> b Dbwd.t = function
+    | Emp -> Word Zero
+    | Snoc (ctx, e, _) ->
+        let (Word b) = dbwd ctx in
+        Word (Suc (b, dim_entry e))
+    | Lock ctx -> dbwd ctx
+
+  let ext_let :
+      type a b.
+      (a, b) t -> string option -> (b, D.zero) snoc binding -> (a N.suc, (b, D.zero) snoc) t =
+   fun ctx x b ->
+    Snoc
+      ( ctx,
+        Vis
+          {
+            dim = D.zero;
+            plusdim = D.plus_zero D.zero;
+            vars = NICubeOf.singleton x;
+            bindings = CubeOf.singleton b;
+            hasfields = No_fields;
+            fields = Emp;
+            fplus = Zero;
+          },
+        Suc Zero )
+end
+
+type ('a, 'b) t = Permute : ('a, 'i) N.perm * ('i, 'b) Ordered.t -> ('a, 'b) t
+
+let dbwd (Permute (_, ctx)) = Ordered.dbwd ctx
+
+let ext_let (Permute (p, ctx)) xs b =
+  let ctx = Ordered.ext_let ctx xs b in
+  Permute (Insert (p, Top), ctx)
 
 (* When printing a hole we also use a Termctx, since that's what we store anyway, and we would also have to read back a value context anyway in order to unparse it. *)
 type printable += PHole : (string option, 'a) Bwv.t * ('a, 'b) t * ('b, kinetic) term -> printable

@@ -963,8 +963,8 @@ let eval_entry : type a b f n. (a, b) Ctx.Ordered.t -> (b, f, n) Termctx.entry -
       Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
   | Invis bindings -> Invis (eval_bindings ctx bindings)
 
-let rec eval_ordered_ctx : type a b. (a, b) Termctx.ordered -> (a, b) Ctx.Ordered.t = function
-  | Termctx.Emp -> Emp
+let rec eval_ordered_ctx : type a b. (a, b) Termctx.Ordered.t -> (a, b) Ctx.Ordered.t = function
+  | Termctx.Ordered.Emp -> Emp
   | Snoc (ctx, e, af) ->
       let ectx = eval_ordered_ctx ctx in
       Snoc (ectx, eval_entry ectx e, af)

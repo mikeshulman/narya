@@ -267,7 +267,7 @@ module Equal = struct
    fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
 
   and equal_ordered_env :
-      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.ordered -> unit option =
+      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.Ordered.t -> unit option =
    fun lvl env1 env2 envctx ->
     (* Copied from readback_ordered_env *)
     match envctx with

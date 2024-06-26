@@ -90,7 +90,7 @@ let entry :
       Invis bindings
 
 let rec termctx_ordered :
-    type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.ordered -> (a, b) Termctx.ordered =
+    type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.Ordered.t -> (a, b) Termctx.Ordered.t =
  fun f ctx ->
   match ctx with
   | Emp -> Emp

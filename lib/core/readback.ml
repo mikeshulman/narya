@@ -234,8 +234,8 @@ and readback_env :
  fun ctx env (Permute (_, envctx)) -> readback_ordered_env ctx env envctx
 
 and readback_ordered_env :
-    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.ordered -> (b, n, d) Term.env
-    =
+    type n a b c d.
+    (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.Ordered.t -> (b, n, d) Term.env =
  fun ctx env envctx ->
   match envctx with
   | Emp -> Emp (dim_env env)
@@ -318,7 +318,7 @@ let readback_entry :
       Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
   | Invis bindings -> Invis (readback_bindings ctx bindings)
 
-let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.ordered = function
+let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.Ordered.t = function
   | Emp -> Emp
   | Snoc (rest, e, af) as ctx ->
       Snoc (readback_ordered_ctx rest, readback_entry (Ctx.of_ordered ctx) e, af)

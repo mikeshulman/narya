@@ -8,7 +8,7 @@ type ('xs, 'x) snoc = private Dummy_ext
 module Tbwd = struct
   type _ t = Emp : emp t | Snoc : 'xs t -> ('xs, 'x) snoc t
 
-  (* ('a, 'b, 'n, 'ab) snocs means that 'a is a tbwd (although this isn't enforced -- it could be any type), 'b is a Fwn.t, and 'ab is the result of adding 'b copies of the dimension 'n at the end of 'a. *)
+  (* ('a, 'b, 'n, 'ab) snocs means that 'a is a tbwd (although this isn't enforced -- it could be any type), 'b is a Fwn.t, and 'ab is the result of adding 'b copies of the type 'n at the end of 'a. *)
   type (_, _, _, _) snocs =
     | Zero : ('a, Fwn.zero, 'n, 'a) snocs
     | Suc : (('a, 'n) snoc, 'b, 'n, 'ab) snocs -> ('a, 'b Fwn.suc, 'n, 'ab) snocs

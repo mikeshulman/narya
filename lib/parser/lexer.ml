@@ -188,6 +188,7 @@ let other_char : string t =
 (* Once we have an identifier string, we inspect it and divide into cases to make a Token.t.  We take a range so that we can immediately report invalid field, constructor, and numeral names with a position. *)
 let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "let" -> return Let
+  | "rec" -> return Rec
   | "in" -> return In
   | "axiom" -> return Axiom
   | "def" -> return Def

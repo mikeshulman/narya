@@ -28,10 +28,11 @@ let parens = make "parens" Outfix
 (* Let-in doesn't need to be right-associative in order to chain, because it is left-closed, but we make it right-associative anyway for consistency.  *)
 
 let letin = make "let" (Prefixr No.minus_omega)
+let letrec = make "letrec" (Prefixr No.minus_omega)
 
 let process_let :
     type n.
-    [ `Let ] ->
+    [ `Let | `Letrec ] ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -40,25 +41,36 @@ let process_let :
   match obs with
   | [ Term x; Term ty; Term tm; Term body ] -> (
       let x = get_var x in
-      let ty, tm = (process ctx ty, process ctx tm) in
+      let ty = process ctx ty in
       let body = process (Bwv.snoc ctx x) body in
-      let v : n synth located = { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc } in
       match kind with
-      | `Let -> { value = Synth (Let (x, v, body)); loc })
+      | `Let ->
+          let tm = process ctx tm in
+          let v : n synth located = { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc } in
+          { value = Synth (Let (x, v, body)); loc }
+      | `Letrec ->
+          let tm = process (Snoc (ctx, x)) tm in
+          { value = Synth (Letrec (x, ty, tm, body)); loc })
   | [ Term x; Term tm; Term body ] -> (
       let x = get_var x in
       let term = process_synth ctx tm "value of let" in
       let body = process (Bwv.snoc ctx x) body in
       match kind with
-      | `Let -> { value = Synth (Let (x, term, body)); loc })
+      | `Let -> { value = Synth (Let (x, term, body)); loc }
+      | `Letrec -> fatal (Anomaly "invalid notation arguments for letrec"))
   | _ -> fatal (Anomaly "invalid notation arguments for let")
 
-let pp_let tok space ppf obs ws =
+let pp_let toks space ppf obs ws =
   let rec pp_let space ppf obs ws =
     let style = style () in
+    let ws, wslets =
+      List.fold_left_map
+        (fun ws tok ->
+          let wstok, ws = take tok ws in
+          (ws, (tok, wstok)))
+        ws toks in
     match obs with
     | [ x; ty; tm; body ] ->
-        let wslet, ws = take tok ws in
         let wscolon, ws = take Colon ws in
         let wscoloneq, ws = take Coloneq ws in
         let wsin, ws = take In ws in
@@ -67,8 +79,11 @@ let pp_let tok space ppf obs ws =
         if true then (
           pp_open_hvbox ppf 2;
           if true then (
-            pp_tok ppf tok;
-            pp_ws `Nobreak ppf wslet;
+            List.iter
+              (fun (tok, wstok) ->
+                pp_tok ppf tok;
+                pp_ws `Nobreak ppf wstok)
+              wslets;
             pp_term `Break ppf x;
             pp_tok ppf Colon;
             pp_ws `Nobreak ppf wscolon;
@@ -82,14 +97,16 @@ let pp_let tok space ppf obs ws =
         pp_ws `Break ppf wsin;
         pp_let_body space ppf body
     | [ x; tm; body ] ->
-        let wslet, ws = take tok ws in
         let wscoloneq, ws = take Coloneq ws in
         let wsin, ws = take In ws in
         taken_last ws;
         if style = `Compact then pp_open_hovbox ppf 2 else pp_open_hvbox ppf 2;
         if true then (
-          pp_tok ppf tok;
-          pp_ws `Nobreak ppf wslet;
+          List.iter
+            (fun (tok, wstok) ->
+              pp_tok ppf tok;
+              pp_ws `Nobreak ppf wstok)
+            wslets;
           pp_term `Break ppf x;
           pp_tok ppf Coloneq;
           pp_ws `Nobreak ppf wscoloneq;
@@ -118,7 +135,13 @@ let () =
                (Colon, term Coloneq (term In (Done_closed letin)));
              ])));
   set_processor letin { process = (fun ctx obs loc _ -> process_let `Let ctx obs loc) };
-  set_print letin (pp_let Let)
+  set_print letin (pp_let [ Let ])
+
+let () =
+  set_tree letrec
+    (Closed_entry (eop Let (op Rec (term Colon (term Coloneq (term In (Done_closed letrec)))))));
+  set_processor letrec { process = (fun ctx obs loc _ -> process_let `Letrec ctx obs loc) };
+  set_print letrec (pp_let [ Let; Rec ])
 
 (* ********************
    Ascription
@@ -1822,6 +1845,7 @@ let builtins =
     (State.empty
     |> State.add parens
     |> State.add letin
+    |> State.add letrec
     |> State.add asc
     |> State.add abs
     |> State.add cubeabs

@@ -208,6 +208,9 @@ let rec check :
   | Synth (Let (x, v, body)), _ ->
       let clet, Not_some = synth_or_check_let status ctx x v body (Some ty) in
       clet
+  | Synth (Letrec (x, vty, v, body)), _ ->
+      let clet, Not_some = synth_or_check_letrec status ctx x vty v body (Some ty) in
+      clet
   (* An action can always synthesize, but can also check if its degeneracy is a pure permutation, since then the type of the argument can be inferred by applying the inverse permutation to the ambient type. *)
   | Synth (Act (str, fa, x) as stm), _ -> (
       (* TODO: Once we have multiple directions, this will need to be more sophisticated. *)
@@ -496,6 +499,19 @@ and synth_or_check_let :
           | value -> Uninst (Neu { head; args = Emp; value = ready value }, Lazy.from_val svty)
       in
       (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
+  check_let_body status ctx name v nf body ty
+
+and check_let_body :
+    type a b s p.
+    (b, s) status ->
+    (a, b) Ctx.t ->
+    string option ->
+    (b, kinetic) term ->
+    normal ->
+    a N.suc check located ->
+    (kinetic value, p) Perhaps.t ->
+    (b, s) term * (kinetic value, p) Perhaps.not =
+ fun status ctx name v nf body ty ->
   (* Either way, we end up with a checked term 'v' and a normal form 'nf'.  We use the latter to extend the context. *)
   let newctx = Ctx.ext_let ctx name nf in
   (* Now we update the status of the original constant being checked *)
@@ -512,6 +528,47 @@ and synth_or_check_let :
       let sbody, sbodyty = synth status newctx { value = body; loc } in
       (Term.Let (name, v, sbody), Not_none sbodyty)
   | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
+
+and synth_or_check_letrec :
+    type a b s p.
+    (b, s) status ->
+    (a, b) Ctx.t ->
+    string option ->
+    a check located ->
+    a N.suc check located ->
+    a N.suc check located ->
+    (kinetic value, p) Perhaps.t ->
+    (b, s) term * (kinetic value, p) Perhaps.not =
+ fun status ctx name rvty vtm body ty ->
+  (* Letrec is always a global metavariable.  First we create it. *)
+  let meta = Meta.make_def "letrec" name (Ctx.dbwd ctx) Potential in
+  (* Now we check the specified type and assign that to the metavariable. *)
+  let vty = check (Kinetic `Nolet) ctx rvty (universe D.zero) in
+  let termctx = readback_ctx ctx in
+  Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
+  (* We check the bound term in a context extended by another variable whose value is the just-defined metavariable.  We define that term as an unrealized neutral, since we don't know its value yet, and extend the context. *)
+  let svty = eval_term (Ctx.env ctx) vty in
+  let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
+  let neutm = Uninst (Neu { head; args = Emp; value = ready Unrealized }, Lazy.from_val svty) in
+  let tmctx = Ctx.ext_let ctx name { tm = neutm; ty = svty } in
+  (* The 'status' for checking the bound term is a new one, with the new metavariable as its head since what we are checking will become the value of that variable.  The "hypothesizing" function takes a term defined in the extended context and makes something in the original context by let-binding the additional variable to the metavariable in question.  This is how we get recursion, analogous to how a recursively defined constant appears in its own definition as a constant. *)
+  let tmstatus =
+    Potential (Meta (meta, Ctx.env ctx), Emp, fun b -> Let (name, Meta (meta, Kinetic), b)) in
+  (* Now we can check the bound term at its type. *)
+  let sv = check tmstatus tmctx vtm svty in
+  (* And now we can add this definition to the actual metavariable.  Note that the term sv is in the context of an extra variable which is supposed to be the metavariable itself, so we have to let-bind that variable to get it down to the correct context length. *)
+  let tm = Term.Let (name, Meta (meta, Kinetic), sv) in
+  Global.add_meta meta ~termctx ~tm:(Some tm) ~ty:vty ~energy:Potential;
+  (* Now we proceed as for an ordinary let-binding. *)
+  let tm =
+    if GluedEval.read () then
+      Uninst (Neu { head; args = Emp; value = lazy_eval (Ctx.env ctx) tm }, Lazy.from_val svty)
+    else
+      match eval (Ctx.env ctx) tm with
+      | Realize x -> x
+      | value -> Uninst (Neu { head; args = Emp; value = ready value }, Lazy.from_val svty) in
+  let v, nf = (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
+  check_let_body status ctx name v nf body ty
 
 (* Check a match statement without an explicit motive supplied by the user.  This means if the discriminee is a well-behaved variable, it can be a variable match; otherwise it reverts back to a non-dependent match. *)
 and check_implicit_match :
@@ -1376,6 +1433,10 @@ and synth :
       (ctm, ety)
   | Let (x, v, body), _ ->
       let ctm, Not_none ety = synth_or_check_let status ctx x v body None in
+      (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
+      (ctm, ety)
+  | Letrec (x, vty, v, body), _ ->
+      let ctm, Not_none ety = synth_or_check_letrec status ctx x vty v body None in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
       (ctm, ety)
   | Match _, Kinetic l -> (

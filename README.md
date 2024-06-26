@@ -186,7 +186,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let in def and axiom echo notation import export solve show quit match return sig data codata
+let rec in def and axiom echo notation import export solve show quit match return sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 
@@ -295,6 +295,10 @@ The ascription notation has tightness −ω, and is non-associative, so that `M 
 Writing `let x ≔ M in N` binds the local variable `x` to the value `M` while typechecking and evaluating `N`.  The unicode ≔ is interchangeable with the ASCII `:=`.  Computationally, `let x ≔ M in N` is equivalent to `(x ↦ N) M`, but it also binds `x` to the value `M` while typechecking `N`, which in a dependent type theory is stronger.
 
 The term `M` is required to synthesize.  Thus `let x ≔ M : A in N` is a common idiom, and can be written alternatively as `let x : A ≔ M in N`.  The body `N` can either check or synthesize, and the let-binding as a whole inherits this from it: if `N` synthesizes a type then the let-binding synthesizes the same type, while if `N` checks then the let-binding checks against a type that is passed on to `N` to check against.  The let-binding notation is right-associative with tightness −ω.
+
+An ordinary let-binding is not recursive: the variable `x` cannot appear in the term `M`.  This is intentional and enables a common idiom where `x` shadows a previously existing variable of the same name in `N`, while the *previous* variable of that name can appear in `M`, thereby creating the illusion that the value of that variable has been "changed".  For instance, `let x ≔ x + 1 in` has the appearance of incrementing the value of `x`.
+
+However, it is possible to define a recursive let-binding by writing `let rec` instead of `let`.  (Note that `let` and `rec` are two keywords separated by a space.)  In this case, the variable `x` *can* appear in `M`, and of course shadows any previously defined variable of the same name in `M` as well as in `N`.  In a recursive let-binding the type of `M` must be given explicitly (as with a top-level `def` which can also be recursive): the only valid syntax is `let rec x : A ≔ M in N`.  (Recursive let-bindings are also treated "generatively", like let-bindings that include matches or comatches; see below.)
 
 
 ### Eta-conversion and case trees
@@ -1061,7 +1065,7 @@ The other case tree constructs we have discussed, such as abstraction and tuples
 
 If `match` were an ordinary kind of term syntax, Narya would have to be able to check whether two `match` expressions are equal.  Matches don't satisfy η-conversion, so such an equality-check would have to descend into the branch bodies, and this would require *normalizing* those bodies.  Now suppose a function were defined recursively using a match outside its case tree; then it would evaluate to a match expression even if its argument is not a constructor, and it would appear itself in one of the branches of that match expression; thus, this would lead to an infinite regress of normalization.  This is probably not an impossible problem to solve (e.g. Coq has fixpoint terms and match terms and manages to check equality), but it would be complicated and does not seem worth the trouble.
 
-Narya's solution is similar to that of Agda: matches outside case trees are *generative*.  Each textual occurrence of a match is, in effect, lifted to a top-level definition (actually, a metavariable) which contains the match *inside* its case tree, and therefore doesn't reduce to anything unless the discriminee is a constructor.  In particular, therefore, two such matches, even if they look identical, generate distinct lifted top-level definitions and thus are not definitionally equal (until their discriminees become constructors and they reduce to corresponding branches).  This sort of lifting allows us to say that, technically, `match` is *only* allowed in case trees, and any occurrences outside of case trees are silently elaborated into case trees.
+Narya's solution is similar to that of Agda: matches outside case trees are *generative*.  (Note that matches inside case trees are also generative in the sense that all constants defined by case trees are generative.)  Each textual occurrence of a match is, in effect, lifted to a top-level definition (actually, a metavariable) which contains the match *inside* its case tree, and therefore doesn't reduce to anything unless the discriminee is a constructor.  In particular, therefore, two such matches, even if they look identical, generate distinct lifted top-level definitions and thus are not definitionally equal (until their discriminees become constructors and they reduce to corresponding branches).  This sort of lifting allows us to say that, technically, `match` is *only* allowed in case trees, and any occurrences outside of case trees are silently elaborated into case trees.
 
 Narya attempts to be "smart" about such lifting in a couple of ways.  Firstly (and perhaps obviously), once a `match` is encountered in a term and lifted to the case tree of a top-level definition, that case tree continues as usual into the branches of the match, including all operations that are valid in case trees such as abstractions, tuples, and other matches, until it reaches a leaf that can't be a case tree node.  Thus, reduction of such a match is blocked not only on its own discriminee, but on those of all directly subsequent matches appearing in its branches.
 
@@ -1073,7 +1077,7 @@ def point : ℕ × ℕ
      
 echo point
 ```
-will print `(1,2)`, in contrast to how `def point : ℕ × ℕ ≔ (1,2)` would be printed simply as `point` since the tuple would be part of the case tree.  But, for instance, if we define a function locally to pass to some other functional, that local function can be defined by matching:
+will print `(1,2)`, in contrast to how `def point : ℕ × ℕ ≔ (1,2)` would be printed simply as `point` since the tuple would be part of the case tree (unless the product type `×` is transparent or translucent).  But, for instance, if we define a function locally to pass to some other functional, that local function can be defined by matching:
 ```
 def sq (f : ℕ → ℕ) : ℕ → ℕ ≔ x ↦ f (f x)
 
@@ -1091,6 +1095,13 @@ Of course, we can also just pass the pattern-matching lambda directly as a term 
 ```
 def sqdec3 ≔ sq [ zero. ↦ zero. | suc. n ↦ n ]
 ```
+However, a let-bound local function can use a `let rec` instead to define a local recursive function, which is not possible with a pattern-matching lambda:
+```
+def sqdbl (x : ℕ) : ℕ ≔
+  let dbl : ℕ → ℕ ≔ y ↦ match y [ zero. ↦ zero. | suc. n ↦ suc. (suc. (dbl n)) ] in
+  sq dbl x
+```
+In fact, `let rec` is *always* treated generatively and lifted to top-level like an ordinary `let` that contains a `match`.  Indeed, in the absence of something like a "fixpoint" operator there is no other possibility, as there is no term syntax for it to evaluate to.
 
 Currently, such local case trees are not printed very comprehensibly if they "escape" from their site of definition.  For instance:
 ```
@@ -1124,8 +1135,6 @@ Note that both local functions are called `_let.N.dec` based on their name when 
 A match not occuring inside any `let` value doesn't even have a user-assigned name like `dec`, so it is printed only with a number.  For instance, `echo sqdec3` from above will print something like `sq (H ↦ _match.3{…})`.  Note that the dependence of the match on the variable (which Narya named `H`) is not even indicated (it is hidden in the context substitution `{…}`).  However, the advantage of matches of this sort is that, unlike the value of a let-bound variable, they can check rather than synthesize.
 
 The printing of local case trees will hopefully be improved somewhat in future, but there is a limit to how much improvement is possible.  Moreover, overuse of local case trees can make it difficult to prove theorems about a function: facts one may need about its components cannot easily be separated out into lemmas since the pieces cannot easily be referred to.  Thus, while this sort of code can be convenient for programming, and in simple cases (such as `match e [ ]` to fill any checking context, given any `e:⊥`), it is often better eschewed in favor of additional explicit global helper functions.  For this reason, Narya currently emits a hint whenever it detects a "bare" case-tree-only construct and interprets it in this way.
-
-Note also that let-bound functions cannot currently be recursive.  A `let rec` will probably be implemented one day, but for now, the only way to define recursive functions is with `def`.
 
 
 ## Codatatypes and comatching
@@ -1249,7 +1258,7 @@ def foo : ⊤ ≔
      but is being checked against type
        _let.1.B
 ```
-Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like `data [ red. | green. | blue. ]` directly as an argument to some other function.  Note that types defined on the fly like this cannot be recursive (although once `let rec` is implemented, it could be used to define local recursive types), so in practice their usefulness is mostly restricted to record types and enumerated types.  (In theory, record types and non-recursive datatypes could also be printed more comprehensibly, and even treated non-generatively.)
+Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like `data [ red. | green. | blue. ]` directly as an argument to some other function.  Types defined directly on the fly like this cannot be recursive, so in practice their usefulness is mostly restricted to record types and enumerated types (which could, in theory, also be printed more comprehensibly, and even treated non-generatively).  However, local recursive types can be defined with `let rec`.
 
 
 ## Mutual definitions

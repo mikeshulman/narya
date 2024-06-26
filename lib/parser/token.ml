@@ -41,6 +41,7 @@ type t =
   | Solve
   | Show
   | Let
+  | Rec
   | In
   | Op of string (* Sequence of common ASCII symbols, other than : := ::= += -> |-> |=> etc. *)
   (* Alphanumeric/unicode other than common ASCII symbols and above single-token characters, with dots and underscores occuring only internally, and each dot-separated piece being nonempty.  Those not containing any dots could be local variable names (with one dot, they could be a face of a cube variable), and those consisting entirely of digits could be numerals.  We can't separate these out at lexing time into those that are parts of mixfix notations and those that are potential identifiers, since the mixfix notations in scope change as we go through a file. *)
@@ -177,6 +178,7 @@ let to_string = function
   | Solve -> "solve"
   | Show -> "show"
   | Let -> "let"
+  | Rec -> "rec"
   | In -> "in"
   | Op s -> s
   | Ident s -> String.concat "." s

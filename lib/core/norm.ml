@@ -975,6 +975,17 @@ let eval_ctx : type a b. (a, b) Termctx.t -> (a, b) Ctx.t = function
       let ctx = eval_ordered_ctx ctx in
       Permute (p, Ctx.Ordered.env ctx, ctx)
 
+(* Evaluate a telescope (forwards context of terms) and append the result to a context. *)
+let rec eval_append :
+    type a b c ac bc.
+    (a, b) Ctx.t -> (a, c, ac) Fwn.bplus -> (b, c, bc) Telescope.t -> (ac, bc) Ctx.t =
+ fun ctx ac tel ->
+  match (ac, tel) with
+  | Zero, Emp -> ctx
+  | Suc ac, Ext (x, ty, tel) ->
+      let ty = eval_term (Ctx.env ctx) ty in
+      eval_append (Ctx.ext ctx x ty) ac tel
+
 (* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
 let rec tyof_inst :
     type m n mn. (D.zero, mn, mn, normal) TubeOf.t -> (m, n, mn, normal) TubeOf.t -> kinetic value =

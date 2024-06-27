@@ -12,6 +12,7 @@ val to_channel_unit : Out_channel.t -> Compunit.t -> Marshal.extern_flags list -
 val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit
 val locked : unit -> bool
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit
+val set : Constant.t -> definition -> unit
 val add_error : Constant.t -> Reporter.Code.t -> unit
 
 val add_meta :

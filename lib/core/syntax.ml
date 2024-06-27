@@ -275,7 +275,7 @@ end = struct
       }
         -> ('p, 'i) dataconstr
 
-  (* A telescope is a list of types, each dependent on the previous ones. *)
+  (* A telescope is a list of types, each dependent on the previous ones.  Note that 'a and 'ab are lists of dimensions, but 'b is just a forwards natural number counting the number of *zero-dimensional* variables added to 'a to get 'ab.  *)
   and ('a, 'b, 'ab) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
     | Ext :
@@ -325,6 +325,10 @@ module Telescope = struct
     match doms with
     | Emp -> body
     | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
+
+  let rec snocs : type a b ab. (a, b, ab) t -> (a, b, D.zero, ab) Tbwd.snocs = function
+    | Emp -> Zero
+    | Ext (_, _, tel) -> Suc (snocs tel)
 end
 
 let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function

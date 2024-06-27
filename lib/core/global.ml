@@ -108,9 +108,21 @@ let from_channel_unit f chan i =
 (* Look up whether the state is locked. *)
 let locked () = (S.get ()).locked
 
-(* Add a new constant, or a new definition to an old one. *)
+(* Add a new constant. *)
 let add c ty df =
   S.modify @@ fun d -> { d with constants = d.constants |> Constant.Map.add c (Ok (ty, df)) }
+
+(* Set the definition of an already-defined constant. *)
+let set c df =
+  S.modify @@ fun d ->
+  {
+    d with
+    constants =
+      d.constants
+      |> Constant.Map.update c (function
+           | Some (Ok (ty, _)) -> Some (Ok (ty, df))
+           | _ -> raise (Failure "Global.set"));
+  }
 
 (* Add a new constant, but make it an error to access it. *)
 let add_error c e =

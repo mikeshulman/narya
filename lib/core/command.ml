@@ -40,18 +40,19 @@ type t =
       * bool Constant.Map.t
       -> t
 
-(* When checking a mutual "def", we first check all the parameter telescopes, making contexts, and also evaluate all the types, in the checking cases when they are provided.  Here are the outputs of that stage, saving the as-yet-unchecked raw term and also the context of parameters. *)
+(* When checking a mutual "def", we first check all the parameter telescopes, and the types in the checking cases when they are provided.  Here are the outputs of that stage, saving the as-yet-unchecked raw term along with its checked parameters and type. *)
 type defined_const =
   | Defined_check : {
       const : Constant.t;
-      params : (N.zero, 'b, 'c) Raw.tel;
-      ty : 'c check located;
-      pi_cty : (emp, kinetic) term;
-      tm : 'c check located;
+      bplus : (N.zero, 'c, 'ac) Fwn.bplus;
+      params : (emp, 'c, 'bc) Telescope.t;
+      ty : ('bc, kinetic) term;
+      tm : 'ac check located;
     }
       -> defined_const
   | Defined_synth : {
       const : Constant.t;
+      (* We don't bother checking the parameter telescopes of a synthesizing one, since it can't be used in other ones anyway. *)
       params : (N.zero, 'b, 'c) Raw.tel;
       tm : 'c synth located;
     }
@@ -59,14 +60,12 @@ type defined_const =
 
 (* Given such a thing, we can proceed to check or synthesize the term, producing the type and defined value for the constant, and then define it.  *)
 let check_term : defined_const -> unit = function
-  | Defined_check { const; params; ty; pi_cty; tm } ->
+  | Defined_check { const; bplus; params; ty; tm } ->
       (* It's essential that we evaluate the type at this point, rather than sooner, so that the evaluation uses the *definitions* of previous constants in the mutual block and not just their types.  For the same reason, we need to re-evaluate the telescope of parameters. *)
-      let Checked_tel (_, ctx), _ = check_tel Ctx.empty params in
-      let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
-      let ety = eval_term (Ctx.env ctx) cty in
-      let tree =
-        Ctx.lam ctx (check (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in
-      Global.add const pi_cty (Defined tree)
+      let ctx = eval_append Ctx.empty bplus params in
+      let ety = eval_term (Ctx.env ctx) ty in
+      let tree = check (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety in
+      Global.set const (Defined (Ctx.lam ctx tree))
   | Defined_synth { const; params; tm } ->
       let Checked_tel (cparams, ctx), _ = check_tel Ctx.empty params in
       let ctm, ety = synth (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
@@ -79,12 +78,13 @@ let check_defs (defs : (Constant.t * defconst) list) : unit =
     match defs with
     | [] -> List.iter check_term (Bwd.to_list defineds)
     | (const, Def_check { params; ty; tm }) :: defs ->
-        let Checked_tel (cparams, ctx), _ = check_tel Ctx.empty params in
-        let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
-        let pi_cty = Telescope.pis cparams cty in
-        (* This temporary definition will be overridden later. *)
+        let bplus = Raw.bplus_of_tel params in
+        let Checked_tel (params, ctx), _ = check_tel Ctx.empty params in
+        let ty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
+        let pi_cty = Telescope.pis params ty in
+        (* We set the type now; the value will be added later. *)
         Global.add const pi_cty (Axiom `Parametric);
-        go defs (Snoc (defineds, Defined_check { const; params; ty; pi_cty; tm }))
+        go defs (Snoc (defineds, Defined_check { const; bplus; params; ty; tm }))
     | (const, Def_synth { params; tm }) :: defs ->
         Global.add_error const (Synthesizing_recursion (Reporter.PConstant const));
         go defs (Snoc (defineds, Defined_synth { const; params; tm })) in

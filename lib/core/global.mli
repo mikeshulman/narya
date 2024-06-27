@@ -23,6 +23,7 @@ val add_meta :
   energy:'s energy ->
   unit
 
+val set_meta : ('b, 's) Meta.t -> tm:('b, 's) term option -> unit
 val save_metas : metamap -> unit
 
 val add_hole :

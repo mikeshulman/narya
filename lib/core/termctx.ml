@@ -17,6 +17,7 @@ type (_, _, _) entry =
       dim : 'm D.t;
       plusdim : ('m, 'n, 'mn) D.plus;
       vars : (N.zero, 'n, string option, 'f1) NICubeOf.t;
+      (* The reason for the "snoc" here is so that some of the terms and types in these bindings can refer to other ones.  Of course it should really be only the *later* ones that can refer to the *earlier* ones, but we don't have a way to specify that in the type parameters. *)
       bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
       hasfields : ('m, 'f2) Ctx.has_fields;
       fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;

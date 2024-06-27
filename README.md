@@ -1258,7 +1258,7 @@ def foo : ⊤ ≔
      but is being checked against type
        _let.1.B
 ```
-Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like `data [ red. | green. | blue. ]` directly as an argument to some other function.  Types defined directly on the fly like this cannot be recursive, so in practice their usefulness is mostly restricted to record types and enumerated types (which could, in theory, also be printed more comprehensibly, and even treated non-generatively).  However, local recursive types can be defined with `let rec`.
+Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like `data [ red. | green. | blue. ]` directly as an argument to some other function.  Types defined directly on the fly like this cannot be recursive, so in practice their usefulness is mostly restricted to record types and enumerated types (which could, in theory, also be printed more comprehensibly, and even treated non-generatively).  However, local recursive types can be defined with `let rec`, e.g. `let rec ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ] in ...`.
 
 
 ## Mutual definitions
@@ -1388,6 +1388,19 @@ def uu_el : Σ Type (X ↦ (X → Type)) ≔ (
   | bool. ↦ Bool
   | pi. A B ↦ (x : uu_el .1 A) → uu_el .1 (B x) ])
 ```
+
+
+### Mutually recursive let-bindings
+
+Mutual recursive families of local bindings can also be defined by following `let rec` with `and`.  For instance, as a silly example we can define `even` without making `odd` globally visible:
+```
+def even (n : ℕ) : Bool ≔
+  let rec even : ℕ → Bool ≔ [ zero. ↦ true. | suc. n ↦ odd n ]
+  and odd : ℕ → Bool ≔ [ zero. ↦ false. | suc. n ↦ even n]
+  in
+  even n
+```
+Note that although the outer global `def` can (like any `def`) refer to itself recursively, the locally-bound `even` shadows the global one, so that `even` in the final line refers to the local one.
 
 
 ### Here be dragons

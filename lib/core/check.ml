@@ -193,8 +193,18 @@ let merge_branches head user_branches data_constrs =
 exception Case_tree_construct_in_let
 
 (* The output of checking a telescope includes an extended context. *)
-type (_, _) checked_tel =
-  | Checked_tel : ('b, 'd, 'bd) Telescope.t * ('ac, 'bd) Ctx.t -> ('ac, 'b) checked_tel
+type (_, _, _, _) checked_tel =
+  | Checked_tel : ('b, 'c, 'bc) Telescope.t * ('ac, 'bc) Ctx.t -> ('a, 'b, 'c, 'ac) checked_tel
+
+(* TODO *)
+type (_, _, _) meta_tel =
+  | Nil : ('b, Fwn.zero, 'b) meta_tel
+  | Ext :
+      string option * ('b, potential) Meta.t * (('b, D.zero) snoc, 'c, 'bc) meta_tel
+      -> ('b, 'c Fwn.suc, 'bc) meta_tel
+
+(* TODO *)
+type _ ctx_of_raw = Ctx_of_raw : ('a, 'b) Ctx.t -> 'a ctx_of_raw
 
 (* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential). *)
 let rec check :
@@ -208,8 +218,8 @@ let rec check :
   | Synth (Let (x, v, body)), _ ->
       let clet, Not_some = synth_or_check_let status ctx x v body (Some ty) in
       clet
-  | Synth (Letrec (x, vty, v, body)), _ ->
-      let clet, Not_some = synth_or_check_letrec status ctx x vty v body (Some ty) in
+  | Synth (Letrec (vtys, vs, body)), _ ->
+      let clet, Not_some = synth_or_check_letrec status ctx vtys vs body (Some ty) in
       clet
   (* An action can always synthesize, but can also check if its degeneracy is a pure permutation, since then the type of the argument can be inferred by applying the inverse permutation to the ambient type. *)
   | Synth (Act (str, fa, x) as stm), _ -> (
@@ -499,19 +509,6 @@ and synth_or_check_let :
           | value -> Uninst (Neu { head; args = Emp; value = ready value }, Lazy.from_val svty)
       in
       (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
-  check_let_body status ctx name v nf body ty
-
-and check_let_body :
-    type a b s p.
-    (b, s) status ->
-    (a, b) Ctx.t ->
-    string option ->
-    (b, kinetic) term ->
-    normal ->
-    a N.suc check located ->
-    (kinetic value, p) Perhaps.t ->
-    (b, s) term * (kinetic value, p) Perhaps.not =
- fun status ctx name v nf body ty ->
   (* Either way, we end up with a checked term 'v' and a normal form 'nf'.  We use the latter to extend the context. *)
   let newctx = Ctx.ext_let ctx name nf in
   (* Now we update the status of the original constant being checked *)
@@ -530,45 +527,134 @@ and check_let_body :
   | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
 
 and synth_or_check_letrec :
-    type a b s p.
+    type a b c ac s p.
     (b, s) status ->
     (a, b) Ctx.t ->
-    string option ->
-    a check located ->
-    a N.suc check located ->
-    a N.suc check located ->
+    (a, c, ac) Raw.tel ->
+    (ac check located, c) Vec.t ->
+    ac check located ->
     (kinetic value, p) Perhaps.t ->
     (b, s) term * (kinetic value, p) Perhaps.not =
- fun status ctx name rvty vtm body ty ->
-  (* Letrec is always a global metavariable.  First we create it. *)
-  let meta = Meta.make_def "letrec" name (Ctx.dbwd ctx) Potential in
-  (* Now we check the specified type and assign that to the metavariable. *)
-  let vty = check (Kinetic `Nolet) ctx rvty (universe D.zero) in
-  let termctx = readback_ctx ctx in
-  Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
-  (* We check the bound term in a context extended by another variable whose value is the just-defined metavariable.  We define that term as an unrealized neutral, since we don't know its value yet, and extend the context. *)
-  let svty = eval_term (Ctx.env ctx) vty in
-  let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
-  let neutm = Uninst (Neu { head; args = Emp; value = ready Unrealized }, Lazy.from_val svty) in
-  let tmctx = Ctx.ext_let ctx name { tm = neutm; ty = svty } in
-  (* The 'status' for checking the bound term is a new one, with the new metavariable as its head since what we are checking will become the value of that variable.  The "hypothesizing" function takes a term defined in the extended context and makes something in the original context by let-binding the additional variable to the metavariable in question.  This is how we get recursion, analogous to how a recursively defined constant appears in its own definition as a constant. *)
-  let tmstatus =
-    Potential (Meta (meta, Ctx.env ctx), Emp, fun b -> Let (name, Meta (meta, Kinetic), b)) in
-  (* Now we can check the bound term at its type. *)
-  let sv = check tmstatus tmctx vtm svty in
-  (* And now we can add this definition to the actual metavariable.  Note that the term sv is in the context of an extra variable which is supposed to be the metavariable itself, so we have to let-bind that variable to get it down to the correct context length. *)
-  let tm = Term.Let (name, Meta (meta, Kinetic), sv) in
-  Global.add_meta meta ~termctx ~tm:(Some tm) ~ty:vty ~energy:Potential;
-  (* Now we proceed as for an ordinary let-binding. *)
-  let tm =
-    if GluedEval.read () then
-      Uninst (Neu { head; args = Emp; value = lazy_eval (Ctx.env ctx) tm }, Lazy.from_val svty)
-    else
-      match eval (Ctx.env ctx) tm with
-      | Realize x -> x
-      | value -> Uninst (Neu { head; args = Emp; value = ready value }, Lazy.from_val svty) in
-  let v, nf = (Term.Meta (meta, Kinetic), { tm; ty = svty }) in
-  check_let_body status ctx name v nf body ty
+ fun status ctx rvtys vtms body ty ->
+  (* First we check the types of all the bound variables, which are a telescope since each can depend on the previous ones. *)
+  let Checked_tel (type bc) ((vtys, _) : (_, _, bc) Telescope.t * (_, bc) Ctx.t), _ =
+    check_tel ctx rvtys in
+  (* Then we create the metavariables. *)
+  let metas = make_letrec_metas ctx vtys in
+  (* Now we check the bound terms. *)
+  let ac = Raw.bplus_of_tel rvtys in
+  let () = check_letrec_bindings ctx ac metas vtys vtms in
+  (* Now we update the status of the original constant being checked *)
+  let status : (bc, s) status =
+    match status with
+    | Potential (c, args, hyp) -> Potential (c, args, fun x -> hyp (let_metas metas x))
+    | Kinetic l -> Kinetic l in
+  (* Make a context for it *)
+  let _, newctx = ext_metas ctx ac metas vtys Zero Zero Zero in
+  (* And synthesize or check the body in the extended context. *)
+  match (ty, body) with
+  | Some ty, _ ->
+      let sbody = check status newctx body ty in
+      (let_metas metas sbody, Not_some)
+  | None, { value = Synth body; loc } ->
+      let sbody, sbodyty = synth status newctx { value = body; loc } in
+      (let_metas metas sbody, Not_none sbodyty)
+  | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
+
+and check_letrec_bindings :
+    type a xc b ac bc.
+    (a, b) Ctx.t ->
+    (a, xc, ac) Fwn.bplus ->
+    (b, xc, bc) meta_tel ->
+    (b, xc, bc) Telescope.t ->
+    (ac check located, xc) Vec.t ->
+    unit =
+ fun octx oac ometas ovtys vs ->
+  let rec go :
+      type x ax bx c d.
+      (a, x, ax) Fwn.bplus ->
+      (x, c, xc) Fwn.plus ->
+      (b, x, D.zero, bx) Tbwd.snocs ->
+      (*  *)
+      (ax, c, ac) Fwn.bplus ->
+      (bx, c, bc) meta_tel ->
+      (bx, c, bc) Telescope.t ->
+      (ac check located, c) Vec.t ->
+      unit =
+   fun ax xc bx ac metas vtys vs ->
+    match (ac, metas, vtys, vs) with
+    | Zero, Nil, Emp, [] -> ()
+    | Suc ac, Ext (_, meta, metas), Ext (name, vty, vtys), v :: vs ->
+        let ctx, tmctx = ext_metas octx oac ometas ovtys ax xc bx in
+        let evty = eval_term (Ctx.env ctx) vty in
+        let hyp b = Term.Let (name, Meta (meta, Kinetic), let_metas metas b) in
+        let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, hyp) in
+        let cv = check tmstatus tmctx v evty in
+        Global.set_meta meta ~tm:(Some (hyp cv));
+        (* And recurse. *)
+        go (Fwn.bplus_suc_eq_suc ax) (Fwn.suc_plus xc) (Tbwd.snocs_suc_eq_snoc bx) ac metas vtys vs
+  in
+  go Zero Zero Zero oac ometas ovtys vs
+
+(* Given a telescope of types for let-bound variables, create a global metavariable for each of them, and give it the correct type in Global. *)
+and make_letrec_metas : type x a b ab. (x, a) Ctx.t -> (a, b, ab) Telescope.t -> (a, b, ab) meta_tel
+    =
+ fun ctx tel ->
+  match tel with
+  | Emp -> Nil
+  | Ext (x, vty, tel) ->
+      (* Create the metavariable. *)
+      let meta = Meta.make_def "letrec" x (Ctx.dbwd ctx) Potential in
+      (* Assign it the correct type. *)
+      let termctx = readback_ctx ctx in
+      Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
+      (* Extend the context by it, as an unrealized neutral.  TODO: It's annoying that we have to evaluate the types here to extend the value-context, when the only use we're making of it is to readback that extended value-context into a termctx at each step to save with the global metavariable.  It would make more sense, and be more efficient, to just carry along the termctx and extend it directly at each step with "Term.Meta (meta, Kinetic)" at the term-type "vty".  Unfortunately, termctxs store terms and types in a one-longer context, so that would require directly weakening vty, or perhaps parsing and checking it in a one-longer context originally. *)
+      let evty = eval_term (Ctx.env ctx) vty in
+      let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
+      let neutm = Uninst (Neu { head; args = Emp; value = ready Unrealized }, Lazy.from_val evty) in
+      let ctx = Ctx.ext_let ctx x { tm = neutm; ty = evty } in
+      (* And recurse. *)
+      Ext (x, meta, make_letrec_metas ctx tel)
+
+and let_metas : type b c bc s. (b, c, bc) meta_tel -> (bc, s) term -> (b, s) term =
+ fun metas tm ->
+  match metas with
+  | Nil -> tm
+  | Ext (x, m, metas) -> Let (x, Meta (m, Kinetic), let_metas metas tm)
+
+(* Extend a context by evaluated metavariables.  We return both the fully extended context and a partially extended one. *)
+and ext_metas :
+    type a b c ac bc d cd acd bcd.
+    (a, b) Ctx.t ->
+    (a, cd, acd) Fwn.bplus ->
+    (b, cd, bcd) meta_tel ->
+    (b, cd, bcd) Telescope.t ->
+    (a, c, ac) Fwn.bplus ->
+    (c, d, cd) Fwn.plus ->
+    (b, c, D.zero, bc) Tbwd.snocs ->
+    (ac, bc) Ctx.t * (acd, bcd) Ctx.t =
+ fun ctx acd metas vtys ac cd bc ->
+  (* First we define a helper function that returns only the fully extended context. *)
+  let rec ext_metas' :
+      type a b cd acd bcd.
+      (a, b) Ctx.t ->
+      (a, cd, acd) Fwn.bplus ->
+      (b, cd, bcd) meta_tel ->
+      (b, cd, bcd) Telescope.t ->
+      (acd, bcd) Ctx.t =
+   fun ctx acd metas vtys ->
+    match (acd, metas, vtys) with
+    | Zero, Nil, Emp -> ctx
+    | Suc acd, Ext (_, meta, metas), Ext (x, vty, vtys) ->
+        let tm = eval_term (Ctx.env ctx) (Meta (meta, Kinetic)) in
+        let ty = eval_term (Ctx.env ctx) vty in
+        ext_metas' (Ctx.ext_let ctx x { tm; ty }) acd metas vtys in
+  match (ac, cd, bc, acd, metas, vtys) with
+  | Zero, Zero, Zero, _, _, _ -> (ctx, ext_metas' ctx acd metas vtys)
+  | Suc ac, Suc cd, Suc bc, Suc acd, Ext (_, meta, metas), Ext (x, vty, vtys) ->
+      let tm = eval_term (Ctx.env ctx) (Meta (meta, Kinetic)) in
+      let ty = eval_term (Ctx.env ctx) vty in
+      ext_metas (Ctx.ext_let ctx x { tm; ty }) acd metas vtys ac cd bc
 
 (* Check a match statement without an explicit motive supplied by the user.  This means if the discriminee is a well-behaved variable, it can be a variable match; otherwise it reverts back to a non-dependent match. *)
 and check_implicit_match :
@@ -1435,8 +1521,8 @@ and synth :
       let ctm, Not_none ety = synth_or_check_let status ctx x v body None in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
       (ctm, ety)
-  | Letrec (x, vty, v, body), _ ->
-      let ctm, Not_none ety = synth_or_check_letrec status ctx x vty v body None in
+  | Letrec (vtys, vs, body), _ ->
+      let ctm, Not_none ety = synth_or_check_letrec status ctx vtys vs body None in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
       (ctm, ety)
   | Match _, Kinetic l -> (
@@ -1660,8 +1746,9 @@ and check_at_tel :
         (Wrong_number_of_arguments_to_constructor
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
-(* Given a context and a raw telescope, we can check it to produce a checked telescope and also a new context extended by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype. *)
-and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel * bool =
+(* Given a context and a raw teelscope, we can check it to produce a checked telescope, a new context extended by that telescope, and a function for extending other contexts by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype. *)
+and check_tel :
+    type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (a, b, c, ac) checked_tel * bool =
  fun ctx tel ->
   match tel with
   | Emp -> (Checked_tel (Emp, ctx), true)

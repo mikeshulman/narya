@@ -138,6 +138,19 @@ let add_meta m ~termctx ~ty ~tm ~energy =
       |> Metamap.add (MetaKey m) (Metadef { data = Def_meta { tm; energy }; termctx; ty });
   }
 
+(* Set the definition of a Global metavariable, required to already exist. *)
+let set_meta m ~tm =
+  S.modify @@ fun d ->
+  {
+    d with
+    current_metas =
+      d.current_metas
+      |> Metamap.update (MetaKey m) (function
+           | Some (Metadef ({ data = Def_meta df; _ } as d)) ->
+               Some (Metadef { d with data = Def_meta { df with tm } })
+           | _ -> raise (Failure "set_meta"));
+  }
+
 (* Given a map of meta definitions, save them to the permanent Global state.  This is done after a command finishes with the current_metas from this or some other global state. *)
 let save_metas metas =
   Metamap.iter

@@ -23,9 +23,8 @@ module Raw = struct
     | UU : 'a synth
     (* A Let can either synthesize or (sometimes) check.  It synthesizes only if its body also synthesizes, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking.  Thus, we make it a "synthesizing term".  The term being bound must also synthesize; the shorthand notation "let x : A := M" is expanded during parsing to "let x := M : A". *)
     | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
-    | Letrec :
-        string option * 'a check located * 'a N.suc check located * 'a N.suc check located
-        -> 'a synth
+    (* Letrec has a telescope of types, so that each can depend on the previous ones, and an equal-length vector of bound terms, all in the context extended by all the variables being bound, plus a body that is also in that context. *)
+    | Letrec : ('a, 'b, 'ab) tel * ('ab check located, 'b) Vec.t * 'ab check located -> 'a synth
     (* An Act can also sometimes check, if its body checks and the degeneracy is a pure permutation.  But otherwise, it synthesizes and so must its body.  *)
     | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
     (* A Match can also sometimes check, but synthesizes if it has an explicit return type or if it is nondependent and its first branch synthesizes. *)
@@ -93,6 +92,10 @@ module Raw = struct
     match (ab, xs) with
     | Zero, [] -> tm
     | Suc ab, x :: xs -> { value = Lam (x, `Normal, lams ab xs tm loc); loc }
+
+  let rec bplus_of_tel : type a b c. (a, b, c) tel -> (a, b, c) Fwn.bplus = function
+    | Emp -> Zero
+    | Ext (_, _, tel) -> Suc (bplus_of_tel tel)
 end
 
 (* ******************** Names ******************** *)

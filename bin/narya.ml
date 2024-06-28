@@ -23,6 +23,7 @@ let refl_strings = ref [ "refl"; "Id" ]
 let internal = ref true
 let discreteness = ref false
 let source_only = ref false
+let fake_interact = ref false
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -68,6 +69,7 @@ let speclist =
       "Abbreviation for -arity 1 -direction d -external" );
     ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Unit (fun () -> inputs := Snoc (!inputs, `Stdin)), "");
+    ("-fake-interact", Arg.Set fake_interact, "");
   ]
 
 let () =
@@ -246,24 +248,26 @@ let () =
   @@ fun () ->
   Execute.Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp; actions = false }
   @@ fun () ->
-  Mbwd.miter
-    (fun [ input ] ->
-      match input with
-      | `File filename ->
-          let _ = Execute.load_file filename true in
-          ()
-      | `Stdin ->
-          let content = In_channel.input_all stdin in
-          let _ = Execute.load_string (Some "stdin") content in
-          ()
-      (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
-      | `String content ->
-          let _ =
-            Execute.load_string ~init_visible:(Execute.get_all ()) (Some "command-line exec string")
-              content in
-          ())
-    [ !inputs ];
+  ( Core.Command.Mode.run ~env:{ interactive = !fake_interact } @@ fun () ->
+    Mbwd.miter
+      (fun [ input ] ->
+        match input with
+        | `File filename ->
+            let _ = Execute.load_file filename true in
+            ()
+        | `Stdin ->
+            let content = In_channel.input_all stdin in
+            let _ = Execute.load_string (Some "stdin") content in
+            ()
+        (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
+        | `String content ->
+            let _ =
+              Execute.load_string ~init_visible:(Execute.get_all ())
+                (Some "command-line exec string") content in
+            ())
+      [ !inputs ] );
   (* Interactive mode also has all the other units loaded. *)
   let init_visible = Execute.get_all () in
+  Core.Command.Mode.run ~env:{ interactive = true } @@ fun () ->
   Command.run_with_scope ~init_visible @@ fun () ->
   if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()

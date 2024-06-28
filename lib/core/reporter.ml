@@ -150,6 +150,7 @@ module Code = struct
     | Incompatible_flags : string * string -> t
     | Actions_in_compiled_file : string -> t
     | No_such_hole : int -> t
+    | Forbidden_interactive_command : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -262,6 +263,7 @@ module Code = struct
     | Actions_in_compiled_file _ -> Warning
     | No_such_hole _ -> Error
     | Hole_solved _ -> Info
+    | Forbidden_interactive_command _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -363,6 +365,7 @@ module Code = struct
     | Missing_constructor_type _ -> "E1506"
     (* Commands *)
     | Too_many_commands -> "E2000"
+    | Forbidden_interactive_command _ -> "E2001"
     (* def *)
     | Name_already_defined _ -> "E2100"
     | Invalid_constant_name _ -> "E2101"
@@ -662,6 +665,7 @@ module Code = struct
         if h > 1 then textf "hole solved, containing %d new holes" h
         else if h = 1 then text "hole solved, containing 1 new hole"
         else text "hole solved"
+    | Forbidden_interactive_command cmd -> textf "command '%s' only allowed in interactive mode" cmd
 end
 
 include Asai.StructuredReporter.Make (Code)

@@ -99,14 +99,14 @@ In a file, conventionally each command begins on a new line, but this is not tec
    ```
    Same as above, but also export the new names to other files that import this one.
 
-6. `solve HOLE ≔ TERM`
-
-   Fill hole number `HOLE` with the term `TERM`.
-
-7. `quit`
+6. `quit`
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
-   
+
+7. `solve HOLE ≔ TERM`
+
+   Fill hole number `HOLE` with the term `TERM` (see below).  This command is only permitted in interactive mode.
+
 
 ## Built-in types
 
@@ -371,7 +371,7 @@ solve 0 ≔ X
 ```
 Of course, the term given to `solve` can contain other holes, which will be printed and can themselves be solved later.  The term solving a hole is parsed and typechecked *in the context where the hole was created*: thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
 
-The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole somewhere in a file will change the numbers of all the holes after that point and thus the numbers of all the `solve` commands.  For this reason, the `solve` command is not intended for use in source files, and at some future point might be forbidden therein.  Rather, it is intended as a backend for editor commands that solve holes identified positionally, as in Agda; and also as a primitive for implementing tactic proofs as in Coq and Lean.
+The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole changes the numbers of all the holes after that point.  For this reason the `solve` command is only allowed in interactive mode.  Indeed, it is intended as a backend for (so-far unimplemented) editor commands that solve holes identified positionally as in Agda, and as a primitive for (so-far unimplemented) tactic proofs as in Coq and Lean; and in both of those cases the hole numbers will be managed programmatically rather than by the user.
 
 
 ## Record types and tuples

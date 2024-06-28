@@ -11,6 +11,12 @@ open Readback
 open Reporter
 open Asai.Range
 
+module ModeState = struct
+  type t = { interactive : bool }
+end
+
+module Mode = Algaeff.Reader.Make (ModeState)
+
 (* A mutual "def" command can contain multiple constant definitions, each one checking or synthesizing.  *)
 type defconst =
   | Def_check : {
@@ -112,6 +118,7 @@ let execute : t -> unit = function
       let h = Global.end_command () in
       emit (Constant_defined (printables, h))
   | Solve (global, status, termctx, tm, ty, callback, discrete) ->
+      if not (Mode.read ()).interactive then fatal (Forbidden_interactive_command "solve");
       Discrete.run ~init:discrete @@ fun () ->
       let h, ctm =
         Global.run_command_with ~init:global @@ fun () ->

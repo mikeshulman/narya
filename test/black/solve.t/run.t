@@ -1,4 +1,4 @@
-  $ narya -v solve.ny
+  $ narya -v -fake-interact solve.ny
    ￫ info[I0000]
    ￮ constant ℕ defined
   

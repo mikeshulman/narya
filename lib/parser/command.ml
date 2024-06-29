@@ -66,6 +66,11 @@ module Command = struct
         wscoloneq : Whitespace.t list;
         tm : observation;
       }
+    | Show of {
+        wsshow : Whitespace.t list;
+        what : [ `Hole of Whitespace.t list * int | `Holes ];
+        wswhat : Whitespace.t list;
+      }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -325,16 +330,34 @@ module Parse = struct
            "") in
     return (Import { wsimport; export; origin; wsorigin; op })
 
+  let integer =
+    step "" (fun state _ (tok, ws) ->
+        match tok with
+        | Ident [ num ] -> Some ((int_of_string num, ws), state)
+        | _ -> None)
+
   let solve =
     let* wssolve = token Solve in
-    let* number, wsnumber =
-      step "" (fun state _ (tok, ws) ->
-          match tok with
-          | Ident [ num ] -> Some ((int_of_string num, ws), state)
-          | _ -> None) in
+    let* number, wsnumber = integer in
     let* wscoloneq = token Coloneq in
     let* tm = C.term [] in
     return (Solve { wssolve; number; wsnumber; wscoloneq; tm })
+
+  let show =
+    let* wsshow = token Show in
+    let* what =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ "hole" ] -> Some (`Hole ws, state)
+          | Ident [ "holes" ] -> Some (`Holes ws, state)
+          | _ -> None) in
+    let* what, wswhat =
+      match what with
+      | `Hole ws ->
+          let* number, wsnumber = integer in
+          return (`Hole (ws, number), wsnumber)
+      | `Holes ws -> return (`Holes, ws) in
+    return (Show { wsshow; what; wswhat })
 
   let quit =
     let* wsquit = token Quit in
@@ -349,7 +372,7 @@ module Parse = struct
     return Command.Eof
 
   let command () =
-    bof </> axiom </> def_and </> echo </> notation </> import </> solve </> quit </> eof
+    bof </> axiom </> def_and </> echo </> notation </> import </> solve </> show </> quit </> eof
 
   let command_or_echo () =
     command ()
@@ -423,6 +446,18 @@ let run_with_scope ~init_visible f =
        !Builtins.builtins
        (Trie.to_seq (Trie.find_subtree [ "notations" ] init_visible)))
   @@ f
+
+let show_hole ppf err = function
+  | Eternity.Find_number (m, Wrap (Metadef { data = Undef_meta { vars; _ }; termctx; ty }), _) ->
+      pp_open_vbox ppf 0;
+      fprintf ppf "hole %s:" (Meta.name m);
+      pp_print_newline ppf ();
+      pp_print_newline ppf ();
+      pp_printed ppf (Reporter.print (Termctx.PHole (vars, termctx, ty)));
+      pp_close_box ppf ();
+      pp_print_newline ppf ();
+      pp_print_newline ppf ()
+  | _ -> fatal err
 
 (* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
 let execute :
@@ -571,6 +606,22 @@ let execute :
       | Def_meta _ ->
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))
+  | Show { what; _ } -> (
+      if not (Core.Command.Mode.read ()).interactive then
+        fatal (Forbidden_interactive_command "show");
+      match what with
+      | `Hole (_, number) ->
+          show_hole Format.std_formatter (No_such_hole number) (Eternity.find_number number)
+      | `Holes -> (
+          match Eternity.all_holes () with
+          | [] ->
+              fprintf Format.std_formatter "no open holes";
+              pp_print_newline Format.std_formatter ();
+              pp_print_newline Format.std_formatter ()
+          | holes ->
+              List.iter
+                (show_hole Format.std_formatter (Anomaly "defined hole in undefined list"))
+                holes))
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
@@ -766,6 +817,19 @@ let pp_command : formatter -> t -> Whitespace.t list =
       let tm, rest = split_ending_whitespace tm in
       pp_term `None ppf (Term tm);
       pp_close_box ppf ();
+      rest
+  | Show { wsshow; what; wswhat } ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Show;
+      pp_ws `Nobreak ppf wsshow;
+      (match what with
+      | `Hole (ws, number) ->
+          pp_print_string ppf "hole";
+          pp_ws `Nobreak ppf ws;
+          pp_print_int ppf number
+      | `Holes -> pp_print_string ppf "holes");
+      let ws, rest = Whitespace.split wswhat in
+      pp_ws `None ppf ws;
       rest
   | Quit ws -> ws
   | Bof ws -> ws

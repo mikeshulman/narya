@@ -11,4 +11,5 @@ val find : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped * data
 type find_number = Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * data -> find_number
 
 val find_number : int -> find_number
+val all_holes : unit -> find_number list
 val solve : ('b, 's) Meta.t -> ('b, 's) term -> unit

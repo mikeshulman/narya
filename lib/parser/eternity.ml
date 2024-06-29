@@ -78,6 +78,14 @@ let find_number : int -> find_number =
     Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
   Find_number (m, Wrap def, homewhen)
 
+let all_holes () =
+  List.map
+    (fun (_, Meta.Wrap (type b s) (m : (b, s) Meta.t)) ->
+      let ({ def; homewhen } : (Metadef.undef, b * s) Data.t) =
+        Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
+      Find_number (m, Wrap def, homewhen))
+    (IntMap.bindings (S.get ()).holes)
+
 let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
  fun h tm ->
   S.modify (fun data ->

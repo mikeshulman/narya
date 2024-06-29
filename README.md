@@ -107,6 +107,14 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Fill hole number `HOLE` with the term `TERM` (see below).  This command is only permitted in interactive mode.
 
+8. 
+   ```
+   show hole HOLE
+   show holes
+   ```
+
+   Display the context and type of a specific open hole number `HOLE`, or of all the open holes.  This command is only permitted in interactive mode.
+
 
 ## Built-in types
 
@@ -178,7 +186,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let in def and axiom echo notation import export solve quit match return sig data codata
+let in def and axiom echo notation import export solve show quit match return sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 
@@ -372,6 +380,8 @@ solve 0 ≔ X
 Of course, the term given to `solve` can contain other holes, which will be printed and can themselves be solved later.  The term solving a hole is parsed and typechecked *in the context where the hole was created*: thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
 
 The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole changes the numbers of all the holes after that point.  For this reason the `solve` command is only allowed in interactive mode.  Indeed, it is intended as a backend for (so-far unimplemented) editor commands that solve holes identified positionally as in Agda, and as a primitive for (so-far unimplemented) tactic proofs as in Coq and Lean; and in both of those cases the hole numbers will be managed programmatically rather than by the user.
+
+If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.
 
 
 ## Record types and tuples

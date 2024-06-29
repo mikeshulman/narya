@@ -71,6 +71,7 @@ module Command = struct
         what : [ `Hole of Whitespace.t list * int | `Holes ];
         wswhat : Whitespace.t list;
       }
+    | Undo of { wsundo : Whitespace.t list; count : int; wscount : Whitespace.t list }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -359,6 +360,11 @@ module Parse = struct
       | `Holes ws -> return (`Holes, ws) in
     return (Show { wsshow; what; wswhat })
 
+  let undo =
+    let* wsundo = token Undo in
+    let* count, wscount = integer in
+    return (Command.Undo { wsundo; count; wscount })
+
   let quit =
     let* wsquit = token Quit in
     return (Command.Quit wsquit)
@@ -372,7 +378,17 @@ module Parse = struct
     return Command.Eof
 
   let command () =
-    bof </> axiom </> def_and </> echo </> notation </> import </> solve </> show </> quit </> eof
+    bof
+    </> axiom
+    </> def_and
+    </> echo
+    </> notation
+    </> import
+    </> solve
+    </> show
+    </> undo
+    </> quit
+    </> eof
 
   let command_or_echo () =
     command ()
@@ -470,12 +486,13 @@ let to_string : Command.t -> string = function
   | Solve _ -> "solve"
   | Show _ -> "show"
   | Quit _ -> "quit"
+  | Undo _ -> "undo"
   | Bof _ -> "bof"
   | Eof -> "eof"
 
 (* Whether a command requires an interactive mode (i.e. not interactive mode and not ProofGeneral interaction). *)
 let needs_interactive : Command.t -> bool = function
-  | Solve _ | Show _ -> true
+  | Solve _ | Show _ | Undo _ -> true
   | _ -> false
 
 (* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
@@ -641,6 +658,7 @@ let execute :
               List.iter
                 (show_hole Format.std_formatter (Anomaly "defined hole in undefined list"))
                 holes))
+  | Undo _ -> fatal (Unimplemented "undo")
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
@@ -829,6 +847,13 @@ let pp_command : formatter -> t -> Whitespace.t list =
           pp_print_int ppf number
       | `Holes -> pp_print_string ppf "holes");
       let ws, rest = Whitespace.split wswhat in
+      pp_ws `None ppf ws;
+      rest
+  | Undo { wsundo; count; wscount } ->
+      pp_tok ppf Undo;
+      pp_ws `Nobreak ppf wsundo;
+      pp_print_int ppf count;
+      let ws, rest = Whitespace.split wscount in
       pp_ws `None ppf ws;
       rest
   | Quit ws -> ws

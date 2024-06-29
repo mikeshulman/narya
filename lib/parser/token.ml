@@ -40,6 +40,7 @@ type t =
   | Export
   | Solve
   | Show
+  | Undo
   | Let
   | Rec
   | In
@@ -177,6 +178,7 @@ let to_string = function
   | Export -> "export"
   | Solve -> "solve"
   | Show -> "show"
+  | Undo -> "undo"
   | Let -> "let"
   | Rec -> "rec"
   | In -> "in"

@@ -61,7 +61,7 @@ In interactive mode, commands typed by the user are executed as they are entered
 
 ### Commands
 
-In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
+In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  The available commands in a file or `-e` string are the following.
 
 1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
@@ -103,17 +103,23 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
 
-7. `solve HOLE ≔ TERM`
+In interactive mode, the following additional commands are also available:
 
-   Fill hole number `HOLE` with the term `TERM` (see below).  This command is only permitted in interactive mode.
+1. `solve HOLE ≔ TERM`
 
-8. 
+   Fill hole number `HOLE` with the term `TERM` (see below).
+
+2. 
    ```
    show hole HOLE
    show holes
    ```
 
-   Display the context and type of a specific open hole number `HOLE`, or of all the open holes.  This command is only permitted in interactive mode.
+   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
+
+3. `undo N`
+
+   Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo` and `show`: those commands are skipped over when undoing.  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.
 
 
 ## Built-in types

@@ -23,4 +23,4 @@ let install trie =
   let rtm = process Emp ptm in
   let ctm = check (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx rtm ety in
   Global.add const cty (Defined ctm);
-  Scope.M.union_singleton ~prefix:Emp trie ([ "Π" ], `Constant const)
+  Scope.Mod.union_singleton ~prefix:Emp trie ([ "Π" ], (`Constant const, ()))

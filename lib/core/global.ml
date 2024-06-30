@@ -29,6 +29,7 @@ type data = {
   current_metas : metamap;
 }
 
+(* The empty global state, as at the beginning of execution. *)
 let empty : data =
   {
     constants = Constant.Map.empty;
@@ -38,7 +39,7 @@ let empty : data =
     current_metas = Metamap.empty;
   }
 
-module S = Algaeff.State.Make (struct
+module S = State.Make (struct
   type t = data
 end)
 
@@ -218,10 +219,8 @@ let get () =
   { d with current_holes = Emp; current_metas = Metamap.empty; metas = !metas }
 
 (* Start with a specified global state.  This is used e.g. for going back in time and solving holes. *)
-let run ~init f = S.run ~init f
-
-(* Start with an empty global state, as at the beginning of execution.  Also starts with an empty Current state, so that calls to Current (e.g. from find_meta) outside of a command don't throw an unhandled exception. *)
-let run_empty f = run ~init:empty @@ f
+let run = S.run
+let try_with = S.try_with
 
 (* At the end of a succesful normal command, notify the user of generated holes, save the newly created metavariables, and return the number of holes created to notify the user of. *)
 let end_command () =

@@ -54,3 +54,11 @@ let init : type a. int -> (int -> a) -> a Bwd.t =
  fun n f ->
   let rec go i = if i >= n then Emp else Snoc (go (i + 1), f i) in
   go 0
+
+(* Remove n elements from the end of a Bwd.t *)
+let rec remove xs n =
+  if n <= 0 then xs
+  else
+    match xs with
+    | Emp -> raise (Failure "Bwd_extra.remove")
+    | Snoc (xs, _) -> remove xs (n - 1)

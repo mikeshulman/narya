@@ -452,19 +452,6 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
-(* Put a given starting namespace into the scope, and also extract the notations from it.  TODO: It would be nice to make this be just Scope.run, but that creates a dependency cycle with Postprocess and Builtins. *)
-let run_with_scope ~init_visible f =
-  Scope.run ~init_visible @@ fun () ->
-  Situation.run_on
-    (Seq.fold_left
-       (fun state (_, (data, _)) ->
-         match data with
-         | `Notation (user, _) -> fst (Situation.add_user user state)
-         | _ -> state)
-       !Builtins.builtins
-       (Trie.to_seq (Trie.find_subtree [ "notations" ] init_visible)))
-  @@ f
-
 let show_hole ppf err = function
   | Eternity.Find_number (m, Wrap (Metadef { data = Undef_meta { vars; _ }; termctx; ty }), _) ->
       pp_open_vbox ppf 0;
@@ -496,16 +483,13 @@ let needs_interactive : Command.t -> bool = function
   | _ -> false
 
 (* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
-let execute :
-    action_taken:(unit -> unit) ->
-    get_file:(string -> (Scope.P.data, Scope.P.tag) Trie.t) ->
-    Command.t ->
-    unit =
+let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> Command.t -> unit =
  fun ~action_taken ~get_file cmd ->
   if needs_interactive cmd && not (Core.Command.Mode.read ()).interactive then
     fatal (Forbidden_interactive_command (to_string cmd));
   match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
+      History.do_command @@ fun () ->
       Scope.check_constant_name name;
       let const = Scope.define (Compunit.Current.read ()) name in
       Reporter.try_with ~fatal:(fun d ->
@@ -516,6 +500,7 @@ let execute :
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty))
   | Def defs ->
+      History.do_command @@ fun () ->
       let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
@@ -571,6 +556,7 @@ let execute :
           pp_print_newline ppf ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
+      History.do_command @@ fun () ->
       let notation_name = "notations" :: name in
       (* A notation name can't be redefining anything. *)
       if Option.is_some (Scope.lookup notation_name) then
@@ -611,6 +597,7 @@ let execute :
          emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
   | Import { export; origin; op; _ } ->
+      History.do_command @@ fun () ->
       let trie =
         match origin with
         | `File file ->
@@ -620,7 +607,7 @@ let execute :
         | `Path path -> Trie.find_subtree path (Scope.get_visible ()) in
       let trie =
         match op with
-        | Some (_, op) -> Scope.M.modify (process_modifier op) trie
+        | Some (_, op) -> Scope.Mod.modify (process_modifier op) trie
         | None -> trie in
       if export then Scope.include_subtree ([], trie) else Scope.import_subtree ([], trie);
       Seq.iter
@@ -632,13 +619,15 @@ let execute :
           | _ -> ())
         (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
   | Solve { number; tm = Term tm; _ } -> (
+      History.do_command @@ fun () ->
       let (Find_number
-            (m, Wrap (Metadef { data; termctx; ty }), ({ global; scope; discrete } : Eternity.data)))
-          =
+            ( m,
+              Wrap (Metadef { data; termctx; ty }),
+              ({ global; scope; discrete } : Eternity.homewhen) )) =
         Eternity.find_number number in
       match data with
       | Undef_meta { vars; status } ->
-          run_with_scope ~init_visible:scope @@ fun () ->
+          History.run_with_scope ~init_visible:scope @@ fun () ->
           Core.Command.execute
             (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m, discrete))
       | Def_meta _ ->
@@ -658,7 +647,9 @@ let execute :
               List.iter
                 (show_hole Format.std_formatter (Anomaly "defined hole in undefined list"))
                 holes))
-  | Undo _ -> fatal (Unimplemented "undo")
+  | Undo { count; _ } ->
+      History.undo count;
+      emit (Commands_undone count)
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")

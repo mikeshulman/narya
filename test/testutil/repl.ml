@@ -112,8 +112,8 @@ let print (tm : string) : unit =
 
 let run f =
   Parser.Unparse.install ();
-  Eternity.run_empty @@ fun () ->
-  Global.run_empty @@ fun () ->
+  Eternity.run ~init:Eternity.empty @@ fun () ->
+  Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->

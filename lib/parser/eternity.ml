@@ -10,21 +10,28 @@ open Reporter
 
    This has nothing to do with undo, which undoes changes to the eternal state as well as the global one.  Rather, it's about ordinary commands that reach back in time, e.g. to fill previously created holes. *)
 
-type data = { global : Global.data; scope : Scope.trie; discrete : bool Constant.Map.t }
+type homewhen = { global : Global.data; scope : Scope.trie; discrete : bool Constant.Map.t }
 
-module Data = struct
-  type ('x, 'bs) t = { def : ('x, 'bs) Metadef.t; homewhen : data }
+module MetaData = struct
+  type ('x, 'bs) t = { def : ('x, 'bs) Metadef.t; homewhen : homewhen }
 end
 
-module Metamap = Meta.Map.Make (Data)
+module Metamap = Meta.Map.Make (MetaData)
 module IntMap = Map.Make (Int)
 
 (* In addition to the types and possibly-definitions of all holes, we keep a list of the unsolved holes. *)
+type data = { map : Metadef.undef Metamap.t; holes : Meta.wrapped IntMap.t }
+
 module StateData = struct
-  type t = { map : Metadef.undef Metamap.t; holes : Meta.wrapped IntMap.t }
+  type t = data
 end
 
-module S = Algaeff.State.Make (StateData)
+let empty : data = { map = Metamap.empty; holes = IntMap.empty }
+
+module S = State.Make (StateData)
+
+let run = S.run
+let try_with = S.try_with
 
 let () =
   S.register_printer (function
@@ -60,28 +67,28 @@ let () =
     }
 
 let unsolved () = not (IntMap.is_empty (S.get ()).holes)
-let run_empty f = S.run ~init:{ map = Metamap.empty; holes = IntMap.empty } f
 
-let find : type b s. (b, s) Meta.t -> (b, s) Metadef.wrapped * data =
+let find : type b s. (b, s) Meta.t -> (b, s) Metadef.wrapped * homewhen =
  fun m ->
-  let ({ def; homewhen } : (Metadef.undef, b * s) Data.t) =
+  let ({ def; homewhen } : (Metadef.undef, b * s) MetaData.t) =
     Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
   (Wrap def, homewhen)
 
-type find_number = Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * data -> find_number
+type find_number =
+  | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * homewhen -> find_number
 
 let find_number : int -> find_number =
  fun i ->
   let (Wrap (type b s) (m : (b, s) Meta.t)) =
     IntMap.find_opt i (S.get ()).holes <|> No_such_hole i in
-  let ({ def; homewhen } : (Metadef.undef, b * s) Data.t) =
+  let ({ def; homewhen } : (Metadef.undef, b * s) MetaData.t) =
     Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
   Find_number (m, Wrap def, homewhen)
 
 let all_holes () =
   List.map
     (fun (_, Meta.Wrap (type b s) (m : (b, s) Meta.t)) ->
-      let ({ def; homewhen } : (Metadef.undef, b * s) Data.t) =
+      let ({ def; homewhen } : (Metadef.undef, b * s) MetaData.t) =
         Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
       Find_number (m, Wrap def, homewhen))
     (IntMap.bindings (S.get ()).holes)
@@ -94,9 +101,9 @@ let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
           Metamap.update (MetaKey h)
             (Option.map
                (fun
-                 ({ def; homewhen } : (Metadef.undef, b * s) Data.t)
+                 ({ def; homewhen } : (Metadef.undef, b * s) MetaData.t)
                  :
-                 (Metadef.undef, b * s) Data.t
+                 (Metadef.undef, b * s) MetaData.t
                -> { def = Metadef.define (Some tm) def; homewhen }))
             data.map;
         holes = IntMap.remove (Meta.hole_number h) data.holes;

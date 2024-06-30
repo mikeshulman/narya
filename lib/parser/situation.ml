@@ -4,6 +4,7 @@ open Reporter
 open Notation
 open User2
 module TokMap = Map.Make (Token)
+module Trie = Yuujinchou.Trie
 
 (* A notation "situation" is the collection of all the notations currently available.  Unfortunately, good words like "state" and "context" and "scope" are taken for other things, so "situation" is the best I've been able to come up with to uniquely identify this object. *)
 
@@ -120,14 +121,24 @@ let add_user : User.prenotation -> t -> t * (User.notation * bool) =
   let shadow = PrintMap.mem notn.key sit.unparse in
   (add_with_print notn sit, (notn, shadow))
 
-module S = Algaeff.State.Make (struct
+let add_users : t -> Scope.trie -> t =
+ fun sit trie ->
+  Seq.fold_left
+    (fun state (_, (data, _)) ->
+      match data with
+      | `Notation (user, _) -> fst (add_user user state)
+      | _ -> state)
+    sit
+    (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
+
+module S = State.Make (struct
   type nonrec t = t
 end)
 
 let () =
   S.register_printer (function
-    | `Get -> Some "unhandled notation state get effect"
-    | `Set _ -> Some "unhandled notation state set effect")
+    | `Get -> Some "unhandled notation situation get effect"
+    | `Set _ -> Some "unhandled notation situation set effect")
 
 module Current = struct
   let add : type left tight right. (left, tight, right) notation -> unit =
@@ -157,3 +168,4 @@ module Current = struct
 end
 
 let run_on init f = S.run ~init f
+let try_with = S.try_with

@@ -75,7 +75,7 @@ let loaded_contents : Scope.trie Lazy.t ref = ref (Lazy.from_val Trie.empty)
 (* Add something to the complete merged namespace. *)
 let add_to_all trie =
   let old = !loaded_contents in
-  loaded_contents := lazy (Scope.M.union ~prefix:Emp (Lazy.force old) trie)
+  loaded_contents := lazy (Scope.Mod.union ~prefix:Emp (Lazy.force old) trie)
 
 let get_all () = Lazy.force !loaded_contents
 
@@ -150,7 +150,7 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
                       (`Notation (u, make_user u), tag))
                 (Marshal.from_channel chan
                   : ( [ `Constant of Constant.t | `Notation of User.prenotation ],
-                      Scope.P.tag )
+                      Scope.Param.tag )
                     Trie.t) in
             (* We check whether the compiled file had any actions, and issue a warning if so *)
             if (Marshal.from_channel chan : bool) then emit (Actions_in_compiled_file ofile);
@@ -229,11 +229,11 @@ and load_string ?init_visible title content =
   add_to_all trie;
   trie
 
-(* Given a source (file or string), parse and execute all the commands in it. *)
+(* Given a source (file or string), parse and execute all the commands in it, in a local scope that starts with either the supplied scope or a default one. *)
 and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
     (source : Asai.Range.source) =
   reformat_maybe (fun ppf -> Format.pp_open_vbox ppf 0);
-  Command.run_with_scope ~init_visible @@ fun () ->
+  History.run_with_scope ~init_visible @@ fun () ->
   let p, src = Parser.Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with

@@ -40,9 +40,10 @@ val with_locked : (unit -> 'a) -> 'a
 
 type data
 
+val empty : data
 val get : unit -> data
 val run : init:data -> (unit -> 'a) -> 'a
-val run_empty : (unit -> 'a) -> 'a
+val try_with : ?get:(unit -> data) -> ?set:(data -> unit) -> (unit -> 'a) -> 'a
 
 type eternity = {
   find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped option;

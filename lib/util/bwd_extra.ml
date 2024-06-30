@@ -38,3 +38,11 @@ let rec prepend_map f xs ys =
   | Snoc (xs, x) -> prepend_map f xs (f x :: ys)
 
 let to_list_map f xs = prepend_map f xs []
+
+(* Remove n elements from the end of a Bwd.t *)
+let rec remove xs n =
+  if n <= 0 then xs
+  else
+    match xs with
+    | Emp -> raise (Failure "Bwd_extra.remove")
+    | Snoc (xs, _) -> remove xs (n - 1)

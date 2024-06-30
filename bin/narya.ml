@@ -209,10 +209,8 @@ let unmarshal_flags chan =
 
 let () =
   Parser.Unparse.install ();
-  Parser.Scope.M.run @@ fun () ->
-  Eternity.run_empty @@ fun () ->
-  Global.run_empty @@ fun () ->
-  Builtins.run @@ fun () ->
+  Parser.Scope.Mod.run @@ fun () ->
+  History.run_empty @@ fun () ->
   Printconfig.run
     ~env:
       {
@@ -271,7 +269,7 @@ let () =
             let content = In_channel.input_all stdin in
             let _ = Execute.load_string (Some "stdin") content in
             ()
-        (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
+        (* Command-line strings have all the previous units loaded without needing to import them. *)
         | `String content ->
             let _ =
               Execute.load_string ~init_visible:(Execute.get_all ())
@@ -279,8 +277,7 @@ let () =
             ())
       [ !inputs ] );
   (* Interactive mode also has all the other units loaded. *)
-  let init_visible = Execute.get_all () in
+  History.set_visible (Execute.get_all ());
   Core.Command.Mode.run ~env:{ interactive = true } @@ fun () ->
-  Command.run_with_scope ~init_visible @@ fun () ->
   Mbwd.miter (fun [ file ] -> fake_interact file) [ !fake_interacts ];
   if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()

@@ -2,13 +2,19 @@ open Core
 open Syntax
 open Term
 
-type data = { global : Global.data; scope : Scope.trie; discrete : bool Constant.Map.t }
+type homewhen = { global : Global.data; scope : Scope.trie; discrete : bool Constant.Map.t }
 
 val unsolved : unit -> bool
-val run_empty : (unit -> 'a) -> 'a
-val find : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped * data
+val find : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped * homewhen
 
-type find_number = Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * data -> find_number
+type data
+
+val empty : data
+val run : init:data -> (unit -> 'a) -> 'a
+val try_with : ?get:(unit -> data) -> ?set:(data -> unit) -> (unit -> 'a) -> 'a
+
+type find_number =
+  | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * homewhen -> find_number
 
 val find_number : int -> find_number
 val all_holes : unit -> find_number list

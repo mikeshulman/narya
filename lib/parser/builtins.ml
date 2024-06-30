@@ -1897,27 +1897,27 @@ let () =
 
 let builtins =
   ref
-    (State.empty
-    |> State.add parens
-    |> State.add letin
-    |> State.add letrec
-    |> State.add asc
-    |> State.add abs
-    |> State.add cubeabs
-    |> State.add arrow
-    |> State.add universe
-    |> State.add coloneq
-    |> State.add comatch
-    |> State.add dot
-    |> State.add implicit_mtch
-    |> State.add explicit_mtch
-    |> State.add mtchlam
-    |> State.add empty_co_match
-    |> State.add codata
-    |> State.add record
-    |> State.add data
-    |> State.add fwd
-    |> State.add bwd
-    |> State.add hole)
+    (Situation.empty
+    |> Situation.add parens
+    |> Situation.add letin
+    |> Situation.add letrec
+    |> Situation.add asc
+    |> Situation.add abs
+    |> Situation.add cubeabs
+    |> Situation.add arrow
+    |> Situation.add universe
+    |> Situation.add coloneq
+    |> Situation.add comatch
+    |> Situation.add dot
+    |> Situation.add implicit_mtch
+    |> Situation.add explicit_mtch
+    |> Situation.add mtchlam
+    |> Situation.add empty_co_match
+    |> Situation.add codata
+    |> Situation.add record
+    |> Situation.add data
+    |> Situation.add fwd
+    |> Situation.add bwd
+    |> Situation.add hole)
 
-let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f
+let run : type a. (unit -> a) -> a = fun f -> Situation.run_on !builtins f

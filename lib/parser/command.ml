@@ -45,7 +45,7 @@ module Command = struct
         name : Trie.path;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
-        pattern : State.pattern;
+        pattern : Situation.pattern;
         wscoloneq : Whitespace.t list;
         head : [ `Constr of string | `Constant of Trie.path ];
         wshead : Whitespace.t list;
@@ -437,11 +437,11 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
 (* Put a given starting namespace into the scope, and also extract the notations from it.  TODO: It would be nice to make this be just Scope.run, but that creates a dependency cycle with Postprocess and Builtins. *)
 let run_with_scope ~init_visible f =
   Scope.run ~init_visible @@ fun () ->
-  State.run_on
+  Situation.run_on
     (Seq.fold_left
        (fun state (_, (data, _)) ->
          match data with
-         | `Notation (user, _) -> fst (State.add_user user state)
+         | `Notation (user, _) -> fst (Situation.add_user user state)
          | _ -> state)
        !Builtins.builtins
        (Trie.to_seq (Trie.find_subtree [ "notations" ] init_visible)))
@@ -563,7 +563,7 @@ let execute :
       let user =
         User { name = String.concat "." name; fixity; pattern; key; val_vars = List.map fst args }
       in
-      let notn, shadow = State.Current.add_user user in
+      let notn, shadow = Situation.Current.add_user user in
       Scope.include_singleton (notation_name, (`Notation (user, notn), ()));
       (if shadow then
          let keyname =
@@ -589,7 +589,7 @@ let execute :
         (fun (_, (data, _)) ->
           match data with
           | `Notation (user, _) ->
-              let _ = State.Current.add_user user in
+              let _ = Situation.Current.add_user user in
               ()
           | _ -> ())
         (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
@@ -637,7 +637,7 @@ let tightness_of_fixity : type left tight right. (left, tight, right) fixity -> 
   | Postfixl tight -> Some (No.to_string tight)
   | Outfix -> None
 
-let pp_pattern : formatter -> State.pattern -> unit =
+let pp_pattern : formatter -> Situation.pattern -> unit =
  fun ppf pattern ->
   pp_open_hvbox ppf 0;
   List.iter

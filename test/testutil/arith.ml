@@ -18,13 +18,13 @@ let parens = make "()" Outfix
 let () = set_tree parens (Closed_entry (eop LParen (term RParen (Done_closed parens))))
 
 let arith =
-  State.empty
-  |> State.add plus
-  |> State.add minus
-  |> State.add times
-  |> State.add div
-  |> State.add exp
-  |> State.add parens
+  Situation.empty
+  |> Situation.add plus
+  |> Situation.add minus
+  |> Situation.add times
+  |> Situation.add div
+  |> Situation.add exp
+  |> Situation.add parens
 
 exception Syntax_error
 exception Fraction

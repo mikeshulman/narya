@@ -147,7 +147,7 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
                         | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
                         | `Constr (c, i) -> `Constr (c, i) in
                       let u = User { u with key } in
-                      (`Notation (u, State.make_user u), tag))
+                      (`Notation (u, Situation.make_user u), tag))
                 (Marshal.from_channel chan
                   : ([ `Constant of Constant.t | `Notation of user_notation ], Scope.P.tag) Trie.t)
             in

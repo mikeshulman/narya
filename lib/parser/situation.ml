@@ -8,6 +8,8 @@ open Print
 open User
 module TokMap = Map.Make (Token)
 
+(* A notation "situation" is the collection of all the notations currently available.  Unfortunately, good words like "state" and "context" and "scope" are taken for other things, so "situation" is the best I've been able to come up with to uniquely identify this object. *)
+
 module EntryPair = struct
   type ('x, 'a) t = { strict : ('a, No.strict) entry; nonstrict : ('a, No.nonstrict) entry }
 end
@@ -22,7 +24,7 @@ end
 
 module PrintMap = Map.Make (PrintKey)
 
-(* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation state", which can be used for parsing, and let other modules manipulate those states by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a state, remove some, and then create a new state with just those.) *)
+(* This module doesn't deal with the reasons why notations are turned on and off.  Instead we just provide a data structure that stores a "notation situation", which can be used for parsing, and let other modules manipulate those situations by adding notations to them.  (Because we store precomputed trees, removing a notation doesn't work as well; it's probably better to just pull out the set of all notations in a situation, remove some, and then create a new situation with just those.) *)
 type t = {
   (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval.  In particular, for the empty interval (+ω,+ω] this contains only the left-closed trees, and for the entire interval [-ω,+ω] it contains all notation trees. *)
   tighters : unit EntryMap.t;
@@ -42,10 +44,10 @@ let empty : t =
     unparse = PrintMap.empty;
   }
 
-(* Add a new notation to the current state of available ones. *)
+(* Add a new notation to the current situation of available ones. *)
 let add : type left tight right. (left, tight, right) notation -> t -> t =
  fun n s ->
-  (* First, if its tightness is new for this state, we create new tighter-trees for the corresponding two interval_vars.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
+  (* First, if its tightness is new for this situation, we create new tighter-trees for the corresponding two interval_vars.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
   let tighters =
     EntryMap.add_cut (tightness n)
       (fun _ up ->
@@ -54,7 +56,7 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
             let nonstrict = lower (Subset_strict lt) u.nonstrict in
             let strict = lower (Subset_strict lt) u.nonstrict in
             { strict; nonstrict }
-        | _ -> fatal (Anomaly "Missing +ω in notation state"))
+        | _ -> fatal (Anomaly "Missing +ω in notation situation"))
       s.tighters in
   (* Then we merge the new notation to all the tighter-trees in which it should lie. *)
   let tighters =
@@ -110,10 +112,10 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
 
 (* Add a notation along with the information about how to unparse a constant or constructor into that notation. *)
 let add_with_print : permuted_notation -> t -> t =
- fun notn state ->
+ fun notn sit ->
   let (Wrap n) = notn.notn in
-  let state = add n state in
-  { state with unparse = state.unparse |> PrintMap.add notn.key notn }
+  let sit = add n sit in
+  { sit with unparse = sit.unparse |> PrintMap.add notn.key notn }
 
 type pattern =
   [ `Op of Token.t * space * Whitespace.t list
@@ -173,10 +175,10 @@ let make_user : user_notation -> permuted_notation =
   { key; notn = Wrap n; pat_vars; val_vars }
 
 let add_user : user_notation -> t -> t * (permuted_notation * bool) =
- fun user state ->
+ fun user sit ->
   let notn = make_user user in
-  let shadow = PrintMap.mem notn.key state.unparse in
-  (add_with_print notn state, (notn, shadow))
+  let shadow = PrintMap.mem notn.key sit.unparse in
+  (add_with_print notn sit, (notn, shadow))
 
 module S = Algaeff.State.Make (struct
   type nonrec t = t
@@ -193,9 +195,9 @@ module Current = struct
 
   let add_user : user_notation -> permuted_notation * bool =
    fun user ->
-    let state = S.get () in
-    let state, (notn, shadow) = add_user user state in
-    S.set state;
+    let sit = S.get () in
+    let sit, (notn, shadow) = add_user user sit in
+    S.set sit;
     (notn, shadow)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =

@@ -18,8 +18,8 @@ let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
   let* { key = _; notn; pat_vars; val_vars } =
     match head with
-    | `Term (Const c) -> State.Current.unparse (`Constant c)
-    | `Constr c -> State.Current.unparse (`Constr (c, Bwd.length args))
+    | `Term (Const c) -> Situation.Current.unparse (`Constant c)
+    | `Constr c -> Situation.Current.unparse (`Constr (c, Bwd.length args))
     (* TODO: Can we associate notations to Fields too? *)
     | _ -> None in
   (* There's probably a more efficient way to do this that doesn't involve converting to and from forwards lists, but this way is more natural and easier to understand, and I think this is unlikely to be a performance bottleneck. *)

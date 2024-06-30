@@ -1,11 +1,10 @@
 open Core
 open Reporter
-open Notation
 module Trie = Yuujinchou.Trie
 
 (* Parameter module for Yuujinchou *)
 module P = struct
-  type data = [ `Constant of Constant.t | `Notation of User.user_notation * permuted_notation ]
+  type data = [ `Constant of Constant.t | `Notation of User.prenotation * User.notation ]
 
   (* Currently we have no nontrivial tags, hooks, or contexts. *)
   type tag = unit

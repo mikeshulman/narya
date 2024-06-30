@@ -45,7 +45,7 @@ module Command = struct
         name : Trie.path;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
-        pattern : Situation.pattern;
+        pattern : User.pattern;
         wscoloneq : Whitespace.t list;
         head : [ `Constr of string | `Constant of Trie.path ];
         wshead : Whitespace.t list;
@@ -637,25 +637,6 @@ let tightness_of_fixity : type left tight right. (left, tight, right) fixity -> 
   | Postfixl tight -> Some (No.to_string tight)
   | Outfix -> None
 
-let pp_pattern : formatter -> Situation.pattern -> unit =
- fun ppf pattern ->
-  pp_open_hvbox ppf 0;
-  List.iter
-    (function
-      | `Var (x, _, ws) ->
-          pp_utf_8 ppf x;
-          pp_ws `Break ppf ws
-      | `Op (op, _, ws) ->
-          pp_print_string ppf "\"";
-          pp_tok ppf op;
-          pp_print_string ppf "\"";
-          pp_ws `Break ppf ws
-      | `Ellipsis ws ->
-          pp_tok ppf Ellipsis;
-          pp_ws `Break ppf ws)
-    pattern;
-  pp_close_box ppf ()
-
 let pp_parameter : formatter -> Parameter.t -> unit =
  fun ppf { wslparen; names; wscolon; ty; wsrparen } ->
   pp_tok ppf LParen;
@@ -752,7 +733,7 @@ let pp_command : formatter -> t -> Whitespace.t list =
           pp_tok ppf Ellipsis;
           pp_ws `Break ppf wsellipsis
       | _ -> ());
-      pp_pattern ppf pattern;
+      User.pp_pattern ppf pattern;
       (match fixity with
       | Infixr _ | Prefixr _ ->
           pp_tok ppf Ellipsis;

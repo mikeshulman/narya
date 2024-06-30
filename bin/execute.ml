@@ -3,7 +3,7 @@ open Util
 open Core
 open Reporter
 open Parser
-open User
+open User2
 open Format
 module Trie = Yuujinchou.Trie
 
@@ -140,17 +140,18 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
                 (fun _ (data, tag) ->
                   match data with
                   | `Constant c -> (`Constant (Constant.remake (Hashtbl.find table) c), tag)
-                  | `Notation (User u) ->
+                  | `Notation (User.User u) ->
                       (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
                       let key =
                         match u.key with
                         | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
                         | `Constr (c, i) -> `Constr (c, i) in
-                      let u = User { u with key } in
-                      (`Notation (u, Situation.make_user u), tag))
+                      let u = User.User { u with key } in
+                      (`Notation (u, make_user u), tag))
                 (Marshal.from_channel chan
-                  : ([ `Constant of Constant.t | `Notation of user_notation ], Scope.P.tag) Trie.t)
-            in
+                  : ( [ `Constant of Constant.t | `Notation of User.prenotation ],
+                      Scope.P.tag )
+                    Trie.t) in
             (* We check whether the compiled file had any actions, and issue a warning if so *)
             if (Marshal.from_channel chan : bool) then emit (Actions_in_compiled_file ofile);
             Some trie)

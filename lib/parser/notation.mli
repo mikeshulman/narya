@@ -168,12 +168,3 @@ val lower : ('t2, 's2, 't1, 's1) Interval.subset -> ('t2, 's2) entry -> ('t1, 's
 
 val merge :
   ('t2, 's2, 't1, 's1) Interval.subset -> ('t1, 's1) entry -> ('t2, 's2) entry -> ('t1, 's1) entry
-
-type printkey = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t * int ]
-
-type permuted_notation = {
-  key : printkey;
-  notn : Notation.t;
-  pat_vars : string list;
-  val_vars : string list;
-}

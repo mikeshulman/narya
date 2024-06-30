@@ -1,8 +1,9 @@
 open Core
 open Reporter
 open Notation
-
-(* User notations *)
+open Format
+open Print
+open Uuseg_string
 
 type pattern =
   [ `Op of Token.t * space * Whitespace.t list
@@ -10,7 +11,7 @@ type pattern =
   | `Ellipsis of Whitespace.t list ]
   list
 
-let user_tree :
+let tree :
     type left tight right.
     (left, tight, right) fixity ->
     (left, tight, right) notation ->
@@ -42,13 +43,36 @@ let user_tree :
   | `Var _ :: `Var _ :: _, _ -> fatal Missing_notation_symbol
   | [ `Var _ ], _ -> fatal Zero_notation_symbols
 
-type user_notation =
+let pp_pattern : formatter -> pattern -> unit =
+ fun ppf pattern ->
+  pp_open_hvbox ppf 0;
+  List.iter
+    (function
+      | `Var (x, _, ws) ->
+          pp_utf_8 ppf x;
+          pp_ws `Break ppf ws
+      | `Op (op, _, ws) ->
+          pp_print_string ppf "\"";
+          pp_tok ppf op;
+          pp_print_string ppf "\"";
+          pp_ws `Break ppf ws
+      | `Ellipsis ws ->
+          pp_tok ppf Ellipsis;
+          pp_ws `Break ppf ws)
+    pattern;
+  pp_close_box ppf ()
+
+type key = [ `Constant of Core.Constant.t | `Constr of Core.Constr.t * int ]
+
+type prenotation =
   | User : {
       name : string;
       fixity : ('left, 'tight, 'right) fixity;
       (* The space tag on the last element is ignored. *)
       pattern : pattern;
-      key : printkey;
+      key : key;
       val_vars : string list;
     }
-      -> user_notation
+      -> prenotation
+
+type notation = { key : key; notn : Notation.t; pat_vars : string list; val_vars : string list }

@@ -237,12 +237,7 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
   let p, src = Parser.Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
-    (fun () ->
-      let ws = batch true [] p src in
-      reformat_maybe @@ fun ppf ->
-      let ws = Whitespace.ensure_ending_newlines 2 ws in
-      Print.pp_ws `None ppf ws;
-      Format.pp_close_box ppf ())
+    (fun () -> batch true [] p src)
     ~fatal:(fun d ->
       match d.message with
       | Quit _ ->
@@ -256,10 +251,17 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
 
 (* Subroutine that parses and executes all the commands in a source. *)
 and batch first ws p src =
+  let reformat_end () =
+    reformat_maybe (fun ppf ->
+        let ws = Whitespace.ensure_ending_newlines 2 ws in
+        Print.pp_ws `None ppf ws;
+        Format.pp_close_box ppf ()) in
   let cmd = Parser.Command.Parse.final p in
-  if cmd = Eof then if Eternity.unsolved () then Reporter.fatal Open_holes else ws
+  if cmd = Eof then if Eternity.unsolved () then Reporter.fatal Open_holes else reformat_end ()
   else (
-    if (Flags.read ()).execute then execute_command cmd;
+    Fun.protect
+      (fun () -> if (Flags.read ()).execute then execute_command cmd)
+      ~finally:reformat_end;
     let ws =
       reformat_maybe_ws @@ fun ppf ->
       let ws = if first then ws else Whitespace.ensure_starting_newlines 2 ws in

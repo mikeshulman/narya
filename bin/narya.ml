@@ -23,7 +23,7 @@ let refl_strings = ref [ "refl"; "Id" ]
 let internal = ref true
 let discreteness = ref false
 let source_only = ref false
-let fake_interact = ref false
+let fake_interacts = ref Emp
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -69,12 +69,17 @@ let speclist =
       "Abbreviation for -arity 1 -direction d -external" );
     ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Unit (fun () -> inputs := Snoc (!inputs, `Stdin)), "");
-    ("-fake-interact", Arg.Set fake_interact, "");
+    ("-fake-interact", Arg.String (fun str -> fake_interacts := Snoc (!fake_interacts, str)), "");
   ]
 
 let () =
   Arg.parse speclist anon_arg usage_msg;
-  if Bwd.is_empty !inputs && (not !interactive) && not !proofgeneral then (
+  if
+    Bwd.is_empty !inputs
+    && (not !interactive)
+    && (not !proofgeneral)
+    && Bwd.is_empty !fake_interacts
+  then (
     Printf.fprintf stderr "No input files specified\n";
     Arg.usage speclist usage_msg;
     exit 1)
@@ -173,6 +178,13 @@ let rec interact_pg () : unit =
     interact_pg ()
   with End_of_file -> ()
 
+let fake_interact file =
+  let p, src = Parser.Command.Parse.start_parse (`File file) in
+  Reporter.try_with
+    ~emit:(fun d -> Terminal.display ~output:stdout d)
+    ~fatal:(fun d -> Terminal.display ~output:stdout d)
+    (fun () -> Execute.batch true [] p src)
+
 let marshal_flags chan =
   Marshal.to_channel chan !arity [];
   Marshal.to_channel chan !refl_char [];
@@ -248,7 +260,7 @@ let () =
   @@ fun () ->
   Execute.Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp; actions = false }
   @@ fun () ->
-  ( Core.Command.Mode.run ~env:{ interactive = !fake_interact } @@ fun () ->
+  ( Core.Command.Mode.run ~env:{ interactive = false } @@ fun () ->
     Mbwd.miter
       (fun [ input ] ->
         match input with
@@ -270,4 +282,5 @@ let () =
   let init_visible = Execute.get_all () in
   Core.Command.Mode.run ~env:{ interactive = true } @@ fun () ->
   Command.run_with_scope ~init_visible @@ fun () ->
+  Mbwd.miter (fun [ file ] -> fake_interact file) [ !fake_interacts ];
   if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()

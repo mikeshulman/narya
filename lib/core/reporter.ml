@@ -219,7 +219,7 @@ module Code = struct
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
     | No_such_level _ -> Bug
-    | Name_already_defined _ -> Warning
+    | Name_already_defined _ -> Error
     | Invalid_constant_name _ -> Error
     | Too_many_commands -> Error
     | Invalid_tightness _ -> Error

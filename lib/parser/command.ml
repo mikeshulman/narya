@@ -560,8 +560,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
       let notation_name = "notations" :: name in
       (* A notation name can't be redefining anything. *)
       if Option.is_some (Scope.lookup notation_name) then
-        fatal ~severity:Asai.Diagnostic.Error
-          (Name_already_defined (String.concat "." notation_name));
+        fatal (Name_already_defined (String.concat "." notation_name));
       let key =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)

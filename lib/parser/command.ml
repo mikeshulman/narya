@@ -459,6 +459,23 @@ let show_hole ppf err = function
       pp_print_newline ppf ()
   | _ -> fatal err
 
+let to_string : Command.t -> string = function
+  | Axiom _ -> "axiom"
+  | Def _ -> "def"
+  | Echo _ -> "echo"
+  | Notation _ -> "notation"
+  | Import _ -> "import"
+  | Solve _ -> "solve"
+  | Show _ -> "show"
+  | Quit _ -> "quit"
+  | Bof _ -> "bof"
+  | Eof -> "eof"
+
+(* Whether a command requires an interactive mode (i.e. not interactive mode and not ProofGeneral interaction). *)
+let needs_interactive : Command.t -> bool = function
+  | Solve _ | Show _ -> true
+  | _ -> false
+
 (* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
 let execute :
     action_taken:(unit -> unit) ->
@@ -466,6 +483,8 @@ let execute :
     Command.t ->
     unit =
  fun ~action_taken ~get_file cmd ->
+  if needs_interactive cmd && not (Core.Command.Mode.read ()).interactive then
+    fatal (Forbidden_interactive_command (to_string cmd));
   match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
       Scope.check_constant_name name;
@@ -607,8 +626,6 @@ let execute :
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))
   | Show { what; _ } -> (
-      if not (Core.Command.Mode.read ()).interactive then
-        fatal (Forbidden_interactive_command "show");
       match what with
       | `Hole (_, number) ->
           show_hole Format.std_formatter (No_such_hole number) (Eternity.find_number number)

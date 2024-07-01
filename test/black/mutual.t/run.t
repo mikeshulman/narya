@@ -115,12 +115,7 @@
        ctx
        ty
   
-   ￫ warning[E2100]
-   ￮ name already defined: ctx
-  
-   ￫ warning[E2100]
-   ￮ name already defined: ty
-  
+  $ narya -v ctx_el_and_tm.ny
    ￫ info[I0000]
    ￮ constants defined mutually:
        ctx

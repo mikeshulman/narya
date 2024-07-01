@@ -65,11 +65,11 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
 1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
-   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below), while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.  Finally, a family of constants can be defined mutually by using the `and` keyword to introduce the second and later ones (see below).
+   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below) with no current definition in scope, while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.  Finally, a family of constants can be defined mutually by using the `and` keyword to introduce the second and later ones (see below).
 
 2. `axiom NAME [PARAMS] : TYPE`
 
-   Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).  Parameters are treated as for `def`.
+   Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).  Parameters and names are treated as for `def`.
 
 3. `echo TERM`
 
@@ -366,7 +366,7 @@ When Narya reaches the end of a file (or command-line `-e` string) in which any 
 
 ### Solving holes
 
-Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The straightforward way to fill a hole is to editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.  In interactive mode, you can simply press the up-arrow or Meta+P to get to the previous command, edit it to replace the `?`, and re-execute it, ignoring the resulting warning about redefining the constant.
+Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The straightforward way to fill a hole is to editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.  In interactive mode, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.
 
 However, it is also possible to solve a hole directly with the command `solve`.  This command identifies a hole by its number and supplies a term with which to fill the hole.  For example:
 ```

@@ -1,6 +1,6 @@
 # Narya: A proof assistant for higher-dimensional type theory
 
-Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Directional, Higher/Parametric/Displayed Observational Type Theory, but a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with Id/Bridge types satisfying parametricity, of variable arity and internality.  There is a parser with user-definable mixfix notations, and user-definable record types, inductive datatypes and type families, and coinductive codatatypes, with functions definable by matching and comatching case trees.
+Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Directional, Higher/Parametric/Displayed Observational Type Theory, but a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with Id/Bridge types satisfying parametricity, of variable arity and internality.  There is a parser with user-definable mixfix notations, and user-definable record types, inductive datatypes and type families, and coinductive codatatypes, with functions definable by matching and comatching case trees, import and export and separate compilation, the ability to leave holes and solve them later, and a ProofGeneral interaction mode.
 
 Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  (I try to make breaking changes as GitHub pull requests, so if you watch the repository you should at least get notified of them.)  But on the other side of the coin, feedback on anything and everything is welcome.  In particular, please report all crashes, bugs, unexpected errors, and other unexpected, surprising, or unintuitive behavior, either in GitHub issues or by direct email.
 
@@ -127,7 +127,50 @@ In interactive mode, the following additional commands are also available:
 
 3. `undo N`
 
-   Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo` and `show`: those commands are skipped over when undoing.  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.
+   Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo` and `show`: those commands are skipped over when undoing.  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.  (This command is mostly intended for use in the ProofGeneral backend, see below.)
+
+
+### ProofGeneral mode
+
+[ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.
+
+To install Narya's ProofGeneral mode, first install ProofGeneral and find its installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.  In this directory, create a subdirectory called `narya` and copy (or symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.  Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny")` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.  Then restart Emacs.
+
+Note that you will have to repeat this step whenever ProofGeneral is updated, and also whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them).  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
+
+Once Narya's ProofGeneral mode is installed, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment), it will automatically be retracted up to the point where you are editing.
+
+The most useful ProofGeneral key commands for Narya are the following:
+
+- `C-c C-n` : Process the next unprocessed command.  Since Narya has no command-terminating string, the "next command" is interpreted as continuing until the following command keyword or until the end of the buffer.
+- `C-c C-u` : Retract the last processed command.
+- `C-c RET` : Move the processed/unprocessed boundary to (approximately) the current cursor location, processing or retracting as necessary.
+- `C-c C-b` : Process the entire buffer.
+- `C-c C-r` : Retract the entire buffer.
+- `C-c C-.` : Move the cursor to the end of the processed region.
+- `C-M-a` : Move the cursor to the beginning of the command it is inside.
+- `C-M-e` : Move the cursor to the end of the command it is inside.
+- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo` and `show`.
+- `C-c C-c` : Interrupt Narya if a command is taking too long.  Narya attempts to recover, but its state may be unreliable afterwards.
+
+
+### Entering Unicode characters
+
+When editing Narya files in Emacs, you will probably also want an input-mode for entering Unicode characters.  Narya does not have its own such mode.  I use the one that ships with Agda, customized by adding the following to `agda-input-user-translations`:
+```
+("r|" "↦")
+("|->" "↦")
+("|=>" "⤇")
+("R|" "⤇")
+("..." "…")
+```
+With this customization added, the Unicode characters that have primitive meanings to Narya can all be entered with short commands:
+
+- For →, type `\r` or `\to`
+- For ↦, type `\r|` or `\|->`
+- For ⤇, type `\R|` or `\|=>`
+- For ≔, type `\:=`
+- For …, type `\...`
 
 
 ## Built-in types
@@ -200,7 +243,7 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let rec in def and axiom echo notation import export solve show quit match return sig data codata
+let rec in def and axiom echo notation import export solve show quit undo match return sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 

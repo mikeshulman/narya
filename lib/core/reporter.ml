@@ -161,6 +161,7 @@ module Code = struct
     | Section_opened : string list -> t
     | Section_closed : string list -> t
     | No_such_section : t
+    | Break : t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -280,6 +281,7 @@ module Code = struct
     | Section_opened _ -> Info
     | Section_closed _ -> Info
     | No_such_section -> Error
+    | Break -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -427,6 +429,7 @@ module Code = struct
     | Hole_generated _ -> "I0100"
     (* Control of execution *)
     | Quit _ -> "I0200"
+    | Break -> "E0201"
     (* Debugging *)
     | Show _ -> "I9999"
 
@@ -697,6 +700,7 @@ module Code = struct
     | Section_opened prefix -> textf "section %s opened" (String.concat "." prefix)
     | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
     | No_such_section -> text "no section here to end"
+    | Break -> text "user interrupt"
 end
 
 include Asai.StructuredReporter.Make (Code)

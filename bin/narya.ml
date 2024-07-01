@@ -159,22 +159,30 @@ let interact () =
           let* () = LTerm_history.save history history_file in
           Lwt.fail exn)
 
+(* In ProofGeneral interaction mode, the prompt is delimited by formfeeds, and commands are ended by a formfeed on a line by itself.  This prevents any possibility of collision with other input or output. *)
 let rec interact_pg () : unit =
-  print_endline "[narya]";
+  Format.printf "\x0C[narya]\x0C%!";
   try
-    let str = read_line () in
+    let buf = Buffer.create 20 in
+    let str = ref "" in
+    while !str <> "\x0C\n" do
+      Buffer.add_string buf !str;
+      str := read_line () ^ "\n"
+    done;
     Reporter.try_with
       ~emit:(fun d -> Terminal.display ~output:stdout d)
       ~fatal:(fun d -> Terminal.display ~output:stdout d)
       (fun () ->
-        match Command.parse_single str with
-        | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
-        | ws, Some cmd ->
-            if !execute then Execute.execute_command cmd;
-            Execute.reformat_maybe @@ fun ppf ->
-            Print.pp_ws `None ppf ws;
-            let last = Parser.Command.pp_command ppf cmd in
-            Print.pp_ws `None ppf last);
+        try
+          match Command.parse_single (Buffer.contents buf) with
+          | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
+          | ws, Some cmd ->
+              if !execute then Execute.execute_command cmd;
+              Execute.reformat_maybe @@ fun ppf ->
+              Print.pp_ws `None ppf ws;
+              let last = Parser.Command.pp_command ppf cmd in
+              Print.pp_ws `None ppf last
+        with Sys.Break -> Reporter.fatal Break);
     interact_pg ()
   with End_of_file -> ()
 
@@ -280,4 +288,7 @@ let () =
   History.set_visible (Execute.get_all ());
   Core.Command.Mode.run ~env:{ interactive = true } @@ fun () ->
   Mbwd.miter (fun [ file ] -> fake_interact file) [ !fake_interacts ];
-  if !interactive then Lwt_main.run (interact ()) else if !proofgeneral then interact_pg ()
+  if !interactive then Lwt_main.run (interact ())
+  else if !proofgeneral then (
+    Sys.catch_break true;
+    interact_pg ())

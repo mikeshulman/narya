@@ -50,7 +50,7 @@ let () =
   assert (parse "@ @ x" = Notn ("at", [ Term (Notn ("at", [ Term (Ident [ "x" ]) ])) ]))
   (* Same for field projections, which are literally parsed as applications (and compiled later to something else) *);
 
-  assert (parse "@ f .x" = App (Notn ("at", [ Term (Ident [ "f" ]) ]), Field "x"))
+  assert (parse "@ f .x" = App (Notn ("at", [ Term (Ident [ "f" ]) ]), Field ("x", [])))
   (* But we can't apply @ *to* a field projection, since that's not a valid term on its own. *);
 
   unparse "f @ .x" (* Now we experiment with the postfix ones *);

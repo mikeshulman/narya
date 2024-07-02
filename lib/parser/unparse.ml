@@ -380,11 +380,11 @@ and unparse_field :
       match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
           let fn = unparse vars tm li Interval.plus_omega_only in
-          let arg = unlocated (Field (Field.to_string fld, [])) in
+          let arg = unlocated (Field (Field.to_string fld, [], [])) in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
           let fn = unparse vars tm Interval.plus_omega_only Interval.plus_omega_only in
-          let arg = unlocated (Field (Field.to_string fld, [])) in
+          let arg = unlocated (Field (Field.to_string fld, [], [])) in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
           parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))

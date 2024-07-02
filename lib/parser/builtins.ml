@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Dim
 open Postprocess
 open Print
 open Format
@@ -741,12 +742,14 @@ let rec process_comatch :
  fun (flds, found) ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Struct (Noeta, flds); loc }
-  | Term { value = Field (x, _); loc } :: Term tm :: obs ->
+  | Term { value = Field (x, [], _); loc } :: Term tm :: obs ->
       let tm = process ctx tm in
       let fld = Field.intern x in
       if Field.Set.mem fld found then fatal ?loc (Duplicate_method_in_comatch fld)
         (* Comatches can't have unlabeled fields *)
       else process_comatch (Abwd.add (Some fld) tm flds, Field.Set.add fld found) ctx obs loc
+  | Term { value = Field (_, _ :: _, _); _ } :: _ :: _ ->
+      fatal (Unimplemented "parsing higher fields in comatch")
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
 
 let () =
@@ -1434,7 +1437,12 @@ let rec process_codata :
   | Term
       {
         value =
-          App { fn = { value = x; loc = xloc }; arg = { value = Field (fld, _); loc = fldloc }; _ };
+          App
+            {
+              fn = { value = x; loc = xloc };
+              arg = { value = Field (fstr, fdstr, _); loc = fldloc };
+              _;
+            };
         loc;
       }
     :: Term ty
@@ -1446,12 +1454,18 @@ let rec process_codata :
         | Placeholder _ -> None
         | Ident (x, _) -> fatal ?loc:xloc (Invalid_variable x)
         | _ -> fatal ?loc:xloc Parse_error in
-      let fld = Field.intern fld in
-      match Abwd.find_opt fld flds with
-      | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
-      | None ->
-          let ty = process (Bwv.snoc ctx x) ty in
-          process_codata (Abwd.add fld (x, ty) flds) ctx obs loc)
+      let fld = Field.intern fstr in
+      match dim_of_string (String.concat "" fdstr) with
+      | Some (Any fdim) -> (
+          match Abwd.find_opt fld flds with
+          | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
+          | None -> (
+              match D.compare fdim D.zero with
+              | Eq ->
+                  let ty = process (Bwv.snoc ctx x) ty in
+                  process_codata (Abwd.add fld (x, ty) flds) ctx obs loc
+              | Neq -> fatal (Unimplemented "parsing higher fields in codata")))
+      | None -> fatal (Invalid_field (String.concat "." ("" :: fstr :: fdstr))))
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
 
 let () = set_processor codata { process = (fun ctx obs loc _ -> process_codata Emp ctx obs loc) }

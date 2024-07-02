@@ -127,7 +127,7 @@ and (_, _, _, _) parse =
   | Placeholder : Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Ident : string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Constr : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
-  | Field : string * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
+  | Field : string * string list * Whitespace.t list -> ('lt, 'ls, 'rt, 'rs) parse
   | Superscript :
       ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
       -> ('lt, 'ls, 'rt, 'rs) parse
@@ -325,9 +325,9 @@ let rec split_ending_whitespace :
       | Constr (c, ws) ->
           let first, rest = Whitespace.split ws in
           ({ value = Constr (c, first); loc }, rest)
-      | Field (f, ws) ->
+      | Field (f, b, ws) ->
           let first, rest = Whitespace.split ws in
-          ({ value = Field (f, first); loc }, rest)
+          ({ value = Field (f, b, first); loc }, rest)
       | Superscript (x, s, ws) ->
           let first, rest = Whitespace.split ws in
           ({ value = Superscript (x, s, first); loc }, rest))

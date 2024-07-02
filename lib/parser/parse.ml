@@ -79,7 +79,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
              | None -> (
                  (* Field names have already been validated by the lexer. *)
                  match (field, tok) with
-                 | Some br, Field x -> Some ((br, Some (Field (x, w)), []), state)
+                 | Some br, Field (x, p) -> Some ((br, Some (Field (x, p, w)), []), state)
                  | _ -> None))) in
     let x =
       match x with
@@ -347,7 +347,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                             (* Constructor and field names have already been validated by the lexer. *)
                             | Constr x -> Some ((`Constr x, w), state)
                             | Underscore -> Some ((`Placeholder, w), state)
-                            | Field x -> Some ((`Field x, w), state)
+                            | Field (x, p) -> Some ((`Field (x, p), w), state)
                             | _ -> None)) in
                    let* sups = supers in
                    match first_arg.get Interval.plus_omega_only with
@@ -370,7 +370,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                                   | `Ident x -> Ident (x, w)
                                                   | `Constr x -> Constr (x, w)
                                                   | `Placeholder -> Placeholder w
-                                                  | `Field x -> Field (x, w))));
+                                                  | `Field (x, p) -> Field (x, p, w))));
                                        }
                                        sups in
                                    match arg.get ivl with

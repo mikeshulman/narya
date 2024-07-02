@@ -137,7 +137,7 @@ let () =
     parse "(x := y)"
     = Notn ("parens", [ Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ])) ]));
 
-  assert (parse "[.x |-> y]" = Notn ("comatch", [ Term (Field "x"); Term (Ident [ "y" ]) ]));
+  assert (parse "[.x |-> y]" = Notn ("comatch", [ Term (Field ("x", [])); Term (Ident [ "y" ]) ]));
 
   assert (
     parse "(x := y , z := w)"
@@ -154,7 +154,12 @@ let () =
     parse "[.x ↦ y | .z ↦ w]"
     = Notn
         ( "comatch",
-          [ Term (Field "x"); Term (Ident [ "y" ]); Term (Field "z"); Term (Ident [ "w" ]) ] ));
+          [
+            Term (Field ("x", []));
+            Term (Ident [ "y" ]);
+            Term (Field ("z", []));
+            Term (Ident [ "w" ]);
+          ] ));
 
   assert (
     parse "(x := y , z := w,)"

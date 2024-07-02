@@ -9,16 +9,19 @@ open Value
 open Act
 open Printable
 
-(* Since some entries in an environment are lazy and some aren't, lookup_cube returns a cube whose entries belong to an existential type, along with a function to force any element of that type into a value. *)
-type (_, _) looked_up_cube =
-  | Looked_up :
-      ('a -> kinetic value) * ('m, 'n) op * ('k, ('n, 'a) CubeOf.t) CubeOf.t
-      -> ('m, 'k) looked_up_cube
+(* Since some entries in an environment are lazy and some aren't, lookup_cube returns a cube whose entries belong to an existential type, along with a function to act on any element of that type and force it into a value. *)
+type _ looked_up_cube =
+  | Looked_up : {
+      act : 'x 'y. 'a -> ('x, 'y) deg -> kinetic value;
+      op : ('m, 'n) op;
+      entry : ('n, 'a) CubeOf.t;
+    }
+      -> 'm looked_up_cube
 
 (* A full tube of objects. *)
 type _ full_tube = Full_tube : (D.zero, 'n, 'n, 'a) TubeOf.t -> 'a full_tube
 
-(* Require that the supplied list contains exactly b (which is a Fwn) arguments, rearrange each mn-cube argument into an n-cube of m-cubes, and add all of them to the given environment. *)
+(* Require that the supplied list contains exactly b (which is a Fwn) arguments, and add all of the cubes to the given environment. *)
 let rec take_args :
     type m n mn a b ab.
     (m, a) env ->
@@ -27,28 +30,9 @@ let rec take_args :
     (a, b, n, ab) Tbwd.snocs ->
     (m, ab) env =
  fun env mn dargs plus ->
-  let m = dim_env env in
-  let n = D.plus_right mn in
   match (dargs, plus) with
   | [], Zero -> env
-  | arg :: args, Suc plus ->
-      let env =
-        Ext
-          ( env,
-            CubeOf.build n
-              {
-                build =
-                  (fun fb ->
-                    CubeOf.build m
-                      {
-                        build =
-                          (fun fa ->
-                            let (Plus jk) = D.plus (dom_sface fb) in
-                            let fab = sface_plus_sface fa mn jk fb in
-                            CubeOf.find arg fab);
-                      });
-              } ) in
-      take_args env mn args plus
+  | arg :: args, Suc plus -> take_args (Ext (env, mn, arg)) mn args plus
   | _ -> fatal (Anomaly "wrong number of arguments in argument list")
 
 (* A "view" is the aspect of a type or term that we match against to determine its behavior.  A view of a term is just another term, but in WHNF.  A view of a type is either a universe, a pi-type, another canonical type (data or codata), or a neutral.  The non-neutral sorts come with their instantiations that have been checked to have the correct dimension. *)
@@ -375,10 +359,9 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       Val (CubeOf.find_top pis).tm
   | Let (_, v, body) ->
       (* We evaluate let-bindings lazily, on the chance they aren't actually used. *)
-      let args =
-        CubeOf.build (dim_env env)
-          { build = (fun fa -> lazy_eval (act_env env (op_of_sface fa)) v) } in
-      eval (LazyExt (env, CubeOf.singleton args)) body
+      let m = dim_env env in
+      let args = CubeOf.build m { build = (fun fa -> lazy_eval (act_env env (op_of_sface fa)) v) } in
+      eval (LazyExt (env, D.plus_zero m, args)) body
   (* It's tempting to write just "act_value (eval env x) s" here, but that is WRONG!  Pushing a substitution through an operator action requires whiskering the operator by the dimension of the substitution. *)
   | Act (x, s) ->
       let k = dim_env env in
@@ -581,7 +564,6 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
       if Option.is_none (is_id_ins ins) then
         fatal ?severity (No_such_field (`Degenerated_record, fld));
       let m = cod_left_ins ins in
-      let n = cod_right_ins ins in
       let mn = plus_of_ins ins in
       let mn' = D.plus_out m mn in
       match D.compare (TubeOf.inst tyargs) mn' with
@@ -589,21 +571,9 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
           fatal ?severity (Dimension_mismatch ("computing type of field", TubeOf.inst tyargs, mn'))
       | Eq -> (
           (* The type of the field projection comes from the type associated to that field name in general, evaluated at the stored environment extended by the term itself and its boundaries. *)
-          let tyargs' = TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm) in
-          let entries =
-            CubeOf.build n
-              {
-                build =
-                  (fun fb ->
-                    CubeOf.build m
-                      {
-                        build =
-                          (fun fa ->
-                            let (Plus pq) = D.plus (dom_sface fb) in
-                            CubeOf.find tyargs' (sface_plus_sface fa mn pq fb));
-                      });
-              } in
-          let env = Value.Ext (env, entries) in
+          let env =
+            Value.Ext (env, mn, TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm))
+          in
           match Field.find fields fld with
           | Some (fldname, fldty) ->
               ( fldname,
@@ -644,7 +614,6 @@ and eval_binder :
 and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t -> s evaluation =
  fun (Value.Bind { env; ins; body }) argstbl ->
   let m = dim_env env in
-  let n = cod_right_ins ins in
   let mn = plus_of_ins ins in
   let perm = perm_of_ins ins in
   (* The arguments have to be acted on by degeneracies to form the appropriate cube.  But not all the arguments may be actually used, so we do these actions lazily. *)
@@ -652,19 +621,13 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
     (eval
        (LazyExt
           ( env,
-            CubeOf.build n
+            mn,
+            CubeOf.build (D.plus_out m mn)
               {
                 build =
-                  (fun fs ->
-                    CubeOf.build m
-                      {
-                        build =
-                          (fun fr ->
-                            let (Plus kj) = D.plus (dom_sface fs) in
-                            let frfs = sface_plus_sface fr mn kj fs in
-                            let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
-                            act_lazy_eval (defer (fun () -> Val (CubeOf.find argstbl fa))) fb);
-                      });
+                  (fun frfs ->
+                    let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
+                    act_lazy_eval (defer (fun () -> Val (CubeOf.find argstbl fa))) fb);
               } ))
        body)
     perm
@@ -694,23 +657,20 @@ and eval_env :
   let mn = D.plus_out (dim_env env) m_n in
   match tmenv with
   | Emp _ -> Emp mn
-  | Ext (tmenv, xss) ->
+  | Ext (tmenv, n_k, xss) ->
+      let (Plus mn_k) = D.plus (D.plus_right n_k) in
+      let m_nk = D.plus_assocr m_n n_k mn_k in
       (* We make everything lazy, since we can, and not everything may end up being used. *)
       LazyExt
         ( eval_env env m_n tmenv,
-          CubeOf.mmap
+          mn_k,
+          CubeOf.build (D.plus_out mn mn_k)
             {
-              map =
-                (fun _ [ xs ] ->
-                  CubeOf.build mn
-                    {
-                      build =
-                        (fun fab ->
-                          let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                          lazy_eval (act_env env (op_of_sface fa)) (CubeOf.find xs fb));
-                    });
-            }
-            [ xss ] )
+              build =
+                (fun fab ->
+                  let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_nk fab in
+                  lazy_eval (act_env env (op_of_sface fa)) (CubeOf.find xss fb));
+            } )
 
 and apply_term : type n. kinetic value -> (n, kinetic value) CubeOf.t -> kinetic value =
  fun fn arg ->
@@ -768,32 +728,38 @@ and app_eval : type s. s evaluation -> app -> s evaluation =
           Canonical (Data { dim; tyfam; indices; constrs; discrete }))
   | Canonical _, _ -> fatal (Anomaly "app on canonical type")
 
-(* Look up a cube of values in an environment by variable index, accumulating operator actions as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
+(* Look up a cube of values in an environment by variable index, accumulating operator actions and shifts as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
 and lookup_cube :
-    type m n k a b. (n, b) env -> (a, k, b) Tbwd.insert -> (m, n) op -> (m, k) looked_up_cube =
- fun env v op ->
+    type m n a b k mk.
+    (n, b) env -> (m, k, mk) D.plus -> (a, k, b) Tbwd.insert -> (m, n) op -> mk looked_up_cube =
+ fun env mk v op ->
   match (env, v) with
   (* Since there's an index, the environment can't be empty. *)
   | Emp _, _ -> .
   (* If we encounter an operator action, we accumulate it. *)
-  | Act (env, op'), _ -> lookup_cube env v (comp_op op' op)
+  | Act (env, op'), _ -> lookup_cube env mk v (comp_op op' op)
   (* If the environment is permuted, we apply the permutation to the index. *)
   | Permute (p, env), v ->
       let (Permute_insert (v, _)) = Tbwd.permute_insert v p in
-      lookup_cube env v op
+      lookup_cube env mk v op
   (* If we encounter a variable that isn't ours, we skip it and proceed. *)
-  | Ext (env, _), Later v -> lookup_cube env v op
-  | LazyExt (env, _), Later v -> lookup_cube env v op
+  | Ext (env, _, _), Later v -> lookup_cube env mk v op
+  | LazyExt (env, _, _), Later v -> lookup_cube env mk v op
   (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy.  The forcing function is the identity if the entry is not lazy, and force_eval_term if it is lazy. *)
-  | Ext (_, entry), Now -> Looked_up ((fun x -> x), op, entry)
-  | LazyExt (_, entry), Now -> Looked_up (force_eval_term, op, entry)
+  | Ext (_, nk, entry), Now -> Looked_up { act = act_value; op = op_plus op nk mk; entry }
+  | LazyExt (_, nk, entry), Now ->
+      Looked_up
+        { act = (fun x s -> force_eval_term (act_lazy_eval x s)); op = op_plus op nk mk; entry }
 
 and lookup : type n b. (n, b) env -> b Term.index -> kinetic value =
  fun env (Index (v, fa)) ->
-  let (Looked_up (force, Op (f, s), entry)) = lookup_cube env v (id_op (dim_env env)) in
-  match D.compare (cod_sface fa) (CubeOf.dim entry) with
-  | Eq -> act_value (force (CubeOf.find (CubeOf.find entry fa) f)) s
-  | Neq -> fatal (Dimension_mismatch ("lookup", cod_sface fa, CubeOf.dim entry))
+  let (Plus n_k) = D.plus (cod_sface fa) in
+  let n = dim_env env in
+  match lookup_cube env n_k v (id_op n) with
+  | Looked_up { act; op; entry } ->
+      let (Plus x) = D.plus (dom_sface fa) in
+      let (Op (f, s)) = comp_op op (plus_op n n_k x (op_of_sface fa)) in
+      act (CubeOf.find entry f) s
 
 (* Instantiate an arbitrary value, combining tubes. *)
 and inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kinetic value =

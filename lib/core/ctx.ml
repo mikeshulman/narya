@@ -295,19 +295,20 @@ module Ordered = struct
 
   (* Every context has an underlying environment that substitutes each (level) variable for itself (index).  This environment ALWAYS HAS DIMENSION ZERO, and therefore in particular the variables don't need to come with any boundaries. *)
 
-  let env_entry :
-      type n. (n, Binding.t) CubeOf.t -> (n, (D.zero, kinetic lazy_eval) CubeOf.t) CubeOf.t =
+  let env_entry : type n. (n, Binding.t) CubeOf.t -> (n, kinetic lazy_eval) CubeOf.t =
    fun v ->
     CubeOf.mmap
-      (* We wrap the value in a Lazy because it might be Unknown or Delayed, but we don't want an error reported unless such a value is actually *used*. *)
-      { map = (fun _ [ x ] -> CubeOf.singleton (defer (fun () -> Val (Binding.value x).tm))) }
+      (* We defer the value because it might be Unknown or Delayed, but we don't want an error reported unless such a value is actually *used*. *)
+      { map = (fun _ [ x ] -> defer (fun () -> Val (Binding.value x).tm)) }
       [ v ]
 
   (* This function traverses the entire context and computes the corresponding environment.  However, when we add permutations to environments below, we will also store a precomputed environment, so this function only needs to be called when the context has been globally modified. *)
   let rec env : type a b. (a, b) t -> (D.zero, b) env = function
     | Emp -> Emp D.zero
-    | Snoc (ctx, Vis { bindings; _ }, _) -> LazyExt (env ctx, env_entry bindings)
-    | Snoc (ctx, Invis bindings, _) -> LazyExt (env ctx, env_entry bindings)
+    | Snoc (ctx, Vis { bindings; _ }, _) ->
+        LazyExt (env ctx, D.zero_plus (CubeOf.dim bindings), env_entry bindings)
+    | Snoc (ctx, Invis bindings, _) ->
+        LazyExt (env ctx, D.zero_plus (CubeOf.dim bindings), env_entry bindings)
     | Lock ctx -> env ctx
 
   (* Extend a context by one new variable, without a value but with an assigned type. *)
@@ -369,7 +370,9 @@ type ('a, 'b) t = Permute : ('a, 'i) N.perm * (D.zero, 'b) env * ('i, 'b) Ordere
 let vis (Permute (p, env, ctx)) m mn xs vars af =
   let (Plus bf) = N.plus (N.plus_right af) in
   Permute
-    (N.perm_plus p af bf, LazyExt (env, Ordered.env_entry vars), Ordered.vis ctx m mn xs vars bf)
+    ( N.perm_plus p af bf,
+      LazyExt (env, D.zero_plus (CubeOf.dim vars), Ordered.env_entry vars),
+      Ordered.vis ctx m mn xs vars bf )
 
 let cube_vis ctx x vars =
   let m = CubeOf.dim vars in
@@ -379,11 +382,12 @@ let vis_fields (Permute (p, env, ctx)) xs vars fields fplus af =
   let (Plus bf) = N.plus (N.plus_right af) in
   Permute
     ( N.perm_plus p af bf,
-      LazyExt (env, Ordered.env_entry vars),
+      LazyExt (env, D.zero_plus (CubeOf.dim vars), Ordered.env_entry vars),
       Ordered.vis_fields ctx xs vars fields fplus bf )
 
 let invis (Permute (p, env, ctx)) vars =
-  Permute (p, LazyExt (env, Ordered.env_entry vars), Ordered.invis ctx vars)
+  Permute
+    (p, LazyExt (env, D.zero_plus (CubeOf.dim vars), Ordered.env_entry vars), Ordered.invis ctx vars)
 
 let lock (Permute (p, env, ctx)) = Permute (p, env, Ordered.lock ctx)
 let raw_length (Permute (p, _, ctx)) = N.perm_dom (Ordered.raw_length ctx) p
@@ -401,11 +405,13 @@ let env (Permute (_, env, _)) = env
 
 let ext (Permute (p, env, ctx)) xs ty =
   let ctx, b = Ordered.ext ctx xs ty in
-  Permute (Insert (p, Top), LazyExt (env, Ordered.env_entry (CubeOf.singleton b)), ctx)
+  Permute
+    (Insert (p, Top), LazyExt (env, D.zero_plus D.zero, Ordered.env_entry (CubeOf.singleton b)), ctx)
 
 let ext_let (Permute (p, env, ctx)) xs tm =
   let ctx, b = Ordered.ext_let ctx xs tm in
-  Permute (Insert (p, Top), LazyExt (env, Ordered.env_entry (CubeOf.singleton b)), ctx)
+  Permute
+    (Insert (p, Top), LazyExt (env, D.zero_plus D.zero, Ordered.env_entry (CubeOf.singleton b)), ctx)
 
 let lam (Permute (_, _, ctx)) tm = Ordered.lam ctx tm
 

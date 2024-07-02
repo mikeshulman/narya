@@ -57,15 +57,15 @@ let rec ext_tel :
   match (xs, tel, ac, ec) with
   | [], Emp, Zero, Zero -> (ctx, env, [], [])
   | x :: xs, Ext (x', rty, rest), Suc ac, Suc ec ->
+      let m = dim_env env in
       let newvars, newnfs =
         dom_vars (Ctx.length ctx)
-          (CubeOf.build (dim_env env)
-             { build = (fun fa -> Norm.eval_term (act_env env (op_of_sface fa)) rty) }) in
+          (CubeOf.build m { build = (fun fa -> Norm.eval_term (act_env env (op_of_sface fa)) rty) })
+      in
       let x =
         match x with
         | Some x -> Some x
         | None -> x' in
       let ctx, env, vars, nfs =
-        ext_tel (Ctx.cube_vis ctx x newnfs) (Ext (env, CubeOf.singleton newvars)) xs rest ac ec
-      in
+        ext_tel (Ctx.cube_vis ctx x newnfs) (Ext (env, D.plus_zero m, newvars)) xs rest ac ec in
       (ctx, env, newvars :: vars, newnfs :: nfs)

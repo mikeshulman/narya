@@ -56,12 +56,7 @@ and env : type a n b. (Compunit.t -> Compunit.t) -> (a, n, b) env -> (a, n, b) e
  fun f e ->
   match e with
   | Emp n -> Emp n
-  | Ext (e, xss) ->
-      Ext
-        ( env f e,
-          CubeOf.mmap
-            { map = (fun _ [ xs ] -> CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ xs ]) }
-            [ xss ] )
+  | Ext (e, nk, xs) -> Ext (env f e, nk, CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ xs ])
 
 let entry :
     type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) Termctx.entry -> (b, f, mn) Termctx.entry

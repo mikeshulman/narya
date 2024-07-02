@@ -35,6 +35,7 @@ module Equal = struct
     | Pi (_, doms, cods, tyargs) ->
         let newargs, _ = dom_vars ctx doms in
         let output = tyof_app cods tyargs newargs in
+        (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
         equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output
     (* In the case of a codatatype/record, the insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it.  And its dimension gets checked by tyof_field.  In fact because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the data here except whether it has eta, whether it has an insertion (since if it does, it's not really a record type), and what the list of field names is. *)
     | Canonical (_, Codata { eta = Eta; fields; ins; _ }, _) when Option.is_some (is_id_ins ins) ->
@@ -43,6 +44,7 @@ module Equal = struct
           (fun [ (fld, _) ] ->
             equal_at ctx (field_term x fld) (field_term y fld) (tyof_field x ty fld))
           [ fields ]
+    (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative, so we don't need a clause for it. *)
     (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
     | Canonical (_, Data { dim; discrete; _ }, _) when discrete && is_pos dim -> return ()
     (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  We handle these cases here because we can use the datatype information to give types to the arguments of the constructor. *)
@@ -259,7 +261,9 @@ module Equal = struct
         let* () = equal_at ctx x y ity in
         equal_at_tel ctx
           (Ext
-             (env, CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x))))
+             ( env,
+               D.plus_zero (TubeOf.inst tyarg),
+               TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x) ))
           xs ys tys tyargs
     | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
@@ -276,51 +280,41 @@ module Equal = struct
     | Snoc (envctx, entry, _) -> (
         let open Monad.Ops (Monad.Maybe) in
         let open CubeOf.Monadic (Monad.Maybe) in
-        let (Looked_up (force1, Op (fc1, fd1), xss1)) =
-          lookup_cube env1 Now (id_op (dim_env env1)) in
-        let xss1 =
-          CubeOf.mmap
-            { map = (fun _ [ ys ] -> act_value_cube force1 (CubeOf.subcube fc1 ys) fd1) }
-            [ xss1 ] in
-        let (Looked_up (force2, Op (fc2, fd2), xss2)) =
-          lookup_cube env2 Now (id_op (dim_env env2)) in
-        let xss2 =
-          CubeOf.mmap
-            { map = (fun _ [ ys ] -> act_value_cube force2 (CubeOf.subcube fc2 ys) fd2) }
-            [ xss2 ] in
+        let (Plus mk) = D.plus (Termctx.dim_entry entry) in
+        let (Looked_up { act = act1; op = Op (fc1, fd1); entry = xs1 }) =
+          lookup_cube env1 mk Now (id_op (dim_env env1)) in
+        let xs1 = act_cube { act = act1 } (CubeOf.subcube fc1 xs1) fd1 in
+        let (Looked_up { act = act2; op = Op (fc2, fd2); entry = xs2 }) =
+          lookup_cube env2 mk Now (id_op (dim_env env2)) in
+        let xs2 = act_cube { act = act2 } (CubeOf.subcube fc2 xs2) fd2 in
         let env1' = remove_env env1 Now in
         let env2' = remove_env env2 Now in
         let* () = equal_ordered_env lvl env1' env2' envctx in
         match entry with
         | Vis { bindings; _ } | Invis bindings ->
+            let xtytbl = Hashtbl.create 10 in
             let* _ =
               mmapM
                 {
                   map =
-                    (fun fa [ xs1; xs2 ] ->
+                    (fun fab [ tm1; tm2 ] ->
+                      let (SFace_of_plus (_, fb, fa)) = sface_of_plus mk fab in
                       let ty = (CubeOf.find bindings fa).ty in
-                      let xtytbl = Hashtbl.create 10 in
-                      mmapM
-                        {
-                          map =
-                            (fun fb [ tm1; tm2 ] ->
-                              let k = dom_sface fb in
-                              let ty =
-                                inst
-                                  (eval_term (act_env env1 (op_of_sface fb)) ty)
-                                  (TubeOf.build k (D.plus_zero k)
-                                     {
-                                       build =
-                                         (fun fc ->
-                                           Hashtbl.find xtytbl
-                                             (SFace_of (comp_sface fb (sface_of_tface fc))));
-                                     }) in
-                              Hashtbl.add xtytbl (SFace_of fb) { tm = tm1; ty };
-                              equal_at lvl tm1 tm2 ty);
-                        }
-                        [ xs1; xs2 ]);
+                      let k = dom_sface fb in
+                      let ty =
+                        inst
+                          (eval_term (act_env env1 (op_of_sface fb)) ty)
+                          (TubeOf.build k (D.plus_zero k)
+                             {
+                               build =
+                                 (fun fc ->
+                                   Hashtbl.find xtytbl
+                                     (SFace_of (comp_sface fb (sface_of_tface fc))));
+                             }) in
+                      Hashtbl.add xtytbl (SFace_of fb) { tm = tm1; ty };
+                      equal_at lvl tm1 tm2 ty);
                 }
-                [ xss1; xss2 ] in
+                [ xs1; xs2 ] in
             return ())
 end
 

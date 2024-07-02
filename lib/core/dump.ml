@@ -102,8 +102,8 @@ and env : type b n. formatter -> (n, b) Value.env -> unit =
  fun ppf e ->
   match e with
   | Emp d -> fprintf ppf "Emp %a" dim d
-  | Ext (e, _) -> fprintf ppf "%a <: ?" env e
-  | LazyExt (e, _) -> fprintf ppf "%a <: ?" env e
+  | Ext (e, _, _) -> fprintf ppf "%a <: ?" env e
+  | LazyExt (e, _, _) -> fprintf ppf "%a <: ?" env e
   | Act (e, Op (f, d)) -> fprintf ppf "%a <* (%s,%s)" env e (string_of_sface f) (string_of_deg d)
   | Permute (_, e) -> fprintf ppf "(%a) permuted(?)" env e
 

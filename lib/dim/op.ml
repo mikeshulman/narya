@@ -58,6 +58,9 @@ let plus_op :
     =
  fun m mn ml op -> op_plus_op (id_op m) mn ml op
 
+let op_plus : type m n mn k kn. (k, m) op -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) op =
+ fun op mn kn -> op_plus_op op mn kn (id_op (D.plus_right mn))
+
 type _ op_of = Of : ('m, 'n) op -> 'n op_of
 type _ op_of_plus = Of : ('m, 'n) sface * 'm deg_of_plus -> 'n op_of_plus
 

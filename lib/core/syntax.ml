@@ -197,7 +197,7 @@ module rec Term : sig
   and (_, _, _) env =
     | Emp : 'n D.t -> ('a, 'n, emp) env
     | Ext :
-        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
         -> ('a, 'n, ('b, 'k) snoc) env
 end = struct
   module CodFam = struct
@@ -289,7 +289,7 @@ end = struct
   and (_, _, _) env =
     | Emp : 'n D.t -> ('a, 'n, emp) env
     | Ext :
-        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
         -> ('a, 'n, ('b, 'k) snoc) env
 end
 
@@ -336,7 +336,7 @@ end
 
 let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
   | Emp n -> n
-  | Ext (e, _) -> dim_term_env e
+  | Ext (e, _, _) -> dim_term_env e
 
 (* ******************** Values ******************** *)
 
@@ -430,9 +430,11 @@ module rec Value : sig
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
     | LazyExt :
-        ('n, 'b) env * ('k, ('n, kinetic lazy_eval) CubeOf.t) CubeOf.t
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic lazy_eval) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
-    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
+    | Ext :
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic value) CubeOf.t
+        -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 
@@ -564,11 +566,13 @@ end = struct
   (* An "environment" is a context morphism *from* a De Bruijn LEVEL context *to* a (typechecked) De Bruijn INDEX context.  Specifically, an ('n, 'a) env is an 'n-dimensional substitution from a level context to an index context indexed by the hctx 'a.  Since the index context could have some variables that are labeled by integers together with faces, the values also have to allow that. *)
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
-    (* Here the k-cube denotes a "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, while each of them has an n-cube of values representing a value and its boundaries. *)
+    (* The (n+k)-cube here is morally a k-cube of n-cubes, representing a k-dimensional "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, each of which has an n-cube of values representing a value and its boundaries.  But this contains the same data as an (n+k)-cube since a strict face of (n+k) decomposes uniquely as a strict face of n plus a strict face of k, and it seems to be more convenient to store it as a single (n+k)-cube. *)
     | LazyExt :
-        ('n, 'b) env * ('k, ('n, kinetic lazy_eval) CubeOf.t) CubeOf.t
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic lazy_eval) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
-    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
+    | Ext :
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic value) CubeOf.t
+        -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 
@@ -590,8 +594,8 @@ type any_canonical = Any : 'm canonical -> any_canonical
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function
   | Emp n -> n
-  | Ext (e, _) -> dim_env e
-  | LazyExt (e, _) -> dim_env e
+  | Ext (e, _, _) -> dim_env e
+  | LazyExt (e, _, _) -> dim_env e
   | Act (_, op) -> dom_op op
   | Permute (_, e) -> dim_env e
 
@@ -603,6 +607,13 @@ let dim_canonical : type m. m canonical -> m D.t = function
   | Data { dim; _ } -> dim
   | Codata { ins; _ } -> dom_ins ins
 
+(* The length of an environment is a tbwd of dimensions. *)
+let rec length_env : type n b. (n, b) env -> b Plusmap.OfDom.t = function
+  | Emp _ -> Of_emp
+  | Ext (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
+  | LazyExt (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
+  | Act (env, _) -> length_env env
+  | Permute (p, env) -> Plusmap.OfDom.permute p (length_env env)
 (* Smart constructor that composes actions and cancels identities *)
 let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
  fun env s ->
@@ -659,13 +670,13 @@ let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a)
   match (env, v) with
   | Emp _, _ -> .
   | Act (env, op), _ -> Act (remove_env env v, op)
-  | Permute (p, env), v ->
+  | Permute (p, env), _ ->
       let (Permute_insert (v', p')) = Tbwd.permute_insert v p in
       Permute (p', remove_env env v')
-  | Ext (env, xs), Later v -> Ext (remove_env env v, xs)
-  | LazyExt (env, xs), Later v -> LazyExt (remove_env env v, xs)
-  | Ext (env, _), Now -> env
-  | LazyExt (env, _), Now -> env
+  | Ext (env, nk, xs), Later v -> Ext (remove_env env v, nk, xs)
+  | LazyExt (env, nk, xs), Later v -> LazyExt (remove_env env v, nk, xs)
+  | Ext (env, _, _), Now -> env
+  | LazyExt (env, _, _), Now -> env
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
 let rec universe : type n. n D.t -> kinetic value = fun n -> Uninst (UU n, lazy (universe_ty n))

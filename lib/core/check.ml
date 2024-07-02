@@ -1737,8 +1737,8 @@ and check_at_tel :
         check_at_tel c ctx
           (Ext
              ( env,
-               CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm))
-             ))
+               D.plus_zero (TubeOf.inst tyarg),
+               TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm) ))
           tms tys tyargs in
       (newenv, TubeOf.plus_cube ctms (CubeOf.singleton ctm) :: newargs)
   | _ ->

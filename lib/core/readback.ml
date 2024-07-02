@@ -225,7 +225,8 @@ and readback_at_tel :
       :: readback_at_tel ctx
            (Ext
               ( env,
-                CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)) ))
+                D.plus_zero (TubeOf.inst tyarg),
+                TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x) ))
            xs tys tyargs
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
@@ -241,44 +242,37 @@ and readback_ordered_env :
   | Emp -> Emp (dim_env env)
   | Lock envctx -> readback_ordered_env ctx env envctx
   | Snoc (envctx, entry, _) -> (
-      let (Looked_up (force, Op (fc, fd), xss)) = lookup_cube env Now (id_op (dim_env env)) in
-      let xss =
-        CubeOf.mmap
-          { map = (fun _ [ ys ] -> act_value_cube force (CubeOf.subcube fc ys) fd) }
-          [ xss ] in
+      let (Plus mk) = D.plus (Termctx.dim_entry entry) in
+      let (Looked_up { act; op = Op (fc, fd); entry = xs }) =
+        lookup_cube env mk Now (id_op (dim_env env)) in
+      let xs = act_cube { act } (CubeOf.subcube fc xs) fd in
       match entry with
       | Vis { bindings; _ } | Invis bindings ->
-          let tmxss =
+          let xtytbl = Hashtbl.create 10 in
+          let tmxs =
             CubeOf.mmap
               {
                 map =
-                  (fun fa [ xs ] ->
+                  (fun fab [ tm ] ->
+                    let (SFace_of_plus (_, fb, fa)) = sface_of_plus mk fab in
                     let ty = (CubeOf.find bindings fa).ty in
-                    let xtytbl = Hashtbl.create 10 in
-                    CubeOf.mmap
-                      {
-                        map =
-                          (fun fb [ tm ] ->
-                            let k = dom_sface fb in
-                            let ty =
-                              inst
-                                (eval_term (act_env env (op_of_sface fb)) ty)
-                                (TubeOf.build k (D.plus_zero k)
-                                   {
-                                     build =
-                                       (fun fc ->
-                                         Hashtbl.find xtytbl
-                                           (SFace_of (comp_sface fb (sface_of_tface fc))));
-                                   }) in
-                            Hashtbl.add xtytbl (SFace_of fb) { tm; ty };
-                            readback_at ctx tm ty);
-                      }
-                      [ xs ]);
+                    let k = dom_sface fb in
+                    let ty =
+                      inst
+                        (eval_term (act_env env (op_of_sface fb)) ty)
+                        (TubeOf.build k (D.plus_zero k)
+                           {
+                             build =
+                               (fun fc ->
+                                 Hashtbl.find xtytbl (SFace_of (comp_sface fb (sface_of_tface fc))));
+                           }) in
+                    Hashtbl.add xtytbl (SFace_of fb) { tm; ty };
+                    readback_at ctx tm ty);
               }
-              [ xss ] in
+              [ xs ] in
           let env = remove_env env Now in
           let tmenv = readback_ordered_env ctx env envctx in
-          Ext (tmenv, tmxss))
+          Ext (tmenv, mk, tmxs))
 
 (* Read back a context of values into a context of terms. *)
 

@@ -230,49 +230,53 @@ let string_of_deg : type a b. (a, b) deg -> string =
 
 type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
 
-let rec deg_of_strings :
-    type n. ([ `Int of int | `Str of string ], n) Bwv.t -> int -> n deg_to option =
+(* A degeneracy is represented by a list of positive integers and strings.  The integers give a permutation of the codomain, and the strings are 'r' characters indicating where degeneracies are inserted in the domain.  Thus the length of the list (here a Bwv) is equal to the length of the domain.  The integer supplied is the length of the codomain. *)
+let rec deg_of_strings : type n. ([ `Int of int | `Str of string ], n) Bwv.t -> int -> n deg_to option =
  fun xs i ->
+  let open Monad.Ops (Monad.Maybe) in
+  (* If the codomain has length 0, then all the remaining generating dimensions must be degeneracies, and the degeneracy is a Zero. *)
   if i <= 0 then
     if Bwv.fold_right (fun x b -> x = `Str (Endpoints.refl_string ()) && b) xs true then
       Some (To (Zero (Bwv.length xs)))
     else None
   else
+    (* Otherwise, there must be at least one remaining generating dimension. *)
     match xs with
     | Emp -> None
-    | Snoc _ -> (
-        match Bwv.find_remove (`Int i) xs with
-        | None -> None
-        | Some (xs, j) -> (
-            match deg_of_strings xs (i - 1) with
-            | None -> None
-            | Some (To s) -> Some (To (Suc (s, j)))))
+    | Snoc _ ->
+        (* We find where the last generating dimension of the *codomain* occurs and remove it, remembering its index to supply to Suc. *)
+        let* xs, j = Bwv.find_remove (`Int i) xs in
+        (* Then what's left we can recurse into with a smaller expected codomain. *)
+        let* (To s) = deg_of_strings xs (i - 1) in
+        return (To (Suc (s, j)))
 
+(* We could write the next function monadically to include the errors as options, but it's simpler to just raise a local exception. *)
+exception Invalid_direction_name of string
+
+(* A list of positive integers and strings is represented by a single string that either concatenates them, if the integers are all <10 and the strings are all 1-character, or concatenates them with '-' between otherwise.  There is no confusion because if a degeneracy consists of a single number, that number can only be 1, so a multi-digit string must be concatenated.  *)
 let deg_of_string : string -> any_deg option =
  fun str ->
-  let parsestr x =
+  (* First we break our string into a list, as in the input to deg_of_strings, and simultaneously compute its maximum. *)
+  let strs =
+    if String.contains str '-' then String.split_on_char '-' str
+    else String.fold_right (fun c s -> String.make 1 c :: s) str [] in
+  let parsestr x m =
     match int_of_string_opt x with
-    | Some i -> `Int i
-    | None -> `Str x in
+    | Some i -> (`Int i, max i m)
+    | None -> if x = Endpoints.refl_string () then (`Str x, m) else raise (Invalid_direction_name x)
+  in
   try
-    let (Wrap strs) =
-      if String.contains str '-' then Bwv.of_list_map parsestr (String.split_on_char '-' str)
-      else
-        String.fold_left
-          (fun (Bwv.Wrap l) c -> Wrap (Snoc (l, parsestr (String.make 1 c))))
-          (Wrap Emp) str in
-    match
-      deg_of_strings strs
-        (Bwv.fold_left
-           (fun x y ->
-             match y with
-             | `Int y -> max x y
-             | `Str _ -> x)
-           0 strs)
-    with
+    let Wrap strs, i =
+      List.fold_left
+        (fun (Bwv.Wrap l, i) c ->
+          let x, i = parsestr c i in
+          (Wrap (Snoc (l, x)), i))
+        (Wrap Emp, 0) strs in
+    (* Finally we pass off to deg_of_strings. *)
+    match deg_of_strings strs i with
     | None -> None
     | Some (To s) -> Some (Any s)
-  with Failure _ -> None
+  with Invalid_direction_name _ -> None
 
 (* A degeneracy is "locking" if it has degenerate external directions. *)
 let rec locking : type a b. (a, b) deg -> bool = function

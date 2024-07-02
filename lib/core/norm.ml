@@ -747,6 +747,15 @@ and lookup_cube :
   | Emp _, _ -> .
   (* If we encounter an operator action, we accumulate it. *)
   | Act (env, op'), _ -> lookup_cube env mk v (comp_op op' op)
+  (* If we encounter a shift, we split the face associated to our index and accumulate part of it into the operator. *)
+  | Shift (env, n_x, xb), v ->
+      (* In this branch, k is renamed to x+k. *)
+      let m_xk = mk in
+      let (Unmap_insert (x_k, v, _)) = Plusmap.unmap_insert v xb in
+      let (Plus m_x) = D.plus (D.plus_right n_x) in
+      let mx_k = D.plus_assocl m_x x_k m_xk in
+      let op = op_plus op n_x m_x in
+      lookup_cube env mx_k v op
   (* If the environment is permuted, we apply the permutation to the index. *)
   | Permute (p, env), v ->
       let (Permute_insert (v, _)) = Tbwd.permute_insert v p in

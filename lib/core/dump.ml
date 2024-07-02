@@ -109,6 +109,7 @@ and env : type b n. formatter -> (n, b) Value.env -> unit =
   | LazyExt (e, _, _) -> fprintf ppf "%a <: ?" env e
   | Act (e, Op (f, d)) -> fprintf ppf "%a <* (%s,%s)" env e (string_of_sface f) (string_of_deg d)
   | Permute (_, e) -> fprintf ppf "(%a) permuted(?)" env e
+  | Shift (e, mn, _) -> fprintf ppf "%a << %a" env e dim (D.plus_right mn)
 
 and term : type b s. formatter -> (b, s) term -> unit =
  fun ppf tm ->

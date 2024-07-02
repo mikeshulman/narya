@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Dim
 include Energy
@@ -105,7 +106,8 @@ module Make (I : Indices) = struct
   type _ synth =
     | Var : 'a index -> 'a synth
     | Const : Constant.t -> 'a synth
-    | Field : 'a synth located * Field.or_index -> 'a synth
+    (* A field projection from a possibly-higher-coinductive type comes with a suffix that is a string of integers, denoting a partial bijection between n and m that is total on n.  This is the same as an injection from n to m, or equivalently an insertion of n into m∖l to produce m, where l = image(n). *)
+    | Field : 'a synth located * Field.or_index * int Bwd.t -> 'a synth
     | Pi : I.name * 'a check located * 'a I.suc check located -> 'a synth
     | App : 'a synth located * 'a check located -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth
@@ -245,7 +247,7 @@ module Resolve (R : Resolver) = struct
           | Ok ix -> Var (ix, fa)
           | Error e -> Fail e)
       | Const c -> Const c
-      | Field (tm, fld) -> Field (synth ctx tm, fld)
+      | Field (tm, fld, ins) -> Field (synth ctx tm, fld, ins)
       | Pi (x, dom, cod) -> Pi (R.rename ctx x, check ctx dom, check (R.snoc ctx x) cod)
       | App (fn, arg) -> App (synth ctx fn, check ctx arg)
       | Asc (tm, ty) -> Asc (check ctx tm, check ctx ty)

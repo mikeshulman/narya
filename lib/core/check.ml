@@ -1705,10 +1705,11 @@ and synth :
         match (tm, Ctx.locked ctx) with
         | Axiom `Nonparametric, true -> fatal (Locked_axiom (PConstant name))
         | _ -> (realize status (Const name), eval_term (Emp D.zero) ty))
-    | Field (tm, fld), _ ->
+    | Field (tm, fld, _ins), _ ->
         let stm, sty = synth (Kinetic `Nolet) ctx tm in
         (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
         let etm = eval_term (Ctx.env ctx) stm in
+        (* TODO: pass the insertion data _ins *)
         let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error (Ok etm) sty fld in
         (realize status (Field (stm, fld)), newty)
     | UU, _ -> (realize status (Term.UU D.zero), universe D.zero)

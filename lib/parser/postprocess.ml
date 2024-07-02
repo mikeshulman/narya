@@ -166,8 +166,15 @@ and process_apply :
  fun ctx fn args ->
   match args with
   | [] -> { value = Synth fn.value; loc = fn.loc }
-  | (Term { value = Field (fld, _); _ }, loc) :: args ->
-      process_apply ctx { value = Field (fn, Field.intern_ori fld); loc } args
+  | (Term { value = Field (fld, pbij, _); _ }, loc) :: args -> (
+      try
+        process_apply ctx
+          {
+            value = Field (fn, Field.intern_ori fld, Bwd_extra.of_list_map int_of_string pbij);
+            loc;
+          }
+          args
+      with Failure _ -> fatal (Invalid_field (String.concat "." ("" :: fld :: pbij))))
   | (Term arg, loc) :: args -> process_apply ctx { value = Raw.App (fn, process ctx arg); loc } args
 
 and process_synth :

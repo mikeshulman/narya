@@ -38,8 +38,9 @@ let () =
   let () = unsynth ~print:() "x y {` unterminated block comment" ~code:Parse_error in
   let () = unsynth ~print:() "f (x" ~code:Parse_error in
   let () = unsynth ~print:() ".fst x" ~code:Parse_error in
-  let () = unsynth ~print:() "x .fs.t y" ~code:(Invalid_field ".fs.t") in
-  let () = unsynth ~print:() "f (con.str. x)" ~code:(Invalid_constr "con.str.") in
+  let () = unsynth ~print:() "x |-> x .fs.t y" ~code:(Invalid_field ".fs.t") in
+  let () =
+    unsynth ~print:() "f (con.str. x)" ~code:(Unimplemented "higher constructors: con.str.") in
   let () =
     unsynth ~print:() "x |-> f 0.1.2 x"
       ~code:(Unbound_variable ("0.1.2", [ ([ "0" ], [ "1"; "2" ]) ])) in

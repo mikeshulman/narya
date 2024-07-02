@@ -25,28 +25,24 @@ let rec pbij_of_int_strings :
   match strs with
   | Emp -> Some (Pbij_of (Pbij (ins_zero e, Zero)))
   | Snoc (strs, `Int n) -> (
-      try
-        let ix = N.index_of_int e (N.to_int e - n) in
-        match e with
-        | Nat (Suc e) -> (
-            let e = N.Nat e in
-            let strs =
-              Bwd.map
-                (function
-                  | `Int i ->
-                      if i < n then `Int i
-                      else if i > n then `Int (i - 1)
-                      else raise (Invalid_argument "pbij_of_int_strings")
-                  | `Str str -> `Str str)
-                strs in
-            match pbij_of_int_strings e strs with
-            | Some (Pbij_of (Pbij (ins, shuf))) ->
-                Some (Pbij_of (Pbij (Suc (ins, N.insert_of_index ix), Right shuf)))
-            | None -> None)
-        | Nat Zero -> (
-            match ix with
-            | _ -> .)
-      with Invalid_argument _ -> None)
+      match (e, N.index_of_int e (N.to_int e - n)) with
+      | Nat (Suc e), Some ix -> (
+          let e = N.Nat e in
+          let strs =
+            Bwd.map
+              (function
+                | `Int i ->
+                    if i < n then `Int i
+                    else if i > n then `Int (i - 1)
+                    else raise (Invalid_argument "pbij_of_int_strings")
+                | `Str str -> `Str str)
+              strs in
+          match pbij_of_int_strings e strs with
+          | Some (Pbij_of (Pbij (ins, shuf))) ->
+              Some (Pbij_of (Pbij (Suc (ins, N.insert_of_index ix), Right shuf)))
+          | None -> None)
+      | Nat Zero, Some _ -> .
+      | _, None -> None)
   | Snoc (strs, `Str str) when str = Endpoints.refl_string () -> (
       match pbij_of_int_strings e strs with
       | Some (Pbij_of (Pbij (ins, shuf))) -> Some (Pbij_of (Pbij (ins, Left shuf)))

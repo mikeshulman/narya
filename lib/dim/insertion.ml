@@ -126,25 +126,19 @@ let rec ins_of_ints : type ab. ab D.t -> int Bwd.t -> ab ins_of option =
   match ns with
   | Emp -> Some (Ins_of (Zero ab))
   | Snoc (ns, n) -> (
-      try
-        let ix = N.index_of_int ab (N.to_int ab - n) in
-        match ab with
-        | Nat (Suc ab) -> (
-            let ab = N.Nat ab in
-            let ns =
-              Bwd.map
-                (fun i ->
-                  if i < n then i
-                  else if i > n then i - 1
-                  else raise (Invalid_argument "ins_of_ints"))
-                ns in
-            match ins_of_ints ab ns with
-            | Some (Ins_of ins) -> Some (Ins_of (Suc (ins, N.insert_of_index ix)))
-            | None -> None)
-        | Nat Zero -> (
-            match ix with
-            | _ -> .)
-      with Invalid_argument _ -> None)
+      match (ab, N.index_of_int ab (N.to_int ab - n)) with
+      | Nat (Suc ab), Some ix -> (
+          let ab = N.Nat ab in
+          let ns =
+            Bwd.map
+              (fun i ->
+                if i < n then i else if i > n then i - 1 else raise (Invalid_argument "ins_of_ints"))
+              ns in
+          match ins_of_ints ab ns with
+          | Some (Ins_of ins) -> Some (Ins_of (Suc (ins, N.insert_of_index ix)))
+          | None -> None)
+      | Nat Zero, Some _ -> .
+      | _, None -> None)
 
 type any_ins = Any_ins : ('a, 'b, 'c) insertion -> any_ins
 

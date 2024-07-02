@@ -3,8 +3,6 @@ module Dmap = Util.Nmap
 
 type dim_wrapped = Wrap : 'n D.t -> dim_wrapped
 
-let to_int = D.to_int
-
 let is_pos : type n. n D.t -> bool = function
   | Nat Zero -> false
   | Nat (Suc _) -> true
@@ -22,6 +20,13 @@ include Icube
 include Face
 include Op
 include Insertion
+
+type any_dim = Any : 'n D.t -> any_dim
+
+let dim_of_string : string -> any_dim option =
+ fun str -> Option.map (fun (Deg.Any s) -> Any (dom_deg s)) (deg_of_string str)
+
+let string_of_dim : type n. n D.t -> string = fun n -> string_of_deg (deg_zero n)
 
 (* ********** Special generators ********** *)
 

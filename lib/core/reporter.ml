@@ -32,6 +32,10 @@ let printer : (printable -> printed) ref =
 let pp_printed ppf (Printed (pp, x)) = pp ppf x
 let print pr = !printer pr
 
+let string_of_dim0 dim =
+  let str = string_of_dim dim in
+  if str = "" then "0" else str
+
 module Code = struct
   type t =
     | Parse_error : t
@@ -417,7 +421,8 @@ module Code = struct
     | Invalid_degeneracy str ->
         if str = "" then text "missing degeneracy" else textf "invalid degeneracy: %s" str
     | Invalid_variable_face (k, fa) ->
-        textf "invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
+        textf "invalid face: variable of dimension %s has no face '%s'" (string_of_dim0 k)
+          (string_of_sface fa)
     | No_relative_precedence (n1, n2) ->
         textf
           "notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
@@ -429,7 +434,7 @@ module Code = struct
     | Not_enough_arguments_to_instantiation ->
         text "not enough arguments to instantiate a higher-dimensional type"
     | Type_not_fully_instantiated (str, n) ->
-        textf "type not fully instantiated in %s (need %d more dimensions)" str (to_int n)
+        textf "type not fully instantiated in %s (need %s more dimensions)" str (string_of_dim0 n)
     | Instantiating_zero_dimensional_type ty ->
         textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
           (print ty)
@@ -515,7 +520,7 @@ module Code = struct
     | Undefined_metavariable v -> textf "undefined metavariable: %a" pp_printed (print v)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
-        textf "argument of degeneracy '%s' must be at least %d-dimensional" deg (to_int dim)
+        textf "argument of degeneracy '%s' must have dimension at least %s" deg (string_of_dim0 dim)
     | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
     | Applying_nonfunction_nontype (tm, ty) ->
         textf
@@ -545,7 +550,7 @@ module Code = struct
     | Matching_wont_refine (msg, d) ->
         textf "match will not refine the goal or context (%s): %a" msg pp_printed (print d)
     | Dimension_mismatch (op, a, b) ->
-        textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
+        textf "dimension mismatch in %s (%s ≠ %s)" op (string_of_dim0 a) (string_of_dim0 b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
@@ -633,8 +638,8 @@ module Code = struct
         textf "type %a synthesized by %s is invalid for entire term" pp_printed (print ty) str
     | Unrecognized_attribute -> textf "unrecognized attribute"
     | Invalid_degeneracy_action (str, nk, n) ->
-        textf "invalid degeneracy action on %s: dimension %d doesn't factor through codomain %d" str
-          (to_int nk) (to_int n)
+        textf "invalid degeneracy action on %s: dimension '%s' doesn't factor through codomain '%s'"
+          str (string_of_dim0 nk) (string_of_dim0 n)
     | Wrong_number_of_patterns -> text "wrong number of patterns for match"
     | Inconsistent_patterns -> text "inconsistent patterns in match"
     | Overlapping_patterns -> text "overlapping patterns in match"

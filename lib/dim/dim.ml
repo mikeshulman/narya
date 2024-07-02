@@ -20,6 +20,7 @@ include Icube
 include Face
 include Op
 include Insertion
+module Plusmap = Plusmap
 
 type any_dim = Any : 'n D.t -> any_dim
 

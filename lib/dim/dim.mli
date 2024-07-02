@@ -2,6 +2,7 @@ open Bwd
 open Util
 open Signatures
 open Tlist
+open Tbwd
 open Monoid
 module D : MonoidPos
 module Dmap : MAP_MAKER with module Key := D
@@ -518,6 +519,48 @@ type (_, _, _) insfact_comp =
       -> ('n, 'k, 'a) insfact_comp
 
 val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k, 'a) insfact_comp
+
+module Plusmap : sig
+  module OfDom : module type of Tbwd.Of (D)
+  module OfCod : module type of Tbwd.Of (D) with type 'a t = 'a OfDom.t
+
+  type ('a, 'b, 'c) t =
+    | Map_emp : ('p, emp, emp) t
+    | Map_snoc : ('p, 'xs, 'ys) t * ('p, 'x, 'y) D.plus -> ('p, ('xs, 'x) snoc, ('ys, 'y) snoc) t
+
+  type ('a, 'b) exists = Exists : 'ys OfCod.t * ('p, 'xs, 'ys) t -> ('p, 'xs) exists
+
+  val exists : 'p D.t -> 'xs OfDom.t -> ('p, 'xs) exists
+  val out : 'p D.t -> 'xs OfDom.t -> ('p, 'xs, 'ys) t -> 'ys OfCod.t
+  val uniq : ('p, 'xs, 'ys) t -> ('p, 'xs, 'zs) t -> ('ys, 'zs) Eq.t
+
+  type (_, _, _, _) map_insert =
+    | Map_insert : ('zs, 'fx, 'ws) Tbwd.insert * ('p, 'ys, 'ws) t -> ('p, 'fx, 'ys, 'zs) map_insert
+
+  val insert :
+    ('p, 'x, 'z) D.plus ->
+    ('xs, 'x, 'ys) Tbwd.insert ->
+    ('p, 'xs, 'zs) t ->
+    ('p, 'z, 'ys, 'zs) map_insert
+
+  type (_, _, _, _) unmap_insert =
+    | Unmap_insert :
+        ('p, 'x, 'z) D.plus * ('xs, 'x, 'ys) Tbwd.insert * ('p, 'xs, 'zs) t
+        -> ('p, 'z, 'ys, 'zs) unmap_insert
+
+  val unmap_insert :
+    ('zs, 'z, 'ws) Tbwd.insert -> ('p, 'ys, 'ws) t -> ('p, 'z, 'ys, 'zs) unmap_insert
+
+  type (_, _, _) map_permute =
+    | Map_permute : ('p, 'zs, 'ws) t * ('ys, 'ws) Tbwd.permute -> ('p, 'zs, 'ys) map_permute
+
+  val permute : ('p, 'xs, 'ys) t -> ('xs, 'zs) Tbwd.permute -> ('p, 'zs, 'ys) map_permute
+
+  val assocl :
+    ('a, 'b, 'ab) D.plus -> ('b, 'cs, 'bcs) t -> ('a, 'bcs, 'abcs) t -> ('ab, 'cs, 'abcs) t
+
+  val zerol : 'bs OfDom.t -> (D.zero, 'bs, 'bs) t
+  end
 
 (*  *)
 type one

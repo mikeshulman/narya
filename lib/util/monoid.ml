@@ -15,6 +15,7 @@ module type Monoid = sig
   (* The conditions on which of these have to be assumed and which are deduced follows what happens for type-level natural numbers.  If we had other examples, we might have to be more flexible. *)
   val plus : 'b t -> ('a, 'b) has_plus
   val plus_right : ('a, 'b, 'c) plus -> 'b t
+  val plus_left : ('m, 'n, 'mn) plus -> 'mn t -> 'm t
   val plus_out : 'a t -> ('a, 'b, 'c) plus -> 'c t
 
   (* Sums are unique *)

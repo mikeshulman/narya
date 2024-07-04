@@ -309,6 +309,30 @@ let rec swap_inserts : type a b c. (b, c) insert -> (a, b) insert -> (a, c) swap
           let (Swap_inserts (l'', k'')) = swap_inserts k' l' in
           Swap_inserts (Later l'', Later k''))
 
+(* Check whether two insertions with the same output are equal.  If so, identify their inputs.  If not, commute them. *)
+type (_, _) compare_inserts =
+  | Eq_inserts : ('m, 'm) compare_inserts
+  | Neq_inserts : ('r, 'm) insert * ('r, 'n) insert -> ('m, 'n) compare_inserts
+
+let rec compare_inserts : type m n p. (m, p) insert -> (n, p) insert -> (m, n) compare_inserts =
+ fun m n ->
+  match (m, n) with
+  | Now, Now -> Eq_inserts
+  | Now, Later m -> Neq_inserts (m, Now)
+  | Later n, Now -> Neq_inserts (Now, n)
+  | Later m, Later n -> (
+      match compare_inserts m n with
+      | Eq_inserts -> Eq_inserts
+      | Neq_inserts (m', n') -> Neq_inserts (Later m', Later n'))
+
+(* Like index_equiv, but for inserts. *)
+let rec insert_equiv : type m msuc n nsuc. (m, msuc) insert -> (n, nsuc) insert -> unit option =
+ fun k l ->
+  match (k, l) with
+  | Now, Now -> Some ()
+  | Later k, Later l -> insert_equiv k l
+  | _, _ -> None
+
 type (_, _, _) insert_in_plus =
   | Left : ('pred_m, 'm) insert * ('pred_m, 'n, 'pred_mn) plus -> ('m, 'n, 'pred_mn) insert_in_plus
   | Right : ('pred_n, 'n) insert * ('m, 'pred_n, 'pred_mn) plus -> ('m, 'n, 'pred_mn) insert_in_plus
@@ -342,6 +366,14 @@ let rec insert_into_plus :
           match insert_into_plus mn i with
           | Left (j, mn_suc) -> Left (j, Suc mn_suc)
           | Right (k, mn_suc) -> Right (Later k, Suc mn_suc)))
+
+type _ insert_into = Into : ('m, 'msuc) insert -> 'msuc insert_into
+
+(* Iterate through all the insertions into a given nat. *)
+let rec all_inserts : type n. n t -> n insert_into Seq.t = function
+  | Nat Zero -> Seq.empty
+  | Nat (Suc n) ->
+      Seq.cons (Into Now) (Seq.map (fun (Into k) -> Into (Later k)) (all_inserts (Nat n)))
 
 (* ********** Comparison ********** *)
 

@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Deg
 open Perm
@@ -37,6 +38,20 @@ let rec cod_left_ins : type a b c. (a, b, c) insertion -> b D.t = function
 let rec cod_right_ins : type a b c. (a, b, c) insertion -> c D.t = function
   | Zero _ -> D.zero
   | Suc (ins, _) -> D.suc (cod_right_ins ins)
+
+let rec equal_ins :
+    type a1 b1 c1 a2 b2 c2. (a1, b1, c1) insertion -> (a2, b2, c2) insertion -> unit option =
+ fun i1 i2 ->
+  match (i1, i2) with
+  | Zero a1, Zero a2 -> (
+      match D.compare a1 a2 with
+      | Eq -> Some ()
+      | Neq -> None)
+  | Suc (i1, x1), Suc (i2, x2) ->
+      let open Monad.Ops (Monad.Maybe) in
+      let* () = N.insert_equiv x1 x2 in
+      equal_ins i1 i2
+  | _ -> None
 
 (* An insertion induces a degeneracy, which is in fact a permutation. *)
 let rec deg_of_ins_plus : type a b c bc. (a, b, c) insertion -> (b, c, bc) D.plus -> (a, bc) deg =
@@ -102,3 +117,42 @@ let insfact_comp : type n k nk a b. (nk, n, k) insertion -> (a, b) deg -> (n, k,
   let n_kd = D.plus_assocr nk kd nk_d in
   let (Insfact (fa, new_ins)) = insfact s's n_kd in
   Insfact_comp (fa, new_ins, kd, ai)
+
+(* Construct an insertion from a domain and a list of numbers. *)
+type _ ins_of = Ins_of : ('ab, 'a, 'b) insertion -> 'ab ins_of
+
+let rec ins_of_ints : type ab. ab D.t -> int Bwd.t -> ab ins_of option =
+ fun ab ns ->
+  match ns with
+  | Emp -> Some (Ins_of (Zero ab))
+  | Snoc (ns, n) -> (
+      try
+        let ix = N.index_of_int ab (N.to_int ab - n) in
+        match ab with
+        | Nat (Suc ab) -> (
+            let ab = N.Nat ab in
+            let ns =
+              Bwd.map
+                (fun i ->
+                  if i < n then i
+                  else if i > n then i - 1
+                  else raise (Invalid_argument "ins_of_ints"))
+                ns in
+            match ins_of_ints ab ns with
+            | Some (Ins_of ins) -> Some (Ins_of (Suc (ins, N.insert_of_index ix)))
+            | None -> None)
+        | Nat Zero -> (
+            match ix with
+            | _ -> .)
+      with Invalid_argument _ -> None)
+
+type any_ins = Any_ins : ('a, 'b, 'c) insertion -> any_ins
+
+(* List all the insertions with a given total dimension. *)
+let rec all_ins_of : type ab. ab D.t -> ab ins_of Seq.t =
+ fun ab ->
+  let open Monad.Ops (Monad.Seq) in
+  Seq.cons (Ins_of (Zero ab))
+    (let* (Into ix) = D.all_inserts ab in
+     let* (Ins_of ins) = all_ins_of (D.insert_in ab ix) in
+     return (Ins_of (Suc (ins, ix))))

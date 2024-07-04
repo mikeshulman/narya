@@ -389,10 +389,12 @@ module Parse = struct
             fun p ->
               let n, p = C.Lex_and_parse.run_on_string_at 0 src.content p in
               (`String (n, src.content), p) )
-      | `File name ->
-          let ic = In_channel.open_text name in
-          ( { source = `File name; length = In_channel.length ic },
-            fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) ) in
+      | `File name -> (
+          try
+            let ic = In_channel.open_text name in
+            ( { source = `File name; length = In_channel.length ic },
+              fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) )
+          with Sys_error _ -> fatal (No_such_file name)) in
     Range.run ~env @@ fun () ->
     let p =
       C.Lex_and_parse.make Lexer.Parser.start

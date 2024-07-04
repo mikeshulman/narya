@@ -72,6 +72,13 @@ module Command = struct
         wswhat : Whitespace.t list;
       }
     | Undo of { wsundo : Whitespace.t list; count : int; wscount : Whitespace.t list }
+    | Section of {
+        wssection : Whitespace.t list;
+        prefix : string list;
+        wsprefix : Whitespace.t list;
+        wscoloneq : Whitespace.t list;
+      }
+    | End of { wsend : Whitespace.t list }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -365,6 +372,16 @@ module Parse = struct
     let* count, wscount = integer in
     return (Command.Undo { wsundo; count; wscount })
 
+  let section =
+    let* wssection = token Section in
+    let* prefix, wsprefix = ident in
+    let* wscoloneq = token Coloneq in
+    return (Command.Section { wssection; prefix; wsprefix; wscoloneq })
+
+  let endcmd =
+    let* wsend = token End in
+    return (Command.End { wsend })
+
   let quit =
     let* wsquit = token Quit in
     return (Command.Quit wsquit)
@@ -387,6 +404,8 @@ module Parse = struct
     </> solve
     </> show
     </> undo
+    </> section
+    </> endcmd
     </> quit
     </> eof
 
@@ -474,6 +493,8 @@ let to_string : Command.t -> string = function
   | Show _ -> "show"
   | Quit _ -> "quit"
   | Undo _ -> "undo"
+  | Section _ -> "section"
+  | End _ -> "end"
   | Bof _ -> "bof"
   | Eof -> "eof"
 
@@ -649,6 +670,15 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
   | Undo { count; _ } ->
       History.undo count;
       emit (Commands_undone count)
+  | Section { prefix; _ } ->
+      History.do_command @@ fun () ->
+      Scope.start_section prefix;
+      emit (Section_opened prefix)
+  | End _ -> (
+      History.do_command @@ fun () ->
+      match Scope.end_section () with
+      | Some prefix -> emit (Section_closed prefix)
+      | None -> fatal No_such_section)
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
@@ -844,6 +874,22 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_ws `Nobreak ppf wsundo;
       pp_print_int ppf count;
       let ws, rest = Whitespace.split wscount in
+      pp_ws `None ppf ws;
+      rest
+  | Section { wssection; prefix; wsprefix; wscoloneq } ->
+      pp_tok ppf Section;
+      pp_ws `Nobreak ppf wssection;
+      pp_utf_8 ppf (String.concat "." prefix);
+      pp_ws `Nobreak ppf wsprefix;
+      let ws, rest = Whitespace.split wscoloneq in
+      pp_tok ppf Coloneq;
+      pp_open_vbox ppf 2;
+      pp_ws `None ppf ws;
+      rest
+  | End { wsend } ->
+      pp_close_box ppf ();
+      pp_tok ppf End;
+      let ws, rest = Whitespace.split wsend in
       pp_ws `None ppf ws;
       rest
   | Quit ws -> ws

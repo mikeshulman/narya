@@ -36,9 +36,18 @@ let () =
     | `Shadow _ -> Some "unhandled Modifier.shadow effect"
     | `Hook _ -> Some "unhandled Modifier.hook effect")
 
+module M = Algaeff.Mutex.Make ()
+
+exception Locked = M.Locked
+
 (* Scope state: a visible namespace, an export namespace, and an export prefix. *)
 type trie = (Param.data, Param.tag) Trie.t
-type t = { visible : trie; export : trie; prefix : Trie.bwd_path }
+type scope = { visible : trie; export : trie; prefix : Trie.bwd_path }
+
+(* A Scope.t has an inner scope and also maintains a stack of outer scopes. *)
+type t = { outer : scope Bwd.t; inner : scope }
+
+let empty : t = { outer = Emp; inner = { visible = Trie.empty; export = Trie.empty; prefix = Emp } }
 
 module S = State.Make (struct
   type nonrec t = t
@@ -49,68 +58,145 @@ let () =
     | `Get -> Some "unhandled Scope.get effect"
     | `Set _ -> Some "unhandled Scope.set effect")
 
-let export_prefix () = (S.get ()).prefix
+let export_prefix () = (S.get ()).inner.prefix
 
-(* The following operations are copied from Yuujinchou.Scope, with the mutex removed since I don't think we need it. *)
+(* The following operations are copied from Yuujinchou.Scope, but acting only on the inner scope. *)
 
-let resolve p = Trie.find_singleton p (S.get ()).visible
+let resolve p = M.exclusively @@ fun () -> Trie.find_singleton p (S.get ()).inner.visible
 
 let modify_visible ?context_visible m =
-  S.modify @@ fun s ->
-  { s with visible = Mod.modify ?context:context_visible ~prefix:Emp m s.visible }
-
-let modify_export ?context_export m =
-  S.modify @@ fun s ->
-  { s with export = Mod.modify ?context:context_export ~prefix:(export_prefix ()) m s.export }
-
-let export_visible ?context_modifier ?context_export m =
+  M.exclusively @@ fun () ->
   S.modify @@ fun s ->
   {
     s with
-    export =
-      Mod.union ?context:context_export ~prefix:(export_prefix ()) s.export
-      @@ Mod.modify ?context:context_modifier m s.visible;
+    inner =
+      { s.inner with visible = Mod.modify ?context:context_visible ~prefix:Emp m s.inner.visible };
+  }
+
+let modify_export ?context_export m =
+  M.exclusively @@ fun () ->
+  S.modify @@ fun s ->
+  {
+    s with
+    inner =
+      {
+        s.inner with
+        export = Mod.modify ?context:context_export ~prefix:(export_prefix ()) m s.inner.export;
+      };
+  }
+
+let export_visible ?context_modifier ?context_export m =
+  M.exclusively @@ fun () ->
+  S.modify @@ fun s ->
+  {
+    s with
+    inner =
+      {
+        s.inner with
+        export =
+          Mod.union ?context:context_export ~prefix:(export_prefix ()) s.inner.export
+          @@ Mod.modify ?context:context_modifier m s.inner.visible;
+      };
   }
 
 let include_singleton ?context_visible ?context_export (path, x) =
+  M.exclusively @@ fun () ->
   S.modify @@ fun s ->
   {
     s with
-    visible = Mod.union_singleton ?context:context_visible s.visible (path, x);
-    export =
-      Mod.union_singleton ?context:context_export ~prefix:(export_prefix ()) s.export (path, x);
+    inner =
+      {
+        s.inner with
+        visible = Mod.union_singleton ?context:context_visible s.inner.visible (path, x);
+        export =
+          Mod.union_singleton ?context:context_export ~prefix:(export_prefix ()) s.inner.export
+            (path, x);
+      };
   }
 
 let import_singleton ?context_visible (path, x) =
+  M.exclusively @@ fun () ->
   S.modify @@ fun s ->
-  { s with visible = Mod.union_singleton ?context:context_visible s.visible (path, x) }
+  {
+    s with
+    inner =
+      {
+        s.inner with
+        visible = Mod.union_singleton ?context:context_visible s.inner.visible (path, x);
+      };
+  }
 
-let include_subtree ?context_modifier ?context_visible ?context_export
+let unsafe_include_subtree ?context_modifier ?context_visible ?context_export
     ?(modifier = Yuujinchou.Language.id) (path, ns) =
   S.modify @@ fun s ->
   let ns = Mod.modify ?context:context_modifier ~prefix:Emp modifier ns in
   {
     s with
-    visible = Mod.union_subtree ?context:context_visible s.visible (path, ns);
-    export = Mod.union_subtree ?context:context_export ~prefix:(export_prefix ()) s.export (path, ns);
+    inner =
+      {
+        s.inner with
+        visible = Mod.union_subtree ?context:context_visible s.inner.visible (path, ns);
+        export =
+          Mod.union_subtree ?context:context_export ~prefix:(export_prefix ()) s.inner.export
+            (path, ns);
+      };
   }
+
+let include_subtree ?context_modifier ?context_visible ?context_export ?modifier (path, ns) =
+  M.exclusively @@ fun () ->
+  unsafe_include_subtree ?context_modifier ?context_visible ?context_export ?modifier (path, ns)
 
 let import_subtree ?context_modifier ?context_visible ?(modifier = Yuujinchou.Language.id) (path, ns)
     =
+  M.exclusively @@ fun () ->
   S.modify @@ fun s ->
   let ns = Mod.modify ?context:context_modifier ~prefix:Emp modifier ns in
-  { s with visible = Mod.union_subtree ?context:context_visible s.visible (path, ns) }
+  {
+    s with
+    inner =
+      {
+        s.inner with
+        visible = Mod.union_subtree ?context:context_visible s.inner.visible (path, ns);
+      };
+  }
 
-let get_visible () = (S.get ()).visible
-let get_export () = (S.get ()).export
+let get_visible () = M.exclusively @@ fun () -> (S.get ()).inner.visible
+let get_export () = M.exclusively @@ fun () -> (S.get ()).inner.export
+
+(* Set the visible namespace, e.g. before going into interactive mode. *)
+let set_visible visible =
+  M.exclusively @@ fun () -> S.modify (fun s -> { s with inner = { s.inner with visible } })
+
+(* Start a new section, with specified prefix. *)
+let start_section prefix =
+  M.exclusively @@ fun () ->
+  S.modify (fun s ->
+      let new_scope : scope =
+        { visible = s.inner.visible; export = Trie.empty; prefix = Bwd.of_list prefix } in
+      { outer = Snoc (s.outer, s.inner); inner = new_scope })
+
+(* Wrap up a section, integrating its exported names into the previous section's namespace with the prefix attached.  Returns the prefix that was used. *)
+let end_section () =
+  M.exclusively @@ fun () ->
+  let ending_scope = (S.get ()).inner in
+  try
+    S.modify (fun s ->
+        match s.outer with
+        | Snoc (outer, inner) -> { outer; inner }
+        | Emp -> raise (Failure "no section here to end"));
+    unsafe_include_subtree (Bwd.to_list ending_scope.prefix, ending_scope.export);
+    Some (Bwd.to_list ending_scope.prefix)
+  with Failure _ -> None
 
 (* We remove the Mod.run from Scope.run and let the caller control it separately. *)
 let run ?(export_prefix = Emp) ?(init_visible = Trie.empty) f =
-  let init = { visible = init_visible; export = Trie.empty; prefix = export_prefix } in
-  S.run ~init f
+  let init =
+    { outer = Emp; inner = { visible = init_visible; export = Trie.empty; prefix = export_prefix } }
+  in
+  M.run @@ fun () -> S.run ~init f
 
-(* Like 'run', but override the handlers for the scope state effects instead of running a state module; hence no init_visible is given.  Unlike most RedPRL try_with functions, this one isn't designed for calling *inside* of an outer "run" to override some things locally, instead it is for *replacing* "run" by passing out the state effects to our History module. *)
-let try_with ?get ?set f = S.try_with ?get ?set f
+(* Like 'run', but override the handlers for the scope state effects instead of running a state module; hence no init_visible is given.  Unlike most RedPRL try_with functions, this one isn't designed for calling *inside* of an outer "run" to override some things locally, instead it is for *replacing* "run" by passing out the state effects to our History module.  Hence why it starts a new Mutex as well, and why we call it "run_with" instead of "try_with". *)
+let run_with ?get ?set f = M.run @@ fun () -> S.try_with ?get ?set f
 
 (* Look up a name to get a constant. *)
 let lookup name =

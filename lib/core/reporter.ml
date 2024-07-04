@@ -158,6 +158,9 @@ module Code = struct
     | Forbidden_interactive_command : string -> t
     | Not_enough_to_undo : t
     | Commands_undone : int -> t
+    | Section_opened : string list -> t
+    | Section_closed : string list -> t
+    | No_such_section : t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -274,6 +277,9 @@ module Code = struct
     | Forbidden_interactive_command _ -> Error
     | Not_enough_to_undo -> Error
     | Commands_undone _ -> Info
+    | Section_opened _ -> Info
+    | Section_closed _ -> Info
+    | No_such_section -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -402,6 +408,8 @@ module Code = struct
     | Actions_in_compiled_file _ -> "W2400"
     (* undo *)
     | Not_enough_to_undo -> "E2500"
+    (* section *)
+    | No_such_section -> "E2600"
     (* Interactive proof *)
     | Open_holes -> "E3000"
     | No_such_hole _ -> "E3001"
@@ -413,6 +421,8 @@ module Code = struct
     | File_loaded _ -> "I0004"
     | Hole_solved _ -> "I0005"
     | Commands_undone _ -> "I0006"
+    | Section_opened _ -> "I0007"
+    | Section_closed _ -> "I0008"
     (* Events during command execution *)
     | Hole_generated _ -> "I0100"
     (* Control of execution *)
@@ -684,6 +694,9 @@ module Code = struct
     | Forbidden_interactive_command cmd -> textf "command '%s' only allowed in interactive mode" cmd
     | Not_enough_to_undo -> text "not enough commands to undo"
     | Commands_undone n -> if n = 1 then text "1 command undone" else textf "%d commands undone" n
+    | Section_opened prefix -> textf "section %s opened" (String.concat "." prefix)
+    | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
+    | No_such_section -> text "no section here to end"
 end
 
 include Asai.StructuredReporter.Make (Code)

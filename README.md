@@ -99,7 +99,15 @@ In a file, conventionally each command begins on a new line, but this is not tec
    ```
    Same as above, but also export the new names to other files that import this one.
 
-6. `quit`
+6. `section NAME ≔`
+   
+   Begin a section named `NAME`, which must be a valid identifier.  All ordinary commands are valid inside a section (including other section commands).
+   
+7. `end`
+
+   End the section that was most recently opened and not yet closed.  All the constants that were in the export namespace of that section (i.e. those defined with `def` and `axiom` or imported from elsewhere with `export`) are prefixed by the name of that section and merged into the previous namespace.  (See namespaces, below.)
+
+8. `quit`
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
 
@@ -212,7 +220,15 @@ No file will be executed more than once during a single run, even if it is impor
 
 ### Import modifiers
 
-Narya uses [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/) for hierarchical namespacing, with periods to separate namespaces.  Thus a name like `nat.plus` lies in the `nat` namespace.  Currently there is no way to directly define constants in a namespace other than by giving their fully-qualified name directly such as `def nat.plus` (eventually it will be possible to instead write `def plus` inside a "section" named `nat`).
+Narya uses [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/) for hierarchical namespacing, with periods to separate namespaces.  Thus a name like `nat.plus` lies in the `nat` namespace.  It can be defined in the following two equivalent ways:
+```
+def nat.plus ≔ BODY
+
+section nat ≔
+  def plus ≔ BODY
+end
+```
+According to Yuujinchou, namespaces are untyped, implicit, and patchable: you can add anything you want to the `nat` namespace, anywhere, simply by defining it with a name that starts with `nat.`
 
 By default, an `import` command merges the namespace of the imported file with the current namespace.  However, it is also possible to apply Yuujinchou *modifiers* to the imported namespace before it is merged with the command form `import FILE | MOD`.  (The symbol `|` is intended to suggest a Unix pipe that sends the definitions of `FILE` through the modifiers before importing them.)  The valid modifiers are exactly those of [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/Yuujinchou/Language/index.html#modifier-builders):
 

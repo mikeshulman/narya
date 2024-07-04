@@ -29,7 +29,7 @@ let run_empty : type a. (unit -> a) -> a =
         present =
           {
             global = Global.empty;
-            scope = { visible = Trie.empty; export = Trie.empty; prefix = Emp };
+            scope = Scope.empty;
             situation = !Builtins.builtins;
             eternity = Eternity.empty;
           };
@@ -43,7 +43,7 @@ let run_empty : type a. (unit -> a) -> a =
     ~get:(fun () -> (S.get ()).present.global)
     ~set:(fun global -> S.modify (fun d -> { d with present = { d.present with global } }))
   @@ fun () ->
-  Scope.try_with
+  Scope.run_with
     ~get:(fun () -> (S.get ()).present.scope)
     ~set:(fun scope -> S.modify (fun d -> { d with present = { d.present with scope } }))
   @@ fun () ->
@@ -74,12 +74,13 @@ let undo n =
         | Emp -> fatal Not_enough_to_undo)
   with Failure _ -> fatal Not_enough_to_undo
 
+(* Set the visible namespace, e.g. before going into interactive mode. *)
 let set_visible visible =
+  Scope.set_visible visible;
   let situation = Situation.add_users !Builtins.builtins visible in
-  S.modify (fun d ->
-      { d with present = { d.present with scope = { d.present.scope with visible }; situation } })
+  S.modify (fun d -> { d with present = { d.present with situation } })
 
-(* Put a given starting namespace into the scope, and also extract the notations from it. *)
+(* Put a given starting visible namespace into the scope, and also extract the notations from it.  Since this uses Scope.run and Situation.run_on, it *overrides* (dynamically, locally) the "actual" namespace and notations in the outer state.  It is used for loading files and strings, which are atomic undo units, and for "going back in time" temporarily to solve an old hole. *)
 let run_with_scope ~init_visible f =
   Scope.run ~init_visible @@ fun () ->
   Situation.run_on (Situation.add_users !Builtins.builtins init_visible) @@ f

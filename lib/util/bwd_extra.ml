@@ -62,3 +62,20 @@ let rec remove xs n =
     match xs with
     | Emp -> raise (Failure "Bwd_extra.remove")
     | Snoc (xs, _) -> remove xs (n - 1)
+
+(* Last element of a Bwd *)
+let last = function
+  | Emp -> raise (Failure "Bwd_extra.last")
+  | Snoc (_, x) -> x
+
+(* Replace the last element of a Bwd with something else *)
+let replace_last xs x =
+  match xs with
+  | Emp -> raise (Failure "Bwd_extra.replace_last")
+  | Snoc (xs, _) -> Snoc (xs, x)
+
+(* Modify the last element of a Bwd *)
+let modify_last xs f =
+  match xs with
+  | Emp -> raise (Failure "Bwd_extra.replace_last")
+  | Snoc (xs, x) -> Snoc (xs, f x)

@@ -493,6 +493,7 @@ val id_ins : 'a D.t -> ('a, 'b, 'ab) D.plus -> ('ab, 'a, 'b) insertion
 val dom_ins : ('a, 'b, 'c) insertion -> 'a D.t
 val cod_left_ins : ('a, 'b, 'c) insertion -> 'b D.t
 val cod_right_ins : ('a, 'b, 'c) insertion -> 'c D.t
+val equal_ins : ('a1, 'b1, 'c1) insertion -> ('a2, 'b2, 'c2) insertion -> unit option
 val deg_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val deg_of_ins : ('a, 'b, 'c) insertion -> 'a deg_to
 val perm_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) perm
@@ -510,6 +511,48 @@ type (_, _, _) insfact_comp =
       -> ('n, 'k, 'a) insfact_comp
 
 val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k, 'a) insfact_comp
+
+type _ ins_of = Ins_of : ('ab, 'a, 'b) insertion -> 'ab ins_of
+
+val ins_of_ints : 'ab D.t -> int Bwd.t -> 'ab ins_of option
+
+type any_ins = Any_ins : ('a, 'b, 'c) insertion -> any_ins
+
+val all_ins_of : 'ab D.t -> 'ab ins_of Seq.t
+
+type (_, _, _) shuffle
+
+val plus_of_shuffle : ('a, 'b, 'c) shuffle -> ('a, 'b, 'c) D.plus
+val deg_of_shuffle : ('a, 'b, 'c) shuffle -> ('a, 'b, 'ab) D.plus -> ('c, 'ab) deg
+val perm_of_shuffle : ('a, 'b, 'c) shuffle -> ('a, 'b, 'ab) D.plus -> ('c, 'ab) perm
+val left_shuffle : ('a, 'b, 'c) shuffle -> 'a D.t
+val right_shuffle : ('a, 'b, 'c) shuffle -> 'b D.t
+val out_shuffle : ('a, 'b, 'c) shuffle -> 'c D.t
+val shuffle_zero : 'a D.t -> ('a, D.zero, 'a) shuffle
+
+type (_, _) shuffle_right = Of_right : ('a, 'b, 'c) shuffle -> ('b, 'c) shuffle_right
+
+val all_shuffles_right : 'b D.t -> 'c D.t -> ('b, 'c) shuffle_right Seq.t
+
+type (_, _) pbij
+
+val dom_pbij : ('e, 'i) pbij -> 'e D.t
+val cod_pbij : ('e, 'i) pbij -> 'i D.t
+val pbij_of_ins : ('a, 'b, 'c) insertion -> ('a, 'c) pbij
+
+type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic) pbij -> 'evaluation pbij_of
+
+val pbij_of_strings : 'e D.t -> string Bwd.t -> 'e pbij_of option
+val strings_of_pbij : ('n, 'i) pbij -> string Bwd.t
+val string_of_pbij : ('n, 'i) pbij -> string
+val all_pbij_between : 'evaluation D.t -> 'intrinsic D.t -> ('evaluation, 'intrinsic) pbij Seq.t
+
+type (_, _) deg_comp_pbij =
+  | Deg_comp_pbij :
+      ('evaluation, 'intrinsic) pbij * ('old_result, 'result) deg
+      -> ('evaluation, 'intrinsic) deg_comp_pbij
+
+val deg_comp_pbij : ('m, 'n) deg -> ('m, 'i) pbij -> ('n, 'i) deg_comp_pbij
 
 module Plusmap : sig
   module OfDom : module type of Tbwd.Of (D)

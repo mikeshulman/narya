@@ -30,7 +30,7 @@ let rec id_deg : type n. n D.t -> (n, n) deg = function
   | Nat Zero -> Zero D.zero
   | Nat (Suc n) -> Suc (id_deg (Nat n), Now)
 
-(* By "residual" of a degeneracy, given an element of its codomain, we mean the image of that element together with the degeneracy obtained by removing that element from the domain and its image from the codomain. *)
+(* By "residual" of a degeneracy, given an element of its codomain, we mean the image of that element together with the degeneracy obtained by removing that element from the codomain and its image from the domain. *)
 
 type (_, _) deg_residual =
   | Residual : ('m, 'n) deg * ('m, 'msuc) D.insert -> ('msuc, 'n) deg_residual
@@ -53,6 +53,25 @@ let rec comp_deg : type a b c. (b, c) deg -> (a, b) deg -> (a, c) deg =
   | Suc (s, k) ->
       let (Residual (t, i)) = deg_residual b k in
       Suc (comp_deg s t, i)
+
+(* Dually, a "coresidual" of a degeneracy, given an element of its domain, is the coimage of that element, if any, together with the degeneracy obtained by removing that element from the domain and its coimage from the codomain. *)
+
+type (_, _) deg_coresidual =
+  | Coresidual_zero : ('m, 'n) deg -> ('m, 'n) deg_coresidual
+  | Coresidual_suc : ('m, 'n) deg * ('n, 'nsuc) D.insert -> ('m, 'nsuc) deg_coresidual
+
+let rec deg_coresidual :
+    type mpred m n. (m, n) deg -> (mpred, m) D.insert -> (mpred, n) deg_coresidual =
+ fun s k ->
+  match s with
+  | Zero m -> Coresidual_zero (Zero (D.insert_in m k))
+  | Suc (s, j) -> (
+      match D.compare_inserts j k with
+      | Eq_inserts -> Coresidual_suc (s, Now)
+      | Neq_inserts (k', j') -> (
+          match deg_coresidual s k' with
+          | Coresidual_zero s' -> Coresidual_zero (Suc (s', j'))
+          | Coresidual_suc (s', i) -> Coresidual_suc (Suc (s', j'), Later i)))
 
 (* Extend a degeneracy by the identity on the right. *)
 let rec deg_plus :

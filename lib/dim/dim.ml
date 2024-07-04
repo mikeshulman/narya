@@ -21,6 +21,8 @@ include Icube
 include Face
 include Op
 include Insertion
+include Shuffle
+include Pbij
 module Plusmap = Plusmap
 
 type any_dim = Any : 'n D.t -> any_dim

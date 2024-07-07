@@ -13,7 +13,7 @@ Narya requires OCaml version 5.2.0 (or later) and various libraries.  After inst
 
 ```
 opam switch create 5.2.0
-opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib
+opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib fileutils
 
 cd ../narya
 dune build

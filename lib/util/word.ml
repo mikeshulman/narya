@@ -132,62 +132,61 @@ module Make (G : Gen) = struct
 
   (* ********** Well-scoped De Bruijn indices ********** *)
 
-  (* These record the generator to which they index, and also the type obtained by *removing* that generator. *)
-  (* TODO: This is Tbwd.insert. *)
-  type (_, _, _) index =
-    | Top : (('n, 'g) suc, 'g, 'n) index
-    | Pop : ('nh, 'h, 'n) index -> (('nh, 'g) suc, 'h, ('n, 'g) suc) index
+  (* The analogue of these for words is just Tbwd.insert. *)
 
-  type (_, _, _, _) plus_index =
-    | Plus_index : ('m, 'p, 'mp) plus * ('mn, 'g, 'mp) index -> ('m, 'p, 'mn, 'g) plus_index
+  type (_, _, _, _) plus_insert =
+    | Plus_index : ('m, 'p, 'mp) plus * ('mp, 'g, 'mn) Tbwd.insert -> ('m, 'p, 'mn, 'g) plus_insert
 
-  let rec plus_index :
-      type m n mn p g. (m, n, mn) plus -> (n, g, p) index -> (m, p, mn, g) plus_index =
+  let rec plus_insert :
+      type m n mn p g. (m, n, mn) plus -> (p, g, n) Tbwd.insert -> (m, p, mn, g) plus_insert =
    fun mn i ->
     match i with
-    | Top ->
+    | Now ->
         let (Suc (mn, _)) = mn in
-        Plus_index (mn, Top)
-    | Pop i ->
+        Plus_index (mn, Now)
+    | Later i ->
         let (Suc (mn, g)) = mn in
-        let (Plus_index (mp, j)) = plus_index mn i in
-        Plus_index (Suc (mp, g), Pop j)
+        let (Plus_index (mp, j)) = plus_insert mn i in
+        Plus_index (Suc (mp, g), Later j)
 
-  type (_, _, _, _) index_plus =
-    | Index_plus : ('p, 'n, 'pn) plus * ('mn, 'g, 'pn) index -> ('p, 'n, 'mn, 'g) index_plus
+  type (_, _, _, _) insert_plus =
+    | Index_plus : ('p, 'n, 'pn) plus * ('pn, 'g, 'mn) Tbwd.insert -> ('p, 'n, 'mn, 'g) insert_plus
 
-  let rec index_plus :
-      type m n mn g p. (m, g, p) index -> (m, n, mn) plus -> (p, n, mn, g) index_plus =
+  let rec insert_plus :
+      type m n mn g p. (p, g, m) Tbwd.insert -> (m, n, mn) plus -> (p, n, mn, g) insert_plus =
    fun i mn ->
     match mn with
     | Zero -> Index_plus (Zero, i)
     | Suc (mn, g) ->
-        let (Index_plus (pn, j)) = index_plus i mn in
-        Index_plus (Suc (pn, g), Pop j)
+        let (Index_plus (pn, j)) = insert_plus i mn in
+        Index_plus (Suc (pn, g), Later j)
 
-  type (_, _, _, _) swap_indices =
-    | Swap_indices : ('m, 'l, 'q) index * ('q, 'k, 'p) index -> ('m, 'k, 'l, 'p) swap_indices
+  type (_, _, _, _) swap_inserts =
+    | Swap_indices :
+        ('q, 'l, 'm) Tbwd.insert * ('p, 'k, 'q) Tbwd.insert
+        -> ('m, 'k, 'l, 'p) swap_inserts
 
-  let rec swap_indices :
-      type m n p k l. (m, k, n) index -> (n, l, p) index -> (m, k, l, p) swap_indices =
+  let rec swap_inserts :
+      type m n p k l. (n, k, m) Tbwd.insert -> (p, l, n) Tbwd.insert -> (m, k, l, p) swap_inserts =
    fun k l ->
     match k with
-    | Top -> (
+    | Now -> (
         match l with
-        | Top -> Swap_indices (Pop l, Top)
-        | Pop _ -> Swap_indices (Pop l, Top))
-    | Pop k' -> (
+        | Now -> Swap_indices (Later l, Now)
+        | Later _ -> Swap_indices (Later l, Now))
+    | Later k' -> (
         match l with
-        | Top -> Swap_indices (Top, k')
-        | Pop l' ->
-            let (Swap_indices (l'', k'')) = swap_indices k' l' in
-            Swap_indices (Pop l'', Pop k''))
+        | Now -> Swap_indices (Now, k')
+        | Later l' ->
+            let (Swap_indices (l'', k'')) = swap_inserts k' l' in
+            Swap_indices (Later l'', Later k''))
 
-  let rec index_equiv : type m n g p q. (m, g, p) index -> (n, g, q) index -> unit option =
+  let rec insert_equiv :
+      type m n g p q. (p, g, m) Tbwd.insert -> (q, g, n) Tbwd.insert -> unit option =
    fun k l ->
     match (k, l) with
-    | Top, Top -> Some ()
-    | Pop k, Pop l -> index_equiv k l
+    | Now, Now -> Some ()
+    | Later k, Later l -> insert_equiv k l
     | _, _ -> None
 
   let rec compare : type m n. m t -> n t -> (m, n) Eq.compare =
@@ -207,14 +206,14 @@ module Make (G : Gen) = struct
   (* Now we can define suc_plus_eq_suc in a way that correctly records the relationship between 'q and 'p.  *)
   type (_, _, _, _) suc_plus_eq_suc =
     | Suc_plus_eq_suc :
-        (('m, 'g) suc, 'n, 'q) plus * ('q, 'g, 'p) index
+        (('m, 'g) suc, 'n, 'q) plus * ('p, 'g, 'q) Tbwd.insert
         -> ('m, 'g, 'n, 'p) suc_plus_eq_suc
 
   let rec suc_plus_eq_suc : type m g n p. (m, n, p) plus -> (m, g, n, p) suc_plus_eq_suc = function
-    | Zero -> Suc_plus_eq_suc (Zero, Top)
+    | Zero -> Suc_plus_eq_suc (Zero, Now)
     | Suc (x, g) ->
         let (Suc_plus_eq_suc (y, i)) = suc_plus_eq_suc x in
-        Suc_plus_eq_suc (Suc (y, g), Pop i)
+        Suc_plus_eq_suc (Suc (y, g), Later i)
 
   (* ********** Subtraction ********** *)
 

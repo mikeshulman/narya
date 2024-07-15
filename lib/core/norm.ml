@@ -370,7 +370,8 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let ks = plus_deg k kn km s in
       (* We push as much of the resulting degeneracy into the environment as possible, in hopes that the remaining insertion outside will be trivial and act_value will be able to short-circuit.  (Ideally, the insertion would be carried through by eval for a single traversal in all cases.) *)
       let (Insfact (fa, ins)) = insfact ks kn in
-      Val (act_value (eval_term (act_env env (op_of_deg fa)) x) (perm_of_ins ins))
+      let (To p) = deg_of_ins ins in
+      Val (act_value (eval_term (act_env env (op_of_deg fa)) x) p)
   | Match { tm; dim = match_dim; branches } -> (
       let env_dim = dim_env env in
       let (Plus plus_dim) = D.plus match_dim in
@@ -564,7 +565,7 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
       if Option.is_none (is_id_ins ins) then
         fatal ?severity (No_such_field (`Degenerated_record, fld));
       let m = cod_left_ins ins in
-      let mn = plus_of_ins ins in
+      let (Plus mn) = D.plus (cod_right_ins ins) in
       let mn' = D.plus_out m mn in
       match D.compare (TubeOf.inst tyargs) mn' with
       | Neq ->
@@ -606,16 +607,14 @@ and eval_binder :
     (m, b) env -> (m, n, mn) D.plus -> ((b, n) snoc, s) term -> (mn, s) Value.binder =
  fun env mn body ->
   let m = dim_env env in
-  let n = D.plus_right mn in
-  let (Id_ins ins) = id_ins m n in
-  let Eq = D.plus_uniq mn (plus_of_ins ins) in
+  let ins = id_ins m mn in
   Value.Bind { env; ins; body }
 
 and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t -> s evaluation =
  fun (Value.Bind { env; ins; body }) argstbl ->
   let m = dim_env env in
-  let mn = plus_of_ins ins in
-  let perm = perm_of_ins ins in
+  let (Plus mn) = D.plus (cod_right_ins ins) in
+  let perm = perm_of_ins_plus ins mn in
   (* The arguments have to be acted on by degeneracies to form the appropriate cube.  But not all the arguments may be actually used, so we do these actions lazily. *)
   act_evaluation
     (eval
@@ -627,10 +626,10 @@ and apply_binder : type n s. (n, s) Value.binder -> (n, kinetic value) CubeOf.t 
                 build =
                   (fun frfs ->
                     let (Face (fa, fb)) = perm_sface (perm_inv perm) frfs in
-                    act_lazy_eval (defer (fun () -> Val (CubeOf.find argstbl fa))) fb);
+                    act_lazy_eval (defer (fun () -> Val (CubeOf.find argstbl fa))) (deg_of_perm fb));
               } ))
        body)
-    perm
+    (deg_of_perm perm)
 
 and eval_canonical : type m a. (m, a) env -> a Term.canonical -> any_canonical =
  fun env can ->
@@ -643,7 +642,8 @@ and eval_canonical : type m a. (m, a) env -> a Term.canonical -> any_canonical =
           constrs in
       Any (Data { dim = dim_env env; tyfam; indices = Fillvec.empty indices; constrs; discrete })
   | Codata { eta; opacity; dim; fields } ->
-      let (Id_ins ins) = id_ins (dim_env env) dim in
+      let (Plus ed) = D.plus dim in
+      let ins = id_ins (dim_env env) ed in
       Any (Codata { eta; opacity; env; ins; fields })
 
 and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
@@ -687,8 +687,9 @@ and force_eval : type s. s lazy_eval -> s evaluation =
  fun lev ->
   match !lev with
   | Deferred_eval (env, tm, ins, apps) ->
+      let (To p) = deg_of_ins ins in
       (* TODO: In an ideal world, there would be one function that would traverse the term once doing both "eval" and "act" by the insertion. *)
-      let etm = act_evaluation (eval env tm) (perm_of_ins ins) in
+      let etm = act_evaluation (eval env tm) p in
       let etm = Bwd.fold_left app_eval etm apps in
       lev := Ready etm;
       etm
@@ -710,8 +711,12 @@ and app_eval : type s. s evaluation -> app -> s evaluation =
   let app : type s. s value -> app -> s evaluation =
    fun tm x ->
     match x with
-    | App (Arg xs, ins) -> act_evaluation (apply tm (val_of_norm_cube xs)) (perm_of_ins ins)
-    | App (Field fld, ins) -> act_evaluation (field tm fld) (perm_of_ins ins) in
+    | App (Arg xs, ins) ->
+        let (To p) = deg_of_ins ins in
+        act_evaluation (apply tm (val_of_norm_cube xs)) p
+    | App (Field fld, ins) ->
+        let (To p) = deg_of_ins ins in
+        act_evaluation (field tm fld) p in
   match (ev, x) with
   | Val v, _ -> app v x
   | Realize v, _ ->
@@ -723,7 +728,7 @@ and app_eval : type s. s evaluation -> app -> s evaluation =
       match (D.compare dim (CubeOf.dim arg), is_id_ins ins) with
       | Neq, _ -> fatal (Dimension_mismatch ("adding indices to a datatype", dim, CubeOf.dim arg))
       | _, None -> fatal (Anomaly "nonidentity insertion on datatype")
-      | Eq, Some () ->
+      | Eq, Some _ ->
           let indices = Fillvec.snoc indices arg in
           Canonical (Data { dim; tyfam; indices; constrs; discrete }))
   | Canonical _, _ -> fatal (Anomaly "app on canonical type")

@@ -226,6 +226,123 @@ let rec index_in_plus : type m n mn. (m, n, mn) plus -> mn index -> (m index, n 
           | Left j -> Left j
           | Right k -> Right (Pop k)))
 
+(* ********** Insertions ********** *)
+
+type (_, _) insert =
+  | Now : ('a, 'a suc) insert
+  | Later : ('a, 'b) insert -> ('a suc, 'b suc) insert
+
+let rec insert_out : type a b. a t -> (a, b) insert -> b t =
+ fun a i ->
+  match i with
+  | Now -> suc a
+  | Later i ->
+      let (Nat (Suc a)) = a in
+      suc (insert_out (Nat a) i)
+
+let rec insert_in : type a b. b t -> (a, b) insert -> a t =
+ fun b i ->
+  match i with
+  | Now ->
+      let (Nat (Suc a)) = b in
+      Nat a
+  | Later i ->
+      let (Nat (Suc b)) = b in
+      suc (insert_in (Nat b) i)
+
+let rec plus_insert :
+    type a b c ab ac. (a, b, ab) plus -> (a, c, ac) plus -> (b, c) insert -> (ab, ac) insert =
+ fun ab ac i ->
+  match i with
+  | Now ->
+      let (Suc ac) = ac in
+      let Eq = plus_uniq ab ac in
+      Now
+  | Later i ->
+      let Suc ab, Suc ac = (ab, ac) in
+      Later (plus_insert ab ac i)
+
+(* Extend an insertion by the identity *)
+type (_, _, _) insert_plus =
+  | Insert_plus : ('a, 'c, 'ac) plus * ('ac, 'bc) insert -> ('a, 'c, 'bc) insert_plus
+
+let rec insert_plus : type a b c bc. (a, b) insert -> (b, c, bc) plus -> (a, c, bc) insert_plus =
+ fun ins bc ->
+  match bc with
+  | Zero -> Insert_plus (Zero, ins)
+  | Suc _ ->
+      let (Insert_plus (ac, i)) = insert_plus (Later ins) (suc_plus bc) in
+      Insert_plus (plus_suc ac, i)
+
+let rec int_of_insert : type a b. (a, b) insert -> int = function
+  | Now -> 0
+  | Later i -> int_of_insert i + 1
+
+let rec insert_of_index : type b. b suc index -> (b, b suc) insert = function
+  | Top -> Now
+  | Pop i -> (
+      match i with
+      | Top -> Later (insert_of_index i)
+      | Pop _ -> Later (insert_of_index i))
+
+let rec index_of_insert : type b bsuc. (b, bsuc) insert -> bsuc index = function
+  | Now -> Top
+  | Later i -> (
+      match i with
+      | Now -> Pop (index_of_insert i)
+      | Later _ -> Pop (index_of_insert i))
+
+type (_, _) swap_inserts =
+  | Swap_inserts : ('b, 'c) insert * ('a, 'b) insert -> ('a, 'c) swap_inserts
+
+let rec swap_inserts : type a b c. (b, c) insert -> (a, b) insert -> (a, c) swap_inserts =
+ fun k l ->
+  match k with
+  | Now -> (
+      match l with
+      | Now -> Swap_inserts (Later l, Now)
+      | Later _ -> Swap_inserts (Later l, Now))
+  | Later k' -> (
+      match l with
+      | Now -> Swap_inserts (Now, k')
+      | Later l' ->
+          let (Swap_inserts (l'', k'')) = swap_inserts k' l' in
+          Swap_inserts (Later l'', Later k''))
+
+type (_, _, _) insert_in_plus =
+  | Left : ('pred_m, 'm) insert * ('pred_m, 'n, 'pred_mn) plus -> ('m, 'n, 'pred_mn) insert_in_plus
+  | Right : ('pred_n, 'n) insert * ('m, 'pred_n, 'pred_mn) plus -> ('m, 'n, 'pred_mn) insert_in_plus
+
+let rec insert_in_plus :
+    type m n pred_mn mn. (m, n, mn) plus -> (pred_mn, mn) insert -> (m, n, pred_mn) insert_in_plus =
+ fun mn i ->
+  match mn with
+  | Zero -> Left (i, Zero)
+  | Suc mn -> (
+      match i with
+      | Now -> Right (Now, mn)
+      | Later i -> (
+          match insert_in_plus mn i with
+          | Left (j, pred_mn) -> Left (j, Suc pred_mn)
+          | Right (k, pred_mn) -> Right (Later k, Suc pred_mn)))
+
+type (_, _, _) insert_into_plus =
+  | Left : ('m, 'msuc) insert * ('msuc, 'n, 'mn_suc) plus -> ('m, 'n, 'mn_suc) insert_into_plus
+  | Right : ('n, 'nsuc) insert * ('m, 'nsuc, 'mn_suc) plus -> ('m, 'n, 'mn_suc) insert_into_plus
+
+let rec insert_into_plus :
+    type m n mn mn_suc. (m, n, mn) plus -> (mn, mn_suc) insert -> (m, n, mn_suc) insert_into_plus =
+ fun mn i ->
+  match i with
+  | Now -> Right (Now, Suc mn)
+  | Later i -> (
+      match mn with
+      | Zero -> Left (Later i, Zero)
+      | Suc mn -> (
+          match insert_into_plus mn i with
+          | Left (j, mn_suc) -> Left (j, Suc mn_suc)
+          | Right (k, mn_suc) -> Right (Later k, Suc mn_suc)))
+
 (* ********** Comparison ********** *)
 
 (* We can compare two natural numbers, in such a way that equality identifies their types, and inequality is witnessed by addition. *)
@@ -525,6 +642,15 @@ let plus_pos : type a b ab. a t -> b pos -> (a, b, ab) plus -> ab pos =
   let (Suc ab) = ab in
   Pos (plus_out a ab)
 
+let rec insert_pos : type a b. a t -> (a, b) insert -> b pos =
+ fun a i ->
+  match i with
+  | Now -> Pos a
+  | Later i ->
+      let (Nat (Suc a)) = a in
+      let (Pos (Nat b)) = insert_pos (Nat a) i in
+      Pos (Nat (Suc b))
+
 let pos_plus : type a b ab. a pos -> (a, b, ab) plus -> ab pos =
  fun (Pos a) ab ->
   let (Suc ab) = plus_suc ab in
@@ -579,13 +705,13 @@ let insert : type a b. (a, b) perm -> b suc index -> (a suc, b suc) perm =
   | _ -> Insert (p, i)
 
 (* Insert a sequence of 'c' elements into a permutation at the same position, in order. *)
-let rec insert_plus :
+let rec insert_many :
     type a b c ac bc.
     (a, b) perm -> b suc index -> (a, c, ac) plus -> (b, c, bc) plus -> (ac, bc) perm =
  fun p i ac bc ->
   match (ac, bc) with
   | Zero, Zero -> p
-  | Suc ac, Suc bc -> insert (insert_plus p i ac bc) (lift_index (suc_plus_eq_suc bc) i)
+  | Suc ac, Suc bc -> insert (insert_many p i ac bc) (lift_index (suc_plus_eq_suc bc) i)
 
 (* A permutation can be applied to an index in its domain to produce an index in its codomain. *)
 let rec perm_apply : type a b. (a, b) perm -> a index -> b index =

@@ -10,6 +10,7 @@ let is_pos : type n. n D.t -> bool = function
 module Endpoints = Endpoints
 include Arith
 include Deg
+include Perm
 include Sface
 include Bwsface
 include Cube
@@ -38,7 +39,7 @@ let refl : (one, D.zero) deg = Zero D.one
 
 type two = D.two
 
-let sym : (two, two) deg = Suc (Suc (Zero D.zero, Top), Pop Top)
+let sym : (two, two) deg = Suc (Suc (Zero D.zero, Now), Later Now)
 
 type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
 
@@ -55,5 +56,5 @@ let name_of_deg : type a b. (a, b) deg -> string option = function
       match Endpoints.refl_names () with
       | [] -> None
       | name :: _ -> Some name)
-  | Suc (Suc (Zero (Nat Zero), Top), Pop Top) -> Some "sym"
+  | Suc (Suc (Zero (Nat Zero), Now), Later Now) -> Some "sym"
   | _ -> None

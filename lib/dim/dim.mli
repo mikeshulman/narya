@@ -51,18 +51,21 @@ val pos_deg : 'n D.pos -> ('m, 'n) deg -> 'm D.pos
 val deg_equiv : ('m, 'n) deg -> ('k, 'l) deg -> unit option
 val deg_zero : 'a D.t -> ('a, D.zero) deg
 
-type 'n perm = ('n, 'n) deg
+type (_, _) perm
 
-val perm_inv : 'm perm -> 'm perm
+val deg_of_perm : ('m, 'n) perm -> ('m, 'n) deg
+val perm_of_deg : ('m, 'n) deg -> ('m, 'n) perm option
+val perm_inv : ('m, 'n) perm -> ('n, 'm) perm
 
 type (_, _, _) deg_perm_of_plus =
   | Deg_perm_of_plus :
-      ('m, 'k, 'mk) D.plus * ('m, 'n) deg * 'k perm
-      -> ('mk, 'n, 'k) deg_perm_of_plus
+      ('m, 'k, 'mk) D.plus * ('m, 'n) deg * ('k, 'l) perm
+      -> ('mk, 'n, 'l) deg_perm_of_plus
   | None_deg_perm_of_plus : ('mk, 'n, 'k) deg_perm_of_plus
 
 val deg_perm_of_plus : ('n, 'k, 'nk) D.plus -> ('mk, 'nk) deg -> ('mk, 'n, 'k) deg_perm_of_plus
 
+type _ perm_to = Perm_to : ('a, 'b) perm -> 'a perm_to
 type _ deg_of = Of : ('m, 'n) deg -> 'n deg_of
 type _ deg_of_plus = Of : ('n, 'k, 'nk) D.plus * ('m, 'nk) deg -> 'n deg_of_plus
 
@@ -74,6 +77,7 @@ type (_, _) deg_extending =
 val comp_deg_extending : ('m, 'n) deg -> ('k, 'l) deg -> ('k, 'n) deg_extending
 
 type any_deg = Any : ('m, 'n) deg -> any_deg
+type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
 
 val string_of_deg : ('a, 'b) deg -> string
 val deg_of_string : string -> any_deg option
@@ -448,18 +452,15 @@ module NICubeOf : sig
   val find_top : ('left, 'n, 'b, 'right) t -> 'b
 end
 
-type (_, _) face = Face : ('m, 'n) sface * 'm perm -> ('m, 'n) face
+type (_, _) face = Face : ('m, 'n) sface * ('k, 'm) perm -> ('k, 'n) face
 
 val id_face : 'n D.t -> ('n, 'n) face
-val perm_sface : 'n perm -> ('m, 'n) sface -> ('m, 'n) face
+val perm_sface : ('n, 'k) perm -> ('m, 'n) sface -> ('m, 'k) face
 val comp_face : ('n, 'k) face -> ('m, 'n) face -> ('m, 'k) face
 val dom_face : ('m, 'n) face -> 'm D.t
 val cod_face : ('m, 'n) face -> 'n D.t
 val face_of_sface : ('m, 'n) sface -> ('m, 'n) face
-val face_of_perm : 'm perm -> ('m, 'm) face
-
-val face_plus_face :
-  ('k, 'm) face -> ('m, 'n, 'mn) D.plus -> ('k, 'l, 'kl) D.plus -> ('l, 'n) face -> ('kl, 'mn) face
+val face_of_perm : ('m, 'n) perm -> ('m, 'n) face
 
 type _ face_of = Face_of : ('m, 'n) face -> 'n face_of
 type (_, _) op = Op : ('n, 'k) sface * ('m, 'n) deg -> ('m, 'k) op
@@ -489,29 +490,19 @@ type (_, _, _) insertion
 
 val ins_zero : 'a D.t -> ('a, 'a, D.zero) insertion
 val zero_ins : 'a D.t -> ('a, D.zero, 'a) insertion
-
-type (_, _) id_ins = Id_ins : ('ab, 'a, 'b) insertion -> ('a, 'b) id_ins
-
-val id_ins : 'a D.t -> 'b D.t -> ('a, 'b) id_ins
+val id_ins : 'a D.t -> ('a, 'b, 'ab) D.plus -> ('ab, 'a, 'b) insertion
 val dom_ins : ('a, 'b, 'c) insertion -> 'a D.t
 val cod_left_ins : ('a, 'b, 'c) insertion -> 'b D.t
 val cod_right_ins : ('a, 'b, 'c) insertion -> 'c D.t
-val plus_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'a) D.plus
-val deg_of_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
-val perm_of_ins : ('a, 'b, 'c) insertion -> 'a perm
-val is_id_ins : ('a, 'b, 'c) insertion -> unit option
+val deg_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
+val deg_of_ins : ('a, 'b, 'c) insertion -> 'a deg_to
+val perm_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) perm
+val perm_of_ins : ('a, 'b, 'c) insertion -> 'a perm_to
+val is_id_ins : ('a, 'b, 'c) insertion -> ('b, 'c, 'a) D.plus option
 val deg_of_plus_of_ins : ('a, 'b, 'c) insertion -> 'b deg_of_plus
-
-val plus_ins :
-  'a D.t ->
-  ('a, 'b, 'ab) D.plus ->
-  ('a, 'bc, 'abc) D.plus ->
-  ('bc, 'b, 'c) insertion ->
-  ('abc, 'ab, 'c) insertion
 
 type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('ac, 'b, 'c) insfact
 
-val comp_insfact : ('ac, 'b, 'c) insfact -> ('b, 'c, 'bc) D.plus -> ('ac, 'bc) deg
 val insfact : ('ac, 'bc) deg -> ('b, 'c, 'bc) D.plus -> ('ac, 'b, 'c) insfact
 
 type (_, _, _) insfact_comp =

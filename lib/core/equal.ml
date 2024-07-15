@@ -176,8 +176,7 @@ module Equal = struct
         let* () = guard (c1 = c2) in
         match D.compare (cod_left_ins i1) (cod_left_ins i2) with
         | Eq ->
-            let d1 = deg_of_ins i1 (plus_of_ins i1) in
-            let d2 = deg_of_ins i2 (plus_of_ins i2) in
+            let To d1, To d2 = (deg_of_ins i1, deg_of_ins i2) in
             deg_equiv d1 d2
         | Neq -> fail)
     | Meta { meta = meta1; env = env1; ins = i1 }, Meta { meta = meta2; env = env2; ins = i2 } -> (
@@ -202,7 +201,8 @@ module Equal = struct
   (* Check that two application arguments are equal, including their outer insertions as well as their values.  As noted above, here we can go back to *assuming* that they have equal types, and thus passing off to the eta-expanding equality check. *)
   and equal_arg : int -> app -> app -> unit option =
    fun n (App (a1, i1)) (App (a2, i2)) ->
-    let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
+    let To d1, To d2 = (deg_of_ins i1, deg_of_ins i2) in
+    let* () = deg_equiv d1 d2 in
     match (a1, a2) with
     | Arg a1, Arg a2 -> (
         match D.compare (CubeOf.dim a1) (CubeOf.dim a2) with

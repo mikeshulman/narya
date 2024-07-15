@@ -67,18 +67,18 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
         (* If the term is not a struct and the record type is not transparent/translucent, we pass off to synthesizing readback. *)
         | _ -> None in
       match is_id_ins ins with
-      | Some () -> (
+      | Some _ -> (
           match readback_at_record tm ty with
           | Some res -> res
           | None -> readback_val ctx tm)
       | None -> (
           (* A nontrivially permuted record is not a record type, but we can permute its arguments to find elements of a record type that we can then eta-expand and re-permute. *)
-          let p = perm_of_ins ins in
-          let pinv = perm_inv p in
+          let (Perm_to p) = perm_of_ins ins in
+          let pinv = deg_of_perm (perm_inv p) in
           let ptm = act_value tm pinv in
           let pty = act_ty tm ty pinv in
           match readback_at_record ptm pty with
-          | Some res -> Act (res, p)
+          | Some res -> Act (res, deg_of_perm p)
           | None -> readback_val ctx tm))
   | Canonical (_, Data { constrs; _ }, tyargs), Constr (xconstr, xn, xargs) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
@@ -155,12 +155,13 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
   | Neu { head; args; value = _ } ->
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
+          let (To p) = deg_of_ins ins in
           Term.Act
             ( (match arg with
               | Arg args ->
                   App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ args ])
               | Field fld -> Field (fn, fld)),
-              perm_of_ins ins ))
+              p ))
         (readback_head ctx head) args
 
 and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
@@ -171,11 +172,11 @@ and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
       Act (Var x, deg)
   | Const { name; ins } ->
       let dim = cod_left_ins ins in
-      let perm = deg_of_ins ins (plus_of_ins ins) in
+      let (To perm) = deg_of_ins ins in
       let (DegExt (_, _, deg)) = comp_deg_extending (deg_zero dim) perm in
       Act (Const name, deg)
   | Meta { meta; env; ins } ->
-      let perm = deg_of_ins ins (plus_of_ins ins) in
+      let (To perm) = deg_of_ins ins in
       let (Wrap (Metadef { termctx; _ })) = Global.find_meta meta in
       Act (MetaEnv (meta, readback_env ctx env termctx), perm)
 

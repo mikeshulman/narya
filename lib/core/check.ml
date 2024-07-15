@@ -223,11 +223,10 @@ let rec check :
       clet
   (* An action can always synthesize, but can also check if its degeneracy is a pure permutation, since then the type of the argument can be inferred by applying the inverse permutation to the ambient type. *)
   | Synth (Act (str, fa, x) as stm), _ -> (
-      (* TODO: Once we have multiple directions, this will need to be more sophisticated. *)
-      match D.compare (dom_deg fa) (cod_deg fa) with
-      | Neq -> check_of_synth status ctx stm tm.loc ty
-      | Eq ->
-          let fainv = perm_inv fa in
+      match perm_of_deg fa with
+      | None -> check_of_synth status ctx stm tm.loc ty
+      | Some fa ->
+          let fa, fainv = (deg_of_perm fa, deg_of_perm (perm_inv fa)) in
           let ty_fainv =
             gact_ty None ty fainv ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa))
           in
@@ -292,13 +291,13 @@ let rec check :
       match view_type ~severity ty "typechecking comatch" with
       (* We don't need to name the arguments here because tyof_field, called below from check_field, uses them. *)
       | Canonical (name, Codata { eta = Noeta; ins; fields; _ }, _) ->
-          let () = is_id_ins ins <|> Comatching_at_degenerated_codata (phead name) in
+          let _ = is_id_ins ins <|> Comatching_at_degenerated_codata (phead name) in
           check_struct status Noeta ctx tms ty (cod_left_ins ins) fields
       | _ -> fatal (Comatching_at_noncodata (PVal (ctx, ty))))
   | Struct (Eta, tms), _ -> (
       match view_type ~severity ty "typechecking tuple" with
       | Canonical (name, Codata { eta = Eta; ins; fields; _ }, _) ->
-          is_id_ins ins <|> Checking_tuple_at_degenerated_record (phead name);
+          let _ = is_id_ins ins <|> Checking_tuple_at_degenerated_record (phead name) in
           check_struct status Eta ctx tms ty (cod_left_ins ins) fields
       | _ -> fatal (Checking_tuple_at_nonrecord (PVal (ctx, ty))))
   | Constr ({ value = constr; loc = constr_loc }, args), _ -> (
@@ -1287,7 +1286,7 @@ and get_indices :
         (function
           | Value.App (Arg arg, ins) -> (
               match is_id_ins ins with
-              | Some () -> (
+              | Some _ -> (
                   match D.compare (CubeOf.dim arg) D.zero with
                   | Eq -> readback_nf ctx (CubeOf.find_top arg)
                   | Neq -> fatal (Invalid_constructor_type c))

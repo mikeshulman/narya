@@ -282,7 +282,7 @@ module Tbwd = struct
         let (Flatten_uninsert (ns, n)) = flatten_uninsert i ns in
         let q = permute_flatten ms ns p in
         let j = index_of_flattened_insert i ns in
-        N.insert_plus q j m n
+        N.insert_many q j m n
 
   (* Tbwds of types satisfying a predicate. *)
   module type Predicate = sig

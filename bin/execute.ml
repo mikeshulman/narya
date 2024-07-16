@@ -69,8 +69,8 @@ let reformat_maybe_ws f =
 (* All the files that have been loaded so far in this run of the program, along with their export namespaces, compilation unit identifiers, and whether they were explicitly invoked on the command line. *)
 let loaded_files : (FilePath.filename, Scope.trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20
 
-(* The complete merged namespace of all the files explicitly given on the command line so far.  Imported into -e and -i.  We compute it lazily because if there is no -e or -i we don't need it. *)
-let loaded_contents : Scope.trie Lazy.t ref = ref (Lazy.from_val Trie.empty)
+(* The complete merged namespace of all the files explicitly given on the command line so far.  Imported into -e and -i.  We compute it lazily because if there is no -e or -i we don't need it.  (And also so that we won't try to read the flags before they're set.) *)
+let loaded_contents : Scope.trie Lazy.t ref = ref (lazy (Flags.read ()).init_visible)
 
 (* Add something to the complete merged namespace. *)
 let add_to_all trie =

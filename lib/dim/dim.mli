@@ -554,6 +554,45 @@ type (_, _) deg_comp_pbij =
 
 val deg_comp_pbij : ('m, 'n) deg -> ('m, 'i) pbij -> ('n, 'i) deg_comp_pbij
 
+module Pbijmap : sig
+  type (_, _, _) t
+
+  val intrinsic : ('evaluation, 'intrinsic, 'v) t -> 'intrinsic D.t
+
+  type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
+
+  val find : ('evaluation, 'intrinsic) pbij -> ('evaluation, 'intrinsic, 'v) t -> 'v
+  val find_singleton : ('evaluation, 'intrinsic, 'v) t -> 'v option
+
+  val set :
+    ('evaluation, 'intrinsic) pbij ->
+    'v ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val build :
+    'evaluation D.t ->
+    'intrinsic D.t ->
+    (('evaluation, 'intrinsic) pbij -> 'v) ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val singleton : 'v -> ('evaluation, D.zero, 'v) t
+  val map : ('v -> 'w) -> ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'intrinsic, 'w) t
+
+  val iter :
+    'evaluation D.t ->
+    (('evaluation, 'intrinsic) pbij -> 'v -> unit) ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    unit
+
+  val fold :
+    'evaluation D.t ->
+    (('evaluation, 'intrinsic) pbij -> 'v -> 'acc -> 'acc) ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    'acc ->
+    'acc
+end
+
 module Plusmap : sig
   module OfDom : module type of Tbwd.Of (D)
   module OfCod : module type of Tbwd.Of (D) with type 'a t = 'a OfDom.t

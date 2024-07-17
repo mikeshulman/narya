@@ -300,8 +300,8 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       apply efn eargs
   | Field (tm, fld) -> field (eval_term env tm) fld
   | Struct (_, dim, fields, energy) ->
-      let (Plus mn) = D.plus (dim_env env) in
-      let ins = ins_zero (D.plus_out dim mn) in
+      let (Plus mn) = D.plus dim in
+      let ins = ins_zero (D.plus_out (dim_env env) mn) in
       Val (Struct (Abwd.map (fun (tm, l) -> (lazy_eval env tm, l)) fields, ins, energy))
   | Constr (constr, n, args) ->
       let m = dim_env env in

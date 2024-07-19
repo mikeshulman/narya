@@ -51,6 +51,26 @@ let rec comp_sface : type m n k. (n, k) sface -> (m, n) sface -> (m, k) sface =
 let sface_zero : type n. (n, D.zero) sface -> (n, D.zero) Eq.t = function
   | Zero -> Eq
 
+type _ sface_of = SFace_of : ('m, 'n) sface -> 'n sface_of
+
+(* Insert an element in the codomain and domain of a strict face, with the same numerical De Bruijn index. *)
+
+type (_, _) insert_sface =
+  | Insert_sface : ('m, 'msuc) D.insert * ('msuc, 'nsuc) sface -> ('m, 'nsuc) insert_sface
+
+let rec insert_sface : type m n nsuc. (m, n) sface -> (n, nsuc) D.insert -> (m, nsuc) insert_sface =
+ fun f i ->
+  match i with
+  | Now -> Insert_sface (Now, Mid f)
+  | Later i -> (
+      match f with
+      | End (f, e) ->
+          let (Insert_sface (i, f)) = insert_sface f i in
+          Insert_sface (i, End (f, e))
+      | Mid f ->
+          let (Insert_sface (i, f)) = insert_sface f i in
+          Insert_sface (Later i, Mid f))
+
 (* Concatenate two strict faces left-to-right. *)
 let rec sface_plus_sface :
     type m n mn k p kp.
@@ -62,8 +82,6 @@ let rec sface_plus_sface :
   | Mid fpn, Suc mn, Suc kp -> Mid (sface_plus_sface fkm mn kp fpn)
 
 (* In particular, we can extend by identities on the right or left. *)
-
-type _ sface_of = SFace_of : ('m, 'n) sface -> 'n sface_of
 
 let sface_plus :
     type m n mn k kn. (k, m) sface -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) sface =

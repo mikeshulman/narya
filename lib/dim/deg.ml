@@ -107,7 +107,23 @@ let plus_deg :
     =
  fun m mn ml s -> deg_plus_deg (id_deg m) mn ml s
 
-(* Check whether a degeneracy is an identity *)
+(* Insert an element into the codomain of a degeneracy, inserting an element into its domain at the same De Bruijn index. *)
+type (_, _) insert_deg =
+  | Insert_deg : ('m, 'msuc) D.insert * ('msuc, 'nsuc) deg -> ('m, 'nsuc) insert_deg
+
+let rec insert_deg : type m n nsuc. (m, n) deg -> (n, nsuc) D.insert -> (m, nsuc) insert_deg =
+ fun s i ->
+  match i with
+  | Now -> Insert_deg (Now, Suc (s, Now))
+  | Later i0 ->
+      let (Suc (s0, j0)) = s in
+      let (Insert_deg (i1, s1)) = insert_deg s0 i0 in
+      let (Commute_insert (i2, j1)) = D.commute_insert ~lift:j0 ~over:i1 in
+      Insert_deg (i2, Suc (s1, j1))
+
+(* ********** Comparing degeneracies ********** *)
+
+(* Check whether a degeneracy is an identity, identifying its domain and codomain if so. *)
 let rec is_id_deg : type m n. (m, n) deg -> (m, n) Eq.t option = function
   | Zero n -> (
       match N.compare n D.zero with
@@ -179,7 +195,7 @@ let comp_deg_extending : type m n l k. (m, n) deg -> (k, l) deg -> (k, n) deg_ex
   let (Plus ni) = D.plus (Nat mi) in
   DegExt (kj, ni, comp_deg (deg_plus a ni mi) (deg_plus b lj kj))
 
-type any_deg = Any : ('m, 'n) deg -> any_deg
+type any_deg = Any_deg : ('m, 'n) deg -> any_deg
 
 (* ******************** Printing and parsing ******************** *)
 
@@ -242,7 +258,7 @@ let deg_of_string : string -> any_deg option =
     (* Finally we pass off to deg_of_strings. *)
     match deg_of_strings strs i with
     | None -> None
-    | Some (To s) -> Some (Any s)
+    | Some (To s) -> Some (Any_deg s)
   with Invalid_direction_name _ -> None
 
 (* A degeneracy is "locking" if it has degenerate external directions. *)

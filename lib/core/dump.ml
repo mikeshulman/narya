@@ -33,7 +33,7 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
   | Inst { tm; dim = d; args = _; tys = _ } ->
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
   | Lam (_, _) -> fprintf ppf "Lam ?"
-  | Struct (f, _, _) -> fprintf ppf "Struct (%a)" fields f
+  | Struct (f, ins, _) -> fprintf ppf "Struct (%a)" (fields (cod_left_ins ins)) f
   | Constr (c, d, args) ->
       fprintf ppf "Constr (%s, %a, (%a))" (Constr.to_string c) dim d
         (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") value)
@@ -41,22 +41,31 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
 
 and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 
-and fields : type s. formatter -> (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t -> unit
-    =
- fun ppf -> function
+and fields :
+    type s n.
+    n D.t ->
+    formatter ->
+    (Field.t, (n, s lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
+    unit =
+ fun n ppf -> function
   | Emp -> fprintf ppf "Emp"
-  | Snoc (flds, (f, (v, l))) -> (
-      match !v with
-      | Ready v ->
-          fprintf ppf "%a <: (%s, %a, %s)" fields flds (Field.to_string f) evaluation v
-            (match l with
-            | `Unlabeled -> "`Unlabeled"
-            | `Labeled -> "`Labeled")
-      | _ ->
-          fprintf ppf "%a <: (%s, (Deferred), %s)" fields flds (Field.to_string f)
-            (match l with
-            | `Unlabeled -> "`Unlabeled"
-            | `Labeled -> "`Labeled"))
+  | Snoc (flds, (f, Wrap m)) ->
+      Pbijmap.iter n
+        (fun p (v, l) ->
+          match !v with
+          | Ready v ->
+              fprintf ppf "%a <: (%s%s, %a, %s)" (fields n) flds (Field.to_string f)
+                (string_of_pbij p) evaluation v
+                (match l with
+                | `Unlabeled -> "`Unlabeled"
+                | `Labeled -> "`Labeled")
+          | _ ->
+              fprintf ppf "%a <: (%s%s, (Deferred), %s)" (fields n) flds (Field.to_string f)
+                (string_of_pbij p)
+                (match l with
+                | `Unlabeled -> "`Unlabeled"
+                | `Labeled -> "`Labeled"))
+        m
 
 and evaluation : type s. formatter -> s evaluation -> unit =
  fun ppf v ->
@@ -85,7 +94,7 @@ and app : formatter -> app -> unit =
 and arg : type n. formatter -> n arg -> unit =
  fun ppf -> function
   | Arg xs -> value ppf (CubeOf.find_top xs).tm
-  | Field fld -> fprintf ppf ".%s" (Field.to_string fld)
+  | Field (fld, _) -> fprintf ppf ".%s.?" (Field.to_string fld)
 
 and head : formatter -> head -> unit =
  fun ppf h ->
@@ -118,7 +127,7 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Const c -> fprintf ppf "Const %a" pp_printed (print (PConstant c))
   | Meta (v, _) -> fprintf ppf "Meta %a" pp_printed (print (PMeta v))
   | MetaEnv (v, _) -> fprintf ppf "MetaEnv (%a,?)" pp_printed (print (PMeta v))
-  | Field (tm, fld) -> fprintf ppf "Field (%a, %s)" term tm (Field.to_string fld)
+  | Field (tm, fld, _) -> fprintf ppf "Field (%a, %s, ?)" term tm (Field.to_string fld)
   | UU n -> fprintf ppf "UU %a" dim n
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
   | Pi (x, doms, _) ->

@@ -38,21 +38,34 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           Term.Lam (x, body))
   | Canonical (_, Codata { eta = Eta; opacity; fields; env = _; ins }, _), _ -> (
       let dim = cod_left_ins ins in
+      let fldins = ins_zero dim in
       let readback_at_record (tm : kinetic value) ty =
         match (tm, opacity) with
         (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
         | Struct (tmflds, _, energy), _ ->
             let fields =
               Abwd.mapi
-                (fun fld (fldtm, l) ->
-                  (readback_at ctx (force_eval_term fldtm) (tyof_field (Ok tm) ty fld), l))
+                (fun fld (Pbijmap.Wrap pbijflds) ->
+                  match Pbijmap.find_singleton pbijflds with
+                  | Some (fldtm, l) ->
+                      Pbijmap.Wrap
+                        (Pbijmap.singleton
+                           ( readback_at ctx (force_eval_term fldtm)
+                               (tyof_field (Ok tm) ty fld fldins),
+                             l ))
+                  | None -> fatal (Anomaly "record type can't have higher fields"))
                 tmflds in
             Some (Term.Struct (Eta, dim, fields, energy))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
         | _, `Transparent l when Display.read () ->
             let fields =
               Abwd.mapi
-                (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field (Ok tm) ty fld), l))
+                (fun fld _ ->
+                  Pbijmap.Wrap
+                    (Pbijmap.singleton
+                       ( readback_at ctx (field_term tm fld fldins)
+                           (tyof_field (Ok tm) ty fld fldins),
+                         l )))
                 fields in
             Some (Struct (Eta, dim, fields, Kinetic))
         | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
@@ -61,7 +74,11 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 let fields =
                   Abwd.mapi
                     (fun fld _ ->
-                      (readback_at ctx (field_term tm fld) (tyof_field (Ok tm) ty fld), l))
+                      Pbijmap.Wrap
+                        (Pbijmap.singleton
+                           ( readback_at ctx (field_term tm fld fldins)
+                               (tyof_field (Ok tm) ty fld fldins),
+                             l )))
                     fields in
                 Some (Struct (Eta, dim, fields, Kinetic))
             | _ -> None)
@@ -161,7 +178,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
             ( (match arg with
               | Arg args ->
                   App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ args ])
-              | Field fld -> Field (fn, fld)),
+              | Field (fld, fldplus) -> Field (fn, fld, id_ins (cod_left_ins ins) fldplus)),
               p ))
         (readback_head ctx head) args
 
@@ -303,10 +320,12 @@ let readback_entry :
   match e with
   | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
       let top = Binding.value (CubeOf.find_top bindings) in
+      (* Fields as illusory variables are only used when typechecking records, which have substitution dimension 0 and can have no higher fields, so as field insertion we can use the identity on zero. *)
+      let fins = ins_zero D.zero in
       let fields =
         Bwv.map
           (fun (f, x) ->
-            let fldty = readback_val ctx (tyof_field (Ok top.tm) top.ty f) in
+            let fldty = readback_val ctx (tyof_field (Ok top.tm) top.ty f fins) in
             (f, x, fldty))
           fields in
       let bindings = readback_bindings ctx bindings in

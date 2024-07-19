@@ -42,10 +42,12 @@ module Equal = struct
         let (Perm_to p) = perm_of_ins ins in
         let pinv = deg_of_perm (perm_inv p) in
         let x, y, ty = (act_value x pinv, act_value y pinv, gact_ty None ty pinv) in
-        (* Now we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particular field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This latter is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+        (* Now we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particular field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This latter is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.)  In addition, records with eta cannot have higher fields, so as field insertion it suffices to use ins_zero on the substitution dimension. *)
+        let fldins = ins_zero (cod_left_ins ins) in
         BwdM.miterM
           (fun [ (fld, _) ] ->
-            equal_at ctx (field_term x fld) (field_term y fld) (tyof_field (Ok x) ty fld))
+            equal_at ctx (field_term x fld fldins) (field_term y fld fldins)
+              (tyof_field (Ok x) ty fld fldins))
           [ fields ]
     (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative, so we don't need a clause for it. *)
     (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
@@ -214,7 +216,9 @@ module Equal = struct
         | Neq ->
             fatal
               (Dimension_mismatch ("application in equality-check", CubeOf.dim a1, CubeOf.dim a2)))
-    | Field f1, Field f2 -> guard (f1 = f2)
+    | Field (f1, _), Field (f2, _) ->
+        (* The 'plus' parts must automatically be equal if the fields are equal and well-typed. *)
+        guard (f1 = f2)
     | _, _ -> fail
 
   and equal_at_tel :

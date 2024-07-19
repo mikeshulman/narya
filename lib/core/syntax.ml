@@ -43,7 +43,7 @@ module rec Term : sig
     | Const : Constant.t -> ('a, kinetic) term
     | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
     | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
-    | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
+    | Field : ('a, kinetic) term * Field.t * ('nk, 'n, 'k) insertion -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
     | Pi :
@@ -55,7 +55,10 @@ module rec Term : sig
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t * 's energy
+        's eta
+        * 'n D.t
+        * (Field.t, ('n, ('a, 's) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        * 's energy
         -> ('a, 's) term
     | Match : {
         tm : ('a, kinetic) term;
@@ -83,7 +86,7 @@ module rec Term : sig
         eta : potential eta;
         opacity : opacity;
         dim : 'n D.t;
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
+        fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
       }
         -> 'a canonical
 
@@ -93,6 +96,12 @@ module rec Term : sig
         indices : (('pa, kinetic) term, 'i) Vec.t;
       }
         -> ('p, 'i) dataconstr
+
+  and (_, _) codatafield =
+    | Lower_codatafield : (('a, 'n) snoc, kinetic) term -> ('a, 'n) codatafield
+    | Higher_codatafield :
+        'k D.pos * ('k, ('a, D.zero) snoc, 'kan) Plusmap.t * ('kan, kinetic) term
+        -> ('a, D.zero) codatafield
 
   and ('a, 'b, 'ab) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
@@ -122,7 +131,7 @@ end = struct
     | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
     (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
     | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
-    | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
+    | Field : ('a, kinetic) term * Field.t * ('nk, 'n, 'k) insertion -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
     (* Since the user doesn't write higher-dimensional pi-types explicitly, there is always only one variable name in a pi-type. *)
@@ -137,7 +146,10 @@ end = struct
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t * 's energy
+        's eta
+        * 'n D.t
+        * (Field.t, ('n, ('a, 's) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        * 's energy
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
     | Match : {
@@ -167,12 +179,12 @@ end = struct
         discrete : [ `Yes | `Maybe | `No ];
       }
         -> 'a canonical
-    (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
+    (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields).  We retain the order of the fields by storing them in an Abwd rather than a Map so as to enable positional access as well as named access. *)
     | Codata : {
         eta : potential eta;
         opacity : opacity;
         dim : 'n D.t;
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
+        fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
       }
         -> 'a canonical
 
@@ -183,6 +195,14 @@ end = struct
         indices : (('pa, kinetic) term, 'i) Vec.t;
       }
         -> ('p, 'i) dataconstr
+
+  (* A codatafield has an intrinsic dimension, and a type that depends on one additional variable, but in a degenerated context.  If it is zero-dimensional, the degeneration does nothing, but we store that case separately so we don't need to construct and carry around lots of trivial Plusmaps. *)
+  and (_, _) codatafield =
+    | Lower_codatafield : (('a, 'n) snoc, kinetic) term -> ('a, 'n) codatafield
+    (* For the present, we don't allow higher fields in higher-dimensional codatatypes, just for simplicity. *)
+    | Higher_codatafield :
+        'k D.pos * ('k, ('a, D.zero) snoc, 'kan) Plusmap.t * ('kan, kinetic) term
+        -> ('a, D.zero) codatafield
 
   (* A telescope is a list of types, each dependent on the previous ones.  Note that 'a and 'ab are lists of dimensions, but 'b is just a forwards natural number counting the number of *zero-dimensional* variables added to 'a to get 'ab.  *)
   and ('a, 'b, 'ab) tel =
@@ -270,7 +290,10 @@ module rec Value : sig
       }
         -> head
 
-  and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
+  and 'n arg =
+    | Arg : ('n, normal) CubeOf.t -> 'n arg
+    | Field : Field.t * ('n, 'k, 'nk) D.plus -> 'n arg
+
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
 
   and (_, _) binder =
@@ -298,8 +321,8 @@ module rec Value : sig
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
     | Struct :
-        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t
-        * ('m, 'n, 'k) insertion
+        (Field.t, ('n, 's lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        * ('nk, 'n, 'k) insertion
         * 's energy
         -> 's value
 
@@ -316,7 +339,7 @@ module rec Value : sig
         opacity : opacity;
         env : ('m, 'a) env;
         ins : ('mn, 'm, 'n) insertion;
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
+        fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
       }
         -> 'mn canonical
 
@@ -384,9 +407,9 @@ end = struct
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =
-    | Arg of ('n, normal) CubeOf.t
-    (* Fields don't store the dimension explicitly; the same field name is used at all dimensions.  But the dimension is implicitly stored in the insertion that appears on an "app". *)
-    | Field of Field.t
+    | Arg : ('n, normal) CubeOf.t -> 'n arg
+    (* For a higher field, the actual evaluation dimension is 'nk, but the result dimension is only 'n.  So the dimension of the arg is 'n, since that's the output dimension that a degeneracy acting on could be pushed through.  However, since a degeneracy of dimension up to 'nk can act on the inside, we can push in the whole insertion and store only a plus outside. *)
+    | Field : Field.t * ('n, 'k, 'nk) D.plus -> 'n arg
 
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
 
@@ -426,10 +449,10 @@ end = struct
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * ('k, 's) binder -> 's value
-    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
+    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension, with 'n the substitution dimension and 'nk the total dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation.  Finally, each field name is associated with a partial bijection in the case of a higher codatatype. *)
     | Struct :
-        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t
-        * ('m, 'n, 'k) insertion
+        (Field.t, ('n, 's lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        * ('nk, 'n, 'k) insertion
         * 's energy
         -> 's value
 
@@ -441,7 +464,7 @@ end = struct
     | Unrealized : potential evaluation
     | Canonical : 'm canonical -> potential evaluation
 
-  (* A canonical type value is either a datatype or a codatatype/record. *)
+  (* A canonical type value is either a datatype or a codatatype/record.  It is parametrized by its dimension as a type, which might be larger than its evaluation dimension if it has an intrinsic dimension (e.g. Gel). *)
   and _ canonical =
     (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definition below. *)
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
@@ -452,7 +475,7 @@ end = struct
         env : ('m, 'a) env;
         ins : ('mn, 'm, 'n) insertion;
         (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
+        fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
       }
         -> 'mn canonical
 
@@ -569,13 +592,7 @@ let apply_lazy : type n s. s lazy_eval -> (n, normal) CubeOf.t -> s lazy_eval =
   | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, xs)))
   | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, xs)))
 
-let field_lazy : type s. s lazy_eval -> Field.t -> s lazy_eval =
- fun lev fld ->
-  let fld = App (Field fld, ins_zero D.zero) in
-  match !lev with
-  | Deferred_eval (env, tm, ins, apps) -> ref (Deferred_eval (env, tm, ins, Snoc (apps, fld)))
-  | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, fld)))
-  | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, fld)))
+(* We defer "field_lazy" to act.ml, since it requires pushing a permutation inside the apps. *)
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : level -> kinetic value -> kinetic value =

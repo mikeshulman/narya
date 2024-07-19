@@ -169,7 +169,7 @@ let rec get_spine :
     type b n.
     (n, kinetic) term ->
     [ `App of (n, kinetic) term * (n, kinetic) term Bwd.t
-    | `Field of (n, kinetic) term * Field.t * (n, kinetic) term Bwd.t ] =
+    | `Field of (n, kinetic) term * Field.t * int Bwd.t * (n, kinetic) term Bwd.t ] =
  fun tm ->
   match tm with
   | App (fn, arg) -> (
@@ -181,8 +181,8 @@ let rec get_spine :
         snd (M.miterM { it = (fun _ [ x ] s -> ((), Snoc (s, x))) } [ arg ] args) in
       match get_spine fn with
       | `App (head, args) -> `App (head, append_bwd args)
-      | `Field (head, fld, args) -> `Field (head, fld, append_bwd args))
-  | Field (head, fld) -> `Field (head, fld, Emp)
+      | `Field (head, fld, ins, args) -> `Field (head, fld, ins, append_bwd args))
+  | Field (head, fld, ins) -> `Field (head, fld, ints_of_ins ins, Emp)
   (* We have to look through identity degeneracies here. *)
   | Act (body, s) -> (
       match is_id_deg s with
@@ -208,7 +208,7 @@ let rec unparse :
   | MetaEnv (v, _) ->
       unlocated
         (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
-  | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
+  | Field (tm, fld, ins) -> unparse_spine vars (`Field (tm, fld, ints_of_ins ins)) Emp li ri
   | UU n ->
       unparse_act vars
         { unparse = (fun _ _ -> unlocated (outfix ~notn:universe ~ws:[] ~inner:Emp)) }
@@ -223,8 +223,8 @@ let rec unparse :
   | App _ -> (
       match get_spine tm with
       | `App (fn, args) -> unparse_spine vars (`Term fn) (Bwd.map (make_unparser vars) args) li ri
-      | `Field (head, fld, args) ->
-          unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser vars) args) li ri)
+      | `Field (head, fld, ins, args) ->
+          unparse_spine vars (`Field (head, fld, ins)) (Bwd.map (make_unparser vars) args) li ri)
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
       let tm = unparse vars tm Interval.entire Interval.entire in
@@ -251,30 +251,33 @@ let rec unparse :
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (Eta, _, fields, _) ->
+  | Struct (Eta, dim, fields, _) ->
       unlocated
         (outfix ~notn:parens ~ws:[]
            ~inner:
              (Abwd.fold
-                (fun fld (tm, l) acc ->
-                  let tm = unparse vars tm Interval.entire Interval.entire in
-                  Snoc
-                    ( acc,
-                      Term
-                        (match l with
-                        | `Labeled ->
-                            unlocated
-                              (infix ~notn:coloneq ~ws:[]
-                                 ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
-                                 ~inner:Emp ~last:tm ~left_ok:(No.le_refl No.minus_omega)
-                                 ~right_ok:(No.le_refl No.minus_omega))
-                        (* An unlabeled 1-tuple must be written (_ := M). *)
-                        | `Unlabeled when Bwd.length fields = 1 ->
-                            unlocated
-                              (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))
-                                 ~inner:Emp ~last:tm ~left_ok:(No.le_refl No.minus_omega)
-                                 ~right_ok:(No.le_refl No.minus_omega))
-                        | `Unlabeled -> tm) ))
+                (fun fld (Pbijmap.Wrap pbijtms) acc ->
+                  Pbijmap.fold dim
+                    (fun _ (fldtm, lbl) acc ->
+                      let fldtm = unparse vars fldtm Interval.entire Interval.entire in
+                      Snoc
+                        ( acc,
+                          Term
+                            (match lbl with
+                            | `Labeled ->
+                                unlocated
+                                  (infix ~notn:coloneq ~ws:[]
+                                     ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
+                                     ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                     ~right_ok:(No.le_refl No.minus_omega))
+                            (* An unlabeled 1-tuple must be written (_ := M). *)
+                            | `Unlabeled when Bwd.length fields = 1 ->
+                                unlocated
+                                  (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))
+                                     ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                     ~right_ok:(No.le_refl No.minus_omega))
+                            | `Unlabeled -> fldtm) ))
+                    pbijtms acc)
                 fields Emp))
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
@@ -314,7 +317,7 @@ and unparse_spine :
     n Names.t ->
     [ `Term of (n, kinetic) term
     | `Constr of Constr.t
-    | `Field of (n, kinetic) term * Field.t
+    | `Field of (n, kinetic) term * Field.t * int Bwd.t
     | `Degen of string
     | `Unparser of unparser ] ->
     unparser Bwd.t ->
@@ -338,7 +341,7 @@ and unparse_spine :
           match head with
           | `Term tm -> unparse vars tm li ri
           | `Constr c -> unlocated (Constr (Constr.to_string c, []))
-          | `Field (tm, fld) -> unparse_field vars tm fld li ri
+          | `Field (tm, fld, ins) -> unparse_field vars tm fld ins li ri
           | `Degen s -> unlocated (Ident ([ s ], []))
           | `Unparser tm -> tm.unparse li ri)
       | Snoc (args, arg) -> (
@@ -370,21 +373,26 @@ and unparse_field :
     n Names.t ->
     (n, kinetic) term ->
     Field.t ->
+    int Bwd.t ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
- fun vars tm fld li ri ->
+ fun vars tm fld ins li ri ->
   match unparse_field_var vars tm fld with
   | Some res -> res
   | None -> (
       match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
           let fn = unparse vars tm li Interval.plus_omega_only in
-          let arg = unlocated (Field (Field.to_string fld, [], [])) in
+          let arg =
+            unlocated (Field (Field.to_string fld, Bwd_extra.to_list_map string_of_int ins, []))
+          in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
           let fn = unparse vars tm Interval.plus_omega_only Interval.plus_omega_only in
-          let arg = unlocated (Field (Field.to_string fld, [], [])) in
+          let arg =
+            unlocated (Field (Field.to_string fld, Bwd_extra.to_list_map string_of_int ins, []))
+          in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
           parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))

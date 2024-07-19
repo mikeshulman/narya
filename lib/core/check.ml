@@ -13,6 +13,7 @@ open Act
 open Norm
 open Equal
 open Readback
+open Degctx
 open Printable
 open Asai.Range
 include Status
@@ -1491,7 +1492,7 @@ and with_codata_so_far :
     opacity ->
     n D.t ->
     (D.zero, n, n, normal) TubeOf.t ->
-    (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
+    (Field.t, (b, n) Term.codatafield) Abwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     ((n, Ctx.Binding.t) CubeOf.t -> c) ->
     c =
@@ -1525,8 +1526,8 @@ and check_codata :
     (b, potential) status ->
     (a, b) Ctx.t ->
     (D.zero, n, n, normal) TubeOf.t ->
-    (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
-    (Field.t * (string option * a N.suc check located)) list ->
+    (Field.t, (b, n) Term.codatafield) Abwd.t ->
+    (Field.t * a Raw.codatafield) list ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     (b, potential) term =
  fun status ctx tyargs checked_fields raw_fields errs ->
@@ -1534,16 +1535,26 @@ and check_codata :
   match raw_fields with
   | [] -> (
       match errs with
-      | Snoc _ -> fatal (Accumulated errs)
-      | Emp -> Canonical (Codata { eta = Noeta; opacity = `Opaque; dim; fields = checked_fields }))
-  | (fld, (x, rty)) :: raw_fields ->
+      | Emp -> Canonical (Codata { eta = Noeta; opacity = `Opaque; dim; fields = checked_fields })
+      | Snoc _ -> fatal (Accumulated errs))
+  | (fld, Codatafield (x, fdim, rty)) :: raw_fields -> (
       with_codata_so_far status Noeta ctx `Opaque dim tyargs checked_fields errs @@ fun domvars ->
       let newctx = Ctx.cube_vis ctx x domvars in
-      let checked_fields, errs =
-        Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
-        let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
-        (Snoc (checked_fields, (fld, cty)), errs) in
-      check_codata status ctx tyargs checked_fields raw_fields errs
+      match (D.compare_zero fdim, D.compare_zero (TubeOf.inst tyargs)) with
+      | Zero, _ ->
+          let checked_fields, errs =
+            Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
+            let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
+            (Snoc (checked_fields, (fld, Lower_codatafield cty)), errs) in
+          check_codata status ctx tyargs checked_fields raw_fields errs
+      | Pos pfdim, Zero ->
+          let (Degctx (plusmap, degctx, _)) = degctx newctx fdim in
+          let checked_fields, errs =
+            Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
+            let cty = check (Kinetic `Nolet) degctx rty (universe D.zero) in
+            (Snoc (checked_fields, (fld, Higher_codatafield (pfdim, plusmap, cty))), errs) in
+          check_codata status ctx tyargs checked_fields raw_fields errs
+      | Pos _, Pos _ -> fatal (Unimplemented "higher fields in higher-dimensional codatatypes"))
 
 and check_record :
     type a f1 f2 f af d acd b n.
@@ -1556,7 +1567,7 @@ and check_record :
     (Field.t * string, f2) Bwv.t ->
     (f1, f2, f) N.plus ->
     (a, f, af) N.plus ->
-    (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
+    (Field.t, (b, n) Term.codatafield) Abwd.t ->
     (af, d, acd) Raw.tel ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     (b, potential) term =
@@ -1578,7 +1589,7 @@ and check_record :
       @@ fun () ->
       let newctx = Ctx.vis_fields ctx vars domvars ctx_fields fplus af in
       let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
-      let checked_fields = Snoc (checked_fields, (fld, cty)) in
+      let checked_fields = Snoc (checked_fields, (fld, Lower_codatafield cty)) in
       let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
       check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
         raw_fields errs
@@ -1591,7 +1602,7 @@ and check_struct :
     (Field.t option, a check located) Abwd.t ->
     kinetic value ->
     m D.t ->
-    (Field.t, ((c, n) snoc, kinetic) term) Abwd.t ->
+    (Field.t, (c, n) Term.codatafield) Abwd.t ->
     (b, s) term =
  fun status eta ctx tms ty dim fields ->
   (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful). *)
@@ -1621,11 +1632,11 @@ and check_fields :
     n D.t ->
     Field.t list ->
     (Field.t option, a check located) Abwd.t ->
-    (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
-    (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t, (n, s lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
+    (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     (Field.t option, a check located) Abwd.t
-    * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
+    * (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t =
  fun status eta ctx ty dim fields tms etms ctms errs ->
   (* The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
   let str = Value.Struct (etms, ins_zero dim, energy status) in
@@ -1660,17 +1671,24 @@ and check_field :
     Field.t list ->
     (kinetic value, Code.t) Result.t ->
     (Field.t option, a check located) Abwd.t ->
-    (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
-    (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    (Field.t, (n, s lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
+    (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     (Field.t option, a check located) Abwd.t
-    * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
+    * (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t =
  fun status eta ctx ty dim fld fields prev_etm tms etms ctms errs ->
+  let ins = ins_zero dim in
   let mkstatus lbl : (b, s) status -> (b, s) status = function
     | Kinetic l -> Kinetic l
     | Potential (c, args, hyp) ->
-        let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
-        let hyp tm = hyp (Term.Struct (eta, dim, Snoc (ctms, (fld, (tm, lbl))), energy status)) in
+        let args = Snoc (args, App (Field (fld, D.plus_zero dim), ins)) in
+        let hyp tm =
+          hyp
+            (Term.Struct
+               ( eta,
+                 dim,
+                 Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (tm, lbl)))),
+                 energy status )) in
         Potential (c, args, hyp) in
   let tms, etms, ctms, errs =
     (* We trap any errors produced by 'tyof_field' or 'check', adding them instead to the list of accumulated errors and going on.  Note that if any previous fields that have already failed, then prev_etm will be bound to an error value, and so if the type of this field depends on the value of any previous one, tyof_field will raise that error, which we catch and add to the list; but it will be (Accumulated Emp) so it won't be displayed to the user. *)
@@ -1682,10 +1700,12 @@ and check_field :
           | Some (tm, tms) -> (tm, tms, `Unlabeled)
           | None -> fatal (Missing_field_in_tuple fld)) in
     Reporter.try_with ~fatal:(fun e -> (tms, etms, ctms, Snoc (errs, e))) @@ fun () ->
-    let ety = tyof_field prev_etm ty fld in
+    let ety = tyof_field prev_etm ty fld ins in
     let ctm = check (mkstatus lbl status) ctx tm ety in
-    (tms, Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, lbl) etms, Snoc (ctms, (fld, (ctm, lbl))), errs)
-  in
+    let etms =
+      Abwd.add fld (Pbijmap.Wrap (Pbijmap.singleton (lazy_eval (Ctx.env ctx) ctm, lbl))) etms in
+    let ctms = Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (ctm, lbl)))) in
+    (tms, etms, ctms, errs) in
   check_fields status eta ctx ty dim fields tms etms ctms errs
 
 and synth :
@@ -1698,20 +1718,22 @@ and synth :
         | `Var (_, x, v) -> (realize status (Term.Var v), x.ty)
         | `Field (lvl, x, fld) -> (
             match Ctx.find_level ctx lvl with
-            | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field (Ok x.tm) x.ty fld)
+            | Some v ->
+                (* TODO: Double-check that this zero is correct *)
+                let ins = ins_zero D.zero in
+                (realize status (Term.Field (Var v, fld, ins)), tyof_field (Ok x.tm) x.ty fld ins)
             | None -> fatal (Anomaly "level not found in field view")))
     | Const name, _ -> (
         let ty, tm = Global.find name in
         match (tm, Ctx.locked ctx) with
         | Axiom `Nonparametric, true -> fatal (Locked_axiom (PConstant name))
         | _ -> (realize status (Const name), eval_term (Emp D.zero) ty))
-    | Field (tm, fld, _ins), _ ->
+    | Field (tm, fld, ins), _ ->
         let stm, sty = synth (Kinetic `Nolet) ctx tm in
         (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
         let etm = eval_term (Ctx.env ctx) stm in
-        (* TODO: pass the insertion data _ins *)
-        let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error (Ok etm) sty fld in
-        (realize status (Field (stm, fld)), newty)
+        let fld, Any_ins ins, newty = tyof_field_withname (Ok etm) sty fld ctx ins in
+        (realize status (Field (stm, fld, ins)), newty)
     | UU, _ -> (realize status (Term.UU D.zero), universe D.zero)
     | Pi (x, dom, cod), _ ->
         (* User-level pi-types are always dimension zero, so the domain must be a zero-dimensional type. *)
@@ -1799,7 +1821,7 @@ and synth_apps :
  fun status ctx sfn sty fn args ->
   (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied.  Failure of view_type here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
   let asfn, aty, afn, aargs =
-    match view_type sty "synth_apps" with
+    match view_type sty "synthesizing application spine" with
     (* The obvious thing we can "apply" is an element of a pi-type. *)
     | Pi (_, doms, cods, tyargs) -> synth_app ctx sfn doms cods tyargs fn args
     (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)

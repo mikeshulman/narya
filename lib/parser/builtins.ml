@@ -1426,7 +1426,7 @@ let () = set_tree codata (Closed_entry (eop Codata (op LBracket (codata_fields t
 
 let rec process_codata :
     type n.
-    (Field.t, string option * n N.suc check located) Abwd.t ->
+    (Field.t, n Raw.codatafield) Abwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -1459,12 +1459,9 @@ let rec process_codata :
       | Some (Any fdim) -> (
           match Abwd.find_opt fld flds with
           | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
-          | None -> (
-              match D.compare fdim D.zero with
-              | Eq ->
-                  let ty = process (Bwv.snoc ctx x) ty in
-                  process_codata (Abwd.add fld (x, ty) flds) ctx obs loc
-              | Neq -> fatal (Unimplemented "parsing higher fields in codata")))
+          | None ->
+              let ty = process (Bwv.snoc ctx x) ty in
+              process_codata (Abwd.add fld (Raw.Codatafield (x, fdim, ty)) flds) ctx obs loc)
       | None -> fatal (Invalid_field (String.concat "." ("" :: fstr :: fdstr))))
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
 

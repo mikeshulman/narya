@@ -101,10 +101,10 @@ module Ordered = struct
               let bindings, newval = degenerate_binding (length newctx) k k_mn bindings ctx env in
               let hasfields = Ctx.No_fields in
               ( Ctx.Vis { dim = D.plus_out k km; plusdim; vars; bindings; hasfields; fields; fplus },
-                Ext (env, k_mn, newval) )
+                Ext (env, k_mn, Ok newval) )
           | Invis xs ->
               let newxs, newval = degenerate_binding (length newctx) k k_mn xs ctx env in
-              (Invis newxs, Ext (env, k_mn, newval)) in
+              (Invis newxs, Ext (env, k_mn, Ok newval)) in
         Degctx (Map_snoc (kb, k_mn), Snoc (newctx, newentry, ax), newenv)
     | Lock ctx ->
         let (Degctx (kb, newctx, env)) = degenerate ctx k in

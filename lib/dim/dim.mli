@@ -75,7 +75,7 @@ type (_, _) deg_extending =
 
 val comp_deg_extending : ('m, 'n) deg -> ('k, 'l) deg -> ('k, 'n) deg_extending
 
-type any_deg = Any : ('m, 'n) deg -> any_deg
+type any_deg = Any_deg : ('m, 'n) deg -> any_deg
 type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
 
 val string_of_deg : ('a, 'b) deg -> string
@@ -494,6 +494,14 @@ val dom_ins : ('a, 'b, 'c) insertion -> 'a D.t
 val cod_left_ins : ('a, 'b, 'c) insertion -> 'b D.t
 val cod_right_ins : ('a, 'b, 'c) insertion -> 'c D.t
 val equal_ins : ('a1, 'b1, 'c1) insertion -> ('a2, 'b2, 'c2) insertion -> unit option
+
+val plus_ins :
+  'a D.t ->
+  ('a, 'b, 'ab) D.plus ->
+  ('a, 'c, 'ac) D.plus ->
+  ('b, 'c, 'd) insertion ->
+  ('ab, 'ac, 'd) insertion
+
 val deg_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val deg_of_ins : ('a, 'b, 'c) insertion -> 'a deg_to
 val perm_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) perm
@@ -512,9 +520,27 @@ type (_, _, _) insfact_comp =
 
 val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k, 'a) insfact_comp
 
+type (_, _, _) deg_lift_ins =
+  | Deg_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) deg -> ('m, 'k, 'nk) deg_lift_ins
+
+val deg_lift_ins : ('m, 'n) deg -> ('nk, 'n, 'k) insertion -> ('m, 'k, 'nk) deg_lift_ins
+
+type (_, _, _) sface_lift_ins =
+  | Sface_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) sface -> ('m, 'k, 'nk) sface_lift_ins
+
+val sface_lift_ins : ('m, 'n) sface -> ('nk, 'n, 'k) insertion -> ('m, 'k, 'nk) sface_lift_ins
+
+type (_, _, _) pface_lift_ins =
+  | Pface_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) pface -> ('m, 'k, 'nk) pface_lift_ins
+
+val pface_lift_ins : ('m, 'n) pface -> ('nk, 'n, 'k) insertion -> ('m, 'k, 'nk) pface_lift_ins
+
 type _ ins_of = Ins_of : ('ab, 'a, 'b) insertion -> 'ab ins_of
 
 val ins_of_ints : 'ab D.t -> int Bwd.t -> 'ab ins_of option
+val ints_of_ins : ('ab, 'a, 'b) insertion -> int Bwd.t
+val string_of_ins_ints : int Bwd.t -> string
+val string_of_ins : ('ab, 'a, 'b) insertion -> string
 
 type any_ins = Any_ins : ('a, 'b, 'c) insertion -> any_ins
 

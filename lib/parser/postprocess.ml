@@ -99,7 +99,7 @@ let rec process :
   | Field _ -> fatal (Anomaly "field is head")
   | Superscript (Some x, str, _) -> (
       match deg_of_string str with
-      | Some (Any s) ->
+      | Some (Any_deg s) ->
           let body = process ctx x in
           { value = Synth (Act (str, s, body)); loc }
       | None -> fatal (Invalid_degeneracy str))
@@ -124,7 +124,7 @@ and process_apps :
     n check located =
  fun ctx tm args ->
   match process_head ctx tm with
-  | `Deg (str, Any s) -> (
+  | `Deg (str, Any_deg s) -> (
       match args with
       | (Term arg, loc) :: args ->
           process_apply ctx

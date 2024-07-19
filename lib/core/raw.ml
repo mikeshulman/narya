@@ -140,7 +140,7 @@ module Make (I : Indices) = struct
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
     (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)
-    | Codata : (Field.t, I.name * 'a I.suc check located) Abwd.t -> 'a check
+    | Codata : (Field.t, 'a codatafield) Abwd.t -> 'a check
     (* A record type binds its "self" variable namelessly, exposing it to the user by additional variables that are bound locally to its fields.  This can't be "cubeified" as easily, so we have the user specify a list of ordinary variables to be its boundary.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one. *)
     | Record : ('a, 'c, 'ac) Namevec.t located * ('ac, 'd, 'acd) tel * opacity -> 'a check
     (* Empty match against the first one of the arguments belonging to an empty type. *)
@@ -159,6 +159,9 @@ module Make (I : Indices) = struct
     | Branch : ('a, 'b, 'ab) Namevec.t located * 'ab check located -> 'a branch
 
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
+
+  (* A field of a codatatype has a specified dimension as well as a self variable and a type.  At the raw level we don't need any more information about higher fields. *)
+  and _ codatafield = Codatafield : I.name * 'k D.t * 'a I.suc check located -> 'a codatafield
 
   (* A raw match stores the information about the pattern variables available from previous matches that could be used to refute missing cases.  But it can't store them as raw terms, since they have to be in the correct context extended by the new pattern variables generated in any such case.  So it stores them as a callback that puts them in any such extended context. *)
   and 'a refutables = { refutables : 'b 'ab. ('a, 'b, 'ab) bplus -> 'ab synth located list }
@@ -285,7 +288,11 @@ module Resolve (R : Resolver) = struct
       | Empty_co_match -> Empty_co_match
       | Data constrs -> Data (Abwd.map (locate_map (dataconstr ctx)) constrs)
       | Codata fields ->
-          Codata (Abwd.map (fun (x, fld) -> (R.rename ctx x, check (R.snoc ctx x) fld)) fields)
+          Codata
+            (Abwd.map
+               (fun (T1.Codatafield (x, ins, fld)) ->
+                 T2.Codatafield (R.rename ctx x, ins, check (R.snoc ctx x) fld))
+               fields)
       | Record (xs, fields, opaq) ->
           let (Bplus ac2) = T2.bplus (T1.Namevec.length xs.value) in
           let xs2 = renames ctx xs.value ac2 in

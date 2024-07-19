@@ -104,7 +104,17 @@ module Act = struct
         Lam (act_variables x fa, act_binder body fa)
     | Struct (fields, ins, energy) ->
         let (Insfact_comp (fa, new_ins, _, _)) = insfact_comp ins s in
-        Struct (Abwd.map (fun (tm, l) -> (act_lazy_eval tm fa, l)) fields, new_ins, energy)
+        let evaluation = dom_deg fa in
+        let fields =
+          Abwd.map
+            (fun (Pbijmap.Wrap pbijflds) ->
+              Pbijmap.Wrap
+                (Pbijmap.build evaluation (Pbijmap.intrinsic pbijflds) (fun pbij ->
+                     let (Deg_comp_pbij (p, fa)) = deg_comp_pbij fa pbij in
+                     let tm, l = Pbijmap.find p pbijflds in
+                     (act_lazy_eval tm fa, l))))
+            fields in
+        Struct (fields, new_ins, energy)
     | Constr (name, dim, args) ->
         let (Of fa) = deg_plus_to s dim ~on:"constr" in
         Constr
@@ -148,7 +158,7 @@ module Act = struct
     match tm with
     | Neu { head; args; value } ->
         (* We act on the applications from the outside (last) to the inside, since the degeneracy has to be factored and may leave neutral insertions behind.  The resulting inner degeneracy then acts on the head. *)
-        let Any s', args = act_apps args s in
+        let Any_deg s', args = act_apps args s in
         let head = act_head head s' in
         (* We act on the alignment separately with the original s, since (e.g.) a chaotic alignment is a "value" of the entire application spine, not just the head. *)
         let value = act_lazy_eval value s in
@@ -277,7 +287,7 @@ module Act = struct
   and act_apps : type a b. app Bwd.t -> (a, b) deg -> any_deg * app Bwd.t =
    fun apps s ->
     match apps with
-    | Emp -> (Any s, Emp)
+    | Emp -> (Any_deg s, Emp)
     | Snoc (rest, App (arg, ins)) ->
         (* To act on an application, we compose the acting degeneracy with the delayed insertion, factor the result into a new insertion to leave outside and a smaller degeneracy to push in, and push the smaller degeneracy action into the application, acting on the function/struct. *)
         let (Insfact_comp (fa, new_ins, _, _)) = insfact_comp ins s in
@@ -286,7 +296,10 @@ module Act = struct
           | Arg args ->
               (* And, in the function case, on the arguments by factorization. *)
               Arg (act_cube { act = (fun x s -> act_normal x s) } args fa)
-          | Field fld -> Field fld in
+          | Field (fld, fldplus) ->
+              (* Note that we don't need to change the degeneracy, since it can be extended on the right as needed. *)
+              let (Plus new_fldplus) = D.plus (D.plus_right fldplus) in
+              Field (fld, new_fldplus) in
         (* Finally, we recurse and assemble the result. *)
         let new_s, new_rest = act_apps rest fa in
         (new_s, Snoc (new_rest, App (new_arg, new_ins)))
@@ -295,11 +308,11 @@ module Act = struct
    fun lev s ->
     match !lev with
     | Deferred_eval (env, tm, ins, apps) ->
-        let Any s, apps = act_apps apps s in
+        let Any_deg s, apps = act_apps apps s in
         let (Insfact_comp (fa, ins, _, _)) = insfact_comp ins s in
         ref (Deferred_eval (act_env env (op_of_deg fa), tm, ins, apps))
     | Deferred (tm, s', apps) ->
-        let Any s, apps = act_apps apps s in
+        let Any_deg s, apps = act_apps apps s in
         let (DegExt (_, _, fa)) = comp_deg_extending s' s in
         ref (Deferred (tm, fa, apps))
     | Ready tm -> ref (Deferred ((fun () -> tm), s, Emp))
@@ -321,3 +334,15 @@ let act_lazy_eval v s = short_circuit s v (Act.act_lazy_eval v)
 let act_value_cube :
     type a s m n. (a -> s value) -> (n, a) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =
  fun force xs s -> act_cube { act = (fun x s -> act_value (force x) s) } xs s
+
+(* Like apply_lazy for fields.  Was deferred to here since it requires pushing the insertion through with act. *)
+let field_lazy : type s m n k. s lazy_eval -> Field.t -> (m, n, k) insertion -> s lazy_eval =
+ fun lev fld fldins ->
+  let n, k = (cod_left_ins fldins, cod_right_ins fldins) in
+  let (Plus nk) = D.plus k in
+  let p = deg_of_perm (perm_inv (perm_of_ins_plus fldins nk)) in
+  let fld = App (Field (fld, nk), ins_zero n) in
+  match !(act_lazy_eval lev p) with
+  | Deferred_eval (env, tm, ins, apps) -> ref (Deferred_eval (env, tm, ins, Snoc (apps, fld)))
+  | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, fld)))
+  | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, fld)))

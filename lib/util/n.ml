@@ -292,6 +292,7 @@ let rec index_of_insert : type b bsuc. (b, bsuc) insert -> bsuc index = function
       | Now -> Pop (index_of_insert i)
       | Later _ -> Pop (index_of_insert i))
 
+(* Like swap_indices, but now tracking the types. *)
 type (_, _) swap_inserts =
   | Swap_inserts : ('b, 'c) insert * ('a, 'b) insert -> ('a, 'c) swap_inserts
 
@@ -308,6 +309,41 @@ let rec swap_inserts : type a b c. (b, c) insert -> (a, b) insert -> (a, c) swap
       | Later l' ->
           let (Swap_inserts (l'', k'')) = swap_inserts k' l' in
           Swap_inserts (Later l'', Later k''))
+
+(* Lift an insert to a context extended on the right by one element, keeping the same numerical De Bruijn index.  *)
+let rec suc_insert : type a b. (a, b) insert -> (a suc, b suc) insert = function
+  | Now -> Now
+  | Later i -> Later (suc_insert i)
+
+type _ insert_to = Insert_to : ('a, 'b) insert -> 'a insert_to
+
+(* Lift one insert to a larger domain obtained by inserting something else.  Specifically, the result has the same numerical De Bruijn index as the "lift" argument.  Computationally this is a no-op. *)
+let rec lift_insert : type a b c. lift:(a, b) insert -> over:(a, c) insert -> c insert_to =
+ fun ~lift ~over ->
+  match over with
+  | Now -> Insert_to (suc_insert lift)
+  | Later over -> (
+      match lift with
+      | Now -> Insert_to Now
+      | Later lift ->
+          let (Insert_to res) = lift_insert ~lift ~over in
+          Insert_to (Later res))
+
+(* Similarly, commute two insertions past each other, maintaining the same numerical De Bruijn index for both.  Another computational no-op. *)
+type (_, _) commute_insert =
+  | Commute_insert : ('b, 'd) insert * ('c, 'd) insert -> ('b, 'c) commute_insert
+
+let rec commute_insert :
+    type a b c. lift:(a, b) insert -> over:(a, c) insert -> (b, c) commute_insert =
+ fun ~lift ~over ->
+  match over with
+  | Now -> Commute_insert (Now, suc_insert lift)
+  | Later over -> (
+      match lift with
+      | Now -> Commute_insert (Later (suc_insert over), Now)
+      | Later lift ->
+          let (Commute_insert (s, t)) = commute_insert ~lift ~over in
+          Commute_insert (Later s, Later t))
 
 (* Check whether two insertions with the same output are equal.  If so, identify their inputs.  If not, commute them. *)
 type (_, _) compare_inserts =

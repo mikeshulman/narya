@@ -16,6 +16,7 @@ type _ potential_head =
   | Constant : Constant.t -> emp potential_head
   | Meta : ('x, 'a, potential) Meta.t * (D.zero, 'a) env -> 'a potential_head
 
+(* The insertion on a constant being checked is always zero, since the constant is not nontrivially substituted at all yet. *)
 let head_of_potential : type a s. a potential_head -> Value.head = function
   | Constant name -> Const { name; ins = ins_zero D.zero }
   | Meta (meta, env) -> Meta { meta; env; ins = ins_zero D.zero }

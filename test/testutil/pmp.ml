@@ -63,10 +63,10 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth located =
   | Deg (x, str) -> (
       let x = (parse_chk ctx x).value in
       match Dim.deg_of_name str with
-      | Some (Any s) -> unlocated (Raw.Act (str, s, unlocated x))
+      | Some (Any_deg s) -> unlocated (Raw.Act (str, s, unlocated x))
       | None -> (
           match Dim.deg_of_string str with
-          | Some (Any s) -> unlocated (Raw.Act (str, s, unlocated x))
+          | Some (Any_deg s) -> unlocated (Raw.Act (str, s, unlocated x))
           | None -> raise (Failure "unknown degeneracy")))
   | Asc (tm, ty) -> unlocated (Raw.Asc (parse_chk ctx tm, parse_chk ctx ty))
   | _ -> raise (Failure "Non-synthesizing")

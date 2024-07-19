@@ -4,6 +4,7 @@ open Dim
 open Asai.Diagnostic
 open Format
 open Uuseg_string
+open Energy
 
 (* In order to display terms and suchlike in Asai messages, we utilize a double indirection.  Firstly, displaying a term requires "unparsing" it to a parse tree and then printing the parse tree, but parse trees and unparsing aren't defined until the Parser library, which is loaded after Core.  (Displaying a value additionally requires reading it back into a term, which is defined later in Core.)  For this reason, we introduce a wrapper type "printable" that can contain a term, value, etc.  Since terms and values haven't been defined yet in this file, we make "printable" an extensible variant, so they can be added later (in the module Printable) after they are defined.  (They also have to be bundled with their context.) *)
 
@@ -37,6 +38,10 @@ let print pr = !printer pr
 let string_of_dim0 dim =
   let str = string_of_dim dim in
   if str = "" then "0" else str
+
+let record_or_codata : type s. s eta -> string = function
+  | Eta -> "record"
+  | Noeta -> "codata"
 
 module Code = struct
   type t =
@@ -77,9 +82,15 @@ module Code = struct
         -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
     | No_such_field :
-        [ `Record of printable | `Nonrecord of printable | `Other | `Degenerated_record ]
+        [ `Record of 's eta * printable
+        | `Nonrecord of printable
+        | `Other
+        | `Degenerated_record of 's eta ]
         * Field.or_index
+        * [ `Ins of ('ab, 'a, 'b) insertion | `Ints of int Bwd.t ]
         -> t
+    | Wrong_dimension_of_field : printable * Field.or_index * 'intrinsic D.t * 'used D.t -> t
+    | Invalid_field_suffix : printable * Field.or_index * 'evaluation D.t * int Bwd.t -> t
     | Missing_instantiation_constructor :
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
         -> t
@@ -288,6 +299,8 @@ module Code = struct
     | Break -> Error
     | Accumulated _ -> Error
     | No_holes_allowed _ -> Error
+    | Wrong_dimension_of_field _ -> Error
+    | Invalid_field_suffix _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -341,6 +354,8 @@ module Code = struct
     | Applying_nonfunction_nontype _ -> "E0701"
     (* Record fields *)
     | No_such_field _ -> "E0800"
+    | Wrong_dimension_of_field _ -> "E0801"
+    | Invalid_field_suffix _ -> "E0802"
     (* Tuples *)
     | Checking_tuple_at_nonrecord _ -> "E0900"
     | Checking_tuple_at_degenerated_record _ -> "E0901"
@@ -520,19 +535,32 @@ module Code = struct
         if n > 0 then textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
         else
           textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
-    | No_such_field (d, f) -> (
+    | No_such_field (d, f, ins) -> (
+        let ins =
+          match ins with
+          | `Ins ins -> string_of_ins ins
+          | `Ints ints -> string_of_ins_ints ints in
         match d with
-        | `Record d ->
-            textf "record type %a has no field named %s" pp_printed (print d)
-              (Field.to_string_ori f)
+        | `Record (eta, d) ->
+            textf "%s type %a has no field named %s" (record_or_codata eta) pp_printed (print d)
+              (Field.to_string_ori f ^ ins)
         | `Nonrecord d ->
-            textf "non-record type %a has no field named %s" pp_printed (print d)
-              (Field.to_string_ori f)
-        | `Other -> textf "term has no field named %s" (Field.to_string_ori f)
-        | `Degenerated_record ->
+            textf "non-record/codata type %a has no field named %s" pp_printed (print d)
+              (Field.to_string_ori f ^ ins)
+        | `Other -> textf "term has no field named %s" (Field.to_string_ori f ^ ins)
+        | `Degenerated_record eta ->
+            let rc = record_or_codata eta in
             textf
-              "record type with a nonidentity degeneracy applied is no longer a record, hence has no field named %s"
-              (Field.to_string_ori f))
+              "%s type with a nonidentity degeneracy applied is no longer a %s, hence has no field named %s"
+              rc rc
+              (Field.to_string_ori f ^ ins))
+    | Wrong_dimension_of_field (ty, f, intrinsic, used) ->
+        textf "field %s of type %a has intrinsic dimension %s, can't be used at %s"
+          (Field.to_string_ori f) pp_printed (print ty) (string_of_dim0 intrinsic)
+          (string_of_dim0 used)
+    | Invalid_field_suffix (ty, f, evaldim, used) ->
+        textf "invalid suffix %s for field %s of %s-dimensional type %a" (string_of_ins_ints used)
+          (Field.to_string_ori f) (string_of_dim0 evaldim) pp_printed (print ty)
     | Missing_instantiation_constructor (exp, got) ->
         let pp_got =
           match got with
@@ -736,7 +764,6 @@ end
 
 include Asai.StructuredReporter.Make (Code)
 open Code
-
 
 let struct_at_degenerated_type eta name =
   match eta with

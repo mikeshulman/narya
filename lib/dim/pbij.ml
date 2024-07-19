@@ -86,7 +86,8 @@ let strings_of_pbij : type n i. (n, i) pbij -> string Bwd.t =
 let string_of_pbij : type n i. (n, i) pbij -> string =
  fun pbij ->
   let strs = Bwd.to_list (strings_of_pbij pbij) in
-  if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
+  if List.is_empty strs then ""
+  else if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
     ".." ^ String.concat "." strs
   else "." ^ String.concat "" strs
 

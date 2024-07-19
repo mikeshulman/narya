@@ -12,7 +12,7 @@ let rec term : type a s. (Compunit.t -> Compunit.t) -> (a, s) term -> (a, s) ter
   | Const c -> Const (Constant.remake f c)
   | Meta (m, s) -> Meta (Meta.remake f m, s)
   | MetaEnv (m, e) -> MetaEnv (Meta.remake f m, env f e)
-  | Field (tm, fld) -> Field (term f tm, fld)
+  | Field (tm, fld, fldins) -> Field (term f tm, fld, fldins)
   | UU n -> UU n
   | Inst (tm, args) -> Inst (term f tm, TubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ args ])
   | Pi (x, doms, cods) ->
@@ -28,7 +28,13 @@ let rec term : type a s. (Compunit.t -> Compunit.t) -> (a, s) term -> (a, s) ter
   | Let (x, v, body) -> Let (x, term f v, term f body)
   | Lam (x, body) -> Lam (x, term f body)
   | Struct (eta, dim, flds, energy) ->
-      Struct (eta, dim, Abwd.map (fun (x, l) -> (term f x, l)) flds, energy)
+      Struct
+        ( eta,
+          dim,
+          Abwd.map
+            (fun (Pbijmap.Wrap m) -> Pbijmap.Wrap (Pbijmap.map (fun (x, l) -> (term f x, l)) m))
+            flds,
+          energy )
   | Match { tm; dim; branches } ->
       Match { tm = term f tm; dim; branches = Constr.Map.map (branch f) branches }
   | Realize tm -> Realize (term f tm)
@@ -46,7 +52,13 @@ and canonical : type a. (Compunit.t -> Compunit.t) -> a canonical -> a canonical
   | Data { indices; constrs; discrete } ->
       Data { indices; constrs = Abwd.map (dataconstr f) constrs; discrete }
   | Codata { eta; opacity; dim; fields } ->
-      Codata { eta; opacity; dim; fields = Abwd.map (term f) fields }
+      Codata { eta; opacity; dim; fields = Abwd.map (codatafield f) fields }
+
+and codatafield : type a n. (Compunit.t -> Compunit.t) -> (a, n) codatafield -> (a, n) codatafield =
+ fun f fld ->
+  match fld with
+  | Lower_codatafield tm -> Lower_codatafield (term f tm)
+  | Higher_codatafield (k, ka, tm) -> Higher_codatafield (k, ka, term f tm)
 
 and dataconstr : type p i. (Compunit.t -> Compunit.t) -> (p, i) dataconstr -> (p, i) dataconstr =
  fun f (Dataconstr { args; indices }) ->

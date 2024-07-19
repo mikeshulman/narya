@@ -17,3 +17,4 @@ val act_value_cube :
   ('a -> 's value) -> ('n, 'a) CubeOf.t -> ('m, 'n) deg -> ('m, 's value) CubeOf.t
 
 val act_lazy_eval : 's lazy_eval -> ('m, 'n) deg -> 's lazy_eval
+val field_lazy : 's lazy_eval -> Field.t -> ('m, 'n, 'k) insertion -> 's lazy_eval

@@ -64,30 +64,32 @@ let rec view_term : type s. s value -> s value =
   else tm
 
 (* Viewing a type fails if the argument is not fully instantiated.  In most situations this would be a bug, but we allow the caller to specify it differently, since during typechecking it could be a user error. *)
-and view_type ?severity (ty : kinetic value) (err : string) : view_type =
+and view_type ?(severity = Asai.Diagnostic.Bug) (ty : kinetic value) (err : string) : view_type =
   let uty, Full_tube tyargs =
     match ty with
     (* Since we expect fully instantiated types, in the uninstantiated case the dimension must be zero. *)
     | Uninst (ty, (lazy (Uninst (UU n, _)))) -> (
         match D.compare n D.zero with
         | Eq -> (ty, Full_tube (TubeOf.empty D.zero))
-        | Neq -> fatal ?severity (Type_not_fully_instantiated (err, n)))
-    | Uninst _ -> fatal ?severity (Type_expected err)
+        | Neq -> fatal ~severity (Type_not_fully_instantiated (err, n)))
+    | Uninst _ -> fatal ~severity (Type_expected err)
     | Inst { tm = ty; dim = _; args; tys = _ } -> (
         match D.compare (TubeOf.uninst args) D.zero with
         | Eq ->
             let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
             (ty, Full_tube args)
-        | Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst args)))
-    | _ -> fatal ?severity (Anomaly ("expected type in " ^ err)) in
+        | Neq -> fatal ~severity (Type_not_fully_instantiated (err, TubeOf.uninst args)))
+    | _ -> fatal ~severity (Type_expected err) in
   match uty with
   | UU n -> (
       match (D.compare n (TubeOf.inst tyargs), D.compare (TubeOf.uninst tyargs) D.zero) with
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
           UU tyargs
-      | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
-      | Neq, _ -> fatal (Dimension_mismatch ("view universe", n, TubeOf.inst tyargs)))
+      | _, Neq -> fatal ~severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
+      | Neq, _ ->
+          (* This one is always a bug *)
+          fatal (Dimension_mismatch ("view universe", n, TubeOf.inst tyargs)))
   | Pi (x, doms, cods) -> (
       match
         (D.compare (CubeOf.dim doms) (TubeOf.inst tyargs), D.compare (TubeOf.uninst tyargs) D.zero)
@@ -95,8 +97,10 @@ and view_type ?severity (ty : kinetic value) (err : string) : view_type =
       | Eq, Eq ->
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
           Pi (x, doms, cods, tyargs)
-      | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.inst tyargs))
-      | Neq, _ -> fatal (Dimension_mismatch ("view pi-type", CubeOf.dim doms, TubeOf.inst tyargs)))
+      | _, Neq -> fatal ~severity (Type_not_fully_instantiated (err, TubeOf.inst tyargs))
+      | Neq, _ ->
+          (* Always a bug *)
+          fatal (Dimension_mismatch ("view pi-type", CubeOf.dim doms, TubeOf.inst tyargs)))
   | Neu { head; args = _; value } -> (
       (* Glued evaluation: when viewing a type, we force its value and proceed to view that value instead. *)
       match force_eval value with
@@ -112,10 +116,11 @@ and view_type ?severity (ty : kinetic value) (err : string) : view_type =
           | Eq, Eq ->
               let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus (TubeOf.inst tyargs)) in
               Canonical (head, c, tyargs)
-          | _, Neq -> fatal ?severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
+          | _, Neq -> fatal ~severity (Type_not_fully_instantiated (err, TubeOf.uninst tyargs))
           | Neq, _ ->
+              (* Always a bug *)
               fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs)))
-      | Realize v -> view_type ?severity (inst v tyargs) err
+      | Realize v -> view_type ~severity (inst v tyargs) err
       | _ -> Neutral)
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either

@@ -157,3 +157,56 @@
   s222⁽²³¹⁾ .rroot.23
     : refl A (sym s202 .rroot.12) (sym s212 .rroot.12)
   
+
+  $ narya -v isfibrant.ny
+   ￫ info[I0000]
+   ￮ constant isFibrant defined
+  
+   ￫ info[I0000]
+   ￮ constant Fib defined
+  
+   ￫ info[I0000]
+   ￮ constant Idf defined
+  
+   ￫ info[I0000]
+   ￮ constant transport defined
+  
+   ￫ info[I0000]
+   ￮ constant concat defined
+  
+   ￫ info[I0000]
+   ￮ constant inverse defined
+  
+   ￫ info[I0000]
+   ￮ constant transport2 defined
+  
+   ￫ info[I0000]
+   ￮ constant refl_transport_1 defined
+  
+   ￫ info[I0000]
+   ￮ constant refl_transport_2 defined
+  
+   ￫ info[I0000]
+   ￮ constant Idf2 defined
+  
+   ￫ info[I0000]
+   ￮ constant concat_p1 defined
+  
+   ￫ info[I0000]
+   ￮ constant J defined
+  
+   ￫ info[I0000]
+   ￮ constant Sqf defined
+  
+   ￫ info[I0000]
+   ￮ constant conn defined
+  
+   ￫ info[I0000]
+   ￮ constant coconn defined
+  
+   ￫ info[I0000]
+   ￮ constant concat_1p defined
+  
+   ￫ info[I0000]
+   ￮ constant Jβ defined
+  

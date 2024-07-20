@@ -667,7 +667,9 @@ let rec unparse_ctx :
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus plusdim fab in
                 let fastr = "." ^ string_of_sface fa in
                 let add_fa =
-                  if Option.is_some (is_id_sface fa) then fun y -> y else fun y -> y ^ fastr in
+                  match D.compare (cod_sface fa) D.zero with
+                  | Eq -> fun y -> y
+                  | Neq -> fun y -> y ^ fastr in
                 let x, orig = NICubeOf.find vardata fb in
                 let x = add_fa x in
                 let res = Snoc (res, (x, merge_orig orig, tm, Some ty)) in

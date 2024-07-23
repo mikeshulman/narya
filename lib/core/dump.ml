@@ -165,7 +165,11 @@ let rec check : type a. formatter -> a check -> unit =
       fprintf ppf "Struct(";
       Mbwd.miter
         (fun [ (f, (x : a check Asai.Range.located)) ] ->
-          fprintf ppf "%s ≔ %a, " (Option.fold ~none:"_" ~some:Field.to_string f) check x.value)
+          let f =
+            match f with
+            | Some (f, ins) -> String.concat "." (Field.to_string f :: Bwd.to_list ins)
+            | None -> "_" in
+          fprintf ppf "%s ≔ %a, " f check x.value)
         [ flds ];
       fprintf ppf ")"
   | Constr (c, args) ->

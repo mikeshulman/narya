@@ -569,7 +569,7 @@ let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
 let rec process_tuple :
     type n.
     bool ->
-    (Field.t option, n check located) Abwd.t ->
+    ((Field.t * string Bwd.t) option, n check located) Abwd.t ->
     Field.Set.t ->
     (string option, n) Bwv.t ->
     observation list ->
@@ -587,8 +587,10 @@ let rec process_tuple :
           let fld = Field.intern x in
           if Field.Set.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
           else
-            process_tuple false (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
-              ws
+            process_tuple false
+              (* Tuples have no higher fields, so the bwd of strings labeling a dimension is always empty. *)
+              (Abwd.add (Some (fld, Bwd.Emp)) tm flds)
+              (Field.Set.add fld found) ctx obs loc ws
       | [ Term { value = Placeholder _; _ }; Term tm ] ->
           let tm = process ctx tm in
           process_tuple false (Abwd.add None tm flds) found ctx obs loc ws
@@ -734,7 +736,7 @@ let () =
 
 let rec process_comatch :
     type n.
-    (Field.t option, n check located) Abwd.t * Field.Set.t ->
+    ((Field.t * string Bwd.t) option, n check located) Abwd.t * Field.Set.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -742,14 +744,15 @@ let rec process_comatch :
  fun (flds, found) ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Struct (Noeta, flds); loc }
-  | Term { value = Field (x, [], _); loc } :: Term tm :: obs ->
+  | Term { value = Field (x, pbij, _); loc } :: Term tm :: obs ->
       let tm = process ctx tm in
       let fld = Field.intern x in
       if Field.Set.mem fld found then fatal ?loc (Duplicate_method_in_comatch fld)
         (* Comatches can't have unlabeled fields *)
-      else process_comatch (Abwd.add (Some fld) tm flds, Field.Set.add fld found) ctx obs loc
-  | Term { value = Field (_, _ :: _, _); _ } :: _ :: _ ->
-      fatal (Unimplemented "parsing higher fields in comatch")
+      else
+        process_comatch
+          (Abwd.add (Some (fld, Bwd.of_list pbij)) tm flds, Field.Set.add fld found)
+          ctx obs loc
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
 
 let () =

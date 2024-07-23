@@ -1599,7 +1599,7 @@ and check_struct :
     (b, s) status ->
     s eta ->
     (a, b) Ctx.t ->
-    (Field.t option, a check located) Abwd.t ->
+    ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
     kinetic value ->
     m D.t ->
     (Field.t, (c, n) Term.codatafield) Abwd.t ->
@@ -1610,11 +1610,18 @@ and check_struct :
     check_fields status eta ctx ty dim
       (* We convert the backwards alist of fields and values into a forwards list of field names only. *)
       (Bwd.fold_right (fun (fld, _) flds -> fld :: flds) fields [])
-      tms Emp Emp Emp in
+      (Bwd.map
+         (function
+           | None, tm -> (None, tm)
+           | Some (fld, Bwd.Emp), tm -> (Some fld, tm)
+           | Some (_, Snoc _), _ -> fatal (Unimplemented "higher comatches"))
+         tms)
+      Emp Emp Emp in
   (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
   let fields =
     Bwd.map
       (function
+        (* TODO: Currently ignoring the possibility of higher fields here; if there are some they will occur multiple times in this list. *)
         | Some fld, _ -> (
             match Abwd.find_opt fld ctms with
             | Some x -> (fld, x)

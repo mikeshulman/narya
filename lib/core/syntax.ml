@@ -57,7 +57,7 @@ module rec Term : sig
     | Struct :
         's eta
         * 'n D.t
-        * (Field.t, ('n, ('a, 's) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        * (Field.t, ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
         * 's energy
         -> ('a, 's) term
     | Match : {
@@ -148,7 +148,8 @@ end = struct
     | Struct :
         's eta
         * 'n D.t
-        * (Field.t, ('n, ('a, 's) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        (* TODO: I think the 'a here is wrong: it should have a Plusmap of the 'remaining dimension of the pbij applied to it.  In particular, that's what I would expect to get out when typechecking higher fields, since that is done in a degenerated context.  If so, that means Pbijmap needs to be a functor depending on a Fam depending on the 'remaining dimension, and be applied here in the recursive module like CodCube.  It also means the definition of eval on Struct is wrong, since the types won't match, but I'm not sure how to fix it.  Perhaps a Value.Struct has to store fields separately from their closure environment rather than as individual lazy_evals, since some of them won't be evaluable unless a big enough degeneracy is applied?  *)
+        * (Field.t, ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
         * 's energy
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
@@ -264,6 +265,10 @@ let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
   | Emp n -> n
   | Ext (e, _, _) -> dim_term_env e
 
+let dim_codatafield : type a n. (a, n) codatafield -> dim_wrapped = function
+  | Lower_codatafield _ -> Wrap D.zero
+  | Higher_codatafield (k, _, _) -> Wrap (D.pos k)
+
 (* ******************** Values ******************** *)
 
 (* A De Bruijn level is a pair of integers: one for the position (counting in) of the cube-variable-bundle in the context, and one that counts through the faces of that bundle. *)
@@ -321,7 +326,7 @@ module rec Value : sig
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
     | Struct :
-        (Field.t, ('n, 's lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
         * ('nk, 'n, 'k) insertion
         * 's energy
         -> 's value
@@ -451,7 +456,7 @@ end = struct
     | Lam : 'k variables * ('k, 's) binder -> 's value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension, with 'n the substitution dimension and 'nk the total dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation.  Finally, each field name is associated with a partial bijection in the case of a higher codatatype. *)
     | Struct :
-        (Field.t, ('n, 's lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t
+        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
         * ('nk, 'n, 'k) insertion
         * 's energy
         -> 's value
@@ -468,7 +473,7 @@ end = struct
   and _ canonical =
     (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definition below. *)
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
-    (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
+    (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms in a *lower* codatafield produces the data of a binder; so in the absence of higher codatatypes we can think of this as a family of binders, one for each field, that share the same environment and insertion.  (But with higher fields this is no longer the case, as the context of the types gets degenerated by their dimension.) *)
     | Codata : {
         eta : potential eta;
         opacity : opacity;

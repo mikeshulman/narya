@@ -765,25 +765,23 @@ end
 include Asai.StructuredReporter.Make (Code)
 open Code
 
-let struct_at_degenerated_type eta name =
+let struct_at_degenerated_type : type s. s eta -> printable -> Code.t =
+ fun eta name ->
   match eta with
-  | `Eta -> Checking_tuple_at_degenerated_record name
-  | `Noeta -> Comatching_at_degenerated_codata name
+  | Eta -> Checking_tuple_at_degenerated_record name
+  | Noeta -> Comatching_at_degenerated_codata name
 
-let missing_field_in_struct eta fld =
+let missing_field_in_struct : type s. s eta -> Field.t -> Code.t =
+ fun eta fld ->
   match eta with
-  | `Eta -> Missing_field_in_tuple fld
-  | `Noeta -> Missing_method_in_comatch fld
+  | Eta -> Missing_field_in_tuple fld
+  | Noeta -> Missing_method_in_comatch fld
 
-let struct_at_nonrecord eta p =
+let struct_at_nonrecord : type s. s eta -> printable -> Code.t =
+ fun eta p ->
   match eta with
-  | `Eta -> Checking_tuple_at_nonrecord p
-  | `Noeta -> Comatching_at_noncodata p
-
-let duplicate_field eta fld =
-  match eta with
-  | `Eta -> Duplicate_field_in_tuple fld
-  | `Noeta -> Duplicate_method_in_comatch fld
+  | Eta -> Checking_tuple_at_nonrecord p
+  | Noeta -> Comatching_at_noncodata p
 
 let ( <|> ) : type a b. a option -> Code.t -> a =
  fun x e ->

@@ -1610,19 +1610,13 @@ and check_struct :
     check_fields status eta ctx ty dim
       (* We convert the backwards alist of fields and values into a forwards list of field names only. *)
       (Bwd.fold_right (fun (fld, _) flds -> fld :: flds) fields [])
-      (Bwd.map
-         (function
-           | None, tm -> (None, tm)
-           | Some (fld, Bwd.Emp), tm -> (Some fld, tm)
-           | Some (_, Snoc _), _ -> fatal (Unimplemented "higher comatches"))
-         tms)
-      Emp Emp Emp in
+      tms Emp Emp Emp in
   (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
   let fields =
     Bwd.map
       (function
         (* TODO: Currently ignoring the possibility of higher fields here; if there are some they will occur multiple times in this list. *)
-        | Some fld, _ -> (
+        | Some (fld, _), _ -> (
             match Abwd.find_opt fld ctms with
             | Some x -> (fld, x)
             | None -> fatal (Anomaly "missing field in check"))
@@ -1638,12 +1632,12 @@ and check_fields :
     kinetic value ->
     n D.t ->
     Field.t list ->
-    (Field.t option, a check located) Abwd.t ->
-    (Field.t, (n, s lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
-    (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
+    ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
+    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
+    (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
-    (Field.t option, a check located) Abwd.t
-    * (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t =
+    ((Field.t * string Bwd.t) option, a check located) Abwd.t
+    * (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t =
  fun status eta ctx ty dim fields tms etms ctms errs ->
   (* The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
   let str = Value.Struct (etms, ins_zero dim, energy status) in
@@ -1677,12 +1671,12 @@ and check_field :
     Field.t ->
     Field.t list ->
     (kinetic value, Code.t) Result.t ->
-    (Field.t option, a check located) Abwd.t ->
-    (Field.t, (n, s lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
-    (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
+    ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
+    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
+    (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
-    (Field.t option, a check located) Abwd.t
-    * (Field.t, (n, (b, s) term * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t =
+    ((Field.t * string Bwd.t) option, a check located) Abwd.t
+    * (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t =
  fun status eta ctx ty dim fld fields prev_etm tms etms ctms errs ->
   let ins = ins_zero dim in
   let mkstatus lbl : (b, s) status -> (b, s) status = function
@@ -1694,24 +1688,27 @@ and check_field :
             (Term.Struct
                ( eta,
                  dim,
-                 Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (tm, lbl)))),
+                 Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (Some (tm, lbl))))),
                  energy status )) in
         Potential (c, args, hyp) in
+  (* TODO: Currently we can only typecheck lower fields, so the strings labeling the pbij must be empty. *)
+  let key = Some (fld, Bwd.Emp) in
   let tms, etms, ctms, errs =
     (* We trap any errors produced by 'tyof_field' or 'check', adding them instead to the list of accumulated errors and going on.  Note that if any previous fields that have already failed, then prev_etm will be bound to an error value, and so if the type of this field depends on the value of any previous one, tyof_field will raise that error, which we catch and add to the list; but it will be (Accumulated Emp) so it won't be displayed to the user. *)
     let tm, tms, lbl =
-      match Abwd.find_opt (Some fld) tms with
+      match Abwd.find_opt key tms with
       | Some tm -> (tm, tms, `Labeled)
       | None -> (
-          match Abwd.find_opt_and_update_key None (Some fld) tms with
+          match Abwd.find_opt_and_update_key None key tms with
           | Some (tm, tms) -> (tm, tms, `Unlabeled)
           | None -> fatal (Missing_field_in_tuple fld)) in
     Reporter.try_with ~fatal:(fun e -> (tms, etms, ctms, Snoc (errs, e))) @@ fun () ->
     let ety = tyof_field prev_etm ty fld ins in
     let ctm = check (mkstatus lbl status) ctx tm ety in
     let etms =
-      Abwd.add fld (Pbijmap.Wrap (Pbijmap.singleton (lazy_eval (Ctx.env ctx) ctm, lbl))) etms in
-    let ctms = Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (ctm, lbl)))) in
+      Abwd.add fld (Pbijmap.Wrap (Pbijmap.singleton (Some (lazy_eval (Ctx.env ctx) ctm, lbl)))) etms
+    in
+    let ctms = Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (Some (ctm, lbl))))) in
     (tms, etms, ctms, errs) in
   check_fields status eta ctx ty dim fields tms etms ctms errs
 

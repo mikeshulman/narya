@@ -111,8 +111,9 @@ module Act = struct
               Pbijmap.Wrap
                 (Pbijmap.build evaluation (Pbijmap.intrinsic pbijflds) (fun pbij ->
                      let (Deg_comp_pbij (p, fa)) = deg_comp_pbij fa pbij in
-                     let tm, l = Pbijmap.find p pbijflds in
-                     (act_lazy_eval tm fa, l))))
+                     let open Monad.Ops (Monad.Maybe) in
+                     let* tm, l = Pbijmap.find p pbijflds in
+                     return (act_lazy_eval tm fa, l))))
             fields in
         Struct (fields, new_ins, energy)
     | Constr (name, dim, args) ->

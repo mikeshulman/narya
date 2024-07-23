@@ -47,13 +47,15 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
               Abwd.mapi
                 (fun fld (Pbijmap.Wrap pbijflds) ->
                   match Pbijmap.find_singleton pbijflds with
-                  | Some (fldtm, l) ->
+                  | Some (Some (fldtm, l)) ->
                       Pbijmap.Wrap
                         (Pbijmap.singleton
-                           ( readback_at ctx (force_eval_term fldtm)
-                               (tyof_field (Ok tm) ty fld fldins),
-                             l ))
-                  | None -> fatal (Anomaly "record type can't have higher fields"))
+                           (Some
+                              ( readback_at ctx (force_eval_term fldtm)
+                                  (tyof_field (Ok tm) ty fld fldins),
+                                l )))
+                  | Some None -> fatal (Anomaly "record type can't have higher fields")
+                  | None -> fatal (Anomaly "field value unset"))
                 tmflds in
             Some (Term.Struct (Eta, dim, fields, energy))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
@@ -63,9 +65,10 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 (fun fld _ ->
                   Pbijmap.Wrap
                     (Pbijmap.singleton
-                       ( readback_at ctx (field_term tm fld fldins)
-                           (tyof_field (Ok tm) ty fld fldins),
-                         l )))
+                       (Some
+                          ( readback_at ctx (field_term tm fld fldins)
+                              (tyof_field (Ok tm) ty fld fldins),
+                            l ))))
                 fields in
             Some (Struct (Eta, dim, fields, Kinetic))
         | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
@@ -76,9 +79,10 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                     (fun fld _ ->
                       Pbijmap.Wrap
                         (Pbijmap.singleton
-                           ( readback_at ctx (field_term tm fld fldins)
-                               (tyof_field (Ok tm) ty fld fldins),
-                             l )))
+                           (Some
+                              ( readback_at ctx (field_term tm fld fldins)
+                                  (tyof_field (Ok tm) ty fld fldins),
+                                l ))))
                     fields in
                 Some (Struct (Eta, dim, fields, Kinetic))
             | _ -> None)

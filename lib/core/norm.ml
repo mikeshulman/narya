@@ -314,8 +314,9 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
             Pbijmap.Wrap
               (Pbijmap.build mn (Pbijmap.intrinsic pbijflds) (fun pbij ->
                    let (Deg_comp_pbij (p, _)) = deg_comp_pbij fa pbij in
-                   let tm, l = Pbijmap.find p pbijflds in
-                   (lazy_eval env tm, l))))
+                   let open Monad.Ops (Monad.Maybe) in
+                   let* tm, l = Pbijmap.find p pbijflds in
+                   return (lazy_eval env tm, l))))
           fields in
       Val (Struct (fields, ins, energy))
   | Constr (constr, n, args) ->
@@ -545,7 +546,10 @@ and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evalu
             ( D.compare (cod_left_ins structins) (dom_ins fldins),
               D.compare (Pbijmap.intrinsic pbijflds) (cod_right_ins fldins) )
           with
-          | Eq, Eq -> force_eval (fst (Pbijmap.find (pbij_of_ins fldins) pbijflds))
+          | Eq, Eq -> (
+              match Pbijmap.find (pbij_of_ins fldins) pbijflds with
+              | Some (v, _) -> force_eval v
+              | None -> fatal (Anomaly "field value unset"))
           | Neq, _ ->
               fatal
                 (Dimension_mismatch ("field evaluation", cod_left_ins structins, dom_ins fldins))

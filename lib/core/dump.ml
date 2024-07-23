@@ -45,26 +45,28 @@ and fields :
     type s n.
     n D.t ->
     formatter ->
-    (Field.t, (n, s lazy_eval * [ `Labeled | `Unlabeled ]) Pbijmap.wrapped) Abwd.t ->
+    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
     unit =
  fun n ppf -> function
   | Emp -> fprintf ppf "Emp"
   | Snoc (flds, (f, Wrap m)) ->
       Pbijmap.iter n
-        (fun p (v, l) ->
-          match !v with
-          | Ready v ->
-              fprintf ppf "%a <: (%s%s, %a, %s)" (fields n) flds (Field.to_string f)
-                (string_of_pbij p) evaluation v
-                (match l with
-                | `Unlabeled -> "`Unlabeled"
-                | `Labeled -> "`Labeled")
-          | _ ->
-              fprintf ppf "%a <: (%s%s, (Deferred), %s)" (fields n) flds (Field.to_string f)
-                (string_of_pbij p)
-                (match l with
-                | `Unlabeled -> "`Unlabeled"
-                | `Labeled -> "`Labeled"))
+        (fun p -> function
+          | None -> fprintf ppf "%a <: None" (fields n) flds
+          | Some (v, l) -> (
+              match !v with
+              | Ready v ->
+                  fprintf ppf "%a <: (%s%s, %a, %s)" (fields n) flds (Field.to_string f)
+                    (string_of_pbij p) evaluation v
+                    (match l with
+                    | `Unlabeled -> "`Unlabeled"
+                    | `Labeled -> "`Labeled")
+              | _ ->
+                  fprintf ppf "%a <: (%s%s, (Deferred), %s)" (fields n) flds (Field.to_string f)
+                    (string_of_pbij p)
+                    (match l with
+                    | `Unlabeled -> "`Unlabeled"
+                    | `Labeled -> "`Labeled")))
         m
 
 and evaluation : type s. formatter -> s evaluation -> unit =

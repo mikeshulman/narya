@@ -258,25 +258,29 @@ let rec unparse :
              (Abwd.fold
                 (fun fld (Pbijmap.Wrap pbijtms) acc ->
                   Pbijmap.fold dim
-                    (fun _ (fldtm, lbl) acc ->
-                      let fldtm = unparse vars fldtm Interval.entire Interval.entire in
-                      Snoc
-                        ( acc,
-                          Term
-                            (match lbl with
-                            | `Labeled ->
-                                unlocated
-                                  (infix ~notn:coloneq ~ws:[]
-                                     ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
-                                     ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
-                                     ~right_ok:(No.le_refl No.minus_omega))
-                            (* An unlabeled 1-tuple must be written (_ := M). *)
-                            | `Unlabeled when Bwd.length fields = 1 ->
-                                unlocated
-                                  (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))
-                                     ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
-                                     ~right_ok:(No.le_refl No.minus_omega))
-                            | `Unlabeled -> fldtm) ))
+                    (fun _ x acc ->
+                      match x with
+                      | Some (fldtm, lbl) ->
+                          let fldtm = unparse vars fldtm Interval.entire Interval.entire in
+                          Snoc
+                            ( acc,
+                              Term
+                                (match lbl with
+                                | `Labeled ->
+                                    unlocated
+                                      (infix ~notn:coloneq ~ws:[]
+                                         ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
+                                         ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                         ~right_ok:(No.le_refl No.minus_omega))
+                                (* An unlabeled 1-tuple must be written (_ := M). *)
+                                | `Unlabeled when Bwd.length fields = 1 ->
+                                    unlocated
+                                      (infix ~notn:coloneq ~ws:[]
+                                         ~first:(unlocated (Placeholder [])) ~inner:Emp ~last:fldtm
+                                         ~left_ok:(No.le_refl No.minus_omega)
+                                         ~right_ok:(No.le_refl No.minus_omega))
+                                | `Unlabeled -> fldtm) )
+                      | None -> fatal (Anomaly "missing field in unparse"))
                     pbijtms acc)
                 fields Emp))
   | Constr (c, _, args) -> (

@@ -62,6 +62,8 @@
  ;; This won't get used for parsing commands since proof-script-command-start-regexp takes priority, but it will get added automatically to the end of minibuffer-read commands.
 	 proof-terminal-string                 "\n\x0C\n"
 	 proof-shell-auto-terminate-commands   t
+	 ;; Detect holes for goals buffer
+	 proof-shell-start-goals-regexp        "\x0C\\[holes\\]\x0C\n\\(\\)"
 
 	 ;; Silencing unnecessary output (TODO)
 	 ;proof-shell-start-silent-cmd          ""

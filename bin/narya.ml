@@ -164,7 +164,7 @@ let interact () =
 
 (* In ProofGeneral interaction mode, the prompt is delimited by formfeeds, and commands are ended by a formfeed on a line by itself.  This prevents any possibility of collision with other input or output. *)
 let rec interact_pg () : unit =
-  Format.printf "\x0C[narya]\x0C%!";
+  Format.printf "\x0C[narya]\x0C\n%!";
   try
     let buf = Buffer.create 20 in
     let str = ref "" in
@@ -172,12 +172,22 @@ let rec interact_pg () : unit =
       Buffer.add_string buf !str;
       str := read_line () ^ "\n"
     done;
+    let holes = ref Emp in
     Reporter.try_with
-      ~emit:(fun d -> Terminal.display ~output:stdout d)
+      ~emit:(fun d ->
+        match d.message with
+        | Hole _ -> holes := Snoc (!holes, d.message)
+        | _ -> Terminal.display ~output:stdout d)
       ~fatal:(fun d -> Terminal.display ~output:stdout d)
       (fun () ->
         try do_command (Command.parse_single (Buffer.contents buf))
         with Sys.Break -> Reporter.fatal Break);
+    Format.printf "\x0C[holes]\x0C\n%!";
+    Mbwd.miter
+      (fun [ h ] ->
+        Reporter.Code.default_text h Format.std_formatter;
+        Format.printf "\n\n%!")
+      [ !holes ];
     interact_pg ()
   with End_of_file -> ()
 

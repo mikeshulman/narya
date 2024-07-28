@@ -96,6 +96,16 @@ class read_line terminal history prompt =
     initializer self#set_prompt (S.const (eval [ B_underline true; S prompt; B_underline false ]))
   end
 
+let do_command = function
+  | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
+  | ws, Some cmd ->
+      if !execute then Execute.execute_command cmd;
+      Execute.reformat_maybe @@ fun ppf ->
+      Print.pp_ws `None ppf ws;
+      let last = Parser.Command.pp_command ppf cmd in
+      Print.pp_ws `None ppf last;
+      Format.pp_print_newline ppf ()
+
 let rec repl terminal history buf =
   let buf, prompt =
     match buf with
@@ -123,16 +133,7 @@ let rec repl terminal history buf =
             match d.message with
             | Quit _ -> exit 0
             | _ -> ())
-          (fun () ->
-            match Command.parse_single str with
-            | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
-            | ws, Some cmd ->
-                if !execute then Execute.execute_command cmd;
-                Execute.reformat_maybe @@ fun ppf ->
-                Print.pp_ws `None ppf ws;
-                let last = Parser.Command.pp_command ppf cmd in
-                Print.pp_ws `None ppf last;
-                Format.pp_print_newline ppf ());
+          (fun () -> do_command (Command.parse_single str));
         LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
       else (
@@ -173,15 +174,7 @@ let rec interact_pg () : unit =
       ~emit:(fun d -> Terminal.display ~output:stdout d)
       ~fatal:(fun d -> Terminal.display ~output:stdout d)
       (fun () ->
-        try
-          match Command.parse_single (Buffer.contents buf) with
-          | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
-          | ws, Some cmd ->
-              if !execute then Execute.execute_command cmd;
-              Execute.reformat_maybe @@ fun ppf ->
-              Print.pp_ws `None ppf ws;
-              let last = Parser.Command.pp_command ppf cmd in
-              Print.pp_ws `None ppf last
+        try do_command (Command.parse_single (Buffer.contents buf))
         with Sys.Break -> Reporter.fatal Break);
     interact_pg ()
   with End_of_file -> ()

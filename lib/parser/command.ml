@@ -471,16 +471,9 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
-let show_hole ppf err = function
+let show_hole err = function
   | Eternity.Find_number (m, Wrap (Metadef { data = Undef_meta { vars; _ }; termctx; ty }), _) ->
-      pp_open_vbox ppf 0;
-      fprintf ppf "hole %s:" (Meta.name m);
-      pp_print_newline ppf ();
-      pp_print_newline ppf ();
-      pp_printed ppf (Reporter.print (Termctx.PHole (vars, termctx, ty)));
-      pp_close_box ppf ();
-      pp_print_newline ppf ();
-      pp_print_newline ppf ()
+      emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
   | _ -> fatal err
 
 let to_string : Command.t -> string = function
@@ -655,18 +648,11 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           fatal (Anomaly "hole already defined"))
   | Show { what; _ } -> (
       match what with
-      | `Hole (_, number) ->
-          show_hole Format.std_formatter (No_such_hole number) (Eternity.find_number number)
+      | `Hole (_, number) -> show_hole (No_such_hole number) (Eternity.find_number number)
       | `Holes -> (
           match Eternity.all_holes () with
-          | [] ->
-              fprintf Format.std_formatter "no open holes";
-              pp_print_newline Format.std_formatter ();
-              pp_print_newline Format.std_formatter ()
-          | holes ->
-              List.iter
-                (show_hole Format.std_formatter (Anomaly "defined hole in undefined list"))
-                holes))
+          | [] -> emit No_open_holes
+          | holes -> List.iter (show_hole (Anomaly "defined hole in undefined list")) holes))
   | Undo { count; _ } ->
       History.undo count;
       emit (Commands_undone count)

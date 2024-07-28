@@ -132,7 +132,7 @@ module Code = struct
     | Missing_constructor_type : Constr.t -> t
     | Locked_variable : t
     | Locked_axiom : printable -> t
-    | Hole_generated : ('b, 's) Meta.t * printable -> t
+    | Hole : string * printable -> t
     | Open_holes : int -> t
     | Open_holes_remaining : Asai.Range.source -> t
     | Quit : string option -> t
@@ -252,7 +252,7 @@ module Code = struct
     | Missing_constructor_type _ -> Error
     | Locked_variable -> Error
     | Locked_axiom _ -> Error
-    | Hole_generated _ -> Info
+    | Hole _ -> Info
     | Open_holes _ -> Warning
     | Open_holes_remaining _ -> Error
     | Quit _ -> Info
@@ -418,6 +418,7 @@ module Code = struct
     | Open_holes _ -> "W3000"
     | No_such_hole _ -> "E3001"
     | Open_holes_remaining _ -> "E3002"
+    | Hole _ -> "I3003"
     (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -428,8 +429,6 @@ module Code = struct
     | Commands_undone _ -> "I0006"
     | Section_opened _ -> "I0007"
     | Section_closed _ -> "I0008"
-    (* Events during command execution *)
-    | Hole_generated _ -> "I0100"
     (* Control of execution *)
     | Quit _ -> "I0200"
     | Break -> "E0201"
@@ -653,8 +652,7 @@ module Code = struct
         textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
     | Locked_variable -> text "variable locked behind external degeneracy"
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
-    | Hole_generated (n, ty) ->
-        textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
+    | Hole (n, ty) -> textf "@[<v 0>hole %s:@,@,%a@]" n pp_printed (print ty)
     | Open_holes n ->
         if n = 1 then text "there is 1 open hole" else textf "there are %d open holes" n
     | Open_holes_remaining src -> (

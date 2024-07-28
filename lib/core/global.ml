@@ -223,22 +223,22 @@ let run = S.run
 let try_with = S.try_with
 
 (* At the end of a succesful normal command, notify the user of generated holes, save the newly created metavariables, and return the number of holes created to notify the user of. *)
-let end_command () =
+let end_command make_msg =
   let d = S.get () in
-  Mbwd.miter (fun [ (Meta.Wrap m, p) ] -> emit (Hole_generated (m, p))) [ d.current_holes ];
+  emit (make_msg (Bwd.length d.current_holes));
+  Mbwd.miter (fun [ (Meta.Wrap m, p) ] -> emit (Hole (Meta.name m, p))) [ d.current_holes ];
   save_metas d.current_metas;
-  let h = Bwd.length d.current_holes in
-  S.modify (fun d -> { d with current_holes = Emp; current_metas = Metamap.empty });
-  h
+  S.modify (fun d -> { d with current_holes = Emp; current_metas = Metamap.empty })
 
 (* For a command that needs to run in a different state like Solve, wrap it in this function instead.  This does that, and then after it completes, it saves the newly created metavariables to the *old* global state, not the special one that the command ran in. *)
-let run_command_with ~init f =
-  let h, metas, result =
+let run_command_with ~init make_msg f =
+  let metas, result =
     run ~init @@ fun () ->
     let result = f () in
     let d = S.get () in
-    Mbwd.miter (fun [ (Meta.Wrap m, p) ] -> emit (Hole_generated (m, p))) [ d.current_holes ];
-    (Bwd.length d.current_holes, d.current_metas, result) in
+    emit (make_msg (Bwd.length d.current_holes));
+    Mbwd.miter (fun [ (Meta.Wrap m, p) ] -> emit (Hole (Meta.name m, p))) [ d.current_holes ];
+    (d.current_metas, result) in
   (* Now that we're back in the old context, save the new metas to it. *)
   save_metas metas;
-  (h, result)
+  result

@@ -58,5 +58,5 @@ type eternity = {
 }
 
 val eternity : eternity ref
-val end_command : unit -> int
-val run_command_with : init:data -> (unit -> 'a) -> int * 'a
+val end_command : (int -> Reporter.Code.t) -> unit
+val run_command_with : init:data -> (int -> Reporter.Code.t) -> (unit -> 'a) -> 'a

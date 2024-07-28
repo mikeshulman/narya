@@ -8,38 +8,41 @@
    ￫ info[I0000]
    ￮ constant id defined
   
-   ￫ info[I0100]
-   ￮ hole ?0 generated:
+   ￫ info[I0000]
+   ￮ constant f defined, containing 1 hole
+  
+   ￫ info[I3003]
+   ￮ hole ?0:
      
      ----------------------------------------------------------------------
      A → B
   
    ￫ info[I0000]
-   ￮ constant f defined, containing 1 hole
+   ￮ constant f' defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?1 generated:
+   ￫ info[I3003]
+   ￮ hole ?1:
      
      x : A
      ----------------------------------------------------------------------
      B
   
    ￫ info[I0000]
-   ￮ constant f' defined, containing 1 hole
-  
-   ￫ info[I0000]
    ￮ constant ℕ defined
   
-   ￫ info[I0100]
-   ￮ hole ?2 generated:
+   ￫ info[I0000]
+   ￮ constant plus defined, containing 2 holes
+  
+   ￫ info[I3003]
+   ￮ hole ?2:
      
      m : ℕ
      n ≔ 0 : ℕ
      ----------------------------------------------------------------------
      ℕ
   
-   ￫ info[I0100]
-   ￮ hole ?3 generated:
+   ￫ info[I3003]
+   ￮ hole ?3:
      
      m : ℕ
      n : ℕ
@@ -47,29 +50,17 @@
      ----------------------------------------------------------------------
      ℕ
   
-   ￫ info[I0000]
-   ￮ constant plus defined, containing 2 holes
-  
    ￫ info[I0001]
    ￮ axiom P assumed
-  
-   ￫ info[I0100]
-   ￮ hole ?4 generated:
-     
-     n1 : ℕ (not in scope)
-     n0 : ℕ
-     n : ℕ
-     ----------------------------------------------------------------------
-     P n
   
    ￫ info[I0000]
    ￮ constant anop defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?5 generated:
+   ￫ info[I3003]
+   ￮ hole ?4:
      
-     n0 : ℕ
      n1 : ℕ (not in scope)
+     n0 : ℕ
      n : ℕ
      ----------------------------------------------------------------------
      P n
@@ -77,8 +68,20 @@
    ￫ info[I0000]
    ￮ constant anop' defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?6 generated:
+   ￫ info[I3003]
+   ￮ hole ?5:
+     
+     n0 : ℕ
+     n1 : ℕ (not in scope)
+     n : ℕ
+     ----------------------------------------------------------------------
+     P n
+  
+   ￫ info[I0000]
+   ￮ constant anop'' defined, containing 1 hole
+  
+   ￫ info[I3003]
+   ￮ hole ?6:
      
      n0 : ℕ (not in scope)
      H : ℕ (not in scope)
@@ -87,10 +90,10 @@
      P n
   
    ￫ info[I0000]
-   ￮ constant anop'' defined, containing 1 hole
+   ￮ constant anop''' defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?7 generated:
+   ￫ info[I3003]
+   ￮ hole ?7:
      
      H : ℕ
      H0 : ℕ (not in scope)
@@ -99,53 +102,53 @@
      P n
   
    ￫ info[I0000]
-   ￮ constant anop''' defined, containing 1 hole
-  
-   ￫ info[I0000]
    ￮ constant Σ defined
   
-   ￫ info[I0100]
-   ￮ hole ?8 generated:
+   ￫ info[I0000]
+   ￮ constant pp defined, containing 2 holes
+  
+   ￫ info[I3003]
+   ￮ hole ?8:
      
      ----------------------------------------------------------------------
      Type
   
-   ￫ info[I0100]
-   ￮ hole ?9 generated:
+   ￫ info[I3003]
+   ￮ hole ?9:
      
      ----------------------------------------------------------------------
      pp .fst
   
    ￫ info[I0000]
-   ￮ constant pp defined, containing 2 holes
+   ￮ constant pp' defined, containing 2 holes
   
-   ￫ info[I0100]
-   ￮ hole ?10 generated:
+   ￫ info[I3003]
+   ￮ hole ?10:
      
      ----------------------------------------------------------------------
      Type
   
-   ￫ info[I0100]
-   ￮ hole ?11 generated:
+   ￫ info[I3003]
+   ￮ hole ?11:
      
      ----------------------------------------------------------------------
      ?10{…}
   
    ￫ info[I0000]
-   ￮ constant pp' defined, containing 2 holes
+   ￮ constant foo defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?12 generated:
+   ￫ info[I3003]
+   ￮ hole ?12:
      
      bar : ℕ
      ----------------------------------------------------------------------
      Type
   
    ￫ info[I0000]
-   ￮ constant foo defined, containing 1 hole
+   ￮ constant foo' defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?13 generated:
+   ￫ info[I3003]
+   ￮ hole ?13:
      
      bar : Type
      x : bar
@@ -153,10 +156,10 @@
      Type
   
    ￫ info[I0000]
-   ￮ constant foo' defined, containing 1 hole
+   ￮ constant gel0 defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?14 generated:
+   ￫ info[I3003]
+   ￮ hole ?14:
      
      A : Type
      B : Type
@@ -166,10 +169,10 @@
      Type
   
    ￫ info[I0000]
-   ￮ constant gel0 defined, containing 1 hole
+   ￮ constant gel1 defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?15 generated:
+   ￫ info[I3003]
+   ￮ hole ?15:
      
      A : Type
      B : Type
@@ -180,10 +183,10 @@
      Type
   
    ￫ info[I0000]
-   ￮ constant gel1 defined, containing 1 hole
+   ￮ constant gel2 defined, containing 2 holes
   
-   ￫ info[I0100]
-   ￮ hole ?16 generated:
+   ￫ info[I3003]
+   ￮ hole ?16:
      
      A : Type
      B : Type
@@ -192,8 +195,8 @@
      ----------------------------------------------------------------------
      Type
   
-   ￫ info[I0100]
-   ￮ hole ?17 generated:
+   ￫ info[I3003]
+   ￮ hole ?17:
      
      A : Type
      B : Type
@@ -204,32 +207,29 @@
      Type
   
    ￫ info[I0000]
-   ￮ constant gel2 defined, containing 2 holes
-  
-   ￫ info[I0100]
-   ￮ hole ?18 generated:
-     
-     A : Type
-     B : Type
-     x.0 : A
-     x.1 : B
-     x.2 : gel3 A B x.0 x.1
-     ----------------------------------------------------------------------
-     Type
-  
-   ￫ info[I0100]
-   ￮ hole ?19 generated:
-     
-     A : Type
-     B : Type
-     x.0 : A
-     x.1 : B
-     x.2 : gel3 A B x.0 x.1
-     ----------------------------------------------------------------------
-     Type
-  
-   ￫ info[I0000]
    ￮ constant gel3 defined, containing 2 holes
+  
+   ￫ info[I3003]
+   ￮ hole ?18:
+     
+     A : Type
+     B : Type
+     x.0 : A
+     x.1 : B
+     x.2 : gel3 A B x.0 x.1
+     ----------------------------------------------------------------------
+     Type
+  
+   ￫ info[I3003]
+   ￮ hole ?19:
+     
+     A : Type
+     B : Type
+     x.0 : A
+     x.1 : B
+     x.2 : gel3 A B x.0 x.1
+     ----------------------------------------------------------------------
+     Type
   
    ￫ info[I0001]
    ￮ axiom C assumed
@@ -237,20 +237,20 @@
    ￫ info[I0000]
    ￮ constant AC defined
   
-   ￫ info[I0100]
-   ￮ hole ?20 generated:
+   ￫ info[I0000]
+   ￮ constant ac defined, containing 2 holes
+  
+   ￫ info[I3003]
+   ￮ hole ?20:
      
      ----------------------------------------------------------------------
      ℕ → A
   
-   ￫ info[I0100]
-   ￮ hole ?21 generated:
+   ￫ info[I3003]
+   ￮ hole ?21:
      
      ----------------------------------------------------------------------
      C (ac .a 0)
-  
-   ￫ info[I0000]
-   ￮ constant ac defined, containing 2 holes
   
    ￫ info[I0000]
    ￮ constant ida defined
@@ -267,8 +267,11 @@
   u u0 u00 ↦ u00
     : refl Π A A (refl A) (_ ↦ A) (_ ↦ A) (_ ⤇ refl A) ida ida
   
-   ￫ info[I0100]
-   ￮ hole ?22 generated:
+   ￫ info[I0000]
+   ￮ constant ideqid'' defined, containing 1 hole
+  
+   ￫ info[I3003]
+   ￮ hole ?22:
      
      u1 : A (not in scope)
      u0 : A (not in scope)
@@ -277,17 +280,14 @@
      refl A u1 u0
   
    ￫ info[I0000]
-   ￮ constant ideqid'' defined, containing 1 hole
+   ￮ constant afam defined, containing 1 hole
   
-   ￫ info[I0100]
-   ￮ hole ?23 generated:
+   ￫ info[I3003]
+   ￮ hole ?23:
      
      X : Type
      ----------------------------------------------------------------------
      Type
-  
-   ￫ info[I0000]
-   ￮ constant afam defined, containing 1 hole
   
    ￫ info[I0000]
    ￮ constant idafam defined

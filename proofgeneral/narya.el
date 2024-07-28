@@ -82,6 +82,48 @@
    proof-assistant-home-page             "https://github.com/mikeshulman/narya/"
 )
 
+;; The Emacs comment functions are a bit weird and inconsistent.
+;; comment-dwim (M-;) checks if the line is empty.
+;; - if the line is empty:
+;;   - if comment-insert-comment-function is non-nil, it calls that.
+;;   - otherwise, it directly inserts comment-start and comment-end.
+;; - if the line is not empty, it calls comment-indent.
+;; comment-indent *also* checks if comment-insert-comment-function is non-nil.
+;; - if so, it calls it.
+;; - if not, it *also* checks whether the line is empty.
+;;   - if so, it inserts block-comment-start and block-comment end.
+;;   - if not, it inserts comment-start and comment-end.
+;; Thus, to avoid infinite loops and get block comments exactly on empty lines, we define our value of comment-insert-comment-function as follows:
+(defun narya-insert-comment ()
+	;; If the line is empty,
+  (if (save-excursion (beginning-of-line) (looking-at "\\s-*$"))
+			;; Directly insert block-comment-start and block-comment-end, like comment-dwim does but using the block ones.
+      (progn
+				(indent-according-to-mode)
+        (insert (comment-padright block-comment-start nil))
+          (save-excursion
+            (insert (comment-padleft block-comment-end nil))
+            (indent-according-to-mode)))
+		;; Otherwise, call comment-indent, but dynamically unbinding comment-insert-comment-function so that we don't get called again in an infinite loop.
+		(let ((comment-insert-comment-function nil))
+			(comment-indent))))
+
+;; Make commenting out regions use block comments.
+(defun narya-comment-region (beg end &optional arg)
+	(let ((comment-start block-comment-start)
+				(comment-end block-comment-end)
+				(comment-continue "")
+				(comment-style 'extra-line))
+		(comment-region-default beg end arg)))
+
+(defun narya-mode-extra-config ()
+	(set (make-local-variable 'block-comment-start) "{` ")
+	(set (make-local-variable 'block-comment-end) " `}")
+	(set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
+	(set (make-local-variable 'comment-region-function) 'narya-comment-region))
+
+(add-hook 'narya-mode-hook 'narya-mode-extra-config)
+
 (provide 'narya)
 
 ;;; narya.el ends here

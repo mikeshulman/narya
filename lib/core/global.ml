@@ -25,7 +25,7 @@ type data = {
   metas : metamap;
   locked : bool;
   (* These two data pertain to the *currently executing command*: they store information about the holes and the global metavariables it has created.  The purpose is that if and when that command completes, we notify the user about the holes and save the metavariables to the correct global state.  In particular, during a "solve" command, the global state is rewound in time, but any newly created global metavariables need to be put into the "present" global state that it was rewound from. *)
-  current_holes : (Meta.wrapped * printable) Bwd.t;
+  current_holes : (Meta.wrapped * printable * unit Asai.Range.located) Bwd.t;
   current_metas : metamap;
 }
 
@@ -159,10 +159,13 @@ let save_metas metas =
     metas
 
 (* Add a new hole.  This is an eternal metavariable, so we pass off to Eternity, and also save some information about it locally so that we can discard it if the command errors (in interactive mode this doesn't stop the program) and notify the user if the command succeeds. *)
-let add_hole m ~vars ~termctx ~ty ~status =
+let add_hole m pos ~vars ~termctx ~ty ~status =
   !eternity.add m vars termctx ty status;
   S.modify (fun d ->
-      { d with current_holes = Snoc (d.current_holes, (Wrap m, Termctx.PHole (vars, termctx, ty))) })
+      {
+        d with
+        current_holes = Snoc (d.current_holes, (Wrap m, Termctx.PHole (vars, termctx, ty), pos));
+      })
 
 (* Temporarily set the value of a constant to execute a callback, and restore it afterwards.  We implement this by saving and restoring the value, rather that by calling another S.run, because we want to make sure to keep the 'current' information created by the callback. *)
 let with_definition c df f =
@@ -222,12 +225,25 @@ let get () =
 let run = S.run
 let try_with = S.try_with
 
-(* At the end of a succesful normal command, notify the user of generated holes, save the newly created metavariables, and return the number of holes created to notify the user of. *)
-let end_command make_msg =
+module HolePos = State.Make (struct
+  type t = (int * int * int) Bwd.t
+end)
+
+let do_holes make_msg =
   let d = S.get () in
   emit (make_msg (Bwd.length d.current_holes));
-  Mbwd.miter (fun [ (Meta.Wrap m, p) ] -> emit (Hole (Meta.name m, p))) [ d.current_holes ];
-  save_metas d.current_metas;
+  Mbwd.miter
+    (fun [ (Meta.Wrap m, p, (pos : unit Asai.Range.located)) ] ->
+      emit (Hole (Meta.name m, p));
+      let s, e = Asai.Range.split (Option.get pos.loc) in
+      HolePos.modify (fun holes -> Snoc (holes, (Meta.hole_number m, s.offset, e.offset))))
+    [ d.current_holes ];
+  d.current_metas
+
+(* At the end of a succesful normal command, notify the user of generated holes, save the newly created metavariables, and return the number of holes created to notify the user of. *)
+let end_command make_msg =
+  let metas = do_holes make_msg in
+  save_metas metas;
   S.modify (fun d -> { d with current_holes = Emp; current_metas = Metamap.empty })
 
 (* For a command that needs to run in a different state like Solve, wrap it in this function instead.  This does that, and then after it completes, it saves the newly created metavariables to the *old* global state, not the special one that the command ran in. *)
@@ -235,10 +251,8 @@ let run_command_with ~init make_msg f =
   let metas, result =
     run ~init @@ fun () ->
     let result = f () in
-    let d = S.get () in
-    emit (make_msg (Bwd.length d.current_holes));
-    Mbwd.miter (fun [ (Meta.Wrap m, p) ] -> emit (Hole (Meta.name m, p))) [ d.current_holes ];
-    (d.current_metas, result) in
+    let metas = do_holes make_msg in
+    (metas, result) in
   (* Now that we're back in the old context, save the new metas to it. *)
   save_metas metas;
   result

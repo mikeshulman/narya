@@ -10,9 +10,89 @@
 (require 'narya-syntax)
 (require 'font-lock)
 
-;; Add a formfeed at the end of the command, as a delimiter for PG-interaction-mode
 (defun narya-script-preprocess (file start end cmd)
+	"Add a formfeed at the end of a command, as a delimiter."
 	(list (concat cmd "\n\x0C\n")))
+
+(defvar narya-hole-overlays nil
+	"List of overlays marking the locations of open holes")
+
+(defface narya-hole-face '((t . (:background "SlateGray4" :foreground "white" :weight bold)))
+	"Face used for open holes in Narya")
+
+(defun narya-handle-output (cmd string)
+	"Parse and handle Narya's output.
+In particular, make overlays for any new holes that Narya says
+were created.  Also, since `proof-shell-handle-delayed-output'
+seems to be a little broken, here we do its job for it, and
+return a non-nil value in `proof-shell-last-output-kind' so that
+it won't try to duplicate our work."
+	;; First we grab the information from `proof-action-list'.
+	(let ((span  (caar proof-action-list))
+				(cmd   (nth 1 (car proof-action-list)))
+				(flags (nth 3 (car proof-action-list)))
+				;; Variables to store locations of different pieces
+				(rstart 0) (rend 0) (gstart 0) (gend 0) (dpos 0))
+		(while (string-match "\x0C\\[response\\]\x0C\n" string rstart)
+			(setq rstart (match-end 0)))
+		(string-match "\x0C\\[goals\\]\x0C\n" string rstart)
+		(setq rend (match-beginning 0)
+					gstart (match-end 0))
+		(string-match "\x0C\\[data\\]\x0C\n" string gstart)
+		(setq gend (match-beginning 0)
+					dpos (match-end 0))
+		;; In the "data" field, each new hole is indicated by its number,
+		;; starting offset, and ending offset, both of the latter in BYTES.
+		(while (string-match "^\\([0-9]+\\) \\([0-9]+\\) \\([0-9]+\\).*\n" string dpos)
+			(proof-with-script-buffer
+			 (let* ((hole (string-to-number (match-string 1 string)))
+							;; Compute the starting offset to add the hole positions
+							;; to, in bytes.  We skip whitespace since so do the PG
+							;; commands before picking up the next Narya command.
+							(bpos (position-bytes (save-excursion
+																				 (goto-char (proof-unprocessed-begin))
+																				 (skip-chars-forward " \t\n")
+																				 (point))))
+							;; Add this offset to the starting and ending positions
+							;; of the hole, and convert back to character-based
+							;; buffer positions.
+							(hstart (byte-to-position (+ bpos (string-to-number (match-string 2 string)))))
+							(hend (byte-to-position (+ bpos (string-to-number (match-string 3 string)))))
+							;; Create an overlay for the hole.
+							(ovl (make-overlay hstart hend nil nil nil)))
+				 (push ovl narya-hole-overlays)
+				 ;; The overlay doesn't seem to need a "priority", probably
+				 ;; since it ends up nested inside the PG overlays and hence
+				 ;; takes priority over them automatically.
+				 ; (overlay-put ovl 'priority 200)
+				 (overlay-put ovl 'narya-hole hole)
+				 (overlay-put ovl 'face 'narya-hole-face)))
+			(setq dpos (match-end 0)))
+		;; Now we do the job of `proof-shell-handle-delayed-output', but
+		;; more simply since we know what we're doing.
+    (when (proof-shell-exec-loop)
+      (setq proof-shell-last-goals-output
+						(substring string gstart gend))
+			(proof-shell-display-output-as-response
+	     flags
+	     (substring string rstart rend))
+			(unless (memq 'no-goals-display flags)
+				(pg-goals-display proof-shell-last-goals-output t)))
+		(setq proof-shell-last-output-kind 'goals)
+		(when proof-tree-external-display
+			(proof-tree-handle-delayed-output old-proof-marker cmd flags span))))
+
+(defun narya-delete-undone-holes ()
+	"Delete overlays for holes that are (now) outside the processed region."
+	(let ((pend (proof-unprocessed-begin)))
+		(setq narya-hole-overlays
+					(seq-filter
+					 (lambda (ovl)
+						 (if (and (overlay-start ovl) (< (overlay-start ovl) pend))
+								 t
+							 (delete-overlay ovl)
+							 nil))
+					 narya-hole-overlays))))
 
 ;; Easy configuration
 (proof-easy-config 
@@ -63,7 +143,9 @@
 	 proof-terminal-string                 "\n\x0C\n"
 	 proof-shell-auto-terminate-commands   t
 	 ;; Detect holes for goals buffer
-	 proof-shell-start-goals-regexp        "\x0C\\[holes\\]\x0C\n\\(\\)"
+	 ;; proof-shell-start-goals-regexp        "\x0C\\[holes\\]\x0C\n\\(\\)"
+	 ;; proof-shell-end-goals-regexp          "\x0C\\[data\\]\x0C\n"
+	 proof-shell-handle-output-system-specific 'narya-handle-output
 
 	 ;; Silencing unnecessary output (TODO)
 	 ;proof-shell-start-silent-cmd          ""
@@ -122,9 +204,148 @@
 	(set (make-local-variable 'block-comment-start) "{` ")
 	(set (make-local-variable 'block-comment-end) " `}")
 	(set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
-	(set (make-local-variable 'comment-region-function) 'narya-comment-region))
+	(set (make-local-variable 'comment-region-function) 'narya-comment-region)
+	(add-hook 'proof-state-change-hook 'narya-delete-undone-holes))
 
 (add-hook 'narya-mode-hook 'narya-mode-extra-config)
+
+;; Interactive commands
+
+(defun narya-previous-hole ()
+	"Move point to the previous open hole, if any."
+	(interactive)
+	(let ((pos
+				 (seq-reduce
+					(lambda (pos ovl)
+						(let ((opos (overlay-start ovl)))
+							(if (and (< opos (point))
+											 (if pos (< pos opos) t))
+									opos
+								pos)))
+					narya-hole-overlays
+					nil)))
+		(if pos
+				(goto-char pos)
+			(message "No more holes."))))
+
+(defun narya-next-hole ()
+	"Move point to the next open hole, if any."
+	(interactive)
+	(let ((pos
+				 (seq-reduce
+					(lambda (pos ovl)
+						(let ((opos (overlay-start ovl)))
+							(if (and (< (point) opos)
+											 (if pos (< opos pos) t))
+									opos
+								pos)))
+					narya-hole-overlays
+					nil)))
+		(if pos
+				(goto-char pos)
+			(message "No more holes."))))
+
+(defun narya-show-hole ()
+	"Show the goal and context for the current open hole, if any."
+	(interactive)
+	(let ((n (get-char-property (point) 'narya-hole)))
+		(if n
+				(proof-shell-invisible-command (concat "show hole " (number-to-string n)))
+			(message "Place the cursor in a hole to use this command."))))
+
+(defun narya-show-all-holes ()
+	"Show the goal and context for all open holes."
+	(interactive)
+	(proof-shell-invisible-command "show holes"))
+
+(defun narya-echo (term)
+	"Normalize and display the value and type of a term."
+	(interactive "sTerm to normalize: ")
+	(proof-shell-invisible-command (concat "echo " term)))
+
+;; Proof General key bindings, with suggested Narya bindings marked
+;; C-c C-a --> apply/refine in a hole
+;; C-c C-b proof-process-buffer
+;; C-c C-c proof-interrupt-process
+;; C-c C-d proof-tree-external-display-toggle
+;; C-c C-e
+;; C-c C-f proof-find-theorems
+;; C-c C-g
+;; C-c C-h (help)
+;; C-c TAB proof-query-identifier
+;; C-c C-j --> next goal
+;; C-c C-k --> previous goal
+;; C-c C-l proof-layout-windows
+;; C-c RET proof-goto-point
+;; C-c C-n proof-assert-next-command-interactive
+;; C-c C-o proof-display-some-buffers
+;; C-c C-p proof-prf (show current proof state)
+;; C-c C-q --> about/searchabout ("query")
+;; C-c C-r proof-retract-buffer
+;; C-c C-s proof-toggle-active-scripting
+;; C-c C-t proof-ctxt (show current context)
+;;         --> show current hole if any, focused proof if any
+;; C-c C-u proof-undo-last-successful-command
+;; C-c C-v proof-minibuffer-cmd
+;; C-c C-w pg-response-clear-displays
+;; C-c C-x proof-shell-exit
+;; C-c C-y --> case split (Y looks like a split)
+;; C-c C-z proof-frob-locked-end
+;; C-c >   proof-autosend-toggle
+;; C-c <
+;; C-c {
+;; C-c }
+;; C-c :   --> synthesize type (: is typing), incl context and goal in a hole
+;; C-c ;   --> normalize (echo), incl context and goal in a hole
+;; C-c . (also minor modes)
+;; C-c , (also minor modes)
+;; C-c 0
+;; C-c 1
+;; C-c 2
+;; C-c 3
+;; C-c 4
+;; C-c 5
+;; C-c 6
+;; C-c 7
+;; C-c 8
+;; C-c 9
+;; C-c `   proof-next-error
+;; C-c C-. proof-goto-end-of-locked
+;; C-c C-,
+;; C-c C-; pg-insert-last-output-as-comment
+;; C-c C-:
+;; C-c ?   (help)
+;; C-c C-? --> show all goals
+;; C-c C-SPC --> fill hole
+
+;; For comparison, Agda global bindings
+;; C-c C-? show all goals
+;; C-c C-b previous goal
+;; C-c C-d deduce (synthesize) type
+;; C-c C-f next goal
+;; C-c C-n compute normal form
+;; C-c C-z search definitions in scope
+
+;; For comparison, Agda hole bindings
+;; C-c C-, goal type and context
+;; C-c C-. goal type and context, plus type of current term
+;; C-c C-SPC fill hole
+;; C-c C-a automatic proof search
+;; C-c C-c case split
+;; C-c C-d deduce type of current term
+;; C-c C-e context (environment)
+;; C-c C-h create helper function
+;; C-c C-m normalize and fill
+;; C-c C-n normalize current term
+;; C-c C-r refine/apply
+;; C-c C-t show goal type
+;; C-c C-w why in scope
+
+(keymap-set narya-mode-map "C-c C-t" 'narya-show-hole)
+(keymap-set narya-mode-map "C-c C-?" 'narya-show-all-holes)
+(keymap-set narya-mode-map "C-c C-j" 'narya-next-hole)
+(keymap-set narya-mode-map "C-c C-k" 'narya-previous-hole)
+(keymap-set narya-mode-map "C-c ;" 'narya-echo)
 
 (provide 'narya)
 

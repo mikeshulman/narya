@@ -87,6 +87,14 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Like `echo`, but does not normalize the term, only computes its type.
 
+1.
+   ```
+   show hole HOLE
+   show holes
+   ```
+
+   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
+
 1. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
@@ -128,14 +136,6 @@ In interactive mode, the following additional commands are also available:
 1. `solve HOLE ≔ TERM`
 
    Fill hole number `HOLE` with the term `TERM` (see below).
-
-1.
-   ```
-   show hole HOLE
-   show holes
-   ```
-
-   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
 
 1. `undo N`
 

@@ -29,6 +29,7 @@ type t =
   | Def
   | And
   | Echo
+  | Synth
   | Quit
   | Match
   | Return
@@ -169,6 +170,7 @@ let to_string = function
   | Def -> "def"
   | And -> "and"
   | Echo -> "echo"
+  | Synth -> "synth"
   | Quit -> "quit"
   | Match -> "match"
   | Return -> "return"

@@ -1,11 +1,11 @@
 ;; narya-syntax.el --- Proof General instance for Narya - syntax file
 
 (defconst narya-commands
-	"\\<\\(axiom\\|def\\|echo\\|notation\\|import\\|export\\|solve\\|quit\\|show\\|undo\\|section\\|end\\)\\>")
+	"\\<\\(axiom\\|def\\|echo\\|synth\\|notation\\|import\\|export\\|solve\\|quit\\|show\\|undo\\|section\\|end\\)\\>")
 
 ;; As noted in the PG source, the default function proof-generic-state-preserving-p is not really correct; it thinks that things like "def" are state-preserving.  These are the commands that it makes sense for PG to issue directly to the prover without their being in the file.
 (defun narya-state-preserving-p (cmd)
-	(string-match "^echo\\|show" cmd))
+	(string-match "^echo\\|synth\\|show" cmd))
 
 (defconst narya-core-font-lock-keywords
   `(

@@ -36,7 +36,8 @@ module Command = struct
         ty : observation;
       }
     | Def of def list
-    | Echo of { wsecho : Whitespace.t list; tm : observation }
+    (* "synth" is almost just like "echo", so we implement them as one command distinguished by an "eval" flag. *)
+    | Echo of { wsecho : Whitespace.t list; tm : observation; eval : bool }
     | Notation : {
         fixity : ('left, 'tight, 'right) fixity;
         wsnotation : Whitespace.t list;
@@ -148,7 +149,12 @@ module Parse = struct
   let echo =
     let* wsecho = token Echo in
     let* tm = C.term [] in
-    return (Command.Echo { wsecho; tm })
+    return (Command.Echo { wsecho; tm; eval = true })
+
+  let synth =
+    let* wsecho = token Synth in
+    let* tm = C.term [] in
+    return (Command.Echo { wsecho; tm; eval = false })
 
   let tightness_and_name : (No.wrapped option * Whitespace.t list * Trie.path * Whitespace.t list) t
       =
@@ -399,6 +405,7 @@ module Parse = struct
     </> axiom
     </> def_and
     </> echo
+    </> synth
     </> notation
     </> import
     </> solve
@@ -412,7 +419,7 @@ module Parse = struct
   let command_or_echo () =
     command ()
     </> let* tm = C.term [] in
-        return (Command.Echo { wsecho = []; tm })
+        return (Command.Echo { wsecho = []; tm; eval = true })
 
   type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
 
@@ -479,7 +486,8 @@ let show_hole err = function
 let to_string : Command.t -> string = function
   | Axiom _ -> "axiom"
   | Def _ -> "def"
-  | Echo _ -> "echo"
+  | Echo { eval = true; _ } -> "echo"
+  | Echo { eval = false; _ } -> "synth"
   | Notation _ -> "notation"
   | Import _ -> "import"
   | Solve _ -> "solve"
@@ -546,15 +554,18 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
       Core.Command.execute (Def defs)
-  | Echo { tm = Term tm; _ } -> (
+  | Echo { tm = Term tm; eval; _ } -> (
       let rtm = process Emp tm in
       action_taken ();
       match rtm.value with
       | Synth stm ->
           Readback.Display.run ~env:true @@ fun () ->
           let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
-          let etm = Norm.eval_term (Emp D.zero) ctm in
-          let btm = Readback.readback_at Ctx.empty etm ety in
+          let btm =
+            if eval then
+              let etm = Norm.eval_term (Emp D.zero) ctm in
+              Readback.readback_at Ctx.empty etm ety
+            else ctm in
           let bty = Readback.readback_at Ctx.empty ety (Syntax.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           let uty = unparse Names.empty bty Interval.entire Interval.entire in
@@ -737,9 +748,9 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_close_box ppf ();
       rest
   | Def defs -> pp_defs ppf Def [] defs
-  | Echo { wsecho; tm = Term tm } ->
+  | Echo { wsecho; tm = Term tm; eval } ->
       pp_open_hvbox ppf 2;
-      pp_tok ppf Echo;
+      pp_tok ppf (if eval then Echo else Synth);
       pp_ws `Nobreak ppf wsecho;
       let tm, rest = split_ending_whitespace tm in
       pp_term `None ppf (Term tm);

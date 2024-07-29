@@ -125,7 +125,7 @@ it won't try to duplicate our work."
 
 	 ;; Undo
 	 proof-non-undoables-regexp            "undo"
-	 proof-ignore-for-undo-count           "echo\\|show\\|undo"
+	 proof-ignore-for-undo-count           "echo\\|synth\\|show\\|undo"
 	 proof-undo-n-times-cmd                "undo %s\n\x0C" ;; has to end with a formfeed to terminate a PG-mode command
 	 proof-state-preserving-p              'narya-state-preserving-p
 	 ;; The difference between proof-count-undos-fn and proof-find-and-forget-fn seems to be that the former is called iff staying inside a single proof.  However, as far as I can see, for Narya the default value of the former also works for the latter.
@@ -263,6 +263,11 @@ it won't try to duplicate our work."
 	(interactive "sTerm to normalize: ")
 	(proof-shell-invisible-command (concat "echo " term)))
 
+(defun narya-synth (term)
+	"Display the type of a term."
+	(interactive "sTerm to synthesize: ")
+	(proof-shell-invisible-command (concat "synth " term)))
+
 ;; Proof General key bindings, with suggested Narya bindings marked
 ;; C-c C-a --> apply/refine in a hole
 ;; C-c C-b proof-process-buffer
@@ -346,6 +351,7 @@ it won't try to duplicate our work."
 (keymap-set narya-mode-map "C-c C-j" 'narya-next-hole)
 (keymap-set narya-mode-map "C-c C-k" 'narya-previous-hole)
 (keymap-set narya-mode-map "C-c ;" 'narya-echo)
+(keymap-set narya-mode-map "C-c :" 'narya-synth)
 
 (provide 'narya)
 

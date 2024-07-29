@@ -75,19 +75,23 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below) with no current definition in scope, while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.  Finally, a family of constants can be defined mutually by using the `and` keyword to introduce the second and later ones (see below).
 
-2. `axiom NAME [PARAMS] : TYPE`
+1. `axiom NAME [PARAMS] : TYPE`
 
    Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).  Parameters and names are treated as for `def`.
 
-3. `echo TERM`
+1. `echo TERM`
 
    Normalize `TERM` and print its value and its type to standard output.  Note that `TERM` must synthesize a type (see below); if it is a checking term you must ascribe it.  In interactive mode, if you enter a term instead of a command, Narya assumes you mean to `echo` that term.
 
-4. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
+1. `synth TERM`
+
+   Like `echo`, but does not normalize the term, only computes its type.
+
+1. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
 
-5. 
+1.
    ```
    import "FILE"
    import "FILE" | MOD
@@ -107,15 +111,15 @@ In a file, conventionally each command begins on a new line, but this is not tec
    ```
    Same as above, but also export the new names to other files that import this one.
 
-6. `section NAME ≔`
+1. `section NAME ≔`
    
    Begin a section named `NAME`, which must be a valid identifier.  All ordinary commands are valid inside a section (including other section commands).
    
-7. `end`
+1. `end`
 
    End the section that was most recently opened and not yet closed.  All the constants that were in the export namespace of that section (i.e. those defined with `def` and `axiom` or imported from elsewhere with `export`) are prefixed by the name of that section and merged into the previous namespace.  (See namespaces, below.)
 
-8. `quit`
+1. `quit`
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
 
@@ -125,7 +129,7 @@ In interactive mode, the following additional commands are also available:
 
    Fill hole number `HOLE` with the term `TERM` (see below).
 
-2. 
+1.
    ```
    show hole HOLE
    show holes
@@ -133,7 +137,7 @@ In interactive mode, the following additional commands are also available:
 
    Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
 
-3. `undo N`
+1. `undo N`
 
    Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo` and `show`: those commands are skipped over when undoing.  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.  (This command is mostly intended for use in the ProofGeneral backend, see below.)
 
@@ -156,13 +160,14 @@ The most useful ProofGeneral key commands for Narya are the following.  (As usua
 - `C-c C-.` : Move the cursor to the end of the processed region.
 - `C-M-a` : Move the cursor to the beginning of the command it is inside.
 - `C-M-e` : Move the cursor to the end of the command it is inside.
-- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo` and `show`.
+- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo`, `synth`, and `show`.
 - `C-c C-c` : Interrupt Narya if a command is taking too long.  Narya attempts to recover, but its state may be unreliable afterwards.
 - `M-;` : Insert a comment, remove a comment, or comment out a region.  This is a standard Emacs command, but is customized to use line comments on code lines and block comments elsewhere.
 
 As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (see below).  Whenever a hole is created by processing a command, the location of the hole is highlighted in `narya-hole-face` (which you can customize).  These highlights are removed when hole-creating commands are retracted.  Narya's ProofGeneral mode also defines the following additional key commands.
 
-- `C-c ;` : Read a term from the minibuffer and `echo` it (like `C-c C-v` with `echo`).
+- `C-c ;` : Read a term from the minibuffer and normalize it (like `C-c C-v` with `echo`).
+- `C-c :` : Read a term from the minibuffer and synthesize its type (like `C-c C-v` with `synth`).
 - `C-c C-?` : Show the contexts and types of all open holes (like `C-c C-v` with `show holes`).
 - `C-c C-t` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
 - `C-c C-j` : Move the cursor to the position of the next open hole.

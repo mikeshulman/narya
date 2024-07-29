@@ -409,12 +409,12 @@ let rec check :
   | Record _, Kinetic l -> kinetic_of_potential l ctx tm ty "sig"
   | Data _, Kinetic l -> kinetic_of_potential l ctx tm ty "data"
   (* If the user left a hole, we create an eternal metavariable. *)
-  | Hole vars, _ ->
+  | Hole (vars, pos), _ ->
       (* Holes aren't numbered by the file they appear in. *)
       let meta = Meta.make_hole (Ctx.dbwd ctx) (energy status) in
       let ty, termctx =
         Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
-      Global.add_hole meta ~vars ~termctx ~ty ~status;
+      Global.add_hole meta pos ~vars ~termctx ~ty ~status;
       Meta (meta, energy status)
   (* And lastly, if we have a synthesizing term, we synthesize it. *)
   | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty

@@ -5,11 +5,11 @@ Narya is eventually intended to be a proof assistant implementing Multi-Modal, M
 Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  (I try to make breaking changes as GitHub pull requests, so if you watch the repository you should at least get notified of them.)  But on the other side of the coin, feedback on anything and everything is welcome.  In particular, please report all crashes, bugs, unexpected errors, and other unexpected, surprising, or unintuitive behavior, either in GitHub issues or by direct email.
 
 
-## Top level interface
+## Installation
 
-### Compilation
+### From source
 
-Narya requires OCaml version 5.2.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
+There is no distribution yet, so you have to compile Narya yourself.  This requires OCaml version 5.2.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
 
 ```
 opam switch create 5.2.0
@@ -23,6 +23,14 @@ dune install
 
 This will make the executable `narya` available in a directory such as `~/.opam/5.2.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
+### ProofGeneral (Emacs) mode
+
+The recommended mode of use of Narya is with its [ProofGeneral](https://proofgeneral.github.io/) Emacs mode (for further description of this, see below).  To install Narya's ProofGeneral mode, first install Emacs and ProofGeneral and find the ProofGeneral installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.  In this directory, create a subdirectory called `narya` and copy (or, better, symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.  Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny")` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.  Then restart Emacs.
+
+Note that you will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them) and also whenever ProofGeneral is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
+
+
+## Top level interface
 
 ### Command-line flags
 
@@ -132,13 +140,11 @@ In interactive mode, the following additional commands are also available:
 
 ### ProofGeneral mode
 
-[ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.
+[ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
 
-To install Narya's ProofGeneral mode, first install ProofGeneral and find its installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.  In this directory, create a subdirectory called `narya` and copy (or, better, symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.  Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny")` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.  Then restart Emacs.
+Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment), it will automatically be retracted up to the point where you are editing.
 
-Note that you will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them) and also whenever ProofGeneral is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
-
-Once Narya's ProofGeneral mode is installed, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment), it will automatically be retracted up to the point where you are editing.
+In addition to the main window displaying your source file, there will be two other windows in split-screen labeled "goals" and "response".  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
 
 The most useful ProofGeneral key commands for Narya are the following.  (As usual in Emacs, `C-a` means hold down the Control key and press `a`, then release both.  Similarly, `C-M-a` means hold down both Control and Meta (usually the same as "Alt") and press `a`, then release them all.)
 
@@ -153,6 +159,14 @@ The most useful ProofGeneral key commands for Narya are the following.  (As usua
 - `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo` and `show`.
 - `C-c C-c` : Interrupt Narya if a command is taking too long.  Narya attempts to recover, but its state may be unreliable afterwards.
 - `M-;` : Insert a comment, remove a comment, or comment out a region.  This is a standard Emacs command, but is customized to use line comments on code lines and block comments elsewhere.
+
+As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (see below).  Whenever a hole is created by processing a command, the location of the hole is highlighted in `narya-hole-face` (which you can customize).  These highlights are removed when hole-creating commands are retracted.  Narya's ProofGeneral mode also defines the following additional key commands.
+
+- `C-c ;` : Read a term from the minibuffer and `echo` it (like `C-c C-v` with `echo`).
+- `C-c C-?` : Show the contexts and types of all open holes (like `C-c C-v` with `show holes`).
+- `C-c C-t` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
+- `C-c C-j` : Move the cursor to the position of the next open hole.
+- `C-c C-k` : Move the cursor to the position of the previous open hole.
 
 
 ### Entering Unicode characters
@@ -417,18 +431,18 @@ However, the type `A → A` still has to be written again, since a let-binding m
 
 The basic ingredient of interactive proof is a *hole*.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever.  A command containing one or more holes will succeed as long as all the terms in it typecheck without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts, i.e. if it would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself (this may be improved in the future).
 
-When a command containing holes finishes succesfully, messages are emitted showing the type and context of every hole in it.  You can then continue to issue other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N{…}` where `N` is the sequential number of the hole.  (Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.)  Unlike the printing of most terms, `?N{…}` for a hole is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N{…}` (this is what the notation `{…}` is intended to suggest).  This may be improved in future, but it is ameliorated somewhat by the treatment of holes in case trees.
+When a command containing holes finishes succesfully (in verbose or interactive mode), messages are emitted showing the type and context of every hole in it.  In ProofGeneral mode, these types and contexts are displayed in the "goals" window.  You can then continue to issue/process other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N{…}` where `N` is the sequential number of the hole.  (Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.)  Unlike the printing of most terms, `?N{…}` for a hole is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N{…}` (this is what the notation `{…}` is intended to suggest).  This may be improved in future, but it is ameliorated somewhat by the treatment of holes in case trees.
 
 Specifically, a hole `?` left in a place where a case tree would be valid to continue is a *case tree hole*, and is treated a bit differently than an ordinary hole.  The obvious difference is that a case tree hole can be solved (see below) by a case tree rather than an ordinary term.  But in addition, evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would constitute the substitution applied to a term hole, and hence not currently printed).
 
-When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created and not solved, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.
+When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created and not solved, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.  For this reason, a warning message is emitted after every command as long as there are open holes remaining.
 
 
 ### Solving holes
 
-Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The straightforward way to fill a hole is to editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.  In interactive mode, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.
+Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The straightforward way to fill a hole is to edit the source code to replace the `?` by a term (perhaps containing other holes) and reload the file.  In interactive mode, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.  In ProofGeneral mode, you can `C-c C-u` to retract the hole-creating command and edit it (or just start editing it and it will auto-retract), and then re-process it with `C-c C-n`.
 
-However, it is also possible to solve a hole directly with the command `solve`.  This command identifies a hole by its number and supplies a term with which to fill the hole.  For example:
+In interactive mode, it is also possible to solve a hole directly with the command `solve`.  This command identifies a hole by its number and supplies a term with which to fill the hole.  For example:
 ```
 def f : Type → Type ≔ X ↦ ?
 
@@ -449,9 +463,9 @@ solve 0 ≔ X
 ```
 Of course, the term given to `solve` can contain other holes, which will be printed and can themselves be solved later.  The term solving a hole is parsed and typechecked *in the context where the hole was created*: thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
 
-The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole changes the numbers of all the holes after that point.  For this reason the `solve` command is only allowed in interactive mode.  Indeed, it is intended as a backend for (so-far unimplemented) editor commands that solve holes identified positionally as in Agda, and as a primitive for (so-far unimplemented) tactic proofs as in Coq and Lean; and in both of those cases the hole numbers will be managed programmatically rather than by the user.
+The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole changes the numbers of all the holes after that point.  For this reason the `solve` command is only allowed in interactive mode.  Indeed, it is intended primarily as a backend for a so-far unimplemented ProofGeneral command that solve holes identified positionally as in Agda, and as a primitive for (so-far unimplemented) tactic proofs as in Coq and Lean; and in both of those cases the hole numbers will be managed programmatically rather than by the user.
 
-If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.
+If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.  In ProofGeneral mode the key command `C-c C-?` issues `show holes`, while `C-c C-t` issues `show hole` with the hole number inferred automatically from the cursor position (which must be over an open hole).
 
 
 ## Record types and tuples

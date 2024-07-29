@@ -170,24 +170,29 @@ let rec interact_pg () : unit =
     let str = ref "" in
     while !str <> "\x0C\n" do
       Buffer.add_string buf !str;
-      str := read_line () ^ "\n"
+      let line = read_line () in
+      str := if String.length line > 0 then line ^ "\n" else ""
     done;
+    let cmd = Buffer.contents buf in
     let holes = ref Emp in
-    Reporter.try_with
-      ~emit:(fun d ->
-        match d.message with
-        | Hole _ -> holes := Snoc (!holes, d.message)
-        | _ -> Terminal.display ~output:stdout d)
-      ~fatal:(fun d -> Terminal.display ~output:stdout d)
-      (fun () ->
-        try do_command (Command.parse_single (Buffer.contents buf))
-        with Sys.Break -> Reporter.fatal Break);
-    Format.printf "\x0C[holes]\x0C\n%!";
-    Mbwd.miter
-      (fun [ h ] ->
-        Reporter.Code.default_text h Format.std_formatter;
-        Format.printf "\n\n%!")
-      [ !holes ];
+    (Format.printf "\x0C[response]\x0C\n%!";
+     Global.HolePos.run ~init:Emp @@ fun () ->
+     Reporter.try_with
+       ~emit:(fun d ->
+         match d.message with
+         | Hole _ -> holes := Snoc (!holes, d.message)
+         | _ -> Terminal.display ~output:stdout d)
+       ~fatal:(fun d -> Terminal.display ~output:stdout d)
+       (fun () ->
+         try do_command (Command.parse_single cmd) with Sys.Break -> Reporter.fatal Break);
+     Format.printf "\x0C[goals]\x0C\n%!";
+     Mbwd.miter
+       (fun [ h ] ->
+         Reporter.Code.default_text h Format.std_formatter;
+         Format.printf "\n\n%!")
+       [ !holes ];
+     Format.printf "\x0C[data]\x0C\n%!";
+     Mbwd.miter (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h s e) [ Global.HolePos.get () ]);
     interact_pg ()
   with End_of_file -> ()
 
@@ -224,6 +229,8 @@ let () =
   Parser.Unparse.install ();
   Parser.Scope.Mod.run @@ fun () ->
   History.run_empty @@ fun () ->
+  (* By default, we ignore the hole positions. *)
+  Global.HolePos.try_with ~get:(fun () -> Emp) ~set:(fun _ -> ()) @@ fun () ->
   Printconfig.run
     ~env:
       {

@@ -279,5 +279,5 @@ Echos are not re-executed in compiled files
 
   $ narya -e 'import "echo"'
    ￫ warning[W2400]
-   ￮ not re-executing 'echo' commands when loading compiled file $TESTCASE_ROOT/echo.nyo
+   ￮ not re-executing echo/synth/show commands when loading compiled file $TESTCASE_ROOT/echo.nyo
   

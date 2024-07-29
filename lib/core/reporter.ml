@@ -699,7 +699,7 @@ module Code = struct
     | Incompatible_flags (file, flags) ->
         textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
     | Actions_in_compiled_file file ->
-        textf "not re-executing 'echo' commands when loading compiled file %s" file
+        textf "not re-executing echo/synth/show commands when loading compiled file %s" file
     | No_such_hole i -> textf "no open hole numbered %d" i
     | Hole_solved h ->
         if h > 1 then textf "hole solved, containing %d new holes" h

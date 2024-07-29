@@ -658,6 +658,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))
   | Show { what; _ } -> (
+      action_taken ();
       match what with
       | `Hole (_, number) -> show_hole (No_such_hole number) (Eternity.find_number number)
       | `Holes -> (

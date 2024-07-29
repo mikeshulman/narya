@@ -643,7 +643,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           | _ -> ())
         (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
   | Solve { number; tm = Term tm; _ } -> (
-      History.do_command @@ fun () ->
+      (* Solve does NOT create a new history entry because it is NOT undoable. *)
       let (Find_number
             ( m,
               Wrap (Metadef { data; termctx; ty }),

@@ -131,7 +131,7 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
 
-In interactive mode, the following additional commands are also available:
+In interactive mode, the following additional commands are also available.  (However, they are mostly intended for use in the ProofGeneral backend, see below.)
 
 1. `solve HOLE ≔ TERM`
 
@@ -139,7 +139,7 @@ In interactive mode, the following additional commands are also available:
 
 1. `undo N`
 
-   Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo` and `show`: those commands are skipped over when undoing.  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.  (This command is mostly intended for use in the ProofGeneral backend, see below.)
+   Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo`, `synth`, `show`, and `solve`: those commands are skipped over when undoing.  (Of course `solve` does modify the global state, but it is not undoable because it doesn't affect the "processed position" in ProofGeneral.)  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently from Narya's memory (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.
 
 
 ### ProofGeneral mode

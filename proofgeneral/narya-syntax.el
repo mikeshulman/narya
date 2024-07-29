@@ -1,6 +1,6 @@
 ;; narya-syntax.el --- Proof General instance for Narya - syntax file
 
-;; We omit "solve" and "undo" because these should NOT appear in source files, as they are not state-preserving but are also not undoable.
+;; We omit "solve" and "undo" because these should NOT appear in source files.
 (defconst narya-commands
 	"\\<\\(axiom\\|def\\|echo\\|synth\\|notation\\|import\\|export\\|quit\\|show\\|section\\|end\\)\\>")
 

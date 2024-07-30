@@ -65,7 +65,6 @@ let compare : type b1 s1 b2 s2. (b1, s1) t -> (b2, s2) t -> (b1 * s1, b2 * s2) E
   | true, true, Eq, Eq -> Eq
   | _ -> Neq
 
-(* Hole numbers are exposed to the user for identifying them in solve commands, so we need to look them up and return a metavariable without already knowing its context length or energy. *)
 type wrapped = Wrap : ('b, 's) t -> wrapped
 
 (* Note that this doesn't give the compunit, whereas hole numbers are only unique within a compunit.  But holes are probably only used in the top level compunit, and in general we can assume this is only used for just-created holes hence in the "current" compunit. *)
@@ -147,6 +146,14 @@ module Map = struct
     let iter : type x. x iterator -> x t -> unit =
      fun f m ->
       Compunit.Map.iter (fun _ m -> IdMap.iter (fun _ (Entry (key, value)) -> f.it key value) m) m
+
+    type ('x, 'acc) folder = { fold : 'b 's. ('b, 's) key -> ('x, 'b, 's) F.t -> 'acc -> 'acc }
+
+    let fold : type x acc. (x, acc) folder -> x t -> acc -> acc =
+     fun f m acc ->
+      Compunit.Map.fold
+        (fun _ m acc -> IdMap.fold (fun _ (Entry (key, value)) acc -> f.fold key value acc) m acc)
+        m acc
 
     let to_channel_unit :
         type x. Out_channel.t -> Compunit.t -> x t -> Marshal.extern_flags list -> unit =

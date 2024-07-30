@@ -76,15 +76,15 @@ let () =
     }
 
 let unsolved () =
-  let count = ref 0 in
-  (* TODO: Need a fold for MetaMap *)
-  let iterator : type x b s. (b, s) Meta.t -> (x, b, s) MetaData.t -> unit =
-   fun _ { def; _ } ->
-    match !def with
-    | Metadef { tm = `Undefined _; _ } -> count := !count + 1
-    | _ -> () in
-  Metamap.iter { it = iterator } (S.get ()).map;
-  !count
+  Metamap.fold
+    {
+      fold =
+        (fun _ { def; _ } count ->
+          match !def with
+          | Metadef { tm = `Undefined _; _ } -> count + 1
+          | _ -> count);
+    }
+    (S.get ()).map 0
 
 let find : type b s. (b, s) Meta.t -> (b, s) Metadef.t * (b, s) homewhen =
  fun m ->
@@ -104,15 +104,15 @@ let find_number : int -> find_number =
   Find_number (m, !def, homewhen)
 
 let all_holes () =
-  let holes = ref [] in
-  (* TODO: Need a fold for MetaMap *)
-  let iterator : type x b s. (b, s) Meta.t -> (x, b, s) MetaData.t -> unit =
-   fun m { def; homewhen } ->
-    match !def with
-    | Metadef { tm = `Undefined _; _ } -> holes := Find_number (m, !def, homewhen) :: !holes
-    | _ -> () in
-  Metamap.iter { it = iterator } (S.get ()).map;
-  !holes
+  Metamap.fold
+    {
+      fold =
+        (fun m { def; homewhen } holes ->
+          match !def with
+          | Metadef { tm = `Undefined _; _ } -> Find_number (m, !def, homewhen) :: holes
+          | _ -> holes);
+    }
+    (S.get ()).map []
 
 let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
  fun h tm ->

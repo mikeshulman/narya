@@ -39,6 +39,10 @@ module Map : sig
     type 'x iterator = { it : 'b 's. ('b, 's) key -> ('x, 'b, 's) F.t -> unit }
 
     val iter : 'x iterator -> 'x t -> unit
+
+    type ('x, 'acc) folder = { fold : 'b 's. ('b, 's) key -> ('x, 'b, 's) F.t -> 'acc -> 'acc }
+
+    val fold : ('x, 'acc) folder -> 'x t -> 'acc -> 'acc
     val to_channel_unit : Out_channel.t -> Compunit.t -> 'x t -> Marshal.extern_flags list -> unit
     val from_channel_unit : In_channel.t -> 'x mapper -> Compunit.t -> 'x t -> 'x t
   end

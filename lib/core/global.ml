@@ -15,7 +15,7 @@ type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, p
 
 (* All global metavariables have definitions. *)
 module Metamap = Meta.Map.Make (struct
-  type ('x, 'bs) t = ('x, 'bs) Metadef.t
+  type ('x, 'b, 's) t = ('b, 's) Metadef.t
 end)
 
 type metamap = unit Metamap.t
@@ -56,7 +56,7 @@ let find c =
 
 (* We need to make some calls to Eternity, which isn't defined until lib/parser, so we supply a ref here for Eternity to insert its callbacks. *)
 type eternity = {
-  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped option;
+  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.t option;
   add :
     'a 'b 's.
     ('b, 's) Meta.t ->
@@ -80,11 +80,11 @@ let find_meta m =
   | Some d -> d
   | None -> (
       let data = S.get () in
-      match Metamap.find_opt (MetaKey m) data.current_metas with
-      | Some d -> Metadef.Wrap d
+      match Metamap.find_opt m data.current_metas with
+      | Some d -> d
       | None -> (
-          match Metamap.find_opt (MetaKey m) data.metas with
-          | Some d -> Metadef.Wrap d
+          match Metamap.find_opt m data.metas with
+          | Some d -> d
           | None -> fatal (Anomaly "undefined metavariable")))
 
 (* Marshal and unmarshal the constants and metavariables pertaining to a single compilation unit.  We ignore the "current" data because that is only relevant during typechecking commands, whereas this comes at the end of typechecking a whole file. *)
@@ -128,10 +128,7 @@ let add_meta m ~termctx ~ty ~tm ~energy =
   let tm =
     (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined of (string option, 'a) Bwv.t ]) in
   S.modify @@ fun d ->
-  {
-    d with
-    current_metas = d.current_metas |> Metamap.add (MetaKey m) (Metadef { tm; termctx; ty; energy });
-  }
+  { d with current_metas = d.current_metas |> Metamap.add m (Metadef { tm; termctx; ty; energy }) }
 
 (* Set the definition of a Global metavariable, required to already exist. *)
 let set_meta m ~tm =
@@ -140,7 +137,7 @@ let set_meta m ~tm =
     d with
     current_metas =
       d.current_metas
-      |> Metamap.update (MetaKey m) (function
+      |> Metamap.update m (function
            | Some (Metadef d) -> Some (Metadef { d with tm = `Defined tm })
            | _ -> raise (Failure "set_meta"));
   }
@@ -175,7 +172,6 @@ let with_definition c df f =
 (* Similarly, temporarily set the value of a global metavariable, which could be either permanent or current. *)
 let with_meta_definition m tm f =
   let d = S.get () in
-  let m = Meta.MetaKey m in
   match Metamap.find_opt m d.metas with
   | Some olddf ->
       S.set { d with metas = d.metas |> Metamap.add m (Metadef.define tm olddf) };
@@ -199,10 +195,10 @@ let with_meta_definition m tm f =
 (* Get the entire global state, for saving as part of the data for an eternal metavariable (hole) that is being created.  For this purpose, we throw away the current holes and merge the current metas into the permanent ones, since that gives the global state in which solutions to the hole will have to be checked. *)
 let get () =
   let d = S.get () in
-  (* TODO: We need fold for intrinsically well-typed maps. *)
-  let metas = ref d.metas in
-  Metamap.iter { it = (fun m def -> metas := !metas |> Metamap.add m def) } d.current_metas;
-  { d with current_holes = Emp; current_metas = Metamap.empty; metas = !metas }
+  let metas =
+    Metamap.fold { fold = (fun m def metas -> Metamap.add m def metas) } d.current_metas d.metas
+  in
+  { d with current_holes = Emp; current_metas = Metamap.empty; metas }
 
 (* Start with a specified global state.  This is used e.g. for going back in time and solving holes. *)
 let run = S.run

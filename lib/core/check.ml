@@ -142,7 +142,7 @@ let run_with_definition : type a s c. a potential_head -> (a, potential) term ->
  fun head tm f ->
   match head with
   | Constant c -> Global.with_definition c (Global.Defined tm) f
-  | Meta (m, _) -> Global.with_meta_definition m (Some tm) f
+  | Meta (m, _) -> Global.with_meta_definition m tm f
 
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
@@ -446,11 +446,11 @@ and kinetic_of_potential :
       (* We first define the metavariable without a value, as an "axiom", just as we do for global constants.  This isn't necessary for recursion, since this metavariable can't refer to itself, but so that with_meta_definition will be able to find it for consistency. *)
       let termctx = readback_ctx ctx in
       let vty = readback_val ctx ty in
-      Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
+      Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
       (* Then we check the value and redefine the metavariable to be that value. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
       let cv = check tmstatus ctx tm ty in
-      Global.add_meta meta ~termctx ~tm:(Some cv) ~ty:vty ~energy:Potential;
+      Global.set_meta meta ~tm:cv;
       (* Finally, we return the metavariable. *)
       Term.Meta (meta, Kinetic)
 
@@ -478,22 +478,22 @@ and synth_or_check_let :
       let termctx = readback_ctx ctx in
       (* A new status in which to check the value of that metavariable; now it is the "current constant" being defined. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
-      let sv, vty, svty =
+      let sv, svty =
         match v.value with
         | Asc (vtm, rvty) ->
             (* If the bound term is explicitly ascribed, then we can give the metavariable a type while checking its body.  This is probably irrelevant until we have "let rec", but we do it anyway. *)
             let vty = check (Kinetic `Nolet) ctx rvty (universe D.zero) in
-            Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
+            Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
             let evty = eval_term (Ctx.env ctx) vty in
             let cv = check tmstatus ctx vtm evty in
-            (cv, vty, evty)
+            Global.set_meta meta ~tm:cv;
+            (cv, evty)
         | _ ->
             (* Otherwise, we just synthesize the term. *)
             let sv, svty = synth tmstatus ctx v in
             let vty = readback_val ctx svty in
-            (sv, vty, svty) in
-      (* Now we define the global value of that metavariable to be the term and type just synthesized. *)
-      Global.add_meta meta ~termctx ~tm:(Some sv) ~ty:vty ~energy:Potential;
+            Global.add_meta meta ~termctx ~tm:(`Defined sv) ~ty:vty ~energy:Potential;
+            (sv, svty) in
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
       let tm =
@@ -587,7 +587,7 @@ and check_letrec_bindings :
         let hyp b = Term.Let (name, Meta (meta, Kinetic), let_metas metas b) in
         let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, hyp) in
         let cv = check tmstatus tmctx v evty in
-        Global.set_meta meta ~tm:(Some (hyp cv));
+        Global.set_meta meta ~tm:(hyp cv);
         (* And recurse. *)
         go (Fwn.bplus_suc_eq_suc ax) (Fwn.suc_plus xc) (Tbwd.snocs_suc_eq_snoc bx) ac metas vtys vs
   in
@@ -604,7 +604,7 @@ and make_letrec_metas : type x a b ab. (x, a) Ctx.t -> (a, b, ab) Telescope.t ->
       let meta = Meta.make_def "letrec" x (Ctx.dbwd ctx) Potential in
       (* Assign it the correct type. *)
       let termctx = readback_ctx ctx in
-      Global.add_meta meta ~termctx ~tm:None ~ty:vty ~energy:Potential;
+      Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
       (* Extend the context by it, as an unrealized neutral.  TODO: It's annoying that we have to evaluate the types here to extend the value-context, when the only use we're making of it is to readback that extended value-context into a termctx at each step to save with the global metavariable.  It would make more sense, and be more efficient, to just carry along the termctx and extend it directly at each step with "Term.Meta (meta, Kinetic)" at the term-type "vty".  Unfortunately, termctxs store terms and types in a one-longer context, so that would require directly weakening vty, or perhaps parsing and checking it in a one-longer context originally. *)
       let evty = eval_term (Ctx.env ctx) vty in
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
@@ -1534,7 +1534,7 @@ and synth :
           let sv, svty = synth tmstatus ctx tm in
           let vty = readback_val ctx svty in
           let termctx = readback_ctx ctx in
-          Global.add_meta meta ~termctx ~tm:(Some sv) ~ty:vty ~energy:Potential;
+          Global.add_meta meta ~termctx ~tm:(`Defined sv) ~ty:vty ~energy:Potential;
           (Term.Meta (meta, Kinetic), svty))
   | Match { tm; sort = `Explicit motive; branches; refutables = _ }, Potential _ ->
       synth_dep_match status ctx tm branches motive

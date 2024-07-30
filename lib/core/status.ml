@@ -14,7 +14,7 @@ open Value
    We parametrize this "status" datatype over the energy of the term (kinetic or potential), since only potential terms have any status to remember.  This implies that status also serves the purpose of recording which kind of term we are checking, so we don't need to pass that around separately. *)
 type _ potential_head =
   | Constant : Constant.t -> emp potential_head
-  | Meta : ('a, potential) Meta.t * (D.zero, 'a) env -> 'a potential_head
+  | Meta : ('x, 'a, potential) Meta.t * (D.zero, 'a) env -> 'a potential_head
 
 let head_of_potential : type a s. a potential_head -> Value.head = function
   | Constant name -> Const { name; ins = ins_zero D.zero }

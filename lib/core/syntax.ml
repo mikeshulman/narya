@@ -135,8 +135,8 @@ module rec Term : sig
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
-    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
+    | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -213,9 +213,9 @@ end = struct
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
+    | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
     (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
-    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -357,7 +357,12 @@ module rec Value : sig
   type head =
     | Var : { level : level; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
-    | Meta : { meta : ('b, 's) Meta.t; env : ('m, 'b) env; ins : ('mn, 'm, 'n) insertion } -> head
+    | Meta : {
+        meta : ('a, 'b, 's) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
@@ -461,7 +466,12 @@ end = struct
     (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial.  The dimension of a constant is its dimension as a term standing on its own; so in particular if it has any parameters, then it belongs to an ordinary, 0-dimensional, pi-type and therefore is 0-dimensional, even if the eventual codomain of the pi-type is higher-dimensional.  Note also that when nonidentity insertions end up getting stored here, e.g. by Act, the dimension 'c gets extended as necessary; so it is always okay to create a constant with the (0,0,0) insertion to start with, even if you don't know what its actual dimension is. *)
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
     (* A metavariable (i.e. flexible) head stores the metavariable along with a delayed substitution applied to it. *)
-    | Meta : { meta : ('b, 's) Meta.t; env : ('m, 'b) env; ins : ('mn, 'm, 'n) insertion } -> head
+    | Meta : {
+        meta : ('a, 'b, 's) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =

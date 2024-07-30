@@ -15,7 +15,7 @@ type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, p
 
 (* All global metavariables have definitions. *)
 module Metamap = Meta.Map.Make (struct
-  type ('x, 'b, 's) t = ('b, 's) Metadef.t
+  type ('x, 'a, 'b, 's) t = ('a, 'b, 's) Metadef.t
 end)
 
 type metamap = unit Metamap.t
@@ -56,10 +56,10 @@ let find c =
 
 (* We need to make some calls to Eternity, which isn't defined until lib/parser, so we supply a ref here for Eternity to insert its callbacks. *)
 type eternity = {
-  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.t option;
+  find_opt : 'a 'b 's. ('a, 'b, 's) Meta.t -> ('a, 'b, 's) Metadef.t option;
   add :
     'a 'b 's.
-    ('b, 's) Meta.t ->
+    ('a, 'b, 's) Meta.t ->
     (string option, 'a) Bwv.t ->
     ('a, 'b) Termctx.t ->
     ('b, kinetic) term ->
@@ -128,7 +128,7 @@ let add_meta m ~termctx ~ty ~tm ~energy =
   let tm =
     (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined of (string option, 'a) Bwv.t ]) in
   S.modify @@ fun d ->
-  { d with current_metas = d.current_metas |> Metamap.add m (Metadef { tm; termctx; ty; energy }) }
+  { d with current_metas = d.current_metas |> Metamap.add m { tm; termctx; ty; energy } }
 
 (* Set the definition of a Global metavariable, required to already exist. *)
 let set_meta m ~tm =
@@ -138,7 +138,7 @@ let set_meta m ~tm =
     current_metas =
       d.current_metas
       |> Metamap.update m (function
-           | Some (Metadef d) -> Some (Metadef { d with tm = `Defined tm })
+           | Some d -> Some { d with tm = `Defined tm }
            | _ -> raise (Failure "set_meta"));
   }
 

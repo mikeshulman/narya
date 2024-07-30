@@ -12,7 +12,7 @@ type printable +=
   | PInt : int -> printable
   | PString : string -> printable
   | PConstant of Constant.t
-  | PMeta : ('b, 's) Meta.t -> printable
+  | PMeta : ('x, 'b, 's) Meta.t -> printable
   | PField : Field.t -> printable
   | PConstr : Constr.t -> printable
 

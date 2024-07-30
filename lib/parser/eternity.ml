@@ -7,9 +7,7 @@ open Syntax
 open Term
 open Reporter
 
-(* In contrast to the "Global" state which stores constants and their definitions, the "Eternal" state stores metavariables and their definitions.  Like its Asimovian namesake, Eternity exists outside the ordinary timestream.  Eternal metavariables aren't scoped and aren't affected by import and sectioning commands, but even more importantly, each such metavariable stores its own copy of the Global state, as well as the Scope and variable scope when it was created.  This way we can "go back in time" to when that metavariable was created and be sure that any solution of that metavariable would have been valid in its original location.
-
-   This has nothing to do with undo, which undoes changes to the eternal state as well as the global one.  Rather, it's about ordinary commands that reach back in time, e.g. to fill previously created holes. *)
+(* Like its Asimovian namesake, Eternity exists outside the ordinary timestream.  Eternal metavariables aren't scoped and aren't affected by import and sectioning commands, but even more importantly, each such metavariable stores its own copy of the Global state, as well as the Scope and variable scope when it was created.  This way we can "go back in time" to when that metavariable was created and be sure that any solution of that metavariable would have been valid in its original location.  Changes to eternal metavariables are also not subject to undo. *)
 
 type ('a, 'b, 's) homewhen = {
   global : Global.data;
@@ -19,9 +17,8 @@ type ('a, 'b, 's) homewhen = {
   vars : (string option, 'a) Bwv.t;
 }
 
-(* We store the definition of a hole as a reference cell, so that if it is solved in a later eternal moment, the solution affects all earlier moments that might be undone to. *)
 module MetaData = struct
-  type ('x, 'a, 'b, 's) t = { def : ('a, 'b, 's) Metadef.t ref; homewhen : ('a, 'b, 's) homewhen }
+  type ('x, 'a, 'b, 's) t = { def : ('a, 'b, 's) Metadef.t; homewhen : ('a, 'b, 's) homewhen }
 end
 
 module Metamap = Meta.Map.Make (MetaData)
@@ -52,7 +49,7 @@ let () =
         (fun m ->
           let open Monad.Ops (Monad.Maybe) in
           let* x = Metamap.find_opt m (S.get ()).map in
-          return !(x.def));
+          return x.def);
       add =
         (fun m vars termctx ty status ->
           S.modify (fun { map } ->
@@ -60,9 +57,7 @@ let () =
                 map =
                   Metamap.add m
                     {
-                      def =
-                        ref
-                          (Metadef.make ~tm:`Undefined ~termctx ~ty ~energy:(Status.energy status));
+                      def = Metadef.make ~tm:`Undefined ~termctx ~ty ~energy:(Status.energy status);
                       homewhen =
                         {
                           global = Global.get ();
@@ -81,7 +76,7 @@ let unsolved () =
     {
       fold =
         (fun _ { def; _ } count ->
-          match !def with
+          match def with
           | { tm = `Undefined; _ } -> count + 1
           | _ -> count);
     }
@@ -91,7 +86,7 @@ let find : type a b s. (a, b, s) Meta.t -> (a, b, s) Metadef.t * (a, b, s) homew
  fun m ->
   let ({ def; homewhen } : (unit, a, b, s) MetaData.t) =
     Metamap.find_opt m (S.get ()).map <|> Anomaly "missing hole" in
-  (!def, homewhen)
+  (def, homewhen)
 
 type find_number =
   | Find_number :
@@ -104,15 +99,15 @@ let find_number : int -> find_number =
   let (Entry (m, { def; homewhen })) =
     Metamap.find_hole_opt (Compunit.Current.read ()) i (S.get ()).map <|> Anomaly "missing hole"
   in
-  Find_number (m, !def, homewhen)
+  Find_number (m, def, homewhen)
 
 let all_holes () =
   Metamap.fold
     {
       fold =
         (fun m { def; homewhen } holes ->
-          match !def with
-          | { tm = `Undefined; _ } -> Find_number (m, !def, homewhen) :: holes
+          match def with
+          | { tm = `Undefined; _ } -> Find_number (m, def, homewhen) :: holes
           | _ -> holes);
     }
     (S.get ()).map []
@@ -124,7 +119,6 @@ let solve : type a b s. (a, b, s) Meta.t -> (b, s) term -> unit =
         map =
           Metamap.update h
             (Option.map (fun (d : (unit, a, b, s) MetaData.t) ->
-                 d.def := Metadef.define tm !(d.def);
-                 d))
+                 { d with def = Metadef.define tm d.def }))
             data.map;
       })

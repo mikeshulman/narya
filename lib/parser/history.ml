@@ -6,12 +6,7 @@ module Trie = Yuujinchou.Trie
 
 (* History manages the global state, eternal state, namespace scopes, and notation situations with a single state effect, and recording past versions of this state for "undo" purposes. *)
 
-type moment = {
-  global : Global.data;
-  scope : Scope.t;
-  situation : Situation.t;
-  eternity : Eternity.data;
-}
+type moment = { global : Global.data; scope : Scope.t; situation : Situation.t }
 
 (* The length of 'past' is the number of undoable commands.  It starts out as empty, with 'present' being the state at the beginning of interactive commands. *)
 module Recorded = struct
@@ -26,18 +21,8 @@ let run_empty : type a. (unit -> a) -> a =
     ~init:
       {
         past = Emp;
-        present =
-          {
-            global = Global.empty;
-            scope = Scope.empty;
-            situation = !Builtins.builtins;
-            eternity = Eternity.empty;
-          };
+        present = { global = Global.empty; scope = Scope.empty; situation = !Builtins.builtins };
       }
-  @@ fun () ->
-  Eternity.try_with
-    ~get:(fun () -> (S.get ()).present.eternity)
-    ~set:(fun eternity -> S.modify (fun d -> { d with present = { d.present with eternity } }))
   @@ fun () ->
   Global.try_with
     ~get:(fun () -> (S.get ()).present.global)

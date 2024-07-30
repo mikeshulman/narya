@@ -19,18 +19,20 @@ type (_, _, _, _) data =
 type (_, _) t =
   | Metadef : {
       data : ('d, 'a, 'b, 's) data;
+      (* If a metavariable were "lifted" to top level with pi-types, then its type would be composed of its context and the type in that context.  We instead store them separately without doing the lifting. *)
       termctx : ('a, 'b) Termctx.t;
       ty : ('b, kinetic) term;
     }
       (* This weird-looking parametrization is to match the implementation of Meta.Map. *)
       -> ('d, 'b * 's) t
 
+(* Define or redefine a metavariable. *)
 let define : type d b s. (b, s) term option -> (d, b * s) t -> (d, b * s) t =
  fun tm m ->
   match m with
   | Metadef { data = Undef_meta { status; _ }; termctx; ty } ->
       Metadef { data = Def_meta { tm; energy = energy status }; termctx; ty }
-  | Metadef { data = Def_meta { tm; energy }; termctx; ty } ->
+  | Metadef { data = Def_meta { energy; _ }; termctx; ty } ->
       Metadef { data = Def_meta { tm; energy }; termctx; ty }
 
 type (_, _) wrapped = Wrap : ('d, 'b * 's) t -> ('b, 's) wrapped

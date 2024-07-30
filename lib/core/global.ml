@@ -130,7 +130,7 @@ let add_meta m ~termctx ~ty ~tm ~energy =
     d with
     current_metas =
       d.current_metas
-      |> Metamap.add (MetaKey m) (Metadef { data = Def_meta { tm; energy }; termctx; ty });
+      |> Metamap.add (MetaKey m) (Metadef { data = Def_meta tm; termctx; ty; energy });
   }
 
 (* Set the definition of a Global metavariable, required to already exist. *)
@@ -141,8 +141,8 @@ let set_meta m ~tm =
     current_metas =
       d.current_metas
       |> Metamap.update (MetaKey m) (function
-           | Some (Metadef ({ data = Def_meta df; _ } as d)) ->
-               Some (Metadef { d with data = Def_meta { df with tm } })
+           | Some (Metadef ({ data = Def_meta _; _ } as d)) ->
+               Some (Metadef { d with data = Def_meta tm })
            | _ -> raise (Failure "set_meta"));
   }
 

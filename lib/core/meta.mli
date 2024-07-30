@@ -24,6 +24,7 @@ module Map : sig
 
     val empty : 'x t
     val find_opt : ('b, 's) key -> 'x t -> ('x, 'b, 's) F.t option
+    val find_hole_opt : Compunit.t -> int -> 'x t -> 'x entry option
 
     val update :
       ('b, 's) key -> (('x, 'b, 's) F.t option -> ('x, 'b, 's) F.t option) -> 'x t -> 'x t

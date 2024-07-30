@@ -26,14 +26,13 @@ end
 module Metamap = Meta.Map.Make (MetaData)
 module IntMap = Map.Make (Int)
 
-(* In addition to the types and possibly-definitions of all holes, we keep a map of numbers to holes.  These can't be just the unsolved holes, because at a later eternal moment some holes might get solved, and then we might undo back to this moment and they should still be solved. *)
-type data = { map : unit Metamap.t; holes : Meta.wrapped IntMap.t }
+type data = { map : unit Metamap.t }
 
 module StateData = struct
   type t = data
 end
 
-let empty : data = { map = Metamap.empty; holes = IntMap.empty }
+let empty : data = { map = Metamap.empty }
 
 module S = State.Make (StateData)
 
@@ -55,7 +54,7 @@ let () =
           return !(x.def));
       add =
         (fun m vars termctx ty status ->
-          S.modify (fun { map; holes } ->
+          S.modify (fun { map } ->
               {
                 map =
                   Metamap.add m
@@ -73,7 +72,6 @@ let () =
                         };
                     }
                     map;
-                holes = IntMap.add (Meta.hole_number m) (Meta.Wrap m) holes;
               }));
     }
 
@@ -97,12 +95,12 @@ let find : type b s. (b, s) Meta.t -> (b, s) Metadef.t * (b, s) homewhen =
 type find_number =
   | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.t * ('b, 's) homewhen -> find_number
 
+(* We assume here that we want the hole with that number in the current compilation unit. *)
 let find_number : int -> find_number =
  fun i ->
-  let (Wrap (type b s) (m : (b, s) Meta.t)) =
-    IntMap.find_opt i (S.get ()).holes <|> No_such_hole i in
-  let ({ def; homewhen } : (unit, b, s) MetaData.t) =
-    Metamap.find_opt m (S.get ()).map <|> Anomaly "missing hole" in
+  let (Entry (m, { def; homewhen })) =
+    Metamap.find_hole_opt (Compunit.Current.read ()) i (S.get ()).map <|> Anomaly "missing hole"
+  in
   Find_number (m, !def, homewhen)
 
 let all_holes () =
@@ -120,7 +118,6 @@ let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
  fun h tm ->
   S.modify (fun data ->
       {
-        data with
         map =
           Metamap.update h
             (Option.map (fun (d : (unit, b, s) MetaData.t) ->

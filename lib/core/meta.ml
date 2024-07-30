@@ -99,6 +99,12 @@ module Map = struct
               | Neq -> raise (Failure "Meta.Map.find_opt")))
       | None -> None
 
+    let find_hole_opt : type x. Compunit.t -> int -> x t -> x entry option =
+     fun c i m ->
+      match Compunit.Map.find_opt c m with
+      | Some m -> IdMap.find_opt (`Hole i) m
+      | None -> None
+
     let update :
         type x b s. (b, s) key -> ((x, b, s) F.t option -> (x, b, s) F.t option) -> x t -> x t =
      fun key f m ->

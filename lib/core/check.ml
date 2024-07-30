@@ -230,11 +230,9 @@ let rec check :
           let ty_fainv =
             gact_ty None ty fainv ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa))
           in
-          let cx =
-            (* A pure permutation shouldn't ever be locking, but we may as well keep this here for consistency.  *)
-            if locking fa then
-              Global.with_locked (fun () -> check (Kinetic `Nolet) (Ctx.lock ctx) x ty_fainv)
-            else check (Kinetic `Nolet) ctx x ty_fainv in
+          (* A pure permutation shouldn't ever be locking, but we may as well keep this here for consistency.  *)
+          let ctx = if locking fa then Ctx.lock ctx else ctx in
+          let cx = check (Kinetic `Nolet) ctx x ty_fainv in
           realize status (Term.Act (cx, fa)))
   | Lam ({ value = x; _ }, cube, body), _ -> (
       match view_type ~severity ty "typechecking lambda" with
@@ -1479,9 +1477,11 @@ and synth :
           match Ctx.find_level ctx lvl with
           | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field x.tm x.ty fld)
           | None -> fatal (Anomaly "level not found in field view")))
-  | Const name, _ ->
-      let ty, _ = Global.find name in
-      (realize status (Const name), eval_term (Emp D.zero) ty)
+  | Const name, _ -> (
+      let ty, tm = Global.find name in
+      match (tm, Ctx.locked ctx) with
+      | Axiom `Nonparametric, true -> fatal (Locked_axiom (PConstant name))
+      | _ -> (realize status (Const name), eval_term (Emp D.zero) ty))
   | Field (tm, fld), _ ->
       let stm, sty = synth (Kinetic `Nolet) ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
@@ -1503,9 +1503,8 @@ and synth :
       (realize status stm, sty)
   | Act (str, fa, { value = Synth x; loc }), _ ->
       let x = { value = x; loc } in
-      let sx, ety =
-        if locking fa then Global.with_locked (fun () -> synth (Kinetic `Nolet) (Ctx.lock ctx) x)
-        else synth (Kinetic `Nolet) ctx x in
+      let ctx = if locking fa then Ctx.lock ctx else ctx in
+      let sx, ety = synth (Kinetic `Nolet) ctx x in
       let ex = eval_term (Ctx.env ctx) sx in
       ( realize status (Term.Act (sx, fa)),
         with_loc x.loc @@ fun () ->

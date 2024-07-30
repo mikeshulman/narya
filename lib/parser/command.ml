@@ -479,7 +479,7 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
 let show_hole err = function
-  | Eternity.Find_number (m, { tm = `Undefined vars; termctx; ty; energy = _ }, _) ->
+  | Eternity.Find_number (m, { tm = `Undefined; termctx; ty; energy = _ }, { vars; _ }) ->
       emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
   | _ -> fatal err
 
@@ -645,10 +645,11 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
   | Solve { number; tm = Term tm; _ } -> (
       (* Solve does NOT create a new history entry because it is NOT undoable. *)
       let (Find_number
-            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; discrete; status })) =
+            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; discrete; status; vars }))
+          =
         Eternity.find_number number in
       match metatm with
-      | `Undefined vars ->
+      | `Undefined ->
           History.run_with_scope ~init_visible:scope @@ fun () ->
           Core.Command.execute
             (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m, discrete))

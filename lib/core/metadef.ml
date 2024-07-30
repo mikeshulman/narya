@@ -3,17 +3,12 @@
 open Util
 open Syntax
 open Term
-open Status
 
 type def = Dummy_def
 type undef = Dummy_undef
 
 type (_, _, _, _) data =
-  | Undef_meta : {
-      vars : (string option, 'a) Bwv.t;
-      status : ('b, 's) status;
-    }
-      -> (undef, 'a, 'b, 's) data
+  | Undef_meta : (string option, 'a) Bwv.t -> (undef, 'a, 'b, 's) data
   | Def_meta : ('b, 's) term option -> ('d, 'a, 'b, 's) data
 
 type (_, _) t =

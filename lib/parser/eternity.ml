@@ -2,6 +2,7 @@
 
 open Util
 open Core
+open Status
 open Syntax
 open Term
 open Reporter
@@ -10,11 +11,21 @@ open Reporter
 
    This has nothing to do with undo, which undoes changes to the eternal state as well as the global one.  Rather, it's about ordinary commands that reach back in time, e.g. to fill previously created holes. *)
 
-type homewhen = { global : Global.data; scope : Scope.trie; discrete : bool Constant.Map.t }
+type ('b, 's) homewhen = {
+  global : Global.data;
+  scope : Scope.trie;
+  discrete : bool Constant.Map.t;
+  status : ('b, 's) status;
+}
 
 (* We store the definition of a hole as a reference cell, so that if it is solved in a later eternal moment, the solution affects all earlier moments that might be undone to. *)
 module MetaData = struct
-  type ('x, 'bs) t = { def : ('x, 'bs) Metadef.t ref; homewhen : homewhen }
+  type (_, _) t =
+    | MetaData : {
+        def : ('x, 'b * 's) Metadef.t ref;
+        homewhen : ('b, 's) homewhen;
+      }
+        -> ('x, 'b * 's) t
 end
 
 module Metamap = Meta.Map.Make (MetaData)
@@ -45,7 +56,7 @@ let () =
       find_opt =
         (fun m ->
           let open Monad.Ops (Monad.Maybe) in
-          let* x = Metamap.find_opt (MetaKey m) (S.get ()).map in
+          let* (MetaData x) = Metamap.find_opt (MetaKey m) (S.get ()).map in
           return (Metadef.Wrap !(x.def)));
       add =
         (fun m vars termctx ty status ->
@@ -53,23 +64,25 @@ let () =
               {
                 map =
                   Metamap.add (MetaKey m)
-                    {
-                      def =
-                        ref
-                          (Metadef.Metadef
-                             {
-                               data = Undef_meta { vars; status };
-                               termctx;
-                               ty;
-                               energy = Status.energy status;
-                             });
-                      homewhen =
-                        {
-                          global = Global.get ();
-                          scope = Scope.get_visible ();
-                          discrete = Syntax.Discrete.get ();
-                        };
-                    }
+                    (MetaData
+                       {
+                         def =
+                           ref
+                             (Metadef.Metadef
+                                {
+                                  data = Undef_meta vars;
+                                  termctx;
+                                  ty;
+                                  energy = Status.energy status;
+                                });
+                         homewhen =
+                           {
+                             global = Global.get ();
+                             scope = Scope.get_visible ();
+                             discrete = Syntax.Discrete.get ();
+                             status;
+                           };
+                       })
                     map;
                 holes = IntMap.add (Meta.hole_number m) (Meta.Wrap m) holes;
               }));
@@ -79,27 +92,27 @@ let unsolved () =
   let count = ref 0 in
   (* TODO: Need a fold for MetaMap *)
   let iterator : type g. g Meta.key -> (Metadef.undef, g) MetaData.t -> unit =
-   fun _ { def; _ } ->
+   fun _ (MetaData { def; _ }) ->
     match !def with
     | Metadef { data = Undef_meta _; _ } -> count := !count + 1
     | _ -> () in
   Metamap.iter { it = iterator } (S.get ()).map;
   !count
 
-let find : type b s. (b, s) Meta.t -> (b, s) Metadef.wrapped * homewhen =
+let find : type b s. (b, s) Meta.t -> (b, s) Metadef.wrapped * (b, s) homewhen =
  fun m ->
-  let ({ def; homewhen } : (Metadef.undef, b * s) MetaData.t) =
+  let (MetaData { def; homewhen } : (Metadef.undef, b * s) MetaData.t) =
     Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
   (Wrap !def, homewhen)
 
 type find_number =
-  | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * homewhen -> find_number
+  | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * ('b, 's) homewhen -> find_number
 
 let find_number : int -> find_number =
  fun i ->
   let (Wrap (type b s) (m : (b, s) Meta.t)) =
     IntMap.find_opt i (S.get ()).holes <|> No_such_hole i in
-  let ({ def; homewhen } : (Metadef.undef, b * s) MetaData.t) =
+  let (MetaData { def; homewhen } : (Metadef.undef, b * s) MetaData.t) =
     Metamap.find_opt (MetaKey m) (S.get ()).map <|> Anomaly "missing hole" in
   Find_number (m, Wrap !def, homewhen)
 
@@ -107,7 +120,7 @@ let all_holes () =
   let holes = ref [] in
   (* TODO: Need a fold for MetaMap *)
   let iterator : type g. g Meta.key -> (Metadef.undef, g) MetaData.t -> unit =
-   fun (MetaKey m) { def; homewhen } ->
+   fun (MetaKey m) (MetaData { def; homewhen }) ->
     match !def with
     | Metadef { data = Undef_meta _; _ } -> holes := Find_number (m, Wrap !def, homewhen) :: !holes
     | _ -> () in
@@ -121,8 +134,8 @@ let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
         data with
         map =
           Metamap.update (MetaKey h)
-            (Option.map (fun (d : (Metadef.undef, b * s) MetaData.t) ->
+            (Option.map (fun (MetaData d : (Metadef.undef, b * s) MetaData.t) ->
                  d.def := Metadef.define (Some tm) !(d.def);
-                 d))
+                 MetaData.MetaData d))
             data.map;
       })

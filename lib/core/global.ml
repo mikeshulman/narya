@@ -13,7 +13,7 @@ open Status
 (* Each global constant either is an axiom or has a definition (a case tree).  The latter includes canonical types.  An axiom can be either parametric, which means it is always accessible, or nonparametric, which means it is not accessible behind context locks for external parametricity.  (In the future, this should be customizable on a per-direction basis.) *)
 type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term
 
-(* All global metavariables have definitions. *)
+(* Global metavariables have only a definition. *)
 module Metamap = Meta.Map.Make (struct
   type ('x, 'a, 'b, 's) t = ('a, 'b, 's) Metadef.t
 end)
@@ -125,8 +125,7 @@ let add_error c e =
 
 (* Add a new Global metavariable (e.g. local let-definition) to the new metas associated to the current command. *)
 let add_meta m ~termctx ~ty ~tm ~energy =
-  let tm =
-    (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined of (string option, 'a) Bwv.t ]) in
+  let tm = (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined ]) in
   S.modify @@ fun d ->
   { d with current_metas = d.current_metas |> Metamap.add m { tm; termctx; ty; energy } }
 

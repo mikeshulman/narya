@@ -11,7 +11,7 @@ type ('b, 's) homewhen = {
 }
 
 val unsolved : unit -> int
-val find : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped * ('b, 's) homewhen
+val find : ('b, 's) Meta.t -> ('b, 's) Metadef.t * ('b, 's) homewhen
 
 type data
 
@@ -20,7 +20,7 @@ val run : init:data -> (unit -> 'a) -> 'a
 val try_with : ?get:(unit -> data) -> ?set:(data -> unit) -> (unit -> 'a) -> 'a
 
 type find_number =
-  | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.wrapped * ('b, 's) homewhen -> find_number
+  | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.t * ('b, 's) homewhen -> find_number
 
 val find_number : int -> find_number
 val all_holes : unit -> find_number list

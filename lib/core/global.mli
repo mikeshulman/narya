@@ -8,7 +8,7 @@ type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, p
 type metamap
 
 val find : Constant.t -> (emp, kinetic) term * definition
-val find_meta : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped
+val find_meta : ('b, 's) Meta.t -> ('b, 's) Metadef.t
 val to_channel_unit : Out_channel.t -> Compunit.t -> Marshal.extern_flags list -> unit
 val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit
@@ -46,7 +46,7 @@ val run : init:data -> (unit -> 'a) -> 'a
 val try_with : ?get:(unit -> data) -> ?set:(data -> unit) -> (unit -> 'a) -> 'a
 
 type eternity = {
-  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped option;
+  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.t option;
   add :
     'a 'b 's.
     ('b, 's) Meta.t ->

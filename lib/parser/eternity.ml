@@ -66,7 +66,7 @@ let () =
               }));
     }
 
-let unsolved () = not (IntMap.is_empty (S.get ()).holes)
+let unsolved () = IntMap.cardinal (S.get ()).holes
 
 let find : type b s. (b, s) Meta.t -> (b, s) Metadef.wrapped * homewhen =
  fun m ->

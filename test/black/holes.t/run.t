@@ -292,8 +292,8 @@
    ￫ info[I0000]
    ￮ constant idafam defined
   
-   ￫ error[E3000]
-   ￮ there are open holes
+   ￫ error[E3002]
+   ￮ file $TESTCASE_ROOT/holes.ny contains open holes
   
   [1]
 

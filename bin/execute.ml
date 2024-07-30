@@ -237,7 +237,9 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
   let p, src = Parser.Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
-    (fun () -> batch true [] p src)
+    (fun () ->
+      batch true [] p src;
+      if Eternity.unsolved () > 0 then Reporter.fatal (Open_holes_remaining source))
     ~fatal:(fun d ->
       match d.message with
       | Quit _ ->
@@ -257,7 +259,7 @@ and batch first ws p src =
         Print.pp_ws `None ppf ws;
         Format.pp_close_box ppf ()) in
   let cmd = Parser.Command.Parse.final p in
-  if cmd = Eof then if Eternity.unsolved () then Reporter.fatal Open_holes else reformat_end ()
+  if cmd = Eof then reformat_end ()
   else (
     Fun.protect
       (fun () -> if (Flags.read ()).execute then execute_command cmd)

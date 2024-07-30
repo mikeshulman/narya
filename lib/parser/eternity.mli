@@ -4,7 +4,7 @@ open Term
 
 type homewhen = { global : Global.data; scope : Scope.trie; discrete : bool Constant.Map.t }
 
-val unsolved : unit -> bool
+val unsolved : unit -> int
 val find : ('b, 's) Meta.t -> ('b, 's) Metadef.wrapped * homewhen
 
 type data

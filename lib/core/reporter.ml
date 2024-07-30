@@ -133,7 +133,8 @@ module Code = struct
     | Locked_variable : t
     | Locked_axiom : printable -> t
     | Hole_generated : ('b, 's) Meta.t * printable -> t
-    | Open_holes : t
+    | Open_holes : int -> t
+    | Open_holes_remaining : Asai.Range.source -> t
     | Quit : string option -> t
     | Synthesizing_recursion : printable -> t
     | Invalid_synthesized_type : string * printable -> t
@@ -252,7 +253,8 @@ module Code = struct
     | Locked_variable -> Error
     | Locked_axiom _ -> Error
     | Hole_generated _ -> Info
-    | Open_holes -> Error
+    | Open_holes _ -> Warning
+    | Open_holes_remaining _ -> Error
     | Quit _ -> Info
     | Synthesizing_recursion _ -> Error
     | Invalid_synthesized_type _ -> Error
@@ -413,8 +415,9 @@ module Code = struct
     (* section *)
     | No_such_section -> "E2600"
     (* Interactive proof *)
-    | Open_holes -> "E3000"
+    | Open_holes _ -> "W3000"
     | No_such_hole _ -> "E3001"
+    | Open_holes_remaining _ -> "E3002"
     (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -652,7 +655,13 @@ module Code = struct
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
     | Hole_generated (n, ty) ->
         textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
-    | Open_holes -> text "there are open holes"
+    | Open_holes n ->
+        if n = 1 then text "there is 1 open hole" else textf "there are %d open holes" n
+    | Open_holes_remaining src -> (
+        match src with
+        | `File name -> textf "file %s contains open holes" name
+        | `String { title = Some title; _ } -> textf "%s contains open holes" title
+        | `String { title = None; _ } -> text "load string contains open holes")
     | Quit (Some src) -> textf "execution of %s terminated by quit" src
     | Quit None -> text "execution terminated by quit"
     | Synthesizing_recursion c ->

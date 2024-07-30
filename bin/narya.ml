@@ -100,6 +100,8 @@ let do_command = function
   | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
   | ws, Some cmd ->
       if !execute then Execute.execute_command cmd;
+      let n = Eternity.unsolved () in
+      if n > 0 then Reporter.emit (Open_holes n);
       Execute.reformat_maybe @@ fun ppf ->
       Print.pp_ws `None ppf ws;
       let last = Parser.Command.pp_command ppf cmd in

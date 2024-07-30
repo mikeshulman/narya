@@ -229,6 +229,7 @@ let () =
   Parser.Unparse.install ();
   Parser.Scope.Mod.run @@ fun () ->
   History.run_empty @@ fun () ->
+  Eternity.run ~init:Eternity.empty @@ fun () ->
   (* By default, we ignore the hole positions. *)
   Global.HolePos.try_with ~get:(fun () -> Emp) ~set:(fun _ -> ()) @@ fun () ->
   Printconfig.run

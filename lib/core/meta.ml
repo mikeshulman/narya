@@ -14,9 +14,10 @@ module Identity = struct
 end
 
 (* A metavariable is also parametrized by its checked context length and its energy (kinetic or potential), although these are not part of its identity. *)
-type ('b, 's) t = {
+type ('a, 'b, 's) t = {
   compunit : Compunit.t;
   identity : Identity.t;
+  raw : 'a N.t;
   len : 'b Dbwd.t;
   energy : 's energy;
 }
@@ -25,28 +26,28 @@ type ('b, 's) t = {
 
 let def_counters = Compunit.IntArray.make_basic ()
 
-let make_def : type b s. string -> string option -> b Dbwd.t -> s energy -> (b, s) t =
- fun sort name len energy ->
+let make_def : type a b s. string -> string option -> a N.t -> b Dbwd.t -> s energy -> (a, b, s) t =
+ fun sort name raw len energy ->
   let compunit = Compunit.Current.read () in
   let number = Compunit.IntArray.inc def_counters compunit in
   let identity = `Def (number, sort, name) in
-  { compunit; identity; len; energy }
+  { compunit; identity; raw; len; energy }
 
 let hole_counters = Compunit.IntArray.make_basic ()
 
-let make_hole : type b s. b Dbwd.t -> s energy -> (b, s) t =
- fun len energy ->
+let make_hole : type a b s. a N.t -> b Dbwd.t -> s energy -> (a, b, s) t =
+ fun raw len energy ->
   let compunit = Compunit.Current.read () in
   let number = Compunit.IntArray.inc hole_counters compunit in
   let identity = `Hole number in
-  { compunit; identity; len; energy }
+  { compunit; identity; raw; len; energy }
 
 (* Re-make (link) a metavariable when loading a compiled version from disk. *)
-let remake : type b s. (Compunit.t -> Compunit.t) -> (b, s) t -> (b, s) t =
+let remake : type a b s. (Compunit.t -> Compunit.t) -> (a, b, s) t -> (a, b, s) t =
  fun f m -> { m with compunit = f m.compunit }
 
 (* Printable names.  Doesn't include the compilation unit and is not re-parseable. *)
-let name : type b s. (b, s) t -> string =
+let name : type a b s. (a, b, s) t -> string =
  fun x ->
   match x.identity with
   | `Hole number -> Printf.sprintf "?%d" number
@@ -54,40 +55,43 @@ let name : type b s. (b, s) t -> string =
   | `Def (number, sort, Some name) -> Printf.sprintf "_%s.%d.%s" sort number name
 
 (* Compare two metavariables for equality, returning equality of their lengths and energies. *)
-let compare : type b1 s1 b2 s2. (b1, s1) t -> (b2, s2) t -> (b1 * s1, b2 * s2) Eq.compare =
+let compare :
+    type a1 b1 s1 a2 b2 s2.
+    (a1, b1, s1) t -> (a2, b2, s2) t -> (a1 * b1 * s1, a2 * b2 * s2) Eq.compare =
  fun x y ->
   match
     ( x.compunit = y.compunit,
       x.identity = y.identity,
+      N.compare x.raw y.raw,
       Dbwd.compare x.len y.len,
       Energy.compare x.energy y.energy )
   with
-  | true, true, Eq, Eq -> Eq
+  | true, true, Eq, Eq, Eq -> Eq
   | _ -> Neq
 
-type wrapped = Wrap : ('b, 's) t -> wrapped
+type wrapped = Wrap : ('a, 'b, 's) t -> wrapped
 
 (* Note that this doesn't give the compunit, whereas hole numbers are only unique within a compunit.  But holes are probably only used in the top level compunit, and in general we can assume this is only used for just-created holes hence in the "current" compunit. *)
-let hole_number : type b s. (b, s) t -> int =
+let hole_number : type a b s. (a, b, s) t -> int =
  fun { identity; _ } ->
   match identity with
   | `Hole number -> number
   | _ -> raise (Failure "not a hole")
 
-(* Since metavariables are parametrized by context length and energy, an intrinsically well-typed map must incorporate those as well.  Since this is doubly parametrized, it is not technically an instance of our "intrinsically well-typed maps" from Signatures. *)
+(* Since metavariables are parametrized by context length and energy, an intrinsically well-typed map must incorporate those as well.  Since this is triply parametrized, it is not technically an instance of our "intrinsically well-typed maps" from Signatures. *)
 
 module IdMap = Map.Make (Identity)
 
 module Map = struct
-  type ('b, 's) key = ('b, 's) t
+  type ('a, 'b, 's) key = ('a, 'b, 's) t
 
-  module Make (F : Fam3) = struct
-    type _ entry = Entry : ('b, 's) key * ('x, 'b, 's) F.t -> 'x entry
+  module Make (F : Fam4) = struct
+    type _ entry = Entry : ('a, 'b, 's) key * ('x, 'a, 'b, 's) F.t -> 'x entry
     type 'x t = 'x entry IdMap.t Compunit.Map.t
 
     let empty : type x. x t = Compunit.Map.empty
 
-    let find_opt : type x b s. (b, s) key -> x t -> (x, b, s) F.t option =
+    let find_opt : type x a b s. (a, b, s) key -> x t -> (x, a, b, s) F.t option =
      fun key m ->
       match Compunit.Map.find_opt key.compunit m with
       | Some m -> (
@@ -106,7 +110,8 @@ module Map = struct
       | None -> None
 
     let update :
-        type x b s. (b, s) key -> ((x, b, s) F.t option -> (x, b, s) F.t option) -> x t -> x t =
+        type x a b s.
+        (a, b, s) key -> ((x, a, b, s) F.t option -> (x, a, b, s) F.t option) -> x t -> x t =
      fun key f m ->
       Compunit.Map.update key.compunit
         (fun m ->
@@ -128,12 +133,15 @@ module Map = struct
                m))
         m
 
-    let add : type x b s. (b, s) key -> (x, b, s) F.t -> x t -> x t =
+    let add : type x a b s. (a, b, s) key -> (x, a, b, s) F.t -> x t -> x t =
      fun key value m -> update key (fun _ -> Some value) m
 
-    let remove : type x b s. (b, s) key -> x t -> x t = fun key m -> update key (fun _ -> None) m
+    let remove : type x a b s. (a, b, s) key -> x t -> x t =
+     fun key m -> update key (fun _ -> None) m
 
-    type 'x mapper = { map : 'b 's. ('b, 's) key -> ('x, 'b, 's) F.t -> ('x, 'b, 's) F.t }
+    type 'x mapper = {
+      map : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> ('x, 'a, 'b, 's) F.t;
+    }
 
     let map : type x. x mapper -> x t -> x t =
      fun f m ->
@@ -141,13 +149,15 @@ module Map = struct
         (fun m -> IdMap.map (fun (Entry (key, value)) -> Entry (key, f.map key value)) m)
         m
 
-    type 'x iterator = { it : 'b 's. ('b, 's) key -> ('x, 'b, 's) F.t -> unit }
+    type 'x iterator = { it : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> unit }
 
     let iter : type x. x iterator -> x t -> unit =
      fun f m ->
       Compunit.Map.iter (fun _ m -> IdMap.iter (fun _ (Entry (key, value)) -> f.it key value) m) m
 
-    type ('x, 'acc) folder = { fold : 'b 's. ('b, 's) key -> ('x, 'b, 's) F.t -> 'acc -> 'acc }
+    type ('x, 'acc) folder = {
+      fold : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> 'acc -> 'acc;
+    }
 
     let fold : type x acc. (x, acc) folder -> x t -> acc -> acc =
      fun f m acc ->

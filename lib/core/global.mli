@@ -8,7 +8,7 @@ type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, p
 type metamap
 
 val find : Constant.t -> (emp, kinetic) term * definition
-val find_meta : ('b, 's) Meta.t -> ('b, 's) Metadef.t
+val find_meta : ('a, 'b, 's) Meta.t -> ('a, 'b, 's) Metadef.t
 val to_channel_unit : Out_channel.t -> Compunit.t -> Marshal.extern_flags list -> unit
 val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit
@@ -16,18 +16,18 @@ val set : Constant.t -> definition -> unit
 val add_error : Constant.t -> Reporter.Code.t -> unit
 
 val add_meta :
-  ('b, 's) Meta.t ->
+  ('a, 'b, 's) Meta.t ->
   termctx:('a, 'b) Termctx.t ->
   ty:('b, kinetic) term ->
   tm:[ `Defined of ('b, 's) term | `Axiom ] ->
   energy:'s energy ->
   unit
 
-val set_meta : ('b, 's) Meta.t -> tm:('b, 's) term -> unit
+val set_meta : ('a, 'b, 's) Meta.t -> tm:('b, 's) term -> unit
 val save_metas : metamap -> unit
 
 val add_hole :
-  ('b, 's) Meta.t ->
+  ('a, 'b, 's) Meta.t ->
   unit Asai.Range.located ->
   vars:(string option, 'a) Bwv.t ->
   termctx:('a, 'b) Termctx.t ->
@@ -36,7 +36,7 @@ val add_hole :
   unit
 
 val with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a
-val with_meta_definition : ('b, 's) Meta.t -> ('b, 's) term -> (unit -> 'a) -> 'a
+val with_meta_definition : ('a, 'b, 's) Meta.t -> ('b, 's) term -> (unit -> 'x) -> 'x
 
 type data
 
@@ -46,10 +46,10 @@ val run : init:data -> (unit -> 'a) -> 'a
 val try_with : ?get:(unit -> data) -> ?set:(data -> unit) -> (unit -> 'a) -> 'a
 
 type eternity = {
-  find_opt : 'b 's. ('b, 's) Meta.t -> ('b, 's) Metadef.t option;
+  find_opt : 'a 'b 's. ('a, 'b, 's) Meta.t -> ('a, 'b, 's) Metadef.t option;
   add :
     'a 'b 's.
-    ('b, 's) Meta.t ->
+    ('a, 'b, 's) Meta.t ->
     (string option, 'a) Bwv.t ->
     ('a, 'b) Termctx.t ->
     ('b, kinetic) term ->

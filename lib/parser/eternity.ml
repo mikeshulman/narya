@@ -20,7 +20,7 @@ type ('b, 's) homewhen = {
 
 (* We store the definition of a hole as a reference cell, so that if it is solved in a later eternal moment, the solution affects all earlier moments that might be undone to. *)
 module MetaData = struct
-  type ('x, 'b, 's) t = { def : ('b, 's) Metadef.t ref; homewhen : ('b, 's) homewhen }
+  type ('x, 'a, 'b, 's) t = { def : ('a, 'b, 's) Metadef.t ref; homewhen : ('b, 's) homewhen }
 end
 
 module Metamap = Meta.Map.Make (MetaData)
@@ -61,8 +61,8 @@ let () =
                     {
                       def =
                         ref
-                          (Metadef.Metadef
-                             { tm = `Undefined vars; termctx; ty; energy = Status.energy status });
+                          (Metadef.make ~tm:(`Undefined vars) ~termctx ~ty
+                             ~energy:(Status.energy status));
                       homewhen =
                         {
                           global = Global.get ();
@@ -81,19 +81,19 @@ let unsolved () =
       fold =
         (fun _ { def; _ } count ->
           match !def with
-          | Metadef { tm = `Undefined _; _ } -> count + 1
+          | { tm = `Undefined _; _ } -> count + 1
           | _ -> count);
     }
     (S.get ()).map 0
 
-let find : type b s. (b, s) Meta.t -> (b, s) Metadef.t * (b, s) homewhen =
+let find : type a b s. (a, b, s) Meta.t -> (a, b, s) Metadef.t * (b, s) homewhen =
  fun m ->
-  let ({ def; homewhen } : (unit, b, s) MetaData.t) =
+  let ({ def; homewhen } : (unit, a, b, s) MetaData.t) =
     Metamap.find_opt m (S.get ()).map <|> Anomaly "missing hole" in
   (!def, homewhen)
 
 type find_number =
-  | Find_number : ('b, 's) Meta.t * ('b, 's) Metadef.t * ('b, 's) homewhen -> find_number
+  | Find_number : ('a, 'b, 's) Meta.t * ('a, 'b, 's) Metadef.t * ('b, 's) homewhen -> find_number
 
 (* We assume here that we want the hole with that number in the current compilation unit. *)
 let find_number : int -> find_number =
@@ -109,18 +109,18 @@ let all_holes () =
       fold =
         (fun m { def; homewhen } holes ->
           match !def with
-          | Metadef { tm = `Undefined _; _ } -> Find_number (m, !def, homewhen) :: holes
+          | { tm = `Undefined _; _ } -> Find_number (m, !def, homewhen) :: holes
           | _ -> holes);
     }
     (S.get ()).map []
 
-let solve : type b s. (b, s) Meta.t -> (b, s) term -> unit =
+let solve : type a b s. (a, b, s) Meta.t -> (b, s) term -> unit =
  fun h tm ->
   S.modify (fun data ->
       {
         map =
           Metamap.update h
-            (Option.map (fun (d : (unit, b, s) MetaData.t) ->
+            (Option.map (fun (d : (unit, a, b, s) MetaData.t) ->
                  d.def := Metadef.define tm !(d.def);
                  d))
             data.map;

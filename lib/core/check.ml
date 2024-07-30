@@ -200,7 +200,7 @@ type (_, _, _, _) checked_tel =
 type (_, _, _) meta_tel =
   | Nil : ('b, Fwn.zero, 'b) meta_tel
   | Ext :
-      string option * ('b, potential) Meta.t * (('b, D.zero) snoc, 'c, 'bc) meta_tel
+      string option * ('a, 'b, potential) Meta.t * (('b, D.zero) snoc, 'c, 'bc) meta_tel
       -> ('b, 'c Fwn.suc, 'bc) meta_tel
 
 (* TODO *)
@@ -409,7 +409,7 @@ let rec check :
   (* If the user left a hole, we create an eternal metavariable. *)
   | Hole (vars, pos), _ ->
       (* Holes aren't numbered by the file they appear in. *)
-      let meta = Meta.make_hole (Ctx.dbwd ctx) (energy status) in
+      let meta = Meta.make_hole (Ctx.raw_length ctx) (Ctx.dbwd ctx) (energy status) in
       let ty, termctx =
         Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
       Global.add_hole meta pos ~vars ~termctx ~ty ~status;
@@ -442,7 +442,7 @@ and kinetic_of_potential :
   | `Nolet ->
       emit (Bare_case_tree_construct sort);
       (* We create a metavariable to store the potential value. *)
-      let meta = Meta.make_def sort None (Ctx.dbwd ctx) Potential in
+      let meta = Meta.make_def sort None (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
       (* We first define the metavariable without a value, as an "axiom", just as we do for global constants.  This isn't necessary for recursion, since this metavariable can't refer to itself, but so that with_meta_definition will be able to find it for consistency. *)
       let termctx = readback_ctx ctx in
       let vty = readback_val ctx ty in
@@ -474,7 +474,7 @@ and synth_or_check_let :
     (* If that encounters case-tree constructs, then we can allow the bound term to be a case tree, i.e. a potential term.  But in a checked "let" expression, the term being bound is a kinetic one, and must be so that its value can be put into the environment when the term is evaluated.  We deal with this by binding a *metavariable* to the bound term and then taking the value of that metavariable as the kinetic term to actually be bound.  *)
     | Case_tree_construct_in_let ->
       (* First we make the metavariable. *)
-      let meta = Meta.make_def "let" name (Ctx.dbwd ctx) Potential in
+      let meta = Meta.make_def "let" name (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
       let termctx = readback_ctx ctx in
       (* A new status in which to check the value of that metavariable; now it is the "current constant" being defined. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
@@ -601,7 +601,7 @@ and make_letrec_metas : type x a b ab. (x, a) Ctx.t -> (a, b, ab) Telescope.t ->
   | Emp -> Nil
   | Ext (x, vty, tel) ->
       (* Create the metavariable. *)
-      let meta = Meta.make_def "letrec" x (Ctx.dbwd ctx) Potential in
+      let meta = Meta.make_def "letrec" x (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
       (* Assign it the correct type. *)
       let termctx = readback_ctx ctx in
       Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
@@ -1529,7 +1529,7 @@ and synth :
       | `Nolet ->
           emit (Bare_case_tree_construct "match");
           (* A match in a kinetic synthesizing position, we can treat like a let-binding that returns the bound (metavariable) value.  Of course we can shortcut the binding by just inserting the metavariable as the result.  This code is copied and modified from synth_or_check_let.  Note that in this case there is no evident way to give the metavariable a type before defining it, which means that with_meta_definition won't be able to set it to anything; but this shouldn't be a problem since there is also no name for this metavariable and hence no way for the user to refer to it in the body, so it doesn't need to have a type or a value. *)
-          let meta = Meta.make_def "match" None (Ctx.dbwd ctx) Potential in
+          let meta = Meta.make_def "match" None (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
           let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
           let sv, svty = synth tmstatus ctx tm in
           let vty = readback_val ctx svty in

@@ -95,12 +95,12 @@ let rec termctx_ordered :
 let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.t -> (a, b) Termctx.t =
  fun f (Permute (p, ctx)) -> Permute (p, termctx_ordered f ctx)
 
-let metadef : type x y. (Compunit.t -> Compunit.t) -> (x, y) Metadef.t -> (x, y) Metadef.t =
- fun f (Metadef data) ->
+let metadef : type x y z. (Compunit.t -> Compunit.t) -> (x, y, z) Metadef.t -> (x, y, z) Metadef.t =
+ fun f data ->
   let termctx = termctx f data.termctx in
   let ty = term f data.ty in
   let tm =
     match data.tm with
     | `Defined tm -> `Defined (term f tm)
     | x -> x in
-  Metadef { data with tm; termctx; ty }
+  { data with tm; termctx; ty }

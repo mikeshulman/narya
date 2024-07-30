@@ -164,7 +164,7 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
               p ))
         (readback_head ctx head) args
 
-and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
+and readback_head : type c z. (z, c) Ctx.t -> head -> (c, kinetic) term =
  fun ctx h ->
   match h with
   | Var { level; deg } ->
@@ -177,8 +177,7 @@ and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
       Act (Const name, deg)
   | Meta { meta; env; ins } ->
       let (To perm) = deg_of_ins ins in
-      let (Metadef { termctx; _ }) = Global.find_meta meta in
-      Act (MetaEnv (meta, readback_env ctx env termctx), perm)
+      Act (MetaEnv (meta, readback_env ctx env (Global.find_meta meta).termctx), perm)
 
 and readback_at_tel :
     type n c a b ab z.

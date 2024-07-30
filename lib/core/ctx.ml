@@ -155,6 +155,11 @@ module Ordered = struct
 
   let lock : type a b. (a, b) t -> (a, b) t = fun ctx -> Lock ctx
 
+  let rec locked : type a b. (a, b) t -> bool = function
+    | Emp -> false
+    | Snoc (ctx, _, _) -> locked ctx
+    | Lock _ -> true
+
   let rec checked_length : type a b. (a, b) t -> b Tbwd.t = function
     | Emp -> Emp
     | Snoc (ctx, _, _) -> Snoc (checked_length ctx)
@@ -390,6 +395,7 @@ let invis (Permute (p, env, ctx)) vars =
     (p, LazyExt (env, D.zero_plus (CubeOf.dim vars), Ordered.env_entry vars), Ordered.invis ctx vars)
 
 let lock (Permute (p, env, ctx)) = Permute (p, env, Ordered.lock ctx)
+let locked (Permute (_, _, ctx)) = Ordered.locked ctx
 let raw_length (Permute (p, _, ctx)) = N.perm_dom (Ordered.raw_length ctx) p
 let length (Permute (_, _, ctx)) = Ordered.length ctx
 let empty = Permute (N.id_perm N.zero, Emp D.zero, Ordered.empty)

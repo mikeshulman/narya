@@ -23,7 +23,6 @@ type metamap = Metadef.def Metamap.t
 type data = {
   constants : ((emp, kinetic) term * definition, Code.t) Result.t Constant.Map.t;
   metas : metamap;
-  locked : bool;
   (* These two data pertain to the *currently executing command*: they store information about the holes and the global metavariables it has created.  The purpose is that if and when that command completes, we notify the user about the holes and save the metavariables to the correct global state.  In particular, during a "solve" command, the global state is rewound in time, but any newly created global metavariables need to be put into the "present" global state that it was rewound from. *)
   current_holes : (Meta.wrapped * printable * unit Asai.Range.located) Bwd.t;
   current_metas : metamap;
@@ -34,7 +33,6 @@ let empty : data =
   {
     constants = Constant.Map.empty;
     metas = Metamap.empty;
-    locked = false;
     current_holes = Emp;
     current_metas = Metamap.empty;
   }
@@ -51,11 +49,10 @@ let () =
 (* Look up a constant. *)
 let find c =
   let d = S.get () in
-  match (Constant.Map.find_opt c d.constants, d.locked) with
-  | Some (Ok (_, Axiom `Nonparametric)), true -> fatal (Locked_axiom (PConstant c))
-  | Some (Ok (ty, tm)), _ -> (ty, tm)
-  | Some (Error e), _ -> fatal e
-  | None, _ -> fatal (Undefined_constant (PConstant c))
+  match Constant.Map.find_opt c d.constants with
+  | Some (Ok (ty, tm)) -> (ty, tm)
+  | Some (Error e) -> fatal e
+  | None -> fatal (Undefined_constant (PConstant c))
 
 (* We need to make some calls to Eternity, which isn't defined until lib/parser, so we supply a ref here for Eternity to insert its callbacks. *)
 type eternity = {
@@ -105,9 +102,6 @@ let from_channel_unit f chan i =
       i d.constants in
   let metas = Metamap.from_channel_unit chan { map = (fun _ df -> Link.metadef f df) } i d.metas in
   S.set { d with constants; metas }
-
-(* Look up whether the state is locked. *)
-let locked () = (S.get ()).locked
 
 (* Add a new constant. *)
 let add c ty df =
@@ -202,16 +196,6 @@ let with_meta_definition m tm f =
       | _ ->
           (* If the metavariable isn't found, that means that when we created it we didn't have a type for it.  That, in turn, means that the user doesn't have a name for it, since the metavariable is only bound to a user name in a "let rec".  So we don't need to do anything. *)
           f ())
-
-(* Temporarily set the locked flag. *)
-let with_locked f =
-  let d = S.get () in
-  let old = d.locked in
-  S.set { d with locked = true };
-  let result = f () in
-  (* Note that f could change the state in other ways, so we can't just reset the whole state to d.  *)
-  S.modify (fun d -> { d with locked = old });
-  result
 
 (* Get the entire global state, for saving as part of the data for an eternal metavariable (hole) that is being created.  For this purpose, we throw away the current holes and merge the current metas into the permanent ones, since that gives the global state in which solutions to the hole will have to be checked. *)
 let get () =

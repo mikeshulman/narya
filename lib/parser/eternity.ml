@@ -55,7 +55,14 @@ let () =
                   Metamap.add (MetaKey m)
                     {
                       def =
-                        ref (Metadef.Metadef { data = Undef_meta { vars; status }; termctx; ty });
+                        ref
+                          (Metadef.Metadef
+                             {
+                               data = Undef_meta { vars; status };
+                               termctx;
+                               ty;
+                               energy = Status.energy status;
+                             });
                       homewhen =
                         {
                           global = Global.get ();

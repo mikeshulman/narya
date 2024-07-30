@@ -100,7 +100,5 @@ let metadef : type x y. (Compunit.t -> Compunit.t) -> (x, y) Metadef.t -> (x, y)
   let termctx = termctx f data.termctx in
   let ty = term f data.ty in
   match data.data with
-  | Undef_meta _ -> Metadef { data = data.data; termctx; ty }
-  | Def_meta d ->
-      let tm = Option.map (term f) d.tm in
-      Metadef { data = Def_meta { d with tm }; termctx; ty }
+  | Undef_meta _ -> Metadef { data with termctx; ty }
+  | Def_meta tm -> Metadef { data with data = Def_meta (Option.map (term f) tm); termctx; ty }

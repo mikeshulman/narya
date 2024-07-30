@@ -26,6 +26,8 @@ type data = {
   (* These two data pertain to the *currently executing command*: they store information about the holes and the global metavariables it has created.  The purpose is that if and when that command completes, we notify the user about the holes and save the metavariables to the correct global state.  In particular, during a "solve" command, the global state is rewound in time, but any newly created global metavariables need to be put into the "present" global state that it was rewound from. *)
   current_holes : (Meta.wrapped * printable * unit Asai.Range.located) Bwd.t;
   current_metas : metamap;
+  (* These are the eternal holes that exist.  We store them so that when commands creating holes are undone, those holes can be discarded. *)
+  holes : Meta.WrapSet.t;
 }
 
 (* The empty global state, as at the beginning of execution. *)
@@ -35,6 +37,7 @@ let empty : data =
     metas = Metamap.empty;
     current_holes = Emp;
     current_metas = Metamap.empty;
+    holes = Meta.WrapSet.empty;
   }
 
 module S = State.Make (struct
@@ -147,14 +150,19 @@ let save_metas metas =
     { it = (fun m def -> S.modify @@ fun d -> { d with metas = d.metas |> Metamap.add m def }) }
     metas
 
-(* Add a new hole.  This is an eternal metavariable, so we pass off to Eternity, and also save some information about it locally so that we can discard it if the command errors (in interactive mode this doesn't stop the program) and notify the user if the command succeeds. *)
+(* Add a new hole.  This is an eternal metavariable, so we pass off to Eternity, and also save some information about it locally so that we can discard it if the command errors (in interactive mode this doesn't stop the program) and notify the user if the command succeeds, and also discard it if this command is later undone. *)
 let add_hole m pos ~vars ~termctx ~ty ~status =
   !eternity.add m vars termctx ty status;
   S.modify (fun d ->
       {
         d with
         current_holes = Snoc (d.current_holes, (Wrap m, Termctx.PHole (vars, termctx, ty), pos));
+        holes = Meta.WrapSet.add (Wrap m) d.holes;
       })
+
+(* Check whether a hole exists in the current time. *)
+let hole_exists : type a b s. (a, b, s) Meta.t -> bool =
+ fun m -> Meta.WrapSet.mem (Wrap m) (S.get ()).holes
 
 (* Temporarily set the value of a constant to execute a callback, and restore it afterwards.  We implement this by saving and restoring the value, rather that by calling another S.run, because we want to make sure to keep the 'current' information created by the callback. *)
 let with_definition c df f =

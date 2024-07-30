@@ -52,12 +52,13 @@ let do_command f =
 
 (* This is run *by* the 'undo' command.  Since 'undo' is not undoable, it is *not* wrapped in 'do_command'. *)
 let undo n =
-  try
-    S.modify (fun d ->
-        match Bwd_extra.remove d.past (n - 1) with
-        | Snoc (past, present) -> { past; present }
-        | Emp -> fatal Not_enough_to_undo)
-  with Failure _ -> fatal Not_enough_to_undo
+  (try
+     S.modify (fun d ->
+         match Bwd_extra.remove d.past (n - 1) with
+         | Snoc (past, present) -> { past; present }
+         | Emp -> fatal Not_enough_to_undo)
+   with Failure _ -> fatal Not_enough_to_undo);
+  Eternity.filter_now ()
 
 (* Set the visible namespace, e.g. before going into interactive mode. *)
 let set_visible visible =

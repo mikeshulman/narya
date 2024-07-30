@@ -18,7 +18,7 @@ module Metamap = Meta.Map.Make (struct
   type ('x, 'bs) t = ('x, 'bs) Metadef.t
 end)
 
-type metamap = Metadef.def Metamap.t
+type metamap = unit Metamap.t
 
 type data = {
   constants : ((emp, kinetic) term * definition, Code.t) Result.t Constant.Map.t;
@@ -125,12 +125,12 @@ let add_error c e =
 
 (* Add a new Global metavariable (e.g. local let-definition) to the new metas associated to the current command. *)
 let add_meta m ~termctx ~ty ~tm ~energy =
+  let tm =
+    (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined of (string option, 'a) Bwv.t ]) in
   S.modify @@ fun d ->
   {
     d with
-    current_metas =
-      d.current_metas
-      |> Metamap.add (MetaKey m) (Metadef { data = Def_meta tm; termctx; ty; energy });
+    current_metas = d.current_metas |> Metamap.add (MetaKey m) (Metadef { tm; termctx; ty; energy });
   }
 
 (* Set the definition of a Global metavariable, required to already exist. *)
@@ -141,8 +141,7 @@ let set_meta m ~tm =
     current_metas =
       d.current_metas
       |> Metamap.update (MetaKey m) (function
-           | Some (Metadef ({ data = Def_meta _; _ } as d)) ->
-               Some (Metadef { d with data = Def_meta tm })
+           | Some (Metadef d) -> Some (Metadef { d with tm = `Defined tm })
            | _ -> raise (Failure "set_meta"));
   }
 

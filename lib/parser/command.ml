@@ -479,8 +479,8 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
 let show_hole err = function
-  | Eternity.Find_number (m, Wrap (Metadef { data = Undef_meta vars; termctx; ty; energy = _ }), _)
-    -> emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
+  | Eternity.Find_number (m, Wrap (Metadef { tm = `Undefined vars; termctx; ty; energy = _ }), _) ->
+      emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
   | _ -> fatal err
 
 let to_string : Command.t -> string = function
@@ -646,15 +646,15 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
       (* Solve does NOT create a new history entry because it is NOT undoable. *)
       let (Find_number
             ( m,
-              Wrap (Metadef { data; termctx; ty; energy = _ }),
+              Wrap (Metadef { tm = metatm; termctx; ty; energy = _ }),
               { global; scope; discrete; status } )) =
         Eternity.find_number number in
-      match data with
-      | Undef_meta vars ->
+      match metatm with
+      | `Undefined vars ->
           History.run_with_scope ~init_visible:scope @@ fun () ->
           Core.Command.execute
             (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m, discrete))
-      | Def_meta _ ->
+      | `Defined _ | `Axiom ->
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))
   | Show { what; _ } -> (

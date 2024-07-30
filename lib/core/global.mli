@@ -19,11 +19,11 @@ val add_meta :
   ('b, 's) Meta.t ->
   termctx:('a, 'b) Termctx.t ->
   ty:('b, kinetic) term ->
-  tm:('b, 's) term option ->
+  tm:[ `Defined of ('b, 's) term | `Axiom ] ->
   energy:'s energy ->
   unit
 
-val set_meta : ('b, 's) Meta.t -> tm:('b, 's) term option -> unit
+val set_meta : ('b, 's) Meta.t -> tm:('b, 's) term -> unit
 val save_metas : metamap -> unit
 
 val add_hole :
@@ -36,7 +36,7 @@ val add_hole :
   unit
 
 val with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a
-val with_meta_definition : ('b, 's) Meta.t -> ('b, 's) term option -> (unit -> 'a) -> 'a
+val with_meta_definition : ('b, 's) Meta.t -> ('b, 's) term -> (unit -> 'a) -> 'a
 
 type data
 

@@ -71,6 +71,14 @@ let compare :
 
 type wrapped = Wrap : ('a, 'b, 's) t -> wrapped
 
+module Wrapped = struct
+  type t = wrapped
+
+  let compare : t -> t -> int = fun (Wrap x) (Wrap y) -> Identity.compare x.identity y.identity
+end
+
+module WrapSet = Set.Make (Wrapped)
+
 (* Note that this doesn't give the compunit, whereas hole numbers are only unique within a compunit.  But holes are probably only used in the top level compunit, and in general we can assume this is only used for just-created holes hence in the "current" compunit. *)
 let hole_number : type a b s. (a, b, s) t -> int =
  fun { identity; _ } ->
@@ -164,6 +172,14 @@ module Map = struct
       Compunit.Map.fold
         (fun _ m acc -> IdMap.fold (fun _ (Entry (key, value)) acc -> f.fold key value acc) m acc)
         m acc
+
+    type 'x filterer = { filter : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> bool }
+
+    let filter : type x a b s. x filterer -> x t -> x t =
+     fun f m ->
+      Compunit.Map.map
+        (fun m -> IdMap.filter (fun _ (Entry (key, value)) -> f.filter key value) m)
+        m
 
     let to_channel_unit :
         type x. Out_channel.t -> Compunit.t -> x t -> Marshal.extern_flags list -> unit =

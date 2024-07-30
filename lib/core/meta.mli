@@ -15,6 +15,14 @@ val compare :
 
 type wrapped = Wrap : ('a, 'b, 's) t -> wrapped
 
+module Wrapped : sig
+  type t = wrapped
+
+  val compare : t -> t -> int
+end
+
+module WrapSet : module type of Set.Make (Wrapped)
+
 val hole_number : ('a, 'b, 's) t -> int
 
 module Map : sig
@@ -51,6 +59,9 @@ module Map : sig
       fold : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> 'acc -> 'acc;
     }
 
+    type 'x filterer = { filter : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> bool }
+
+    val filter : 'x filterer -> 'x t -> 'x t
     val fold : ('x, 'acc) folder -> 'x t -> 'acc -> 'acc
     val to_channel_unit : Out_channel.t -> Compunit.t -> 'x t -> Marshal.extern_flags list -> unit
     val from_channel_unit : In_channel.t -> 'x mapper -> Compunit.t -> 'x t -> 'x t

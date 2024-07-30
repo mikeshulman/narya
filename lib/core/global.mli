@@ -35,6 +35,7 @@ val add_hole :
   status:('b, 's) Status.status ->
   unit
 
+val hole_exists : ('a, 'b, 's) Meta.t -> bool
 val with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a
 val with_meta_definition : ('a, 'b, 's) Meta.t -> ('b, 's) term -> (unit -> 'x) -> 'x
 

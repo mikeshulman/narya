@@ -82,6 +82,11 @@ let unsolved () =
     }
     (S.get ()).map 0
 
+(* Throw away holes that don't exist at the current time, according to Global. *)
+let filter_now () =
+  S.modify (fun { map } ->
+      { map = Metamap.filter { filter = (fun m _ -> Global.hole_exists m) } map })
+
 let find : type a b s. (a, b, s) Meta.t -> (a, b, s) Metadef.t * (a, b, s) homewhen =
  fun m ->
   let ({ def; homewhen } : (unit, a, b, s) MetaData.t) =

@@ -645,14 +645,13 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
   | Solve { number; tm = Term tm; _ } -> (
       (* Solve does NOT create a new history entry because it is NOT undoable. *)
       let (Find_number
-            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; discrete; status; vars }))
-          =
+            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; status; vars })) =
         Eternity.find_number number in
       match metatm with
       | `Undefined ->
           History.run_with_scope ~init_visible:scope @@ fun () ->
           Core.Command.execute
-            (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m, discrete))
+            (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m))
       | `Defined _ | `Axiom ->
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))

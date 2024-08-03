@@ -37,7 +37,6 @@ type t =
       * 'a check located
       * ('b, kinetic) term
       * (('b, 's) term -> unit)
-      * bool Constant.Map.t
       -> t
 
 (* When checking a mutual "def", we first check all the parameter telescopes, and the types in the checking cases when they are provided.  Here are the outputs of that stage, saving the as-yet-unchecked raw term along with its checked parameters and type. *)
@@ -59,24 +58,36 @@ type defined_const =
       -> defined_const
 
 (* Given such a thing, we can proceed to check or synthesize the term, producing the type and defined value for the constant, and then define it.  *)
-let check_term : defined_const -> unit = function
+let check_term : defined_const -> printable * bool = function
   | Defined_check { const; bplus; params; ty; tm } ->
       (* It's essential that we evaluate the type at this point, rather than sooner, so that the evaluation uses the *definitions* of previous constants in the mutual block and not just their types.  For the same reason, we need to re-evaluate the telescope of parameters. *)
       let ctx = eval_append Ctx.empty bplus params in
       let ety = eval_term (Ctx.env ctx) ty in
       let tree = check (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety in
-      Global.set const (Defined (Ctx.lam ctx tree))
+      let discrete =
+        match tree with
+        | Canonical (Data { discrete = true; _ }) -> true
+        | _ -> false in
+      Global.set const (Defined (Ctx.lam ctx tree));
+      (PConstant const, discrete)
   | Defined_synth { const; params; tm } ->
       let Checked_tel (cparams, ctx), _ = check_tel Ctx.empty params in
       let ctm, ety = synth (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
       let cty = readback_val ctx ety in
-      Global.add const (Telescope.pis cparams cty) (Defined (Ctx.lam ctx ctm))
+      let ty = Telescope.pis cparams cty in
+      let tree = Ctx.lam ctx ctm in
+      let discrete =
+        match tree with
+        | Canonical (Data { discrete = true; _ }) -> true
+        | _ -> false in
+      Global.add const ty (Defined tree);
+      (PConstant const, discrete)
 
 (* When checking a "def", therefore, we first iterate through checking the parameters and types, and then go back and check all the terms.  Moreover, whenever we check a type, we temporarily define the corresponding constant as an axiom having that type, so that its type can be used recursively in typechecking its definition, as well as the types of later mutual constants and the definitions of any other mutual constants. *)
-let check_defs (defs : (Constant.t * defconst) list) : unit =
+let check_defs (defs : (Constant.t * defconst) list) : (printable * bool) list =
   let rec go defs defineds =
     match defs with
-    | [] -> List.iter check_term (Bwd.to_list defineds)
+    | [] -> List.map check_term (Bwd.to_list defineds)
     | (const, Def_check { params; ty; tm }) :: defs ->
         let bplus = Raw.bplus_of_tel params in
         let Checked_tel (params, ctx), _ = check_tel Ctx.empty params in
@@ -92,32 +103,16 @@ let check_defs (defs : (Constant.t * defconst) list) : unit =
 
 let execute : t -> unit = function
   | Axiom (const, params, ty) ->
-      Discrete.run ~init:Constant.Map.empty @@ fun () ->
       let Checked_tel (params, ctx), _ = check_tel Ctx.empty params in
       let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
       let cty = Telescope.pis params cty in
       Global.add const cty (Axiom `Nonparametric);
       Global.end_command (fun h -> Constant_assumed (PConstant const, h))
   | Def defs ->
-      (* The Discrete map is supposed to include all the constants currently being defined, but we start them all out set to false since we haven't yet checked that any of them are discrete. *)
-      let init =
-        List.fold_left (fun map (c, _) -> map |> Constant.Map.add c false) Constant.Map.empty defs
-      in
-      (* Currently, mutual families of definitions can never be discrete. *)
-      Discreteness.run ~env:(Discreteness.read () && List.length defs = 1) @@ fun () ->
-      Discrete.run ~init @@ fun () ->
-      check_defs defs;
-      let printables =
-        List.map
-          (fun (c, _) ->
-            ( PConstant c,
-              Constant.Map.find_opt c (Syntax.Discrete.get ())
-              <|> Anomaly "undefined just-defined constant" ))
-          defs in
+      let printables = check_defs defs in
       Global.end_command (fun h -> Constant_defined (printables, h))
-  | Solve (global, status, termctx, tm, ty, callback, discrete) ->
+  | Solve (global, status, termctx, tm, ty, callback) ->
       if not (Mode.read ()).interactive then fatal (Forbidden_interactive_command "solve");
-      Discrete.run ~init:discrete @@ fun () ->
       let ctm =
         Global.run_command_with ~init:global (fun h -> Hole_solved h) @@ fun () ->
         let ctx = Norm.eval_ctx termctx in

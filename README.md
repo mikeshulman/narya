@@ -1669,7 +1669,7 @@ def SST : Type ≔ codata [
 
 ### Parametrically discrete types
 
-Discreteness is an experimental feature.  A (strictly parametrically) *discrete* type, in the sense meant here, is one whose higher-dimensional versions are all definitionally subsingletons.  That is, if `b1 : A⁽ᵈ⁾ a` and `b2 : A⁽ᵈ⁾ a`, then `b1` and `b2` are convertible (this is implemented as an η-rule).  Discreteness is currently restricted to arity 1 (including dTT), and can be enabled by the `-discreteness` flag (which is not included in `-dtt`).  When discreteness is enabled, a declared type will be discrete if
+Discreteness is an experimental (and probably temporary) feature.  A (strictly parametrically) *discrete* type, in the sense meant here, is one whose higher-dimensional versions are all definitionally subsingletons.  That is, if `b1 : A⁽ᵈ⁾ a` and `b2 : A⁽ᵈ⁾ a`, then `b1` and `b2` are convertible (this is implemented as an η-rule).  Discreteness is currently restricted to arity 1 (including dTT), and can be enabled by the `-discreteness` flag (which is not included in `-dtt`).  When discreteness is enabled, a declared type will be discrete if
 
 1. It is a datatype;
 2. It has no parameters;
@@ -1689,7 +1689,7 @@ def btree : Type ≔ data [
 | node. (_:btree) (_:btree)
 ]
 ```
-Types defined in mutual families are never discrete.  (This could be improved, if there is interest.)
+Nontrivially mutual families of types can (currently) never be discrete, since other types in the same family are not allowed as arguments of a constructor of a discrete type by the rules above.
 
 The higher-dimensional versions of a discrete datatype are also still themselves datatypes, so they have constructors and can be matched on.  In fact it should be possible to prove internally *without* `-discreteness` that these types are always propositionally contractible.  In particular, they are inhabited, so discreteness just adds some strictness, making them *definitionally* singletons.  For example, here is the proof that the displayed versions of `ℕ` are inhabited:
 ```
@@ -1698,6 +1698,8 @@ def ℕ.d (n : ℕ) : ℕ⁽ᵈ⁾ n ≔ match n [
 | suc. n ↦ suc. (ℕ.d n)
 ]
 ```
+
+Currently, the test for discreteness is performed immediately and only upon completion of the `def` command that defines a datatype.  In particular, if the definition of a datatype contains a hole, it will not be considered discrete, even if the hole is later filled to make the definition one that would have been discrete if given from the get-go.  This could in theory be improved, but I am more likely to feel like putting effort into implementing the "correct" replacement for discrete types, namely modally-guarded parametricity such as full dTT.
 
 
 ## Remarks on implementation

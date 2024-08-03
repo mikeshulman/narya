@@ -1000,18 +1000,13 @@ let rec tyof_inst :
       } in
   inst (universe m) margs
 
-(* Check whether a given type should be considered as discrete in the current typechecking context.  This means it is either: *)
-let is_discrete : kinetic value -> bool =
- fun ty ->
+(* Check whether a given type is discrete, or has the supplied constant head (since for testing whether a newly defined datatype can be discrete, it can appear in its own arguments). *)
+let is_discrete : Constant.t option -> kinetic value -> bool =
+ fun head ty ->
   match view_type ty "is_discrete" with
-  (* 1. A previously defined discrete type, or *)
   | Canonical (_, Data { discrete = true; _ }, _) -> true
-  (* 2. The type currently being defined, at dimension zero.  Note that the *value* of this type in the Discrete map will be false, since we haven't *yet* decided that it *is* discrete; so we use 'mem' rather than 'find' to just check that it *is* currently being defined.  *)
-  (* TODO: In a mutual block, this is not the correct test: it considers all the mutually defined types to be "discrete" even if they don't later turn out to be.  At present we are disallowing discreteness for all mutual families. *)
-  | Canonical (Const { name; _ }, _, tyargs) when Constant.Map.mem name (Discrete.get ()) -> (
-      match D.compare (TubeOf.inst tyargs) D.zero with
-      | Eq -> true
-      | Neq -> false)
+  | Canonical (Const { name; ins }, _, _) when Option.is_some (is_id_ins ins) && Some name = head ->
+      true
   (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
   | _ -> false
 

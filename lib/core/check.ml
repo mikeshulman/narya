@@ -388,15 +388,15 @@ let rec check :
           let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
           check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields
       | _ -> fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty))))
-  | Data constrs, Potential (_, args, _) ->
+  | Data constrs, Potential (head, args, _) ->
       (* For a datatype, the type to check against might not be a universe, it could include indices. *)
       let (Wrap num_indices) = Fwn.of_int (typefam ctx ty) in
-      (* If discreteness is on, then a datatype with no parameters or indices can be discrete.  (This is just a starting point; the arguments of all the constructors are also required to be either discrete or simply recursive.) *)
+      (* If discreteness is on, then a global-constant datatype with no parameters or indices can be discrete.  (This is just a starting point; the arguments of all the constructors are also required to be either discrete or simply recursive.) *)
       let discrete =
         Discreteness.read ()
         &&
-        match (num_indices, args) with
-        | Zero, Emp -> true
+        match (head, num_indices, args) with
+        | Constant _, Zero, Emp -> true
         | _ -> false in
       check_data status ctx ty num_indices Abwd.empty (Bwd.to_list constrs) ~discrete
   (* If we have a term that's not valid outside a case tree, we bind it to a global metavariable. *)
@@ -1216,10 +1216,7 @@ and check_data :
     (b, potential) term =
  fun status ctx ty num_indices checked_constrs raw_constrs ~discrete ->
   match (raw_constrs, status) with
-  | [], Potential (head, _, _) ->
-      (match head with
-      | Constant c -> Discrete.modify (Constant.Map.add c discrete)
-      | _ -> ());
+  | [], Potential _ ->
       Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete })
   | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
       Potential (head, current_apps, hyp) ) -> (
@@ -1230,10 +1227,14 @@ and check_data :
            (Term.Canonical
               (Data { indices = num_indices; constrs = checked_constrs; discrete = false })))
       @@ fun () ->
+      let consthead =
+        match head with
+        | Constant c -> Some c
+        | _ -> None in
       match (Abwd.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
       | None, Some output -> (
-          let Checked_tel (args, newctx), argsdisc = check_tel ctx args in
+          let Checked_tel (args, newctx), argsdisc = check_tel ?consthead ctx args in
           let discrete = discrete && argsdisc in
           let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
           match eval_term (Ctx.env newctx) coutput with
@@ -1257,7 +1258,7 @@ and check_data :
       | None, None -> (
           match num_indices with
           | Zero ->
-              let Checked_tel (args, _), argsdisc = check_tel ctx args in
+              let Checked_tel (args, _), argsdisc = check_tel ?consthead ctx args in
               let discrete = discrete && argsdisc in
               check_data status ctx ty Fwn.zero
                 (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }))
@@ -1744,10 +1745,12 @@ and check_at_tel :
         (Wrong_number_of_arguments_to_constructor
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
-(* Given a context and a raw teelscope, we can check it to produce a checked telescope, a new context extended by that telescope, and a function for extending other contexts by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype. *)
+(* Given a context and a raw telescope, we can check it to produce a checked telescope, a new context extended by that telescope, and a function for extending other contexts by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype.  This requires knowing the currently-being-defined constant, since discrete types can appear recursively in the arguments of their constructors. *)
 and check_tel :
-    type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (a, b, c, ac) checked_tel * bool =
- fun ctx tel ->
+    type a b c ac.
+    ?consthead:Constant.t -> (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (a, b, c, ac) checked_tel * bool
+    =
+ fun ?consthead ctx tel ->
   match tel with
   | Emp -> (Checked_tel (Emp, ctx), true)
   | Ext (x, ty, tys) ->
@@ -1755,6 +1758,6 @@ and check_tel :
       let ety = eval_term (Ctx.env ctx) cty in
       let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
       let ctx = Ctx.cube_vis ctx x newnfs in
-      let Checked_tel (ctys, ctx), discrete = check_tel ctx tys in
-      let discrete = discrete && is_discrete ety in
+      let Checked_tel (ctys, ctx), discrete = check_tel ?consthead ctx tys in
+      let discrete = discrete && is_discrete consthead ety in
       (Checked_tel (Ext (x, cty, ctys), ctx), discrete)

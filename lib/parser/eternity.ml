@@ -12,7 +12,6 @@ open Reporter
 type ('a, 'b, 's) homewhen = {
   global : Global.data;
   scope : Scope.trie;
-  discrete : bool Constant.Map.t;
   status : ('b, 's) status;
   vars : (string option, 'a) Bwv.t;
 }
@@ -59,13 +58,7 @@ let () =
                     {
                       def = Metadef.make ~tm:`Undefined ~termctx ~ty ~energy:(Status.energy status);
                       homewhen =
-                        {
-                          global = Global.get ();
-                          scope = Scope.get_visible ();
-                          discrete = Syntax.Discrete.get ();
-                          status;
-                          vars;
-                        };
+                        { global = Global.get (); scope = Scope.get_visible (); status; vars };
                     }
                     map;
               }));

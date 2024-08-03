@@ -7,7 +7,6 @@ open Term
 type ('a, 'b, 's) homewhen = {
   global : Global.data;
   scope : Scope.trie;
-  discrete : bool Constant.Map.t;
   status : ('b, 's) status;
   vars : (string option, 'a) Bwv.t;
 }

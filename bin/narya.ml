@@ -175,24 +175,27 @@ let rec interact_pg () : unit =
     done;
     let cmd = Buffer.contents buf in
     let holes = ref Emp in
-    (Format.printf "\x0C[response]\x0C\n%!";
-     Global.HolePos.run ~init:Emp @@ fun () ->
-     Reporter.try_with
-       ~emit:(fun d ->
-         match d.message with
-         | Hole _ -> holes := Snoc (!holes, d.message)
-         | _ -> Terminal.display ~output:stdout d)
-       ~fatal:(fun d -> Terminal.display ~output:stdout d)
-       (fun () ->
-         try do_command (Command.parse_single cmd) with Sys.Break -> Reporter.fatal Break);
-     Format.printf "\x0C[goals]\x0C\n%!";
-     Mbwd.miter
-       (fun [ h ] ->
-         Reporter.Code.default_text h Format.std_formatter;
-         Format.printf "\n\n%!")
-       [ !holes ];
-     Format.printf "\x0C[data]\x0C\n%!";
-     Mbwd.miter (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h s e) [ Global.HolePos.get () ]);
+    ( Global.HolePos.run ~init:Emp @@ fun () ->
+      Reporter.try_with
+        ~emit:(fun d ->
+          match d.message with
+          | Hole _ -> holes := Snoc (!holes, d.message)
+          | _ -> Terminal.display ~output:stdout d)
+        ~fatal:(fun d -> Terminal.display ~output:stdout d)
+        (fun () ->
+          try
+            do_command (Command.parse_single cmd);
+            Format.printf "\x0C[goals]\x0C\n%!";
+            Mbwd.miter
+              (fun [ h ] ->
+                Reporter.Code.default_text h Format.std_formatter;
+                Format.printf "\n\n%!")
+              [ !holes ];
+            Format.printf "\x0C[data]\x0C\n%!";
+            Mbwd.miter
+              (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h s e)
+              [ Global.HolePos.get () ]
+          with Sys.Break -> Reporter.fatal Break) );
     interact_pg ()
   with End_of_file -> ()
 

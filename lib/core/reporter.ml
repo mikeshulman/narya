@@ -164,6 +164,7 @@ module Code = struct
     | Section_closed : string list -> t
     | No_such_section : t
     | Break : t
+    | No_holes_allowed : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -286,6 +287,7 @@ module Code = struct
     | Section_closed _ -> Info
     | No_such_section -> Error
     | Break -> Error
+    | No_holes_allowed _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -388,6 +390,7 @@ module Code = struct
     (* Commands *)
     | Too_many_commands -> "E2000"
     | Forbidden_interactive_command _ -> "E2001"
+    | No_holes_allowed _ -> "E2002"
     (* def *)
     | Name_already_defined _ -> "E2100"
     | Invalid_constant_name _ -> "E2101"
@@ -712,6 +715,7 @@ module Code = struct
     | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
     | No_such_section -> text "no section here to end"
     | Break -> text "user interrupt"
+    | No_holes_allowed cmd -> textf "command '%s' cannot contain holes" cmd
 end
 
 include Asai.StructuredReporter.Make (Code)

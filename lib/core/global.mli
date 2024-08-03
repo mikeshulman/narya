@@ -25,6 +25,7 @@ val add_meta :
 
 val set_meta : ('a, 'b, 's) Meta.t -> tm:('b, 's) term -> unit
 val save_metas : metamap -> unit
+val with_holes : (unit, string) Result.t -> (unit -> 'a) -> 'a
 
 val add_hole :
   ('a, 'b, 's) Meta.t ->

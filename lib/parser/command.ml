@@ -504,11 +504,16 @@ let needs_interactive : Command.t -> bool = function
   | Solve _ | Show _ | Undo _ -> true
   | _ -> false
 
+let allows_holes : Command.t -> (unit, string) Result.t = function
+  | Axiom _ | Def _ | Solve _ -> Ok ()
+  | cmd -> Error (to_string cmd)
+
 (* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
 let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> Command.t -> unit =
  fun ~action_taken ~get_file cmd ->
   if needs_interactive cmd && not (Core.Command.Mode.read ()).interactive then
     fatal (Forbidden_interactive_command (to_string cmd));
+  Global.with_holes (allows_holes cmd) @@ fun () ->
   match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
       History.do_command @@ fun () ->

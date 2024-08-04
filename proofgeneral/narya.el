@@ -144,6 +144,9 @@ it won't try to duplicate our work."
 	 ;; proof-shell-start-goals-regexp        "\x0C\\[holes\\]\x0C\n\\(\\)"
 	 ;; proof-shell-end-goals-regexp          "\x0C\\[data\\]\x0C\n"
 	 proof-shell-handle-output-system-specific 'narya-handle-output
+	 ;; We don't have "save" commands yet, so silence the warning about their absence.
+	 proof-save-command-regexp             ""
+	 proof-really-save-command-p           (lambda (span cmd) nil)
 
 	 ;; Silencing unnecessary output (TODO)
 	 ;proof-shell-start-silent-cmd          ""

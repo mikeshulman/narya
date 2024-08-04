@@ -38,6 +38,10 @@
    ￫ info[I0001]
    ￮ axiom M assumed
   
+  sym M
+    : refl Gel A A (refl A) B B (refl B) R R (refl R) a₀ a₁ a₂ b₀ b₁ b₂
+        (_ ≔ r₀) (_ ≔ r₁)
+  
   sym M .ungel
     : refl R a₀ a₁ a₂ b₀ b₁ b₂ r₀ r₁
   

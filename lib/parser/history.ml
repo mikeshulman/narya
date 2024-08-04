@@ -43,11 +43,12 @@ let do_command f =
   S.modify (fun d -> { d with past = Snoc (d.past, d.present) });
   try f ()
   with e ->
-    (* If the current command fails, we restore the state at the end of the previous command. *)
+    (* If the current command fails, we restore the state at the end of the previous command, including deleting any holes it created. *)
     S.modify (fun d ->
         match d.past with
         | Snoc (past, present) -> { past; present }
         | Emp -> fatal (Anomaly "nothing to unsave"));
+    Eternity.filter_now ();
     raise e
 
 (* This is run *by* the 'undo' command.  Since 'undo' is not undoable, it is *not* wrapped in 'do_command'. *)

@@ -51,7 +51,7 @@ and fields : type s. formatter -> (Field.t, s lazy_eval * [ `Labeled | `Unlabele
             | `Unlabeled -> "`Unlabeled"
             | `Labeled -> "`Labeled")
       | _ ->
-          fprintf ppf "%a <: (%s, ?, %s)" fields flds (Field.to_string f)
+          fprintf ppf "%a <: (%s, (Deferred), %s)" fields flds (Field.to_string f)
             (match l with
             | `Unlabeled -> "`Unlabeled"
             | `Labeled -> "`Labeled"))

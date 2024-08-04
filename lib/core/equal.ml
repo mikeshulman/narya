@@ -37,9 +37,12 @@ module Equal = struct
         let output = tyof_app cods tyargs newargs in
         (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
         equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output
-    (* In the case of a codatatype/record, the insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it.  And its dimension gets checked by tyof_field.  In fact because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the data here except whether it has eta, whether it has an insertion (since if it does, it's not really a record type), and what the list of field names is. *)
-    | Canonical (_, Codata { eta = Eta; fields; ins; _ }, _) when Option.is_some (is_id_ins ins) ->
-        (* In the eta case, we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+    (* Codatatypes (without eta) don't need to be dealt with here, even though structs can't be compared synthesizingly, since codatatypes aren't actually inhabited by (kinetic) structs, only neutral terms that are equal to potential structs.  In the case of record types with eta, if there is a nonidentity insertion outside, then the type isn't actually a record type, *but* it still has an eta-rule since it is *isomorphic* to a record type!  Thus, instead of checking whether the insertion is the identity, we apply its inverse permutation to the terms being compared.  And because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the other data here. *)
+    | Canonical (_, Codata { eta = Eta; fields; ins; _ }, _) ->
+        let (Perm_to p) = perm_of_ins ins in
+        let pinv = deg_of_perm (perm_inv p) in
+        let x, y, ty = (act_value x pinv, act_value y pinv, gact_ty None ty pinv) in
+        (* Now we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particular field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This latter is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
         BwdM.miterM
           (fun [ (fld, _) ] ->
             equal_at ctx (field_term x fld) (field_term y fld) (tyof_field x ty fld))

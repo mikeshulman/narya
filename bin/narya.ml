@@ -177,11 +177,12 @@ let rec interact_pg () : unit =
     let holes = ref Emp in
     ( Global.HolePos.run ~init:Emp @@ fun () ->
       Reporter.try_with
+      (* ProofGeneral sets TERM=dumb, but in fact it can display ANSI colors, so we tell Asai to override TERM and use colors unconditionally. *)
         ~emit:(fun d ->
           match d.message with
           | Hole _ -> holes := Snoc (!holes, d.message)
-          | _ -> Terminal.display ~output:stdout d)
-        ~fatal:(fun d -> Terminal.display ~output:stdout d)
+          | _ -> Terminal.display ~use_ansi:true ~output:stdout d)
+        ~fatal:(fun d -> Terminal.display ~use_ansi:true ~output:stdout d)
         (fun () ->
           try
             do_command (Command.parse_single cmd);

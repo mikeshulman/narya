@@ -92,6 +92,12 @@ it won't try to duplicate our work."
 							 nil))
 					 narya-hole-overlays))))
 
+;; Use Asai's ANSI coloring of error messages
+(defun narya-insert-and-color-text (&rest args)
+	(let ((start (point)))
+		(apply 'insert args)
+		(ansi-color-apply-on-region start (point))))
+
 ;; Easy configuration
 (proof-easy-config 
  ;; The two names below should be the same as in proof-site.el
@@ -155,8 +161,10 @@ it won't try to duplicate our work."
 	 ;; Parsing output
 	 ;; The PG-mode prompt doesn't need to be human-readable or writeable, so we use formfeed characters to ensure no accidental collisions with ordinary output.
    proof-shell-annotated-prompt-regexp   "\x0C\\[narya\\]\x0C"
-   proof-shell-error-regexp              "^ ￫ \\(error\\|bug\\)"
+   proof-shell-error-regexp              "^ ￫ .*\\(error\\|bug\\)" ; the .* skips the ANSI color codes
 	 proof-shell-truncate-before-error     nil
+	 proof-script-color-error-messages     nil
+	 pg-insert-text-function               'narya-insert-and-color-text
 
 	 ;; interactive proof (TODO)
 	 ;proof-shell-proof-completed-regexp    ""

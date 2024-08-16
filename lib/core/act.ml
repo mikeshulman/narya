@@ -35,21 +35,21 @@ let act_cube : type a b m n. (a, b) actor -> (n, a) CubeOf.t -> (m, n) deg -> (m
 let forward_view_term : (kinetic value -> kinetic value) ref = ref (fun x -> x)
 
 module Act = struct
-  (* When acting on a cube of variables that's at least partially split up into normal variables, we have a problem if the degeneracy mixes up the dimensions that are normal with the dimensions that are cube.  We could get around this by storing an 'insertion' rather than a D.plus in a 'variables', but we wouldn't be able to *use* that usefully anywhere, since there's no way to create a partially-cube variable in syntax.  So instead, if the dimensions get mixed up we just give up the split and make it fully-cube using only the previous top variable.  *)
+  (* When acting on a cube of variables that's at least partially split up into ordinary variables, we have a problem if the degeneracy mixes up the dimensions that are ordinary with the dimensions that are cube.  We could get around this by storing an 'insertion' rather than a D.plus in a 'variables', but we wouldn't be able to *use* that usefully anywhere, since there's no way to create a partially-cube variable in syntax.  So instead, if the dimensions get mixed up we just give up the split and make it fully-cube using only the previous top variable.  *)
   let act_variables : type m n. n variables -> (m, n) deg -> m variables =
    fun (Variables (_, nk, vars)) s ->
     match deg_perm_of_plus nk s with
     | None_deg_perm_of_plus ->
         let m = dom_deg s in
         Variables (m, D.plus_zero m, NICubeOf.singleton (NICubeOf.find_top vars))
-    (* If the degeneracy doesn't mix up the normal and cube dimensions, it still might permute the normal ones.  I'm not positive that it makes sense to throw away the degeneracy part here and the permutation part below, but this is the best I can think of.  If it doesn't end up making sense, we may have to revert to making it fully-cube as above. *)
-    | Deg_perm_of_plus (mk, s, p) ->
+    (* If the degeneracy doesn't mix up the ordinary and cube dimensions, it still might permute the ordinary ones.  I'm not positive that it makes sense to throw away the degeneracy part here and the permutation part below, but this is the best I can think of.  If it doesn't end up making sense, we may have to revert to making it fully-cube as above. *)
+    | Deg_perm_of_plus (ml, s, p) ->
         let m = dom_deg s in
         let module Build = NICubeOf.Traverse (struct
           type 'acc t = unit
         end) in
         let (Wrap (vars, _)) =
-          Build.build_left (NICubeOf.dim vars)
+          Build.build_left (D.plus_right ml)
             {
               build =
                 (fun fa () ->
@@ -57,7 +57,7 @@ module Act = struct
                   Fwrap (NFamOf (NICubeOf.find vars fb), ()));
             }
             () in
-        Variables (m, mk, vars)
+        Variables (m, ml, vars)
 
   (* Acting on a binder and on other sorts of closures will be unified by the function 'act_closure', but its return value involves an existential type, so it has to be a GADT. *)
   type (_, _, _) act_closure =
@@ -176,7 +176,8 @@ module Act = struct
       type mn m n a kn. (m, a) env -> (mn, m, n) insertion -> (kn, mn) deg -> (a, kn, n) act_closure
       =
    fun env ins fa ->
-    let (Insfact (fc, ins)) = insfact (comp_deg (perm_of_ins ins) fa) (plus_of_ins ins) in
+    let (Plus mn) = D.plus (cod_right_ins ins) in
+    let (Insfact (fc, ins)) = insfact (comp_deg (deg_of_ins_plus ins mn) fa) mn in
     Act_closure (act_env env (op_of_deg fc), ins)
 
   and act_binder : type mn kn s. (mn, s) binder -> (kn, mn) deg -> (kn, s) binder =

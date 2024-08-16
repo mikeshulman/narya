@@ -46,6 +46,13 @@ let rec bplus : type a b. b t -> (a, b) has_bplus = function
       let (Bplus ab) = bplus b in
       Bplus (Suc ab)
 
+let rec suc_bplus_eq_suc : type a b ab. (a, b, ab) bplus -> (a N.suc, b, ab N.suc) bplus = function
+  | Zero -> Zero
+  | Suc ab -> Suc (suc_bplus_eq_suc ab)
+
+let bplus_suc_eq_suc : type a b ab. (a, b, ab) bplus -> (a, b suc, ab N.suc) bplus =
+ fun ab -> Suc (suc_bplus_eq_suc ab)
+
 (* We can also get a forwards one as the result.  This is the length-level analogue of prepending a backwards list on the front of a forwards one.  *)
 type (_, _, _) fplus =
   | Zero : (N.zero, 'a, 'a) fplus
@@ -109,6 +116,10 @@ let rec plus_uniq : type m n mn mn'. (m, n, mn) plus -> (m, n, mn') plus -> (mn,
       let Eq = plus_uniq mn mn' in
       Eq
 
+let rec suc_plus : type a b ab. (a, b suc, ab) plus -> (a suc, b, ab) plus = function
+  | Zero -> Suc Zero
+  | Suc ab -> Suc (suc_plus ab)
+
 let rec plus_assocl :
     type m n mn p np mnp.
     (m, n, mn) plus -> (n, p, np) plus -> (m, np, mnp) plus -> (mn, p, mnp) plus =
@@ -146,6 +157,15 @@ let rec plus_assocrr :
       let (Suc ab_c) = ab_c in
       let (Plus_assocrr (bc, a_bc)) = plus_assocrr ab ab_c in
       Plus_assocrr (bc, Suc a_bc)
+
+(* This associates with bplus and fplus too.  Here a is backwards, while b, c, ab, bc, and abc are forwards. *)
+let rec fbplus_assocl :
+    type a b ab c bc abc.
+    (a, b, ab) fplus -> (b, c, bc) plus -> (a, bc, abc) fplus -> (ab, c, abc) plus =
+ fun ab bc abc ->
+  match (ab, abc) with
+  | Zero, Zero -> bc
+  | Suc ab, Suc abc -> fbplus_assocl ab (Suc bc) abc
 
 (* Convert a backwards nat to a forwards one. *)
 type _ of_bwn = Of_bwn : 'a t * (N.zero, 'a, 'b) bplus -> 'b of_bwn

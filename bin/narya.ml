@@ -14,7 +14,7 @@ let reformat = ref false
 let verbose = ref false
 let compact = ref false
 let unicode = ref true
-let typecheck = ref true
+let execute = ref true
 let interactive = ref false
 let proofgeneral = ref false
 let arity = ref 2
@@ -23,6 +23,7 @@ let refl_strings = ref [ "refl"; "Id" ]
 let internal = ref true
 let discreteness = ref false
 let source_only = ref false
+let fake_interacts = ref Emp
 
 let set_refls str =
   match String.split_on_char ',' str with
@@ -44,7 +45,7 @@ let speclist =
     ("-e", Arg.String (fun str -> inputs := Snoc (!inputs, `String str)), "");
     ("-verbose", Arg.Set verbose, "Show verbose messages (also -v)");
     ("-v", Arg.Set verbose, "");
-    ("-no-check", Arg.Clear typecheck, "Don't typecheck and execute code (only parse it)");
+    ("-no-check", Arg.Clear execute, "Don't typecheck and execute code (only parse it)");
     ("-reformat", Arg.Set reformat, "Display reformatted code on stdout");
     ("-noncompact", Arg.Clear compact, "Reformat code noncompactly (default)");
     ("-compact", Arg.Set compact, "Reformat code compactly");
@@ -68,53 +69,22 @@ let speclist =
       "Abbreviation for -arity 1 -direction d -external" );
     ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Unit (fun () -> inputs := Snoc (!inputs, `Stdin)), "");
+    ("-fake-interact", Arg.String (fun str -> fake_interacts := Snoc (!fake_interacts, str)), "");
   ]
 
 let () =
   Arg.parse speclist anon_arg usage_msg;
-  if Bwd.is_empty !inputs && (not !interactive) && not !proofgeneral then (
+  if
+    Bwd.is_empty !inputs
+    && (not !interactive)
+    && (not !proofgeneral)
+    && Bwd.is_empty !fake_interacts
+  then (
     Printf.fprintf stderr "No input files specified\n";
     Arg.usage speclist usage_msg;
     exit 1)
 
 module Terminal = Asai.Tty.Make (Core.Reporter.Code)
-
-let rec batch first ws p src =
-  let cmd = Command.Parse.final p in
-  if cmd = Eof then if Eternity.unsolved () then Reporter.fatal Open_holes else ws
-  else (
-    if !typecheck then Parser.Command.execute cmd;
-    let ws =
-      if !reformat then (
-        let ws = if first then ws else Whitespace.ensure_starting_newlines 2 ws in
-        Print.pp_ws `None std_formatter ws;
-        Parser.Command.pp_command std_formatter cmd)
-      else [] in
-    let p, src = Command.Parse.restart_parse p src in
-    batch false ws p src)
-
-let execute init_visible compunit (source : Asai.Range.source) =
-  if !reformat then Format.open_vbox 0;
-  Units.run ~init_visible @@ fun () ->
-  let p, src = Command.Parse.start_parse source in
-  Compunit.Current.run ~env:compunit @@ fun () ->
-  Reporter.try_with
-    (fun () ->
-      let ws = batch true [] p src in
-      if !reformat then (
-        let ws = Whitespace.ensure_ending_newlines 2 ws in
-        Print.pp_ws `None std_formatter ws;
-        Format.close_box ()))
-    ~fatal:(fun d ->
-      match d.message with
-      | Quit _ ->
-          let src =
-            match source with
-            | `File name -> Some name
-            | `String { title; _ } -> title in
-          Reporter.emit (Quit src)
-      | _ -> Reporter.fatal_diagnostic d);
-  Scope.get_export ()
 
 let ( let* ) f o = Lwt.bind f o
 
@@ -125,6 +95,18 @@ class read_line terminal history prompt =
     method! show_box = false
     initializer self#set_prompt (S.const (eval [ B_underline true; S prompt; B_underline false ]))
   end
+
+let do_command = function
+  | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
+  | ws, Some cmd ->
+      if !execute then Execute.execute_command cmd;
+      let n = Eternity.unsolved () in
+      if n > 0 then Reporter.emit (Open_holes n);
+      Execute.reformat_maybe @@ fun ppf ->
+      Print.pp_ws `None ppf ws;
+      let last = Parser.Command.pp_command ppf cmd in
+      Print.pp_ws `None ppf last;
+      Format.pp_print_newline ppf ()
 
 let rec repl terminal history buf =
   let buf, prompt =
@@ -145,6 +127,7 @@ let rec repl terminal history buf =
       if str = "" then (
         let str = Buffer.contents buf in
         let* () = Lwt_io.flush Lwt_io.stdout in
+        (* In interactive mode, we display all messages verbosely, and don't quit on fatal errors except for the Quit command. *)
         Reporter.try_with
           ~emit:(fun d -> Terminal.display ~output:stdout d)
           ~fatal:(fun d ->
@@ -152,16 +135,7 @@ let rec repl terminal history buf =
             match d.message with
             | Quit _ -> exit 0
             | _ -> ())
-          (fun () ->
-            match Command.parse_single str with
-            | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
-            | ws, Some cmd ->
-                if !typecheck then Parser.Command.execute cmd;
-                if !reformat then (
-                  Print.pp_ws `None std_formatter ws;
-                  let last = Parser.Command.pp_command std_formatter cmd in
-                  Print.pp_ws `None std_formatter last;
-                  Format.pp_print_newline std_formatter ()));
+          (fun () -> do_command (Command.parse_single str));
         LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
       else (
@@ -188,24 +162,50 @@ let interact () =
           let* () = LTerm_history.save history history_file in
           Lwt.fail exn)
 
-let rec interact_pg () =
-  print_endline "[narya]";
+(* In ProofGeneral interaction mode, the prompt is delimited by formfeeds, and commands are ended by a formfeed on a line by itself.  This prevents any possibility of collision with other input or output. *)
+let rec interact_pg () : unit =
+  Format.printf "\x0C[narya]\x0C\n%!";
   try
-    let str = read_line () in
-    Reporter.try_with
-      ~emit:(fun d -> Terminal.display ~output:stdout d)
-      ~fatal:(fun d -> Terminal.display ~output:stdout d)
-      (fun () ->
-        match Command.parse_single str with
-        | ws, None -> if !reformat then Print.pp_ws `None std_formatter ws
-        | ws, Some cmd ->
-            if !typecheck then Parser.Command.execute cmd;
-            if !reformat then (
-              Print.pp_ws `None std_formatter ws;
-              let last = Parser.Command.pp_command std_formatter cmd in
-              Print.pp_ws `None std_formatter last));
+    let buf = Buffer.create 20 in
+    let str = ref "" in
+    while !str <> "\x0C\n" do
+      Buffer.add_string buf !str;
+      let line = read_line () in
+      str := if String.length line > 0 then line ^ "\n" else ""
+    done;
+    let cmd = Buffer.contents buf in
+    let holes = ref Emp in
+    ( Global.HolePos.run ~init:Emp @@ fun () ->
+      Reporter.try_with
+      (* ProofGeneral sets TERM=dumb, but in fact it can display ANSI colors, so we tell Asai to override TERM and use colors unconditionally. *)
+        ~emit:(fun d ->
+          match d.message with
+          | Hole _ -> holes := Snoc (!holes, d.message)
+          | _ -> Terminal.display ~use_ansi:true ~output:stdout d)
+        ~fatal:(fun d -> Terminal.display ~use_ansi:true ~output:stdout d)
+        (fun () ->
+          try
+            do_command (Command.parse_single cmd);
+            Format.printf "\x0C[goals]\x0C\n%!";
+            Mbwd.miter
+              (fun [ h ] ->
+                Reporter.Code.default_text h Format.std_formatter;
+                Format.printf "\n\n%!")
+              [ !holes ];
+            Format.printf "\x0C[data]\x0C\n%!";
+            Mbwd.miter
+              (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h s e)
+              [ Global.HolePos.get () ]
+          with Sys.Break -> Reporter.fatal Break) );
     interact_pg ()
   with End_of_file -> ()
+
+let fake_interact file =
+  let p, src = Parser.Command.Parse.start_parse (`File file) in
+  Reporter.try_with
+    ~emit:(fun d -> Terminal.display ~output:stdout d)
+    ~fatal:(fun d -> Terminal.display ~output:stdout d)
+    (fun () -> Execute.batch true [] p src)
 
 let marshal_flags chan =
   Marshal.to_channel chan !arity [];
@@ -231,10 +231,11 @@ let unmarshal_flags chan =
 
 let () =
   Parser.Unparse.install ();
-  Units.Flags.run ~env:{ marshal = marshal_flags; unmarshal = unmarshal_flags } @@ fun () ->
-  Eternity.run_empty @@ fun () ->
-  Global.run_empty @@ fun () ->
-  Builtins.run @@ fun () ->
+  Parser.Scope.Mod.run @@ fun () ->
+  History.run_empty @@ fun () ->
+  Eternity.run ~init:Eternity.empty @@ fun () ->
+  (* By default, we ignore the hole positions. *)
+  Global.HolePos.try_with ~get:(fun () -> Emp) ~set:(fun _ -> ()) @@ fun () ->
   Printconfig.run
     ~env:
       {
@@ -260,7 +261,6 @@ let () =
   Dim.Endpoints.set_names !refl_strings;
   Dim.Endpoints.set_internal !internal;
   (* The initial namespace for all compilation units. *)
-  let init = Parser.Pi.install Scope.Trie.empty in
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   let top_files =
     Bwd.fold_right
@@ -269,19 +269,43 @@ let () =
         | `File file -> FilePath.make_absolute (Sys.getcwd ()) file :: acc
         | _ -> acc)
       !inputs [] in
-  Units.with_execute !source_only top_files init execute @@ fun () ->
-  Mbwd.miter
-    (fun [ input ] ->
-      match input with
-      | `File filename -> Units.load_file filename
-      | `Stdin ->
-          let content = In_channel.input_all stdin in
-          Units.load_string (Some "stdin") content None
-      (* Command-line strings have all the previous units loaded without needing to 'require' them. *)
-      | `String content ->
-          Units.load_string (Some "command-line exec string") content (Some (Units.all ())))
-    [ !inputs ];
+  Execute.Flags.run
+    ~env:
+      {
+        marshal = marshal_flags;
+        unmarshal = unmarshal_flags;
+        execute = !execute;
+        source_only = !source_only;
+        init_visible = Parser.Pi.install Scope.Trie.empty;
+        top_files;
+        reformatter = (if !reformat then Some std_formatter else None);
+      }
+  @@ fun () ->
+  Execute.Loading.run ~init:{ cwd = Sys.getcwd (); parents = Emp; imports = Emp; actions = false }
+  @@ fun () ->
+  ( Core.Command.Mode.run ~env:{ interactive = false } @@ fun () ->
+    Mbwd.miter
+      (fun [ input ] ->
+        match input with
+        | `File filename ->
+            let _ = Execute.load_file filename true in
+            ()
+        | `Stdin ->
+            let content = In_channel.input_all stdin in
+            let _ = Execute.load_string (Some "stdin") content in
+            ()
+        (* Command-line strings have all the previous units loaded without needing to import them. *)
+        | `String content ->
+            let _ =
+              Execute.load_string ~init_visible:(Execute.get_all ())
+                (Some "command-line exec string") content in
+            ())
+      [ !inputs ] );
   (* Interactive mode also has all the other units loaded. *)
-  if !interactive then
-    Units.run ~init_visible:(Units.all ()) @@ fun () -> Lwt_main.run (interact ())
-  else if !proofgeneral then Units.run ~init_visible:(Units.all ()) @@ fun () -> interact_pg ()
+  History.set_visible (Execute.get_all ());
+  Core.Command.Mode.run ~env:{ interactive = true } @@ fun () ->
+  Mbwd.miter (fun [ file ] -> fake_interact file) [ !fake_interacts ];
+  if !interactive then Lwt_main.run (interact ())
+  else if !proofgeneral then (
+    Sys.catch_break true;
+    interact_pg ())

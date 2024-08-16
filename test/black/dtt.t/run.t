@@ -1,82 +1,82 @@
   $ narya -dtt -v sst.ny
    ￫ info[I0000]
-   ￮ Constant Gel defined
+   ￮ constant Gel defined
   
    ￫ info[I0000]
-   ￮ Constant SST defined
+   ￮ constant SST defined
   
    ￫ info[I0000]
-   ￮ Constant 0s defined
+   ￮ constant 0s defined
   
    ￫ info[I0000]
-   ￮ Constant 1s defined
+   ￮ constant 1s defined
   
    ￫ info[I0000]
-   ￮ Constant 2s defined
+   ￮ constant 2s defined
   
    ￫ info[I0000]
-   ￮ Constant 3s defined
+   ￮ constant 3s defined
   
    ￫ info[I0000]
-   ￮ Constant eq defined
+   ￮ constant eq defined
   
    ￫ info[I0000]
-   ￮ Constant Sing defined
+   ￮ constant Sing defined
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
   A
     : Type
   
    ￫ info[I0001]
-   ￮ Axiom a₀ assumed
+   ￮ axiom a₀ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₁ assumed
+   ￮ axiom a₁ assumed
   
   Gel A (y ↦ eq A a₀ y) a₁
     : Type
   
    ￫ info[I0001]
-   ￮ Axiom a₀₁ assumed
+   ￮ axiom a₀₁ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₂ assumed
+   ￮ axiom a₂ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₀₂ assumed
+   ￮ axiom a₀₂ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₁₂ assumed
+   ￮ axiom a₁₂ assumed
   
   Gel⁽ᵈ⁾ A (Gel A (y ↦ eq A a₀ y)) (y ↦ eq A a₁ y)
     (y ⤇ eq⁽ᵈ⁾ A (Gel A (y0 ↦ eq A a₀ y0)) a₁ a₀₁ y.0 y.1) a₂ a₀₂ a₁₂
     : Type
   
    ￫ info[I0001]
-   ￮ Axiom a₀₁₂ assumed
+   ￮ axiom a₀₁₂ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₃ assumed
+   ￮ axiom a₃ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₀₃ assumed
+   ￮ axiom a₀₃ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₁₃ assumed
+   ￮ axiom a₁₃ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₀₁₃ assumed
+   ￮ axiom a₀₁₃ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₂₃ assumed
+   ￮ axiom a₂₃ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₀₂₃ assumed
+   ￮ axiom a₀₂₃ assumed
   
    ￫ info[I0001]
-   ￮ Axiom a₁₂₃ assumed
+   ￮ axiom a₁₂₃ assumed
   
   Gel⁽ᵈᵈ⁾ A (Gel A (y ↦ eq A a₀ y)) (Gel A (y ↦ eq A a₁ y))
     (Gel⁽ᵈ⁾ A (Gel A (y ↦ eq A a₀ y)) (y ↦ eq A a₁ y)
@@ -91,68 +91,68 @@
     : Type
   
    ￫ info[I0000]
-   ￮ Constant sst.∅ defined
+   ￮ constant sst.∅ defined
   
    ￫ info[I0000]
-   ￮ Constant sst.𝟙 defined
+   ￮ constant sst.𝟙 defined
   
    ￫ info[I0000]
-   ￮ Constant sst.prod defined
+   ￮ constant sst.prod defined
   
    ￫ info[I0000]
-   ￮ Constant sst.Σ defined
+   ￮ constant sst.Σ defined
   
    ￫ info[I0000]
-   ￮ Constant sst.const defined
+   ￮ constant sst.const defined
   
    ￫ info[I0000]
-   ￮ Constant sst.sum defined
+   ￮ constant sst.sum defined
   
    ￫ info[I0000]
-   ￮ Constant ASST defined
+   ￮ constant ASST defined
   
    ￫ info[I0000]
-   ￮ Constant sst.pt defined
+   ￮ constant sst.pt defined
   
    ￫ info[I0000]
-   ￮ Constant sst.hom defined
+   ￮ constant sst.hom defined
   
    ￫ info[I0000]
-   ￮ Constant sst.id defined
+   ￮ constant sst.id defined
   
    ￫ info[I0000]
-   ￮ Constant sst.comp defined
+   ￮ constant sst.comp defined
   
    ￫ info[I0000]
-   ￮ Constant sst.abort defined
+   ￮ constant sst.abort defined
   
    ￫ info[I0000]
-   ￮ Constant sst.uniq defined
+   ￮ constant sst.uniq defined
   
    ￫ info[I0000]
-   ￮ Constant sst.pair defined
+   ￮ constant sst.pair defined
   
    ￫ info[I0000]
-   ￮ Constant sst.abortz defined
+   ￮ constant sst.abortz defined
   
    ￫ info[I0000]
-   ￮ Constant sst.const_abort defined
+   ￮ constant sst.const_abort defined
   
    ￫ info[I0000]
-   ￮ Constant sst.copair defined
+   ￮ constant sst.copair defined
   
   $ narya -arity 2 -direction p -external -v sct.ny
    ￫ info[I0000]
-   ￮ Constant SCT defined
+   ￮ constant SCT defined
   
    ￫ info[I0000]
-   ￮ Constant 0s defined
+   ￮ constant 0s defined
   
    ￫ info[I0000]
-   ￮ Constant 1s defined
+   ￮ constant 1s defined
   
    ￫ info[I0000]
-   ￮ Constant 2s defined
+   ￮ constant 2s defined
   
   $ narya -dtt -e "def foo (X:Type) : Type^(d) X := X^(d)"
    ￫ error[E0310]
@@ -171,7 +171,7 @@
   [1]
 
   $ narya -dtt mutual.ny
-   ￫ error[E3000]
-   ￮ there are open holes
+   ￫ error[E3002]
+   ￮ file $TESTCASE_ROOT/mutual.ny contains open holes
   
   [1]

@@ -27,8 +27,8 @@ let () =
       Terminal.display d;
       raise (Failure "Parse failure"))
   @@ fun () ->
-  State.run_on State.empty @@ fun () ->
-  State.Current.add ifthen;
+  Situation.run_on Situation.empty @@ fun () ->
+  Situation.Current.add ifthen;
   assert (parse "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 let () =
@@ -36,8 +36,8 @@ let () =
       Terminal.display d;
       raise (Failure "Parse failure"))
   @@ fun () ->
-  State.run_on State.empty @@ fun () ->
-  State.Current.add ifthenelse;
+  Situation.run_on Situation.empty @@ fun () ->
+  Situation.Current.add ifthenelse;
   assert (
     parse "if x then y else z"
     = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))
@@ -52,9 +52,9 @@ let () =
         Terminal.display d;
         raise (Failure "Unexpected error code")))
   @@ fun () ->
-  State.run_on State.empty @@ fun () ->
-  State.Current.add ifthen;
-  State.Current.add ifthenelse;
+  Situation.run_on Situation.empty @@ fun () ->
+  Situation.Current.add ifthen;
+  Situation.Current.add ifthenelse;
   assert (parse "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
@@ -72,9 +72,9 @@ let () =
       Terminal.display d;
       raise (Failure "Parse failure"))
   @@ fun () ->
-  State.run_on State.empty @@ fun () ->
-  State.Current.add ifthenelse;
-  State.Current.add ifthenelif;
+  Situation.run_on Situation.empty @@ fun () ->
+  Situation.Current.add ifthenelse;
+  Situation.Current.add ifthenelif;
   assert (
     parse "if x then y else z"
     = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]));

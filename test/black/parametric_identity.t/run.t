@@ -1,14 +1,14 @@
   $ narya -v parametric_identity.ny
    ￫ info[I0000]
-   ￮ Constant Gel defined
+   ￮ constant Gel defined
   
    ￫ info[I0000]
-   ￮ Constant eq defined
+   ￮ constant eq defined
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant f_is_id defined
+   ￮ constant f_is_id defined
   
 

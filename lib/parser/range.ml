@@ -10,6 +10,8 @@ end
 
 module S = Algaeff.Reader.Make (Data)
 
+let () = S.register_printer (function `Read -> Some "unhandled Range read effect")
+
 let convert_pos (src : source) pos =
   let start_of_line = Position.byte_offset_bol pos in
   (* It appears that fmlib lines are 0-indexed and Asai lines are 1-indexed *)

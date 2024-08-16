@@ -51,7 +51,7 @@ and fields : type s. formatter -> (Field.t, s lazy_eval * [ `Labeled | `Unlabele
             | `Unlabeled -> "`Unlabeled"
             | `Labeled -> "`Labeled")
       | _ ->
-          fprintf ppf "%a <: (%s, ?, %s)" fields flds (Field.to_string f)
+          fprintf ppf "%a <: (%s, (Deferred), %s)" fields flds (Field.to_string f)
             (match l with
             | `Unlabeled -> "`Unlabeled"
             | `Labeled -> "`Labeled"))
@@ -90,10 +90,11 @@ and head : formatter -> head -> unit =
   match h with
   | Var { level; _ } -> fprintf ppf "Var (%d,%d)" (fst level) (snd level)
   | Const { name; ins } ->
-      fprintf ppf "Const (%a, %s)" pp_printed (print (PConstant name))
-        (string_of_deg (perm_of_ins ins))
+      let (To p) = deg_of_ins ins in
+      fprintf ppf "Const (%a, %s)" pp_printed (print (PConstant name)) (string_of_deg p)
   | Meta { meta; env = _; ins } ->
-      fprintf ppf "Meta (%s, ?, %s)" (Meta.name meta) (string_of_deg (perm_of_ins ins))
+      let (To p) = deg_of_ins ins in
+      fprintf ppf "Meta (%s, ?, %s)" (Meta.name meta) (string_of_deg p)
 
 and binder : type b s. formatter -> (b, s) binder -> unit =
  fun ppf (Bind { env = e; ins = _; body }) -> fprintf ppf "Binder (%a, ?, %a)" env e term body
@@ -102,8 +103,8 @@ and env : type b n. formatter -> (n, b) Value.env -> unit =
  fun ppf e ->
   match e with
   | Emp d -> fprintf ppf "Emp %a" dim d
-  | Ext (e, _) -> fprintf ppf "%a <: ?" env e
-  | LazyExt (e, _) -> fprintf ppf "%a <: ?" env e
+  | Ext (e, _, _) -> fprintf ppf "%a <: ?" env e
+  | LazyExt (e, _, _) -> fprintf ppf "%a <: ?" env e
   | Act (e, Op (f, d)) -> fprintf ppf "%a <* (%s,%s)" env e (string_of_sface f) (string_of_deg d)
   | Permute (_, e) -> fprintf ppf "(%a) permuted(?)" env e
 

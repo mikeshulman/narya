@@ -2,27 +2,27 @@ Synthesizing definitions
 
   $ narya -v -e 'axiom A : Type' -e 'axiom f : A -> A' -e 'axiom a : A' -e 'def fa := f a'
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0001]
-   ￮ Axiom a assumed
+   ￮ axiom a assumed
   
    ￫ info[I0000]
-   ￮ Constant fa defined
+   ￮ constant fa defined
   
 
 Matches can also synthesize
 
   $ narya -v -e 'def bot : Type ≔ data [ ]' -e 'axiom P : bot → Type' -e 'def foo (e : bot) ≔ match e return x ↦ P x [ ]'
    ￫ info[I0000]
-   ￮ Constant bot defined
+   ￮ constant bot defined
   
    ￫ info[I0001]
-   ￮ Axiom P assumed
+   ￮ axiom P assumed
   
    ￫ info[I0000]
-   ￮ Constant foo defined
+   ￮ constant foo defined
   

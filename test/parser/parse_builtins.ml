@@ -173,19 +173,4 @@ let () =
             Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
             Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
             Term (Notn ("coloneq", [ Term (Ident [ "a" ]); Term (Ident [ "b" ]) ]));
-          ] ));
-
-  Testutil.Repl.(
-    def "prod" "Type → Type → Type" "A B ↦ sig (fst : A, snd : B)";
-    cmd ~quiet:true "notation 0 prod : A \"><\" B … ≔ prod A B");
-
-  assert (parse "A><B" = Notn ("prod", [ Term (Ident [ "A" ]); Term (Ident [ "B" ]) ]));
-
-  assert (
-    parse "A >< B >< C"
-    = Notn
-        ( "prod",
-          [
-            Term (Ident [ "A" ]);
-            Term (Notn ("prod", [ Term (Ident [ "B" ]); Term (Ident [ "C" ]) ]));
           ] ))

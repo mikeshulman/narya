@@ -23,6 +23,8 @@ module Raw = struct
     | UU : 'a synth
     (* A Let can either synthesize or (sometimes) check.  It synthesizes only if its body also synthesizes, but we wait until typechecking type to look for that, so that if it occurs in a checking context the body can also be checking.  Thus, we make it a "synthesizing term".  The term being bound must also synthesize; the shorthand notation "let x : A := M" is expanded during parsing to "let x := M : A". *)
     | Let : string option * 'a synth located * 'a N.suc check located -> 'a synth
+    (* Letrec has a telescope of types, so that each can depend on the previous ones, and an equal-length vector of bound terms, all in the context extended by all the variables being bound, plus a body that is also in that context. *)
+    | Letrec : ('a, 'b, 'ab) tel * ('ab check located, 'b) Vec.t * 'ab check located -> 'a synth
     (* An Act can also sometimes check, if its body checks and the degeneracy is a pure permutation.  But otherwise, it synthesizes and so must its body.  *)
     | Act : string * ('m, 'n) deg * 'a check located -> 'a synth
     (* A Match can also sometimes check, but synthesizes if it has an explicit return type or if it is nondependent and its first branch synthesizes. *)
@@ -50,8 +52,8 @@ module Raw = struct
     | Record :
         ('a, 'c, 'ac) Fwn.bplus located * (string option, 'c) Vec.t * ('ac, 'd, 'acd) tel * opacity
         -> 'a check
-    (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data. *)
-    | Hole : (string option, 'a) Bwv.t -> 'a check
+    (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data.  A hole also stores its source location so that proofgeneral can create an overlay at that place. *)
+    | Hole : (string option, 'a) Bwv.t * unit located -> 'a check
     (* Empty match against the first one of the arguments belonging to an empty type. *)
     | Refute : 'a synth located list * [ `Explicit | `Implicit ] -> 'a check
 
@@ -90,6 +92,10 @@ module Raw = struct
     match (ab, xs) with
     | Zero, [] -> tm
     | Suc ab, x :: xs -> { value = Lam (x, `Normal, lams ab xs tm loc); loc }
+
+  let rec bplus_of_tel : type a b c. (a, b, c) tel -> (a, b, c) Fwn.bplus = function
+    | Emp -> Zero
+    | Ext (_, _, tel) -> Suc (bplus_of_tel tel)
 end
 
 (* ******************** Names ******************** *)
@@ -129,8 +135,8 @@ module rec Term : sig
   type (_, _) term =
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
-    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
+    | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -191,7 +197,7 @@ module rec Term : sig
   and (_, _, _) env =
     | Emp : 'n D.t -> ('a, 'n, emp) env
     | Ext :
-        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
         -> ('a, 'n, ('b, 'k) snoc) env
 end = struct
   module CodFam = struct
@@ -207,9 +213,9 @@ end = struct
     (* Most term-formers only appear in kinetic (ordinary) terms. *)
     | Var : 'a index -> ('a, kinetic) term
     | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('a, 'l) Meta.t * 's energy -> ('a, 's) term
+    | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
     (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
-    | MetaEnv : ('b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
+    | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
     | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
@@ -220,7 +226,7 @@ end = struct
     | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
     | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
     | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
-    (* The term being bound in a 'let' is always kinetic.  Thus, if the supplied bound term is potential, the "bound term" here must be the metavariable whose value is set to that term rather than to the (potential) term itself. *)
+    (* The term being bound in a 'let' is always kinetic.  Thus, if the supplied bound term is potential, the "bound term" here must be the metavariable whose value is set to that term rather than to the (potential) term itself.  We don't need a term-level "letrec" since recursion is implemented in the typechecker by creating a new global metavariable. *)
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
@@ -272,7 +278,7 @@ end = struct
       }
         -> ('p, 'i) dataconstr
 
-  (* A telescope is a list of types, each dependent on the previous ones. *)
+  (* A telescope is a list of types, each dependent on the previous ones.  Note that 'a and 'ab are lists of dimensions, but 'b is just a forwards natural number counting the number of *zero-dimensional* variables added to 'a to get 'ab.  *)
   and ('a, 'b, 'ab) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
     | Ext :
@@ -283,7 +289,7 @@ end = struct
   and (_, _, _) env =
     | Emp : 'n D.t -> ('a, 'n, emp) env
     | Ext :
-        ('a, 'n, 'b) env * ('k, ('n, ('a, kinetic) term) CubeOf.t) CubeOf.t
+        ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
         -> ('a, 'n, ('b, 'k) snoc) env
 end
 
@@ -322,11 +328,15 @@ module Telescope = struct
     match doms with
     | Emp -> body
     | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
+
+  let rec snocs : type a b ab. (a, b, ab) t -> (a, b, D.zero, ab) Tbwd.snocs = function
+    | Emp -> Zero
+    | Ext (_, _, tel) -> Suc (snocs tel)
 end
 
 let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
   | Emp n -> n
-  | Ext (e, _) -> dim_term_env e
+  | Ext (e, _, _) -> dim_term_env e
 
 (* ******************** Values ******************** *)
 
@@ -347,7 +357,12 @@ module rec Value : sig
   type head =
     | Var : { level : level; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
-    | Meta : { meta : ('b, 's) Meta.t; env : ('m, 'b) env; ins : ('mn, 'm, 'n) insertion } -> head
+    | Meta : {
+        meta : ('a, 'b, 's) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> head
 
   and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
   and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
@@ -420,9 +435,11 @@ module rec Value : sig
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
     | LazyExt :
-        ('n, 'b) env * ('k, ('n, kinetic lazy_eval) CubeOf.t) CubeOf.t
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic lazy_eval) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
-    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
+    | Ext :
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic value) CubeOf.t
+        -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 
@@ -449,7 +466,12 @@ end = struct
     (* A constant also stores a dimension that it is substituted to and a neutral insertion applied to it.  Many constants are zero-dimensional, meaning that 'c' is zero, and hence a=b is just a dimension and the insertion is trivial.  The dimension of a constant is its dimension as a term standing on its own; so in particular if it has any parameters, then it belongs to an ordinary, 0-dimensional, pi-type and therefore is 0-dimensional, even if the eventual codomain of the pi-type is higher-dimensional.  Note also that when nonidentity insertions end up getting stored here, e.g. by Act, the dimension 'c gets extended as necessary; so it is always okay to create a constant with the (0,0,0) insertion to start with, even if you don't know what its actual dimension is. *)
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
     (* A metavariable (i.e. flexible) head stores the metavariable along with a delayed substitution applied to it. *)
-    | Meta : { meta : ('b, 's) Meta.t; env : ('m, 'b) env; ins : ('mn, 'm, 'n) insertion } -> head
+    | Meta : {
+        meta : ('a, 'b, 's) Meta.t;
+        env : ('m, 'b) env;
+        ins : ('mn, 'm, 'n) insertion;
+      }
+        -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
   and 'n arg =
@@ -554,11 +576,13 @@ end = struct
   (* An "environment" is a context morphism *from* a De Bruijn LEVEL context *to* a (typechecked) De Bruijn INDEX context.  Specifically, an ('n, 'a) env is an 'n-dimensional substitution from a level context to an index context indexed by the hctx 'a.  Since the index context could have some variables that are labeled by integers together with faces, the values also have to allow that. *)
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
-    (* Here the k-cube denotes a "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, while each of them has an n-cube of values representing a value and its boundaries. *)
+    (* The (n+k)-cube here is morally a k-cube of n-cubes, representing a k-dimensional "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, each of which has an n-cube of values representing a value and its boundaries.  But this contains the same data as an (n+k)-cube since a strict face of (n+k) decomposes uniquely as a strict face of n plus a strict face of k, and it seems to be more convenient to store it as a single (n+k)-cube. *)
     | LazyExt :
-        ('n, 'b) env * ('k, ('n, kinetic lazy_eval) CubeOf.t) CubeOf.t
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic lazy_eval) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
-    | Ext : ('n, 'b) env * ('k, ('n, kinetic value) CubeOf.t) CubeOf.t -> ('n, ('b, 'k) snoc) env
+    | Ext :
+        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic value) CubeOf.t
+        -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
 
@@ -580,8 +604,8 @@ type any_canonical = Any : 'm canonical -> any_canonical
 (* Every context morphism has a valid dimension. *)
 let rec dim_env : type n b. (n, b) env -> n D.t = function
   | Emp n -> n
-  | Ext (e, _) -> dim_env e
-  | LazyExt (e, _) -> dim_env e
+  | Ext (e, _, _) -> dim_env e
+  | LazyExt (e, _, _) -> dim_env e
   | Act (_, op) -> dom_op op
   | Permute (_, e) -> dim_env e
 
@@ -592,6 +616,14 @@ let dim_binder : type m s. (m, s) binder -> m D.t = function
 let dim_canonical : type m. m canonical -> m D.t = function
   | Data { dim; _ } -> dim
   | Codata { ins; _ } -> dom_ins ins
+
+(* The length of an environment is a tbwd of dimensions. *)
+let rec length_env : type n b. (n, b) env -> b Plusmap.OfDom.t = function
+  | Emp _ -> Of_emp
+  | Ext (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
+  | LazyExt (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
+  | Act (env, _) -> length_env env
+  | Permute (p, env) -> Plusmap.OfDom.permute p (length_env env)
 
 (* Smart constructor that composes actions and cancels identities *)
 let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
@@ -649,13 +681,13 @@ let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a)
   match (env, v) with
   | Emp _, _ -> .
   | Act (env, op), _ -> Act (remove_env env v, op)
-  | Permute (p, env), v ->
+  | Permute (p, env), _ ->
       let (Permute_insert (v', p')) = Tbwd.permute_insert v p in
       Permute (p', remove_env env v')
-  | Ext (env, xs), Later v -> Ext (remove_env env v, xs)
-  | LazyExt (env, xs), Later v -> LazyExt (remove_env env v, xs)
-  | Ext (env, _), Now -> env
-  | LazyExt (env, _), Now -> env
+  | Ext (env, nk, xs), Later v -> Ext (remove_env env v, nk, xs)
+  | LazyExt (env, nk, xs), Later v -> LazyExt (remove_env env v, nk, xs)
+  | Ext (env, _, _), Now -> env
+  | LazyExt (env, _, _), Now -> env
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
 let rec universe : type n. n D.t -> kinetic value = fun n -> Uninst (UU n, lazy (universe_ty n))
@@ -679,10 +711,8 @@ and universe_ty : type n. n D.t -> kinetic value =
 (* Whether the -discreteness flag is on globally *)
 module Discreteness = Algaeff.Reader.Make (Bool)
 
-(* Which constants currently being defined are discrete.  The *keys* of the map are *all* the constants currently being defined, while the *values* of the map indicate whether we have *already decided* that that constant is discrete.  *)
-module Discrete = Algaeff.State.Make (struct
-  type t = bool Constant.Map.t
-end)
+let () =
+  Discreteness.register_printer (function `Read -> Some "unhandled Discreteness.read effect")
 
 (* Glued evaluation is basically implemented, but currently disabled because it is very slow -- too much memory allocation, and OCaml 5 doesn't have memory profiling tools available yet to debug it.  So we disable it globally with this flag.  But all the regular tests pass with the flag enabled, and should continue to be run and to pass, so that once we are able to debug it it is still otherwise working. *)
 module GluedEval = struct

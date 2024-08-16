@@ -46,16 +46,16 @@ There are no discrete datatypes if discreteness is off:
 
   $ narya -source-only -v -arity 1 -direction d natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
-   ￮ Constant ℕ defined
+   ￮ constant ℕ defined
   
    ￫ info[I0001]
-   ￮ Axiom n assumed
+   ￮ axiom n assumed
   
    ￫ info[I0000]
-   ￮ Constant T defined
+   ￮ constant T defined
   
    ￫ info[I0000]
-   ￮ Constant Jd defined
+   ￮ constant Jd defined
   
    ￫ error[E1003]
    ￭ command-line exec string
@@ -76,10 +76,10 @@ Discrete datatypes are not themselves propositions:
 
   $ narya -source-only -v -arity 1 -direction d -discreteness nat.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
-   ￮ Constant T defined (discrete)
+   ￮ constant T defined (discrete)
   
    ￫ info[I0000]
-   ￮ Constant Jd defined
+   ￮ constant Jd defined
   
    ￫ error[E1003]
    ￭ command-line exec string
@@ -102,22 +102,22 @@ But their degenerate versions are:
 
   $ narya -source-only -v -arity 1 -direction d -discreteness natd.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
-   ￮ Constant ℕ defined (discrete)
+   ￮ constant ℕ defined (discrete)
   
    ￫ info[I0001]
-   ￮ Axiom n assumed
+   ￮ axiom n assumed
   
    ￫ info[I0000]
-   ￮ Constant T defined
+   ￮ constant T defined
   
    ￫ info[I0000]
-   ￮ Constant Jd defined
+   ￮ constant Jd defined
   
    ￫ info[I0000]
-   ￮ Constant test defined
+   ￮ constant test defined
   
 
-Non-discrete datatypes are not discrete:
+Datatypes with parameters are not discrete:
 
   $ cat >param.ny <<EOF
   > def List (A:Type) : Type ≔ data [ nil. | cons. (_:A) (_:List A) ]
@@ -127,19 +127,19 @@ Non-discrete datatypes are not discrete:
 
   $ narya -source-only -v -arity 1 -direction d -discreteness param.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
-   ￮ Constant List defined
+   ￮ constant List defined
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom l assumed
+   ￮ axiom l assumed
   
    ￫ info[I0000]
-   ￮ Constant T defined
+   ￮ constant T defined
   
    ￫ info[I0000]
-   ￮ Constant Jd defined
+   ￮ constant Jd defined
   
    ￫ error[E1003]
    ￭ command-line exec string
@@ -151,6 +151,44 @@ Non-discrete datatypes are not discrete:
        of datatype instance
   
   [1]
+
+Even trivial parameters:
+
+  $ cat >param2.ny <<EOF
+  > def param_empty (A:Type) : Type ≔ data [ ]
+  > axiom A : Type
+  > axiom l : param_empty A
+  > def T ≔ (param_empty A)⁽ᵈ⁾ l
+
+  $ narya -source-only -v -arity 1 -direction d -discreteness param2.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+   ￫ info[I0000]
+   ￮ constant param_empty defined
+  
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ axiom l assumed
+  
+   ￫ info[I0000]
+   ￮ constant T defined
+  
+   ￫ info[I0000]
+   ￮ constant Jd defined
+  
+   ￫ error[E1003]
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+     ^ index
+         t1
+       of constructor application doesn't match the corresponding index
+         t2
+       of datatype instance
+  
+  [1]
+
+
+Datatypes with indices are not discrete:
 
   $ cat >index.ny <<EOF
   > def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]
@@ -161,22 +199,22 @@ Non-discrete datatypes are not discrete:
 
   $ narya -source-only -v -arity 1 -direction d -discreteness index.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
-   ￮ Constant ℕ defined (discrete)
+   ￮ constant ℕ defined (discrete)
   
    ￫ info[I0000]
-   ￮ Constant iszero defined
+   ￮ constant iszero defined
   
    ￫ info[I0001]
-   ￮ Axiom n assumed
+   ￮ axiom n assumed
   
    ￫ info[I0001]
-   ￮ Axiom z assumed
+   ￮ axiom z assumed
   
    ￫ info[I0000]
-   ￮ Constant T defined
+   ￮ constant T defined
   
    ￫ info[I0000]
-   ￮ Constant Jd defined
+   ￮ constant Jd defined
   
    ￫ error[E1003]
    ￭ command-line exec string
@@ -188,6 +226,48 @@ Non-discrete datatypes are not discrete:
        of datatype instance
   
   [1]
+
+Even trivial indices:
+
+  $ cat >index2.ny <<EOF
+  > axiom N : Type
+  > axiom n : N
+  > def index_unit : N → Type ≔ data [ foo. : index_unit n ]
+  > axiom z : index_unit n
+  > def T ≔ (index_unit n)⁽ᵈ⁾ z
+
+  $ narya -source-only -v -arity 1 -direction d -discreteness index2.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+   ￫ info[I0001]
+   ￮ axiom N assumed
+  
+   ￫ info[I0001]
+   ￮ axiom n assumed
+  
+   ￫ info[I0000]
+   ￮ constant index_unit defined
+  
+   ￫ info[I0001]
+   ￮ axiom z assumed
+  
+   ￫ info[I0000]
+   ￮ constant T defined
+  
+   ￫ info[I0000]
+   ￮ constant Jd defined
+  
+   ￫ error[E1003]
+   ￭ command-line exec string
+   1 | def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.
+     ^ index
+         t1
+       of constructor application doesn't match the corresponding index
+         t2
+       of datatype instance
+  
+  [1]
+
+
+Datatypes with constructors having non-discrete arguments are not discrete:
 
   $ cat >constr.ny <<EOF
   > def foo : Type ≔ data [ foo. (_:Type) ]
@@ -196,16 +276,16 @@ Non-discrete datatypes are not discrete:
 
   $ narya -source-only -v -arity 1 -direction d -discreteness constr.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
-   ￮ Constant foo defined
+   ￮ constant foo defined
   
    ￫ info[I0001]
-   ￮ Axiom f assumed
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ Constant T defined
+   ￮ constant T defined
   
    ￫ info[I0000]
-   ￮ Constant Jd defined
+   ￮ constant Jd defined
   
    ￫ error[E1003]
    ￭ command-line exec string
@@ -217,6 +297,9 @@ Non-discrete datatypes are not discrete:
        of datatype instance
   
   [1]
+
+
+Mutually defined datatypes are not discrete:
 
   $ cat >mutual.ny <<EOF
   > def even : Type ≔ data [ zero. | suc. (_ : odd) ]
@@ -227,18 +310,18 @@ Non-discrete datatypes are not discrete:
 
   $ narya -source-only -v -arity 1 -direction d -discreteness mutual.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
    ￫ info[I0000]
-   ￮ Constants defined mutually:
+   ￮ constants defined mutually:
        even
        odd
   
    ￫ info[I0001]
-   ￮ Axiom e assumed
+   ￮ axiom e assumed
   
    ￫ info[I0000]
-   ￮ Constant T defined
+   ￮ constant T defined
   
    ￫ info[I0000]
-   ￮ Constant Jd defined
+   ￮ constant Jd defined
   
    ￫ error[E1003]
    ￭ command-line exec string
@@ -251,16 +334,45 @@ Non-discrete datatypes are not discrete:
   
   [1]
 
+But trivially mutually datatypes can be:
+
+  $ cat >mutual2.ny <<EOF
+  > def empty : Type ≔ data [ ]
+  > and unit : Type ≔ data [ ]
+  > axiom e : unit
+  > def T ≔ unit⁽ᵈ⁾ e
+  > EOF
+
+  $ narya -source-only -v -arity 1 -direction d -discreteness mutual2.ny jd.ny -e 'def test (t1 : T) (t2 : T) : Jd T t1 t2 ≔ rfl.'
+   ￫ info[I0000]
+   ￮ constants defined mutually:
+       empty (discrete)
+       unit (discrete)
+  
+   ￫ info[I0001]
+   ￮ axiom e assumed
+  
+   ￫ info[I0000]
+   ￮ constant T defined
+  
+   ￫ info[I0000]
+   ￮ constant Jd defined
+  
+   ￫ info[I0000]
+   ￮ constant test defined
+  
+
+
 Some other discrete types:
 
   $ narya -source-only -v -arity 1 -direction d -discreteness -e 'def ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ]' -e 'def ℤ : Type ≔ data [ zero. | suc. (_:ℕ) | negsuc. (_:ℕ) ]' -e 'def btree : Type ≔ data [ leaf. | node. (_:btree) (_:btree) ]'
    ￫ info[I0000]
-   ￮ Constant ℕ defined (discrete)
+   ￮ constant ℕ defined (discrete)
   
    ￫ info[I0000]
-   ￮ Constant ℤ defined (discrete)
+   ￮ constant ℤ defined (discrete)
   
    ￫ info[I0000]
-   ￮ Constant btree defined (discrete)
+   ￮ constant btree defined (discrete)
   
 

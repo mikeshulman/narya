@@ -3,8 +3,6 @@ module Dmap = Util.Nmap
 
 type dim_wrapped = Wrap : 'n D.t -> dim_wrapped
 
-let to_int = D.to_int
-
 let is_pos : type n. n D.t -> bool = function
   | Nat Zero -> false
   | Nat (Suc _) -> true
@@ -12,6 +10,7 @@ let is_pos : type n. n D.t -> bool = function
 module Endpoints = Endpoints
 include Arith
 include Deg
+include Perm
 include Sface
 include Bwsface
 include Cube
@@ -22,6 +21,14 @@ include Icube
 include Face
 include Op
 include Insertion
+module Plusmap = Plusmap
+
+type any_dim = Any : 'n D.t -> any_dim
+
+let dim_of_string : string -> any_dim option =
+ fun str -> Option.map (fun (Deg.Any s) -> Any (dom_deg s)) (deg_of_string str)
+
+let string_of_dim : type n. n D.t -> string = fun n -> string_of_deg (deg_zero n)
 
 (* ********** Special generators ********** *)
 
@@ -32,7 +39,7 @@ let refl : (one, D.zero) deg = Zero D.one
 
 type two = D.two
 
-let sym : (two, two) deg = Suc (Suc (Zero D.zero, Top), Pop Top)
+let sym : (two, two) deg = Suc (Suc (Zero D.zero, Now), Later Now)
 
 type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
 
@@ -49,5 +56,5 @@ let name_of_deg : type a b. (a, b) deg -> string option = function
       match Endpoints.refl_names () with
       | [] -> None
       | name :: _ -> Some name)
-  | Suc (Suc (Zero (Nat Zero), Top), Pop Top) -> Some "sym"
+  | Suc (Suc (Zero (Nat Zero), Now), Later Now) -> Some "sym"
   | _ -> None

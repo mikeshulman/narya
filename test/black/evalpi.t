@@ -9,19 +9,19 @@
 
   $ narya -v test.ny
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
    ￫ info[I0000]
-   ￮ Constant a2' defined
+   ￮ constant a2' defined
   
   y ⤇ y.2
     : refl Π A A (refl A) (_ ↦ A) (_ ↦ A) (_ ⤇ refl A) (y ↦ y) (y ↦ y)

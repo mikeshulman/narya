@@ -1,112 +1,112 @@
   $ narya -v churchnat_uniqueness.ny
    ￫ info[I0000]
-   ￮ Constant prod defined
+   ￮ constant prod defined
   
    ￫ info[I0002]
-   ￮ Notation prod defined
+   ￮ notation prod defined
   
    ￫ info[I0000]
-   ￮ Constant Σ defined
+   ￮ constant Σ defined
   
    ￫ info[I0000]
-   ￮ Constant Gel defined
+   ￮ constant Gel defined
   
    ￫ info[I0000]
-   ￮ Constant eq defined
+   ￮ constant eq defined
   
    ￫ info[I0000]
-   ￮ Constant eqr defined
+   ￮ constant eqr defined
   
    ￫ info[I0000]
-   ￮ Constant cong defined
+   ￮ constant cong defined
   
    ￫ info[I0000]
-   ￮ Constant trans defined
+   ￮ constant trans defined
   
    ￫ info[I0000]
-   ￮ Constant rev defined
+   ￮ constant rev defined
   
    ￫ info[I0000]
-   ￮ Constant tr defined
+   ￮ constant tr defined
   
    ￫ info[I0000]
-   ￮ Constant cnat defined
+   ￮ constant cnat defined
   
    ￫ info[I0000]
-   ￮ Constant czero defined
+   ￮ constant czero defined
   
    ￫ info[I0000]
-   ￮ Constant csuc defined
+   ￮ constant csuc defined
   
    ￫ info[I0000]
-   ￮ Constant cone defined
+   ￮ constant cone defined
   
    ￫ info[I0000]
-   ￮ Constant ite defined
+   ￮ constant ite defined
   
    ￫ info[I0001]
-   ￮ Axiom cnatfunext assumed
+   ￮ axiom cnatfunext assumed
   
    ￫ info[I0000]
-   ￮ Constant itecnat defined
+   ￮ constant itecnat defined
   
    ￫ info[I0000]
-   ￮ Constant itenn defined
+   ￮ constant itenn defined
   
    ￫ info[I0000]
-   ￮ Constant uniq defined
+   ￮ constant uniq defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_rec defined
+   ￮ constant cnat_rec defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_ind defined
+   ￮ constant cnat_ind defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_add defined
+   ￮ constant cnat_add defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_add_assoc defined
+   ￮ constant cnat_add_assoc defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_right_add_zero defined
+   ￮ constant cnat_right_add_zero defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_left_add_zero defined
+   ￮ constant cnat_left_add_zero defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_add_succ defined
+   ￮ constant cnat_add_succ defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_add_comm defined
+   ￮ constant cnat_add_comm defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_mul defined
+   ￮ constant cnat_mul defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_right_mul_zero defined
+   ￮ constant cnat_right_mul_zero defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_left_mul_zero defined
+   ￮ constant cnat_left_mul_zero defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_right_mul_one defined
+   ￮ constant cnat_right_mul_one defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_left_mul_one defined
+   ￮ constant cnat_left_mul_one defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_mul_succ defined
+   ￮ constant cnat_mul_succ defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_mul_comm defined
+   ￮ constant cnat_mul_comm defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_left_distr_mul_add defined
+   ￮ constant cnat_left_distr_mul_add defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_right_distr_mul_add defined
+   ￮ constant cnat_right_distr_mul_add defined
   
    ￫ info[I0000]
-   ￮ Constant cnat_mul_assoc defined
+   ￮ constant cnat_mul_assoc defined
   

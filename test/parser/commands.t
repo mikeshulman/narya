@@ -42,6 +42,7 @@ Can we parse empty things?
 Redefining commands
 
   $ narya -e 'axiom A:Type' -e 'axiom A:Type'
-   ￫ warning[E2100]
+   ￫ error[E2100]
    ￮ name already defined: A
   
+  [1]

@@ -15,6 +15,7 @@ open Equal
 open Readback
 open Printable
 open Asai.Range
+include Status
 
 let discard : type a. a -> unit = fun _ -> ()
 
@@ -137,41 +138,11 @@ let spine :
     | _ -> (tm, locs, args) in
   spine tm [] []
 
-(* When checking a case tree (a "potential" term), we have to retain some information about the definition being checked.  Specifically, we remember:
-   1. The name of the top-level constant being defined.
-   2. The arguments that it has been applied to so far at this point in the case tree.  These all start out as variables, but after checking matches some of them get substituted by constructor expressions.
-   3. A "hypothesizing" callback that allows us to say "if I were to return such-and-such a term from my current typechecking problem, what would the resulting definition of the top-level constant be?"  This is used when typechecking comatches and codata (and, potentially one day, matches and data as well, such as for HITs) whose later branches depend on the *values* of previous ones.  So as we typecheck the branches of such a thing, we collect a partial definition including all the branches that have been typechecked so far, and temporarily bind the constant to that value while typechecking later branches.  And in order that this is correct, whenever we pass *inside* a case tree construct (lambda, match, or comatch) we wrap the outer callback in an inner one that inserts the correct construct to the hypothesized term.  (It's tempting to think of implementing this with algebraic effects rather than an explicit callback, but I found the purely functional version easier to get correct, even if it does involve passing around more arguments.)
-
-   We parametrize this "status" datatype over the energy of the term (kinetic or potential), since only potential terms have any status to remember.  This implies that status also serves the purpose of recording which kind of term we are checking, so we don't need to pass that around separately. *)
-type _ potential_head =
-  | Constant : Constant.t -> emp potential_head
-  | Meta : ('a, potential) Meta.t * (D.zero, 'a) env -> 'a potential_head
-
-let head_of_potential : type a s. a potential_head -> Value.head = function
-  | Constant name -> Const { name; ins = ins_zero D.zero }
-  | Meta (meta, env) -> Meta { meta; env; ins = ins_zero D.zero }
-
-type (_, _) status =
-  | Kinetic : [ `Let | `Nolet ] -> ('b, kinetic) status
-  | Potential :
-      'a potential_head * app Bwd.t * (('b, potential) term -> ('a, potential) term)
-      -> ('b, potential) status
-
 let run_with_definition : type a s c. a potential_head -> (a, potential) term -> (unit -> c) -> c =
  fun head tm f ->
   match head with
-  | Constant c -> Global.run_with_definition c (Defined tm) f
-  | Meta (m, _) -> Global.run_with_meta_definition m (`Nonrec tm) f
-
-let energy : type b s. (b, s) status -> s energy = function
-  | Kinetic _ -> Kinetic
-  | Potential _ -> Potential
-
-let realize : type b s. (b, s) status -> (b, kinetic) term -> (b, s) term =
- fun status tm ->
-  match status with
-  | Potential _ -> Realize tm
-  | Kinetic _ -> tm
+  | Constant c -> Global.with_definition c (Global.Defined tm) f
+  | Meta (m, _) -> Global.with_meta_definition m tm f
 
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
@@ -222,8 +193,18 @@ let merge_branches head user_branches data_constrs =
 exception Case_tree_construct_in_let
 
 (* The output of checking a telescope includes an extended context. *)
-type (_, _) checked_tel =
-  | Checked_tel : ('b, 'd, 'bd) Telescope.t * ('ac, 'bd) Ctx.t -> ('ac, 'b) checked_tel
+type (_, _, _, _) checked_tel =
+  | Checked_tel : ('b, 'c, 'bc) Telescope.t * ('ac, 'bc) Ctx.t -> ('a, 'b, 'c, 'ac) checked_tel
+
+(* TODO *)
+type (_, _, _) meta_tel =
+  | Nil : ('b, Fwn.zero, 'b) meta_tel
+  | Ext :
+      string option * ('a, 'b, potential) Meta.t * (('b, D.zero) snoc, 'c, 'bc) meta_tel
+      -> ('b, 'c Fwn.suc, 'bc) meta_tel
+
+(* TODO *)
+type _ ctx_of_raw = Ctx_of_raw : ('a, 'b) Ctx.t -> 'a ctx_of_raw
 
 (* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential). *)
 let rec check :
@@ -237,21 +218,21 @@ let rec check :
   | Synth (Let (x, v, body)), _ ->
       let clet, Not_some = synth_or_check_let status ctx x v body (Some ty) in
       clet
+  | Synth (Letrec (vtys, vs, body)), _ ->
+      let clet, Not_some = synth_or_check_letrec status ctx vtys vs body (Some ty) in
+      clet
   (* An action can always synthesize, but can also check if its degeneracy is a pure permutation, since then the type of the argument can be inferred by applying the inverse permutation to the ambient type. *)
   | Synth (Act (str, fa, x) as stm), _ -> (
-      (* TODO: Once we have multiple directions, this will need to be more sophisticated. *)
-      match D.compare (dom_deg fa) (cod_deg fa) with
-      | Neq -> check_of_synth status ctx stm tm.loc ty
-      | Eq ->
-          let fainv = perm_inv fa in
+      match perm_of_deg fa with
+      | None -> check_of_synth status ctx stm tm.loc ty
+      | Some fa ->
+          let fa, fainv = (deg_of_perm fa, deg_of_perm (perm_inv fa)) in
           let ty_fainv =
             gact_ty None ty fainv ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa))
           in
-          let cx =
-            (* A pure permutation shouldn't ever be locking, but we may as well keep this here for consistency.  *)
-            if locking fa then
-              Global.run_locked (fun () -> check (Kinetic `Nolet) (Ctx.lock ctx) x ty_fainv)
-            else check (Kinetic `Nolet) ctx x ty_fainv in
+          (* A pure permutation shouldn't ever be locking, but we may as well keep this here for consistency.  *)
+          let ctx = if locking fa then Ctx.lock ctx else ctx in
+          let cx = check (Kinetic `Nolet) ctx x ty_fainv in
           realize status (Term.Act (cx, fa)))
   | Lam ({ value = x; _ }, cube, body), _ -> (
       match view_type ~severity ty "typechecking lambda" with
@@ -308,13 +289,13 @@ let rec check :
       match view_type ~severity ty "typechecking comatch" with
       (* We don't need to name the arguments here because tyof_field, called below from check_field, uses them. *)
       | Canonical (name, Codata { eta = Noeta; ins; fields; _ }, _) ->
-          let () = is_id_ins ins <|> Comatching_at_degenerated_codata (phead name) in
+          let _ = is_id_ins ins <|> Comatching_at_degenerated_codata (phead name) in
           check_struct status Noeta ctx tms ty (cod_left_ins ins) fields
       | _ -> fatal (Comatching_at_noncodata (PVal (ctx, ty))))
   | Struct (Eta, tms), _ -> (
       match view_type ~severity ty "typechecking tuple" with
       | Canonical (name, Codata { eta = Eta; ins; fields; _ }, _) ->
-          is_id_ins ins <|> Checking_tuple_at_degenerated_record (phead name);
+          let _ = is_id_ins ins <|> Checking_tuple_at_degenerated_record (phead name) in
           check_struct status Eta ctx tms ty (cod_left_ins ins) fields
       | _ -> fatal (Checking_tuple_at_nonrecord (PVal (ctx, ty))))
   | Constr ({ value = constr; loc = constr_loc }, args), _ -> (
@@ -407,15 +388,15 @@ let rec check :
           let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
           check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields
       | _ -> fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty))))
-  | Data constrs, Potential (_, args, _) ->
+  | Data constrs, Potential (head, args, _) ->
       (* For a datatype, the type to check against might not be a universe, it could include indices. *)
       let (Wrap num_indices) = Fwn.of_int (typefam ctx ty) in
-      (* If discreteness is on, then a datatype with no parameters or indices can be discrete.  (This is just a starting point; the arguments of all the constructors are also required to be either discrete or simply recursive.) *)
+      (* If discreteness is on, then a global-constant datatype with no parameters or indices can be discrete.  (This is just a starting point; the arguments of all the constructors are also required to be either discrete or simply recursive.) *)
       let discrete =
         Discreteness.read ()
         &&
-        match (num_indices, args) with
-        | Zero, Emp -> true
+        match (head, num_indices, args) with
+        | Constant _, Zero, Emp -> true
         | _ -> false in
       check_data status ctx ty num_indices Abwd.empty (Bwd.to_list constrs) ~discrete
   (* If we have a term that's not valid outside a case tree, we bind it to a global metavariable. *)
@@ -426,15 +407,13 @@ let rec check :
   | Record _, Kinetic l -> kinetic_of_potential l ctx tm ty "sig"
   | Data _, Kinetic l -> kinetic_of_potential l ctx tm ty "data"
   (* If the user left a hole, we create an eternal metavariable. *)
-  | Hole vars, _ ->
-      let energy = energy status in
+  | Hole (vars, pos), _ ->
       (* Holes aren't numbered by the file they appear in. *)
-      let meta = Meta.make Compunit.basic `Hole (Ctx.dbwd ctx) energy in
+      let meta = Meta.make_hole (Ctx.raw_length ctx) (Ctx.dbwd ctx) (energy status) in
       let ty, termctx =
         Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
-      Eternity.add meta vars termctx ty energy;
-      emit (Hole_generated (meta, Termctx.PHole (vars, termctx, ty)));
-      Meta (meta, energy)
+      Global.add_hole meta pos ~vars ~termctx ~ty ~status;
+      Meta (meta, energy status)
   (* And lastly, if we have a synthesizing term, we synthesize it. *)
   | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty
 
@@ -448,7 +427,7 @@ and check_of_synth :
   equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
   sval
 
-(* Deal with a potential term in kinetic position *)
+(* Deal with checking a potential term in kinetic position *)
 and kinetic_of_potential :
     type a b.
     [ `Let | `Nolet ] ->
@@ -462,13 +441,17 @@ and kinetic_of_potential :
   | `Let -> raise Case_tree_construct_in_let
   | `Nolet ->
       emit (Bare_case_tree_construct sort);
-      let meta = Meta.make (Compunit.Current.read ()) (`Def (sort, None)) (Ctx.dbwd ctx) Potential in
+      (* We create a metavariable to store the potential value. *)
+      let meta = Meta.make_def sort None (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
+      (* We first define the metavariable without a value, as an "axiom", just as we do for global constants.  This isn't necessary for recursion, since this metavariable can't refer to itself, but so that with_meta_definition will be able to find it for consistency. *)
+      let termctx = readback_ctx ctx in
+      let vty = readback_val ctx ty in
+      Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
+      (* Then we check the value and redefine the metavariable to be that value. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
       let cv = check tmstatus ctx tm ty in
-      let vty = readback_val ctx ty in
-      let termctx = readback_ctx ctx in
-      Global.add_meta meta
-        (Metadef { vars = None; termctx; tm = `Nonrec cv; ty = vty; energy = Potential });
+      Global.set_meta meta ~tm:cv;
+      (* Finally, we return the metavariable. *)
       Term.Meta (meta, Kinetic)
 
 and synth_or_check_let :
@@ -483,24 +466,34 @@ and synth_or_check_let :
  fun status ctx name v body ty ->
   let v, nf =
     try
-      (* We try checking the bound term first as an ordinary kinetic term. *)
+      (* We first try checking the bound term first as an ordinary kinetic term. *)
       let sv, svty = synth (Kinetic `Let) ctx v in
       let ev = eval_term (Ctx.env ctx) sv in
       (sv, { tm = ev; ty = svty })
     with
-    (* If that fails, the bound term is also allowed to be a case tree, i.e. a potential term.  But in a checked "let" expression, the term being bound is a kinetic one, and must be so that its value can be put into the environment when the term is evaluated.  We deal with this by binding a *metavariable* to the bound term and then taking the value of that metavariable as the kinetic term to actually be bound.  *)
+    (* If that encounters case-tree constructs, then we can allow the bound term to be a case tree, i.e. a potential term.  But in a checked "let" expression, the term being bound is a kinetic one, and must be so that its value can be put into the environment when the term is evaluated.  We deal with this by binding a *metavariable* to the bound term and then taking the value of that metavariable as the kinetic term to actually be bound.  *)
     | Case_tree_construct_in_let ->
       (* First we make the metavariable. *)
-      let meta =
-        Meta.make (Compunit.Current.read ()) (`Def ("let", name)) (Ctx.dbwd ctx) Potential in
+      let meta = Meta.make_def "let" name (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
+      let termctx = readback_ctx ctx in
       (* A new status in which to check the value of that metavariable; now it is the "current constant" being defined. *)
       let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
-      let sv, svty = synth tmstatus ctx v in
-      (* Now we define the global value of that metavariable to be the term and type just synthesized. *)
-      let vty = readback_val ctx svty in
-      let termctx = readback_ctx ctx in
-      Global.add_meta meta
-        (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
+      let sv, svty =
+        match v.value with
+        | Asc (vtm, rvty) ->
+            (* If the bound term is explicitly ascribed, then we can give the metavariable a type while checking its body.  This is probably irrelevant until we have "let rec", but we do it anyway. *)
+            let vty = check (Kinetic `Nolet) ctx rvty (universe D.zero) in
+            Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
+            let evty = eval_term (Ctx.env ctx) vty in
+            let cv = check tmstatus ctx vtm evty in
+            Global.set_meta meta ~tm:cv;
+            (cv, evty)
+        | _ ->
+            (* Otherwise, we just synthesize the term. *)
+            let sv, svty = synth tmstatus ctx v in
+            let vty = readback_val ctx svty in
+            Global.add_meta meta ~termctx ~tm:(`Defined sv) ~ty:vty ~energy:Potential;
+            (sv, svty) in
       (* We turn that metavariable into a value. *)
       let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
       let tm =
@@ -529,6 +522,136 @@ and synth_or_check_let :
       let sbody, sbodyty = synth status newctx { value = body; loc } in
       (Term.Let (name, v, sbody), Not_none sbodyty)
   | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
+
+and synth_or_check_letrec :
+    type a b c ac s p.
+    (b, s) status ->
+    (a, b) Ctx.t ->
+    (a, c, ac) Raw.tel ->
+    (ac check located, c) Vec.t ->
+    ac check located ->
+    (kinetic value, p) Perhaps.t ->
+    (b, s) term * (kinetic value, p) Perhaps.not =
+ fun status ctx rvtys vtms body ty ->
+  (* First we check the types of all the bound variables, which are a telescope since each can depend on the previous ones. *)
+  let Checked_tel (type bc) ((vtys, _) : (_, _, bc) Telescope.t * (_, bc) Ctx.t), _ =
+    check_tel ctx rvtys in
+  (* Then we create the metavariables. *)
+  let metas = make_letrec_metas ctx vtys in
+  (* Now we check the bound terms. *)
+  let ac = Raw.bplus_of_tel rvtys in
+  let () = check_letrec_bindings ctx ac metas vtys vtms in
+  (* Now we update the status of the original constant being checked *)
+  let status : (bc, s) status =
+    match status with
+    | Potential (c, args, hyp) -> Potential (c, args, fun x -> hyp (let_metas metas x))
+    | Kinetic l -> Kinetic l in
+  (* Make a context for it *)
+  let _, newctx = ext_metas ctx ac metas vtys Zero Zero Zero in
+  (* And synthesize or check the body in the extended context. *)
+  match (ty, body) with
+  | Some ty, _ ->
+      let sbody = check status newctx body ty in
+      (let_metas metas sbody, Not_some)
+  | None, { value = Synth body; loc } ->
+      let sbody, sbodyty = synth status newctx { value = body; loc } in
+      (let_metas metas sbody, Not_none sbodyty)
+  | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
+
+and check_letrec_bindings :
+    type a xc b ac bc.
+    (a, b) Ctx.t ->
+    (a, xc, ac) Fwn.bplus ->
+    (b, xc, bc) meta_tel ->
+    (b, xc, bc) Telescope.t ->
+    (ac check located, xc) Vec.t ->
+    unit =
+ fun octx oac ometas ovtys vs ->
+  let rec go :
+      type x ax bx c d.
+      (a, x, ax) Fwn.bplus ->
+      (x, c, xc) Fwn.plus ->
+      (b, x, D.zero, bx) Tbwd.snocs ->
+      (*  *)
+      (ax, c, ac) Fwn.bplus ->
+      (bx, c, bc) meta_tel ->
+      (bx, c, bc) Telescope.t ->
+      (ac check located, c) Vec.t ->
+      unit =
+   fun ax xc bx ac metas vtys vs ->
+    match (ac, metas, vtys, vs) with
+    | Zero, Nil, Emp, [] -> ()
+    | Suc ac, Ext (_, meta, metas), Ext (name, vty, vtys), v :: vs ->
+        let ctx, tmctx = ext_metas octx oac ometas ovtys ax xc bx in
+        let evty = eval_term (Ctx.env ctx) vty in
+        let hyp b = Term.Let (name, Meta (meta, Kinetic), let_metas metas b) in
+        let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, hyp) in
+        let cv = check tmstatus tmctx v evty in
+        Global.set_meta meta ~tm:(hyp cv);
+        (* And recurse. *)
+        go (Fwn.bplus_suc_eq_suc ax) (Fwn.suc_plus xc) (Tbwd.snocs_suc_eq_snoc bx) ac metas vtys vs
+  in
+  go Zero Zero Zero oac ometas ovtys vs
+
+(* Given a telescope of types for let-bound variables, create a global metavariable for each of them, and give it the correct type in Global. *)
+and make_letrec_metas : type x a b ab. (x, a) Ctx.t -> (a, b, ab) Telescope.t -> (a, b, ab) meta_tel
+    =
+ fun ctx tel ->
+  match tel with
+  | Emp -> Nil
+  | Ext (x, vty, tel) ->
+      (* Create the metavariable. *)
+      let meta = Meta.make_def "letrec" x (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
+      (* Assign it the correct type. *)
+      let termctx = readback_ctx ctx in
+      Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
+      (* Extend the context by it, as an unrealized neutral.  TODO: It's annoying that we have to evaluate the types here to extend the value-context, when the only use we're making of it is to readback that extended value-context into a termctx at each step to save with the global metavariable.  It would make more sense, and be more efficient, to just carry along the termctx and extend it directly at each step with "Term.Meta (meta, Kinetic)" at the term-type "vty".  Unfortunately, termctxs store terms and types in a one-longer context, so that would require directly weakening vty, or perhaps parsing and checking it in a one-longer context originally. *)
+      let evty = eval_term (Ctx.env ctx) vty in
+      let head = Value.Meta { meta; env = Ctx.env ctx; ins = zero_ins D.zero } in
+      let neutm = Uninst (Neu { head; args = Emp; value = ready Unrealized }, Lazy.from_val evty) in
+      let ctx = Ctx.ext_let ctx x { tm = neutm; ty = evty } in
+      (* And recurse. *)
+      Ext (x, meta, make_letrec_metas ctx tel)
+
+and let_metas : type b c bc s. (b, c, bc) meta_tel -> (bc, s) term -> (b, s) term =
+ fun metas tm ->
+  match metas with
+  | Nil -> tm
+  | Ext (x, m, metas) -> Let (x, Meta (m, Kinetic), let_metas metas tm)
+
+(* Extend a context by evaluated metavariables.  We return both the fully extended context and a partially extended one. *)
+and ext_metas :
+    type a b c ac bc d cd acd bcd.
+    (a, b) Ctx.t ->
+    (a, cd, acd) Fwn.bplus ->
+    (b, cd, bcd) meta_tel ->
+    (b, cd, bcd) Telescope.t ->
+    (a, c, ac) Fwn.bplus ->
+    (c, d, cd) Fwn.plus ->
+    (b, c, D.zero, bc) Tbwd.snocs ->
+    (ac, bc) Ctx.t * (acd, bcd) Ctx.t =
+ fun ctx acd metas vtys ac cd bc ->
+  (* First we define a helper function that returns only the fully extended context. *)
+  let rec ext_metas' :
+      type a b cd acd bcd.
+      (a, b) Ctx.t ->
+      (a, cd, acd) Fwn.bplus ->
+      (b, cd, bcd) meta_tel ->
+      (b, cd, bcd) Telescope.t ->
+      (acd, bcd) Ctx.t =
+   fun ctx acd metas vtys ->
+    match (acd, metas, vtys) with
+    | Zero, Nil, Emp -> ctx
+    | Suc acd, Ext (_, meta, metas), Ext (x, vty, vtys) ->
+        let tm = eval_term (Ctx.env ctx) (Meta (meta, Kinetic)) in
+        let ty = eval_term (Ctx.env ctx) vty in
+        ext_metas' (Ctx.ext_let ctx x { tm; ty }) acd metas vtys in
+  match (ac, cd, bc, acd, metas, vtys) with
+  | Zero, Zero, Zero, _, _, _ -> (ctx, ext_metas' ctx acd metas vtys)
+  | Suc ac, Suc cd, Suc bc, Suc acd, Ext (_, meta, metas), Ext (x, vty, vtys) ->
+      let tm = eval_term (Ctx.env ctx) (Meta (meta, Kinetic)) in
+      let ty = eval_term (Ctx.env ctx) vty in
+      ext_metas (Ctx.ext_let ctx x { tm; ty }) acd metas vtys ac cd bc
 
 (* Check a match statement without an explicit motive supplied by the user.  This means if the discriminee is a well-behaved variable, it can be a variable match; otherwise it reverts back to a non-dependent match. *)
 and check_implicit_match :
@@ -1093,24 +1216,25 @@ and check_data :
     (b, potential) term =
  fun status ctx ty num_indices checked_constrs raw_constrs ~discrete ->
   match (raw_constrs, status) with
-  | [], Potential (head, _, _) ->
-      (match head with
-      | Constant c -> Discrete.modify (Constant.Map.add c discrete)
-      | _ -> ());
+  | [], Potential _ ->
       Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete })
   | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
       Potential (head, current_apps, hyp) ) -> (
       with_loc loc @@ fun () ->
-      (* Temporarily bind the current constant to the up-until-now value. *)
+      (* Temporarily bind the current constant to the up-until-now value, for recursive purposes, and also for specifying the output types for indexed inductive families (and presumably, one day, for higher inductive types). *)
       run_with_definition head
         (hyp
            (Term.Canonical
               (Data { indices = num_indices; constrs = checked_constrs; discrete = false })))
       @@ fun () ->
+      let consthead =
+        match head with
+        | Constant c -> Some c
+        | _ -> None in
       match (Abwd.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
       | None, Some output -> (
-          let Checked_tel (args, newctx), argsdisc = check_tel ctx args in
+          let Checked_tel (args, newctx), argsdisc = check_tel ?consthead ctx args in
           let discrete = discrete && argsdisc in
           let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
           match eval_term (Ctx.env newctx) coutput with
@@ -1134,7 +1258,7 @@ and check_data :
       | None, None -> (
           match num_indices with
           | Zero ->
-              let Checked_tel (args, _), argsdisc = check_tel ctx args in
+              let Checked_tel (args, _), argsdisc = check_tel ?consthead ctx args in
               let discrete = discrete && argsdisc in
               check_data status ctx ty Fwn.zero
                 (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }))
@@ -1161,7 +1285,7 @@ and get_indices :
         (function
           | Value.App (Arg arg, ins) -> (
               match is_id_ins ins with
-              | Some () -> (
+              | Some _ -> (
                   match D.compare (CubeOf.dim arg) D.zero with
                   | Eq -> readback_nf ctx (CubeOf.find_top arg)
                   | Neq -> fatal (Invalid_constructor_type c))
@@ -1170,7 +1294,7 @@ and get_indices :
         output
   | _ -> fatal (Invalid_constructor_type c)
 
-(* The common prefix of checking a codatatype or record type, which dynamically binds the current constant to the up-until-now value.  Since this binding has to scope over the rest of the functions that are specific to codata or records, it uses CPS. *)
+(* The common prefix of checking a codatatype or record type, which returns a (cube of) variables belonging to the up-until-now type so that later fields can refer to earlier ones.  It also dynamically binds the current constant or metavariable, if possible, to that value for recursive purposes.  Since this binding has to scope over the rest of the functions that are specific to codata or records, it uses CPS. *)
 and with_codata_so_far :
     type a b n c.
     (b, potential) status ->
@@ -1296,7 +1420,7 @@ and check_fields :
   match (fields, status) with
   | [], _ -> (tms, ctms)
   | fld :: fields, Potential (name, args, hyp) ->
-      (* Temporarily bind the current constant to the up-until-now value. *)
+      (* Temporarily bind the current constant to the up-until-now value, for (co)recursive purposes. *)
       run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = head_of_potential name in
@@ -1354,9 +1478,11 @@ and synth :
           match Ctx.find_level ctx lvl with
           | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field x.tm x.ty fld)
           | None -> fatal (Anomaly "level not found in field view")))
-  | Const name, _ ->
-      let ty, _ = Global.find name in
-      (realize status (Const name), eval_term (Emp D.zero) ty)
+  | Const name, _ -> (
+      let ty, tm = Global.find name in
+      match (tm, Ctx.locked ctx) with
+      | Axiom `Nonparametric, true -> fatal (Locked_axiom (PConstant name))
+      | _ -> (realize status (Const name), eval_term (Emp D.zero) ty))
   | Field (tm, fld), _ ->
       let stm, sty = synth (Kinetic `Nolet) ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
@@ -1378,9 +1504,8 @@ and synth :
       (realize status stm, sty)
   | Act (str, fa, { value = Synth x; loc }), _ ->
       let x = { value = x; loc } in
-      let sx, ety =
-        if locking fa then Global.run_locked (fun () -> synth (Kinetic `Nolet) (Ctx.lock ctx) x)
-        else synth (Kinetic `Nolet) ctx x in
+      let ctx = if locking fa then Ctx.lock ctx else ctx in
+      let sx, ety = synth (Kinetic `Nolet) ctx x in
       let ex = eval_term (Ctx.env ctx) sx in
       ( realize status (Term.Act (sx, fa)),
         with_loc x.loc @@ fun () ->
@@ -1395,21 +1520,22 @@ and synth :
       let ctm, Not_none ety = synth_or_check_let status ctx x v body None in
       (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
       (ctm, ety)
+  | Letrec (vtys, vs, body), _ ->
+      let ctm, Not_none ety = synth_or_check_letrec status ctx vtys vs body None in
+      (* The synthesized type of the body is also correct for the whole let-expression, because it was synthesized in a context where the variable is bound not just to its type but to its value, so it doesn't include any extra level variables (i.e. it can be silently "strengthened"). *)
+      (ctm, ety)
   | Match _, Kinetic l -> (
       match l with
       | `Let -> raise Case_tree_construct_in_let
       | `Nolet ->
           emit (Bare_case_tree_construct "match");
-          (* A match in a kinetic synthesizing position, we can treat like a let-binding that returns the bound (metavariable) value.  Of course we can shortcut the binding by just inserting the metavariable as the result.  This code is copied and slightly modified from synth_or_check_let.  *)
-          let meta =
-            Meta.make (Compunit.Current.read ()) (`Def ("match", None)) (Ctx.dbwd ctx) Potential
-          in
+          (* A match in a kinetic synthesizing position, we can treat like a let-binding that returns the bound (metavariable) value.  Of course we can shortcut the binding by just inserting the metavariable as the result.  This code is copied and modified from synth_or_check_let.  Note that in this case there is no evident way to give the metavariable a type before defining it, which means that with_meta_definition won't be able to set it to anything; but this shouldn't be a problem since there is also no name for this metavariable and hence no way for the user to refer to it in the body, so it doesn't need to have a type or a value. *)
+          let meta = Meta.make_def "match" None (Ctx.raw_length ctx) (Ctx.dbwd ctx) Potential in
           let tmstatus = Potential (Meta (meta, Ctx.env ctx), Emp, fun x -> x) in
           let sv, svty = synth tmstatus ctx tm in
           let vty = readback_val ctx svty in
           let termctx = readback_ctx ctx in
-          Global.add_meta meta
-            (Metadef { vars = None; termctx; tm = `Nonrec sv; ty = vty; energy = Potential });
+          Global.add_meta meta ~termctx ~tm:(`Defined sv) ~ty:vty ~energy:Potential;
           (Term.Meta (meta, Kinetic), svty))
   | Match { tm; sort = `Explicit motive; branches; refutables = _ }, Potential _ ->
       synth_dep_match status ctx tm branches motive
@@ -1610,8 +1736,8 @@ and check_at_tel :
         check_at_tel c ctx
           (Ext
              ( env,
-               CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm))
-             ))
+               D.plus_zero (TubeOf.inst tyarg),
+               TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm) ))
           tms tys tyargs in
       (newenv, TubeOf.plus_cube ctms (CubeOf.singleton ctm) :: newargs)
   | _ ->
@@ -1619,9 +1745,12 @@ and check_at_tel :
         (Wrong_number_of_arguments_to_constructor
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
-(* Given a context and a raw telescope, we can check it to produce a checked telescope and also a new context extended by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype. *)
-and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) checked_tel * bool =
- fun ctx tel ->
+(* Given a context and a raw telescope, we can check it to produce a checked telescope, a new context extended by that telescope, and a function for extending other contexts by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype.  This requires knowing the currently-being-defined constant, since discrete types can appear recursively in the arguments of their constructors. *)
+and check_tel :
+    type a b c ac.
+    ?consthead:Constant.t -> (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (a, b, c, ac) checked_tel * bool
+    =
+ fun ?consthead ctx tel ->
   match tel with
   | Emp -> (Checked_tel (Emp, ctx), true)
   | Ext (x, ty, tys) ->
@@ -1629,6 +1758,6 @@ and check_tel : type a b c ac. (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (ac, b) che
       let ety = eval_term (Ctx.env ctx) cty in
       let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
       let ctx = Ctx.cube_vis ctx x newnfs in
-      let Checked_tel (ctys, ctx), discrete = check_tel ctx tys in
-      let discrete = discrete && is_discrete ety in
+      let Checked_tel (ctys, ctx), discrete = check_tel ?consthead ctx tys in
+      let discrete = discrete && is_discrete consthead ety in
       (Checked_tel (Ext (x, cty, ctys), ctx), discrete)

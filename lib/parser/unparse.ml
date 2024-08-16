@@ -18,8 +18,8 @@ let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
   let* { key = _; notn; pat_vars; val_vars } =
     match head with
-    | `Term (Const c) -> State.Current.unparse (`Constant c)
-    | `Constr c -> State.Current.unparse (`Constr (c, Bwd.length args))
+    | `Term (Const c) -> Situation.Current.unparse (`Constant c)
+    | `Constr c -> Situation.Current.unparse (`Constr (c, Bwd.length args))
     (* TODO: Can we associate notations to Fields too? *)
     | _ -> None in
   (* There's probably a more efficient way to do this that doesn't involve converting to and from forwards lists, but this way is more natural and easier to understand, and I think this is unlikely to be a performance bottleneck. *)
@@ -595,7 +595,7 @@ let rec unparse_ctx :
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
     (string * [ `Original | `Renamed ], a) Bwv.t ->
-    (a, b) Termctx.ordered ->
+    (a, b) Termctx.Ordered.t ->
     b Names.t
     * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
     =
@@ -667,7 +667,9 @@ let rec unparse_ctx :
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus plusdim fab in
                 let fastr = "." ^ string_of_sface fa in
                 let add_fa =
-                  if Option.is_some (is_id_sface fa) then fun y -> y else fun y -> y ^ fastr in
+                  match D.compare (cod_sface fa) D.zero with
+                  | Eq -> fun y -> y
+                  | Neq -> fun y -> y ^ fastr in
                 let x, orig = NICubeOf.find vardata fb in
                 let x = add_fa x in
                 let res = Snoc (res, (x, merge_orig orig, tm, Some ty)) in
@@ -696,6 +698,7 @@ let () =
       Readback.Display.run ~env:true @@ fun () ->
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
+      | PInt i -> Printed (Format.pp_print_int, i)
       | PString str -> Printed (Uuseg_string.pp_utf_8, str)
       | PField f -> Printed (Uuseg_string.pp_utf_8, Field.to_string f)
       | PConstr c -> Printed (Uuseg_string.pp_utf_8, Constr.to_string c)

@@ -10,7 +10,7 @@ let () =
   assume "foo" "A → A → A";
   let foo = Option.get (Scope.lookup [ "foo" ]) in
   let _ =
-    State.Current.add_user
+    Situation.Current.add_user
       (User
          {
            name = "amp";

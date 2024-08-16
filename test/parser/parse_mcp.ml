@@ -145,39 +145,6 @@ nest `}
 →  B x"
   in
 
-  (* Precedence and associativity *)
-  Testutil.Repl.(
-    def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
-    def "O" "ℕ" "zero.";
-    def "S" "ℕ → ℕ" "n ↦ suc. n";
-    def "plus" "ℕ → ℕ → ℕ"
-      "m n ↦ match n [
-       | zero. ↦ m
-       | suc. n ↦ suc. (plus m n)
-     ]";
-    cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
-    def "times" "ℕ → ℕ → ℕ"
-      "m n ↦ match n [
-       | zero. ↦ zero.
-       | suc. n ↦ plus (times m n) m
-     ]";
-    cmd ~quiet:true "notation 1 times : m \"*\" n … ≔ times m n");
-  let nat, _ = synth "ℕ" in
-  let onetwothree, _ = synth "S O + S (S O) + S (S (S O))" in
-  let six, _ = synth "S (S (S (S (S (S O)))))" in
-  let () = equal_at onetwothree six nat in
-  let twotwo_two, _ = synth "S (S O) * S (S O) + S (S O)" in
-  let () = equal_at twotwo_two six nat in
-  let twotwo_two, _ = synth "S (S O) * (S (S O) + S (S O))" in
-  let () = unequal_at twotwo_two six nat in
-
-  (* Numeral notations *)
-  let nsix = check "6" nat in
-  let () = equal_at six nsix nat in
-  let thirty = check "30" nat in
-  let thirty', _ = synth "3*10" in
-  let () = equal_at thirty thirty' nat in
-
   (* Identifiers can contain or be digits.  In the latter case, they shadow numerals. *)
   let atoa, _ = synth "A → A" in
   let _ = check "0a ↦ 0a" atoa in

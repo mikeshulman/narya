@@ -177,7 +177,7 @@ and process_vars :
 
 let process_user :
     type n.
-    printkey ->
+    User.key ->
     string list ->
     string list ->
     (string option, n) Bwv.t ->

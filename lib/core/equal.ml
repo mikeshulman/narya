@@ -17,6 +17,8 @@ module Mode = Algaeff.Reader.Make (struct
   type t = [ `Rigid | `Full ]
 end)
 
+let () = Mode.register_printer (function `Read -> Some "unhandled Equal.Mode.read effect")
+
 module Equal = struct
   (* Compare two normal forms that are *assumed* to have the same type. *)
   let rec equal_nf : int -> normal -> normal -> unit option =
@@ -33,14 +35,19 @@ module Equal = struct
     | Pi (_, doms, cods, tyargs) ->
         let newargs, _ = dom_vars ctx doms in
         let output = tyof_app cods tyargs newargs in
+        (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
         equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output
-    (* In the case of a codatatype/record, the insertion ought to match whatever there is on the structs, in the case when it's possible, so we don't bother giving it a name or checking it.  And its dimension gets checked by tyof_field.  In fact because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the data here except whether it has eta, whether it has an insertion (since if it does, it's not really a record type), and what the list of field names is. *)
-    | Canonical (_, Codata { eta = Eta; fields; ins; _ }, _) when Option.is_some (is_id_ins ins) ->
-        (* In the eta case, we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particulary field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
+    (* Codatatypes (without eta) don't need to be dealt with here, even though structs can't be compared synthesizingly, since codatatypes aren't actually inhabited by (kinetic) structs, only neutral terms that are equal to potential structs.  In the case of record types with eta, if there is a nonidentity insertion outside, then the type isn't actually a record type, *but* it still has an eta-rule since it is *isomorphic* to a record type!  Thus, instead of checking whether the insertion is the identity, we apply its inverse permutation to the terms being compared.  And because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the other data here. *)
+    | Canonical (_, Codata { eta = Eta; fields; ins; _ }, _) ->
+        let (Perm_to p) = perm_of_ins ins in
+        let pinv = deg_of_perm (perm_inv p) in
+        let x, y, ty = (act_value x pinv, act_value y pinv, gact_ty None ty pinv) in
+        (* Now we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particular field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This latter is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
         BwdM.miterM
           (fun [ (fld, _) ] ->
             equal_at ctx (field_term x fld) (field_term y fld) (tyof_field x ty fld))
           [ fields ]
+    (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative, so we don't need a clause for it. *)
     (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
     | Canonical (_, Data { dim; discrete; _ }, _) when discrete && is_pos dim -> return ()
     (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  We handle these cases here because we can use the datatype information to give types to the arguments of the constructor. *)
@@ -172,15 +179,12 @@ module Equal = struct
         let* () = guard (c1 = c2) in
         match D.compare (cod_left_ins i1) (cod_left_ins i2) with
         | Eq ->
-            let d1 = deg_of_ins i1 (plus_of_ins i1) in
-            let d2 = deg_of_ins i2 (plus_of_ins i2) in
+            let To d1, To d2 = (deg_of_ins i1, deg_of_ins i2) in
             deg_equiv d1 d2
         | Neq -> fail)
     | Meta { meta = meta1; env = env1; ins = i1 }, Meta { meta = meta2; env = env2; ins = i2 } -> (
         match (Meta.compare meta1 meta2, D.compare (cod_left_ins i1) (cod_left_ins i2)) with
-        | Eq, Eq ->
-            let (Metadef { termctx; _ }) = Global.find_meta meta1 in
-            equal_env lvl env1 env2 termctx
+        | Eq, Eq -> equal_env lvl env1 env2 (Global.find_meta meta1).termctx
         | _ -> fail)
     | _, _ -> fail
 
@@ -198,7 +202,8 @@ module Equal = struct
   (* Check that two application arguments are equal, including their outer insertions as well as their values.  As noted above, here we can go back to *assuming* that they have equal types, and thus passing off to the eta-expanding equality check. *)
   and equal_arg : int -> app -> app -> unit option =
    fun n (App (a1, i1)) (App (a2, i2)) ->
-    let* () = deg_equiv (perm_of_ins i1) (perm_of_ins i2) in
+    let To d1, To d2 = (deg_of_ins i1, deg_of_ins i2) in
+    let* () = deg_equiv d1 d2 in
     match (a1, a2) with
     | Arg a1, Arg a2 -> (
         match D.compare (CubeOf.dim a1) (CubeOf.dim a2) with
@@ -257,7 +262,9 @@ module Equal = struct
         let* () = equal_at ctx x y ity in
         equal_at_tel ctx
           (Ext
-             (env, CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x))))
+             ( env,
+               D.plus_zero (TubeOf.inst tyarg),
+               TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x) ))
           xs ys tys tyargs
     | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
@@ -265,7 +272,7 @@ module Equal = struct
    fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
 
   and equal_ordered_env :
-      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.ordered -> unit option =
+      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.Ordered.t -> unit option =
    fun lvl env1 env2 envctx ->
     (* Copied from readback_ordered_env *)
     match envctx with
@@ -274,51 +281,41 @@ module Equal = struct
     | Snoc (envctx, entry, _) -> (
         let open Monad.Ops (Monad.Maybe) in
         let open CubeOf.Monadic (Monad.Maybe) in
-        let (Looked_up (force1, Op (fc1, fd1), xss1)) =
-          lookup_cube env1 Now (id_op (dim_env env1)) in
-        let xss1 =
-          CubeOf.mmap
-            { map = (fun _ [ ys ] -> act_value_cube force1 (CubeOf.subcube fc1 ys) fd1) }
-            [ xss1 ] in
-        let (Looked_up (force2, Op (fc2, fd2), xss2)) =
-          lookup_cube env2 Now (id_op (dim_env env2)) in
-        let xss2 =
-          CubeOf.mmap
-            { map = (fun _ [ ys ] -> act_value_cube force2 (CubeOf.subcube fc2 ys) fd2) }
-            [ xss2 ] in
+        let (Plus mk) = D.plus (Termctx.dim_entry entry) in
+        let (Looked_up { act = act1; op = Op (fc1, fd1); entry = xs1 }) =
+          lookup_cube env1 mk Now (id_op (dim_env env1)) in
+        let xs1 = act_cube { act = act1 } (CubeOf.subcube fc1 xs1) fd1 in
+        let (Looked_up { act = act2; op = Op (fc2, fd2); entry = xs2 }) =
+          lookup_cube env2 mk Now (id_op (dim_env env2)) in
+        let xs2 = act_cube { act = act2 } (CubeOf.subcube fc2 xs2) fd2 in
         let env1' = remove_env env1 Now in
         let env2' = remove_env env2 Now in
         let* () = equal_ordered_env lvl env1' env2' envctx in
         match entry with
         | Vis { bindings; _ } | Invis bindings ->
+            let xtytbl = Hashtbl.create 10 in
             let* _ =
               mmapM
                 {
                   map =
-                    (fun fa [ xs1; xs2 ] ->
+                    (fun fab [ tm1; tm2 ] ->
+                      let (SFace_of_plus (_, fb, fa)) = sface_of_plus mk fab in
                       let ty = (CubeOf.find bindings fa).ty in
-                      let xtytbl = Hashtbl.create 10 in
-                      mmapM
-                        {
-                          map =
-                            (fun fb [ tm1; tm2 ] ->
-                              let k = dom_sface fb in
-                              let ty =
-                                inst
-                                  (eval_term (act_env env1 (op_of_sface fb)) ty)
-                                  (TubeOf.build k (D.plus_zero k)
-                                     {
-                                       build =
-                                         (fun fc ->
-                                           Hashtbl.find xtytbl
-                                             (SFace_of (comp_sface fb (sface_of_tface fc))));
-                                     }) in
-                              Hashtbl.add xtytbl (SFace_of fb) { tm = tm1; ty };
-                              equal_at lvl tm1 tm2 ty);
-                        }
-                        [ xs1; xs2 ]);
+                      let k = dom_sface fb in
+                      let ty =
+                        inst
+                          (eval_term (act_env env1 (op_of_sface fb)) ty)
+                          (TubeOf.build k (D.plus_zero k)
+                             {
+                               build =
+                                 (fun fc ->
+                                   Hashtbl.find xtytbl
+                                     (SFace_of (comp_sface fb (sface_of_tface fc))));
+                             }) in
+                      Hashtbl.add xtytbl (SFace_of fb) { tm = tm1; ty };
+                      equal_at lvl tm1 tm2 ty);
                 }
-                [ xss1; xss2 ] in
+                [ xs1; xs2 ] in
             return ())
 end
 

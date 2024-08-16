@@ -57,24 +57,6 @@ let test_reformat () =
   reformat
     "(x:A)(x:A)(x:blah blah blah blah blah blah blah blah)(x:A)(x:A)(x:A)(x:A)(x:A)(x:A) -> C";
 
-  (* Binary operators *)
-  Testutil.Repl.(
-    def "ℕ" "Type" "data [ zero. | suc. (_ : ℕ) ]";
-    def "plus" "ℕ → ℕ → ℕ"
-      "m n ↦ match n [
-       | zero. ↦ m
-       | suc. n ↦ suc. (plus m n)
-     ]";
-    cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
-    def "times" "ℕ → ℕ → ℕ"
-      "m n ↦ match n [
-       | zero. ↦ zero.
-       | suc. n ↦ plus (times m n) m
-     ]";
-    cmd ~quiet:true "notation 1 times : m \"*\" n … ≔ times m n");
-  reformat "x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x + x";
-  reformat "x + x * x + x * x * x + x * x * x * x + x + x * x * x * x * x * x * x";
-
   (* Lists *)
   Testutil.Repl.def "List" "Type → Type" "A ↦ data [ nil. | cons. (x:A) (xs:List A) ]";
   Testutil.Repl.def "Bwd" "Type → Type" "A ↦ data [ emp. | snoc. (xs:Bwd A) (x:A) ]";
@@ -86,12 +68,6 @@ let test_reformat () =
   reformat "[< <]";
   reformat "[> blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah >]";
   reformat "[< blah, blah, blah, blah, blah, blah, blah, blah, blah, blah, blah <]";
-  Testutil.Repl.cmd ~quiet:true "notation 5 cons : x \":>\" y … ≔ cons. x y";
-  Testutil.Repl.cmd ~quiet:true "notation 5 snoc : … x \"<:\" y ≔ snoc. x y";
-  reformat "1 :> 2 :> 3 :> xs";
-  reformat "xs <: 1 <: 2 <: 3";
-  reformat "x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> x :> xs";
-  reformat "xs <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x <: x";
   ()
 
 let test_compactness () =

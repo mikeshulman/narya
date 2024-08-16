@@ -71,13 +71,11 @@ let () =
        | zero. ↦ m
        | suc. n ↦ suc. (plus m n)
      ]";
-  cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
   def "times" "ℕ → ℕ → ℕ"
     "m n ↦ match n [
        | zero. ↦ zero.
        | suc. n ↦ plus (times m n) m
      ]";
-  cmd ~quiet:true "notation 1 times : m \"*\" n … ≔ times m n";
 
   (* Lists *)
   def "List" "Type → Type" "A ↦ data [ nil. | cons. (x:A) (xs:List A) ]";
@@ -107,10 +105,10 @@ let () =
   (* Matching lambda *)
   def "exp" "ℕ → ℕ → ℕ" "m ↦ [
     | zero. ↦ suc. zero.
-    | suc. n ↦ exp m n * m
+    | suc. n ↦ times (exp m n) m
     ]";
   equal_at "exp 3 2" "9" "ℕ";
-  def "exp2" "ℕ → ℕ → ℕ" "m ↦ [ zero. ↦ suc. zero. | suc. n ↦ exp m n * m ]";
+  def "exp2" "ℕ → ℕ → ℕ" "m ↦ [ zero. ↦ suc. zero. | suc. n ↦ times (exp m n) m ]";
   equal_at "exp2 2 3" "8" "ℕ";
 
   (* Empty type *)

@@ -47,11 +47,9 @@ let () =
        | zero. ↦ m
        | suc. n ↦ suc. (plus m n)
      ]";
-  cmd ~quiet:true "notation 0 plus : m \"+\" n … ≔ plus m n";
   def "prod" "Type → Type → Type" "A B ↦ sig (fst : A, snd : B)";
-  cmd ~quiet:true "notation 0 prod : A \"×\" B ≔ prod A B";
   def "fib" "Stream ℕ"
-    "corec ℕ (ℕ × ℕ) (x ↦ x .fst) (x ↦ ( fst ≔ x .snd , snd ≔ x .fst + x .snd )) (fst ≔ 1, snd ≔ 1)";
+    "corec ℕ (prod ℕ ℕ) (x ↦ x .fst) (x ↦ ( fst ≔ x .snd , snd ≔ plus (x .fst) (x .snd) )) (fst ≔ 1, snd ≔ 1)";
   equal_at "fib .head" "1" "ℕ";
   equal_at "fib .tail .head" "1" "ℕ";
   equal_at "fib .tail .tail .head" "2" "ℕ";

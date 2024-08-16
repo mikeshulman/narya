@@ -11,6 +11,7 @@ open Uuseg_string
 open Print
 open Reporter
 open User
+open Modifier
 module Trie = Yuujinchou.Trie
 
 type def = {
@@ -35,7 +36,8 @@ module Command = struct
         ty : observation;
       }
     | Def of def list
-    | Echo of { wsecho : Whitespace.t list; tm : observation }
+    (* "synth" is almost just like "echo", so we implement them as one command distinguished by an "eval" flag. *)
+    | Echo of { wsecho : Whitespace.t list; tm : observation; eval : bool }
     | Notation : {
         fixity : ('left, 'tight, 'right) fixity;
         wsnotation : Whitespace.t list;
@@ -44,14 +46,40 @@ module Command = struct
         name : Trie.path;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
-        pattern : State.pattern;
+        pattern : User.pattern;
         wscoloneq : Whitespace.t list;
         head : [ `Constr of string | `Constant of Trie.path ];
         wshead : Whitespace.t list;
         args : (string * Whitespace.t list) list;
       }
         -> t
-    | Import of { wsimport : Whitespace.t list; file : string; wsfile : Whitespace.t list }
+    | Import of {
+        wsimport : Whitespace.t list;
+        export : bool;
+        origin : [ `File of string | `Path of Trie.path ];
+        wsorigin : Whitespace.t list;
+        op : (Whitespace.t list * modifier) option;
+      }
+    | Solve of {
+        wssolve : Whitespace.t list;
+        number : int;
+        wsnumber : Whitespace.t list;
+        wscoloneq : Whitespace.t list;
+        tm : observation;
+      }
+    | Show of {
+        wsshow : Whitespace.t list;
+        what : [ `Hole of Whitespace.t list * int | `Holes ];
+        wswhat : Whitespace.t list;
+      }
+    | Undo of { wsundo : Whitespace.t list; count : int; wscount : Whitespace.t list }
+    | Section of {
+        wssection : Whitespace.t list;
+        prefix : string list;
+        wsprefix : Whitespace.t list;
+        wscoloneq : Whitespace.t list;
+      }
+    | End of { wsend : Whitespace.t list }
     | Quit of Whitespace.t list
     | Bof of Whitespace.t list
     | Eof
@@ -121,7 +149,12 @@ module Parse = struct
   let echo =
     let* wsecho = token Echo in
     let* tm = C.term [] in
-    return (Command.Echo { wsecho; tm })
+    return (Command.Echo { wsecho; tm; eval = true })
+
+  let synth =
+    let* wsecho = token Synth in
+    let* tm = C.term [] in
+    return (Command.Echo { wsecho; tm; eval = false })
 
   let tightness_and_name : (No.wrapped option * Whitespace.t list * Trie.path * Whitespace.t list) t
       =
@@ -215,12 +248,145 @@ module Parse = struct
            args;
          })
 
+  let path =
+    ident
+    </> let* wsdot = token Dot in
+        return ([], wsdot)
+
+  let rec modifier () =
+    let* m =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ "all" ] -> Some (`All ws, state)
+          | Ident [ "id" ] -> Some (`Id ws, state)
+          | Ident [ "only" ] -> Some (`Only ws, state)
+          | In -> Some (`In ws, state)
+          | Ident [ "none" ] -> Some (`None ws, state)
+          | Ident [ "except" ] -> Some (`Except ws, state)
+          | Ident [ "renaming" ] -> Some (`Renaming ws, state)
+          | Ident [ "seq" ] -> Some (`Seq ws, state)
+          | Ident [ "union" ] -> Some (`Union ws, state)
+          | _ -> None) in
+    match m with
+    | `All wsall -> return (All { wsall })
+    | `Id wsid -> return (Id { wsid })
+    | `Only wsonly ->
+        let* path, wspath = path in
+        return (Only { wsonly; path; wspath })
+    | `In wsin ->
+        let* path, wspath = path in
+        let* op = modifier () in
+        return (In { wsin; path; wspath; op })
+    | `None wsnone -> return (MNone { wsnone })
+    | `Except wsexcept ->
+        let* path, wspath = path in
+        return (Except { wsexcept; path; wspath })
+    | `Renaming wsrenaming ->
+        let* source, wssource = path in
+        let* target, wstarget = path in
+        return (Renaming { wsrenaming; source; wssource; target; wstarget })
+    | `Seq wsseq ->
+        let* wslparen = token LParen in
+        let* ops =
+          zero_or_more_fold_left Emp
+            (fun x y -> return (Snoc (x, y)))
+            (backtrack
+               (let* op = modifier () in
+                let* wssemi = token (Op ",") in
+                return (op, wssemi))
+               "") in
+        let* lastop = optional (modifier ()) in
+        let ops =
+          Bwd.fold_right
+            (fun x y -> x :: y)
+            ops
+            (Option.fold ~none:[] ~some:(fun x -> [ (x, []) ]) lastop) in
+        let* wsrparen = token RParen in
+        return (Seq { wsseq; wslparen; ops; wsrparen })
+    | `Union wsunion ->
+        let* wslparen = token LParen in
+        let* ops =
+          zero_or_more_fold_left Emp
+            (fun x y -> return (Snoc (x, y)))
+            (backtrack
+               (let* op = modifier () in
+                let* wssemi = token (Op ",") in
+                return (op, wssemi))
+               "") in
+        let* lastop = optional (modifier ()) in
+        let ops =
+          Bwd.fold_right
+            (fun x y -> x :: y)
+            ops
+            (Option.fold ~none:[] ~some:(fun x -> [ (x, []) ]) lastop) in
+        let* wsrparen = token RParen in
+        return (Union { wsunion; wslparen; ops; wsrparen })
+
   let import =
-    let* wsimport = token Import in
-    step "" (fun state _ (tok, wsfile) ->
+    let* wsimport, export =
+      (let* wsimport = token Import in
+       return (wsimport, false))
+      </> let* wsimport = token Export in
+          return (wsimport, true) in
+    let* origin, wsorigin =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | String file -> Some ((`File file, ws), state)
+          | Ident x -> Some ((`Path x, ws), state)
+          | Dot -> Some ((`Path [], ws), state)
+          | _ -> None) in
+    let* op =
+      optional
+        (backtrack
+           (let* wsbar = token (Op "|") in
+            let* m = modifier () in
+            return (wsbar, m))
+           "") in
+    return (Import { wsimport; export; origin; wsorigin; op })
+
+  let integer =
+    step "" (fun state _ (tok, ws) ->
         match tok with
-        | String file -> Some (Import { wsimport; file; wsfile }, state)
+        | Ident [ num ] -> Some ((int_of_string num, ws), state)
         | _ -> None)
+
+  let solve =
+    let* wssolve = token Solve in
+    let* number, wsnumber = integer in
+    let* wscoloneq = token Coloneq in
+    let* tm = C.term [] in
+    return (Solve { wssolve; number; wsnumber; wscoloneq; tm })
+
+  let show =
+    let* wsshow = token Show in
+    let* what =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ "hole" ] -> Some (`Hole ws, state)
+          | Ident [ "holes" ] -> Some (`Holes ws, state)
+          | _ -> None) in
+    let* what, wswhat =
+      match what with
+      | `Hole ws ->
+          let* number, wsnumber = integer in
+          return (`Hole (ws, number), wsnumber)
+      | `Holes ws -> return (`Holes, ws) in
+    return (Show { wsshow; what; wswhat })
+
+  let undo =
+    let* wsundo = token Undo in
+    let* count, wscount = integer in
+    return (Command.Undo { wsundo; count; wscount })
+
+  let section =
+    let* wssection = token Section in
+    let* prefix, wsprefix = ident in
+    let* wscoloneq = token Coloneq in
+    return (Command.Section { wssection; prefix; wsprefix; wscoloneq })
+
+  let endcmd =
+    let* wsend = token End in
+    return (Command.End { wsend })
 
   let quit =
     let* wsquit = token Quit in
@@ -234,12 +400,26 @@ module Parse = struct
     let* () = expect_end () in
     return Command.Eof
 
-  let command () = bof </> axiom </> def_and </> echo </> notation </> import </> quit </> eof
+  let command () =
+    bof
+    </> axiom
+    </> def_and
+    </> echo
+    </> synth
+    </> notation
+    </> import
+    </> solve
+    </> show
+    </> undo
+    </> section
+    </> endcmd
+    </> quit
+    </> eof
 
   let command_or_echo () =
     command ()
     </> let* tm = C.term [] in
-        return (Command.Echo { wsecho = []; tm })
+        return (Command.Echo { wsecho = []; tm; eval = true })
 
   type open_source = Range.Data.t * [ `String of int * string | `File of In_channel.t ]
 
@@ -251,10 +431,12 @@ module Parse = struct
             fun p ->
               let n, p = C.Lex_and_parse.run_on_string_at 0 src.content p in
               (`String (n, src.content), p) )
-      | `File name ->
-          let ic = In_channel.open_text name in
-          ( { source = `File name; length = In_channel.length ic },
-            fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) ) in
+      | `File name -> (
+          try
+            let ic = In_channel.open_text name in
+            ( { source = `File name; length = In_channel.length ic },
+              fun p -> (`File ic, C.Lex_and_parse.run_on_channel ic p) )
+          with Sys_error _ -> fatal (No_such_file name)) in
     Range.run ~env @@ fun () ->
     let p =
       C.Lex_and_parse.make Lexer.Parser.start
@@ -296,19 +478,46 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
       else (ws, None)
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
-(* We currently allow names used for constants to be redefined, but once a name is used for a notation, it can't be shadowed by a constant. *)
-let check_constant_name name =
-  match Scope.resolve name with
-  | Some (`Constant _, ()) -> emit (Name_already_defined (String.concat "." name))
-  | Some (_, ()) ->
-      fatal ~severity:Asai.Diagnostic.Error (Name_already_defined (String.concat "." name))
-  | None -> ()
+let show_hole err = function
+  | Eternity.Find_number (m, { tm = `Undefined; termctx; ty; energy = _ }, { vars; _ }) ->
+      emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
+  | _ -> fatal err
 
-let execute : Command.t -> unit =
- fun cmd ->
+let to_string : Command.t -> string = function
+  | Axiom _ -> "axiom"
+  | Def _ -> "def"
+  | Echo { eval = true; _ } -> "echo"
+  | Echo { eval = false; _ } -> "synth"
+  | Notation _ -> "notation"
+  | Import _ -> "import"
+  | Solve _ -> "solve"
+  | Show _ -> "show"
+  | Quit _ -> "quit"
+  | Undo _ -> "undo"
+  | Section _ -> "section"
+  | End _ -> "end"
+  | Bof _ -> "bof"
+  | Eof -> "eof"
+
+(* Whether a command requires an interactive mode (i.e. not interactive mode and not ProofGeneral interaction). *)
+let needs_interactive : Command.t -> bool = function
+  | Solve _ | Show _ | Undo _ -> true
+  | _ -> false
+
+let allows_holes : Command.t -> (unit, string) Result.t = function
+  | Axiom _ | Def _ | Solve _ -> Ok ()
+  | cmd -> Error (to_string cmd)
+
+(* Most execution of commands we can do here, but there are a couple things where we need to call out to the executable: noting when an effectual action like 'echo' is taken (for recording warnings in compiled files), and loading another file.  So this function takes a couple of callbacks as arguments. *)
+let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> Command.t -> unit =
+ fun ~action_taken ~get_file cmd ->
+  if needs_interactive cmd && not (Core.Command.Mode.read ()).interactive then
+    fatal (Forbidden_interactive_command (to_string cmd));
+  Global.with_holes (allows_holes cmd) @@ fun () ->
   match cmd with
   | Axiom { name; parameters; ty = Term ty; _ } ->
-      check_constant_name name;
+      History.do_command @@ fun () ->
+      Scope.check_constant_name name;
       let const = Scope.define (Compunit.Current.read ()) name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
@@ -318,10 +527,11 @@ let execute : Command.t -> unit =
       let (Processed_tel (params, ctx)) = process_tel Emp parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty))
   | Def defs ->
+      History.do_command @@ fun () ->
       let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
-            check_constant_name d.name;
+            Scope.check_constant_name d.name;
             let c = Scope.define (Compunit.Current.read ()) d.name in
             [ d.name; (c, d) ])
           [ defs ] (Cons (Cons Nil)) in
@@ -349,15 +559,18 @@ let execute : Command.t -> unit =
                     | _ -> fatal (Nonsynthesizing "body of def without specified type"))))
           cdefs in
       Core.Command.execute (Def defs)
-  | Echo { tm = Term tm; _ } -> (
+  | Echo { tm = Term tm; eval; _ } -> (
       let rtm = process Emp tm in
-      Units.Loading.modify (fun s -> { s with actions = true });
+      action_taken ();
       match rtm.value with
       | Synth stm ->
           Readback.Display.run ~env:true @@ fun () ->
           let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
-          let etm = Norm.eval_term (Emp D.zero) ctm in
-          let btm = Readback.readback_at Ctx.empty etm ety in
+          let btm =
+            if eval then
+              let etm = Norm.eval_term (Emp D.zero) ctm in
+              Readback.readback_at Ctx.empty etm ety
+            else ctm in
           let bty = Readback.readback_at Ctx.empty ety (Syntax.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           let uty = unparse Names.empty bty Interval.entire Interval.entire in
@@ -373,11 +586,11 @@ let execute : Command.t -> unit =
           pp_print_newline ppf ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
   | Notation { fixity; name; pattern; head; args; _ } ->
-      let notation_name = "notation" :: name in
+      History.do_command @@ fun () ->
+      let notation_name = "notations" :: name in
       (* A notation name can't be redefining anything. *)
       if Option.is_some (Scope.lookup notation_name) then
-        fatal ~severity:Asai.Diagnostic.Error
-          (Name_already_defined (String.concat "." notation_name));
+        fatal (Name_already_defined (String.concat "." notation_name));
       let key =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)
@@ -403,7 +616,7 @@ let execute : Command.t -> unit =
       let user =
         User { name = String.concat "." name; fixity; pattern; key; val_vars = List.map fst args }
       in
-      let notn, shadow = State.Current.add_user user in
+      let notn, shadow = Situation.Current.add_user user in
       Scope.include_singleton (notation_name, (`Notation (user, notn), ()));
       (if shadow then
          let keyname =
@@ -412,19 +625,61 @@ let execute : Command.t -> unit =
            | `Constant c -> String.concat "." (Scope.name_of c) in
          emit (Head_already_has_notation keyname));
       emit (Notation_defined (String.concat "." name))
-  | Import { file; _ } ->
-      if FilePath.check_extension file "ny" then emit (Library_has_extension file);
-      let file = FilePath.add_extension file "ny" in
-      let trie = Units.get_file file in
-      Scope.import_subtree ([], trie);
+  | Import { export; origin; op; _ } ->
+      History.do_command @@ fun () ->
+      let trie =
+        match origin with
+        | `File file ->
+            if FilePath.check_extension file "ny" then emit (Library_has_extension file);
+            let file = FilePath.add_extension file "ny" in
+            get_file file
+        | `Path path -> Trie.find_subtree path (Scope.get_visible ()) in
+      let trie =
+        match op with
+        | Some (_, op) -> Scope.Mod.modify (process_modifier op) trie
+        | None -> trie in
+      if export then Scope.include_subtree ([], trie) else Scope.import_subtree ([], trie);
       Seq.iter
         (fun (_, (data, _)) ->
           match data with
           | `Notation (user, _) ->
-              let _ = State.Current.add_user user in
+              let _ = Situation.Current.add_user user in
               ()
           | _ -> ())
-        (Trie.to_seq (Trie.find_subtree [ "notation" ] trie))
+        (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
+  | Solve { number; tm = Term tm; _ } -> (
+      (* Solve does NOT create a new history entry because it is NOT undoable. *)
+      let (Find_number
+            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; status; vars })) =
+        Eternity.find_number number in
+      match metatm with
+      | `Undefined ->
+          History.run_with_scope ~init_visible:scope @@ fun () ->
+          Core.Command.execute
+            (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m))
+      | `Defined _ | `Axiom ->
+          (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
+          fatal (Anomaly "hole already defined"))
+  | Show { what; _ } -> (
+      action_taken ();
+      match what with
+      | `Hole (_, number) -> show_hole (No_such_hole number) (Eternity.find_number number)
+      | `Holes -> (
+          match Eternity.all_holes () with
+          | [] -> emit No_open_holes
+          | holes -> List.iter (show_hole (Anomaly "defined hole in undefined list")) holes))
+  | Undo { count; _ } ->
+      History.undo count;
+      emit (Commands_undone count)
+  | Section { prefix; _ } ->
+      History.do_command @@ fun () ->
+      Scope.start_section prefix;
+      emit (Section_opened prefix)
+  | End _ -> (
+      History.do_command @@ fun () ->
+      match Scope.end_section () with
+      | Some prefix -> emit (Section_closed prefix)
+      | None -> fatal No_such_section)
   | Quit _ -> fatal (Quit None)
   | Bof _ -> ()
   | Eof -> fatal (Anomaly "EOF cannot be executed")
@@ -439,25 +694,6 @@ let tightness_of_fixity : type left tight right. (left, tight, right) fixity -> 
   | Postfix tight
   | Postfixl tight -> Some (No.to_string tight)
   | Outfix -> None
-
-let pp_pattern : formatter -> State.pattern -> unit =
- fun ppf pattern ->
-  pp_open_hvbox ppf 0;
-  List.iter
-    (function
-      | `Var (x, _, ws) ->
-          pp_utf_8 ppf x;
-          pp_ws `Break ppf ws
-      | `Op (op, _, ws) ->
-          pp_print_string ppf "\"";
-          pp_tok ppf op;
-          pp_print_string ppf "\"";
-          pp_ws `Break ppf ws
-      | `Ellipsis ws ->
-          pp_tok ppf Ellipsis;
-          pp_ws `Break ppf ws)
-    pattern;
-  pp_close_box ppf ()
 
 let pp_parameter : formatter -> Parameter.t -> unit =
  fun ppf { wslparen; names; wscolon; ty; wsrparen } ->
@@ -516,9 +752,9 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_close_box ppf ();
       rest
   | Def defs -> pp_defs ppf Def [] defs
-  | Echo { wsecho; tm = Term tm } ->
+  | Echo { wsecho; tm = Term tm; eval } ->
       pp_open_hvbox ppf 2;
-      pp_tok ppf Echo;
+      pp_tok ppf (if eval then Echo else Synth);
       pp_ws `Nobreak ppf wsecho;
       let tm, rest = split_ending_whitespace tm in
       pp_term `None ppf (Term tm);
@@ -555,7 +791,7 @@ let pp_command : formatter -> t -> Whitespace.t list =
           pp_tok ppf Ellipsis;
           pp_ws `Break ppf wsellipsis
       | _ -> ());
-      pp_pattern ppf pattern;
+      User.pp_pattern ppf pattern;
       (match fixity with
       | Infixr _ | Prefixr _ ->
           pp_tok ppf Ellipsis;
@@ -584,16 +820,78 @@ let pp_command : formatter -> t -> Whitespace.t list =
             rest in
       pp_close_box ppf ();
       rest
-  | Import { wsimport; file; wsfile } ->
+  | Import { wsimport; export; origin; wsorigin; op } -> (
       pp_open_hvbox ppf 2;
-      pp_tok ppf Import;
+      pp_tok ppf (if export then Export else Import);
       pp_ws `Nobreak ppf wsimport;
-      pp_print_string ppf "\"";
-      pp_print_string ppf file;
-      pp_print_string ppf "\"";
-      let ws, rest = Whitespace.split wsfile in
-      pp_ws `None ppf ws;
+      (match origin with
+      | `File file ->
+          pp_print_string ppf "\"";
+          pp_print_string ppf file;
+          pp_print_string ppf "\""
+      | `Path [] -> pp_tok ppf Dot
+      | `Path path -> pp_utf_8 ppf (String.concat "." path));
+      match op with
+      | None ->
+          let ws, rest = Whitespace.split wsorigin in
+          pp_ws `None ppf ws;
+          pp_close_box ppf ();
+          rest
+      | Some (wsbar, op) ->
+          pp_ws `Break ppf wsorigin;
+          pp_tok ppf (Op "|");
+          pp_ws `Nobreak ppf wsbar;
+          let ws, rest = Whitespace.split (pp_modifier ppf op) in
+          pp_ws `None ppf ws;
+          pp_close_box ppf ();
+          rest)
+  | Solve { wssolve; number; wsnumber; wscoloneq; tm = Term tm } ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Solve;
+      pp_ws `Nobreak ppf wssolve;
+      pp_print_int ppf number;
+      pp_ws `Break ppf wsnumber;
+      pp_tok ppf Coloneq;
+      pp_ws `Nobreak ppf wscoloneq;
+      let tm, rest = split_ending_whitespace tm in
+      pp_term `None ppf (Term tm);
       pp_close_box ppf ();
+      rest
+  | Show { wsshow; what; wswhat } ->
+      pp_open_hvbox ppf 2;
+      pp_tok ppf Show;
+      pp_ws `Nobreak ppf wsshow;
+      (match what with
+      | `Hole (ws, number) ->
+          pp_print_string ppf "hole";
+          pp_ws `Nobreak ppf ws;
+          pp_print_int ppf number
+      | `Holes -> pp_print_string ppf "holes");
+      let ws, rest = Whitespace.split wswhat in
+      pp_ws `None ppf ws;
+      rest
+  | Undo { wsundo; count; wscount } ->
+      pp_tok ppf Undo;
+      pp_ws `Nobreak ppf wsundo;
+      pp_print_int ppf count;
+      let ws, rest = Whitespace.split wscount in
+      pp_ws `None ppf ws;
+      rest
+  | Section { wssection; prefix; wsprefix; wscoloneq } ->
+      pp_tok ppf Section;
+      pp_ws `Nobreak ppf wssection;
+      pp_utf_8 ppf (String.concat "." prefix);
+      pp_ws `Nobreak ppf wsprefix;
+      let ws, rest = Whitespace.split wscoloneq in
+      pp_tok ppf Coloneq;
+      pp_open_vbox ppf 2;
+      pp_ws `None ppf ws;
+      rest
+  | End { wsend } ->
+      pp_close_box ppf ();
+      pp_tok ppf End;
+      let ws, rest = Whitespace.split wsend in
+      pp_ws `None ppf ws;
       rest
   | Quit ws -> ws
   | Bof ws -> ws

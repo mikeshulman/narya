@@ -25,4 +25,4 @@ let run f =
       raise (Failure "Fatal error"))
   @@ fun () ->
   Builtins.run @@ fun () ->
-  Global.run_empty @@ fun () -> Scope.run f
+  Global.run ~init:Global.empty @@ fun () -> Scope.run f

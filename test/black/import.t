@@ -14,13 +14,13 @@ Import files
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
 
 Command-line strings see namespaces from explicitly loaded files only
@@ -30,13 +30,13 @@ Command-line strings see namespaces from explicitly loaded files only
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ error[E0300]
    ￭ command-line exec string
@@ -47,11 +47,36 @@ Command-line strings see namespaces from explicitly loaded files only
 
   $ narya -source-only -v one.ny -e 'axiom a1 : A'
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
+
+Unless we explicitly export them:
+
+  $ cat >etwo.ny <<EOF
+  > export "one"
+  > axiom a0 : A
+  > EOF
+
+  $ narya -source-only -v etwo.ny -e 'axiom a1 : A'
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/one.ny
+  
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
+  
+   ￫ info[I0001]
+   ￮ axiom a0 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a1 assumed
+  
+
 
 Requiring a file multiple times
 
@@ -73,13 +98,13 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
@@ -88,7 +113,7 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/three.ny
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
@@ -111,7 +136,7 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
@@ -120,7 +145,7 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/two.ny
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/two.ny (source)
@@ -129,13 +154,13 @@ Requiring a file multiple times
    ￮ loading file: $TESTCASE_ROOT/three.ny
   
    ￫ info[I0001]
-   ￮ Axiom a1 assumed
+   ￮ axiom a1 assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/three.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a2 assumed
+   ￮ axiom a2 assumed
   
 
 Circular dependency
@@ -178,13 +203,13 @@ Import is relative to the file's directory
    ￮ loading file: $TESTCASE_ROOT/subdir/one.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/one.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a assumed
+   ￮ axiom a assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
@@ -194,13 +219,13 @@ A file isn't loaded twice even if referred to in different ways
 
   $ narya -source-only -v subdir/one.ny -e 'import "subdir/two"'
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0003]
    ￮ loading file: $TESTCASE_ROOT/subdir/two.ny
   
    ￫ info[I0001]
-   ￮ Axiom a assumed
+   ￮ axiom a assumed
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/subdir/two.ny (source)
@@ -279,7 +304,7 @@ Quitting in imports quits only that file
    ￮ loading file: $TESTCASE_ROOT/qone.ny
   
    ￫ info[I0001]
-   ￮ Axiom A assumed
+   ￮ axiom A assumed
   
    ￫ info[I0200]
    ￮ execution of $TESTCASE_ROOT/qone.ny terminated by quit
@@ -288,5 +313,5 @@ Quitting in imports quits only that file
    ￮ file loaded: $TESTCASE_ROOT/qone.ny (source)
   
    ￫ info[I0001]
-   ￮ Axiom a0 assumed
+   ￮ axiom a0 assumed
   

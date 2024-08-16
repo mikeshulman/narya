@@ -28,37 +28,37 @@ let parens = make "parens" Outfix
 (* Let-in doesn't need to be right-associative in order to chain, because it is left-closed, but we make it right-associative anyway for consistency.  *)
 
 let letin = make "let" (Prefixr No.minus_omega)
+let letrec = make "letrec" (Prefixr No.minus_omega)
 
 let process_let :
-    type n.
-    [ `Let ] ->
-    (string option, n) Bwv.t ->
-    observation list ->
-    Asai.Range.t option ->
-    n check located =
- fun kind ctx obs loc ->
+    type n. (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
+ fun ctx obs loc ->
   match obs with
-  | [ Term x; Term ty; Term tm; Term body ] -> (
+  | [ Term x; Term ty; Term tm; Term body ] ->
       let x = get_var x in
-      let ty, tm = (process ctx ty, process ctx tm) in
+      let ty = process ctx ty in
+      let tm = process ctx tm in
       let body = process (Bwv.snoc ctx x) body in
       let v : n synth located = { value = Asc (tm, ty); loc = Range.merge_opt ty.loc tm.loc } in
-      match kind with
-      | `Let -> { value = Synth (Let (x, v, body)); loc })
-  | [ Term x; Term tm; Term body ] -> (
+      { value = Synth (Let (x, v, body)); loc }
+  | [ Term x; Term tm; Term body ] ->
       let x = get_var x in
       let term = process_synth ctx tm "value of let" in
       let body = process (Bwv.snoc ctx x) body in
-      match kind with
-      | `Let -> { value = Synth (Let (x, term, body)); loc })
+      { value = Synth (Let (x, term, body)); loc }
   | _ -> fatal (Anomaly "invalid notation arguments for let")
 
-let pp_let tok space ppf obs ws =
-  let rec pp_let space ppf obs ws =
+let pp_let toks space ppf obs ws =
+  let rec pp_let toks space ppf obs ws =
     let style = style () in
+    let ws, wslets =
+      List.fold_left_map
+        (fun ws tok ->
+          let wstok, ws = take tok ws in
+          (ws, (tok, wstok)))
+        ws toks in
     match obs with
     | [ x; ty; tm; body ] ->
-        let wslet, ws = take tok ws in
         let wscolon, ws = take Colon ws in
         let wscoloneq, ws = take Coloneq ws in
         let wsin, ws = take In ws in
@@ -67,8 +67,11 @@ let pp_let tok space ppf obs ws =
         if true then (
           pp_open_hvbox ppf 2;
           if true then (
-            pp_tok ppf tok;
-            pp_ws `Nobreak ppf wslet;
+            List.iter
+              (fun (tok, wstok) ->
+                pp_tok ppf tok;
+                pp_ws `Nobreak ppf wstok)
+              wslets;
             pp_term `Break ppf x;
             pp_tok ppf Colon;
             pp_ws `Nobreak ppf wscolon;
@@ -82,14 +85,16 @@ let pp_let tok space ppf obs ws =
         pp_ws `Break ppf wsin;
         pp_let_body space ppf body
     | [ x; tm; body ] ->
-        let wslet, ws = take tok ws in
         let wscoloneq, ws = take Coloneq ws in
         let wsin, ws = take In ws in
         taken_last ws;
         if style = `Compact then pp_open_hovbox ppf 2 else pp_open_hvbox ppf 2;
         if true then (
-          pp_tok ppf tok;
-          pp_ws `Nobreak ppf wslet;
+          List.iter
+            (fun (tok, wstok) ->
+              pp_tok ppf tok;
+              pp_ws `Nobreak ppf wstok)
+            wslets;
           pp_term `Break ppf x;
           pp_tok ppf Coloneq;
           pp_ws `Nobreak ppf wscoloneq;
@@ -98,14 +103,38 @@ let pp_let tok space ppf obs ws =
         pp_close_box ppf ();
         pp_ws `Break ppf wsin;
         pp_let_body space ppf body
+    | x :: ty :: tm :: rest when toks = [ Let; Rec ] || toks = [ And ] ->
+        let wscolon, ws = take Colon ws in
+        let wscoloneq, ws = take Coloneq ws in
+        if style = `Compact then pp_open_hovbox ppf 2;
+        if true then (
+          pp_open_hvbox ppf 2;
+          if true then (
+            List.iter
+              (fun (tok, wstok) ->
+                pp_tok ppf tok;
+                pp_ws `Nobreak ppf wstok)
+              wslets;
+            pp_term `Break ppf x;
+            pp_tok ppf Colon;
+            pp_ws `Nobreak ppf wscolon;
+            pp_term `Break ppf ty;
+            pp_tok ppf Coloneq;
+            pp_ws `Nobreak ppf wscoloneq;
+            pp_term (if style = `Compact then `Nobreak else `Break) ppf tm);
+          if style = `Compact then pp_close_box ppf ());
+        pp_close_box ppf ();
+        pp_let [ And ] space ppf rest ws
     | _ -> fatal (Anomaly "invalid notation arguments for let")
   and pp_let_body space ppf tr =
     match tr with
     | Term { value = Notn n; _ } when equal (notn n) letin ->
-        pp_let space ppf (args n) (whitespace n)
+        pp_let [ Let ] space ppf (args n) (whitespace n)
+    | Term { value = Notn n; _ } when equal (notn n) letrec ->
+        pp_let [ Let; Rec ] space ppf (args n) (whitespace n)
     | _ -> pp_term space ppf tr in
   pp_open_hvbox ppf 0;
-  pp_let space ppf obs ws;
+  pp_let toks space ppf obs ws;
   pp_close_box ppf ()
 
 let () =
@@ -117,8 +146,57 @@ let () =
                (Coloneq, term In (Done_closed letin));
                (Colon, term Coloneq (term In (Done_closed letin)));
              ])));
-  set_processor letin { process = (fun ctx obs loc _ -> process_let `Let ctx obs loc) };
-  set_print letin (pp_let Let)
+  set_processor letin { process = (fun ctx obs loc _ -> process_let ctx obs loc) };
+  set_print letin (pp_let [ Let ])
+
+(* ********************
+   Let rec
+ ******************** *)
+
+type (_, _) letrec_terms =
+  | Letrec_terms :
+      ('a, 'b, 'ab) tel
+      * ('c, 'b, 'cb) Fwn.fplus
+      * ('ab check located, 'cb) Vec.t
+      * 'ab check located
+      -> ('c, 'a) letrec_terms
+
+let rec process_letrec :
+    type c a.
+    (string option, a) Bwv.t ->
+    observation list ->
+    (observation, c) Bwv.t ->
+    c N.t ->
+    (c, a) letrec_terms =
+ fun ctx obs terms c ->
+  match obs with
+  | Term x :: Term ty :: tm :: rest ->
+      let x = get_var x in
+      let ty = process ctx ty in
+      let (Letrec_terms (tel, Suc cb, terms, body)) =
+        process_letrec (Snoc (ctx, x)) rest (Snoc (terms, tm)) (N.suc c) in
+      Letrec_terms (Ext (x, ty, tel), cb, terms, body)
+  | [ Term body ] ->
+      let (Fplus cb) = Fwn.fplus c in
+      let body = process ctx body in
+      let terms = Bwv.mmap (fun [ Term t ] -> process ctx t) [ terms ] in
+      Letrec_terms (Emp, cb, Bwv.prepend cb terms [], body)
+  | _ -> fatal (Anomaly "invalid notation arguments for let-rec")
+
+let rec letrec_terms () =
+  term Colon
+    (term Coloneq (terms [ (And, Lazy (lazy (letrec_terms ()))); (In, Done_closed letrec) ]))
+
+let () =
+  set_tree letrec (Closed_entry (eop Let (op Rec (letrec_terms ()))));
+  set_processor letrec
+    {
+      process =
+        (fun ctx obs loc _ ->
+          let (Letrec_terms (tys, Zero, tms, body)) = process_letrec ctx obs Emp N.zero in
+          locate (Synth (Letrec (tys, tms, body))) loc);
+    };
+  set_print letrec (pp_let [ Let; Rec ])
 
 (* ********************
    Ascription
@@ -1801,7 +1879,7 @@ let () =
       process =
         (fun ctx obs loc _ ->
           match obs with
-          | [] -> { value = Hole ctx; loc }
+          | [] -> { value = Hole (ctx, locate () loc); loc }
           | _ -> fatal (Anomaly "invalid notation arguments for hole"));
     };
   set_print hole @@ fun space ppf obs ws ->
@@ -1819,26 +1897,27 @@ let () =
 
 let builtins =
   ref
-    (State.empty
-    |> State.add parens
-    |> State.add letin
-    |> State.add asc
-    |> State.add abs
-    |> State.add cubeabs
-    |> State.add arrow
-    |> State.add universe
-    |> State.add coloneq
-    |> State.add comatch
-    |> State.add dot
-    |> State.add implicit_mtch
-    |> State.add explicit_mtch
-    |> State.add mtchlam
-    |> State.add empty_co_match
-    |> State.add codata
-    |> State.add record
-    |> State.add data
-    |> State.add fwd
-    |> State.add bwd
-    |> State.add hole)
+    (Situation.empty
+    |> Situation.add parens
+    |> Situation.add letin
+    |> Situation.add letrec
+    |> Situation.add asc
+    |> Situation.add abs
+    |> Situation.add cubeabs
+    |> Situation.add arrow
+    |> Situation.add universe
+    |> Situation.add coloneq
+    |> Situation.add comatch
+    |> Situation.add dot
+    |> Situation.add implicit_mtch
+    |> Situation.add explicit_mtch
+    |> Situation.add mtchlam
+    |> Situation.add empty_co_match
+    |> Situation.add codata
+    |> Situation.add record
+    |> Situation.add data
+    |> Situation.add fwd
+    |> Situation.add bwd
+    |> Situation.add hole)
 
-let run : type a. (unit -> a) -> a = fun f -> State.run_on !builtins f
+let run : type a. (unit -> a) -> a = fun f -> Situation.run_on !builtins f

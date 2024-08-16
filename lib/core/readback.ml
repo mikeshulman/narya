@@ -13,6 +13,8 @@ open Printable
 module Binding = Ctx.Binding
 module Display = Algaeff.Reader.Make (Bool)
 
+let () = Display.register_printer (function `Read -> Some "unhandled Display.read effect")
+
 (* Readback of values to terms.  Closely follows equality-testing in equal.ml, so most comments are omitted.  However, unlike equality-testing and the "readback" in theoretical NbE, this readback does *not* eta-expand functions and tuples.  It is used for (1) displaying terms to the user, who will usually prefer not to see things eta-expanded, and (2) turning values into terms so that we can re-evaluate them in a new environment, for which purpose eta-expansion is irrelevant. *)
 
 let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =
@@ -65,18 +67,18 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
         (* If the term is not a struct and the record type is not transparent/translucent, we pass off to synthesizing readback. *)
         | _ -> None in
       match is_id_ins ins with
-      | Some () -> (
+      | Some _ -> (
           match readback_at_record tm ty with
           | Some res -> res
           | None -> readback_val ctx tm)
       | None -> (
           (* A nontrivially permuted record is not a record type, but we can permute its arguments to find elements of a record type that we can then eta-expand and re-permute. *)
-          let p = perm_of_ins ins in
-          let pinv = perm_inv p in
+          let (Perm_to p) = perm_of_ins ins in
+          let pinv = deg_of_perm (perm_inv p) in
           let ptm = act_value tm pinv in
           let pty = act_ty tm ty pinv in
           match readback_at_record ptm pty with
-          | Some res -> Act (res, p)
+          | Some res -> Act (res, deg_of_perm p)
           | None -> readback_val ctx tm))
   | Canonical (_, Data { constrs; _ }, tyargs), Constr (xconstr, xn, xargs) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
@@ -153,15 +155,16 @@ and readback_uninst : type a z. (z, a) Ctx.t -> uninst -> (a, kinetic) term =
   | Neu { head; args; value = _ } ->
       Bwd.fold_left
         (fun fn (Value.App (arg, ins)) ->
+          let (To p) = deg_of_ins ins in
           Term.Act
             ( (match arg with
               | Arg args ->
                   App (fn, CubeOf.mmap { map = (fun _ [ tm ] -> readback_nf ctx tm) } [ args ])
               | Field fld -> Field (fn, fld)),
-              perm_of_ins ins ))
+              p ))
         (readback_head ctx head) args
 
-and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
+and readback_head : type c z. (z, c) Ctx.t -> head -> (c, kinetic) term =
  fun ctx h ->
   match h with
   | Var { level; deg } ->
@@ -169,13 +172,12 @@ and readback_head : type a z. (z, a) Ctx.t -> head -> (a, kinetic) term =
       Act (Var x, deg)
   | Const { name; ins } ->
       let dim = cod_left_ins ins in
-      let perm = deg_of_ins ins (plus_of_ins ins) in
+      let (To perm) = deg_of_ins ins in
       let (DegExt (_, _, deg)) = comp_deg_extending (deg_zero dim) perm in
       Act (Const name, deg)
   | Meta { meta; env; ins } ->
-      let perm = deg_of_ins ins (plus_of_ins ins) in
-      let (Metadef { termctx; _ }) = Global.find_meta meta in
-      Act (MetaEnv (meta, readback_env ctx env termctx), perm)
+      let (To perm) = deg_of_ins ins in
+      Act (MetaEnv (meta, readback_env ctx env (Global.find_meta meta).termctx), perm)
 
 and readback_at_tel :
     type n c a b ab z.
@@ -223,7 +225,8 @@ and readback_at_tel :
       :: readback_at_tel ctx
            (Ext
               ( env,
-                CubeOf.singleton (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)) ))
+                D.plus_zero (TubeOf.inst tyarg),
+                TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x) ))
            xs tys tyargs
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
@@ -232,51 +235,44 @@ and readback_env :
  fun ctx env (Permute (_, envctx)) -> readback_ordered_env ctx env envctx
 
 and readback_ordered_env :
-    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.ordered -> (b, n, d) Term.env
-    =
+    type n a b c d.
+    (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.Ordered.t -> (b, n, d) Term.env =
  fun ctx env envctx ->
   match envctx with
   | Emp -> Emp (dim_env env)
   | Lock envctx -> readback_ordered_env ctx env envctx
   | Snoc (envctx, entry, _) -> (
-      let (Looked_up (force, Op (fc, fd), xss)) = lookup_cube env Now (id_op (dim_env env)) in
-      let xss =
-        CubeOf.mmap
-          { map = (fun _ [ ys ] -> act_value_cube force (CubeOf.subcube fc ys) fd) }
-          [ xss ] in
+      let (Plus mk) = D.plus (Termctx.dim_entry entry) in
+      let (Looked_up { act; op = Op (fc, fd); entry = xs }) =
+        lookup_cube env mk Now (id_op (dim_env env)) in
+      let xs = act_cube { act } (CubeOf.subcube fc xs) fd in
       match entry with
       | Vis { bindings; _ } | Invis bindings ->
-          let tmxss =
+          let xtytbl = Hashtbl.create 10 in
+          let tmxs =
             CubeOf.mmap
               {
                 map =
-                  (fun fa [ xs ] ->
+                  (fun fab [ tm ] ->
+                    let (SFace_of_plus (_, fb, fa)) = sface_of_plus mk fab in
                     let ty = (CubeOf.find bindings fa).ty in
-                    let xtytbl = Hashtbl.create 10 in
-                    CubeOf.mmap
-                      {
-                        map =
-                          (fun fb [ tm ] ->
-                            let k = dom_sface fb in
-                            let ty =
-                              inst
-                                (eval_term (act_env env (op_of_sface fb)) ty)
-                                (TubeOf.build k (D.plus_zero k)
-                                   {
-                                     build =
-                                       (fun fc ->
-                                         Hashtbl.find xtytbl
-                                           (SFace_of (comp_sface fb (sface_of_tface fc))));
-                                   }) in
-                            Hashtbl.add xtytbl (SFace_of fb) { tm; ty };
-                            readback_at ctx tm ty);
-                      }
-                      [ xs ]);
+                    let k = dom_sface fb in
+                    let ty =
+                      inst
+                        (eval_term (act_env env (op_of_sface fb)) ty)
+                        (TubeOf.build k (D.plus_zero k)
+                           {
+                             build =
+                               (fun fc ->
+                                 Hashtbl.find xtytbl (SFace_of (comp_sface fb (sface_of_tface fc))));
+                           }) in
+                    Hashtbl.add xtytbl (SFace_of fb) { tm; ty };
+                    readback_at ctx tm ty);
               }
-              [ xss ] in
+              [ xs ] in
           let env = remove_env env Now in
           let tmenv = readback_ordered_env ctx env envctx in
-          Ext (tmenv, tmxss))
+          Ext (tmenv, mk, tmxs))
 
 (* Read back a context of values into a context of terms. *)
 
@@ -316,7 +312,7 @@ let readback_entry :
       Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
   | Invis bindings -> Invis (readback_bindings ctx bindings)
 
-let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.ordered = function
+let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.Ordered.t = function
   | Emp -> Emp
   | Snoc (rest, e, af) as ctx ->
       Snoc (readback_ordered_ctx rest, readback_entry (Ctx.of_ordered ctx) e, af)

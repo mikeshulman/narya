@@ -9,9 +9,10 @@ type printable = ..
 
 type printable +=
   | PUnit : printable
+  | PInt : int -> printable
   | PString : string -> printable
   | PConstant of Constant.t
-  | PMeta : ('b, 's) Meta.t -> printable
+  | PMeta : ('x, 'b, 's) Meta.t -> printable
   | PField : Field.t -> printable
   | PConstr : Constr.t -> printable
 
@@ -30,6 +31,10 @@ let printer : (printable -> printed) ref =
 
 let pp_printed ppf (Printed (pp, x)) = pp ppf x
 let print pr = !printer pr
+
+let string_of_dim0 dim =
+  let str = string_of_dim dim in
+  if str = "" then "0" else str
 
 module Code = struct
   type t =
@@ -115,6 +120,7 @@ module Code = struct
     | Head_already_has_notation : string -> t
     | Constant_assumed : printable * int -> t
     | Constant_defined : (printable * bool) list * int -> t
+    | Hole_solved : int -> t
     | Notation_defined : string -> t
     | Show : string * printable -> t
     | Comment_end_in_string : t
@@ -126,8 +132,10 @@ module Code = struct
     | Missing_constructor_type : Constr.t -> t
     | Locked_variable : t
     | Locked_axiom : printable -> t
-    | Hole_generated : ('b, 's) Meta.t * printable -> t
-    | Open_holes : t
+    | Hole : string * printable -> t
+    | No_open_holes : t
+    | Open_holes : int -> t
+    | Open_holes_remaining : Asai.Range.source -> t
     | Quit : string option -> t
     | Synthesizing_recursion : printable -> t
     | Invalid_synthesized_type : string * printable -> t
@@ -145,8 +153,18 @@ module Code = struct
     | File_loaded : string * [ `Compiled | `Source ] -> t
     | Library_has_extension : string -> t
     | Invalid_filename : string -> t
+    | No_such_file : string -> t
     | Incompatible_flags : string * string -> t
     | Actions_in_compiled_file : string -> t
+    | No_such_hole : int -> t
+    | Forbidden_interactive_command : string -> t
+    | Not_enough_to_undo : t
+    | Commands_undone : int -> t
+    | Section_opened : string list -> t
+    | Section_closed : string list -> t
+    | No_such_section : t
+    | Break : t
+    | No_holes_allowed : string -> t
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -208,7 +226,7 @@ module Code = struct
     | Unsupported_numeral _ -> Error
     | Anomaly _ -> Bug
     | No_such_level _ -> Bug
-    | Name_already_defined _ -> Warning
+    | Name_already_defined _ -> Error
     | Invalid_constant_name _ -> Error
     | Too_many_commands -> Error
     | Invalid_tightness _ -> Error
@@ -236,8 +254,10 @@ module Code = struct
     | Missing_constructor_type _ -> Error
     | Locked_variable -> Error
     | Locked_axiom _ -> Error
-    | Hole_generated _ -> Info
-    | Open_holes -> Error
+    | Hole _ -> Info
+    | No_open_holes -> Info
+    | Open_holes _ -> Warning
+    | Open_holes_remaining _ -> Error
     | Quit _ -> Info
     | Synthesizing_recursion _ -> Error
     | Invalid_synthesized_type _ -> Error
@@ -255,8 +275,19 @@ module Code = struct
     | File_loaded _ -> Info
     | Library_has_extension _ -> Warning
     | Invalid_filename _ -> Error
+    | No_such_file _ -> Error
     | Incompatible_flags _ -> Warning
     | Actions_in_compiled_file _ -> Warning
+    | No_such_hole _ -> Error
+    | Hole_solved _ -> Info
+    | Forbidden_interactive_command _ -> Error
+    | Not_enough_to_undo -> Error
+    | Commands_undone _ -> Info
+    | Section_opened _ -> Info
+    | Section_closed _ -> Info
+    | No_such_section -> Error
+    | Break -> Error
+    | No_holes_allowed _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -358,6 +389,8 @@ module Code = struct
     | Missing_constructor_type _ -> "E1506"
     (* Commands *)
     | Too_many_commands -> "E2000"
+    | Forbidden_interactive_command _ -> "E2001"
+    | No_holes_allowed _ -> "E2002"
     (* def *)
     | Name_already_defined _ -> "E2100"
     | Invalid_constant_name _ -> "E2101"
@@ -379,20 +412,32 @@ module Code = struct
     | Library_has_extension _ -> "W2301"
     | Invalid_filename _ -> "E2302"
     | Incompatible_flags _ -> "W2303"
+    | No_such_file _ -> "E2304"
     (* echo *)
     | Actions_in_compiled_file _ -> "W2400"
+    (* undo *)
+    | Not_enough_to_undo -> "E2500"
+    (* section *)
+    | No_such_section -> "E2600"
     (* Interactive proof *)
-    | Open_holes -> "E3000"
+    | Open_holes _ -> "W3000"
+    | No_such_hole _ -> "E3001"
+    | Open_holes_remaining _ -> "E3002"
+    | Hole _ -> "I3003"
+    | No_open_holes -> "3004"
     (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
     | Notation_defined _ -> "I0002"
     | Loading_file _ -> "I0003"
     | File_loaded _ -> "I0004"
-    (* Events during command execution *)
-    | Hole_generated _ -> "I0100"
+    | Hole_solved _ -> "I0005"
+    | Commands_undone _ -> "I0006"
+    | Section_opened _ -> "I0007"
+    | Section_closed _ -> "I0008"
     (* Control of execution *)
     | Quit _ -> "I0200"
+    | Break -> "E0201"
     (* Debugging *)
     | Show _ -> "I9999"
 
@@ -407,7 +452,8 @@ module Code = struct
     | Invalid_degeneracy str ->
         if str = "" then text "missing degeneracy" else textf "invalid degeneracy: %s" str
     | Invalid_variable_face (k, fa) ->
-        textf "invalid face: %d-dimensional variable has no face %s" (to_int k) (string_of_sface fa)
+        textf "invalid face: variable of dimension %s has no face '%s'" (string_of_dim0 k)
+          (string_of_sface fa)
     | No_relative_precedence (n1, n2) ->
         textf
           "notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
@@ -419,7 +465,7 @@ module Code = struct
     | Not_enough_arguments_to_instantiation ->
         text "not enough arguments to instantiate a higher-dimensional type"
     | Type_not_fully_instantiated (str, n) ->
-        textf "type not fully instantiated in %s (need %d more dimensions)" str (to_int n)
+        textf "type not fully instantiated in %s (need %s more dimensions)" str (string_of_dim0 n)
     | Instantiating_zero_dimensional_type ty ->
         textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
           (print ty)
@@ -505,7 +551,7 @@ module Code = struct
     | Undefined_metavariable v -> textf "undefined metavariable: %a" pp_printed (print v)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
     | Low_dimensional_argument_of_degeneracy (deg, dim) ->
-        textf "argument of degeneracy '%s' must be at least %d-dimensional" deg (to_int dim)
+        textf "argument of degeneracy '%s' must have dimension at least %s" deg (string_of_dim0 dim)
     | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
     | Applying_nonfunction_nontype (tm, ty) ->
         textf
@@ -535,7 +581,7 @@ module Code = struct
     | Matching_wont_refine (msg, d) ->
         textf "match will not refine the goal or context (%s): %a" msg pp_printed (print d)
     | Dimension_mismatch (op, a, b) ->
-        textf "dimension mismatch in %s (%d ≠ %d)" op (to_int a) (to_int b)
+        textf "dimension mismatch in %s (%s ≠ %s)" op (string_of_dim0 a) (string_of_dim0 b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
     | Anomaly str -> textf "anomaly: %s" str
     | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
@@ -559,23 +605,23 @@ module Code = struct
     | Head_already_has_notation name ->
         textf "replacing printing notation for %s (previous notation will still be parseable)" name
     | Constant_assumed (name, h) ->
-        if h > 1 then textf "Axiom %a assumed, containing %d holes" pp_printed (print name) h
-        else if h = 1 then textf "Axiom %a assumed, containing 1 hole" pp_printed (print name)
-        else textf "Axiom %a assumed" pp_printed (print name)
+        if h > 1 then textf "axiom %a assumed, containing %d holes" pp_printed (print name) h
+        else if h = 1 then textf "axiom %a assumed, containing 1 hole" pp_printed (print name)
+        else textf "axiom %a assumed" pp_printed (print name)
     | Constant_defined (names, h) -> (
         match names with
-        | [] -> textf "Anomaly: no constant defined"
+        | [] -> textf "anomaly: no constant defined"
         | [ (name, discrete) ] ->
             let discrete = if discrete then " (discrete)" else "" in
             if h > 1 then
-              textf "Constant %a defined%s, containing %d holes" pp_printed (print name) discrete h
+              textf "constant %a defined%s, containing %d holes" pp_printed (print name) discrete h
             else if h = 1 then
-              textf "Constant %a defined%s, containing 1 hole" pp_printed (print name) discrete
-            else textf "Constant %a defined%s" pp_printed (print name) discrete
+              textf "constant %a defined%s, containing 1 hole" pp_printed (print name) discrete
+            else textf "constant %a defined%s" pp_printed (print name) discrete
         | _ ->
-            (if h > 1 then textf "@[<v 2>Constants defined mutually, containing %d holes:@,%a@]" h
-             else if h = 1 then textf "@[<v 2>Constants defined mutually, containing 1 hole:@,%a@]"
-             else textf "@[<v 2>Constants defined mutually:@,%a@]")
+            (if h > 1 then textf "@[<v 2>constants defined mutually, containing %d holes:@,%a@]" h
+             else if h = 1 then textf "@[<v 2>constants defined mutually, containing 1 hole:@,%a@]"
+             else textf "@[<v 2>constants defined mutually:@,%a@]")
               (fun ppf names ->
                 pp_print_list
                   (fun ppf (name, discrete) ->
@@ -583,7 +629,7 @@ module Code = struct
                     if discrete then pp_print_string ppf " (discrete)")
                   ppf names)
               (List.map (fun (name, discrete) -> (print name, discrete)) names))
-    | Notation_defined name -> textf "Notation %s defined" name
+    | Notation_defined name -> textf "notation %s defined" name
     | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
     | Comment_end_in_string ->
         text "comment-end sequence `} in quoted string: cannot be commented out"
@@ -612,9 +658,15 @@ module Code = struct
         textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
     | Locked_variable -> text "variable locked behind external degeneracy"
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
-    | Hole_generated (n, ty) ->
-        textf "@[<v 0>hole %s generated:@,@,%a@]" (Meta.name n) pp_printed (print ty)
-    | Open_holes -> text "there are open holes"
+    | Hole (n, ty) -> textf "@[<v 0>hole %s:@,@,%a@]" n pp_printed (print ty)
+    | No_open_holes -> text "no open holes"
+    | Open_holes n ->
+        if n = 1 then text "there is 1 open hole" else textf "there are %d open holes" n
+    | Open_holes_remaining src -> (
+        match src with
+        | `File name -> textf "file %s contains open holes" name
+        | `String { title = Some title; _ } -> textf "%s contains open holes" title
+        | `String { title = None; _ } -> text "load string contains open holes")
     | Quit (Some src) -> textf "execution of %s terminated by quit" src
     | Quit None -> text "execution terminated by quit"
     | Synthesizing_recursion c ->
@@ -623,8 +675,8 @@ module Code = struct
         textf "type %a synthesized by %s is invalid for entire term" pp_printed (print ty) str
     | Unrecognized_attribute -> textf "unrecognized attribute"
     | Invalid_degeneracy_action (str, nk, n) ->
-        textf "invalid degeneracy action on %s: dimension %d doesn't factor through codomain %d" str
-          (to_int nk) (to_int n)
+        textf "invalid degeneracy action on %s: dimension '%s' doesn't factor through codomain '%s'"
+          str (string_of_dim0 nk) (string_of_dim0 n)
     | Wrong_number_of_patterns -> text "wrong number of patterns for match"
     | Inconsistent_patterns -> text "inconsistent patterns in match"
     | Overlapping_patterns -> text "overlapping patterns in match"
@@ -646,10 +698,24 @@ module Code = struct
     | File_loaded (file, `Source) -> textf "file loaded: %s (source)" file
     | Library_has_extension file -> textf "putative library name '%s' has extension" file
     | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
+    | No_such_file file -> textf "error opening file: %s" file
     | Incompatible_flags (file, flags) ->
         textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
     | Actions_in_compiled_file file ->
-        textf "not re-executing 'echo' commands when loading compiled file %s" file
+        textf "not re-executing echo/synth/show commands when loading compiled file %s" file
+    | No_such_hole i -> textf "no open hole numbered %d" i
+    | Hole_solved h ->
+        if h > 1 then textf "hole solved, containing %d new holes" h
+        else if h = 1 then text "hole solved, containing 1 new hole"
+        else text "hole solved"
+    | Forbidden_interactive_command cmd -> textf "command '%s' only allowed in interactive mode" cmd
+    | Not_enough_to_undo -> text "not enough commands to undo"
+    | Commands_undone n -> if n = 1 then text "1 command undone" else textf "%d commands undone" n
+    | Section_opened prefix -> textf "section %s opened" (String.concat "." prefix)
+    | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
+    | No_such_section -> text "no section here to end"
+    | Break -> text "user interrupt"
+    | No_holes_allowed cmd -> textf "command '%s' cannot contain holes" cmd
 end
 
 include Asai.StructuredReporter.Make (Code)

@@ -46,12 +46,12 @@
  ￫ error[E0601]
  ￭ user-supplied term
  1 | sym f
-   ^ argument of degeneracy 'sym' must be at least 2-dimensional
+   ^ argument of degeneracy 'sym' must have dimension at least ee
 
  ￫ error[E0601]
  ￭ user-supplied term
  1 | sym a2
-   ^ argument of degeneracy 'sym' must be at least 2-dimensional
+   ^ argument of degeneracy 'sym' must have dimension at least ee
 
  ￫ error[E0300]
  ￭ user-supplied term
@@ -210,5 +210,5 @@
  ￫ error[E0506]
  ￭ user-supplied term
  1 | x ↦ x.0
-   ^ invalid face: 0-dimensional variable has no face 0
+   ^ invalid face: variable of dimension 0 has no face '0'
 

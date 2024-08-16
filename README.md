@@ -1,19 +1,19 @@
 # Narya: A proof assistant for higher-dimensional type theory
 
-Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Directional, Higher/Parametric/Displayed Observational Type Theory, but a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with Id/Bridge types satisfying parametricity, of variable arity and internality.  There is a parser with user-definable mixfix notations, and user-definable record types, inductive datatypes and type families, and coinductive codatatypes, with functions definable by matching and comatching case trees.
+Narya is eventually intended to be a proof assistant implementing Multi-Modal, Multi-Directional, Higher/Parametric/Displayed Observational Type Theory, but a formal type theory combining all those adjectives has not yet been specified.  At the moment, Narya implements a normalization-by-evaluation algorithm and typechecker for an observational-style theory with Id/Bridge types satisfying parametricity, of variable arity and internality.  There is a parser with user-definable mixfix notations, and user-definable record types, inductive datatypes and type families, and coinductive codatatypes, with functions definable by matching and comatching case trees, import and export and separate compilation, the ability to leave holes and solve them later, and a ProofGeneral interaction mode.
 
 Narya is very much a work in progress.  Expect breaking changes, including even in fundamental aspects of the syntax.  (I try to make breaking changes as GitHub pull requests, so if you watch the repository you should at least get notified of them.)  But on the other side of the coin, feedback on anything and everything is welcome.  In particular, please report all crashes, bugs, unexpected errors, and other unexpected, surprising, or unintuitive behavior, either in GitHub issues or by direct email.
 
 
-## Top level interface
+## Installation
 
-### Compilation
+### From source
 
-Narya requires OCaml version 5.2.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
+There is no distribution yet, so you have to compile Narya yourself.  This requires OCaml version 5.2.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
 
 ```
 opam switch create 5.2.0
-opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib
+opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib fileutils
 
 cd ../narya
 dune build
@@ -23,6 +23,14 @@ dune install
 
 This will make the executable `narya` available in a directory such as `~/.opam/5.2.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
+### ProofGeneral (Emacs) mode
+
+The recommended mode of use of Narya is with its [ProofGeneral](https://proofgeneral.github.io/) Emacs mode (for further description of this, see below).  To install Narya's ProofGeneral mode, first install Emacs and ProofGeneral and find the ProofGeneral installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.  In this directory, create a subdirectory called `narya` and copy (or, better, symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.  Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny")` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.  Then restart Emacs.
+
+Note that you will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them) and also whenever ProofGeneral is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
+
+
+## Top level interface
 
 ### Command-line flags
 
@@ -61,56 +69,128 @@ In interactive mode, commands typed by the user are executed as they are entered
 
 ### Commands
 
-In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  So far, the available commands are:
+In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  The available commands in a file or `-e` string are the following.
 
 1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
-   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below), while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.  Finally, a family of constants can be defined mutually by using the `and` keyword to introduce the second and later ones (see below).
+   Define a global constant called `NAME` having type `TYPE` and value `TERM`.  Thus `NAME` must be a valid identifier (see below) with no current definition in scope, while `TYPE` must parse and typecheck as a type, and `TERM` must parse and typecheck at type `TYPE`.  If `TYPE` is omitted, then `TERM` must synthesize a type (see below).  In addition, if `TYPE` is specified, then `TERM` can also be a case tree or canonical type declaration (see below).  The optional `PARAMS` is a list of parameters of the form `(x : PTY)`, or more generally `(x y z : PTY)`, with the effect that the actual type of the constant `NAME` is the Π-type of `TYPE` (or the synthesized type of `TERM`) over these parameters, and its value is the λ-abstraction of `TERM` over them.  That is, `def foo (x:A) : B ≔ M` is equivalent to `def foo : A → B ≔ x ↦ M`.  Finally, a family of constants can be defined mutually by using the `and` keyword to introduce the second and later ones (see below).
 
-2. `axiom NAME [PARAMS] : TYPE`
+1. `axiom NAME [PARAMS] : TYPE`
 
-   Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).  Parameters are treated as for `def`.
+   Assert a global constant called `NAME` having type `TYPE`, without any definition (an axiom).  Parameters and names are treated as for `def`.
 
-3. `echo TERM`
+1. `echo TERM`
 
    Normalize `TERM` and print its value and its type to standard output.  Note that `TERM` must synthesize a type (see below); if it is a checking term you must ascribe it.  In interactive mode, if you enter a term instead of a command, Narya assumes you mean to `echo` that term.
 
-4. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
+1. `synth TERM`
+
+   Like `echo`, but does not normalize the term, only computes its type.
+
+1.
+   ```
+   show hole HOLE
+   show holes
+   ```
+
+   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
+
+1. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
 
-5. `import FILE`
+1.
+   ```
+   import "FILE"
+   import "FILE" | MOD
+   ```
+   Add the extension `.ny` to the double-quoted string `FILE` and import the file at that location (either absolute or relative to the location of the current file), with the optional modifier `MOD` applied to its namespace (see below).  The disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
+   ```
+   import NAME
+   import NAME | MOD
+   ```
+   Import the namespace rooted at `NAME` into the current top-level namespace, with the optional modifier `MOD` applied to it first.
 
-   Add the extension `.ny` to the double-quoted string `FILE` and import the file at that location (either absolute or relative to the location of the current file).  The disk file *must* have the `.ny` extension, whereas the string given to `import` must *not* have it; this is because in the future the string given to `import` will be a more general "library identifier" in the [bantorra](https://redprl.org/bantorra/bantorra/index.html) framework.
+   ```
+   export "FILE"
+   export "FILE" | MOD
+   export NAME
+   export NAME | MOD
+   ```
+   Same as above, but also export the new names to other files that import this one.
 
-6. `quit`
+1. `section NAME ≔`
+   
+   Begin a section named `NAME`, which must be a valid identifier.  All ordinary commands are valid inside a section (including other section commands).
+   
+1. `end`
+
+   End the section that was most recently opened and not yet closed.  All the constants that were in the export namespace of that section (i.e. those defined with `def` and `axiom` or imported from elsewhere with `export`) are prefixed by the name of that section and merged into the previous namespace.  (See namespaces, below.)
+
+1. `quit`
 
    Terminate execution of the current compilation unit.  Whenever this command is found, loading of the current file or command-line string ceases, just as if the file or string had ended right there.  Execution then continues as usual with any file that imported the current one, with the next file or string on the command line, or with interactive mode if that was requested.  The command `quit` in interactive mode exits the program (you can also exit interactive mode by typing Control+D).
-   
 
-### File imports
+In interactive mode, the following additional commands are also available.  (However, they are mostly intended for use in the ProofGeneral backend, see below.)
 
-As noted above, the command `import` executes another Narya file and adds its definitions and notations to the current namespace.  The commands in the imported file cannot access any definitions from other files, including the current one, except those that it imports itself.  Importing is not transitive: if `a.ny` imports `b.ny`, and `b.ny` imports `c.ny`, then the definitions from `c.ny` do not appear in the namespace of `a.ny` unless it also imports `c.ny` explicitly.
+1. `solve HOLE ≔ TERM`
 
-By contrast, when in interactive mode or executing a command-line `-e` string, all definitions from all files and strings that were explicitly specified previously on the command line are available.  This does not carry over transitively to files imported by them.  Standard input (indicated by `-` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in `-e` strings and interactive mode.
+   Fill hole number `HOLE` with the term `TERM` (see below).
 
-No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both `b.ny` and `c.ny` import `d.ny`, and `a.ny` imports both `b.ny` and `c.ny`, any effectual commands like `echo` in `d.ny` will only happen once, there will only be one copy of the definitions from `d.ny` in the namespace of `a.ny`, and the definitions from `b.ny` and `c.ny` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is `narya one.ny two.ny` but `one.ny` imports `two.ny`, then `two.ny` will be executed during `one.ny` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was alread yexecuted.
+1. `undo N`
+
+   Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo`, `synth`, `show`, and `solve`: those commands are skipped over when undoing.  (Of course `solve` does modify the global state, but it is not undoable because it doesn't affect the "processed position" in ProofGeneral.)  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently from Narya's memory (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.
 
 
-### Compilation
+### ProofGeneral mode
 
-Whenever a file `FILE.ny` is successfully executed, Narya writes a "compiled" version of that file in the same directory called `FILE.nyo`.  Then in future runs of Narya, whenever `FILE.ny` is to be executed, if
+[ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
 
-1. `-source-only` was not specified,
-2. `FILE.ny` was not specified explicitly on the command-line (so that it must have been imported by another file),
-3. `FILE.nyo` exists in the same directory,
-4. the same type theory flags (`-arity`, `-direction`, `-internal`/`-external`, and `-discreteness`) are in effect now as when `FILE.nyo` was compiled,
-5. `FILE.ny` has not been modified more recently than `FILE.nyo`, and
-6. none of the files imported by `FILE.ny` are newer than it or their compiled versions,
+Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment), it will automatically be retracted up to the point where you are editing.
 
-then `FILE.nyo` is loaded directly instead of re-executing `FILE.ny`, skipping the typechecking step.  This can be much faster.  If any of these conditions fail, then `FILE.ny` is executed from source as usual, and a new compiled version `FILE.nyo` is saved, overwriting the previous one.
+In addition to the main window displaying your source file, there will be two other windows in split-screen labeled "goals" and "response".  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
 
-Effectual commands like `echo` are *not* re-executed when a file is loaded from its compiled version (they are not even stored in the compiled version).  Since this may be surprising, Narya issues a warning when loading a compiled version of a file that originally contained `echo` commands.  Since files explicitly specified on the command-line are never loaded from a compiled version, the best way to avoid this warning is to avoid `echo` statements in "library" files that are intended to be imported by other files.  Of course, you can also use `-source-only` to prevent all loading from compiled files.
+The most useful ProofGeneral key commands for Narya are the following.  (As usual in Emacs, `C-a` means hold down the Control key and press `a`, then release both.  Similarly, `C-M-a` means hold down both Control and Meta (usually the same as "Alt") and press `a`, then release them all.)
+
+- `C-c C-n` : Process the next unprocessed command.  Since Narya has no command-terminating string, the "next command" is interpreted as continuing until the following command keyword or until the end of the buffer.
+- `C-c C-u` : Retract the last processed command.
+- `C-c RET` : Move the processed/unprocessed boundary to (approximately) the current cursor location, processing or retracting as necessary.
+- `C-c C-b` : Process the entire buffer.
+- `C-c C-r` : Retract the entire buffer.
+- `C-c C-.` : Move the cursor to the end of the processed region.
+- `C-M-a` : Move the cursor to the beginning of the command it is inside.
+- `C-M-e` : Move the cursor to the end of the command it is inside.
+- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo`, `synth`, and `show`.
+- `C-c C-c` : Interrupt Narya if a command is taking too long.  Narya attempts to recover, but its state may be unreliable afterwards.
+- `M-;` : Insert a comment, remove a comment, or comment out a region.  This is a standard Emacs command, but is customized to use line comments on code lines and block comments elsewhere.
+
+As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (see below).  Whenever a hole is created by processing a command, the location of the hole is highlighted in `narya-hole-face` (which you can customize).  These highlights are removed when hole-creating commands are retracted.  Narya's ProofGeneral mode also defines the following additional key commands.
+
+- `C-c ;` : Read a term from the minibuffer and normalize it (like `C-c C-v` with `echo`).
+- `C-c :` : Read a term from the minibuffer and synthesize its type (like `C-c C-v` with `synth`).
+- `C-c C-?` : Show the contexts and types of all open holes (like `C-c C-v` with `show holes`).
+- `C-c C-t` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
+- `C-c C-j` : Move the cursor to the position of the next open hole.
+- `C-c C-k` : Move the cursor to the position of the previous open hole.
+
+
+### Entering Unicode characters
+
+When editing Narya files in Emacs, you will probably also want an input-mode for entering Unicode characters.  Narya does not have its own such mode.  I use the one that ships with Agda, customized by adding the following to `agda-input-user-translations`:
+```
+("r|" "↦")
+("|->" "↦")
+("|=>" "⤇")
+("R|" "⤇")
+("..." "…")
+```
+With this customization added, the Unicode characters that have primitive meanings to Narya can all be entered with short commands:
+
+- For →, type `\r` or `\to`
+- For ↦, type `\r|` or `\|->`
+- For ⤇, type `\R|` or `\|=>`
+- For ≔, type `\:=`
+- For …, type `\...`
 
 
 ## Built-in types
@@ -183,14 +263,92 @@ However, in Narya there are the following exceptions to this, where whitespace i
 
 Identifiers (variables and constant names) can be any string of non-whitespace characters, other than those mentioned above as special, that does not start or end with a period or an underscore, and is not a reserved word.  Currently the reserved words are
 ```
-let in def and axiom echo quit notation match return sig data codata
+let rec in def and axiom echo notation import export solve show quit undo match return sig data codata
 ```
 In particular, identifiers may start with a digit, or even consist entirely of digits (thereby shadowing a numeral notation, see below).  Internal periods in identifiers denote namespace qualifiers on constants; thus they cannot appear in local variable names.
 
 
-### Namespaces
+## Imports and scoping
 
-Narya uses [yuujinchou](https://redprl.org/yuujinchou/yuujinchou/) for hierarchical namespacing, with periods to separate namespaces.  Thus `nat.plus` is a potential name for a constant in the `nat` namespace, which can be defined directly with `def nat.plus` or could, in theory, be defined with `def plus` inside a "section" named `nat`, and would become available as simply `plus` if `nat` were imported.  However, Narya does not yet expose the import, export, and sectioning operations of yuujinchou to the user.
+### File imports
+
+The command `import FILE` executes another Narya file and adds (some of) its definitions and notations to the current namespace.  The commands in the imported file cannot access any definitions from other files, including the current one, except those that it imports itself.  Importing is not transitive: if `a.ny` imports `b.ny`, and `b.ny` imports `c.ny`, then the definitions from `c.ny` do not appear in the namespace of `a.ny` unless it also imports `c.ny` explicitly.
+
+More precisely, there are two namespaces at any time: the "import" namespace, which determines the names that are available to use in the current file, and the "export" namespace, which determines the names that will be made available to other files that import this one.  The command `import` only affects the import namespace, but the variant using the word `export` instead affects both.
+
+By contrast, when in interactive mode or executing a command-line `-e` string, all definitions from all files and strings that were explicitly specified previously on the command line are available, even if not exported.  This does not carry over transitively to files imported by them.  Standard input (indicated by `-` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in `-e` strings and interactive mode.
+
+No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both `b.ny` and `c.ny` import `d.ny`, and `a.ny` imports both `b.ny` and `c.ny`, any effectual commands like `echo` in `d.ny` will only happen once, there will only be one copy of the definitions from `d.ny` in the namespace of `a.ny`, and the definitions from `b.ny` and `c.ny` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is `narya one.ny two.ny` but `one.ny` imports `two.ny`, then `two.ny` will be executed during `one.ny` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was alread yexecuted.
+
+
+### Import modifiers
+
+Narya uses [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/) for hierarchical namespacing, with periods to separate namespaces.  Thus a name like `nat.plus` lies in the `nat` namespace.  It can be defined in the following two equivalent ways:
+```
+def nat.plus ≔ BODY
+
+section nat ≔
+  def plus ≔ BODY
+end
+```
+According to Yuujinchou, namespaces are untyped, implicit, and patchable: you can add anything you want to the `nat` namespace, anywhere, simply by defining it with a name that starts with `nat.`
+
+By default, an `import` command merges the namespace of the imported file with the current namespace.  However, it is also possible to apply Yuujinchou *modifiers* to the imported namespace before it is merged with the command form `import FILE | MOD`.  (The symbol `|` is intended to suggest a Unix pipe that sends the definitions of `FILE` through the modifiers before importing them.)  The valid modifiers are exactly those of [Yuujinchou](https://redprl.org/yuujinchou/yuujinchou/Yuujinchou/Language/index.html#modifier-builders):
+
+- `all`: Keep everything, checking that there is something to keep.
+- `id`: Keep everything, without checking that there is anything to keep.
+- `none`: Drop everything, checking that there was something to drop.
+- `only NAME`: Keep only the namespace rooted at `NAME`, without renaming anything.  Thus `only nat` will keep `nat.plus` and `nat.times`, under those names, but discard `int.plus`.
+- `except NAME`: Keep everything except the namespace rooted at `NAME`, without renaming anything.  Thus `except nat` will discard `nat.plus` and `nat.times` but keep `int.plus` and `real.plus`.
+- `in NAME MOD`: Apply the modifier `MOD` to the namespace rooted at `NAME`, leaving everything else alone.  Thus `in nat only plus` will keep `nat.plus.assoc` and `nat.plus.comm` and `int.times` but discard `nat.times.assoc`.
+- `renaming NAME1 NAME2`: Rename the namespace rooted at `NAME1` to instead be rooted at `NAME2`, checking that `NAME1` is nonempty, and silently dropping anything already present under `NAME2`.
+- `seq (MOD1, MOD2, …)`: Perform the modifiers `MOD1`, `MOD2`, and so on in order.  In particular, `seq ()` is equivalent to `id`.
+- `union (MOD1, MOD2, …)`: Apply all the modifiers `MOD1`, `MOD2` to the original namespace in parallel and take the union of the results.  In particular, `union ()` is like `none` but doesn't check that there is anything to drop.
+
+The `NAME`s in all these commands are ordinary identifiers, with one additional option: a bare period `.` represents the root namespace.  Thus `renaming nat .` will rename `nat.plus` to just `plus` and `nat.times` to just `times`, discarding everything that doesn't start with `nat`.  On the other hand, `renaming . foo` will add `foo` to the beginning of everything.  In particular, therefore, `import "arith" | renaming . arith` is the standard sort of "qualified import" that will import definitions like `nat.plus` from a file like `"arith.ny"` but renamed to `arith.nat.plus`.
+
+Currently, you can and must specify explicitly the qualifying namespace prefix; it has no automatic relationship to the imported filename or path.  More generally, the full syntax for Yuujinchou modifiers is rather verbose, so we may introduce abbreviated versions of some common operations.  Feedback is welcome about what those should be.
+
+
+### Importing namespaces
+
+The first argument of the `import` command can also be a namespace, with the effect that the contents of that namespace are merged with the root, possibly with a modifier applied.  Thus, for instance, after the following:
+
+```
+axiom a.one : ℕ ≔ 1
+axiom a.two : ℕ ≔ 2
+import a | renaming one uno
+```
+the names `a.one` and `uno` will refer to `1` while the names `a.two` and `two` will refer to `2`.
+
+Imported names also remain available in their original locations; there is no way to remove a name from the scope once it is added.  In addition, names imported this way are not *exported* from the current file when it it loaded by another file.  That is, if the above example is in a file `"foo.ny"`, then if some other file says `import "foo"` then it will only be able to access the original names `a.one` and `a.two`, not the new ones `uno` and `two`.  But, of course, they are exported if the variant called `export` is used instead.
+
+
+### Importing notations
+
+Importing of notations defined by another file is implemented as a special case of importing names.  Specifically, when a new notation is declared with a `NAME`, it is associated to that name in the current namespace prefixed by `notations`.  Thus, for instance, `notation 1 plus : x "+" y ≔ plus x y` associates this notation to the name `notations.plus`.  Then, whenever another file is imported, any notations that are present in the `notations` namespace after the modifiers are applied become available in the current file.  Since by default the complete namespace of an imported file is merged with the current one, this means that by default all notations defined in that file also become available.
+
+The `notations` namespace is not otherwise special: you can put constants in it too, but this is not recommended.  The names of constants and of notations inhabit the same domain: you cannot have a constant and a notation with the same name, although since newly created notations always have names that start with `notations` this is not usually a problem.  It is possible for notations to end up with names that don't start with `notation` through import modifiers, but in that case they are not available to the parser.
+
+For example, you can avoid making any imported notations available by using the modifier `except notations`, or you can import only the notations and no definitions with `only notations`.  Or you can import only a few particular notations with a modifier like `in notations union (only plus; only times)`.  In particular, if you import an entire file qualified such as `import "arith" | renaming . arith`, then a notation such as `notations.plus` in `"arith.ny"` will be renamed to `arith.notations.plus`, which is not in the `notations` namespace and thus will not be available to the parser.  To import all the constants qualified but make all the notations available, write `import "arith" | seq (renaming . arith; renaming arith.notations notations)`.  (This is probably a good candidate to have an abbreviated version.)
+
+The `notations` namespace can also contain sub-namespaces: if you write `notation 1 nat.plus` then it will go in the namespace as `notations.nat.plus`.  Then by importing with `in notations only nat` you can get all the notations in that namespace such as `notations.nat.plus` and `notations.nat.times`, but no other notations from the imported file.  Thus, notation namespaces act somewhat like Coq's [notation scopes](https://coq.inria.fr/doc/V8.18.0/refman/user-extensions/syntax-extensions.html#notation-scopes), although they can only be opened globally and not locally to part of a term.
+
+
+### Compilation
+
+Whenever a file `FILE.ny` is successfully executed, Narya writes a "compiled" version of that file in the same directory called `FILE.nyo`.  Then in future runs of Narya, whenever `FILE.ny` is to be executed, if
+
+1. `-source-only` was not specified,
+2. `FILE.ny` was not specified explicitly on the command-line (so that it must have been imported by another file),
+3. `FILE.nyo` exists in the same directory,
+4. the same type theory flags (`-arity`, `-direction`, `-internal`/`-external`, and `-discreteness`) are in effect now as when `FILE.nyo` was compiled,
+5. `FILE.ny` has not been modified more recently than `FILE.nyo`, and
+6. none of the files imported by `FILE.ny` are newer than it or their compiled versions,
+
+then `FILE.nyo` is loaded directly instead of re-executing `FILE.ny`, skipping the typechecking step.  This can be much faster.  If any of these conditions fail, then `FILE.ny` is executed from source as usual, and a new compiled version `FILE.nyo` is saved, overwriting the previous one.
+
+Effectual commands like `echo` are *not* re-executed when a file is loaded from its compiled version (they are not even stored in the compiled version).  Since this may be surprising, Narya issues a warning when loading a compiled version of a file that originally contained `echo` commands.  Since files explicitly specified on the command-line are never loaded from a compiled version, the best way to avoid this warning is to avoid `echo` statements in "library" files that are intended to be imported by other files.  Of course, you can also use `-source-only` to prevent all loading from compiled files.
 
 
 ## Typechecking details
@@ -222,6 +380,10 @@ The ascription notation has tightness −ω, and is non-associative, so that `M 
 Writing `let x ≔ M in N` binds the local variable `x` to the value `M` while typechecking and evaluating `N`.  The unicode ≔ is interchangeable with the ASCII `:=`.  Computationally, `let x ≔ M in N` is equivalent to `(x ↦ N) M`, but it also binds `x` to the value `M` while typechecking `N`, which in a dependent type theory is stronger.
 
 The term `M` is required to synthesize.  Thus `let x ≔ M : A in N` is a common idiom, and can be written alternatively as `let x : A ≔ M in N`.  The body `N` can either check or synthesize, and the let-binding as a whole inherits this from it: if `N` synthesizes a type then the let-binding synthesizes the same type, while if `N` checks then the let-binding checks against a type that is passed on to `N` to check against.  The let-binding notation is right-associative with tightness −ω.
+
+An ordinary let-binding is not recursive: the variable `x` cannot appear in the term `M`.  This is intentional and enables a common idiom where `x` shadows a previously existing variable of the same name in `N`, while the *previous* variable of that name can appear in `M`, thereby creating the illusion that the value of that variable has been "changed".  For instance, `let x ≔ x + 1 in` has the appearance of incrementing the value of `x`.
+
+However, it is possible to define a recursive let-binding by writing `let rec` instead of `let`.  (Note that `let` and `rec` are two keywords separated by a space.)  In this case, the variable `x` *can* appear in `M`, and of course shadows any previously defined variable of the same name in `M` as well as in `N`.  In a recursive let-binding the type of `M` must be given explicitly (as with a top-level `def` which can also be recursive): the only valid syntax is `let rec x : A ≔ M in N`.  (Recursive let-bindings are also treated "generatively", like let-bindings that include matches or comatches; see below.)
 
 
 ### Eta-conversion and case trees
@@ -270,15 +432,45 @@ However, the type `A → A` still has to be written again, since a let-binding m
 
 ## Interactive proof
 
-Narya has no truly interactive proof or term-construction mode yet, but it does allow you to leave *holes* in terms.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever, and emits a message showing the type it is being checked against, and all the variables in the context with their types (and definitions, if any).  There is not yet any way to go back and fill a hole *after* it is created, but you can get something of the same effect by just editing the source code to replace the `?` by a term (perhaps containing other holes) and reloading the file.  (And in interactive mode, you can press the up-arrow or Meta+P to get to the previous command, edit it to replace the `?`, and re-execute it, ignoring the resulting warning about redefining the constant.)
+### Holes
 
-A `def` or `axiom` command (or even an `echo` command) containing one or more holes will succeed as long as the term typechecks without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts.  In other words, it will succeed if the term would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself.  (This will be improved in the future.)
+The basic ingredient of interactive proof is a *hole*.  A hole is indicated by the character `?`, which is always its own token.  A hole does not synthesize, but checks against any type whatsoever.  A command containing one or more holes will succeed as long as all the terms in it typecheck without knowing anything about the contents of the holes, i.e. treating the holes as axioms generalized over their contexts, i.e. if it would be well-typed for *any* value of the hole having its given type.  If there are equality constraints on the possible fillers of the hole, then the command will fail; a hole is not equal to anything except itself (this may be improved in the future).
 
-If a command containing one or more holes succeeds, you can continue to issue other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N{…}` where `N` is the sequential number of the hole.  (Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.)  Unlike the printing of most terms, `?N{…}` for a hole is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N{…}` (this is what the notation `{…}` is intended to suggest).  This may be improved in future, but it is ameliorated somewhat by the treatment of holes in case trees.
+When a command containing holes finishes succesfully (in verbose or interactive mode), messages are emitted showing the type and context of every hole in it.  In ProofGeneral mode, these types and contexts are displayed in the "goals" window.  You can then continue to issue/process other commands afterwards, and each hole will continue to be treated like an axiom.  When a term containing a hole is printed, the hole displays as `?N{…}` where `N` is the sequential number of the hole.  (Note that even if no holes appear explicitly when you print a term, it might still depend implicitly on the values of holes if it involves constants whose definition contain holes.)  Unlike the printing of most terms, `?N{…}` for a hole is *not* a re-parseable notation.  Moreover, if the hole has a nonempty context, then occurrences of that hole in other terms may have other terms substituted for the variables in its context and these substitutions *are not indicated* by the notation `?N{…}` (this is what the notation `{…}` is intended to suggest).  This may be improved in future, but it is ameliorated somewhat by the treatment of holes in case trees.
 
-Specifically, a hole `?` left in a place where a case tree would be valid to continue is a *case tree hole*, and is treated a bit differently than an ordinary hole.  Obviously, once it is possible to "fill" holes, a case tree hole will be fillable with a case tree rather than just a term.  But currently, the main difference is that evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would constitute the substitution applied to a term hole, and hence not currently printed).
+Specifically, a hole `?` left in a place where a case tree would be valid to continue is a *case tree hole*, and is treated a bit differently than an ordinary hole.  The obvious difference is that a case tree hole can be solved (see below) by a case tree rather than an ordinary term.  But in addition, evaluation of a function does not reduce when it reaches a case tree hole, and thus a case tree hole will never appear when printing terms: instead the function in which it appears as part of the definition.  This may be a little surprising, but it has the advantage of being a re-parseable notation, and also explicitly indicating all the arguments of the function (which would constitute the substitution applied to a term hole, and hence not currently printed).
 
-When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.
+When Narya reaches the end of a file (or command-line `-e` string) in which any holes were created and not solved, it issues an error.  In the future this might become configurable, but it aligns with the behavior of most other proof assistants that each file must be complete before it can be loaded into another file.  Of course, this doesn't happen in interactive mode.  For this reason, a warning message is emitted after every command as long as there are open holes remaining.
+
+
+### Solving holes
+
+Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The straightforward way to fill a hole is to edit the source code to replace the `?` by a term (perhaps containing other holes) and reload the file.  In interactive mode, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.  In ProofGeneral mode, you can `C-c C-u` to retract the hole-creating command and edit it (or just start editing it and it will auto-retract), and then re-process it with `C-c C-n`.
+
+In interactive mode, it is also possible to solve a hole directly with the command `solve`.  This command identifies a hole by its number and supplies a term with which to fill the hole.  For example:
+```
+def f : Type → Type ≔ X ↦ ?
+
+ ￫ info[I0100]
+ ￮ hole ?0 generated:
+   
+   X : Type
+   ----------------------------------------------------------------------
+   Type
+
+ ￫ info[I0000]
+ ￮ constant f defined, containing 1 hole
+
+solve 0 ≔ X
+
+ ￫ info[I0005]
+ ￮ hole solved
+```
+Of course, the term given to `solve` can contain other holes, which will be printed and can themselves be solved later.  The term solving a hole is parsed and typechecked *in the context where the hole was created*: thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
+
+The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole changes the numbers of all the holes after that point.  For this reason the `solve` command is only allowed in interactive mode.  Indeed, it is intended primarily as a backend for a so-far unimplemented ProofGeneral command that solve holes identified positionally as in Agda, and as a primitive for (so-far unimplemented) tactic proofs as in Coq and Lean; and in both of those cases the hole numbers will be managed programmatically rather than by the user.
+
+If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.  In ProofGeneral mode the key command `C-c C-?` issues `show holes`, while `C-c C-t` issues `show hole` with the hole number inferred automatically from the cursor position (which must be over an open hole).
 
 
 ## Record types and tuples
@@ -958,7 +1150,7 @@ The other case tree constructs we have discussed, such as abstraction and tuples
 
 If `match` were an ordinary kind of term syntax, Narya would have to be able to check whether two `match` expressions are equal.  Matches don't satisfy η-conversion, so such an equality-check would have to descend into the branch bodies, and this would require *normalizing* those bodies.  Now suppose a function were defined recursively using a match outside its case tree; then it would evaluate to a match expression even if its argument is not a constructor, and it would appear itself in one of the branches of that match expression; thus, this would lead to an infinite regress of normalization.  This is probably not an impossible problem to solve (e.g. Coq has fixpoint terms and match terms and manages to check equality), but it would be complicated and does not seem worth the trouble.
 
-Narya's solution is similar to that of Agda: matches outside case trees are *generative*.  Each textual occurrence of a match is, in effect, lifted to a top-level definition (actually, a metavariable) which contains the match *inside* its case tree, and therefore doesn't reduce to anything unless the discriminee is a constructor.  In particular, therefore, two such matches, even if they look identical, generate distinct lifted top-level definitions and thus are not definitionally equal (until their discriminees become constructors and they reduce to corresponding branches).  This sort of lifting allows us to say that, technically, `match` is *only* allowed in case trees, and any occurrences outside of case trees are silently elaborated into case trees.
+Narya's solution is similar to that of Agda: matches outside case trees are *generative*.  (Note that matches inside case trees are also generative in the sense that all constants defined by case trees are generative.)  Each textual occurrence of a match is, in effect, lifted to a top-level definition (actually, a metavariable) which contains the match *inside* its case tree, and therefore doesn't reduce to anything unless the discriminee is a constructor.  In particular, therefore, two such matches, even if they look identical, generate distinct lifted top-level definitions and thus are not definitionally equal (until their discriminees become constructors and they reduce to corresponding branches).  This sort of lifting allows us to say that, technically, `match` is *only* allowed in case trees, and any occurrences outside of case trees are silently elaborated into case trees.
 
 Narya attempts to be "smart" about such lifting in a couple of ways.  Firstly (and perhaps obviously), once a `match` is encountered in a term and lifted to the case tree of a top-level definition, that case tree continues as usual into the branches of the match, including all operations that are valid in case trees such as abstractions, tuples, and other matches, until it reaches a leaf that can't be a case tree node.  Thus, reduction of such a match is blocked not only on its own discriminee, but on those of all directly subsequent matches appearing in its branches.
 
@@ -970,7 +1162,7 @@ def point : ℕ × ℕ
      
 echo point
 ```
-will print `(1,2)`, in contrast to how `def point : ℕ × ℕ ≔ (1,2)` would be printed simply as `point` since the tuple would be part of the case tree.  But, for instance, if we define a function locally to pass to some other functional, that local function can be defined by matching:
+will print `(1,2)`, in contrast to how `def point : ℕ × ℕ ≔ (1,2)` would be printed simply as `point` since the tuple would be part of the case tree (unless the product type `×` is transparent or translucent).  But, for instance, if we define a function locally to pass to some other functional, that local function can be defined by matching:
 ```
 def sq (f : ℕ → ℕ) : ℕ → ℕ ≔ x ↦ f (f x)
 
@@ -988,6 +1180,13 @@ Of course, we can also just pass the pattern-matching lambda directly as a term 
 ```
 def sqdec3 ≔ sq [ zero. ↦ zero. | suc. n ↦ n ]
 ```
+However, a let-bound local function can use a `let rec` instead to define a local recursive function, which is not possible with a pattern-matching lambda:
+```
+def sqdbl (x : ℕ) : ℕ ≔
+  let dbl : ℕ → ℕ ≔ y ↦ match y [ zero. ↦ zero. | suc. n ↦ suc. (suc. (dbl n)) ] in
+  sq dbl x
+```
+In fact, `let rec` is *always* treated generatively and lifted to top-level like an ordinary `let` that contains a `match`.  Indeed, in the absence of something like a "fixpoint" operator there is no other possibility, as there is no term syntax for it to evaluate to.
 
 Currently, such local case trees are not printed very comprehensibly if they "escape" from their site of definition.  For instance:
 ```
@@ -1021,8 +1220,6 @@ Note that both local functions are called `_let.N.dec` based on their name when 
 A match not occuring inside any `let` value doesn't even have a user-assigned name like `dec`, so it is printed only with a number.  For instance, `echo sqdec3` from above will print something like `sq (H ↦ _match.3{…})`.  Note that the dependence of the match on the variable (which Narya named `H`) is not even indicated (it is hidden in the context substitution `{…}`).  However, the advantage of matches of this sort is that, unlike the value of a let-bound variable, they can check rather than synthesize.
 
 The printing of local case trees will hopefully be improved somewhat in future, but there is a limit to how much improvement is possible.  Moreover, overuse of local case trees can make it difficult to prove theorems about a function: facts one may need about its components cannot easily be separated out into lemmas since the pieces cannot easily be referred to.  Thus, while this sort of code can be convenient for programming, and in simple cases (such as `match e [ ]` to fill any checking context, given any `e:⊥`), it is often better eschewed in favor of additional explicit global helper functions.  For this reason, Narya currently emits a hint whenever it detects a "bare" case-tree-only construct and interprets it in this way.
-
-Note also that let-bound functions cannot currently be recursive.  A `let rec` will probably be implemented one day, but for now, the only way to define recursive functions is with `def`.
 
 
 ## Codatatypes and comatching
@@ -1146,7 +1343,7 @@ def foo : ⊤ ≔
      but is being checked against type
        _let.1.B
 ```
-Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like `data [ red. | green. | blue. ]` directly as an argument to some other function.  Note that types defined on the fly like this cannot be recursive (although once `let rec` is implemented, it could be used to define local recursive types), so in practice their usefulness is mostly restricted to record types and enumerated types.  (In theory, record types and non-recursive datatypes could also be printed more comprehensibly, and even treated non-generatively.)
+Thus, it is probably ill-advised to use such "on-the-fly" definitions of canonical types very much.  However, it may sometimes be convenient to, for example, pass a custom type like `data [ red. | green. | blue. ]` directly as an argument to some other function.  Types defined directly on the fly like this cannot be recursive, so in practice their usefulness is mostly restricted to record types and enumerated types (which could, in theory, also be printed more comprehensibly, and even treated non-generatively).  However, local recursive types can be defined with `let rec`, e.g. `let rec ℕ : Type ≔ data [ zero. | suc. (_:ℕ) ] in ...`.
 
 
 ## Mutual definitions
@@ -1278,6 +1475,19 @@ def uu_el : Σ Type (X ↦ (X → Type)) ≔ (
 ```
 
 
+### Mutually recursive let-bindings
+
+Mutual recursive families of local bindings can also be defined by following `let rec` with `and`.  For instance, as a silly example we can define `even` without making `odd` globally visible:
+```
+def even (n : ℕ) : Bool ≔
+  let rec even : ℕ → Bool ≔ [ zero. ↦ true. | suc. n ↦ odd n ]
+  and odd : ℕ → Bool ≔ [ zero. ↦ false. | suc. n ↦ even n]
+  in
+  even n
+```
+Note that although the outer global `def` can (like any `def`) refer to itself recursively, the locally-bound `even` shadows the global one, so that `even` in the final line refers to the local one.
+
+
 ### Here be dragons
 
 As can be seen from these examples, Narya's facility for mutual definitions is comparable to Agda's in flexibility and power.  Also like Agda, Narya currently permits even more radical things such as nested datatypes:
@@ -1392,7 +1602,9 @@ Degeneracies can be extended by identities on the right.  For instance, the two 
 
 Degeneracy operations are functorial.  For pure symmetries, this means composing permutations.  For instance, the "Yang-Baxter equation" holds, equating `M⁽²¹³⁾⁽¹³²⁾⁽²¹³⁾` with `M⁽¹³²⁾⁽²¹³⁾⁽¹³²⁾`, as both reduce to `M⁽³²¹⁾`.  Symmetries also compose with permutations in a fairly straightforward way, e.g. `M⁽ᵉ¹⁾⁽²¹⁾` reduces to `M^⁽¹ᵉ⁾`.
 
-The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to higher degeneracies, with one exception.  Ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `1e`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.  For instance, `(Gel A B R a b)⁽¹ᵉ⁾` is not canonical, and in particular not a record type, so given `M : (Gel A B R a b)⁽¹ᵉ⁾` you cannot write `M .ungel`.  But we do have `M⁽²¹⁾ : (Gel A B R a b)⁽ᵉ¹⁾`, which doesn't permute the intrinsic dimension `1` with the degenerate dimension `e` and is therefore a record type, and so you can write `M⁽²¹⁾ .ungel`.
+The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to higher degeneracies, with one exception.  Ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `1e`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.
+
+For instance, `Gel A B R` is a 1-dimensional type, belonging to `Id Type A B`.  Thus, we can form the 2-dimensional type `(Gel A B R)⁽¹ᵉ⁾`, and instantiate it using `a₂ : Id A a₀ a₁` and `b₂ : Id B b₀ b₁` and `r₀ : R a₀ b₀` and `r₁ : R a₁ b₁` to get a 0-dimensional type `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂`.  But this type is not canonical, and in particular not a record type; in particular given `M : (Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` we cannot write `M .ungel`.  However, we have `sym M : (Gel A B R)⁽ᵉ¹⁾ a₀ a₁ a₂ b₀ b₁ b₂ (r₀,) (r₁,)`, which doesn't permute the intrinsic dimension `1` with the degenerate dimension `e` and *is* therefore a record type, and so we can write `sym M .ungel`, which has type `Id R a₀ a₁ a₂ b₀ b₁ b₂ r₀ r₁`.  In addition, since `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` is *isomorphic* to this record type, it also satisfies an eta-rule: two of its terms `M` and `N` are definitionally equal as soon as `sym M .ungel` and `sym N .ungel` are.
 
 
 ### Cubes of variables
@@ -1459,7 +1671,7 @@ def SST : Type ≔ codata [
 
 ### Parametrically discrete types
 
-Discreteness is an experimental feature.  A (strictly parametrically) *discrete* type, in the sense meant here, is one whose higher-dimensional versions are all definitionally subsingletons.  That is, if `b1 : A⁽ᵈ⁾ a` and `b2 : A⁽ᵈ⁾ a`, then `b1` and `b2` are convertible (this is implemented as an η-rule).  Discreteness is currently restricted to arity 1 (including dTT), and can be enabled by the `-discreteness` flag (which is not included in `-dtt`).  When discreteness is enabled, a declared type will be discrete if
+Discreteness is an experimental (and probably temporary) feature.  A (strictly parametrically) *discrete* type, in the sense meant here, is one whose higher-dimensional versions are all definitionally subsingletons.  That is, if `b1 : A⁽ᵈ⁾ a` and `b2 : A⁽ᵈ⁾ a`, then `b1` and `b2` are convertible (this is implemented as an η-rule).  Discreteness is currently restricted to arity 1 (including dTT), and can be enabled by the `-discreteness` flag (which is not included in `-dtt`).  When discreteness is enabled, a declared type will be discrete if
 
 1. It is a datatype;
 2. It has no parameters;
@@ -1479,7 +1691,7 @@ def btree : Type ≔ data [
 | node. (_:btree) (_:btree)
 ]
 ```
-Types defined in mutual families are never discrete.  (This could be improved, if there is interest.)
+Nontrivially mutual families of types can (currently) never be discrete, since other types in the same family are not allowed as arguments of a constructor of a discrete type by the rules above.
 
 The higher-dimensional versions of a discrete datatype are also still themselves datatypes, so they have constructors and can be matched on.  In fact it should be possible to prove internally *without* `-discreteness` that these types are always propositionally contractible.  In particular, they are inhabited, so discreteness just adds some strictness, making them *definitionally* singletons.  For example, here is the proof that the displayed versions of `ℕ` are inhabited:
 ```
@@ -1488,6 +1700,8 @@ def ℕ.d (n : ℕ) : ℕ⁽ᵈ⁾ n ≔ match n [
 | suc. n ↦ suc. (ℕ.d n)
 ]
 ```
+
+Currently, the test for discreteness is performed immediately and only upon completion of the `def` command that defines a datatype.  In particular, if the definition of a datatype contains a hole, it will not be considered discrete, even if the hole is later filled to make the definition one that would have been discrete if given from the get-go.  This could in theory be improved, but I am more likely to feel like putting effort into implementing the "correct" replacement for discrete types, namely modally-guarded parametricity such as full dTT.
 
 
 ## Remarks on implementation

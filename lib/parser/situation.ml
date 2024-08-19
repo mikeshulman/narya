@@ -124,7 +124,7 @@ let add_user : User.prenotation -> t -> t * (User.notation * bool) =
 let add_users : t -> Scope.trie -> t =
  fun sit trie ->
   Seq.fold_left
-    (fun state (_, (data, _)) ->
+    (fun state (_, ((data, _), _)) ->
       match data with
       | `Notation (user, _) -> fst (add_user user state)
       | _ -> state)

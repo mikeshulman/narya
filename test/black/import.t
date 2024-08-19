@@ -315,3 +315,27 @@ Quitting in imports quits only that file
    ￫ info[I0001]
    ￮ axiom a0 assumed
   
+
+Definitions are linked
+
+  $ cat >lone.ny <<EOF
+  > def Nat : Type := data [ zero. | suc. (_:Nat) ]
+  > EOF
+
+  $ cat >ltwo.ny <<EOF
+  > import "lone"
+  > def foo (n : Nat) : Type := match n [ zero. ↦ Nat | suc. n ↦ Nat ]
+  > EOF
+
+  $ narya -v lone.ny
+   ￫ info[I0000]
+   ￮ constant Nat defined
+  
+
+  $ narya -v ltwo.ny
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/lone.ny (compiled)
+  
+   ￫ info[I0000]
+   ￮ constant foo defined
+  

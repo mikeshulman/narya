@@ -97,11 +97,16 @@ let to_channel_unit chan i flags =
   Constant.Map.to_channel_unit chan i d.constants flags;
   Metamap.to_channel_unit chan i d.metas flags
 
+let link_definition f df =
+  match df with
+  | Axiom p -> Axiom p
+  | Defined tm -> Defined (Link.term f tm)
+
 let from_channel_unit f chan i =
   let d = S.get () in
   let constants =
     Constant.Map.from_channel_unit chan
-      (Result.map (fun (tm, df) -> (Link.term f tm, df)))
+      (Result.map (fun (tm, df) -> (Link.term f tm, link_definition f df)))
       i d.constants in
   let metas = Metamap.from_channel_unit chan { map = (fun _ df -> Link.metadef f df) } i d.metas in
   S.set { d with constants; metas }

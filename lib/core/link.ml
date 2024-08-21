@@ -50,7 +50,13 @@ and canonical : type a. (Compunit.t -> Compunit.t) -> a canonical -> a canonical
 
 and dataconstr : type p i. (Compunit.t -> Compunit.t) -> (p, i) dataconstr -> (p, i) dataconstr =
  fun f (Dataconstr { args; indices }) ->
-  Dataconstr { args; indices = Vec.mmap (fun [ x ] -> term f x) [ indices ] }
+  Dataconstr { args = tel f args; indices = Vec.mmap (fun [ x ] -> term f x) [ indices ] }
+
+and tel : type a b ab. (Compunit.t -> Compunit.t) -> (a, b, ab) tel -> (a, b, ab) tel =
+ fun f t ->
+  match t with
+  | Emp -> Emp
+  | Ext (x, ty, t) -> Ext (x, term f ty, tel f t)
 
 and env : type a n b. (Compunit.t -> Compunit.t) -> (a, n, b) env -> (a, n, b) env =
  fun f e ->

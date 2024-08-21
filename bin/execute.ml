@@ -9,7 +9,7 @@ module Trie = Yuujinchou.Trie
 
 (* Execution of files (and strings), including marshaling and unmarshaling, and managing compilation units and imports. *)
 
-let __COMPILE_VERSION__ = 1
+let __COMPILE_VERSION__ = 2
 
 (* This state module is for data that gets restarted when loading a new file. *)
 module Loadstate = struct
@@ -91,8 +91,8 @@ let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : Scope.tri
   Marshal.to_channel chan
     (Trie.map
        (fun _ -> function
-         | `Constant c, tag -> (`Constant c, tag)
-         | `Notation (u, _), tag -> (`Notation u, tag))
+         | (`Constant c, loc), tag -> ((`Constant c, loc), tag)
+         | (`Notation (u, _), loc), tag -> ((`Notation u, loc), tag))
        trie)
     [];
   Marshal.to_channel chan (Loading.get ()).actions []
@@ -139,17 +139,19 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
               Trie.map
                 (fun _ (data, tag) ->
                   match data with
-                  | `Constant c -> (`Constant (Constant.remake (Hashtbl.find table) c), tag)
-                  | `Notation (User.User u) ->
+                  | `Constant c, loc ->
+                      ((`Constant (Constant.remake (Hashtbl.find table) c), loc), tag)
+                  | `Notation (User.User u), loc ->
                       (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
                       let key =
                         match u.key with
                         | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
                         | `Constr (c, i) -> `Constr (c, i) in
                       let u = User.User { u with key } in
-                      (`Notation (u, make_user u), tag))
+                      ((`Notation (u, make_user u), loc), tag))
                 (Marshal.from_channel chan
-                  : ( [ `Constant of Constant.t | `Notation of User.prenotation ],
+                  : ( [ `Constant of Constant.t | `Notation of User.prenotation ]
+                      * Asai.Range.t option,
                       Scope.Param.tag )
                     Trie.t) in
             (* We check whether the compiled file had any actions, and issue a warning if so *)

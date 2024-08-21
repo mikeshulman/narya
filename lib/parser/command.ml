@@ -17,6 +17,7 @@ module Trie = Yuujinchou.Trie
 type def = {
   wsdef : Whitespace.t list;
   name : Trie.path;
+  loc : Asai.Range.t option;
   wsname : Whitespace.t list;
   parameters : Parameter.t list;
   wscolon : Whitespace.t list;
@@ -30,6 +31,7 @@ module Command = struct
     | Axiom of {
         wsaxiom : Whitespace.t list;
         name : Trie.path;
+        loc : Asai.Range.t option;
         wsname : Whitespace.t list;
         parameters : Parameter.t list;
         wscolon : Whitespace.t list;
@@ -44,6 +46,7 @@ module Command = struct
         wstight : Whitespace.t list; (* Empty for outfix *)
         wsellipsis : Whitespace.t list; (* Empty for non-associative *)
         name : Trie.path;
+        loc : Asai.Range.t option;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
         pattern : User.pattern;
@@ -119,15 +122,17 @@ module Parse = struct
 
   let axiom =
     let* wsaxiom = token Axiom in
-    let* name, wsname = ident in
+    let* nameloc, (name, wsname) = located ident in
+    let loc = Some (Range.convert nameloc) in
     let* parameters = zero_or_more parameter in
     let* wscolon = token Colon in
     let* ty = C.term [] in
-    return (Command.Axiom { wsaxiom; name; wsname; parameters; wscolon; ty })
+    return (Command.Axiom { wsaxiom; name; loc; wsname; parameters; wscolon; ty })
 
   let def tok =
     let* wsdef = token tok in
-    let* name, wsname = ident in
+    let* nameloc, (name, wsname) = located ident in
+    let loc = Some (Range.convert nameloc) in
     let* parameters = zero_or_more parameter in
     let* wscolon, ty, wscoloneq, tm =
       (let* wscolon = token Colon in
@@ -139,7 +144,7 @@ module Parse = struct
       let* wscoloneq = token Coloneq in
       let* tm = C.term [] in
       return ([], None, wscoloneq, tm) in
-    return ({ wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm } : def)
+    return ({ wsdef; name; loc; wsname; parameters; wscolon; ty; wscoloneq; tm } : def)
 
   let def_and =
     let* first = def Def in
@@ -156,19 +161,21 @@ module Parse = struct
     let* tm = C.term [] in
     return (Command.Echo { wsecho; tm; eval = false })
 
-  let tightness_and_name : (No.wrapped option * Whitespace.t list * Trie.path * Whitespace.t list) t
-      =
+  let tightness_and_name :
+      (No.wrapped option * Whitespace.t list * Trie.path * Asai.Range.t option * Whitespace.t list)
+      t =
     let* tloc, tight_or_name = located ident in
-    (let* name, wsname = ident in
+    (let* nameloc, (name, wsname) = located ident in
+     let loc = Some (Range.convert nameloc) in
      let tight, wstight = tight_or_name in
      let tight = String.concat "." tight in
      match No.of_rat (Q.of_string tight) with
-     | Some tight -> return (Some tight, wstight, name, wsname)
+     | Some tight -> return (Some tight, wstight, name, loc, wsname)
      | None | (exception Invalid_argument _) ->
          fatal ~loc:(Range.convert tloc) (Invalid_tightness tight))
     </>
     let name, wsname = tight_or_name in
-    return (None, [], name, wsname)
+    return (None, [], name, Some (Range.convert tloc), wsname)
 
   let pattern_token =
     step "" (fun state _ (tok, ws) ->
@@ -223,7 +230,7 @@ module Parse = struct
 
   let notation =
     let* wsnotation = token Notation in
-    let* tight, wstight, name, wsname = tightness_and_name in
+    let* tight, wstight, name, loc, wsname = tightness_and_name in
     let* wscolon = token Colon in
     let* pat, pattern = one_or_more (pattern_token </> pattern_var </> pattern_ellipsis) in
     let pattern = pat :: pattern in
@@ -239,6 +246,7 @@ module Parse = struct
            wstight;
            wsellipsis;
            name;
+           loc;
            wsname;
            wscolon;
            pattern;
@@ -515,10 +523,10 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
     fatal (Forbidden_interactive_command (to_string cmd));
   Global.with_holes (allows_holes cmd) @@ fun () ->
   match cmd with
-  | Axiom { name; parameters; ty = Term ty; _ } ->
+  | Axiom { name; loc; parameters; ty = Term ty; _ } ->
       History.do_command @@ fun () ->
-      Scope.check_constant_name name;
-      let const = Scope.define (Compunit.Current.read ()) name in
+      Scope.check_name name loc;
+      let const = Scope.define (Compunit.Current.read ()) ?loc name in
       Reporter.try_with ~fatal:(fun d ->
           Scope.modify_visible (Yuujinchou.Language.except name);
           Scope.modify_export (Yuujinchou.Language.except name);
@@ -531,8 +539,8 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
       let [ names; cdefs ] =
         Mlist.pmap
           (fun [ d ] ->
-            Scope.check_constant_name d.name;
-            let c = Scope.define (Compunit.Current.read ()) d.name in
+            Scope.check_name d.name d.loc;
+            let c = Scope.define (Compunit.Current.read ()) ?loc:d.loc d.name in
             [ d.name; (c, d) ])
           [ defs ] (Cons (Cons Nil)) in
       Reporter.try_with ~fatal:(fun d ->
@@ -585,12 +593,10 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           pp_print_newline ppf ();
           pp_print_newline ppf ()
       | _ -> fatal (Nonsynthesizing "argument of echo"))
-  | Notation { fixity; name; pattern; head; args; _ } ->
+  | Notation { fixity; name; loc; pattern; head; args; _ } ->
       History.do_command @@ fun () ->
       let notation_name = "notations" :: name in
-      (* A notation name can't be redefining anything. *)
-      if Option.is_some (Scope.lookup notation_name) then
-        fatal (Name_already_defined (String.concat "." notation_name));
+      Scope.check_name notation_name loc;
       let key =
         match head with
         | `Constr c -> `Constr (Constr.intern c, List.length args)
@@ -617,7 +623,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
         User { name = String.concat "." name; fixity; pattern; key; val_vars = List.map fst args }
       in
       let notn, shadow = Situation.Current.add_user user in
-      Scope.include_singleton (notation_name, (`Notation (user, notn), ()));
+      Scope.include_singleton (notation_name, ((`Notation (user, notn), loc), ()));
       (if shadow then
          let keyname =
            match notn.key with
@@ -640,7 +646,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
         | None -> trie in
       if export then Scope.include_subtree ([], trie) else Scope.import_subtree ([], trie);
       Seq.iter
-        (fun (_, (data, _)) ->
+        (fun (_, ((data, _), _)) ->
           match data with
           | `Notation (user, _) ->
               let _ = Situation.Current.add_user user in
@@ -714,7 +720,7 @@ let rec pp_defs : formatter -> Token.t -> Whitespace.t list -> def list -> White
  fun ppf tok ws defs ->
   match defs with
   | [] -> ws
-  | { wsdef; name; wsname; parameters; wscolon; ty; wscoloneq; tm = Term tm } :: defs ->
+  | { wsdef; name; loc = _; wsname; parameters; wscolon; ty; wscoloneq; tm = Term tm } :: defs ->
       pp_ws `None ppf ws;
       pp_open_hvbox ppf 2;
       pp_tok ppf tok;
@@ -738,7 +744,7 @@ let rec pp_defs : formatter -> Token.t -> Whitespace.t list -> def list -> White
 let pp_command : formatter -> t -> Whitespace.t list =
  fun ppf cmd ->
   match cmd with
-  | Axiom { wsaxiom; name; wsname; parameters; wscolon; ty = Term ty } ->
+  | Axiom { wsaxiom; name; loc = _; wsname; parameters; wscolon; ty = Term ty } ->
       pp_open_hvbox ppf 2;
       pp_tok ppf Axiom;
       pp_ws `Nobreak ppf wsaxiom;
@@ -767,6 +773,7 @@ let pp_command : formatter -> t -> Whitespace.t list =
         wstight;
         wsellipsis;
         name;
+        loc = _;
         wsname;
         wscolon;
         pattern;

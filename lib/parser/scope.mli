@@ -3,7 +3,10 @@ open Core
 module Trie = Yuujinchou.Trie
 
 module Param : sig
-  type data = [ `Constant of Constant.t | `Notation of User.prenotation * User.notation ]
+  type data =
+    [ `Constant of Constant.t | `Notation of User.prenotation * User.notation ]
+    * Asai.Range.t option
+
   type tag = unit
   type hook = unit
   type context = unit
@@ -100,7 +103,7 @@ val run :
 
 val run_with : ?get:(unit -> t) -> ?set:(t -> unit) -> (unit -> 'a) -> 'a
 val lookup : Trie.path -> Constant.t option
-val find_data : ('a, 'b) Trie.t -> 'a -> Trie.path option
+val find_data : ('a * 'c, 'b) Trie.t -> 'a -> Trie.path option
 val name_of : Constant.t -> Trie.path
-val define : Compunit.t -> Trie.path -> Constant.t
-val check_constant_name : Trie.path -> unit
+val define : Compunit.t -> ?loc:Asai.Range.t -> Trie.path -> Constant.t
+val check_name : Trie.path -> Asai.Range.t option -> unit

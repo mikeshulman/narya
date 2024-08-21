@@ -58,6 +58,9 @@ module Map = struct
         | Some m -> Some (IntMap.remove c m))
       m
 
+  let iter f m = Compunit.Map.iter (fun i n -> IntMap.iter (fun c v -> f (i, c) v) n) m
+  let cardinal m = Compunit.Map.fold (fun _ n x -> x + IntMap.cardinal n) m 0
+
   let to_channel_unit chan i (m : 'a t) flags =
     Marshal.to_channel chan (Compunit.Map.find_opt i m : 'a IntMap.t option) flags
 

@@ -117,7 +117,7 @@ let run f =
   Builtins.run @@ fun () ->
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->
-  Discreteness.run ~env:false @@ fun () ->
+  Discrete.run ~env:false @@ fun () ->
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;

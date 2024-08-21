@@ -245,7 +245,7 @@ let () =
       }
   @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->
-  Core.Syntax.Discreteness.run ~env:!discreteness @@ fun () ->
+  Core.Discrete.run ~env:!discreteness @@ fun () ->
   Reporter.run
     ~emit:(fun d ->
       if !verbose || d.severity = Error || d.severity = Warning then

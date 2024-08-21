@@ -1671,14 +1671,12 @@ def SST : Type ≔ codata [
 
 ### Parametrically discrete types
 
-Discreteness is an experimental (and probably temporary) feature.  A (strictly parametrically) *discrete* type, in the sense meant here, is one whose higher-dimensional versions are all definitionally subsingletons.  That is, if `b1 : A⁽ᵈ⁾ a` and `b2 : A⁽ᵈ⁾ a`, then `b1` and `b2` are convertible (this is implemented as an η-rule).  Discreteness is currently restricted to arity 1 (including dTT), and can be enabled by the `-discreteness` flag (which is not included in `-dtt`).  When discreteness is enabled, a declared type will be discrete if
+Discreteness is an experimental (and probably temporary) feature.  A (strictly parametrically) *discrete* type, in the sense meant here, is one whose higher-dimensional versions are all definitionally subsingletons.  That is, if `b1 : A⁽ᵈ⁾ a` and `b2 : A⁽ᵈ⁾ a`, then `b1` and `b2` are convertible (this is implemented as an η-rule).  Discreteness is currently restricted to arity 1 (including dTT), and can be enabled by the `-discreteness` flag (which is not included in `-dtt`).  When discreteness is enabled, a mutual family of datatypes will be marked as discrete if
 
-1. It is a datatype;
-2. It has no parameters;
-3. It has no indices; and
-4. All the arguments of all of its constructors are either itself or previously defined discrete types.
+1. All elements of the mutual family are datatypes; and
+2. The types of all of their parameters, indices, and constructor arguments are either types belonging to the same family or previously defined discrete datatypes.
 
-Of the types mentioned as examples above, the discrete ones are `ℕ`, `Bool`, and `⊥`.  Some other examples of discrete types are integers and binary trees:
+Of the datatypes mentioned as examples above, the discrete ones are `ℕ`, `Bool`, and `⊥`.  Some other examples of discrete types are integers and binary trees:
 ```
 def ℤ : Type ≔ data [
 | zero.
@@ -1691,7 +1689,24 @@ def btree : Type ≔ data [
 | node. (_:btree) (_:btree)
 ]
 ```
-Nontrivially mutual families of types can (currently) never be discrete, since other types in the same family are not allowed as arguments of a constructor of a discrete type by the rules above.
+A family of datatypes indexed by discrete types can be discrete, such as inequality of natural numbers:
+```
+def ℕ.le : (k n : ℕ) → Type := data [
+| zero. (n : ℕ) : ℕ.le zero. n
+| suc. (k n : ℕ) (_ : ℕ.le k n) : ℕ.le (suc. k) (suc. n)
+]
+```
+So can a mutual family of types:
+```
+def even : ℕ → Type ≔ data [
+| zero. : even zero. 
+| suc. (n : ℕ) (_ : odd n) : even (suc. n) 
+]
+
+and odd : ℕ → Type ≔ data [
+| suc. (n : ℕ) (_ : even n) : odd (suc. n)
+]
+```
 
 The higher-dimensional versions of a discrete datatype are also still themselves datatypes, so they have constructors and can be matched on.  In fact it should be possible to prove internally *without* `-discreteness` that these types are always propositionally contractible.  In particular, they are inhabited, so discreteness just adds some strictness, making them *definitionally* singletons.  For example, here is the proof that the displayed versions of `ℕ` are inhabited:
 ```
@@ -1701,7 +1716,7 @@ def ℕ.d (n : ℕ) : ℕ⁽ᵈ⁾ n ≔ match n [
 ]
 ```
 
-Currently, the test for discreteness is performed immediately and only upon completion of the `def` command that defines a datatype.  In particular, if the definition of a datatype contains a hole, it will not be considered discrete, even if the hole is later filled to make the definition one that would have been discrete if given from the get-go.  This could in theory be improved, but I am more likely to feel like putting effort into implementing the "correct" replacement for discrete types, namely modally-guarded parametricity such as full dTT.
+Currently, the test for discreteness is performed immediately and only upon completion of the `def` command that defines a family of datatypes.  In particular, if the definition of a datatype contains a hole, it will not be considered discrete, even if the hole is later filled to make the definition one that would have been discrete if given from the get-go.  This could in theory be improved, but I am more likely to feel like putting effort into implementing the "correct" replacement for discrete types, namely modally-guarded parametricity such as full dTT.
 
 
 ## Remarks on implementation

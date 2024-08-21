@@ -46,7 +46,7 @@ type view_type =
       * (D.zero, 'k, 'k, normal) TubeOf.t
       -> view_type
   | Canonical : head * 'k canonical * (D.zero, 'k, 'k, normal) TubeOf.t -> view_type
-  | Neutral : view_type
+  | Neutral : head -> view_type
 
 let rec view_term : type s. s value -> s value =
  fun tm ->
@@ -121,7 +121,7 @@ and view_type ?(severity = Asai.Diagnostic.Bug) (ty : kinetic value) (err : stri
               (* Always a bug *)
               fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs)))
       | Realize v -> view_type ~severity (inst v tyargs) err
-      | _ -> Neutral)
+      | _ -> Neutral head)
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
@@ -1000,14 +1000,17 @@ let rec tyof_inst :
       } in
   inst (universe m) margs
 
-(* Check whether a given type is discrete, or has the supplied constant head (since for testing whether a newly defined datatype can be discrete, it can appear in its own arguments). *)
-let is_discrete : Constant.t option -> kinetic value -> bool =
- fun head ty ->
-  match view_type ty "is_discrete" with
-  | Canonical (_, Data { discrete = true; _ }, _) -> true
-  | Canonical (Const { name; ins }, _, _) when Option.is_some (is_id_ins ins) && Some name = head ->
-      true
-  (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
+(* Check whether a given type is discrete, or has one of the the supplied constant heads (since for testing whether a newly defined datatype can be discrete, it and members of its mutual families can appear in its own parameters and arguments). *)
+let is_discrete : ?discrete:unit Constant.Map.t -> kinetic value -> bool =
+ fun ?discrete ty ->
+  match (view_type ty "is_discrete", discrete) with
+  | Canonical (_, Data { discrete = `Yes; _ }, _), _ -> true
+  (* The currently-being-defined types may not be canonical yet: if they don't have definitions yet they are neutral. *)
+  | Canonical (Const { name; ins }, _, _), Some consts ->
+      Option.is_some (is_id_ins ins) && Constant.Map.mem name consts
+  | Neutral (Const { name; ins }), Some consts ->
+      Option.is_some (is_id_ins ins) && Constant.Map.mem name consts
+      (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
   | _ -> false
 
 let () = Act.forward_view_term := view_term

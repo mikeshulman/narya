@@ -19,13 +19,14 @@ include Status
 
 let discard : type a. a -> unit = fun _ -> ()
 
-(* Check that a given value is a zero-dimensional type family (something where an indexed datatype could live) and return the length of its domain telescope (the number of indices).  Unfortunately I don't see an easy way to do this without essentially going through all the same steps of extending the context that we would do to check something at that type family. *)
-let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
- fun ctx ty ->
+(* Check that a given value is a zero-dimensional type family (something where an indexed datatype could live) and return the length of its domain telescope (the number of indices).  Unfortunately I don't see an easy way to do this without essentially going through all the same steps of extending the context that we would do to check something at that type family.  Also check whether all of its domain types are either discrete or belong to the given set of constants. *)
+let rec typefam :
+    type a b. ?discrete:unit Constant.Map.t -> (a, b) Ctx.t -> kinetic value -> int * bool =
+ fun ?discrete ctx ty ->
   match view_type ~severity:Asai.Diagnostic.Error ty "typefam" with
   | UU tyargs -> (
       match D.compare (TubeOf.inst tyargs) D.zero with
-      | Eq -> 0
+      | Eq -> (0, true)
       | Neq -> fatal (Unimplemented "higher-dimensional datatypes"))
   | Pi (x, doms, cods, tyargs) -> (
       (* In practice, these dimensions will always be zero also if the function succeeds, otherwise the eventual output would have to be higher-dimensional too.  But it doesn't hurt to be more general, and will require less change if we eventually implement higher-dimensional datatypes. *)
@@ -33,7 +34,13 @@ let rec typefam : type a b. (a, b) Ctx.t -> kinetic value -> int =
       | Eq ->
           let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
           let output = tyof_app cods tyargs newargs in
-          1 + typefam (Ctx.cube_vis ctx x newnfs) output
+          let n, d = typefam ?discrete (Ctx.cube_vis ctx x newnfs) output in
+          let disc =
+            (* For indices of discrete datatypes, we only allow zero-dimensional pi-types. *)
+            match D.compare (CubeOf.dim doms) D.zero with
+            | Eq -> is_discrete ?discrete (CubeOf.find_top doms)
+            | Neq -> false in
+          (n + 1, d && disc)
       | Neq -> fatal (Dimension_mismatch ("typefam", TubeOf.inst tyargs, CubeOf.dim doms)))
   | _ -> fatal (Checking_canonical_at_nonuniverse ("datatype", PVal (ctx, ty)))
 
@@ -206,10 +213,16 @@ type (_, _, _) meta_tel =
 (* TODO *)
 type _ ctx_of_raw = Ctx_of_raw : ('a, 'b) Ctx.t -> 'a ctx_of_raw
 
-(* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential). *)
+(* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential).  The ?discrete parameter is supplied if the term we are currently checking might be a discrete datatype, in which case it is a set of all the currently-being-defined mutual constants.  Most term-formers are nondiscrete, so they can just ignore this argument and make their recursive calls without it. *)
 let rec check :
-    type a b s. (b, s) status -> (a, b) Ctx.t -> a check located -> kinetic value -> (b, s) term =
- fun status ctx tm ty ->
+    type a b s.
+    ?discrete:unit Constant.Map.t ->
+    (b, s) status ->
+    (a, b) Ctx.t ->
+    a check located ->
+    kinetic value ->
+    (b, s) term =
+ fun ?discrete status ctx tm ty ->
   with_loc tm.loc @@ fun () : (b, s) term ->
   (* If the "type" is not a type here, or not fully instantiated, that's a user error, not a bug. *)
   let severity = Asai.Diagnostic.Error in
@@ -239,6 +252,11 @@ let rec check :
       | Pi (_, doms, cods, tyargs) -> (
           (* TODO: Move this into a helper function, it's too long to go in here. *)
           let m = CubeOf.dim doms in
+          (* A zero-dimensional parameter that is a discrete type doesn't block discreteness, but others do. *)
+          let discrete =
+            match D.compare m D.zero with
+            | Eq -> if is_discrete ?discrete (CubeOf.find_top doms) then discrete else None
+            | Neq -> None in
           let Eq = D.plus_uniq (TubeOf.plus tyargs) (D.zero_plus m) in
           (* Extend the context by one variable for each type in doms, instantiated at the appropriate previous ones. *)
           let newargs, newnfs = dom_vars (Ctx.length ctx) doms in
@@ -277,13 +295,13 @@ let rec check :
               | Wrap (names, Ok (_, af, body)) ->
                   let xs = Variables (D.zero, D.zero_plus m, names) in
                   let ctx = Ctx.vis ctx D.zero (D.zero_plus m) names newnfs af in
-                  Lam (xs, check (mkstatus xs status) ctx body output)
+                  Lam (xs, check ?discrete (mkstatus xs status) ctx body output)
               | Wrap (_, Missing (loc, j)) -> fatal ?loc (Not_enough_lambdas j))
           | `Cube ->
               (* Here we don't need to slurp up lots of lambdas, but can make do with one. *)
               let xs = singleton_variables m x in
               let ctx = Ctx.cube_vis ctx x newnfs in
-              Lam (xs, check (mkstatus xs status) ctx body output))
+              Lam (xs, check ?discrete (mkstatus xs status) ctx body output))
       | _ -> fatal (Checking_lambda_at_nonfunction (PVal (ctx, ty))))
   | Struct (Noeta, tms), Potential _ -> (
       match view_type ~severity ty "typechecking comatch" with
@@ -388,17 +406,13 @@ let rec check :
           let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
           check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields
       | _ -> fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty))))
-  | Data constrs, Potential (head, args, _) ->
-      (* For a datatype, the type to check against might not be a universe, it could include indices. *)
-      let (Wrap num_indices) = Fwn.of_int (typefam ctx ty) in
-      (* If discreteness is on, then a global-constant datatype with no parameters or indices can be discrete.  (This is just a starting point; the arguments of all the constructors are also required to be either discrete or simply recursive.) *)
-      let discrete =
-        Discreteness.read ()
-        &&
-        match (head, num_indices, args) with
-        | Constant _, Zero, Emp -> true
-        | _ -> false in
-      check_data status ctx ty num_indices Abwd.empty (Bwd.to_list constrs) ~discrete
+  | Data constrs, Potential _ ->
+      (* For a datatype, the type to check against might not be a universe, it could include indices.  We also check whether all the types of all the indices are discrete or a type being defined, to decide whether to keep evaluating the type for discreteness. *)
+      let n, disc = typefam ?discrete ctx ty in
+      let (Wrap num_indices) = Fwn.of_int n in
+      check_data
+        ~discrete:(if disc then discrete else None)
+        status ctx ty num_indices Abwd.empty (Bwd.to_list constrs)
   (* If we have a term that's not valid outside a case tree, we bind it to a global metavariable. *)
   | Struct (Noeta, _), Kinetic l -> kinetic_of_potential l ctx tm ty "comatch"
   | Synth (Match _), Kinetic l -> kinetic_of_potential l ctx tm ty "match"
@@ -1206,17 +1220,19 @@ and any_empty : type n. (n, Binding.t) CubeOf.t list -> bool =
 
 and check_data :
     type a b i bi.
+    discrete:unit Constant.Map.t option ->
     (b, potential) status ->
     (a, b) Ctx.t ->
     kinetic value ->
     i Fwn.t ->
     (Constr.t, (b, i) Term.dataconstr) Abwd.t ->
     (Constr.t * a Raw.dataconstr located) list ->
-    discrete:bool ->
     (b, potential) term =
- fun status ctx ty num_indices checked_constrs raw_constrs ~discrete ->
+ fun ~discrete status ctx ty num_indices checked_constrs raw_constrs ->
   match (raw_constrs, status) with
   | [], Potential _ ->
+      (* If we get to this point and discreteness is still a possibility, we mark it as "Maybe" discrete.  Later, after all the types in a mutual block are checked, if they're all discrete we go through and change the "Maybe"s to "Yes"es.  *)
+      let discrete = Option.fold ~none:`No ~some:(fun _ -> `Maybe) discrete in
       Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete })
   | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
       Potential (head, current_apps, hyp) ) -> (
@@ -1225,17 +1241,12 @@ and check_data :
       run_with_definition head
         (hyp
            (Term.Canonical
-              (Data { indices = num_indices; constrs = checked_constrs; discrete = false })))
+              (Data { indices = num_indices; constrs = checked_constrs; discrete = `No })))
       @@ fun () ->
-      let consthead =
-        match head with
-        | Constant c -> Some c
-        | _ -> None in
       match (Abwd.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
       | None, Some output -> (
-          let Checked_tel (args, newctx), argsdisc = check_tel ?consthead ctx args in
-          let discrete = discrete && argsdisc in
+          let Checked_tel (args, newctx), disc = check_tel ?discrete ctx args in
           let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
           match eval_term (Ctx.env newctx) coutput with
           | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; value = _ }, _)
@@ -1247,9 +1258,11 @@ and check_data :
                       output.loc in
                   match Fwn.compare (Vec.length indices) num_indices with
                   | Eq ->
-                      check_data status ctx ty num_indices
+                      check_data
+                        ~discrete:(if disc then discrete else None)
+                        status ctx ty num_indices
                         (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }))
-                        raw_constrs ~discrete
+                        raw_constrs
                   | _ ->
                       (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
                       fatal (Anomaly "length of indices mismatch"))
@@ -1258,11 +1271,12 @@ and check_data :
       | None, None -> (
           match num_indices with
           | Zero ->
-              let Checked_tel (args, _), argsdisc = check_tel ?consthead ctx args in
-              let discrete = discrete && argsdisc in
-              check_data status ctx ty Fwn.zero
+              let Checked_tel (args, _), disc = check_tel ?discrete ctx args in
+              check_data
+                ~discrete:(if disc then discrete else None)
+                status ctx ty Fwn.zero
                 (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }))
-                raw_constrs ~discrete
+                raw_constrs
           | Suc _ -> fatal (Missing_constructor_type c)))
 
 and get_indices :
@@ -1745,19 +1759,21 @@ and check_at_tel :
         (Wrong_number_of_arguments_to_constructor
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
-(* Given a context and a raw telescope, we can check it to produce a checked telescope, a new context extended by that telescope, and a function for extending other contexts by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype.  This requires knowing the currently-being-defined constant, since discrete types can appear recursively in the arguments of their constructors. *)
+(* Given a context and a raw telescope, we can check it to produce a checked telescope, a new context extended by that telescope, and a function for extending other contexts by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype.  This requires knowing the collection of currently-being-defined mutual constants, since discrete types can appear recursively in the arguments of their constructors. *)
 and check_tel :
     type a b c ac.
-    ?consthead:Constant.t -> (a, b) Ctx.t -> (a, c, ac) Raw.tel -> (a, b, c, ac) checked_tel * bool
-    =
- fun ?consthead ctx tel ->
+    ?discrete:unit Constant.Map.t ->
+    (a, b) Ctx.t ->
+    (a, c, ac) Raw.tel ->
+    (a, b, c, ac) checked_tel * bool =
+ fun ?discrete ctx tel ->
   match tel with
-  | Emp -> (Checked_tel (Emp, ctx), true)
+  | Emp -> (Checked_tel (Emp, ctx), Option.is_some discrete)
   | Ext (x, ty, tys) ->
       let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
       let ety = eval_term (Ctx.env ctx) cty in
       let _, newnfs = dom_vars (Ctx.length ctx) (CubeOf.singleton ety) in
       let ctx = Ctx.cube_vis ctx x newnfs in
-      let Checked_tel (ctys, ctx), discrete = check_tel ?consthead ctx tys in
-      let discrete = discrete && is_discrete consthead ety in
-      (Checked_tel (Ext (x, cty, ctys), ctx), discrete)
+      let Checked_tel (ctys, ctx), disc = check_tel ?discrete ctx tys in
+      let tydisc = is_discrete ?discrete ety in
+      (Checked_tel (Ext (x, cty, ctys), ctx), disc && tydisc)

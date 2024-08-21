@@ -170,7 +170,7 @@ module rec Term : sig
     | Data : {
         indices : 'i Fwn.t;
         constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
-        discrete : bool;
+        discrete : [ `Yes | `Maybe | `No ];
       }
         -> 'a canonical
     | Codata : {
@@ -258,7 +258,7 @@ end = struct
     | Data : {
         indices : 'i Fwn.t;
         constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
-        discrete : bool;
+        discrete : [ `Yes | `Maybe | `No ];
       }
         -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
@@ -419,7 +419,7 @@ module rec Value : sig
     tyfam : normal Lazy.t option ref;
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
-    discrete : bool;
+    discrete : [ `Yes | `Maybe | `No ];
   }
 
   and (_, _) dataconstr =
@@ -557,8 +557,8 @@ end = struct
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     (* All the constructors *)
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
-    (* Whether it is discrete *)
-    discrete : bool;
+    (* Whether it is discrete.  The value `Maybe means that it could be discrete based on its own parameters, indices, and constructor arguments, but either is waiting for its mutual companions to be typechecked, or at least one of them failed to be discrete.  Thus for equality-testing purposes, `Maybe is treated like `No. *)
+    discrete : [ `Yes | `Maybe | `No ];
   }
 
   (* Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
@@ -707,12 +707,6 @@ and universe_ty : type n. n D.t -> kinetic value =
                 universe_nf m);
           } in
       Inst { tm = UU n; dim = n'; args; tys = TubeOf.empty D.zero }
-
-(* Whether the -discreteness flag is on globally *)
-module Discreteness = Algaeff.Reader.Make (Bool)
-
-let () =
-  Discreteness.register_printer (function `Read -> Some "unhandled Discreteness.read effect")
 
 (* Glued evaluation is basically implemented, but currently disabled because it is very slow -- too much memory allocation, and OCaml 5 doesn't have memory profiling tools available yet to debug it.  So we disable it globally with this flag.  But all the regular tests pass with the flag enabled, and should continue to be run and to pass, so that once we are able to debug it it is still otherwise working. *)
 module GluedEval = struct

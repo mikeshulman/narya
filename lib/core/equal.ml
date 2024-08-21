@@ -49,7 +49,7 @@ module Equal = struct
           [ fields ]
     (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative, so we don't need a clause for it. *)
     (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
-    | Canonical (_, Data { dim; discrete; _ }, _) when discrete && is_pos dim -> return ()
+    | Canonical (_, Data { dim; discrete = `Yes; _ }, _) when is_pos dim -> return ()
     (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  We handle these cases here because we can use the datatype information to give types to the arguments of the constructor. *)
     | Canonical (_, Data { constrs; _ }, tyargs) -> (
         let x, y =

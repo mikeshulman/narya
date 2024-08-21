@@ -9,6 +9,7 @@
 
 (require 'narya-syntax)
 (require 'font-lock)
+(require 'ansi-color)
 
 (defun narya-script-preprocess (file start end cmd)
 	"Add a formfeed at the end of a command, as a delimiter."

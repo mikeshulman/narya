@@ -203,15 +203,12 @@ exception Case_tree_construct_in_let
 type (_, _, _, _) checked_tel =
   | Checked_tel : ('b, 'c, 'bc) Telescope.t * ('ac, 'bc) Ctx.t -> ('a, 'b, 'c, 'ac) checked_tel
 
-(* TODO *)
+(* A telescope of metavariables instead of types.  Created from a telescope of types by make_letrec_metas. *)
 type (_, _, _) meta_tel =
   | Nil : ('b, Fwn.zero, 'b) meta_tel
   | Ext :
       string option * ('a, 'b, potential) Meta.t * (('b, D.zero) snoc, 'c, 'bc) meta_tel
       -> ('b, 'c Fwn.suc, 'bc) meta_tel
-
-(* TODO *)
-type _ ctx_of_raw = Ctx_of_raw : ('a, 'b) Ctx.t -> 'a ctx_of_raw
 
 (* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential).  The ?discrete parameter is supplied if the term we are currently checking might be a discrete datatype, in which case it is a set of all the currently-being-defined mutual constants.  Most term-formers are nondiscrete, so they can just ignore this argument and make their recursive calls without it. *)
 let rec check :

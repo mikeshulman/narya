@@ -281,7 +281,11 @@ end = struct
     match m with
     | Zero v -> Zero (f v)
     | Suc { left; right } ->
-        Suc { left = map f left; right = Tup.map { map = (fun (Wrap x) -> Wrap (map f x)) } right }
+        Suc
+          {
+            left = map f left;
+            right = Tup.mmap { map = (fun _ [ Wrap x ] -> Wrap (map f x)) } [ right ];
+          }
 
   let rec iter :
       type evaluation intrinsic v.
@@ -294,15 +298,15 @@ end = struct
     | Zero v -> f (Pbij (ins_zero evaluation, Zero)) v
     | Suc { left; right } ->
         iter evaluation (fun (Pbij (ins, shuf)) -> f (Pbij (ins, Left shuf))) left;
-        Tup.iter
+        Tup.miter
           {
             it =
-              (fun i (Wrap x) ->
+              (fun i [ Wrap x ] ->
                 iter (D.insert_in evaluation i)
                   (fun (Pbij (ins, shuf)) -> f (Pbij (Suc (ins, i), Right shuf)))
                   x);
           }
-          right
+          [ right ]
 
   let rec fold :
       type evaluation intrinsic v acc.
@@ -316,13 +320,18 @@ end = struct
     | Zero v -> f (Pbij (ins_zero evaluation, Zero)) v acc
     | Suc { left; right } ->
         let acc = fold evaluation (fun (Pbij (ins, shuf)) -> f (Pbij (ins, Left shuf))) left acc in
-        Tup.fold
-          {
-            fold =
-              (fun i (Wrap x) acc ->
-                fold (D.insert_in evaluation i)
-                  (fun (Pbij (ins, shuf)) -> f (Pbij (Suc (ins, i), Right shuf)))
-                  x acc);
-          }
-          right acc
+        let module M = Tup.Monadic (Monad.State (struct
+          type t = acc
+        end)) in
+        snd
+          (M.miterM
+             {
+               it =
+                 (fun i [ Wrap x ] acc ->
+                   ( (),
+                     fold (D.insert_in evaluation i)
+                       (fun (Pbij (ins, shuf)) -> f (Pbij (Suc (ins, i), Right shuf)))
+                       x acc ));
+             }
+             [ right ] acc)
 end

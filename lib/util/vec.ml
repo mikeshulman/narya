@@ -91,7 +91,7 @@ module Heter = struct
   let car' = car
   let cdr' = cdr
 
-  (* Extract the car and cdr of each of an hlist of vectors, returting another hlist.*)
+  (* Extract the car and cdr of each of an hlist of vectors, returning another hlist.*)
   let rec car : type xs n. (xs, n Fwn.suc) ht -> xs hlist = function
     | [] -> []
     | x :: xs -> car' x :: car xs

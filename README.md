@@ -29,6 +29,10 @@ The recommended mode of use of Narya is with its [ProofGeneral](https://proofgen
 
 Note that you will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them) and also whenever ProofGeneral is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
 
+### In-browser version
+
+There is also a version of Narya that compiles to JavaScript and runs in a browser, called jsNarya.  Instructions for compiling and running jsNarya locally can be found in [html/README](html/README.md), but a recent version of it can also be accessed directly at <https://mikeshulman.github.io/jsnarya>, not requiring installing or compiling anything locally.  However, jsNarya is currently limited to the interactive mode with one startup file (see below).
+
 
 ## Top level interface
 
@@ -191,6 +195,12 @@ With this customization added, the Unicode characters that have primitive meanin
 - For ⤇, type `\R|` or `\|=>`
 - For ≔, type `\:=`
 - For …, type `\...`
+
+### jsNarya
+
+As mentioned above, jsNarya is a JavaScript version of Narya that runs in a browser.  Its functionality is limited to the equivalent of `narya -e "STARTUP" -i`: you can specify a single startup "file" by copying and pasting it into a text box, and then you drop into interactive mode.  Also there is no real Unicode input-mode, although there is a palette of buttons that can be used to enter a number of common Unicode characters.  These limitations are not intrinsic; we just have not yet found or implemented an appropriate frontend for anything more complicated.
+
+jsNarya does accept customization of the arity, direction name, and internality of parametricity, plus discreteness, as discussed below.  This can be done with input elements on the page before starting the interactive mode, or with appropriately-named URL parameters.  For instance, supplying the URL query string `?arity=1&direction=d&external` corresponds to dTT (see below), and this special case admits the shortcut `?dtt`.  The startup code can also be specified in the URL with the `?startup=` parameter.
 
 
 ## Built-in types

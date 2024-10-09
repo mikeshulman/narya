@@ -1,0 +1,163 @@
+<html>
+  <head>
+<title>jsNarya</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.js"></script>
+<script type="text/javascript" src="jsnarya.bc.js"></script>
+</head>
+<body>
+  <center>
+    <span style="font-size: 2em; font-weight: bold">jsNarya:</span>
+    <span style="font-size: 1.5em">Higher-dimensional type theory in your browser</span>
+  </center>
+
+  <p></p>
+
+<div style="width: 1200px; margin: auto">
+  <a href="https://github.com/mikeshulman/narya">Narya</a> is an experimental proof assistant for Higher/Parametric/Displayed Observational Type Theory;
+  see the <a href="https://github.com/mikeshulman/narya/blob/master/README.md">README</a> for current features.<br/>
+  JsNarya is compiled with <a href="https://ocsigen.org/js_of_ocaml">Js_of_ocaml</a> to run in a browser.
+  Currently only the command-line interactive mode is available, but you can copy and paste arbitrary code in the "Extra startup" box to be executed before starting interactive mode.
+  Please <a href="https://github.com/mikeshulman/narya/issues">report bugs</a>.
+</div>
+
+  <p></p>
+
+<div style="width: 1000px; margin: auto">
+  <table style="table-layout: fixed"><tr>
+      <td style="width: 120px"><button onClick="start()" style="font-size:1.3em">Start</button></td>
+      <td style="width: 130px"><label for="arity">Arity:</label> <input type="text" id="arity" style="width: 30px" name="arity" value="2"></input></td>
+      <td style="width: 250px"><label for="direction">Direction:</label> <input type="text" id="direction" style="width: 100px" name="direction" value="e,refl,Id"></input></td>
+      <td style="width: 120px"><input type="radio" id="internal" name="internality" value="internal" checked/><label for="internal">Internal</label></td>
+      <td style="width: 160px"><input type="radio" id="external" name="internality" value="external"/><label for="external">External</label></td>
+      <td style="width: 140px"><input type="checkbox" id="discreteness" name="discreteness"/><label for="discreteness">Discreteness</label></td>
+  </tr></table>
+</div>
+
+<div id="startupdiv" style="width: 1200px; margin: auto">
+  <table cellspacing="5">
+    <!-- <tr><td>Load URL:</td><td><input id="load" type="text" style="width: 1000px"/></td></tr> -->
+    <tr><td>Extra startup:</td><td><textarea id="startup" rows="1" style="width: 1050px"></textarea></td></tr>
+  </table>
+</div>
+
+<div id="terminal" style="width: 1200px; margin: auto"></div>
+
+<div id="palette" style="width: 1200px; margin: auto">
+</div>
+
+
+</body>
+<script type="text/javascript" src="xterm-readline.js"></script>
+<script type="text/javascript">
+
+  const arity = document.getElementById("arity");
+  const direction = document.getElementById("direction");
+  const internal = document.getElementById("internal");
+  const external = document.getElementById("external");
+  const discreteness = document.getElementById("discreteness");
+  const startup = document.getElementById("startup");
+  // const load = document.getElementById("load");
+
+  const queryString = window.location.search;
+  const urlParams = new URLSearchParams(queryString);
+  if(urlParams.has('arity')) {
+      arity.value = urlParams.get('arity');
+  }
+  if(urlParams.has('direction')) {
+      direction.value = urlParams.get('direction');
+  }
+  if(urlParams.has('internal')) {
+      internal.checked = true;
+  }
+  if(urlParams.has('external')) {
+      external.checked = true;
+  }
+  if(urlParams.has('discreteness')) {
+      discreteness.checked = true;
+  }
+  if(urlParams.has('startup')) {
+      startup.value = urlParams.get('startup');
+  }
+  if(urlParams.has('dtt')) {
+      arity.value = 1;
+      direction.value = 'd';
+      external.checked = true;
+  }
+
+  var term = new Terminal({
+      cursorBlink: true,
+      fontSize: 20,
+      rows: 30
+  });
+  term.open(document.getElementById('terminal'));
+  const rl = new Readline();
+  term.loadAddon(rl);
+
+  rl.setCheckHandler((text) => {
+      if (text.endsWith("\n")) {
+          return true;
+      }
+      return false;
+  });
+  
+  function readLine() {
+      term.write("\x1B[4mnarya\x1B[0m\n\r");
+      rl.read("").then(processLine);
+  }
+
+  function processLine(text) {
+      rl.println(Narya.execute(text));
+      setTimeout(readLine);
+  }
+
+  // async
+  function start() {
+      term.clear();
+
+      startupcode = startup.value
+
+      // // This would be nice to be able to do, but it's forbidden by cross-site scripting blockers.
+      // if(load.value.trim().length > 0) {
+      //     response = await fetch(load.value);
+      //     if(response.ok) {
+      //         startupcode = await response.text() + " " + startupcode;
+      //     }
+      // }
+      
+      err = Narya.start(arity.value, direction.value, internal.checked, discreteness.checked, startupcode);
+      if (!err) {
+          arity.disabled = true;
+          direction.disabled = true;
+          internal.disabled = true;
+          external.disabled = true;
+          discreteness.disabled = true;
+          // load.disabled = true;
+          startup.disabled = true;
+          readLine();
+          term.focus();
+      } else {
+          rl.println("\n" + err + "Please fix the error and reload the page.");
+      }
+  }
+
+  function insert(str) {
+      term.input(str);
+      term.focus();
+  }
+
+  const palette = document.getElementById('palette');
+
+  function addToPalette(str) {
+      var b = document.createElement('button');
+      b.textContent = str;
+      b.style = "font-size:1.2em";
+      b.addEventListener('click', function() { insert(str) });
+      palette.appendChild(b);
+  }
+
+  const characters = ['→', '↦', '⤇', '≔', '…', '⁽', '⁾', '⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹', 'ᵃ', 'ᵇ', 'ᶜ', 'ᵈ', 'ᵉ', 'ᶠ', 'ᵍ', 'ʰ', 'ⁱ', 'ʲ', 'ᵏ', 'ˡ', 'ᵐ', 'ⁿ', 'ᵒ', 'ᵖ', '𐞥', 'ʳ', 'ˢ', 'ᵗ', 'ᵘ', 'ᵛ', 'ʷ', 'ˣ', 'ʸ', 'ᶻ', '₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '×', '⊔', '⊎', '♯', '♭', '♮', 'ℂ', 'ℕ', 'ℝ', 'ℤ', '⟨', '⟩', '⟦', '⟧', '≡', '≤', '≥', '≠', 'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω', 'Γ', 'Δ', 'Θ', 'Λ', 'Ξ', 'Π', 'Σ', 'Φ', 'Ψ', 'Ω'];
+  characters.forEach(addToPalette);
+
+</script>
+</html>

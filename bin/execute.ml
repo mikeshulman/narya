@@ -43,28 +43,20 @@ module FlagData = struct
     execute : bool;
     (* Load files from source only (not compiled versions)? *)
     source_only : bool;
-    (* All the filesnames given explicitly on the command line *)
+    (* All the filenames given explicitly on the command line. *)
     top_files : string list;
     (* The initial visible namespace, e.g. the builtin Π. *)
     init_visible : Scope.trie;
-    (* The reformatter, if any *)
-    reformatter : formatter option;
+    (* Whether to reformat. *)
+    reformat : bool;
   }
 end
 
 module Flags = Algaeff.Reader.Make (FlagData)
 
 let () = Flags.register_printer (function `Read -> Some "unhandled Flags.read effect")
-
-let reformat_maybe f =
-  match (Flags.read ()).reformatter with
-  | Some ppf -> f ppf
-  | None -> ()
-
-let reformat_maybe_ws f =
-  match (Flags.read ()).reformatter with
-  | Some ppf -> f ppf
-  | None -> []
+let reformat_maybe f = if (Flags.read ()).reformat then f std_formatter else ()
+let reformat_maybe_ws f = if (Flags.read ()).reformat then f std_formatter else []
 
 (* All the files that have been loaded so far in this run of the program, along with their export namespaces, compilation unit identifiers, and whether they were explicitly invoked on the command line. *)
 let loaded_files : (FilePath.filename, Scope.trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20

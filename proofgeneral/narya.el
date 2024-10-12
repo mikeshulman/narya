@@ -283,10 +283,8 @@ it won't try to duplicate our work."
       (let ((term (read-string "Enter the term to solve the hole: ")))
         ;; Execute the solve command with the entered term.
         (proof-shell-invisible-command
-         (format "solve %d := %s" (overlay-get hole-overlay 'narya-hole) term))
-        
-        ;; Wait for the process to output its result
-        (accept-process-output (get-buffer-process proof-shell-buffer) 1) ;; Adjust timeout if needed
+         (format "solve %d := %s" (overlay-get hole-overlay 'narya-hole) term)
+         t)
         ;; Check the output after executing the solve command.
         (if (eq proof-shell-last-output-kind 'error)
             ;; Display error message if the entered term is incorrect.

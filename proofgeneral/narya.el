@@ -4,6 +4,7 @@
   (require 'proof-site)  
   (require 'pg-custom)                
   (require 'proof)
+  (require 'proof-config)
   (require 'proof-easy-config)	
   (proof-ready-for-assistant 'narya))        ;; compilation for narya
 
@@ -269,33 +270,35 @@ it won't try to duplicate our work."
 	(proof-shell-invisible-command "show holes"))
 	
 (defun narya-solve-hole ()
-  "Prompt the user for a term to solve a specified hole and replace the hole with the term if successful."
+  "Solve the current hole with a user-provided term."
   (interactive)
-  ;; Prompt for the hole number and the term
-  (let* ((hole-number (read-number "Hole number: "))
-         (term (read-string "Term to solve the hole: "))
-         (overlay (car (seq-filter (lambda (ovl) (eq (overlay-get ovl 'narya-hole) hole-number))
-                                   narya-hole-overlays))))
-    ;; Check if the overlay for the hole is valid
-    (if (and overlay (overlayp overlay))
-        (progn
-          ;; Send the solve command to Narya
-          (proof-shell-invisible-command (concat "solve " (number-to-string hole-number) " ≔ " term))
-          (proof-with-script-buffer
-           (save-excursion
-             ;; Replace the hole in the buffer with the given term
-             (goto-char (overlay-start overlay))
-             (when (search-forward "?" (overlay-end overlay) t)
-               (replace-match term)))
-           ;; Remove the overlay for the solved hole
-           (delete-overlay overlay)
-           (setq narya-hole-overlays (delq overlay narya-hole-overlays))
-           ;; Handle any new holes that might have been created in the solution
-           (narya-handle-output "solve" (buffer-substring-no-properties (point-min) (point-max)))
-           ;; Reload the proof state to process the new term
-           (proof-assert-next-command-interactive)
-           (message "Hole %d solved successfully and proof state reloaded." hole-number)))
-      (message "Could not find a valid overlay for hole %d." hole-number))))
+  (let ((hole-overlay (car (seq-filter (lambda (ovl)
+                                         (eq (get-char-property (point) 'narya-hole)
+                                             (overlay-get ovl 'narya-hole)))
+                                       narya-hole-overlays))))
+    (if (not hole-overlay)
+        ;; If the cursor is not on a hole, display a warning message.
+        (message "Place the cursor on a hole.")
+      ;; If the cursor is on a hole, prompt the user to enter a term.
+      (let ((term (read-string "Enter the term to solve the hole: ")))
+        ;; Execute the solve command with the entered term.
+        (proof-shell-invisible-command
+         (format "solve %d := %s" (overlay-get hole-overlay 'narya-hole) term))
+        
+        ;; Wait for the process to output its result
+        (accept-process-output (get-buffer-process proof-shell-buffer) 1) ;; Adjust timeout if needed
+        ;; Check the output after executing the solve command.
+        (if (eq proof-shell-last-output-kind 'error)
+            ;; Display error message if the entered term is incorrect.
+            (message "You entered an incorrect term.")
+          ;; Otherwise, replace the hole with the entered term.
+          (let ((inhibit-read-only t))
+            (goto-char (overlay-start hole-overlay))
+            (delete-region (overlay-start hole-overlay) (overlay-end hole-overlay))
+            (insert term)
+            (delete-overlay hole-overlay)
+            (setq narya-hole-overlays (delq hole-overlay narya-hole-overlays))
+            (message "Hole solved.")))))))
 
 (keymap-set narya-mode-map "C-c C-SPC" 'narya-solve-hole)
 

@@ -1,0 +1,5 @@
+(executable
+	(libraries core parser top js_of_ocaml zarith_stubs_js uutf)
+  (name jsnarya)
+	(modes js)
+	(preprocess (pps js_of_ocaml-ppx)))

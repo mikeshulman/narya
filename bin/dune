@@ -1,10 +1,4 @@
 (executable
-	(libraries core parser react lwt lambda-term)
+	(libraries core parser top react lwt lambda-term)
   (name narya)
   (public_name narya))
-
-(executable
-	(libraries core parser js_of_ocaml zarith_stubs_js uutf)
-  (name jsnarya)
-	(modes js)
-	(preprocess (pps js_of_ocaml-ppx)))

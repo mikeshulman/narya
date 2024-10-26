@@ -4,6 +4,7 @@ open Bwd
 open Util
 open Core
 open Parser
+module Execute = Execute
 
 (* Global flags, as set for instance by command-line arguments. *)
 let inputs : [ `String of string | `File of string | `Stdin ] Bwd.t ref = ref Emp

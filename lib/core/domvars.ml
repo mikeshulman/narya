@@ -67,5 +67,6 @@ let rec ext_tel :
         | Some x -> Some x
         | None -> x' in
       let ctx, env, vars, nfs =
-        ext_tel (Ctx.cube_vis ctx x newnfs) (Ext (env, D.plus_zero m, newvars)) xs rest ac ec in
+        ext_tel (Ctx.cube_vis ctx x newnfs) (Ext (env, D.plus_zero m, Ok newvars)) xs rest ac ec
+      in
       (ctx, env, newvars :: vars, newnfs :: nfs)

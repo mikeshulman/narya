@@ -39,6 +39,8 @@ val add_hole :
 val hole_exists : ('a, 'b, 's) Meta.t -> bool
 val with_definition : Constant.t -> definition -> (unit -> 'a) -> 'a
 val with_meta_definition : ('a, 'b, 's) Meta.t -> ('b, 's) term -> (unit -> 'x) -> 'x
+val without_definition : Constant.t -> Reporter.Code.t -> (unit -> 'a) -> 'a
+val without_meta_definition : ('a, 'b, 's) Meta.t -> Reporter.Code.t -> (unit -> 'x) -> 'x
 
 type data
 

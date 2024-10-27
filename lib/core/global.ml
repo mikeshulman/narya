@@ -13,9 +13,9 @@ open Status
 (* Each global constant either is an axiom or has a definition (a case tree).  The latter includes canonical types.  An axiom can be either parametric, which means it is always accessible, or nonparametric, which means it is not accessible behind context locks for external parametricity.  (In the future, this should be customizable on a per-direction basis.) *)
 type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term
 
-(* Global metavariables have only a definition. *)
+(* Global metavariables have only a definition (or an error indicating that they can't be correctly accessed, such as if typechecking failed earlier). *)
 module Metamap = Meta.Map.Make (struct
-  type ('x, 'a, 'b, 's) t = ('a, 'b, 's) Metadef.t
+  type ('x, 'a, 'b, 's) t = (('a, 'b, 's) Metadef.t, Code.t) Result.t
 end)
 
 type metamap = unit Metamap.t
@@ -84,10 +84,13 @@ let find_meta m =
   | None -> (
       let data = S.get () in
       match Metamap.find_opt m data.current_metas with
-      | Some d -> d
+      | Some (Ok d) -> d
+      (* If we find an error, we immediately raise it. *)
+      | Some (Error e) -> fatal e
       | None -> (
           match Metamap.find_opt m data.metas with
-          | Some d -> d
+          | Some (Ok d) -> d
+          | Some (Error e) -> fatal e
           | None -> fatal (Anomaly "undefined metavariable")))
 
 (* Marshal and unmarshal the constants and metavariables pertaining to a single compilation unit.  We ignore the "current" data because that is only relevant during typechecking commands, whereas this comes at the end of typechecking a whole file. *)
@@ -108,7 +111,9 @@ let from_channel_unit f chan i =
     Constant.Map.from_channel_unit chan
       (Result.map (fun (tm, df) -> (Link.term f tm, link_definition f df)))
       i d.constants in
-  let metas = Metamap.from_channel_unit chan { map = (fun _ df -> Link.metadef f df) } i d.metas in
+  let metas =
+    Metamap.from_channel_unit chan { map = (fun _ df -> Result.map (Link.metadef f) df) } i d.metas
+  in
   S.set { d with constants; metas }
 
 (* Add a new constant. *)
@@ -135,9 +140,9 @@ let add_error c e =
 let add_meta m ~termctx ~ty ~tm ~energy =
   let tm = (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined ]) in
   S.modify @@ fun d ->
-  { d with current_metas = d.current_metas |> Metamap.add m { tm; termctx; ty; energy } }
+  { d with current_metas = d.current_metas |> Metamap.add m (Ok { tm; termctx; ty; energy }) }
 
-(* Set the definition of a Global metavariable, required to already exist. *)
+(* Set the definition of a Global metavariable, required to already exist but not be defined. *)
 let set_meta m ~tm =
   S.modify @@ fun d ->
   {
@@ -145,7 +150,7 @@ let set_meta m ~tm =
     current_metas =
       d.current_metas
       |> Metamap.update m (function
-           | Some d -> Some { d with tm = `Defined tm }
+           | Some (Ok d) -> Some (Ok { d with tm = `Defined tm })
            | _ -> raise (Failure "set_meta"));
   }
 
@@ -192,14 +197,62 @@ let with_definition c df f =
       (* Note that f could change the state in other ways, so we can't just reset the whole state to d.  *)
       S.modify (fun d -> { d with constants = d.constants |> Constant.Map.add c old });
       result
+  | Some (Error _ as old) ->
+      (* If the constant is currently unusable, we just retain that state. *)
+      let result = f () in
+      S.modify (fun d -> { d with constants = d.constants |> Constant.Map.add c old });
+      result
   | _ -> fatal (Anomaly "missing definition in with_definition")
 
 (* Similarly, temporarily set the value of a global metavariable, which could be either permanent or current. *)
 let with_meta_definition m tm f =
   let d = S.get () in
   match Metamap.find_opt m d.metas with
+  | Some (Ok olddf) ->
+      S.set { d with metas = d.metas |> Metamap.add m (Ok (Metadef.define tm olddf)) };
+      let result = f () in
+      (* Note that f could change the state in other ways, so we can't just reset the whole state to d.  *)
+      S.modify (fun d -> { d with metas = d.metas |> Metamap.add m (Ok olddf) });
+      result
+  | Some (Error _ as old) ->
+      (* If the metavariable is currently unusable, we just retain that state. *)
+      let result = f () in
+      S.modify (fun d -> { d with metas = d.metas |> Metamap.add m old });
+      result
+  | _ -> (
+      match Metamap.find_opt m d.current_metas with
+      | Some (Ok olddf) ->
+          S.set
+            {
+              d with
+              current_metas = d.current_metas |> Metamap.add m (Ok (Metadef.define tm olddf));
+            };
+          let result = f () in
+          (* Note that f could change the state in other ways, so we can't just reset the whole state to d.  *)
+          S.modify (fun d -> { d with metas = d.metas |> Metamap.add m (Ok olddf) });
+          result
+      | _ ->
+          (* If the metavariable isn't found, that means that when we created it we didn't have a type for it.  That, in turn, means that the user doesn't have a name for it, since the metavariable is only bound to a user name in a "let rec".  So we don't need to do anything. *)
+          f ())
+
+(* Temporarily set the value of a constant to produce an error, and restore it afterwards. *)
+let without_definition c err f =
+  let d = S.get () in
+  match Constant.Map.find_opt c d.constants with
+  | Some old ->
+      S.set { d with constants = d.constants |> Constant.Map.add c (Error err) };
+      let result = f () in
+      (* Note that f could change the state in other ways, so we can't just reset the whole state to d.  *)
+      S.modify (fun d -> { d with constants = d.constants |> Constant.Map.add c old });
+      result
+  | _ -> fatal (Anomaly "missing definition in without_definition")
+
+(* Similarly, temporarily set the value of a global metavariable to produce an error. *)
+let without_meta_definition m err f =
+  let d = S.get () in
+  match Metamap.find_opt m d.metas with
   | Some olddf ->
-      S.set { d with metas = d.metas |> Metamap.add m (Metadef.define tm olddf) };
+      S.set { d with metas = d.metas |> Metamap.add m (Error err) };
       let result = f () in
       (* Note that f could change the state in other ways, so we can't just reset the whole state to d.  *)
       S.modify (fun d -> { d with metas = d.metas |> Metamap.add m olddf });
@@ -207,8 +260,7 @@ let with_meta_definition m tm f =
   | _ -> (
       match Metamap.find_opt m d.current_metas with
       | Some olddf ->
-          S.set
-            { d with current_metas = d.current_metas |> Metamap.add m (Metadef.define tm olddf) };
+          S.set { d with current_metas = d.current_metas |> Metamap.add m (Error err) };
           let result = f () in
           (* Note that f could change the state in other ways, so we can't just reset the whole state to d.  *)
           S.modify (fun d -> { d with metas = d.metas |> Metamap.add m olddf });

@@ -32,7 +32,7 @@ let rec take_args :
  fun env mn dargs plus ->
   match (dargs, plus) with
   | [], Zero -> env
-  | arg :: args, Suc plus -> take_args (Ext (env, mn, arg)) mn args plus
+  | arg :: args, Suc plus -> take_args (Ext (env, mn, Ok arg)) mn args plus
   | _ -> fatal (Anomaly "wrong number of arguments in argument list")
 
 (* A "view" is the aspect of a type or term that we match against to determine its behavior.  A view of a term is just another term, but in WHNF.  A view of a type is either a universe, a pi-type, another canonical type (data or codata), or a neutral.  The non-neutral sorts come with their instantiations that have been checked to have the correct dimension. *)
@@ -554,9 +554,9 @@ and field_term : type n. kinetic value -> Field.t -> kinetic value =
   let (Val v) = field x fld in
   v
 
-(* Given a term and its record type, compute the type and dimension of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default). *)
-and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.or_index) :
-    Field.t * dim_wrapped * kinetic value =
+(* Given a term and its record type, compute the type and dimension of a field projection.  The caller can control the severity of errors, depending on whether we're typechecking (Error) or normalizing (Bug, the default).  We allow the term to be an error, in case typechecking failed earlier but we are continuing on; this can nevertheless succeed (or fail in more interesting ways) if the type doesn't actually depend on that value. *)
+and tyof_field_withname ?severity (tm : (kinetic value, Code.t) Result.t) (ty : kinetic value)
+    (fld : Field.or_index) : Field.t * dim_wrapped * kinetic value =
   match view_type ?severity ty "tyof_field" with
   | Canonical (head, Codata { env; ins; fields; opacity = _; eta = _ }, tyargs) -> (
       (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
@@ -571,8 +571,12 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
       | Eq -> (
           (* The type of the field projection comes from the type associated to that field name in general, evaluated at the stored environment extended by the term itself and its boundaries. *)
           let env =
-            Value.Ext (env, mn, TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm))
-          in
+            Value.Ext
+              ( env,
+                mn,
+                Result.map
+                  (fun tm -> TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm))
+                  tm ) in
           match Field.find fields fld with
           | Some (fldname, fldty) ->
               ( fldname,
@@ -583,9 +587,10 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
                      {
                        map =
                          (fun _ [ arg ] ->
-                           let (Val tm) = field arg.tm fldname in
-                           let _, _, ty = tyof_field_withname arg.tm arg.ty fld in
-                           { tm; ty });
+                           let (Val subtm) = field arg.tm fldname in
+                           let _, _, ty =
+                             tyof_field_withname (Result.map (fun _ -> arg.tm) tm) arg.ty fld in
+                           { tm = subtm; ty });
                      }
                      [ TubeOf.middle (D.zero_plus m) mn tyargs ]) )
           | None -> fatal ?severity (No_such_field (`Record (phead head), fld))))
@@ -593,10 +598,11 @@ and tyof_field_withname ?severity (tm : kinetic value) (ty : kinetic value) (fld
 
 and tyof_field_withdim ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.t) :
     dim_wrapped * kinetic value =
-  let _, n, ty = tyof_field_withname ?severity tm ty (`Name fld) in
+  let _, n, ty = tyof_field_withname ?severity (Ok tm) ty (`Name fld) in
   (n, ty)
 
-and tyof_field ?severity (tm : kinetic value) (ty : kinetic value) (fld : Field.t) : kinetic value =
+and tyof_field ?severity (tm : (kinetic value, Code.t) Result.t) (ty : kinetic value)
+    (fld : Field.t) : kinetic value =
   let _, _, ty = tyof_field_withname ?severity tm ty (`Name fld) in
   ty
 
@@ -749,7 +755,9 @@ and lookup_cube :
   | Ext (env, _, _), Later v -> lookup_cube env mk v op
   | LazyExt (env, _, _), Later v -> lookup_cube env mk v op
   (* Finally, when we find our variable, we decompose the accumulated operator into a strict face and degeneracy, use the face as an index lookup, and act by the degeneracy.  The forcing function is the identity if the entry is not lazy, and force_eval_term if it is lazy. *)
-  | Ext (_, nk, entry), Now -> Looked_up { act = act_value; op = op_plus op nk mk; entry }
+  | Ext (_, nk, Ok entry), Now -> Looked_up { act = act_value; op = op_plus op nk mk; entry }
+  (* Looking up a variable that's bound to an error immediately fails with that error.  (In particular, this sort of failure can't currently happen "deeper" inside a term.) *)
+  | Ext (_, _, Error e), Now -> fatal e
   | LazyExt (_, nk, entry), Now ->
       Looked_up
         { act = (fun x s -> force_eval_term (act_lazy_eval x s)); op = op_plus op nk mk; entry }

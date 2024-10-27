@@ -145,11 +145,22 @@ let spine :
     | _ -> (tm, locs, args) in
   spine tm [] []
 
-let run_with_definition : type a s c. a potential_head -> (a, potential) term -> (unit -> c) -> c =
- fun head tm f ->
-  match head with
-  | Constant c -> Global.with_definition c (Global.Defined tm) f
-  | Meta (m, _) -> Global.with_meta_definition m tm f
+(* Temporarily define a given head (constant or meta) to be a given value, in executing a callback.  However, if an error has occurred earlier in typechecking other parts of it, then instead bind that head to an error value that doesn't allow it to be used. *)
+let run_with_definition :
+    type a s c.
+    a potential_head -> (a, potential) term -> Code.t Asai.Diagnostic.t Bwd.t -> (unit -> c) -> c =
+ fun head tm errs f ->
+  match (head, errs) with
+  (* In the case of an error, we bind the head to the error "Accumulated Emp".  That has the effect that accesses to it fail, but aren't displayed to the user as anything, since what's really going on is that we refuse to even try to typecheck later parts of a term that depend on previous parts that already failed, and this "error" is just detecting that dependence. *)
+  | Constant c, Emp -> Global.with_definition c (Global.Defined tm) f
+  | Constant c, Snoc _ -> Global.without_definition c (Accumulated Emp) f
+  | Meta (m, _), Emp -> Global.with_meta_definition m tm f
+  | Meta (m, _), Snoc _ -> Global.without_meta_definition m (Accumulated Emp) f
+
+let unless_error (v : 'a) (err : 'b Bwd.t) : ('a, Code.t) Result.t =
+  match err with
+  | Emp -> Ok v
+  | Snoc _ -> Error (Accumulated Emp)
 
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
@@ -1239,6 +1250,7 @@ and check_data :
         (hyp
            (Term.Canonical
               (Data { indices = num_indices; constrs = checked_constrs; discrete = `No })))
+        Emp
       @@ fun () ->
       match (Abwd.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
@@ -1334,6 +1346,7 @@ and with_codata_so_far :
          (CubeOf.singleton prev_ety)) in
   run_with_definition h
     (hyp (Term.Canonical (Codata { eta; opacity; dim; fields = checked_fields })))
+    Emp
   @@ fun () -> cont domvars
 
 and check_codata :
@@ -1399,7 +1412,7 @@ and check_struct :
     check_fields status eta ctx ty dim
       (* We convert the backwards alist of fields and values into a forwards list of field names only. *)
       (Bwd.fold_right (fun (fld, _) flds -> fld :: flds) fields [])
-      tms Emp Emp in
+      tms Emp Emp Emp in
   (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
   let fields =
     Bwd.map
@@ -1423,21 +1436,31 @@ and check_fields :
     (Field.t option, a check located) Abwd.t ->
     (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
- fun status eta ctx ty dim fields tms etms ctms ->
+ fun status eta ctx ty dim fields tms etms ctms errs ->
   (* The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
   let str = Value.Struct (etms, ins_zero dim, energy status) in
   match (fields, status) with
-  | [], _ -> (tms, ctms)
+  | [], _ -> (
+      (* We accumulate a Bwd of errors as we progress through the fields, allowing later fields to typecheck (and, more importantly, produce their own meaningful error messages) even if earlier fields already failed.  Then at the end, if there are any such errors, we raise them all together. *)
+      match errs with
+      | Emp -> (tms, ctms)
+      | Snoc _ -> fatal (Accumulated errs))
   | fld :: fields, Potential (name, args, hyp) ->
-      (* Temporarily bind the current constant to the up-until-now value, for (co)recursive purposes. *)
-      run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) @@ fun () ->
+      (* Temporarily bind the current constant to the up-until-now value (or an error, if any have occurred yet), for (co)recursive purposes.  Note that this means as soon as one field fails, no other fields can be typechecked if they depend *at all* on earlier ones, even ones that didn't fail.  This could be improved in the future. *)
+      run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) errs @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = head_of_potential name in
-      let prev_etm = Uninst (Neu { head; args; value = ready (Val str) }, Lazy.from_val ty) in
-      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
-  | fld :: fields, Kinetic _ -> check_field status eta ctx ty dim fld fields str tms etms ctms
+      (* The up-until-now term is also maybe an error. *)
+      let prev_etm =
+        unless_error (Uninst (Neu { head; args; value = ready (Val str) }, Lazy.from_val ty)) errs
+      in
+      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms errs
+  | fld :: fields, Kinetic _ ->
+      let prev_etm = unless_error str errs in
+      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms errs
 
 and check_field :
     type a b s n.
@@ -1448,34 +1471,35 @@ and check_field :
     n D.t ->
     Field.t ->
     Field.t list ->
-    kinetic value ->
+    (kinetic value, Code.t) Result.t ->
     (Field.t option, a check located) Abwd.t ->
     (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
- fun status eta ctx ty dim fld fields prev_etm tms etms ctms ->
+ fun status eta ctx ty dim fld fields prev_etm tms etms ctms errs ->
   let mkstatus lbl : (b, s) status -> (b, s) status = function
     | Kinetic l -> Kinetic l
     | Potential (c, args, hyp) ->
         let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
         let hyp tm = hyp (Term.Struct (eta, dim, Snoc (ctms, (fld, (tm, lbl))), energy status)) in
         Potential (c, args, hyp) in
-  let ety = tyof_field prev_etm ty fld in
-  match Abwd.find_opt (Some fld) tms with
-  | Some tm ->
-      let ctm = check (mkstatus `Labeled status) ctx tm ety in
-      let etms = Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, `Labeled) etms in
-      let ctms = Snoc (ctms, (fld, (ctm, `Labeled))) in
-      check_fields status eta ctx ty dim fields tms etms ctms
-  | None -> (
-      match Abwd.find_opt_and_update_key None (Some fld) tms with
-      | Some (tm, tms) ->
-          let ctm = check (mkstatus `Unlabeled status) ctx tm ety in
-          let etms = Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, `Unlabeled) etms in
-          let ctms = Snoc (ctms, (fld, (ctm, `Unlabeled))) in
-          check_fields status eta ctx ty dim fields tms etms ctms
-      | None -> fatal (Missing_field_in_tuple fld))
+  let tms, etms, ctms, errs =
+    (* We trap any errors produced by 'tyof_field' or 'check', adding them instead to the list of accumulated errors and going on.  Note that if any previous fields that have already failed, then prev_etm will be bound to an error value, and so if the type of this field depends on the value of any previous one, tyof_field will raise that error, which we catch and add to the list; but it will be (Accumulated Emp) so it won't be displayed to the user. *)
+    let tm, tms, lbl =
+      match Abwd.find_opt (Some fld) tms with
+      | Some tm -> (tm, tms, `Labeled)
+      | None -> (
+          match Abwd.find_opt_and_update_key None (Some fld) tms with
+          | Some (tm, tms) -> (tm, tms, `Unlabeled)
+          | None -> fatal (Missing_field_in_tuple fld)) in
+    Reporter.try_with ~fatal:(fun e -> (tms, etms, ctms, Snoc (errs, e))) @@ fun () ->
+    let ety = tyof_field prev_etm ty fld in
+    let ctm = check (mkstatus lbl status) ctx tm ety in
+    (tms, Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, lbl) etms, Snoc (ctms, (fld, (ctm, lbl))), errs)
+  in
+  check_fields status eta ctx ty dim fields tms etms ctms errs
 
 and synth :
     type a b s. (b, s) status -> (a, b) Ctx.t -> a synth located -> (b, s) term * kinetic value =
@@ -1487,7 +1511,7 @@ and synth :
       | `Var (_, x, v) -> (realize status (Term.Var v), x.ty)
       | `Field (lvl, x, fld) -> (
           match Ctx.find_level ctx lvl with
-          | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field x.tm x.ty fld)
+          | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field (Ok x.tm) x.ty fld)
           | None -> fatal (Anomaly "level not found in field view")))
   | Const name, _ -> (
       let ty, tm = Global.find name in
@@ -1498,7 +1522,7 @@ and synth :
       let stm, sty = synth (Kinetic `Nolet) ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
       let etm = eval_term (Ctx.env ctx) stm in
-      let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error etm sty fld in
+      let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error (Ok etm) sty fld in
       (realize status (Field (stm, fld)), newty)
   | UU, _ -> (realize status (Term.UU D.zero), universe D.zero)
   | Pi (x, dom, cod), _ ->
@@ -1748,7 +1772,7 @@ and check_at_tel :
           (Ext
              ( env,
                D.plus_zero (TubeOf.inst tyarg),
-               TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm) ))
+               Ok (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm)) ))
           tms tys tyargs in
       (newenv, TubeOf.plus_cube ctms (CubeOf.singleton ctm) :: newargs)
   | _ ->

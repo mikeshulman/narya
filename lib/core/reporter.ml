@@ -756,9 +756,13 @@ let ( <|> ) : type a b. a option -> Code.t -> a =
 
 module Terminal = Asai.Tty.Make (Code)
 
-let rec display ?use_ansi ?output (d : Code.t Asai.Diagnostic.t) =
+let rec display ?use_ansi ?output ?(empty_ok = false) (d : Code.t Asai.Diagnostic.t) =
   match d.message with
-  | Accumulated msgs -> Mbwd.miter (fun [ e ] -> display ?use_ansi ?output e) [ msgs ]
+  | Accumulated Emp when not empty_ok ->
+      Terminal.display ?use_ansi ?output
+        { d with message = Anomaly "unexpected empty error accumulation" }
+  | Accumulated msgs ->
+      Mbwd.miter (fun [ e ] -> display ?use_ansi ?output ~empty_ok:true e) [ msgs ]
   | _ -> Terminal.display ?use_ansi ?output d
 
 (* We also may need to extract an accumulated singleton, for testing purposes. *)

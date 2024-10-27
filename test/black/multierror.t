@@ -283,3 +283,36 @@ Even trivial dependency blocks going on, as long as there is the potential for d
      ^ term synthesized type A but is being checked against type streamB
   
   [1]
+
+  $ cat >multierr.ny <<EOF
+  > axiom A:Type
+  > axiom B:Type
+  > axiom a:A
+  > def bool : Type := data [ true. | false. ]
+  > def foo (x : bool) : B := match x [ true. ↦ a | false. ↦ a ]
+  > EOF
+
+  $ narya -v multierr.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ axiom B assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a assumed
+  
+   ￫ info[I0000]
+   ￮ constant bool defined
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   5 | def foo (x : bool) : B := match x [ true. ↦ a | false. ↦ a ]
+     ^ term synthesized type A but is being checked against type B
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   5 | def foo (x : bool) : B := match x [ true. ↦ a | false. ↦ a ]
+     ^ term synthesized type A but is being checked against type B
+  
+  [1]

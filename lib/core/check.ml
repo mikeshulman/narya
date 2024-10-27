@@ -740,9 +740,9 @@ and synth_or_check_nondep_match :
       (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
       let user_branches = merge_branches name brs data_constrs in
       (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-      let branches =
+      let branches, errs =
         Bwd.fold_left
-          (fun branches
+          (fun (branches, errs)
                ( constr,
                  (Checkable_branch { xs; body; plus_args; env; argtys; index_terms = _ } :
                    (a, m, ij) checkable_branch) ) ->
@@ -754,17 +754,23 @@ and synth_or_check_nondep_match :
             (* Finally, we recurse into the "body" of the branch. *)
             match !ty with
             | Some motive -> (
-                (* If we have a type, check against it. *)
+                (* If we have a type, check against it.  We catch errors and accumuate them so that later branches can continue to be checked and produce their own errors even if earlier ones fail, but we pass through the errors that are getting caught elsewhere. *)
+                Reporter.try_with ~fatal:(fun e ->
+                    match e.message with
+                    | Missing_constructor_in_match _ -> fatal_diagnostic e
+                    | _ -> (branches, Snoc (errs, e)))
+                @@ fun () ->
                 match body with
                 | Some body ->
-                    branches
-                    |> Constr.Map.add constr
-                         (Term.Branch (efc, perm, check status newctx body motive))
+                    ( branches
+                      |> Constr.Map.add constr
+                           (Term.Branch (efc, perm, check status newctx body motive)),
+                      errs )
                 | None ->
-                    if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
+                    if any_empty newnfs then (branches |> Constr.Map.add constr Term.Refute, errs)
                     else fatal (Missing_constructor_in_match constr))
             | None -> (
-                (* If we don't have a type yet, try to synthesize a type from this branch. *)
+                (* If we don't have a type yet, try to synthesize a type from this branch.  We don't catch and accumulate errors here, because if we need the first branch to synthesize a type and it fails to, there is no type to even try to check the later branches against. *)
                 match body with
                 | Some { value = Synth value; loc } ->
                     let sbr, sty = synth status newctx { value; loc } in
@@ -778,17 +784,19 @@ and synth_or_check_nondep_match :
                     @@ fun () ->
                     discard (readback_val ctx sty);
                     ty := Some sty;
-                    branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr))
+                    (branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr)), errs)
+                (* These errors  *)
                 | None -> fatal (Nonsynthesizing "match with zero branches")
                 | _ ->
                     fatal
                       (Nonsynthesizing
                          "first branch in synthesizing match without return annotation")))
-          Constr.Map.empty user_branches in
-      match (motive, !ty) with
-      | Some _, _ -> (Match { tm; dim; branches }, Not_some)
-      | None, Some ty -> (Match { tm; dim; branches }, Not_none ty)
-      | None, None -> fatal (Nonsynthesizing "empty match"))
+          (Constr.Map.empty, Emp) user_branches in
+      match (errs, motive, !ty) with
+      | Snoc _, _, _ -> fatal (Accumulated errs)
+      | Emp, Some _, _ -> (Match { tm; dim; branches }, Not_some)
+      | Emp, None, Some ty -> (Match { tm; dim; branches }, Not_none ty)
+      | Emp, None, None -> fatal (Nonsynthesizing "empty match"))
   | _ -> fatal (Matching_on_nondatatype (PVal (ctx, varty)))
 
 and check_nondep_match :
@@ -842,7 +850,7 @@ and synth_dep_match :
            ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _; tyfam } :
              (_, j, ij) data_args),
          inst_args ) :
-        _ * m canonical * _) ->
+        _ * m canonical * _) -> (
       let tyfam =
         match !tyfam with
         | Some tyfam -> Lazy.force tyfam
@@ -853,9 +861,9 @@ and synth_dep_match :
       (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
       let user_branches = merge_branches name brs data_constrs in
       (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-      let branches =
+      let branches, errs =
         Bwd.fold_left
-          (fun branches
+          (fun (branches, errs)
                ( constr,
                  (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
                    (a, m, ij) checkable_branch) ) ->
@@ -880,29 +888,40 @@ and synth_dep_match :
             (* Finally, we recurse into the "body" of the branch. *)
             match body with
             | Some body ->
-                branches
-                |> Constr.Map.add constr (Term.Branch (efc, perm, check status newctx body bmotive))
+                (* We catch and accumulate errors so that later branches can continue to be checked and produce their own errors even if earlier ones fail, but we pass through the errors that are getting caught elsewhere. *)
+                Reporter.try_with ~fatal:(fun e ->
+                    match e.message with
+                    | Missing_constructor_in_match _ -> fatal_diagnostic e
+                    | _ -> (branches, Snoc (errs, e)))
+                @@ fun () ->
+                ( branches
+                  |> Constr.Map.add constr
+                       (Term.Branch (efc, perm, check status newctx body bmotive)),
+                  errs )
             | None ->
-                if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
+                if any_empty newnfs then (branches |> Constr.Map.add constr Term.Refute, errs)
                 else fatal (Missing_constructor_in_match constr))
-          Constr.Map.empty user_branches in
-      (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
-      let result =
-        Vec.fold_left
-          (fun fn xs ->
+          (Constr.Map.empty, Emp) user_branches in
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp ->
+          (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
+          let result =
+            Vec.fold_left
+              (fun fn xs ->
+                snd
+                  (MC.miterM
+                     { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
+                     [ xs ] fn))
+              emotive var_indices in
+          let result =
             snd
-              (MC.miterM
+              (MT.miterM
                  { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
-                 [ xs ] fn))
-          emotive var_indices in
-      let result =
-        snd
-          (MT.miterM
-             { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
-             [ inst_args ] result) in
-      let result = apply_term result (CubeOf.singleton (eval_term (Ctx.env ctx) ctm)) in
-      (* We readback the result so we can store it in the term, so that when evaluating it we know what its type must be without having to do all the work again. *)
-      (Match { tm = ctm; dim; branches }, result)
+                 [ inst_args ] result) in
+          let result = apply_term result (CubeOf.singleton (eval_term (Ctx.env ctx) ctm)) in
+          (* We readback the result so we can store it in the term, so that when evaluating it we know what its type must be without having to do all the work again. *)
+          (Match { tm = ctm; dim; branches }, result))
   | _ -> fatal (Matching_on_nondatatype (PVal (ctx, varty)))
 
 (* Check a match against a well-behaved variable, which can only appear in a case tree and refines not only the goal but the context (possibly with permutation). *)
@@ -926,7 +945,7 @@ and check_var_match :
            ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _; tyfam } :
              (_, j, ij) data_args),
          inst_args ) :
-        _ * m canonical * _) ->
+        _ * m canonical * _) -> (
       let tyfam =
         match !tyfam with
         | Some tyfam -> Lazy.force tyfam
@@ -981,9 +1000,9 @@ and check_var_match :
       (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
       let user_branches = merge_branches name brs data_constrs in
       (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-      let branches =
+      let branches, errs =
         Bwd.fold_left
-          (fun branches
+          (fun (branches, errs)
                ( constr,
                  (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
                    (a, m, ij) checkable_branch) ) ->
@@ -1050,7 +1069,7 @@ and check_var_match :
                     | None ->
                         fatal (Matching_wont_refine ("no consistent permutation of context", PUnit))
                     | Bind_some { checked_perm; oldctx; newctx } -> (
-                        (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence.  Note that this exception is still caught by go_check_match, above, causing a fallback to term matching. *)
+                        (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence.  Note that this exception is still caught by check_var_match, above, causing a fallback to term matching. *)
                         ( Reporter.try_with ~fatal:(fun d ->
                               match d.message with
                               | No_such_level x ->
@@ -1074,8 +1093,15 @@ and check_var_match :
                         (* Finally, we typecheck the "body" of the branch, if the user supplied one. *)
                         match body with
                         | Some body ->
+                            (* We catch and accumulate errors so that later branches can continue to be checked and produce their own errors even if earlier ones fail, but we pass through the errors that are getting caught elsewhere. *)
+                            Reporter.try_with ~fatal:(fun e ->
+                                match e.message with
+                                | Missing_constructor_in_match _ -> fatal_diagnostic e
+                                | _ -> (branches, Snoc (errs, e)))
+                            @@ fun () ->
                             let branch = check status newctx body newty in
-                            branches |> Constr.Map.add constr (Term.Branch (efc, perm, branch))
+                            ( branches |> Constr.Map.add constr (Term.Branch (efc, perm, branch)),
+                              errs )
                         (* If not, then we look for something to refute. *)
                         | None ->
                             (* First we check whether any of the new pattern variables created by this match belong to an empty datatype. *)
@@ -1090,11 +1116,13 @@ and check_var_match :
                                     is_empty sty)
                                 false (refutables.refutables plus_args)
                               (* If we found something to refute, we mark this branch as refuted in the compiled match. *)
-                            then branches |> Constr.Map.add constr Term.Refute
+                            then (branches |> Constr.Map.add constr Term.Refute, errs)
                             else fatal (Missing_constructor_in_match constr))))
             | _ -> fatal (Anomaly "created datatype is not canonical?"))
-          Constr.Map.empty user_branches in
-      Match { tm = Term.Var index; dim; branches }
+          (Constr.Map.empty, Emp) user_branches in
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp -> Match { tm = Term.Var index; dim; branches })
   | _ -> fatal (Matching_on_nondatatype (PVal (ctx, varty)))
 
 and make_match_status :

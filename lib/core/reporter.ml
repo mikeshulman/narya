@@ -1,3 +1,5 @@
+open Bwd
+open Util
 open Dim
 open Asai.Diagnostic
 open Format
@@ -164,6 +166,7 @@ module Code = struct
     | Section_closed : string list -> t
     | No_such_section : t
     | Break : t
+    | Accumulated : t Asai.Diagnostic.t Bwd.t -> t
     | No_holes_allowed : string -> t
 
   (** The default severity of messages with a particular message code. *)
@@ -287,10 +290,12 @@ module Code = struct
     | Section_closed _ -> Info
     | No_such_section -> Error
     | Break -> Error
+    | Accumulated _ -> Error
     | No_holes_allowed _ -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
+    | Accumulated _ -> assert false
     (* Usually bugs *)
     | Anomaly _ -> "E0000"
     | No_such_level _ -> "E0001"
@@ -442,6 +447,9 @@ module Code = struct
     | Show _ -> "I9999"
 
   let rec default_text : t -> text = function
+    | Accumulated _ ->
+        (* Shouldn't actually be used, but seems to get computed anyway *)
+        text "anomaly: multiple accumulated errors"
     | Parse_error -> text "parse error"
     | Encoding_error -> text "UTF-8 encoding error"
     | Parsing_ambiguity str -> textf "potential parsing ambiguity: %s" str
@@ -743,3 +751,18 @@ let ( <|> ) : type a b. a option -> Code.t -> a =
   match x with
   | Some x -> x
   | None -> fatal e
+
+(* After a fatal error, we allow continuing to typecheck other parts of the term that don't depend on that error and reporting any additional errors they produce.  This is handled by a special "Accumulated" error that encapsulates a backwards list of diagnostics.  When displaying this error, we instead descend into its list, recursively, and display all the constituent errors. *)
+
+module Terminal = Asai.Tty.Make (Code)
+
+let rec display ?use_ansi ?output (d : Code.t Asai.Diagnostic.t) =
+  match d.message with
+  | Accumulated msgs -> Mbwd.miter (fun [ e ] -> display ?use_ansi ?output e) [ msgs ]
+  | _ -> Terminal.display ?use_ansi ?output d
+
+(* We also may need to extract an accumulated singleton, for testing purposes. *)
+let rec unaccumulate (c : Code.t) : Code.t =
+  match c with
+  | Accumulated (Snoc (Emp, c)) -> unaccumulate c.message
+  | c -> c

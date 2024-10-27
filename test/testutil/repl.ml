@@ -22,8 +22,6 @@ let parse_term (tm : string) : N.zero check located =
   let (Term tm) = Parse.Term.final p in
   Postprocess.process Emp tm
 
-module Terminal = Asai.Tty.Make (Core.Reporter.Code)
-
 let check_type (rty : N.zero check located) : (emp, kinetic) term =
   Reporter.trace "when checking type" @@ fun () ->
   check (Kinetic `Nolet) Ctx.empty rty (universe D.zero)
@@ -119,8 +117,10 @@ let run f =
   Readback.Display.run ~env:false @@ fun () ->
   Discrete.run ~env:false @@ fun () ->
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
+  Reporter.run
+    ~emit:(fun d -> Reporter.display d)
+    ~fatal:(fun d ->
+      Reporter.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
   let init_visible = Parser.Pi.install Scope.Trie.empty in

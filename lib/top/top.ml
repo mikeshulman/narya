@@ -68,8 +68,6 @@ let do_command = function
       Print.pp_ws `None ppf last;
       Format.pp_print_newline ppf ()
 
-module Terminal = Asai.Tty.Make (Core.Reporter.Code)
-
 (* This function is called to wrap whatever "interactive mode" is implemented by the caller.  It sets up the environment and all the effect handlers based on the global flags, loads all the files and strings specified in the global flags, and then runs the callback. *)
 let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
   Parser.Unparse.install ();
@@ -91,9 +89,9 @@ let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
   Reporter.run
     ~emit:(fun d ->
       if !verbose || d.severity = Error || d.severity = Warning then
-        Terminal.display ?use_ansi ~output:stderr d)
+        Reporter.display ?use_ansi ~output:stderr d)
     ~fatal:(fun d ->
-      Terminal.display ?use_ansi ~output:stderr d;
+      Reporter.display ?use_ansi ~output:stderr d;
       exiter ())
   @@ fun () ->
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");

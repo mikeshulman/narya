@@ -17,11 +17,9 @@ let reformat content =
   pp_print_newline std_formatter ();
   pp_print_newline std_formatter ()
 
-module Terminal = Asai.Tty.Make (Core.Reporter.Code)
-
 let run f =
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
+  Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
+      Reporter.display d;
       raise (Failure "Fatal error"))
   @@ fun () ->
   Builtins.run @@ fun () ->

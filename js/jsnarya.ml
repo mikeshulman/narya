@@ -26,8 +26,8 @@ let rec interact_js : string -> result =
   let buf = Buffer.create 70 in
   Sys_js.set_channel_flusher stdout (fun str -> Buffer.add_string buf str);
   Reporter.try_with
-    ~emit:(fun d -> Terminal.display ~use_ansi:true ~output:stdout d)
-    ~fatal:(fun d -> Terminal.display ~use_ansi:true ~output:stdout d)
+    ~emit:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
+    ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
     (fun () -> do_command (Command.parse_single cmd));
   Out_channel.flush stdout;
   (* Now we perform the "Next" effect, which returns control to the browser until the user enters another command.  At that point execution resumes here with a return value of the next command to execute, which we then pass off to ourselves recursively. *)

@@ -100,9 +100,9 @@ let rec repl terminal history buf =
         let* () = Lwt_io.flush Lwt_io.stdout in
         (* In interactive mode, we display all messages verbosely, and don't quit on fatal errors except for the Quit command. *)
         Reporter.try_with
-          ~emit:(fun d -> Terminal.display ~output:stdout d)
+          ~emit:(fun d -> Reporter.display ~output:stdout d)
           ~fatal:(fun d ->
-            Terminal.display ~output:stdout d;
+            Reporter.display ~output:stdout d;
             match d.message with
             | Quit _ -> exit 0
             | _ -> ())
@@ -153,8 +153,8 @@ let rec interact_pg () : unit =
         ~emit:(fun d ->
           match d.message with
           | Hole _ -> holes := Snoc (!holes, d.message)
-          | _ -> Terminal.display ~use_ansi:true ~output:stdout d)
-        ~fatal:(fun d -> Terminal.display ~use_ansi:true ~output:stdout d)
+          | _ -> Reporter.display ~use_ansi:true ~output:stdout d)
+        ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
         (fun () ->
           try
             do_command (Command.parse_single cmd);
@@ -177,8 +177,8 @@ let () =
   Mbwd.miter
     (fun [ file ] ->
       let p, src = Parser.Command.Parse.start_parse (`File file) in
-      Reporter.try_with ~emit:(Terminal.display ~output:stdout)
-        ~fatal:(Terminal.display ~output:stdout) (fun () -> Execute.batch true [] p src))
+      Reporter.try_with ~emit:(Reporter.display ~output:stdout)
+        ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch true [] p src))
     [ !fake_interacts ];
   if !interactive then Lwt_main.run (interact ())
   else if !proofgeneral then (

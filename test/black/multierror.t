@@ -415,3 +415,23 @@ Even trivial dependency blocks going on, as long as there is the potential for d
      ^ term synthesized type A but is being checked against type Type
   
   [1]
+
+  $ cat >multierr.ny <<EOF
+  > def Nat : Type := data [ zero. | suc. (_ : Nat) ]
+  > axiom f : Nat -> Nat
+  > def pred (x : Nat) : Nat := match x [ zero. |-> Nat | suc. y |-> f (pred y) ]
+  > EOF
+
+  $ narya -v multierr.ny
+   ￫ info[I0000]
+   ￮ constant Nat defined
+  
+   ￫ info[I0001]
+   ￮ axiom f assumed
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   3 | def pred (x : Nat) : Nat := match x [ zero. |-> Nat | suc. y |-> f (pred y) ]
+     ^ term synthesized type Type but is being checked against type Nat
+  
+  [1]

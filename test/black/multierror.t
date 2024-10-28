@@ -316,3 +316,28 @@ Even trivial dependency blocks going on, as long as there is the potential for d
      ^ term synthesized type A but is being checked against type B
   
   [1]
+
+  $ cat >multierr.ny <<EOF
+  > axiom A:Type
+  > axiom a:A
+  > def foo : Type := data [ true. (_ : a) | false. (_ : a) ]
+  > EOF
+
+  $ narya -v multierr.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a assumed
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   3 | def foo : Type := data [ true. (_ : a) | false. (_ : a) ]
+     ^ term synthesized type A but is being checked against type Type
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   3 | def foo : Type := data [ true. (_ : a) | false. (_ : a) ]
+     ^ term synthesized type A but is being checked against type Type
+  
+  [1]

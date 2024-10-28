@@ -420,7 +420,7 @@ let rec check :
       let (Wrap num_indices) = Fwn.of_int n in
       check_data
         ~discrete:(if disc then discrete else None)
-        status ctx ty num_indices Abwd.empty (Bwd.to_list constrs)
+        status ctx ty num_indices Abwd.empty (Bwd.to_list constrs) Emp
   (* If we have a term that's not valid outside a case tree, we bind it to a global metavariable. *)
   | Struct (Noeta, _), Kinetic l -> kinetic_of_potential l ctx tm ty "comatch"
   | Synth (Match _), Kinetic l -> kinetic_of_potential l ctx tm ty "match"
@@ -1263,13 +1263,17 @@ and check_data :
     i Fwn.t ->
     (Constr.t, (b, i) Term.dataconstr) Abwd.t ->
     (Constr.t * a Raw.dataconstr located) list ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (b, potential) term =
- fun ~discrete status ctx ty num_indices checked_constrs raw_constrs ->
+ fun ~discrete status ctx ty num_indices checked_constrs raw_constrs errs ->
   match (raw_constrs, status) with
-  | [], Potential _ ->
-      (* If we get to this point and discreteness is still a possibility, we mark it as "Maybe" discrete.  Later, after all the types in a mutual block are checked, if they're all discrete we go through and change the "Maybe"s to "Yes"es.  *)
-      let discrete = Option.fold ~none:`No ~some:(fun _ -> `Maybe) discrete in
-      Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete })
+  | [], Potential _ -> (
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp ->
+          (* If we get to this point and discreteness is still a possibility, we mark it as "Maybe" discrete.  Later, after all the types in a mutual block are checked, if they're all discrete we go through and change the "Maybe"s to "Yes"es.  *)
+          let discrete = Option.fold ~none:`No ~some:(fun _ -> `Maybe) discrete in
+          Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete }))
   | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
       Potential (head, current_apps, hyp) ) -> (
       with_loc loc @@ fun () ->
@@ -1282,38 +1286,44 @@ and check_data :
       @@ fun () ->
       match (Abwd.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
-      | None, Some output -> (
-          let Checked_tel (args, newctx), disc = check_tel ?discrete ctx args in
-          let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
-          match eval_term (Ctx.env newctx) coutput with
-          | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; value = _ }, _)
-            -> (
-              match head with
-              | Constant cc when cc = out_head && Option.is_some (is_id_ins ins) -> (
-                  let (Wrap indices) =
-                    get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps)
-                      output.loc in
-                  match Fwn.compare (Vec.length indices) num_indices with
-                  | Eq ->
-                      check_data
-                        ~discrete:(if disc then discrete else None)
-                        status ctx ty num_indices
-                        (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }))
-                        raw_constrs
-                  | _ ->
-                      (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
-                      fatal (Anomaly "length of indices mismatch"))
-              | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
-          | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
+      | None, Some output ->
+          let disc, (checked_constrs : (Constr.t, (b, i) Term.dataconstr) Abwd.t), errs =
+            Reporter.try_with ~fatal:(fun e -> (true, checked_constrs, Snoc (errs, e))) @@ fun () ->
+            let Checked_tel (args, newctx), disc = check_tel ?discrete ctx args in
+            let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
+            match eval_term (Ctx.env newctx) coutput with
+            | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; value = _ }, _)
+              -> (
+                match head with
+                | Constant cc when cc = out_head && Option.is_some (is_id_ins ins) -> (
+                    let (Wrap indices) =
+                      get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps)
+                        output.loc in
+                    match Fwn.compare (Vec.length indices) num_indices with
+                    | Eq ->
+                        ( disc,
+                          checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }),
+                          errs )
+                    | _ ->
+                        (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
+                        fatal (Anomaly "length of indices mismatch"))
+                | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
+            | _ -> fatal ?loc:output.loc (Invalid_constructor_type c) in
+          check_data
+            ~discrete:(if disc then discrete else None)
+            status ctx ty num_indices checked_constrs raw_constrs errs
       | None, None -> (
           match num_indices with
           | Zero ->
-              let Checked_tel (args, _), disc = check_tel ?discrete ctx args in
+              let disc, (checked_constrs : (Constr.t, (b, i) Term.dataconstr) Abwd.t), errs =
+                Reporter.try_with ~fatal:(fun e -> (true, checked_constrs, Snoc (errs, e)))
+                @@ fun () ->
+                let Checked_tel (args, _), disc = check_tel ?discrete ctx args in
+                (disc, checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }), errs)
+              in
               check_data
                 ~discrete:(if disc then discrete else None)
-                status ctx ty Fwn.zero
-                (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }))
-                raw_constrs
+                status ctx ty Fwn.zero checked_constrs raw_constrs errs
           | Suc _ -> fatal (Missing_constructor_type c)))
 
 and get_indices :

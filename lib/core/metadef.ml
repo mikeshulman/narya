@@ -6,7 +6,7 @@ open Term
 type ('a, 'b, 's) t = {
   energy : 's energy;
   tm : [ `Defined of ('b, 's) term | `Axiom | `Undefined ];
-  (* If a metavariable were "lifted" to top level with pi-types, then its type would be composed of its context and the type in that context.  We instead store them separately without doing the lifting. *)
+  (* If a metavariable were "lifted" to top level with pi-types, then its type would be the pi-type over its context of the type in that context.  We instead store them separately without doing the lifting. *)
   termctx : ('a, 'b) Termctx.t;
   ty : ('b, kinetic) term;
 }

@@ -273,9 +273,8 @@ it won't try to duplicate our work."
   "Solve the current hole with a user-provided term."
   (interactive)
   (let ((hole-overlay (car (seq-filter (lambda (ovl)
-                                         (eq (get-char-property (point) 'narya-hole)
-                                             (overlay-get ovl 'narya-hole)))
-                                       narya-hole-overlays))))
+                                         (overlay-get ovl 'narya-hole))
+                                       (overlays-at (point))))))
     (if (not hole-overlay)
         ;; If the cursor is not on a hole, display a warning message.
         (message "Place the cursor on a hole.")
@@ -297,6 +296,7 @@ it won't try to duplicate our work."
             (delete-overlay hole-overlay)
             (setq narya-hole-overlays (delq hole-overlay narya-hole-overlays))
             (message "Hole solved.")))))))
+
 
 (keymap-set narya-mode-map "C-c C-SPC" 'narya-solve-hole)
 

@@ -1,0 +1,3 @@
+(library
+  (name top)
+  (libraries core parser))

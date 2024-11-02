@@ -1,0 +1,52 @@
+<html>
+  <head>
+<title>jsNarya</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/5.5.0/xterm.js"></script>
+<script src="jsnarya.bc.js"></script>
+</head>
+<body>
+  <center>
+    <span style="font-size: 2em; font-weight: bold">jsNarya:</span>
+    <span style="font-size: 1.5em">Higher-dimensional type theory in your browser</span>
+  </center>
+
+  <p></p>
+
+<div style="width: 1200px; margin: auto">
+  <a href="https://github.com/mikeshulman/narya">Narya</a> is an experimental proof assistant for Higher/Parametric/Displayed Observational Type Theory;
+  see the <a href="https://github.com/mikeshulman/narya/blob/master/README.md">README</a> for current features.<br/>
+  JsNarya is compiled with <a href="https://ocsigen.org/js_of_ocaml">Js_of_ocaml</a> to run in a browser.
+  Currently only the command-line interactive mode is available, but you can copy and paste arbitrary code in the "Extra startup" box to be executed before starting interactive mode.
+  Please <a href="https://github.com/mikeshulman/narya/issues">report bugs</a>.
+</div>
+
+  <p></p>
+
+<div style="width: 1000px; margin: auto">
+  <table style="table-layout: fixed"><tr>
+      <td style="width: 120px"><button id="start" style="font-size:1.3em">Start</button></td>
+      <td style="width: 130px"><label for="arity">Arity:</label> <input type="text" id="arity" style="width: 30px" name="arity" value="2"></input></td>
+      <td style="width: 250px"><label for="direction">Direction:</label> <input type="text" id="direction" style="width: 100px" name="direction" value="e,refl,Id"></input></td>
+      <td style="width: 120px"><input type="radio" id="internal" name="internality" value="internal" checked/><label for="internal">Internal</label></td>
+      <td style="width: 160px"><input type="radio" id="external" name="internality" value="external"/><label for="external">External</label></td>
+      <td style="width: 140px"><input type="checkbox" id="discreteness" name="discreteness"/><label for="discreteness">Discreteness</label></td>
+  </tr></table>
+</div>
+
+<div style="width: 1200px; margin: auto">
+  <table cellspacing="5">
+    <tr><td>Extra startup:</td><td><textarea id="startup" rows="1" style="width: 1050px"></textarea></td></tr>
+  </table>
+</div>
+
+<div id="terminal" style="width: 1200px; margin: auto"></div>
+
+<div id="palette" style="width: 1200px; margin: auto">
+
+<script src="bundle.js"></script>
+
+</div>
+
+</body>
+</html>

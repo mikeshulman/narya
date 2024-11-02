@@ -13,12 +13,11 @@ module Endpoints : sig
   type 'l len
   type wrapped = Wrap : 'l len -> wrapped
 
-  val set_len : int -> unit
-  val set_char : char -> unit
-  val set_names : string list -> unit
+  val run :
+    arity:int -> refl_char:char -> refl_names:string list -> internal:bool -> (unit -> 'a) -> 'a
+
   val wrapped : unit -> wrapped
   val internal : unit -> bool
-  val set_internal : bool -> unit
 end
 
 type any_dim = Any : 'n D.t -> any_dim

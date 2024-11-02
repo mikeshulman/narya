@@ -6,8 +6,6 @@ open Value
 open Norm
 open Asai.Range
 
-let () = Arity.install ()
-
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : ('n, 'b) Ctx.t * (string option, 'n) Bwv.t -> ctx
 

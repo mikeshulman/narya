@@ -15,8 +15,6 @@ open Value
 open Raw
 open Asai.Range
 
-let () = Arity.install ()
-
 let parse_term (tm : string) : N.zero check located =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
   let (Term tm) = Parse.Term.final p in
@@ -118,6 +116,7 @@ let run f =
   Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode } @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->
   Discrete.run ~env:false @@ fun () ->
+  Dim.Endpoints.run ~arity:2 ~refl_char:'e' ~refl_names:[ "refl"; "Id" ] ~internal:true @@ fun () ->
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
       Terminal.display d;

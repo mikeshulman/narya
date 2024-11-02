@@ -149,15 +149,7 @@ let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
 
 (* Some applications may not be able to put their entire main loop inside a single call to "run_top".  Specifically, js_of_ocaml applications may need to return control to the browser periodically, but want to maintain the state that's normally stored in the effect handlers wrapped by run_top.  To accommodate this, we implement a "pausable" coroutine version of run_top, using effects, that saves a continuation inside all the handlers and returns to it whenever needed.  When our run_top callback finishes a single command, it yields control by performing the "Next" effect, passing the output of the command it just executed.  The handler for this effect doesn't immediately continue, but stores the continuation in a global variable and returns control to the caller.  Then when a new command is to be executed, the continuation is resumed with the text of that command. *)
 
-(* The caller has to specify a type to be the result of each successive call. *)
-module type Pause_result = sig
-  type t
-
-  (* The "startup" call has to return something. *)
-  val started : t
-end
-
-module Pauseable (R : Pause_result) = struct
+module Pauseable (R : Signatures.Type) = struct
   open Effect.Deep
 
   type _ Effect.t += Next : R.t -> (unit -> R.t) Effect.t
@@ -180,12 +172,9 @@ module Pauseable (R : Pause_result) = struct
     corun_top (Effect.perform (Next (f ())))
 
   (* We initialize the setup by calling run_top inside the effect handler. *)
-  let init ?use_ansi ?exiter () =
+  let init ?use_ansi ?exiter f =
     try_with
-      (fun () ->
-        run_top ?use_ansi ?exiter @@ fun () ->
-        (* For the first call, there is no output to return, so we return "started". *)
-        corun_top (Effect.perform (Next R.started)))
+      (fun () -> run_top ?use_ansi ?exiter @@ fun () -> corun_top (Effect.perform (Next (f ()))))
       () { effc }
 
   (* After startup, the caller calls "next" with a callback to be executed inside the run_top handlers and return a value. *)

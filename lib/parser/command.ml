@@ -609,7 +609,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           Scope.modify_export (Yuujinchou.Language.except name);
           Reporter.fatal_diagnostic d)
       @@ fun () ->
-      let (Processed_tel (params, ctx)) = process_tel Emp parameters in
+      let (Processed_tel (params, ctx, _)) = process_tel Emp parameters in
       Core.Command.execute (Axiom (const, params, process ctx ty))
   | Def defs ->
       History.do_command @@ fun () ->
@@ -632,7 +632,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
         List.map
           (function
             | const, { parameters; ty; tm = Term tm; _ } -> (
-                let (Processed_tel (params, ctx)) = process_tel Emp parameters in
+                let (Processed_tel (params, ctx, _)) = process_tel Emp parameters in
                 match ty with
                 | Some (Term ty) ->
                     ( const,

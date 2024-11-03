@@ -180,28 +180,31 @@ and process_synth :
   | { loc; _ } -> fatal ?loc (Nonsynthesizing str)
 
 type _ processed_tel =
-  | Processed_tel : ('n, 'k, 'nk) Raw.tel * (string option, 'nk) Bwv.t -> 'n processed_tel
+  | Processed_tel :
+      ('n, 'k, 'nk) Raw.tel * (string option, 'nk) Bwv.t * (Whitespace.t list, 'k) Vec.t
+      -> 'n processed_tel
 
 let rec process_tel : type n. (string option, n) Bwv.t -> Parameter.t list -> n processed_tel =
  fun ctx parameters ->
   match parameters with
-  | [] -> Processed_tel (Emp, ctx)
+  | [] -> Processed_tel (Emp, ctx, [])
   | { names; ty; _ } :: parameters -> process_vars ctx names ty parameters
 
 and process_vars :
     type n b.
     (string option, n) Bwv.t ->
-    (string option * b) list ->
+    (string option * Whitespace.t list) list ->
     observation ->
     Parameter.t list ->
     n processed_tel =
  fun ctx names (Term ty) parameters ->
   match names with
   | [] -> process_tel ctx parameters
-  | (name, _) :: names ->
+  | (name, w) :: names ->
       let pty = process ctx ty in
-      let (Processed_tel (tel, ctx)) = process_vars (Bwv.snoc ctx name) names (Term ty) parameters in
-      Processed_tel (Ext (name, pty, tel), ctx)
+      let (Processed_tel (tel, ctx, ws)) =
+        process_vars (Bwv.snoc ctx name) names (Term ty) parameters in
+      Processed_tel (Ext (name, pty, tel), ctx, w :: ws)
 
 let process_user :
     type n.

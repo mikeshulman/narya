@@ -81,7 +81,7 @@ module Heter = struct
     | Nil -> []
     | Cons xs -> [] :: nil xs
 
-  (* Add an element to the front of each of an hlist of bwvs. *)
+  (* Add an element to the front of each of an hlist of vectors. *)
   let rec cons : type xs n. xs hlist -> (xs, n) ht -> (xs, n Fwn.suc) ht =
    fun xs ys ->
     match (xs, ys) with

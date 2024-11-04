@@ -10,4 +10,6 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: DeterminateSystems/nix-installer-action@main
-    - run: nix build --accept-flake-config .
+    - run: nix profile install nixpkgs#cachix
+    - run: cachix watch-exec narya -- nix build --accept-flake-config .
+    - run: cachix watch-exec narya -- nix develop

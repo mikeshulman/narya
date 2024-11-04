@@ -1,0 +1,13 @@
+name: "Build"
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: DeterminateSystems/nix-installer-action@main
+    - run: nix build --accept-flake-config .

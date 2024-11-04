@@ -1,0 +1,10 @@
+diff --git a/bin/dune b/bin/dune
+index 5fa0a6f..be9120f 100644
+--- a/bin/dune
++++ b/bin/dune
+@@ -1,4 +1,5 @@
+ (executable
+ 	(libraries core parser react lwt lambda-term)
++  (flags (-ccopt -static))
+   (name narya)
+   (public_name narya))

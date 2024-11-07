@@ -473,7 +473,7 @@ module Parse = struct
 end
 
 let parse_single (content : string) : Whitespace.t list * Command.t option =
-  let src : Asai.Range.source = `String { content; title = Some "interactive input" } in
+  let src : Asai.Range.source = `String { content; title = None } in
   let p, src = Parse.start_parse ~or_echo:true src in
   match Parse.final p with
   | Bof ws ->
@@ -661,8 +661,11 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
       match metatm with
       | `Undefined ->
           History.run_with_scope ~init_visible:scope @@ fun () ->
-          Core.Command.execute
-            (Solve (global, status, termctx, process vars tm, ty, Eternity.solve m))
+          let tm = process vars tm in
+          (* We set the hole location offset to the start of the *term*, so that ProofGeneral can create hole overlays in the right places when solving a hole and creating new holes. *)
+          Global.HolePos.modify (fun st ->
+              { st with offset = (fst (Asai.Range.split (Option.get tm.loc))).offset });
+          Core.Command.execute (Solve (global, status, termctx, tm, ty, Eternity.solve m))
       | `Defined _ | `Axiom ->
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))

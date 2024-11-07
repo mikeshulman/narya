@@ -62,7 +62,7 @@ type eternity = {
 val eternity : eternity ref
 
 module HoleState : sig
-  type t = { holes : (int * int * int) Bwd.t }
+  type t = { holes : (int * int * int) Bwd.t; offset : int }
 end
 
 module HolePos : module type of State.Make (HoleState)

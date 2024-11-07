@@ -77,7 +77,8 @@ let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
   History.run_empty @@ fun () ->
   Eternity.run ~init:Eternity.empty @@ fun () ->
   (* By default, we ignore the hole positions. *)
-  Global.HolePos.try_with ~get:(fun () -> { holes = Emp }) ~set:(fun _ -> ()) @@ fun () ->
+  Global.HolePos.try_with ~get:(fun () -> { holes = Emp; offset = 0 }) ~set:(fun _ -> ())
+  @@ fun () ->
   Printconfig.run
     ~env:
       {

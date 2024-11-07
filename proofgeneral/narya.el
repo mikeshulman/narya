@@ -50,7 +50,7 @@ it won't try to duplicate our work."
 								;; to, in bytes.  We skip whitespace since so do the PG
 								;; commands before picking up the next Narya command.
 								(bpos (position-bytes (save-excursion
-																				(goto-char (proof-unprocessed-begin))
+																				(goto-char (overlay-start span))
 																				(skip-chars-forward " \t\n")
 																				(point))))
 								;; Add this offset to the starting and ending positions

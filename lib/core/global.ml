@@ -231,7 +231,7 @@ let try_with = S.try_with
 
 (* Store the hole number, starting position, and ending position of each newly created hole, to report to ProofGeneral. *)
 module HoleState = struct
-  type t = { holes : (int * int * int) Bwd.t }
+  type t = { holes : (int * int * int) Bwd.t; offset : int }
 end
 
 module HolePos = State.Make (HoleState)
@@ -244,8 +244,8 @@ let do_holes make_msg =
     (fun [ (Meta.Wrap m, p, (pos : unit Asai.Range.located)) ] ->
       emit (Hole (Meta.name m, p));
       let s, e = Asai.Range.split (Option.get pos.loc) in
-      HolePos.modify (fun { holes } ->
-          { holes = Snoc (holes, (Meta.hole_number m, s.offset, e.offset)) }))
+      HolePos.modify (fun st ->
+          { st with holes = Snoc (st.holes, (Meta.hole_number m, s.offset, e.offset)) }))
     [ d.current_holes ];
   d.current_metas
 

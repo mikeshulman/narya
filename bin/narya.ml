@@ -147,7 +147,7 @@ let rec interact_pg () : unit =
     done;
     let cmd = Buffer.contents buf in
     let holes = ref Emp in
-    ( Global.HolePos.run ~init:Emp @@ fun () ->
+    ( Global.HolePos.run ~init:{ holes = Emp } @@ fun () ->
       Reporter.try_with
       (* ProofGeneral sets TERM=dumb, but in fact it can display ANSI colors, so we tell Asai to override TERM and use colors unconditionally. *)
         ~emit:(fun d ->
@@ -167,7 +167,7 @@ let rec interact_pg () : unit =
             Format.printf "\x0C[data]\x0C\n%!";
             Mbwd.miter
               (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h s e)
-              [ Global.HolePos.get () ]
+              [ (Global.HolePos.get ()).holes ]
           with Sys.Break -> Reporter.fatal Break) );
     interact_pg ()
   with End_of_file -> ()

@@ -61,9 +61,11 @@ type eternity = {
 
 val eternity : eternity ref
 
-module HolePos : module type of State.Make (struct
-  type t = (int * int * int) Bwd.t
-end)
+module HoleState : sig
+  type t = { holes : (int * int * int) Bwd.t }
+end
+
+module HolePos : module type of State.Make (HoleState)
 
 val end_command : (int -> Reporter.Code.t) -> unit
 val run_command_with : init:data -> (int -> Reporter.Code.t) -> (unit -> 'a) -> 'a

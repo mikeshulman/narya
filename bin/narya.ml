@@ -173,14 +173,16 @@ let rec interact_pg () : unit =
   with End_of_file -> ()
 
 let () =
-  run_top @@ fun () ->
-  Mbwd.miter
-    (fun [ file ] ->
-      let p, src = Parser.Command.Parse.start_parse (`File file) in
-      Reporter.try_with ~emit:(Reporter.display ~output:stdout)
-        ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch true [] p src))
-    [ !fake_interacts ];
-  if !interactive then Lwt_main.run (interact ())
-  else if !proofgeneral then (
-    Sys.catch_break true;
-    interact_pg ())
+  try
+    run_top @@ fun () ->
+    Mbwd.miter
+      (fun [ file ] ->
+        let p, src = Parser.Command.Parse.start_parse (`File file) in
+        Reporter.try_with ~emit:(Reporter.display ~output:stdout)
+          ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch true [] p src))
+      [ !fake_interacts ];
+    if !interactive then Lwt_main.run (interact ())
+    else if !proofgeneral then (
+      Sys.catch_break true;
+      interact_pg ())
+  with Top.Exit -> exit 1

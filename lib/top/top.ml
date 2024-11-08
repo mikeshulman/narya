@@ -68,8 +68,11 @@ let do_command = function
       Print.pp_ws `None ppf last;
       Format.pp_print_newline ppf ()
 
+(* This exception is raised when a fatal error occurs in loading the non-interactive inputs.  The caller should catch it and perform an appropriate kind of "exit".  *)
+exception Exit
+
 (* This function is called to wrap whatever "interactive mode" is implemented by the caller.  It sets up the environment and all the effect handlers based on the global flags, loads all the files and strings specified in the global flags, and then runs the callback. *)
-let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
+let run_top ?use_ansi f =
   Parser.Unparse.install ();
   Parser.Scope.Mod.run @@ fun () ->
   History.run_empty @@ fun () ->
@@ -92,7 +95,7 @@ let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
         Reporter.display ?use_ansi ~output:stderr d)
     ~fatal:(fun d ->
       Reporter.display ?use_ansi ~output:stderr d;
-      exiter ())
+      raise Exit)
   @@ fun () ->
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
   if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
@@ -170,8 +173,7 @@ module Pauseable (R : Signatures.Type) = struct
     corun_top (Effect.perform (Yield (f ())))
 
   (* We initialize the setup by calling run_top inside the effect handler. *)
-  let init ?use_ansi ?exiter f =
-    try_with (fun () -> run_top ?use_ansi ?exiter @@ fun () -> corun_top f) () { effc }
+  let init ?use_ansi f = try_with (fun () -> run_top ?use_ansi @@ fun () -> corun_top f) () { effc }
 
   (* After startup, the caller calls "next" with a callback to be executed inside the run_top handlers and return a value. *)
   let next (f : unit -> R.t) : R.t = continue (Option.get !cont) f

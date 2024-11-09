@@ -58,18 +58,46 @@ let () = Flags.register_printer (function `Read -> Some "unhandled Flags.read ef
 let reformat_maybe f = if (Flags.read ()).reformat then f std_formatter else ()
 let reformat_maybe_ws f = if (Flags.read ()).reformat then f std_formatter else []
 
-(* All the files that have been loaded so far in this run of the program, along with their export namespaces, compilation unit identifiers, and whether they were explicitly invoked on the command line. *)
-let loaded_files : (FilePath.filename, Scope.trie * Compunit.t * bool) Hashtbl.t = Hashtbl.create 20
+module Loaded = struct
+  type _ Effect.t +=
+    | Add_to_files : FilePath.filename * Scope.trie * Compunit.t * bool -> unit Effect.t
+    | Get_file : FilePath.filename -> (Scope.trie * Compunit.t * bool) option Effect.t
+    | Add_to_scope : Scope.trie -> unit Effect.t
+    | Get_scope : Scope.trie Effect.t
 
-(* The complete merged namespace of all the files explicitly given on the command line so far.  Imported into -e and -i.  We compute it lazily because if there is no -e or -i we don't need it.  (And also so that we won't try to read the flags before they're set.) *)
-let loaded_contents : Scope.trie Lazy.t ref = ref (lazy (Flags.read ()).init_visible)
+  open Effect.Deep
 
-(* Add something to the complete merged namespace. *)
-let add_to_all trie =
-  let old = !loaded_contents in
-  loaded_contents := lazy (Scope.Mod.union ~prefix:Emp (Lazy.force old) trie)
+  let run f =
+    (* All the files that have been loaded so far in this run of the program, along with their export namespaces, compilation unit identifiers, and whether they were explicitly invoked on the command line. *)
+    let loaded_files : (FilePath.filename, Scope.trie * Compunit.t * bool) Hashtbl.t =
+      Hashtbl.create 20 in
+    (* The complete merged namespace of all the files explicitly given on the command line so far.  Imported into -e and -i.  We compute it lazily because if there is no -e or -i we don't need it.  (And also so that we won't try to read the flags before they're set.) *)
+    let loaded_contents : Scope.trie Lazy.t ref = ref (lazy (Flags.read ()).init_visible) in
+    let effc : type b a. b Effect.t -> ((b, a) continuation -> a) option = function
+      | Add_to_files (file, trie, compunit, explicit) ->
+          Some
+            (fun k ->
+              Hashtbl.add loaded_files file (trie, compunit, explicit);
+              continue k ())
+      | Get_file file -> Some (fun k -> continue k (Hashtbl.find_opt loaded_files file))
+      | Add_to_scope trie ->
+          Some
+            (fun k ->
+              let old = !loaded_contents in
+              loaded_contents := lazy (Scope.Mod.union ~prefix:Emp (Lazy.force old) trie);
+              continue k ())
+      (* Add something to the complete merged namespace. *)
+      | Get_scope -> Some (fun k -> continue k (Lazy.force !loaded_contents))
+      | _ -> None in
+    try_with f () { effc }
 
-let get_all () = Lazy.force !loaded_contents
+  let add_to_scope trie = Effect.perform (Add_to_scope trie)
+  let get_scope () = Effect.perform Get_scope
+  let get_file file = Effect.perform (Get_file file)
+
+  let add_to_files file trie compunit explicit =
+    Effect.perform (Add_to_files (file, trie, compunit, explicit))
+end
 
 (* Save all the definitions from a given loaded compilation unit to a compiled disk file, along with other data such as the command-line type theory flags, the imported files, and the (supplied) export namespace. *)
 let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : Scope.trie) =
@@ -164,12 +192,12 @@ and load_file file top =
     if FilePath.is_relative file then FilePath.make_absolute (Loading.get ()).cwd file else file
   in
   let file = FilePath.reduce file in
-  match Hashtbl.find_opt loaded_files file with
+  match Loaded.get_file file with
   | Some (trie, compunit, top') ->
       (* If we already loaded that file, we just return its saved export namespace, but we may need to add it to the 'all' namespace if it wasn't already there. *)
       if top && not top' then (
-        add_to_all trie;
-        Hashtbl.add loaded_files file (trie, compunit, true));
+        Loaded.add_to_scope trie;
+        Loaded.add_to_files file trie compunit true);
       (* We also add it to the list of things imported by the current ambient file.  TODO: Should that go in execute_command Import? *)
       Loading.modify (fun s -> { s with imports = Snoc (s.imports, (compunit, file)) });
       trie
@@ -184,7 +212,7 @@ and load_file file top =
       Loading.modify (fun s -> { s with imports = Snoc (s.imports, (compunit, file)) });
       (* Then we load it, in its directory and with itself added to the list of parents. *)
       let rename i =
-        let _, c, _ = Hashtbl.find loaded_files i in
+        let _, c, _ = Option.get (Loaded.get_file i) in
         c in
       Loading.run
         ~init:
@@ -209,8 +237,8 @@ and load_file file top =
             (execute_source compunit (`File file), `Source) in
       (* Then we add it to the table of loaded files and (possibly) the content of top-level files. *)
       if not top then emit (File_loaded (file, which));
-      Hashtbl.add loaded_files file (trie, compunit, top);
-      if top then add_to_all trie;
+      Loaded.add_to_files file trie compunit top;
+      if top then Loaded.add_to_scope trie;
       (* We save the compiled version *)
       marshal compunit file trie;
       trie
@@ -220,7 +248,7 @@ and load_string ?init_visible title content =
   (* There is no caching and no change of state, since it can't be "required" from another file.  The caller specifies whether to use a special initial namespace. *)
   let trie = execute_source ?init_visible Compunit.basic (`String { title; content }) in
   (* A string is always at top-level, so we always add it to 'all'. *)
-  add_to_all trie;
+  Loaded.add_to_scope trie;
   trie
 
 (* Given a source (file or string), parse and execute all the commands in it, in a local scope that starts with either the supplied scope or a default one. *)

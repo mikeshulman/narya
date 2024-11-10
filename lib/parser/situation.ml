@@ -144,6 +144,8 @@ module Current = struct
   let add : type left tight right. (left, tight, right) notation -> unit =
    fun notn -> S.modify (add notn)
 
+  let add_with_print : User.notation -> unit = fun notn -> S.modify (add_with_print notn)
+
   let add_user : User.prenotation -> User.notation * bool =
    fun user ->
     let sit = S.get () in

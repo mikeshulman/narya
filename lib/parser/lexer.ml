@@ -81,41 +81,57 @@ let quoted_string : Token.t t =
     | _, c -> rest `None (str ^ c) in
   rest `None ""
 
-(* Any of these characters is always its own token. *)
-let onechar_ops =
-  [|
-    (0x28, LParen);
-    (0x29, RParen);
-    (0x5B, LBracket);
-    (0x5D, RBracket);
-    (0x7B, LBrace);
-    (0x7D, RBrace);
-    (0x3F, Query);
-    (0x21A6, Mapsto);
-    (0x2907, DblMapsto);
-    (0x2192, Arrow);
-    (0x2254, Coloneq);
-    (0x2A74, DblColoneq);
-    (0x2A72, Pluseq);
-    (0x2026, Ellipsis);
-  |]
+module Specials = struct
+  (* Any of these characters is always its own token. *)
+  let default_onechar_ops =
+    [|
+      (0x28, LParen);
+      (0x29, RParen);
+      (0x5B, LBracket);
+      (0x5D, RBracket);
+      (0x7B, LBrace);
+      (0x7D, RBrace);
+      (0x3F, Query);
+      (0x21A6, Mapsto);
+      (0x2907, DblMapsto);
+      (0x2192, Arrow);
+      (0x2254, Coloneq);
+      (0x2A74, DblColoneq);
+      (0x2A72, Pluseq);
+      (0x2026, Ellipsis);
+    |]
 
-let onechar_uchars = Array.map (fun c -> Uchar.of_int (fst c)) onechar_ops
-let onechar_tokens = Array.map snd onechar_ops
+  (* Any sequence consisting entirely of these characters is its own token. *)
+  let default_ascii_symbols =
+    [|
+      '~'; '!'; '@'; '#'; '$'; '%'; '&'; '*'; '/'; '='; '+'; '\\'; '|'; ','; '<'; '>'; ':'; ';'; '-';
+    |]
+
+  module Data = struct
+    type t = { onechar_ops : (int * Token.t) Array.t; ascii_symbols : char Array.t }
+  end
+
+  module R = Algaeff.Reader.Make (Data)
+
+  let run ?(onechar_ops = Array.of_list []) ?(ascii_symbols = Array.of_list []) f =
+    let onechar_ops = Array.append default_onechar_ops onechar_ops in
+    let ascii_symbols = Array.append default_ascii_symbols ascii_symbols in
+    R.run ~env:{ onechar_ops; ascii_symbols } f
+
+  let onechar_ops () = (R.read ()).onechar_ops
+  let ascii_symbols () = (R.read ()).ascii_symbols
+end
+
+let onechar_uchars () = Array.map (fun c -> Uchar.of_int (fst c)) (Specials.onechar_ops ())
+let onechar_tokens () = Array.map snd (Specials.onechar_ops ())
 
 let onechar_op : Token.t t =
-  let* c = ucharp (fun c -> Array.mem c onechar_uchars) "one-character operator" in
-  let i = Option.get (Array.find_index (fun x -> x = c) onechar_uchars) in
-  return onechar_tokens.(i)
+  let* c = ucharp (fun c -> Array.mem c (onechar_uchars ())) "one-character operator" in
+  let i = Option.get (Array.find_index (fun x -> x = c) (onechar_uchars ())) in
+  return (onechar_tokens ()).(i)
 
-(* Any sequence consisting entirely of these characters is its own token. *)
-let ascii_symbols =
-  [|
-    '~'; '!'; '@'; '#'; '$'; '%'; '&'; '*'; '/'; '='; '+'; '\\'; '|'; ','; '<'; '>'; ':'; ';'; '-';
-  |]
-
-let ascii_symbol_uchars = Array.map Uchar.of_char ascii_symbols
-let is_ascii_symbol c = Array.mem c ascii_symbols
+let ascii_symbol_uchars () = Array.map Uchar.of_char (Specials.ascii_symbols ())
+let is_ascii_symbol c = Array.mem c (Specials.ascii_symbols ())
 
 let ascii_op : Token.t t =
   let* op = word is_ascii_symbol is_ascii_symbol "ASCII symbol" in
@@ -170,11 +186,11 @@ let caret_superscript =
 let superscript = utf8_superscript </> caret_superscript
 
 (* For other identifiers, we consume (utf-8) characters until we reach whitespace or a special symbol.  Here's the set of specials. *)
-let specials =
+let specials () =
   Array.concat
     [
-      ascii_symbol_uchars;
-      onechar_uchars;
+      ascii_symbol_uchars ();
+      onechar_uchars ();
       (* Carets are not allowed to mean anything except a superscript. *)
       Array.map Uchar.of_char [| '^'; ' '; '\t'; '\n'; '\r' |];
       (* We only include the superscript parentheses: other superscript characters without parentheses are allowed in identifiers. *)
@@ -182,7 +198,7 @@ let specials =
     ]
 
 let other_char : string t =
-  let* c = ucharp (fun x -> not (Array.mem x specials)) "alphanumeric or unicode" in
+  let* c = ucharp (fun x -> not (Array.mem x (specials ()))) "alphanumeric or unicode" in
   return (Utf8.Encoder.to_internal c)
 
 (* Once we have an identifier string, we inspect it and divide into cases to make a Token.t.  We take a range so that we can immediately report invalid field, constructor, and numeral names with a position. *)

@@ -107,6 +107,7 @@ let print (tm : string) : unit =
   | _ -> fatal (Nonsynthesizing "argument of print")
 
 let run f =
+  Lexer.Specials.run @@ fun () ->
   Parser.Unparse.install ();
   Eternity.run ~init:Eternity.empty @@ fun () ->
   Global.run ~init:Global.empty @@ fun () ->

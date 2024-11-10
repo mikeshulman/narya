@@ -22,6 +22,7 @@ let () =
           (term (Ident [ "then" ]) (term (Ident [ "else" ]) (Done_closed ifthenelse)))))
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
       Reporter.display d;
       raise (Failure "Parse failure"))
@@ -31,6 +32,7 @@ let () =
   assert (parse "if x then y" = Notn ("ifthen", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]))
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
       Reporter.display d;
       raise (Failure "Parse failure"))
@@ -42,6 +44,7 @@ let () =
     = Notn ("ifthenelse", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]); Term (Ident [ "z" ]) ]))
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
       if
         d.message
@@ -67,6 +70,7 @@ let () =
           (term (Ident [ "then" ]) (term (Ident [ "elif" ]) (Done_closed ifthenelif)))))
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
       Reporter.display d;
       raise (Failure "Parse failure"))

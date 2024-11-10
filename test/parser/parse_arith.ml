@@ -3,6 +3,7 @@ open Showparse
 open Arith
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Parser.Situation.run_on arith @@ fun () ->
   assert (parse "x" = Ident [ "x" ]);
   assert (parse "x + y" = Notn ("+", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
@@ -154,4 +155,7 @@ let () =
 
 (* Parsing the church numeral 500, or even 1000, takes a near-negligible amount of time.  I think it helps that we have minimized backtracking. *)
 let rec cnat n = if n <= 0 then "x" else "(f " ^ cnat (n - 1) ^ ")"
-let _ = Parser.Situation.run_on arith @@ fun () -> parse (cnat 500)
+
+let _ =
+  Parser.Lexer.Specials.run @@ fun () ->
+  Parser.Situation.run_on arith @@ fun () -> parse (cnat 500)

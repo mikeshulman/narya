@@ -20,6 +20,7 @@ let query = make "query" (Postfixl No.plus_omega)
 let () = set_tree query (Open_entry (eop (Op "!!") (done_open query)))
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Builtins.run @@ fun () ->
   Situation.Current.add att;
   Situation.Current.add bang;
@@ -81,6 +82,7 @@ let perc = make "perc" (Infix No.zero)
 let () = set_tree perc (Open_entry (eop (Op "%") (done_open perc)))
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Builtins.run @@ fun () ->
   Situation.Current.add twiddle;
   Situation.Current.add star;
@@ -109,6 +111,7 @@ let atat = make "atat" (Infixr No.minus_omega)
 let () = set_tree atat (Open_entry (eop (Op "@@") (done_open atat)))
 
 let () =
+  Parser.Lexer.Specials.run @@ fun () ->
   Builtins.run @@ fun () ->
   Situation.Current.add atat;
   assert (

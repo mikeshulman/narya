@@ -17,6 +17,7 @@ let reformat content =
   pp_print_newline std_formatter ()
 
 let run f =
+  Parser.Lexer.Specials.run @@ fun () ->
   Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
       Reporter.display d;
       raise (Failure "Fatal error"))

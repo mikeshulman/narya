@@ -27,17 +27,20 @@ module Lex_and_parse =
 open Lex_and_parse
 
 let start : Lex_and_parse.t = make Lexer.Parser.start Parse_tokens.Parser.start
-let trylex str = run_on_string str start
+let trylex str = Parser.Lexer.Specials.run @@ fun () -> run_on_string str start
 
 let lex str =
+  Parser.Lexer.Specials.run @@ fun () ->
   let p = trylex str in
   if has_succeeded p then List.tl (final p) else raise (Failure ("Lexing failed of " ^ str))
 
 let nolex str =
+  Parser.Lexer.Specials.run @@ fun () ->
   let p = trylex str in
   if has_failed_syntax p then failed_expectations p
   else raise (Failure ("Lexing succeeded of " ^ str))
 
 let lexbof str =
+  Parser.Lexer.Specials.run @@ fun () ->
   let p = trylex str in
   if has_succeeded p then final p else raise (Failure ("Lexing failed of " ^ str))

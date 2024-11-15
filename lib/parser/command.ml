@@ -49,7 +49,7 @@ module Command = struct
         loc : Asai.Range.t option;
         wsname : Whitespace.t list;
         wscolon : Whitespace.t list;
-        pattern : User.pattern;
+        pattern : ('left, 'right) User.Pattern.t;
         wscoloneq : Whitespace.t list;
         head : [ `Constr of string | `Constant of Trie.path ];
         wshead : Whitespace.t list;
@@ -198,22 +198,99 @@ module Parse = struct
     let* ws = token Ellipsis in
     return (`Ellipsis ws)
 
+  (* The function fixity_of_pattern "typechecks" a user notation pattern, verifying all the invariants and producing an element of User.Pattern.t in which those invariants are statically guaranteed.  It also interprets ellipses to produce a fixity: a starting ellipse before a variable means left-associative, an ending ellipse after a variable means right-associative, and any other use of ellipses is an error. *)
+
+  type fixity_and_pattern =
+    | Fix_pat :
+        ('left, 'tight, 'right) fixity * ('left, 'right) User.Pattern.t
+        -> fixity_and_pattern
+
   let fixity_of_pattern pat tight =
-    match (pat, Bwd.of_list pat, tight) with
-    | `Op _ :: _, Snoc (_, `Op _), None -> (Fixity Outfix, pat, [])
-    | `Op _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Prefix tight), pat, [])
-    | `Op _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
-        (Fixity (Prefixr tight), Bwd.to_list bwd_pat, ws)
-    | `Var _ :: _, Snoc (_, `Op _), Some (No.Wrap tight) -> (Fixity (Postfix tight), pat, [])
-    | `Ellipsis ws :: pat, Snoc (_, `Op _), Some (No.Wrap tight) ->
-        (Fixity (Postfixl tight), pat, ws)
-    | `Var _ :: _, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infix tight), pat, [])
-    | `Ellipsis ws :: pat, Snoc (_, `Var _), Some (No.Wrap tight) -> (Fixity (Infixl tight), pat, ws)
-    | `Var _ :: _, Snoc (bwd_pat, `Ellipsis ws), Some (No.Wrap tight) ->
-        (Fixity (Infixr tight), Bwd.to_list bwd_pat, ws)
-    | [ `Ellipsis _ ], Snoc (Emp, `Ellipsis _), _ -> fatal Zero_notation_symbols
-    | `Ellipsis _ :: _, Snoc (_, `Ellipsis _), _ -> fatal Ambidextrous_notation
-    | _ -> fatal Fixity_mismatch
+    let rec go :
+        type left right.
+        [ `Var of User.Pattern.var | `Op of User.Pattern.op | `Ellipsis of Whitespace.t list ] Bwd.t ->
+        (left, right) User.Pattern.t ->
+        right User.Pattern.right_t =
+     fun bwd_pat new_pat ->
+      match bwd_pat with
+      | Emp -> Right new_pat
+      | Snoc (bwd_pat, `Var v) -> go bwd_pat (User.Pattern.var v new_pat)
+      | Snoc (bwd_pat, `Op v) -> go bwd_pat (Op (v, new_pat))
+      | Snoc (_, `Ellipsis _) -> fatal (Unimplemented "internal ellipses in notation") in
+    match pat with
+    | [] -> fatal (Invalid_notation_pattern "empty")
+    | [ `Ellipsis _ ] -> fatal (Invalid_notation_pattern "has no symbols")
+    | `Ellipsis _ :: `Op _ :: _ ->
+        fatal (Invalid_notation_pattern "prefix/outfix notation can't be left-associative")
+    | `Ellipsis _ :: `Ellipsis _ :: _ -> fatal (Invalid_notation_pattern "too many ellipses")
+    | `Op v :: pat -> (
+        match Bwd.of_list pat with
+        | Emp -> (Fix_pat (Outfix, Op_nil v), [])
+        | Snoc (bwd_pat, `Op w) ->
+            if Option.is_some tight then fatal Fixity_mismatch;
+            let (Right new_pat) = go bwd_pat (Op_nil w) in
+            (Fix_pat (Outfix, Op (v, new_pat)), [])
+        | Snoc (Snoc (bwd_pat, `Op o), `Var w) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            let (Right new_pat) = go bwd_pat (Var_nil (o, w)) in
+            (Fix_pat (Prefix tight, Op (v, new_pat)), [])
+        | Snoc (Emp, `Var w) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            (Fix_pat (Prefix tight, Var_nil (v, w)), [])
+        | Snoc (Snoc (_, `Var _), `Var _) ->
+            fatal (Invalid_notation_pattern "missing symbol between variables")
+        | Snoc (Snoc (_, `Ellipsis _), `Var _) ->
+            fatal (Unimplemented "internal ellipses in notation")
+        | Snoc (Snoc (Snoc (bwd_pat, `Op o), `Var w), `Ellipsis ws) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            let (Right new_pat) = go bwd_pat (Var_nil (o, w)) in
+            (Fix_pat (Prefixr tight, Op (v, new_pat)), ws)
+        | Snoc (Snoc (_, `Op _), `Ellipsis _) | Snoc (_, `Ellipsis _) ->
+            fatal (Invalid_notation_pattern "postfix/outfix notation can't be right-associative"))
+    | `Var v :: pat -> (
+        match Bwd.of_list pat with
+        | Emp | Snoc (Emp, `Ellipsis _) -> fatal (Invalid_notation_pattern "has no symbols")
+        | Snoc (bwd_pat, `Op w) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            let (Right new_pat) = go bwd_pat (Op_nil w) in
+            (Fix_pat (Postfix tight, User.Pattern.var v new_pat), [])
+        | Snoc (Snoc (bwd_pat, `Op o), `Var w) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            let (Right new_pat) = go bwd_pat (Var_nil (o, w)) in
+            (Fix_pat (Infix tight, User.Pattern.var v new_pat), [])
+        | Snoc (Snoc (Snoc (bwd_pat, `Op o), `Var w), `Ellipsis ws) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            let (Right new_pat) = go bwd_pat (Var_nil (o, w)) in
+            (Fix_pat (Infixr tight, User.Pattern.var v new_pat), ws)
+        | Snoc (Snoc (_, `Var _), `Var _)
+        | Snoc (Emp, `Var _)
+        | Snoc (Snoc (Snoc (_, `Var _), `Var _), `Ellipsis _)
+        | Snoc (Snoc (Emp, `Var _), `Ellipsis _) ->
+            fatal (Invalid_notation_pattern "missing symbol between variables")
+        | Snoc (Snoc (_, `Ellipsis _), `Var _)
+        | Snoc (Snoc (Snoc (_, `Ellipsis _), `Var _), `Ellipsis _) ->
+            fatal (Unimplemented "internal ellipses in notation")
+        | Snoc (Snoc (_, `Op _), `Ellipsis _) ->
+            fatal (Invalid_notation_pattern "postfix/outfix notation can't be right-associative")
+        | Snoc (Snoc (_, `Ellipsis _), `Ellipsis _) ->
+            fatal (Invalid_notation_pattern "too many ellipses"))
+    | `Ellipsis ws :: `Var v :: pat -> (
+        match Bwd.of_list pat with
+        | Emp -> fatal (Invalid_notation_pattern "has no symbols")
+        | Snoc (bwd_pat, `Op w) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            let (Right new_pat) = go bwd_pat (Op_nil w) in
+            (Fix_pat (Postfixl tight, User.Pattern.var v new_pat), ws)
+        | Snoc (Snoc (bwd_pat, `Op o), `Var w) ->
+            let (No.Wrap tight) = tight <|> Fixity_mismatch in
+            let (Right new_pat) = go bwd_pat (Var_nil (o, w)) in
+            (Fix_pat (Infixl tight, User.Pattern.var v new_pat), ws)
+        | Snoc (Snoc (_, `Var _), `Var _) | Snoc (Emp, `Var _) ->
+            fatal (Invalid_notation_pattern "missing symbol between variables")
+        | Snoc (Snoc (_, `Ellipsis _), `Var _) ->
+            fatal (Unimplemented "internal ellipses in notation")
+        | Snoc (_, `Ellipsis _) ->
+            fatal (Invalid_notation_pattern "can't be both right and left associative"))
 
   let notation_head =
     step "" (fun state _ (tok, ws) ->
@@ -234,7 +311,7 @@ module Parse = struct
     let* wscolon = token Colon in
     let* pat, pattern = one_or_more (pattern_token </> pattern_var </> pattern_ellipsis) in
     let pattern = pat :: pattern in
-    let Fixity fixity, pattern, wsellipsis = fixity_of_pattern pattern tight in
+    let Fix_pat (fixity, pattern), wsellipsis = fixity_of_pattern pattern tight in
     let* wscoloneq = token Coloneq in
     let* head, wshead = notation_head in
     let* args = zero_or_more notation_var in
@@ -604,21 +681,31 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
             match Scope.lookup c with
             | Some c -> `Constant c
             | None -> fatal (Invalid_notation_head (String.concat "." c))) in
-      let unbound, _ =
-        List.fold_left
-          (fun (args, seen) item ->
-            match item with
-            | `Var (x, _, _) -> (
-                if List.mem x seen then fatal (Duplicate_notation_variable x);
-                let found, rest = List.partition (fun (y, _) -> x = y) args in
-                match found with
-                | [ _ ] -> (rest, x :: seen)
-                | [] -> fatal (Unused_notation_variable x)
-                | _ -> fatal (Notation_variable_used_twice x))
-            | `Op _ | `Ellipsis _ -> (args, seen))
-          (args, []) pattern in
-      if not (List.is_empty unbound) then
-        fatal (Unbound_variable_in_notation (List.map fst unbound));
+      (* Find the "unbound" variables, if any, in the notation definition. *)
+      let rec unbounds :
+          type left right.
+          (string * Whitespace.t list) list ->
+          string list ->
+          (left, right) User.Pattern.t ->
+          (string * Whitespace.t list) list =
+       fun args seen pat ->
+        let check_var x =
+          if List.mem x seen then fatal (Duplicate_notation_variable x);
+          let found, rest = List.partition (fun (y, _) -> x = y) args in
+          match found with
+          | [ _ ] -> rest
+          | [] -> fatal (Unused_notation_variable x)
+          | _ -> fatal (Notation_variable_used_twice x) in
+        match pat with
+        | User.Pattern.Var ((x, _, _), pat) ->
+            let rest = check_var x in
+            unbounds rest (x :: seen) pat
+        | Op (_, pat) -> unbounds args seen pat
+        | Op_nil _ -> args
+        | Var_nil (_, (x, _, _)) -> check_var x in
+      (match unbounds args [] pattern with
+      | [] -> ()
+      | _ :: _ as unbound -> fatal (Unbound_variable_in_notation (List.map fst unbound)));
       let user =
         User { name = String.concat "." name; fixity; pattern; key; val_vars = List.map fst args }
       in

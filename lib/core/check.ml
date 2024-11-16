@@ -441,6 +441,7 @@ let rec check :
     (* And lastly, if we have a synthesizing term, we synthesize it. *)
     | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty in
   with_loc tm.loc @@ fun () ->
+  Annotate.ctx status ctx;
   Annotate.ty ctx ty;
   let result = go () in
   Annotate.tm ctx result;
@@ -543,6 +544,7 @@ and synth_or_check_let :
     | Potential (c, args, hyp) -> Potential (c, args, fun body -> hyp (Let (name, v, body)))
     | Kinetic l -> Kinetic l in
   (* And synthesize or check the body in the extended context. *)
+  Annotate.ctx status newctx;
   match (ty, body) with
   | Some ty, _ ->
       let sbody = check status newctx body ty in
@@ -578,6 +580,7 @@ and synth_or_check_letrec :
   (* Make a context for it *)
   let _, newctx = ext_metas ctx ac metas vtys Zero Zero Zero in
   (* And synthesize or check the body in the extended context. *)
+  Annotate.ctx status newctx;
   match (ty, body) with
   | Some ty, _ ->
       let sbody = check status newctx body ty in
@@ -707,6 +710,7 @@ and check_implicit_match :
           check_nondep_match status ctx stm varty brs None motive tm.loc
       | `Var (Some level, { tm = _; ty = varty }, index) ->
           with_loc loc (fun () ->
+              Annotate.ctx status ctx;
               Annotate.ty ctx varty;
               Annotate.tm ctx (realize status (Term.Var index)));
           check_var_match status ctx level index varty brs refutables motive loc)
@@ -751,9 +755,9 @@ and synth_or_check_nondep_match :
       (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
       let user_branches = merge_branches name brs data_constrs in
       (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-      let branches, errs =
+      let branches, errs, failed_synth =
         Bwd.fold_left
-          (fun (branches, errs)
+          (fun (branches, errs, failed_synth)
                ( constr,
                  (Checkable_branch { xs; body; plus_args; env; argtys; index_terms = _ } :
                    (a, m, ij) checkable_branch) ) ->
@@ -769,44 +773,50 @@ and synth_or_check_nondep_match :
                 Reporter.try_with ~fatal:(fun e ->
                     match e.message with
                     | Missing_constructor_in_match _ -> fatal_diagnostic e
-                    | _ -> (branches, Snoc (errs, e)))
+                    | _ -> (branches, Snoc (errs, e), false))
                 @@ fun () ->
                 match body with
                 | Some body ->
                     ( branches
                       |> Constr.Map.add constr
                            (Term.Branch (efc, perm, check status newctx body motive)),
-                      errs )
+                      errs,
+                      false )
                 | None ->
-                    if any_empty newnfs then (branches |> Constr.Map.add constr Term.Refute, errs)
+                    if any_empty newnfs then
+                      (branches |> Constr.Map.add constr Term.Refute, errs, false)
                     else fatal (Missing_constructor_in_match constr))
             | None -> (
-                (* If we don't have a type yet, try to synthesize a type from this branch.  We don't catch and accumulate errors here, because if we need the first branch to synthesize a type and it fails to, there is no type to even try to check the later branches against. *)
-                match body with
-                | Some { value = Synth value; loc } ->
-                    let sbr, sty = synth status newctx { value; loc } in
-                    (* The type synthesized is only valid for the whole match if it doesn't depend on the pattern variables.  We check that by reading it back into the original context. *)
-                    Reporter.try_with ~fatal:(fun d ->
-                        match d.message with
-                        | No_such_level _ ->
-                            fatal
-                              (Invalid_synthesized_type ("first branch of match", PVal (newctx, sty)))
-                        | _ -> fatal_diagnostic d)
-                    @@ fun () ->
-                    discard (readback_val ctx sty);
-                    ty := Some sty;
-                    (branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr)), errs)
-                | None -> fatal (Nonsynthesizing "match with zero branches")
-                | _ ->
-                    fatal
-                      (Nonsynthesizing
-                         "first branch in synthesizing match without return annotation")))
-          (Constr.Map.empty, Emp) user_branches in
-      match (errs, motive, !ty) with
-      | Snoc _, _, _ -> fatal (Accumulated errs)
-      | Emp, Some _, _ -> (Match { tm; dim; branches }, Not_some)
-      | Emp, None, Some ty -> (Match { tm; dim; branches }, Not_none ty)
-      | Emp, None, None -> fatal (Nonsynthesizing "empty match"))
+                (* If we don't have a type yet, try to synthesize a type from this branch.  If it doesn't synthesize, we can still try to synthesize later branches even though they won't have a type to check against. *)
+                Annotate.ctx status newctx;
+                if failed_synth then (branches, errs, true)
+                else
+                  match body with
+                  | Some { value = Synth value; loc } ->
+                      let sbr, sty = synth status newctx { value; loc } in
+                      (* The type synthesized is only valid for the whole match if it doesn't depend on the pattern variables.  We check that by reading it back into the original context. *)
+                      Reporter.try_with ~fatal:(fun d ->
+                          match d.message with
+                          | No_such_level _ ->
+                              fatal
+                                (Invalid_synthesized_type
+                                   ("first branch of match", PVal (newctx, sty)))
+                          | _ -> fatal_diagnostic d)
+                      @@ fun () ->
+                      discard (readback_val ctx sty);
+                      ty := Some sty;
+                      (branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr)), errs, false)
+                  | None -> fatal (Nonsynthesizing "match with zero branches")
+                  (* If the first branch fails to synthesize, we continue to create the contexts for later branches for the purpose of Annotate, but bail out before doing anything with those branches since they don't even have a type to check against. *)
+                  | _ -> (branches, errs, true)))
+          (Constr.Map.empty, Emp, false) user_branches in
+      match (failed_synth, errs, motive, !ty) with
+      | true, _, _, _ ->
+          fatal (Nonsynthesizing "first branch in synthesizing match without return annotation")
+      | false, Snoc _, _, _ -> fatal (Accumulated errs)
+      | false, Emp, Some _, _ -> (Match { tm; dim; branches }, Not_some)
+      | false, Emp, None, Some ty -> (Match { tm; dim; branches }, Not_none ty)
+      | false, Emp, None, None -> fatal (Nonsynthesizing "empty match"))
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
 and check_nondep_match :
@@ -1607,7 +1617,7 @@ and synth :
         (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
         let fn, locs, args = spine tm in
         let sfn, sty = synth (Kinetic `Nolet) ctx fn in
-        let stm, sty = synth_apps ctx { value = sfn; loc = fn.loc } sty locs args in
+        let stm, sty = synth_apps (Kinetic `Nolet) ctx { value = sfn; loc = fn.loc } sty locs args in
         (realize status stm, sty)
     | Act (str, fa, { value = Synth x; loc }), _ ->
         let x = { value = x; loc } in
@@ -1652,6 +1662,7 @@ and synth :
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
         synth_nondep_match status ctx tm branches (Some i) in
   with_loc tm.loc @@ fun () ->
+  Annotate.ctx status ctx;
   let restm, resty = go () in
   Annotate.ty ctx resty;
   Annotate.tm ctx restm;
@@ -1660,13 +1671,14 @@ and synth :
 (* Given something that can be applied, its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
 and synth_apps :
     type a b.
+    (b, kinetic) status ->
     (a, b) Ctx.t ->
     (b, kinetic) term located ->
     kinetic value ->
     Asai.Range.t option list ->
     a check located list ->
     (b, kinetic) term * kinetic value =
- fun ctx sfn sty locs args ->
+ fun status ctx sfn sty locs args ->
   (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied.  Failure of view_type here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
   let afn, aty, alocs, aargs =
     match view_type sty "synth_apps" with
@@ -1683,9 +1695,10 @@ and synth_apps :
   | [] -> (afn.value, aty)
   | _ :: _ ->
       with_loc afn.loc (fun () ->
+          Annotate.ctx status ctx;
           Annotate.ty ctx aty;
           Annotate.tm ctx afn.value);
-      synth_apps ctx afn aty alocs aargs
+      synth_apps status ctx afn aty alocs aargs
 
 and synth_app :
     type a b n.

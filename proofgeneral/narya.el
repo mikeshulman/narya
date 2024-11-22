@@ -1,11 +1,11 @@
 ;;;narya.el --- Proof General instance for Narya
 
 (eval-and-compile
-  (require 'proof-site)  
-  (require 'pg-custom)                
+  (require 'proof-site)
+  (require 'pg-custom)
   (require 'proof)
   (require 'proof-config)
-  (require 'proof-easy-config)	
+  (require 'proof-easy-config)
   (proof-ready-for-assistant 'narya))        ;; compilation for narya
 
 (require 'narya-syntax)
@@ -53,17 +53,11 @@ handling in Proof General."
           (setq narya-pending-hole-positions
                 (cl-loop while (string-match "^\\([0-9]+\\) \\([0-9]+\\) \\([0-9]+\\).*\n" string dpos)
                          collect (let* ((hole (string-to-number (match-string 1 string)))
-                                        ;; Calculate byte offset if `span` is non-nil
-                                        (bpos (if span
-                                                  (position-bytes (save-excursion
-                                                                    (goto-char (overlay-start span))
-                                                                    (skip-chars-forward " \t\n")
-                                                                    (point)))
-                                                0))
-                                        (hstart (byte-to-position (+ bpos (string-to-number (match-string 2 string)))))
-                                        (hend (byte-to-position (+ bpos (string-to-number (match-string 3 string))))))
-                                   (setq dpos (match-end 0))
-                                   (list hstart hend hole))))
+                                        ;; Store offsets instead of positions
+                                      (hstart-offset (string-to-number (match-string 2 string)))
+                                      (hend-offset (string-to-number (match-string 3 string))))
+                                 (setq dpos (match-end 0))
+                                 (list hstart-offset hend-offset hole))))
         ;; Otherwise, create overlays directly from the data section
         (while (string-match "^\\([0-9]+\\) \\([0-9]+\\) \\([0-9]+\\).*\n" string dpos)
           (when span ;; Only proceed if `span` is non-nil
@@ -289,7 +283,8 @@ pending hole data stored by `narya-handle-output`."
   ;; Check for an overlay marking the current hole at point.
   (let ((hole-overlay (car (seq-filter (lambda (ovl)
                                          (overlay-get ovl 'narya-hole))
-                                       (overlays-at (point))))))
+                                       (overlays-at (point)))))
+       insert-start term-length) ;; Declare insert-start at the top
     ;; If no hole overlay is found, prompt the user to place the cursor on a hole.
     (if (not hole-overlay)
         (message "Place the cursor on a hole.")
@@ -303,9 +298,11 @@ pending hole data stored by `narya-handle-output`."
             (message "You entered an incorrect term.")
           ;; If no errors, insert the solution term at the hole position and update overlays.
           (let ((inhibit-read-only t))
-            (goto-char (overlay-start hole-overlay))
+            (setq insert-start (overlay-start hole-overlay)) ;; Store start position for later use
+            (goto-char insert-start)
             (delete-region (overlay-start hole-overlay) (overlay-end hole-overlay))
             (insert "(" term ")") ;; Insert term with parentheses to guarantee correct parsing.
+            (setq term-length (+ 2 (length term))) ;; Length includes parentheses
             ;; Delete the overlay for the solved hole and update the hole list.
             (delete-overlay hole-overlay)
             (setq narya-hole-overlays (delq hole-overlay narya-hole-overlays))
@@ -313,9 +310,14 @@ pending hole data stored by `narya-handle-output`."
           ;; Process any pending hole positions saved in `narya-handle-output`.
           (when narya-pending-hole-positions
             (dolist (pos narya-pending-hole-positions)
-              (let* ((hstart (nth 0 pos))
-                     (hend (nth 1 pos))
-                     (hole (nth 2 pos)))
+              (let* ((hstart-offset (nth 0 pos))
+                     (hend-offset (nth 1 pos))
+                     (hole (nth 2 pos))
+                     ;; Adjust positions relative to the new term's insertion point
+                     ;; Account for the added '(' at `insert-start`
+                     (hstart (+ insert-start 1 hstart-offset))
+                     ;; Adjust `hend` to include the offset and account for parentheses
+                     (hend (+ insert-start 1 hstart-offset (- hend-offset hstart-offset))))
                 ;; Only create a new overlay if both start and end positions are valid.
                 (when (and hstart hend)
                   (let ((ovl (make-overlay hstart hend)))

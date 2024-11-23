@@ -43,7 +43,7 @@ let of_char : type l. l len -> char -> (l t option, unit) result =
   try
     let i = N.to_int (len l) - (int_of_char c - int_of_char '0') in
     if i = 0 then Ok None else Ok (Some (l, N.index_of_int (len l) (i - 1)))
-  with Failure _ -> Error ()
+  with Invalid_argument _ -> Error ()
 
 let refl_char_data : char ref = ref 'e'
 let refl_string_data : string ref = ref "e"

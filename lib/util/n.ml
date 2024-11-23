@@ -430,14 +430,14 @@ let rec int_of_index : type n. n index -> int = function
   | Top -> 0
   | Pop k -> 1 + int_of_index k
 
-let rec index_of_int : type n. n t -> int -> n index =
+let rec index_of_int : type n. n t -> int -> n index option =
  fun n x ->
   match n with
-  | Nat Zero -> raise (Invalid_argument "index_of_int")
+  | Nat Zero -> None
   | Nat (Suc n) ->
-      if x < 0 then raise (Invalid_argument "index_of_int")
-      else if x = 0 then Top
-      else Pop (index_of_int (Nat n) (x - 1))
+      if x < 0 then None
+      else if x = 0 then Some Top
+      else Option.map (fun y -> Pop y) (index_of_int (Nat n) (x - 1))
 
 (* ********** Multiplication ********** *)
 

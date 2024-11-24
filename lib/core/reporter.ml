@@ -82,7 +82,7 @@ module Code = struct
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
         -> t
     | Unequal_indices : printable * printable -> t
-    | Unbound_variable : string -> t
+    | Unbound_variable : string * (string list * string list) list -> t
     | Undefined_constant : printable -> t
     | Undefined_metavariable : printable -> t
     | Nonsynthesizing : string -> t
@@ -540,7 +540,24 @@ module Code = struct
         textf
           "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
           pp_printed (print t1) pp_printed (print t2)
-    | Unbound_variable c -> textf "unbound variable: %s" c
+    | Unbound_variable (c, alt) -> (
+        match alt with
+        | [] -> textf "unbound variable: %s" c
+        (* | [ (parts, fields) ] ->
+               textf "unbound variable: %s (hint: did you mean %s .%s ?)" c (String.concat "." parts)
+                 (String.concat " ." fields) *)
+        | _ ->
+            textf "@[<v 0>unbound variable: %s (hint: did you mean one of:@;<1 2>%a@ ?)@]" c
+              (pp_print_list
+                 ~pp_sep:(fun ppf () -> pp_print_break ppf 1 2)
+                 (fun ppf (p, f) ->
+                   pp_print_string ppf (String.concat "." p);
+                   pp_print_string ppf " .";
+                   pp_print_list
+                     ~pp_sep:(fun ppf () -> pp_print_string ppf " .")
+                     pp_print_string ppf f))
+              alt)
+    (* The difference between "unbound variable" and "undefined constant" is that "undefined constant" is a BUG: it means a constant name was found in Scope, but its definition is missing from Global.  "Unbound variable" is the user error of writing a name that's NEITHER a local variable nor a constant in scope. *)
     | Undefined_constant c -> textf "undefined constant: %a" pp_printed (print c)
     | Undefined_metavariable v -> textf "undefined metavariable: %a" pp_printed (print v)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
@@ -709,6 +726,7 @@ end
 
 include Asai.StructuredReporter.Make (Code)
 open Code
+
 
 let struct_at_degenerated_type eta name =
   match eta with

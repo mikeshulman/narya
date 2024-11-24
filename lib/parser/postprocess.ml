@@ -1,3 +1,4 @@
+open Bwd
 open Util
 open Dim
 open Core
@@ -31,6 +32,45 @@ let process_numeral loc (n : Q.t) =
       } in
   if n.den = Z.one && n.num >= Z.zero then process_nat n.num else fatal (Unsupported_numeral n)
 
+(* Process a bare identifier, resolving it into either a variable, a cube variable with face, a constant, a numeral, or a degeneracy name (the latter being an error since it isn't applied to anything). *)
+let process_ident ctx loc parts =
+  let open Monad.Ops (Monad.Maybe) in
+  match
+    match parts with
+    | [ x ] ->
+        let* _, n = Bwv.find_opt (fun y -> y = Some x) ctx in
+        Some (Synth (Var (n, None)))
+    | [ x; face ] ->
+        let* _, v = Bwv.find_opt (fun y -> y = Some x) ctx in
+        let* fa = sface_of_string face in
+        return (Synth (Var (v, Some fa)))
+    | _ -> None
+  with
+  | Some tm -> { value = tm; loc }
+  | None -> (
+      match Scope.lookup parts with
+      | Some c -> { value = Synth (Const c); loc }
+      | None -> (
+          match parts with
+          | [] -> fatal (Anomaly "empty ident")
+          | [ str ] when Option.is_some (deg_of_name str) ->
+              fatal (Missing_argument_of_degeneracy str)
+          | _ -> (
+              try process_numeral loc (Q.of_string (String.concat "." parts))
+              with Invalid_argument _ -> fatal (Unbound_variable (String.concat "." parts, [])))))
+
+(* If an identifier doesn't resolve, we check whether the user might have meant to project one or more fields from a shorter identifier, and give them a hint that field projections require spaces. *)
+let rec detect_spaceless_fields ctx loc (bwd_parts : string Bwd.t) fields found =
+  match bwd_parts with
+  | Emp -> found
+  | Snoc (bwd_parts, fld) ->
+      Reporter.try_with
+        (fun () ->
+          let parts = Bwd.to_list bwd_parts in
+          let _ = process_ident ctx loc parts in
+          detect_spaceless_fields ctx loc bwd_parts (fld :: fields) ((parts, fld :: fields) :: found))
+        ~fatal:(fun _ -> detect_spaceless_fields ctx loc bwd_parts (fld :: fields) found)
+
 (* Now the master postprocessing function.  Note that this function calls the "process" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
 let rec process :
@@ -44,30 +84,18 @@ let rec process :
   (* "Application" nodes in result trees are used for anything that syntactically *looks* like an application.  In addition to actual applications of functions, this includes applications of constructors and degeneracy operators, and also field projections.  *)
   | App { fn; arg; _ } -> process_spine ctx fn [ (Term arg, res.loc) ]
   | Placeholder _ -> fatal (Unimplemented "unification arguments")
-  | Ident (parts, _) -> (
-      let open Monad.Ops (Monad.Maybe) in
-      match
-        match parts with
-        | [ x ] ->
-            let* _, n = Bwv.find_opt (fun y -> y = Some x) ctx in
-            Some (Synth (Var (n, None)))
-        | [ x; face ] ->
-            let* _, v = Bwv.find_opt (fun y -> y = Some x) ctx in
-            let* fa = sface_of_string face in
-            return (Synth (Var (v, Some fa)))
-        | _ -> None
-      with
-      | Some tm -> { value = tm; loc }
-      | None -> (
-          match Scope.lookup parts with
-          | Some c -> { value = Synth (Const c); loc }
-          | None -> (
-              try process_numeral loc (Q.of_string (String.concat "." parts))
-              with Invalid_argument _ -> (
-                match parts with
-                | [ str ] when Option.is_some (deg_of_name str) ->
-                    fatal (Missing_argument_of_degeneracy str)
-                | _ -> fatal (Unbound_variable (String.concat "." parts))))))
+  | Ident (parts, _) ->
+      Reporter.try_with
+        (fun () -> process_ident ctx loc parts)
+        ~fatal:(fun ({ severity; message; backtrace; explanation; extra_remarks } as d) ->
+          match message with
+          | Unbound_variable (p, _) ->
+              let alt = detect_spaceless_fields ctx loc (Bwd.of_list parts) [] [] in
+              (* We create a new diagnostic, preserving all the information except the message, but we have to recompute the 'explanation'. *)
+              let message = Reporter.Code.Unbound_variable (p, alt) in
+              let explanation = locate_opt explanation.loc (Reporter.Code.default_text message) in
+              fatal_diagnostic { severity; message; backtrace; extra_remarks; explanation }
+          | _ -> fatal_diagnostic d)
   | Constr (ident, _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, []); loc }
   | Field _ -> fatal (Anomaly "field is head")
   | Superscript (Some x, str, _) -> (

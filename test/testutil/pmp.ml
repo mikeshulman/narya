@@ -51,11 +51,11 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth located =
   | Var x -> (
       match Bwv.find_opt (fun y -> x = y) ctx with
       | Some (_, v) -> unlocated (Raw.Var (v, None))
-      | None -> Reporter.fatal (Unbound_variable x))
+      | None -> Reporter.fatal (Unbound_variable (x, [])))
   | Const x -> (
       match Scope.lookup [ x ] with
       | Some c -> unlocated (Raw.Const c)
-      | None -> Reporter.fatal (Unbound_variable x))
+      | None -> Reporter.fatal (Unbound_variable (x, [])))
   | UU -> unlocated Raw.UU
   | Field (x, fld) -> unlocated (Raw.Field (parse_syn ctx x, Field.intern_ori fld))
   | Pi (x, dom, cod) ->

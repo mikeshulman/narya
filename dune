@@ -1,4 +1,6 @@
 (env
+ (static
+  (flags (-ccopt -static)))
  (_
   (js_of_ocaml
    (flags (:standard --enable effects))

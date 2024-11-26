@@ -33,3 +33,8 @@ _opam/
 
 # Generated opam file
 narya.opam
+
+# Nix stuff
+.envrc
+result
+.direnv/

@@ -1193,7 +1193,7 @@ def sqdec3 ≔ sq [ zero. ↦ zero. | suc. n ↦ n ]
 However, a let-bound local function can use a `let rec` instead to define a local recursive function, which is not possible with a pattern-matching lambda:
 ```
 def sqdbl (x : ℕ) : ℕ ≔
-  let dbl : ℕ → ℕ ≔ y ↦ match y [ zero. ↦ zero. | suc. n ↦ suc. (suc. (dbl n)) ] in
+  let rec dbl : ℕ → ℕ ≔ y ↦ match y [ zero. ↦ zero. | suc. n ↦ suc. (suc. (dbl n)) ] in
   sq dbl x
 ```
 In fact, `let rec` is *always* treated generatively and lifted to top-level like an ordinary `let` that contains a `match`.  Indeed, in the absence of something like a "fixpoint" operator there is no other possibility, as there is no term syntax for it to evaluate to.

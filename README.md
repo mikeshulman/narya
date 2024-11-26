@@ -637,7 +637,7 @@ then `pair a b` doesn't reduce to `(a,b)`.  But `pair a b .fst` does reduce to `
 ```
 def unpairfn (f : A → B × C) : (A → B) × (A → C) ≔ (x ↦ (f x).fst, x ↦ (f x).snd)
 ```
-then `unpairfn f .fst` does not reduce until applied to a further argument.  As with abstractions, you can force such reduction by wrapping the term in an identity function or a let-binding.
+then `unpairfn f .fst` does not reduce until applied to a further argument.  As with abstractions, you can force such reduction by wrapping the term in an identity function.
 
 
 ### Eta-expansion and opacity

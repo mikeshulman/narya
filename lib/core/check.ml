@@ -145,11 +145,22 @@ let spine :
     | _ -> (tm, locs, args) in
   spine tm [] []
 
-let run_with_definition : type a s c. a potential_head -> (a, potential) term -> (unit -> c) -> c =
- fun head tm f ->
-  match head with
-  | Constant c -> Global.with_definition c (Global.Defined tm) f
-  | Meta (m, _) -> Global.with_meta_definition m tm f
+(* Temporarily define a given head (constant or meta) to be a given value, in executing a callback.  However, if an error has occurred earlier in typechecking other parts of it, then instead bind that head to an error value that doesn't allow it to be used. *)
+let run_with_definition :
+    type a s c.
+    a potential_head -> (a, potential) term -> Code.t Asai.Diagnostic.t Bwd.t -> (unit -> c) -> c =
+ fun head tm errs f ->
+  match (head, errs) with
+  (* In the case of an error, we bind the head to the error "Accumulated Emp".  That has the effect that accesses to it fail, but aren't displayed to the user as anything, since what's really going on is that we refuse to even try to typecheck later parts of a term that depend on previous parts that already failed, and this "error" is just detecting that dependence. *)
+  | Constant c, Emp -> Global.with_definition c (Global.Defined tm) f
+  | Constant c, Snoc _ -> Global.without_definition c (Accumulated Emp) f
+  | Meta (m, _), Emp -> Global.with_meta_definition m tm f
+  | Meta (m, _), Snoc _ -> Global.without_meta_definition m (Accumulated Emp) f
+
+let unless_error (v : 'a) (err : 'b Bwd.t) : ('a, Code.t) Result.t =
+  match err with
+  | Emp -> Ok v
+  | Snoc _ -> Error (Accumulated Emp)
 
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
@@ -394,14 +405,14 @@ let rec check :
   (* Now we go through the canonical types. *)
   | Codata fields, Potential _ -> (
       match view_type ~severity ty "typechecking codata" with
-      | UU tyargs -> check_codata status ctx tyargs Emp (Bwd.to_list fields)
+      | UU tyargs -> check_codata status ctx tyargs Emp (Bwd.to_list fields) Emp
       | _ -> fatal (Checking_canonical_at_nonuniverse ("codatatype", PVal (ctx, ty))))
   | Record (abc, xs, fields, opacity), Potential _ -> (
       match view_type ~severity ty "typechecking record" with
       | UU tyargs ->
           let dim = TubeOf.inst tyargs in
           let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
-          check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields
+          check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields Emp
       | _ -> fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty))))
   | Data constrs, Potential _ ->
       (* For a datatype, the type to check against might not be a universe, it could include indices.  We also check whether all the types of all the indices are discrete or a type being defined, to decide whether to keep evaluating the type for discreteness. *)
@@ -409,7 +420,7 @@ let rec check :
       let (Wrap num_indices) = Fwn.of_int n in
       check_data
         ~discrete:(if disc then discrete else None)
-        status ctx ty num_indices Abwd.empty (Bwd.to_list constrs)
+        status ctx ty num_indices Abwd.empty (Bwd.to_list constrs) Emp
   (* If we have a term that's not valid outside a case tree, we bind it to a global metavariable. *)
   | Struct (Noeta, _), Kinetic l -> kinetic_of_potential l ctx tm ty "comatch"
   | Synth (Match _), Kinetic l -> kinetic_of_potential l ctx tm ty "match"
@@ -729,9 +740,9 @@ and synth_or_check_nondep_match :
       (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
       let user_branches = merge_branches name brs data_constrs in
       (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-      let branches =
+      let branches, errs =
         Bwd.fold_left
-          (fun branches
+          (fun (branches, errs)
                ( constr,
                  (Checkable_branch { xs; body; plus_args; env; argtys; index_terms = _ } :
                    (a, m, ij) checkable_branch) ) ->
@@ -743,17 +754,23 @@ and synth_or_check_nondep_match :
             (* Finally, we recurse into the "body" of the branch. *)
             match !ty with
             | Some motive -> (
-                (* If we have a type, check against it. *)
+                (* If we have a type, check against it.  We catch errors and accumuate them so that later branches can continue to be checked and produce their own errors even if earlier ones fail, but we pass through the errors that are getting caught elsewhere. *)
+                Reporter.try_with ~fatal:(fun e ->
+                    match e.message with
+                    | Missing_constructor_in_match _ -> fatal_diagnostic e
+                    | _ -> (branches, Snoc (errs, e)))
+                @@ fun () ->
                 match body with
                 | Some body ->
-                    branches
-                    |> Constr.Map.add constr
-                         (Term.Branch (efc, perm, check status newctx body motive))
+                    ( branches
+                      |> Constr.Map.add constr
+                           (Term.Branch (efc, perm, check status newctx body motive)),
+                      errs )
                 | None ->
-                    if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
+                    if any_empty newnfs then (branches |> Constr.Map.add constr Term.Refute, errs)
                     else fatal (Missing_constructor_in_match constr))
             | None -> (
-                (* If we don't have a type yet, try to synthesize a type from this branch. *)
+                (* If we don't have a type yet, try to synthesize a type from this branch.  We don't catch and accumulate errors here, because if we need the first branch to synthesize a type and it fails to, there is no type to even try to check the later branches against. *)
                 match body with
                 | Some { value = Synth value; loc } ->
                     let sbr, sty = synth status newctx { value; loc } in
@@ -767,17 +784,19 @@ and synth_or_check_nondep_match :
                     @@ fun () ->
                     discard (readback_val ctx sty);
                     ty := Some sty;
-                    branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr))
+                    (branches |> Constr.Map.add constr (Term.Branch (efc, perm, sbr)), errs)
+                (* These errors  *)
                 | None -> fatal (Nonsynthesizing "match with zero branches")
                 | _ ->
                     fatal
                       (Nonsynthesizing
                          "first branch in synthesizing match without return annotation")))
-          Constr.Map.empty user_branches in
-      match (motive, !ty) with
-      | Some _, _ -> (Match { tm; dim; branches }, Not_some)
-      | None, Some ty -> (Match { tm; dim; branches }, Not_none ty)
-      | None, None -> fatal (Nonsynthesizing "empty match"))
+          (Constr.Map.empty, Emp) user_branches in
+      match (errs, motive, !ty) with
+      | Snoc _, _, _ -> fatal (Accumulated errs)
+      | Emp, Some _, _ -> (Match { tm; dim; branches }, Not_some)
+      | Emp, None, Some ty -> (Match { tm; dim; branches }, Not_none ty)
+      | Emp, None, None -> fatal (Nonsynthesizing "empty match"))
   | _ -> fatal (Matching_on_nondatatype (PVal (ctx, varty)))
 
 and check_nondep_match :
@@ -831,7 +850,7 @@ and synth_dep_match :
            ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _; tyfam } :
              (_, j, ij) data_args),
          inst_args ) :
-        _ * m canonical * _) ->
+        _ * m canonical * _) -> (
       let tyfam =
         match !tyfam with
         | Some tyfam -> Lazy.force tyfam
@@ -842,9 +861,9 @@ and synth_dep_match :
       (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
       let user_branches = merge_branches name brs data_constrs in
       (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-      let branches =
+      let branches, errs =
         Bwd.fold_left
-          (fun branches
+          (fun (branches, errs)
                ( constr,
                  (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
                    (a, m, ij) checkable_branch) ) ->
@@ -869,29 +888,40 @@ and synth_dep_match :
             (* Finally, we recurse into the "body" of the branch. *)
             match body with
             | Some body ->
-                branches
-                |> Constr.Map.add constr (Term.Branch (efc, perm, check status newctx body bmotive))
+                (* We catch and accumulate errors so that later branches can continue to be checked and produce their own errors even if earlier ones fail, but we pass through the errors that are getting caught elsewhere. *)
+                Reporter.try_with ~fatal:(fun e ->
+                    match e.message with
+                    | Missing_constructor_in_match _ -> fatal_diagnostic e
+                    | _ -> (branches, Snoc (errs, e)))
+                @@ fun () ->
+                ( branches
+                  |> Constr.Map.add constr
+                       (Term.Branch (efc, perm, check status newctx body bmotive)),
+                  errs )
             | None ->
-                if any_empty newnfs then branches |> Constr.Map.add constr Term.Refute
+                if any_empty newnfs then (branches |> Constr.Map.add constr Term.Refute, errs)
                 else fatal (Missing_constructor_in_match constr))
-          Constr.Map.empty user_branches in
-      (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
-      let result =
-        Vec.fold_left
-          (fun fn xs ->
+          (Constr.Map.empty, Emp) user_branches in
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp ->
+          (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
+          let result =
+            Vec.fold_left
+              (fun fn xs ->
+                snd
+                  (MC.miterM
+                     { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
+                     [ xs ] fn))
+              emotive var_indices in
+          let result =
             snd
-              (MC.miterM
+              (MT.miterM
                  { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
-                 [ xs ] fn))
-          emotive var_indices in
-      let result =
-        snd
-          (MT.miterM
-             { it = (fun _ [ x ] fn -> ((), apply_term fn (CubeOf.singleton x.tm))) }
-             [ inst_args ] result) in
-      let result = apply_term result (CubeOf.singleton (eval_term (Ctx.env ctx) ctm)) in
-      (* We readback the result so we can store it in the term, so that when evaluating it we know what its type must be without having to do all the work again. *)
-      (Match { tm = ctm; dim; branches }, result)
+                 [ inst_args ] result) in
+          let result = apply_term result (CubeOf.singleton (eval_term (Ctx.env ctx) ctm)) in
+          (* We readback the result so we can store it in the term, so that when evaluating it we know what its type must be without having to do all the work again. *)
+          (Match { tm = ctm; dim; branches }, result))
   | _ -> fatal (Matching_on_nondatatype (PVal (ctx, varty)))
 
 (* Check a match against a well-behaved variable, which can only appear in a case tree and refines not only the goal but the context (possibly with permutation). *)
@@ -915,7 +945,7 @@ and check_var_match :
            ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _; tyfam } :
              (_, j, ij) data_args),
          inst_args ) :
-        _ * m canonical * _) ->
+        _ * m canonical * _) -> (
       let tyfam =
         match !tyfam with
         | Some tyfam -> Lazy.force tyfam
@@ -970,9 +1000,9 @@ and check_var_match :
       (* We start with a preprocesssing step that pairs each user-provided branch with the corresponding constructor information from the datatype. *)
       let user_branches = merge_branches name brs data_constrs in
       (* We now iterate through the constructors, typechecking the corresponding branches and inserting them in the match tree. *)
-      let branches =
+      let branches, errs =
         Bwd.fold_left
-          (fun branches
+          (fun (branches, errs)
                ( constr,
                  (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
                    (a, m, ij) checkable_branch) ) ->
@@ -1039,7 +1069,7 @@ and check_var_match :
                     | None ->
                         fatal (Matching_wont_refine ("no consistent permutation of context", PUnit))
                     | Bind_some { checked_perm; oldctx; newctx } -> (
-                        (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence.  Note that this exception is still caught by go_check_match, above, causing a fallback to term matching. *)
+                        (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence.  Note that this exception is still caught by check_var_match, above, causing a fallback to term matching. *)
                         ( Reporter.try_with ~fatal:(fun d ->
                               match d.message with
                               | No_such_level x ->
@@ -1063,8 +1093,15 @@ and check_var_match :
                         (* Finally, we typecheck the "body" of the branch, if the user supplied one. *)
                         match body with
                         | Some body ->
+                            (* We catch and accumulate errors so that later branches can continue to be checked and produce their own errors even if earlier ones fail, but we pass through the errors that are getting caught elsewhere. *)
+                            Reporter.try_with ~fatal:(fun e ->
+                                match e.message with
+                                | Missing_constructor_in_match _ -> fatal_diagnostic e
+                                | _ -> (branches, Snoc (errs, e)))
+                            @@ fun () ->
                             let branch = check status newctx body newty in
-                            branches |> Constr.Map.add constr (Term.Branch (efc, perm, branch))
+                            ( branches |> Constr.Map.add constr (Term.Branch (efc, perm, branch)),
+                              errs )
                         (* If not, then we look for something to refute. *)
                         | None ->
                             (* First we check whether any of the new pattern variables created by this match belong to an empty datatype. *)
@@ -1079,11 +1116,13 @@ and check_var_match :
                                     is_empty sty)
                                 false (refutables.refutables plus_args)
                               (* If we found something to refute, we mark this branch as refuted in the compiled match. *)
-                            then branches |> Constr.Map.add constr Term.Refute
+                            then (branches |> Constr.Map.add constr Term.Refute, errs)
                             else fatal (Missing_constructor_in_match constr))))
             | _ -> fatal (Anomaly "created datatype is not canonical?"))
-          Constr.Map.empty user_branches in
-      Match { tm = Term.Var index; dim; branches }
+          (Constr.Map.empty, Emp) user_branches in
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp -> Match { tm = Term.Var index; dim; branches })
   | _ -> fatal (Matching_on_nondatatype (PVal (ctx, varty)))
 
 and make_match_status :
@@ -1224,13 +1263,17 @@ and check_data :
     i Fwn.t ->
     (Constr.t, (b, i) Term.dataconstr) Abwd.t ->
     (Constr.t * a Raw.dataconstr located) list ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (b, potential) term =
- fun ~discrete status ctx ty num_indices checked_constrs raw_constrs ->
+ fun ~discrete status ctx ty num_indices checked_constrs raw_constrs errs ->
   match (raw_constrs, status) with
-  | [], Potential _ ->
-      (* If we get to this point and discreteness is still a possibility, we mark it as "Maybe" discrete.  Later, after all the types in a mutual block are checked, if they're all discrete we go through and change the "Maybe"s to "Yes"es.  *)
-      let discrete = Option.fold ~none:`No ~some:(fun _ -> `Maybe) discrete in
-      Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete })
+  | [], Potential _ -> (
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp ->
+          (* If we get to this point and discreteness is still a possibility, we mark it as "Maybe" discrete.  Later, after all the types in a mutual block are checked, if they're all discrete we go through and change the "Maybe"s to "Yes"es.  *)
+          let discrete = Option.fold ~none:`No ~some:(fun _ -> `Maybe) discrete in
+          Canonical (Data { indices = num_indices; constrs = checked_constrs; discrete }))
   | ( (c, { value = Dataconstr (args, output); loc }) :: raw_constrs,
       Potential (head, current_apps, hyp) ) -> (
       with_loc loc @@ fun () ->
@@ -1239,41 +1282,48 @@ and check_data :
         (hyp
            (Term.Canonical
               (Data { indices = num_indices; constrs = checked_constrs; discrete = `No })))
+        Emp
       @@ fun () ->
       match (Abwd.find_opt c checked_constrs, output) with
       | Some _, _ -> fatal (Duplicate_constructor_in_data c)
-      | None, Some output -> (
-          let Checked_tel (args, newctx), disc = check_tel ?discrete ctx args in
-          let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
-          match eval_term (Ctx.env newctx) coutput with
-          | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; value = _ }, _)
-            -> (
-              match head with
-              | Constant cc when cc = out_head && Option.is_some (is_id_ins ins) -> (
-                  let (Wrap indices) =
-                    get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps)
-                      output.loc in
-                  match Fwn.compare (Vec.length indices) num_indices with
-                  | Eq ->
-                      check_data
-                        ~discrete:(if disc then discrete else None)
-                        status ctx ty num_indices
-                        (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }))
-                        raw_constrs
-                  | _ ->
-                      (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
-                      fatal (Anomaly "length of indices mismatch"))
-              | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
-          | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
+      | None, Some output ->
+          let disc, (checked_constrs : (Constr.t, (b, i) Term.dataconstr) Abwd.t), errs =
+            Reporter.try_with ~fatal:(fun e -> (true, checked_constrs, Snoc (errs, e))) @@ fun () ->
+            let Checked_tel (args, newctx), disc = check_tel ?discrete ctx args in
+            let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
+            match eval_term (Ctx.env newctx) coutput with
+            | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; value = _ }, _)
+              -> (
+                match head with
+                | Constant cc when cc = out_head && Option.is_some (is_id_ins ins) -> (
+                    let (Wrap indices) =
+                      get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps)
+                        output.loc in
+                    match Fwn.compare (Vec.length indices) num_indices with
+                    | Eq ->
+                        ( disc,
+                          checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }),
+                          errs )
+                    | _ ->
+                        (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
+                        fatal (Anomaly "length of indices mismatch"))
+                | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
+            | _ -> fatal ?loc:output.loc (Invalid_constructor_type c) in
+          check_data
+            ~discrete:(if disc then discrete else None)
+            status ctx ty num_indices checked_constrs raw_constrs errs
       | None, None -> (
           match num_indices with
           | Zero ->
-              let Checked_tel (args, _), disc = check_tel ?discrete ctx args in
+              let disc, (checked_constrs : (Constr.t, (b, i) Term.dataconstr) Abwd.t), errs =
+                Reporter.try_with ~fatal:(fun e -> (true, checked_constrs, Snoc (errs, e)))
+                @@ fun () ->
+                let Checked_tel (args, _), disc = check_tel ?discrete ctx args in
+                (disc, checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }), errs)
+              in
               check_data
                 ~discrete:(if disc then discrete else None)
-                status ctx ty Fwn.zero
-                (checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices = [] }))
-                raw_constrs
+                status ctx ty Fwn.zero checked_constrs raw_constrs errs
           | Suc _ -> fatal (Missing_constructor_type c)))
 
 and get_indices :
@@ -1315,25 +1365,32 @@ and with_codata_so_far :
     n D.t ->
     (D.zero, n, n, normal) TubeOf.t ->
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     ((n, Ctx.Binding.t) CubeOf.t -> c) ->
     c =
- fun (Potential (h, args, hyp)) eta ctx opacity dim tyargs checked_fields cont ->
-  (* We can always create a constant with the (0,0,0) insertion, even if its dimension is actually higher. *)
-  let head = head_of_potential h in
-  let value =
-    Value.Canonical
-      (Codata { eta; opacity; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields })
-  in
-  let prev_ety =
-    Uninst (Neu { head; args; value = ready value }, Lazy.from_val (inst (universe dim) tyargs))
-  in
-  let _, domvars =
-    dom_vars (Ctx.length ctx)
-      (TubeOf.plus_cube
-         (TubeOf.mmap { map = (fun _ [ nf ] -> nf.tm) } [ tyargs ])
-         (CubeOf.singleton prev_ety)) in
+ fun (Potential (h, args, hyp)) eta ctx opacity dim tyargs checked_fields errs cont ->
+  let domvars =
+    match errs with
+    | Emp ->
+        (* We can always create a constant with the (0,0,0) insertion, even if its dimension is actually higher. *)
+        let head = head_of_potential h in
+        let value =
+          Value.Canonical
+            (Codata { eta; opacity; env = Ctx.env ctx; ins = zero_ins dim; fields = checked_fields })
+        in
+        let prev_ety =
+          Uninst
+            (Neu { head; args; value = ready value }, Lazy.from_val (inst (universe dim) tyargs))
+        in
+        snd
+          (dom_vars (Ctx.length ctx)
+             (TubeOf.plus_cube
+                (TubeOf.mmap { map = (fun _ [ nf ] -> nf.tm) } [ tyargs ])
+                (CubeOf.singleton prev_ety)))
+    | Snoc _ -> CubeOf.build dim { build = (fun _ -> Ctx.Binding.error (Accumulated Emp)) } in
   run_with_definition h
     (hyp (Term.Canonical (Codata { eta; opacity; dim; fields = checked_fields })))
+    errs
   @@ fun () -> cont domvars
 
 and check_codata :
@@ -1343,17 +1400,23 @@ and check_codata :
     (D.zero, n, n, normal) TubeOf.t ->
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
     (Field.t * (string option * a N.suc check located)) list ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (b, potential) term =
- fun status ctx tyargs checked_fields raw_fields ->
+ fun status ctx tyargs checked_fields raw_fields errs ->
   let dim = TubeOf.inst tyargs in
   match raw_fields with
-  | [] -> Canonical (Codata { eta = Noeta; opacity = `Opaque; dim; fields = checked_fields })
+  | [] -> (
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp -> Canonical (Codata { eta = Noeta; opacity = `Opaque; dim; fields = checked_fields }))
   | (fld, (x, rty)) :: raw_fields ->
-      with_codata_so_far status Noeta ctx `Opaque dim tyargs checked_fields @@ fun domvars ->
+      with_codata_so_far status Noeta ctx `Opaque dim tyargs checked_fields errs @@ fun domvars ->
       let newctx = Ctx.cube_vis ctx x domvars in
-      let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
-      let checked_fields = Snoc (checked_fields, (fld, cty)) in
-      check_codata status ctx tyargs checked_fields raw_fields
+      let checked_fields, errs =
+        Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
+        let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
+        (Snoc (checked_fields, (fld, cty)), errs) in
+      check_codata status ctx tyargs checked_fields raw_fields errs
 
 and check_record :
     type a f1 f2 f af d acd b n.
@@ -1368,20 +1431,30 @@ and check_record :
     (a, f, af) N.plus ->
     (Field.t, ((b, n) snoc, kinetic) term) Abwd.t ->
     (af, d, acd) Raw.tel ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (b, potential) term =
- fun status dim ctx opacity tyargs vars ctx_fields fplus af checked_fields raw_fields ->
+ fun status dim ctx opacity tyargs vars ctx_fields fplus af checked_fields raw_fields errs ->
   match raw_fields with
-  | Emp -> Term.Canonical (Codata { eta = Eta; opacity; dim; fields = checked_fields })
+  | Emp -> (
+      match errs with
+      | Snoc _ -> fatal (Accumulated errs)
+      | Emp -> Term.Canonical (Codata { eta = Eta; opacity; dim; fields = checked_fields }))
   | Ext (None, _, _) -> fatal (Anomaly "unnamed field in check_record")
   | Ext (Some name, rty, raw_fields) ->
-      with_codata_so_far status Eta ctx opacity dim tyargs checked_fields @@ fun domvars ->
+      with_codata_so_far status Eta ctx opacity dim tyargs checked_fields errs @@ fun domvars ->
+      let fld = Field.intern name in
+      Reporter.try_with ~fatal:(fun e ->
+          let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
+          check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af)
+            checked_fields raw_fields
+            (Snoc (errs, e)))
+      @@ fun () ->
       let newctx = Ctx.vis_fields ctx vars domvars ctx_fields fplus af in
       let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
-      let fld = Field.intern name in
       let checked_fields = Snoc (checked_fields, (fld, cty)) in
       let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
       check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
-        raw_fields
+        raw_fields errs
 
 and check_struct :
     type a b c s m n.
@@ -1399,7 +1472,7 @@ and check_struct :
     check_fields status eta ctx ty dim
       (* We convert the backwards alist of fields and values into a forwards list of field names only. *)
       (Bwd.fold_right (fun (fld, _) flds -> fld :: flds) fields [])
-      tms Emp Emp in
+      tms Emp Emp Emp in
   (* We had to typecheck the fields in the order given in the record type, since later ones might depend on earlier ones.  But then we re-order them back to the order given in the struct, to match what the user wrote. *)
   let fields =
     Bwd.map
@@ -1423,21 +1496,31 @@ and check_fields :
     (Field.t option, a check located) Abwd.t ->
     (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
- fun status eta ctx ty dim fields tms etms ctms ->
+ fun status eta ctx ty dim fields tms etms ctms errs ->
   (* The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
   let str = Value.Struct (etms, ins_zero dim, energy status) in
   match (fields, status) with
-  | [], _ -> (tms, ctms)
+  | [], _ -> (
+      (* We accumulate a Bwd of errors as we progress through the fields, allowing later fields to typecheck (and, more importantly, produce their own meaningful error messages) even if earlier fields already failed.  Then at the end, if there are any such errors, we raise them all together. *)
+      match errs with
+      | Emp -> (tms, ctms)
+      | Snoc _ -> fatal (Accumulated errs))
   | fld :: fields, Potential (name, args, hyp) ->
-      (* Temporarily bind the current constant to the up-until-now value, for (co)recursive purposes. *)
-      run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) @@ fun () ->
+      (* Temporarily bind the current constant to the up-until-now value (or an error, if any have occurred yet), for (co)recursive purposes.  Note that this means as soon as one field fails, no other fields can be typechecked if they depend *at all* on earlier ones, even ones that didn't fail.  This could be improved in the future. *)
+      run_with_definition name (hyp (Term.Struct (eta, dim, ctms, energy status))) errs @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
       let head = head_of_potential name in
-      let prev_etm = Uninst (Neu { head; args; value = ready (Val str) }, Lazy.from_val ty) in
-      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms
-  | fld :: fields, Kinetic _ -> check_field status eta ctx ty dim fld fields str tms etms ctms
+      (* The up-until-now term is also maybe an error. *)
+      let prev_etm =
+        unless_error (Uninst (Neu { head; args; value = ready (Val str) }, Lazy.from_val ty)) errs
+      in
+      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms errs
+  | fld :: fields, Kinetic _ ->
+      let prev_etm = unless_error str errs in
+      check_field status eta ctx ty dim fld fields prev_etm tms etms ctms errs
 
 and check_field :
     type a b s n.
@@ -1448,34 +1531,35 @@ and check_field :
     n D.t ->
     Field.t ->
     Field.t list ->
-    kinetic value ->
+    (kinetic value, Code.t) Result.t ->
     (Field.t option, a check located) Abwd.t ->
     (Field.t, s lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t ->
     (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t ->
+    Code.t Asai.Diagnostic.t Bwd.t ->
     (Field.t option, a check located) Abwd.t
     * (Field.t, (b, s) term * [ `Labeled | `Unlabeled ]) Abwd.t =
- fun status eta ctx ty dim fld fields prev_etm tms etms ctms ->
+ fun status eta ctx ty dim fld fields prev_etm tms etms ctms errs ->
   let mkstatus lbl : (b, s) status -> (b, s) status = function
     | Kinetic l -> Kinetic l
     | Potential (c, args, hyp) ->
         let args = Snoc (args, App (Field fld, ins_zero D.zero)) in
         let hyp tm = hyp (Term.Struct (eta, dim, Snoc (ctms, (fld, (tm, lbl))), energy status)) in
         Potential (c, args, hyp) in
-  let ety = tyof_field prev_etm ty fld in
-  match Abwd.find_opt (Some fld) tms with
-  | Some tm ->
-      let ctm = check (mkstatus `Labeled status) ctx tm ety in
-      let etms = Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, `Labeled) etms in
-      let ctms = Snoc (ctms, (fld, (ctm, `Labeled))) in
-      check_fields status eta ctx ty dim fields tms etms ctms
-  | None -> (
-      match Abwd.find_opt_and_update_key None (Some fld) tms with
-      | Some (tm, tms) ->
-          let ctm = check (mkstatus `Unlabeled status) ctx tm ety in
-          let etms = Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, `Unlabeled) etms in
-          let ctms = Snoc (ctms, (fld, (ctm, `Unlabeled))) in
-          check_fields status eta ctx ty dim fields tms etms ctms
-      | None -> fatal (Missing_field_in_tuple fld))
+  let tms, etms, ctms, errs =
+    (* We trap any errors produced by 'tyof_field' or 'check', adding them instead to the list of accumulated errors and going on.  Note that if any previous fields that have already failed, then prev_etm will be bound to an error value, and so if the type of this field depends on the value of any previous one, tyof_field will raise that error, which we catch and add to the list; but it will be (Accumulated Emp) so it won't be displayed to the user. *)
+    let tm, tms, lbl =
+      match Abwd.find_opt (Some fld) tms with
+      | Some tm -> (tm, tms, `Labeled)
+      | None -> (
+          match Abwd.find_opt_and_update_key None (Some fld) tms with
+          | Some (tm, tms) -> (tm, tms, `Unlabeled)
+          | None -> fatal (Missing_field_in_tuple fld)) in
+    Reporter.try_with ~fatal:(fun e -> (tms, etms, ctms, Snoc (errs, e))) @@ fun () ->
+    let ety = tyof_field prev_etm ty fld in
+    let ctm = check (mkstatus lbl status) ctx tm ety in
+    (tms, Abwd.add fld (lazy_eval (Ctx.env ctx) ctm, lbl) etms, Snoc (ctms, (fld, (ctm, lbl))), errs)
+  in
+  check_fields status eta ctx ty dim fields tms etms ctms errs
 
 and synth :
     type a b s. (b, s) status -> (a, b) Ctx.t -> a synth located -> (b, s) term * kinetic value =
@@ -1487,7 +1571,7 @@ and synth :
       | `Var (_, x, v) -> (realize status (Term.Var v), x.ty)
       | `Field (lvl, x, fld) -> (
           match Ctx.find_level ctx lvl with
-          | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field x.tm x.ty fld)
+          | Some v -> (realize status (Term.Field (Var v, fld)), tyof_field (Ok x.tm) x.ty fld)
           | None -> fatal (Anomaly "level not found in field view")))
   | Const name, _ -> (
       let ty, tm = Global.find name in
@@ -1498,7 +1582,7 @@ and synth :
       let stm, sty = synth (Kinetic `Nolet) ctx tm in
       (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
       let etm = eval_term (Ctx.env ctx) stm in
-      let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error etm sty fld in
+      let fld, _, newty = tyof_field_withname ~severity:Asai.Diagnostic.Error (Ok etm) sty fld in
       (realize status (Field (stm, fld)), newty)
   | UU, _ -> (realize status (Term.UU D.zero), universe D.zero)
   | Pi (x, dom, cod), _ ->
@@ -1748,7 +1832,7 @@ and check_at_tel :
           (Ext
              ( env,
                D.plus_zero (TubeOf.inst tyarg),
-               TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm) ))
+               Ok (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton etm)) ))
           tms tys tyargs in
       (newenv, TubeOf.plus_cube ctms (CubeOf.singleton ctm) :: newargs)
   | _ ->

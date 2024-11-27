@@ -89,8 +89,6 @@ let ( $. ) x fld = Field (x, fld)
 let struc tms = Struct tms
 let ( $^ ) x s = Deg (x, s)
 
-module Terminal = Asai.Tty.Make (Core.Reporter.Code)
-
 (* The current context of assumptions, including names. *)
 type ctx = Ctx : ('n, 'b) Ctx.t * (string, 'n) Bwv.t -> ctx
 
@@ -101,8 +99,8 @@ let context = ref ectx
 
 let synth (tm : pmt) : kinetic value * kinetic value =
   let (Ctx (ctx, names)) = !context in
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
+  Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
+      Reporter.display d;
       raise (Failure "Failed to synthesize"))
   @@ fun () ->
   let raw = parse_syn names tm in
@@ -112,8 +110,8 @@ let synth (tm : pmt) : kinetic value * kinetic value =
 
 let check (tm : pmt) (ty : kinetic value) : kinetic value =
   let (Ctx (ctx, names)) = !context in
-  Reporter.run ~emit:Terminal.display ~fatal:(fun d ->
-      Terminal.display d;
+  Reporter.run ~emit:Reporter.display ~fatal:(fun d ->
+      Reporter.display d;
       raise (Failure "Failed to check"))
   @@ fun () ->
   let raw = parse_chk names tm in
@@ -124,14 +122,14 @@ let check (tm : pmt) (ty : kinetic value) : kinetic value =
 
 let unsynth (tm : pmt) : unit =
   let (Ctx (ctx, names)) = !context in
-  Reporter.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
+  Reporter.run ~emit:Reporter.display ~fatal:(fun _ -> ()) @@ fun () ->
   let raw = parse_syn names tm in
   let _ = Check.synth (Kinetic `Nolet) ctx raw in
   raise (Failure "Synthesis success")
 
 let uncheck (tm : pmt) (ty : kinetic value) : unit =
   let (Ctx (ctx, names)) = !context in
-  Reporter.run ~emit:Terminal.display ~fatal:(fun _ -> ()) @@ fun () ->
+  Reporter.run ~emit:Reporter.display ~fatal:(fun _ -> ()) @@ fun () ->
   let raw = parse_chk names tm in
   let _ = Check.check (Kinetic `Nolet) ctx raw ty in
   raise (Failure "Checking success")

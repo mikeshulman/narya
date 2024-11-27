@@ -45,14 +45,14 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
             let fields =
               Abwd.mapi
                 (fun fld (fldtm, l) ->
-                  (readback_at ctx (force_eval_term fldtm) (tyof_field tm ty fld), l))
+                  (readback_at ctx (force_eval_term fldtm) (tyof_field (Ok tm) ty fld), l))
                 tmflds in
             Some (Term.Struct (Eta, dim, fields, energy))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
         | _, `Transparent l when Display.read () ->
             let fields =
               Abwd.mapi
-                (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field tm ty fld), l))
+                (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field (Ok tm) ty fld), l))
                 fields in
             Some (Struct (Eta, dim, fields, Kinetic))
         | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
@@ -60,7 +60,8 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
             | Val (Struct _) ->
                 let fields =
                   Abwd.mapi
-                    (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field tm ty fld), l))
+                    (fun fld _ ->
+                      (readback_at ctx (field_term tm fld) (tyof_field (Ok tm) ty fld), l))
                     fields in
                 Some (Struct (Eta, dim, fields, Kinetic))
             | _ -> None)
@@ -226,7 +227,7 @@ and readback_at_tel :
            (Ext
               ( env,
                 D.plus_zero (TubeOf.inst tyarg),
-                TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x) ))
+                Ok (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)) ))
            xs tys tyargs
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
@@ -305,7 +306,7 @@ let readback_entry :
       let fields =
         Bwv.map
           (fun (f, x) ->
-            let fldty = readback_val ctx (tyof_field top.tm top.ty f) in
+            let fldty = readback_val ctx (tyof_field (Ok top.tm) top.ty f) in
             (f, x, fldty))
           fields in
       let bindings = readback_bindings ctx bindings in

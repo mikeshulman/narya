@@ -438,7 +438,9 @@ module rec Value : sig
         ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic lazy_eval) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
     | Ext :
-        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic value) CubeOf.t
+        ('n, 'b) env
+        * ('n, 'k, 'nk) D.plus
+        * (('nk, kinetic value) CubeOf.t, Reporter.Code.t) Result.t
         -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
@@ -577,11 +579,15 @@ end = struct
   and (_, _) env =
     | Emp : 'n D.t -> ('n, emp) env
     (* The (n+k)-cube here is morally a k-cube of n-cubes, representing a k-dimensional "cube variable" consisting of some number of "real" variables indexed by the faces of a k-cube, each of which has an n-cube of values representing a value and its boundaries.  But this contains the same data as an (n+k)-cube since a strict face of (n+k) decomposes uniquely as a strict face of n plus a strict face of k, and it seems to be more convenient to store it as a single (n+k)-cube. *)
+    (* We have two kinds of variable bindings in an environment: lazy and non-lazy. *)
     | LazyExt :
         ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic lazy_eval) CubeOf.t
         -> ('n, ('b, 'k) snoc) env
+    (* We also allow Error binding in an environment, indicating that that variable is not actually usable, usually due to an earlier error in typechecking that we've continued on from anyway.  *)
     | Ext :
-        ('n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, kinetic value) CubeOf.t
+        ('n, 'b) env
+        * ('n, 'k, 'nk) D.plus
+        * (('nk, kinetic value) CubeOf.t, Reporter.Code.t) Result.t
         -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env

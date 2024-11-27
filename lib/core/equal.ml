@@ -45,7 +45,7 @@ module Equal = struct
         (* Now we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particular field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This latter is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
         BwdM.miterM
           (fun [ (fld, _) ] ->
-            equal_at ctx (field_term x fld) (field_term y fld) (tyof_field x ty fld))
+            equal_at ctx (field_term x fld) (field_term y fld) (tyof_field (Ok x) ty fld))
           [ fields ]
     (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative, so we don't need a clause for it. *)
     (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
@@ -264,7 +264,7 @@ module Equal = struct
           (Ext
              ( env,
                D.plus_zero (TubeOf.inst tyarg),
-               TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x) ))
+               Ok (TubeOf.plus_cube (val_of_norm_tube tyarg) (CubeOf.singleton x)) ))
           xs ys tys tyargs
     | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 

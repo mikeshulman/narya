@@ -1,7 +1,7 @@
 open Bwd
 open Util
 open Core
-open Syntax.Raw
+open Raw
 open Reporter
 module TokMap = Map.Make (Token)
 open Asai.Range

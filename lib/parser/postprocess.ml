@@ -2,7 +2,6 @@ open Bwd
 open Util
 open Dim
 open Core
-open Syntax
 open Raw
 open Reporter
 open Notation

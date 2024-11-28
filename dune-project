@@ -3,7 +3,7 @@
   (name narya)
   (depends
     (ocaml
-      (>= 5.2.0))
+      (>= 5.2.1))
     dune
     zarith
     uuseg

@@ -169,7 +169,6 @@ let rec check : type a. formatter -> a check -> unit =
   | Record (_, _, _, _) -> fprintf ppf "Record(?)"
   | Refute (_, _) -> fprintf ppf "Refute(?)"
   | Hole (_, _) -> fprintf ppf "Hole"
-  | Fail _ -> fprintf ppf "Error"
 
 and synth : type a. formatter -> a synth -> unit =
  fun ppf s ->
@@ -186,6 +185,7 @@ and synth : type a. formatter -> a synth -> unit =
   | Match { tm; sort = _; branches = br; refutables = _ } ->
       fprintf ppf "Match (%a, (%a))" synth tm.value branches br
   | UU -> fprintf ppf "Type"
+  | Fail _ -> fprintf ppf "Error"
 
 and branches : type a. formatter -> (Constr.t, a branch) Abwd.t -> unit =
  fun ppf brs ->

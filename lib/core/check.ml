@@ -450,7 +450,6 @@ let rec check :
           Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
         Global.add_hole meta pos ~vars ~termctx ~ty ~status;
         Meta (meta, energy status)
-    | Fail e, _ -> fatal e
     (* And lastly, if we have a synthesizing term, we synthesize it. *)
     | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty in
   with_loc tm.loc @@ fun () ->
@@ -1749,7 +1748,8 @@ and synth :
         emit (Matching_wont_refine ("match in synthesizing position", PUnit));
         synth_nondep_match status ctx tm branches None
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
-        synth_nondep_match status ctx tm branches (Some i) in
+        synth_nondep_match status ctx tm branches (Some i)
+    | Fail e, _ -> fatal e in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx (locate_opt tm.loc (Synth tm.value));
   let restm, resty = go () in

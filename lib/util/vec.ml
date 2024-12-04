@@ -178,3 +178,5 @@ let miter : type x xs n. ((x, xs) cons hlist -> unit) -> ((x, xs) cons, n) Heter
  fun f xss ->
   let open Monadic (Monad.Identity) in
   miterM f xss
+
+let map : type x y n. (x -> y) -> (x, n) t -> (y, n) t = fun f xs -> mmap (fun [ x ] -> f x) [ xs ]

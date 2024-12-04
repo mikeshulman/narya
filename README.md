@@ -13,9 +13,11 @@ There is no distribution yet, so you have to compile Narya yourself.  This requi
 
 ```
 opam switch create 5.2.1
-opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib fileutils
+opam install dune
 
 cd narya
+dune build narya.opam
+opam install . --deps-only
 dune build bin/narya.exe
 dune runtest
 dune install

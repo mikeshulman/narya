@@ -39,8 +39,16 @@ module Binding : sig
   (* A known but not-yet-available value is created by delaying it, and can be made available by forcing it. *)
   val delay : t -> t
   val force : t -> unit
+
+  (* An error value raises an exception when accessed. *)
+  val error : Reporter.Code.t -> t
 end = struct
-  type state = Known of level option * normal | Unknown | Delayed of level option * normal
+  type state =
+    | Known of level option * normal
+    | Unknown
+    | Delayed of level option * normal
+    | Error of Reporter.Code.t
+
   type t = state ref
 
   let make i x = ref (Known (i, x))
@@ -49,20 +57,24 @@ end = struct
     match !b with
     | Known (i, _) -> i
     | Unknown | Delayed _ -> None
+    | Error e -> fatal e
 
   let value b =
     match !b with
     | Known (_, x) -> x
     | Unknown | Delayed _ -> fatal (Anomaly "Undetermined context variable")
+    | Error e -> fatal e
 
   let unknown () = ref Unknown
   let specify b i x = b := Known (i, x)
   let delay b = ref (Delayed (level b, value b))
+  let error e = ref (Error e)
 
   let force b =
     match !b with
     | Known _ | Unknown -> ()
     | Delayed (i, x) -> b := Known (i, x)
+    | Error e -> fatal e
 end
 
 (* Test whether all the variables in a cube of bindings are free (none are let-bound). *)

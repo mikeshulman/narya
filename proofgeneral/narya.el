@@ -24,6 +24,23 @@
 
 (defvar narya-pending-hole-positions nil
   "Temporary storage for hole positions when executing commands invisibly.")
+  
+(defun narya-create-hole-overlays (start-position relative-positions)
+  "Create overlays for holes given a starting position and a list of relative positions.
+Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-OFFSET HOLE-ID)."
+  (dolist (pos relative-positions)
+    (let* ((start-offset (nth 0 pos))
+           (end-offset (nth 1 pos))
+           (hole-id (nth 2 pos))
+           ;; Adjust offsets relative to the starting position
+           (char-start (byte-to-position (+ start-position start-offset)))
+           (char-end (byte-to-position (+ start-position end-offset))))
+      ;; Create overlay only if positions are valid
+      (when (and char-start char-end)
+        (let ((ovl (make-overlay char-start char-end nil nil nil)))
+          (overlay-put ovl 'narya-hole hole-id)
+          (overlay-put ovl 'face 'narya-hole-face)
+          (push ovl narya-hole-overlays))))))
 
 (defun narya-handle-output (cmd string)
   "Parse and handle Narya's output.
@@ -39,55 +56,55 @@ handling in Proof General."
         (cmd (nth 1 (car proof-action-list)))
         (flags (nth 3 (car proof-action-list)))
         ;; Variables to mark positions in `string` as we parse.
-        (rstart 0) (rend 0) (gstart 0) (gend 0) (dpos 0))
-    ;; Check for the goals marker in the output, setting positions to slice
-    ;; out goals and data sections.
-    (when (string-match "\x0C\\[goals\\]\x0C\n" string rstart)
-      (setq rend (match-beginning 0)
-            gstart (match-end 0))
-      (string-match "\x0C\\[data\\]\x0C\n" string gstart)
-      (setq gend (match-beginning 0)
-            dpos (match-end 0))
-      (if (member 'invisible flags)
-          ;; If the command is invisible, save hole data to `narya-pending-hole-positions`
-          (setq narya-pending-hole-positions
-                (cl-loop while (string-match "^\\([0-9]+\\) \\([0-9]+\\) \\([0-9]+\\).*\n" string dpos)
-                         collect (let* ((hole (string-to-number (match-string 1 string)))
-                                        ;; Store offsets instead of positions
+        (rstart 0) (rend 0) (gstart 0) (gend 0) (dpos 0)
+        ;; Temporary storage for hole data.
+        (parsed-hole-data nil)
+        (error-found nil))
+    ;; Check for errors in the output first.
+    (when (string-match proof-shell-error-regexp string)
+      (setq error-found t
+            proof-shell-last-output-kind 'error))
+    ;; If no errors, proceed with normal processing.
+    (unless error-found
+      ;; Check for the goals marker in the output, setting positions to slice
+      ;; out goals and data sections.
+      (when (string-match "\x0C\\[goals\\]\x0C\n" string rstart)
+        (setq rend (match-beginning 0)
+              gstart (match-end 0))
+        (string-match "\x0C\\[data\\]\x0C\n" string gstart)
+        (setq gend (match-beginning 0)
+              dpos (match-end 0))
+        ;; Parse hole data from the data section
+        (setq parsed-hole-data
+              (cl-loop while (string-match "^\\([0-9]+\\) \\([0-9]+\\) \\([0-9]+\\).*\n" string dpos)
+                       collect (let* ((hole (string-to-number (match-string 1 string)))
                                       (hstart-offset (string-to-number (match-string 2 string)))
                                       (hend-offset (string-to-number (match-string 3 string))))
                                  (setq dpos (match-end 0))
                                  (list hstart-offset hend-offset hole))))
-        ;; Otherwise, create overlays directly from the data section
-        (while (string-match "^\\([0-9]+\\) \\([0-9]+\\) \\([0-9]+\\).*\n" string dpos)
+        ;; Handle parsed hole data based on the visibility of the command
+        (if (member 'invisible flags)
+            ;; For invisible commands, store the parsed data globally
+            (setq narya-pending-hole-positions parsed-hole-data)
+          ;; For visible commands, create overlays directly
           (when span ;; Only proceed if `span` is non-nil
             (proof-with-script-buffer
-              (let* ((hole (string-to-number (match-string 1 string)))
-                     ;; Calculate starting byte position after any whitespace
-                     (bpos (position-bytes (save-excursion
-                                             (goto-char (overlay-start span))
-                                             (skip-chars-forward " \t\n")
-                                             (point))))
-                     ;; Calculate character-based start and end positions
-                     (hstart (byte-to-position (+ bpos (string-to-number (match-string 2 string)))))
-                     (hend (byte-to-position (+ bpos (string-to-number (match-string 3 string)))))
-                     ;; Create overlay for the hole
-                     (ovl (make-overlay hstart hend nil nil nil)))
-                (push ovl narya-hole-overlays)
-                (overlay-put ovl 'narya-hole hole)
-                (overlay-put ovl 'face 'narya-hole-face))))
-          (setq dpos (match-end 0))))
-      ;; Handle the goals section output if `proof-shell-exec-loop` is active
-      (when (proof-shell-exec-loop)
-        (setq proof-shell-last-goals-output (substring string gstart gend))
-        (proof-shell-display-output-as-response flags (substring string rstart rend))
-        (unless (memq 'no-goals-display flags)
-          (pg-goals-display proof-shell-last-goals-output t)))
-      ;; Update output kind to avoid redundant handling by `proof-shell-handle-delayed-output`
-      (setq proof-shell-last-output-kind 'goals)
+              (let ((bpos (position-bytes (save-excursion
+                                            (goto-char (overlay-start span))
+                                            (skip-chars-forward " \t\n")
+                                            (point)))))
+                (narya-create-hole-overlays bpos parsed-hole-data))))))
+        ;; Handle the goals section output if `proof-shell-exec-loop` is active
+        (when (proof-shell-exec-loop)
+          (setq proof-shell-last-goals-output (substring string gstart gend))
+          (proof-shell-display-output-as-response flags (substring string rstart rend))
+          (unless (memq 'no-goals-display flags)
+            (pg-goals-display proof-shell-last-goals-output t)))
+        ;; Update output kind to avoid redundant handling by `proof-shell-handle-delayed-output`
+        (setq proof-shell-last-output-kind 'goals))
       ;; Optionally handle proof tree output
       (when proof-tree-external-display
-        (proof-tree-handle-delayed-output old-proof-marker cmd flags span)))))
+        (proof-tree-handle-delayed-output old-proof-marker cmd flags span))))
 
 (defun narya-delete-undone-holes ()
 	"Delete overlays for holes that are (now) outside the processed region."
@@ -284,7 +301,7 @@ pending hole data stored by `narya-handle-output`."
   (let ((hole-overlay (car (seq-filter (lambda (ovl)
                                          (overlay-get ovl 'narya-hole))
                                        (overlays-at (point)))))
-       insert-start term-length) ;; Declare insert-start at the top
+        insert-start term-length byte-insert-start) ;; Declare insert-start and byte-insert-start
     ;; If no hole overlay is found, prompt the user to place the cursor on a hole.
     (if (not hole-overlay)
         (message "Place the cursor on a hole.")
@@ -299,31 +316,18 @@ pending hole data stored by `narya-handle-output`."
           ;; If no errors, insert the solution term at the hole position and update overlays.
           (let ((inhibit-read-only t))
             (setq insert-start (overlay-start hole-overlay)) ;; Store start position for later use
+            (setq byte-insert-start (position-bytes insert-start)) ;; Get byte-based start position
             (goto-char insert-start)
             (delete-region (overlay-start hole-overlay) (overlay-end hole-overlay))
             (insert "(" term ")") ;; Insert term with parentheses to guarantee correct parsing.
-            (setq term-length (+ 2 (length term))) ;; Length includes parentheses
             ;; Delete the overlay for the solved hole and update the hole list.
             (delete-overlay hole-overlay)
             (setq narya-hole-overlays (delq hole-overlay narya-hole-overlays))
             (message "Hole solved."))
           ;; Process any pending hole positions saved in `narya-handle-output`.
           (when narya-pending-hole-positions
-            (dolist (pos narya-pending-hole-positions)
-              (let* ((hstart-offset (nth 0 pos))
-                     (hend-offset (nth 1 pos))
-                     (hole (nth 2 pos))
-                     ;; Adjust positions relative to the new term's insertion point
-                     ;; Account for the added '(' at `insert-start`
-                     (hstart (+ insert-start 1 hstart-offset))
-                     ;; Adjust `hend` to include the offset and account for parentheses
-                     (hend (+ insert-start 1 hstart-offset (- hend-offset hstart-offset))))
-                ;; Only create a new overlay if both start and end positions are valid.
-                (when (and hstart hend)
-                  (let ((ovl (make-overlay hstart hend)))
-                    (overlay-put ovl 'narya-hole hole)
-                    (overlay-put ovl 'face 'narya-hole-face)
-                    (push ovl narya-hole-overlays))))))
+            ;; Use the helper function to create overlays for new holes.
+            (narya-create-hole-overlays (+ byte-insert-start 1) narya-pending-hole-positions)) ;;adjust start-pos for added parenthesis
           ;; Clear the global pending hole data after processing.
           (setq narya-pending-hole-positions nil))))))
 

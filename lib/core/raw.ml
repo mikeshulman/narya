@@ -41,7 +41,7 @@ module Make (I : Indices) = struct
         (* Implicit means no "return" statement was given, so Narya has to guess what to do.  Explicit means a "return" statement was given with a motive.  "Nondep" means a placeholder return statement like "_ ↦ _" was given, indicating that a non-dependent matching is intended (to silence hints about fallback from the implicit case). *)
         sort : [ `Implicit | `Explicit of 'a check located | `Nondep of int located ];
         branches : (Constr.t, 'a branch) Abwd.t;
-        refutables : 'a refutables;
+        refutables : 'a refutables option;
       }
         -> 'a synth
     | Fail : Reporter.Code.t -> 'a synth
@@ -151,7 +151,7 @@ module Resolve (Names : NamesType) = struct
             | `Nondep i -> `Nondep i
             | `Implicit -> `Implicit in
           let branches = Abwd.map (branch ctx) branches in
-          let refutables = refutables ctx r in
+          let refutables = Option.map (refutables ctx) r in
           Match { tm; sort; branches; refutables }
       | Fail e -> Fail e)
 

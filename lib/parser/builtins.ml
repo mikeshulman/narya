@@ -988,16 +988,18 @@ let rec process_branches :
           let sort = `Explicit (process ctx motive) in
           match process ctx tm with
           | { value = Synth tm; loc } ->
-              let refutables = { refutables = (fun _ -> []) } in
-              locate (Synth (Match { tm = locate tm loc; sort; branches = Emp; refutables })) loc
+              locate
+                (Synth (Match { tm = locate tm loc; sort; branches = Emp; refutables = None }))
+                loc
           | _ -> fatal (Nonsynthesizing "motive of explicit match"))
       | `Nondep i, [ Left (Term tm) ] -> (
           let ctx = Matchscope.names xctx in
           let sort = `Nondep i in
           match process ctx tm with
           | { value = Synth tm; loc } ->
-              let refutables = { refutables = (fun _ -> []) } in
-              locate (Synth (Match { tm = locate tm loc; sort; branches = Emp; refutables })) loc
+              locate
+                (Synth (Match { tm = locate tm loc; sort; branches = Emp; refutables = None }))
+                loc
           | _ -> fatal (Nonsynthesizing "motive of explicit match"))
       | _ -> fatal (Anomaly "multiple match with return-type"))
   (* If there are no patterns left, and hence no discriminees either, we require that there must be exactly one branch. *)
@@ -1102,13 +1104,14 @@ let rec process_branches :
           cbranches in
       let tm = process_obs_or_ix xctx x in
       let refutables =
-        {
-          refutables =
-            (fun plus_args ->
-              let xctx, _ = Matchscope.exts plus_args xctx in
-              Bwd_extra.prepend_map (process_ix xctx) seen
-                (Vec.to_list_map (process_obs_or_ix xctx) xs));
-        } in
+        Some
+          {
+            refutables =
+              (fun plus_args ->
+                let xctx, _ = Matchscope.exts plus_args xctx in
+                Bwd_extra.prepend_map (process_ix xctx) seen
+                  (Vec.to_list_map (process_obs_or_ix xctx) xs));
+          } in
       let sort =
         match sort with
         | `Implicit -> `Implicit

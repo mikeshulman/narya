@@ -724,7 +724,7 @@ and check_implicit_match :
     (a, b) Ctx.t ->
     a synth located ->
     (Constr.t, a branch) Abwd.t ->
-    a refutables ->
+    a refutables option ->
     kinetic value ->
     (b, potential) term =
  fun status ctx tm brs refutables motive ->
@@ -1034,7 +1034,7 @@ and check_var_match :
     b Term.index ->
     kinetic value ->
     (Constr.t, a branch) Abwd.t ->
-    a refutables ->
+    a refutables option ->
     kinetic value ->
     Asai.Range.t option ->
     (b, potential) term =
@@ -1216,7 +1216,10 @@ and check_var_match :
                                   else
                                     let _, sty = synth (Kinetic `Nolet) newctx x in
                                     is_empty sty)
-                                false (refutables.refutables plus_args)
+                                false
+                                (Option.fold
+                                   ~some:(fun r -> r.refutables plus_args)
+                                   ~none:[] refutables)
                               (* If we found something to refute, we mark this branch as refuted in the compiled match. *)
                             then (branches |> Constr.Map.add constr Term.Refute, errs)
                             else fatal (Missing_constructor_in_match constr))))

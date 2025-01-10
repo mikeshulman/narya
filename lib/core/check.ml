@@ -450,8 +450,11 @@ let rec check :
           Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
         Global.add_hole meta pos ~vars ~termctx ~ty ~status;
         Meta (meta, energy status)
-    (* And lastly, if we have a synthesizing term, we synthesize it. *)
-    | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty in
+    (* If we have a synthesizing term, we synthesize it. *)
+    | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty
+    (* And lastly, we pass through case tree leaf markers *)
+    | Realize ktm, Potential _ -> Realize (check (Kinetic `Nolet) ctx (locate_opt tm.loc ktm) ty)
+    | Realize ktm, Kinetic l -> check (Kinetic l) ctx (locate_opt tm.loc ktm) ty in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx tm;
   Annotate.ty ctx ty;

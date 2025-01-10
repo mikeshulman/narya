@@ -65,6 +65,8 @@ module Make (I : Indices) = struct
     | Refute : 'a synth located list * [ `Explicit | `Implicit ] -> 'a check
     (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data.  A hole also stores its source location so that proofgeneral can create an overlay at that place. *)
     | Hole : (I.name, 'a) Bwv.t * unit located -> 'a check
+    (* Force a leaf of the case tree *)
+    | Realize : 'a check -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
@@ -178,7 +180,8 @@ module Resolve (Names : NamesType) = struct
       | Refute (args, sort) -> Refute (List.map (synth ctx) args, sort)
       | Hole (_, loc) ->
           (* We ignore the provided scope, as it (and in particular its length) is meaningless, and store instead the scope currently being used for resolution. *)
-          Hole (Bwv.map Names.to_string_opt ctx, loc))
+          Hole (Bwv.map Names.to_string_opt ctx, loc)
+      | Realize x -> Realize (check ctx (locate_opt tm.loc x)).value)
 
   and branch : type a x. (Names.scope_t, a) Bwv.t -> x T.branch -> a branch =
    fun ctx (Branch (xs, _, body)) ->

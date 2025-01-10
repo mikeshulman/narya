@@ -196,9 +196,12 @@ let rec unparse :
   match tm with
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> unlocated (Ident (Scope.name_of c, []))
-  | Meta (v, _) -> unlocated (Ident ([ Meta.name v ], []))
+  | Meta (v, _) ->
+      unlocated (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v else "?") ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)
-  | MetaEnv (v, _) -> unlocated (Ident ([ Meta.name v ^ "{…}" ], []))
+  | MetaEnv (v, _) ->
+      unlocated
+        (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
       unparse_act vars

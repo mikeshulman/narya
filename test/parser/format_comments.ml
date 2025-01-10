@@ -2,7 +2,8 @@ open Testutil.Print
 
 let () =
   run @@ fun () ->
-  Parser.Printconfig.Reader.run ~env:{ style = `Noncompact; state = `Case; chars = `Unicode }
+  Parser.Printconfig.Reader.run
+    ~env:{ style = `Noncompact; state = `Case; chars = `Unicode; metas = `Numbered }
   @@ fun () ->
   reformat "f x ` hello\n` goodbye\n y z";
   reformat "f x {` hello `}\n` goodbye\n y z";

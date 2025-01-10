@@ -20,6 +20,7 @@ let refl_names = ref [ "refl"; "Id" ]
 let internal = ref true
 let discreteness = ref false
 let source_only = ref false
+let number_metas = ref true
 
 (* Marshal the current flags to a file. *)
 let marshal_flags chan =
@@ -86,6 +87,7 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
         style = (if !compact then `Compact else `Noncompact);
         state = `Case;
         chars = (if !unicode then `Unicode else `ASCII);
+        metas = (if !number_metas then `Numbered else `Anonymous);
       }
   @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->

@@ -104,7 +104,7 @@ module type NamesType = sig
   val none : scope_t
   val to_string_opt : scope_t -> string option
   val scope_error : t -> Reporter.Code.t
-  val visit_scope : Asai.Range.t option -> (scope_t, 'a) Bwv.t -> unit
+  val visit_scope : 'a check located -> (scope_t, 'a) Bwv.t -> unit
 end
 
 (* This is an implementation instead using explicit names that belong to some arbitrary type.  Here the type parameters carry no information. *)
@@ -112,7 +112,7 @@ module NameIndices (Names : NamesType) = struct
   type name = Names.scope_t
   type 'a index = Names.t
   type 'a suc = 'a
-  type ('a, 'b, 'ab) bplus = unit
+  type ('a, 'b, 'ab) bplus = Fake_bplus : ('a, 'b, 'a) bplus
 end
 
 (* Here's the name-resolution module.  This is basically a straightforward structural induction that walks the terms, extending the scope as it goes. *)
@@ -120,11 +120,16 @@ module Resolve (Names : NamesType) = struct
   module Indices = NameIndices (Names)
   module T = Make (Indices)
 
-  let rec synth : type a x. (Names.scope_t, a) Bwv.t -> x T.synth located -> a synth located =
+  let rec tel_eq : type a b ab. (a, b, ab) T.tel -> (a, ab) Eq.t = function
+    | Emp -> Eq
+    | Ext (_, _, t) ->
+        let Eq = tel_eq t in
+        Eq
+
+  let rec synth : type a. (Names.scope_t, a) Bwv.t -> N.zero T.synth located -> a synth located =
    fun ctx tm ->
-    Names.visit_scope tm.loc ctx;
-    locate_opt tm.loc
-      (match tm.value with
+    let newtm =
+      match tm.value with
       | Var (name, fa) -> (
           (* Here's the interesting resolution bit: we look up names in the scope, and insert an error in case of failure.  Note that we store the error in the term rather than raising it immediately; a caller who wants to raise it immediately can do that in the function 'scope_error' instead of returning it. *)
           match Bwv.find_opt (fun x -> Names.equals name x) ctx with
@@ -139,6 +144,7 @@ module Resolve (Names : NamesType) = struct
       | Let (x, tm, body) -> Let (Names.to_string_opt x, synth ctx tm, (check (Snoc (ctx, x))) body)
       | Letrec (tys, tms, body) ->
           let (Bplus ab) = Fwn.bplus (Vec.length tms) in
+          let Eq = tel_eq tys in
           let tys2, ctx2 = tel ctx ab tys in
           let tms2 = Vec.map (check ctx2) tms in
           Letrec (tys2, tms2, check ctx2 body)
@@ -153,13 +159,14 @@ module Resolve (Names : NamesType) = struct
           let branches = Abwd.map (branch ctx) branches in
           let refutables = Option.map (refutables ctx) r in
           Match { tm; sort; branches; refutables }
-      | Fail e -> Fail e)
+      | Fail e -> Fail e in
+    Names.visit_scope (locate_opt tm.loc (Synth newtm)) ctx;
+    locate_opt tm.loc newtm
 
-  and check : type a x. (Names.scope_t, a) Bwv.t -> x T.check located -> a check located =
+  and check : type a. (Names.scope_t, a) Bwv.t -> N.zero T.check located -> a check located =
    fun ctx tm ->
-    Names.visit_scope tm.loc ctx;
-    locate_opt tm.loc
-      (match tm.value with
+    let newtm =
+      match tm.value with
       | Synth x -> Synth (synth ctx (locate_opt tm.loc x)).value
       | Lam (x, sort, body) ->
           Lam (locate_map Names.to_string_opt x, sort, check (Snoc (ctx, x.value)) body)
@@ -172,6 +179,8 @@ module Resolve (Names : NamesType) = struct
             (Abwd.map (fun (x, fld) -> (Names.to_string_opt x, check (Snoc (ctx, x)) fld)) fields)
       | Record (ac, xs, fields, opaq) ->
           let (Bplus ac2) = Fwn.bplus (Vec.length xs) in
+          let Eq = tel_eq fields in
+          let Fake_bplus = ac.value in
           let xs2 = Vec.map Names.to_string_opt xs in
           let ctx2 = Bwv.append ac2 ctx xs in
           let (Bplus ad) = Fwn.bplus (T.fwn_of_tel fields) in
@@ -181,33 +190,37 @@ module Resolve (Names : NamesType) = struct
       | Hole (_, loc) ->
           (* We ignore the provided scope, as it (and in particular its length) is meaningless, and store instead the scope currently being used for resolution. *)
           Hole (Bwv.map Names.to_string_opt ctx, loc)
-      | Realize x -> Realize (check ctx (locate_opt tm.loc x)).value)
+      | Realize x -> Realize (check ctx (locate_opt tm.loc x)).value in
+    let newtm = locate_opt tm.loc newtm in
+    Names.visit_scope newtm ctx;
+    newtm
 
-  and branch : type a x. (Names.scope_t, a) Bwv.t -> x T.branch -> a branch =
-   fun ctx (Branch (xs, _, body)) ->
+  and branch : type a. (Names.scope_t, a) Bwv.t -> N.zero T.branch -> a branch =
+   fun ctx (Branch (xs, { value = Fake_bplus; _ }, body)) ->
     let (Bplus ab) = Fwn.bplus (Vec.length xs) in
     let xs2 = Vec.map Names.to_string_opt xs in
     let ctx2 = Bwv.append ab ctx xs in
     Branch (xs2, locate_opt None ab, check ctx2 body)
 
-  and dataconstr : type a x. (Names.scope_t, a) Bwv.t -> x T.dataconstr -> a dataconstr =
+  and dataconstr : type a. (Names.scope_t, a) Bwv.t -> N.zero T.dataconstr -> a dataconstr =
    fun ctx (Dataconstr (args, body)) ->
     let (Bplus ab) = Fwn.bplus (T.fwn_of_tel args) in
+    let Eq = tel_eq args in
     let args2, ctx2 = tel ctx ab args in
     Dataconstr (args2, Option.map (check ctx2) body)
 
-  and refutables : type a x. (Names.scope_t, a) Bwv.t -> x T.refutables -> a refutables =
+  and refutables : type a. (Names.scope_t, a) Bwv.t -> N.zero T.refutables -> a refutables =
    fun ctx { refutables } ->
     let refutables ab =
       let ctx2 = Bwv.append ab ctx (Vec.init (fun () -> (Names.none, ())) (Fwn.bplus_right ab) ()) in
-      List.map (synth ctx2) (refutables ()) in
+      List.map (synth ctx2) (refutables Fake_bplus) in
     { refutables = (fun ab -> refutables ab) }
 
   and tel :
-      type a x b ab y.
+      type a b ab.
       (Names.scope_t, a) Bwv.t ->
       (a, b, ab) Fwn.bplus ->
-      (x, b, y) T.tel ->
+      (N.zero, b, N.zero) T.tel ->
       (a, b, ab) tel * (Names.scope_t, ab) Bwv.t =
    fun ctx ab tele ->
     match (ab, tele) with

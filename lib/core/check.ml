@@ -452,9 +452,39 @@ let rec check :
         Meta (meta, energy status)
     (* If we have a synthesizing term, we synthesize it. *)
     | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty
-    (* And lastly, we pass through case tree leaf markers *)
+    (* We pass through case tree leaf markers *)
     | Realize ktm, Potential _ -> Realize (check (Kinetic `Nolet) ctx (locate_opt tm.loc ktm) ty)
-    | Realize ktm, Kinetic l -> check (Kinetic l) ctx (locate_opt tm.loc ktm) ty in
+    | Realize ktm, Kinetic l -> check (Kinetic l) ctx (locate_opt tm.loc ktm) ty
+    (* If we're using the checking type as an implicit first argument: *)
+    | ImplicitApp (fn, args), _ -> (
+        (* We read it back, so we can put it as the first argument in the generated term. *)
+        let cty = readback_val ctx ty in
+        (* Now we act like synth on an application. *)
+        let sfn, sty = synth (Kinetic `Nolet) ctx fn in
+        match view_type sty "ImplicitApp" with
+        | Pi (_, doms, cods, tyargs) -> (
+            (* Only 0-dimensional applications are allowed. *)
+            match D.compare (CubeOf.dim doms) D.zero with
+            | Eq -> (
+                (* The first argument must be a type. *)
+                match view_type (CubeOf.find_top doms) "ImplicitApp argument" with
+                | UU _ ->
+                    (* We build the implicit application term and its type. *)
+                    let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cty)) in
+                    let new_sty = tyof_app cods tyargs (CubeOf.singleton ty) in
+                    (* And then proceed applying to the rest of the arguments. *)
+                    let stm, sty = synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args in
+                    (* Then we have to check that the resulting type of the whole application agrees with the one we're checking against. *)
+                    equal_val (Ctx.length ctx) sty ty
+                    <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
+                    realize status stm
+                | _ ->
+                    fatal ?loc:fn.loc
+                      (Anomaly "first argument of an ImplicitMap is not of type Type"))
+            | Neq -> fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitApp", CubeOf.dim doms, D.zero))
+            )
+        | _ -> fatal ?loc:fn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn), PVal (ctx, sty))))
+  in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx tm;
   Annotate.ty ctx ty;

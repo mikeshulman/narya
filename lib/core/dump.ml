@@ -170,6 +170,10 @@ let rec check : type a. formatter -> a check -> unit =
   | Refute (_, _) -> fprintf ppf "Refute(?)"
   | Hole (_, _) -> fprintf ppf "Hole"
   | Realize x -> fprintf ppf "Realize %a" check x
+  | ImplicitApp (fn, args) ->
+      fprintf ppf "ImplicitApp (%a," synth fn.value;
+      List.iter (fun (_, (x : a check Asai.Range.located)) -> fprintf ppf "%a, " check x.value) args;
+      fprintf ppf ")"
 
 and synth : type a. formatter -> a synth -> unit =
  fun ppf s ->

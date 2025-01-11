@@ -67,6 +67,8 @@ module Make (I : Indices) = struct
     | Hole : (I.name, 'a) Bwv.t * unit located -> 'a check
     (* Force a leaf of the case tree *)
     | Realize : 'a check -> 'a check
+    (* Pass the type being checked against as the implicit first argument of a function. *)
+    | ImplicitApp : 'a synth located * (Asai.Range.t option * 'a check located) list -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
@@ -190,7 +192,9 @@ module Resolve (Names : NamesType) = struct
       | Hole (_, loc) ->
           (* We ignore the provided scope, as it (and in particular its length) is meaningless, and store instead the scope currently being used for resolution. *)
           Hole (Bwv.map Names.to_string_opt ctx, loc)
-      | Realize x -> Realize (check ctx (locate_opt tm.loc x)).value in
+      | Realize x -> Realize (check ctx (locate_opt tm.loc x)).value
+      | ImplicitApp (fn, args) ->
+          ImplicitApp (synth ctx fn, List.map (fun (l, x) -> (l, check ctx x)) args) in
     let newtm = locate_opt tm.loc newtm in
     Names.visit_scope newtm ctx;
     newtm

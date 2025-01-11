@@ -636,7 +636,11 @@ let rec pp_fields : formatter -> observation list -> Whitespace.alist -> Whitesp
       | _ ->
           let wscomma, ws = take (Op ",") ws in
           pp_tok ppf (Op ",");
-          pp_ws `Break ppf wscomma;
+          pp_ws
+            (match spacing () with
+            | `Wide -> `Break
+            | `Narrow -> `Custom (("", 0, ""), ("", 0, "")))
+            ppf wscomma;
           pp_fields ppf obs ws)
 
 let pp_tuple space ppf obs ws =
@@ -662,7 +666,7 @@ let pp_tuple space ppf obs ws =
       pp_close_box ppf ();
       pp_ws space ppf wsrparen
   | _ :: _ ->
-      let style, state = (style (), state ()) in
+      let style, state, spacing = (style (), state (), spacing ()) in
       (match state with
       | `Term ->
           if style = `Noncompact then pp_open_box ppf 0;
@@ -670,15 +674,20 @@ let pp_tuple space ppf obs ws =
       | `Case -> pp_open_vbox ppf 2);
       pp_tok ppf LParen;
       let wslparen, ws = take LParen ws in
-      pp_ws (if style = `Compact then `Nobreak else `Break) ppf wslparen;
+      pp_ws
+        (match (style, spacing) with
+        | `Compact, `Wide -> `Nobreak
+        | `Compact, `Narrow -> `None
+        | `Noncompact, _ -> `Break)
+        ppf wslparen;
       let ws = pp_fields ppf obs ws in
-      (if style = `Compact then pp_print_string ppf " "
-       else
-         match state with
-         | `Term ->
-             pp_close_box ppf ();
-             pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
-         | `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
+      (match (style, spacing, state) with
+      | `Compact, `Wide, _ -> pp_print_string ppf " "
+      | `Compact, `Narrow, _ -> ()
+      | `Noncompact, _, `Term ->
+          pp_close_box ppf ();
+          pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
+      | `Noncompact, _, `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
       let ws =
         match take_opt (Op ",") ws with
         | Some (wscomma, ws) ->

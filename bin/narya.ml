@@ -52,6 +52,12 @@ let speclist =
     ("--help", Arg.Unit (fun () -> ()), "");
     ("-", Arg.Unit (fun () -> inputs := Snoc (!inputs, `Stdin)), "");
     ("-fake-interact", Arg.String (fun str -> fake_interacts := Snoc (!fake_interacts, str)), "");
+    ("-number-metas", Arg.Set number_metas, "");
+    ("-anonymous-metas", Arg.Clear number_metas, "");
+    ("-parenthesize-arguments", Arg.Set parenthesize_arguments, "");
+    ("-juxtapose-arguments", Arg.Clear parenthesize_arguments, "");
+    (* With -remove-spaces, you probably also want -compact *)
+    ("-remove-spaces", Arg.Clear extra_spaces, "");
   ]
 
 (* Parse the command-line arguments and ensure that we have something to do. *)

@@ -194,7 +194,11 @@ and pp_notn :
 and pp_spine (space : space) (ppf : formatter) (tr : observation) : unit =
   match tr with
   | Term { value = App { fn; arg; _ }; _ } ->
-      pp_spine `Break ppf (Term fn);
+      pp_spine
+        (match spacing () with
+        | `Wide -> `Break
+        | `Narrow -> `Custom (("", 0, ""), ("", 0, "")))
+        ppf (Term fn);
       pp_term space ppf (Term arg)
   | _ -> pp_term space ppf tr
 

@@ -142,8 +142,7 @@ let test_compactness () =
   ()
 
 let () =
-  let env : Parser.Printconfig.Config.t =
-    { style = `Compact; state = `Case; chars = `Unicode; metas = `Numbered } in
+  let env : Parser.Printconfig.Config.t = { Parser.Printconfig.default with state = `Case } in
   run @@ fun () ->
   Parser.Printconfig.run ~env test_reformat;
   Printf.printf "--------------------\nNoncompactly\n--------------------\n\n";

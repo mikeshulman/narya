@@ -38,6 +38,12 @@ let get_notation head args =
 (* Put parentheses around a term. *)
 let parenthesize tm = unlocated (outfix ~notn:parens ~ws:[] ~inner:(Snoc (Emp, Term tm)))
 
+(* Put them only if they aren't there already *)
+let parenthesize_maybe (tm : ('lt, 'ls, 'rt, 'rs) parse located) =
+  match tm.value with
+  | Notn n when equal (notn n) parens -> tm
+  | _ -> parenthesize tm
+
 (* A "delayed" result of unparsing that needs only to know the tightness intervals to produce a result. *)
 type unparser = {
   unparse :
@@ -337,11 +343,20 @@ and unparse_spine :
           | Some left_ok, Some right_ok ->
               let fn = unparse_spine vars head args li Interval.plus_omega_only in
               let arg = arg.unparse Interval.empty ri in
+              (* We parenthesize the argument if the style dictates and it doesn't already have parentheses. *)
+              let arg =
+                match Printconfig.argstyle () with
+                | `Spaces -> arg
+                | `Parens -> parenthesize_maybe arg in
               unlocated (App { fn; arg; left_ok; right_ok })
           | _ ->
               let fn =
                 unparse_spine vars head args Interval.plus_omega_only Interval.plus_omega_only in
               let arg = arg.unparse Interval.empty Interval.plus_omega_only in
+              let arg =
+                match Printconfig.argstyle () with
+                | `Spaces -> arg
+                | `Parens -> parenthesize_maybe arg in
               let left_ok = No.le_refl No.plus_omega in
               let right_ok = No.le_refl No.plus_omega in
               parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))))

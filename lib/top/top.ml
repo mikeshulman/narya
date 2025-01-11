@@ -21,6 +21,8 @@ let internal = ref true
 let discreteness = ref false
 let source_only = ref false
 let number_metas = ref true
+let parenthesize_arguments = ref false
+let extra_spaces = ref true
 
 (* Marshal the current flags to a file. *)
 let marshal_flags chan =
@@ -88,6 +90,8 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
         state = `Case;
         chars = (if !unicode then `Unicode else `ASCII);
         metas = (if !number_metas then `Numbered else `Anonymous);
+        argstyle = (if !parenthesize_arguments then `Parens else `Spaces);
+        spacing = (if !extra_spaces then `Wide else `Narrow);
       }
   @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->

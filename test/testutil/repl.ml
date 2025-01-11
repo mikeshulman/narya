@@ -112,8 +112,7 @@ let run f =
   Eternity.run ~init:Eternity.empty @@ fun () ->
   Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
-  Printconfig.run ~env:{ style = `Compact; state = `Term; chars = `Unicode; metas = `Numbered }
-  @@ fun () ->
+  Printconfig.run ~env:Printconfig.default @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->
   Discrete.run ~env:false @@ fun () ->
   Dim.Endpoints.run ~arity:2 ~refl_char:'e' ~refl_names:[ "refl"; "Id" ] ~internal:true @@ fun () ->

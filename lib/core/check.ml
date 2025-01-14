@@ -465,9 +465,26 @@ and check_of_synth :
     (b, s) status -> (a, b) Ctx.t -> a synth -> Asai.Range.t option -> kinetic value -> (b, s) term
     =
  fun status ctx stm loc ty ->
-  let sval, sty = synth status ctx { value = stm; loc } in
-  equal_val (Ctx.length ctx) sty ty <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
-  sval
+  match stm with
+  | Asc (ctm, aty) ->
+      (* If the term is synthesizing because it is ascribed, then we can accumulate errors: if the ascription fails to check, or if it fails to equal the checking type, we can proceed to check the ascribed term against the supplied type instead.  This will rarely happen in normal use, since there is no need to ascribe a term that's in checking position, but it can occur with some alternative frontends. *)
+      Reporter.try_with ~fatal:(fun d1 ->
+          Reporter.try_with ~fatal:(fun d2 -> fatal (Accumulated (Snoc (Snoc (Emp, d1), d2))))
+          @@ fun () ->
+          let _ = check status ctx ctm ty in
+          fatal_diagnostic d1)
+      @@ fun () ->
+      let cty = check (Kinetic `Nolet) ctx aty (universe D.zero) in
+      let ety = eval_term (Ctx.env ctx) cty in
+      let ctm = check status ctx ctm ety in
+      equal_val (Ctx.length ctx) ety ty
+      <|> Unequal_synthesized_type (PVal (ctx, ety), PVal (ctx, ty));
+      ctm
+  | _ ->
+      let sval, sty = synth status ctx { value = stm; loc } in
+      equal_val (Ctx.length ctx) sty ty
+      <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
+      sval
 
 (* Deal with checking a potential term in kinetic position *)
 and kinetic_of_potential :
@@ -1689,7 +1706,18 @@ and synth :
           act_ty ex ety fa ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa)) )
     | Act _, _ -> fatal (Nonsynthesizing "argument of degeneracy")
     | Asc (tm, ty), _ ->
-        let cty = check (Kinetic `Nolet) ctx ty (universe D.zero) in
+        let cty =
+          Reporter.try_with ~fatal:(fun d1 ->
+              (* If the ascribed type doesn't typecheck, *and* if the term itself happens to already be synthesizing, we can proceed to try to synthesize it, accumulating errors from multiple sources.  This will rarely happen in normal use, since there is no need to ascribe a term that's already synthesizing, but with some alternative frontends it may. *)
+              match tm.value with
+              | Synth stm ->
+                  Reporter.try_with ~fatal:(fun d2 ->
+                      fatal (Accumulated (Snoc (Snoc (Emp, d1), d2))))
+                  @@ fun () ->
+                  let _ = synth status ctx (locate_opt tm.loc stm) in
+                  fatal_diagnostic d1
+              | _ -> fatal_diagnostic d1)
+          @@ fun () -> check (Kinetic `Nolet) ctx ty (universe D.zero) in
         let ety = eval_term (Ctx.env ctx) cty in
         let ctm = check status ctx tm ety in
         (ctm, ety)

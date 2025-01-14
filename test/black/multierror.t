@@ -469,3 +469,57 @@ Even trivial dependency blocks going on, as long as there is the potential for d
      ^ checking tuple against non-record type A
   
   [1]
+
+  $ cat >multierr.ny <<EOF
+  > axiom A:Type
+  > axiom a:A
+  > echo a a : a
+  > EOF
+
+  $ narya -v multierr.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a assumed
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   3 | echo a a : a
+     ^ term synthesized type A but is being checked against type Type
+  
+   ￫ error[E0701]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   3 | echo a a : a
+     ^ attempt to apply/instantiate
+         a
+       of type
+         A
+       which is not a function-type or universe
+  
+  [1]
+
+  $ cat >multierr.ny <<EOF
+  > axiom A:Type
+  > axiom a:A
+  > def foo : A ≔ (a, a) : a
+  > EOF
+
+  $ narya -v multierr.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a assumed
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   3 | def foo : A ≔ (a, a) : a
+     ^ term synthesized type A but is being checked against type Type
+  
+   ￫ error[E0900]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   3 | def foo : A ≔ (a, a) : a
+     ^ checking tuple against non-record type A
+  
+  [1]

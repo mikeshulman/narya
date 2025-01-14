@@ -875,7 +875,7 @@ module Matchscope : sig
   val lookup_num : int -> 'a t -> 'a N.index option
   val ext : 'a t -> string option -> 'a N.suc t
   val last_num : 'a t -> int
-  val exts : ('a, 'm, 'am) Fwn.bplus -> 'a t -> 'am t * (int, 'm) Vec.t
+  val exts : ('a, 'm, 'am) Raw.Indexed.bplus -> 'a t -> 'am t * (int, 'm) Vec.t
   val make : (string option, 'a) Bwv.t -> 'a t
   val names : 'a t -> (string option, 'a) Bwv.t
   val give_name : int -> string option -> 'a t -> 'a t
@@ -911,7 +911,7 @@ end = struct
 
   let last_num : type a. a t -> int = fun (Matchscope (_, _, _, i)) -> i - 1
 
-  let rec exts : type a m am. (a, m, am) Fwn.bplus -> a t -> am t * (int, m) Vec.t =
+  let rec exts : type a m am. (a, m, am) Raw.Indexed.bplus -> a t -> am t * (int, m) Vec.t =
    fun am scope ->
     match (am, scope) with
     | Zero, _ -> (scope, [])
@@ -1075,15 +1075,16 @@ let rec process_branches :
             match Bwd.to_list brs with
             | [] -> fatal (Anomaly "empty list of branches for constructor")
             | (_, pats, _, _) :: _ as brs ->
-                let names =
-                  Vec.mmap
-                    (function
-                      (* Anywhere that the first pattern for this constructor has a name, we take it. *)
-                      | [ Pattern.Var name ] -> name.value
-                      | [ _ ] -> None)
-                    [ pats.value ] in
                 let m = Vec.length pats.value in
-                let (Bplus am) = Fwn.bplus m in
+                let (Bplus am) = Raw.Indexed.bplus m in
+                let names =
+                  Indexed.Namevec.of_vec am
+                    (Vec.mmap
+                       (function
+                         (* Anywhere that the first pattern for this constructor has a name, we take it. *)
+                         | [ Pattern.Var name ] -> name.value
+                         | [ _ ] -> None)
+                       [ pats.value ]) in
                 let (Plus mn) = Fwn.plus m in
                 let newxctx, newnums = Matchscope.exts am xctx in
                 let newxs = Vec.append mn (Vec.mmap (fun [ n ] -> Either.Right n) [ newnums ]) xs in
@@ -1100,7 +1101,7 @@ let rec process_branches :
                 @@ fun () ->
                 (* After the first outer match, we always switch to implicit matches. *)
                 Raw.Branch
-                  (names, locate am loc, process_branches newxctx newxs seen newbrs loc `Implicit))
+                  (locate names loc, process_branches newxctx newxs seen newbrs loc `Implicit))
           cbranches in
       let tm = process_obs_or_ix xctx x in
       let refutables =
@@ -1258,7 +1259,7 @@ let () =
           match obs with
           | body :: obs ->
               let n = Vec.length pats in
-              let (Bplus an) = Fwn.bplus n in
+              let (Bplus an) = Raw.Indexed.bplus n in
               let ctx, xs = Matchscope.exts an (Matchscope.make ctx) in
               let branches = get_branches ctx n obs ws in
               let mtch =
@@ -1597,7 +1598,7 @@ let () =
           | None ->
               let ctx = Bwv.snoc ctx None in
               let (Any_tel tel) = process_tel ctx StringSet.empty obs in
-              { value = Record ({ value = Suc Zero; loc }, [ None ], tel, opacity); loc }
+              { value = Record ({ value = [ None ]; loc }, tel, opacity); loc }
           | Some _ -> (
               match obs with
               | Term x :: obs ->
@@ -1606,7 +1607,9 @@ let () =
                   let (Bplus ac) = Fwn.bplus (Vec.length vars) in
                   let ctx = Bwv.append ac ctx vars in
                   let (Any_tel tel) = process_tel ctx StringSet.empty obs in
-                  Range.locate (Record ({ value = ac; loc = x.loc }, vars, tel, opacity)) loc
+                  Range.locate
+                    (Record (locate_opt x.loc (namevec_of_vec ac vars), tel, opacity))
+                    loc
               | _ -> fatal (Anomaly "invalid notation arguments for record")));
     }
 

@@ -166,7 +166,7 @@ let rec check : type a. formatter -> a check -> unit =
   | Empty_co_match -> fprintf ppf "Emptycomatch(?)"
   | Data _ -> fprintf ppf "Data(?)"
   | Codata _ -> fprintf ppf "Codata(?)"
-  | Record (_, _, _, _) -> fprintf ppf "Record(?)"
+  | Record (_, _, _) -> fprintf ppf "Record(?)"
   | Refute (_, _) -> fprintf ppf "Refute(?)"
   | Hole (_, _) -> fprintf ppf "Hole"
   | Realize x -> fprintf ppf "Realize %a" check x
@@ -174,6 +174,7 @@ let rec check : type a. formatter -> a check -> unit =
       fprintf ppf "ImplicitApp (%a," synth fn.value;
       List.iter (fun (_, (x : a check Asai.Range.located)) -> fprintf ppf "%a, " check x.value) args;
       fprintf ppf ")"
+  | Embed _ -> .
 
 and synth : type a. formatter -> a synth -> unit =
  fun ppf s ->
@@ -183,7 +184,7 @@ and synth : type a. formatter -> a synth -> unit =
   | Field (tm, fld) -> fprintf ppf "Field(%a, %s)" synth tm.value (Field.to_string_ori fld)
   | Pi (_, _, _) -> fprintf ppf "Pi(?)"
   | App (fn, arg) -> fprintf ppf "App(%a, %a)" synth fn.value check arg.value
-  | Asc (_, _) -> fprintf ppf "Asc(?)"
+  | Asc (tm, ty) -> fprintf ppf "Asc(%a, %a)" check tm.value check ty.value
   | Let (_, _, _) -> fprintf ppf "Let(?)"
   | Letrec (_, _, _) -> fprintf ppf "LetRec(?)"
   | Act (_, _, _) -> fprintf ppf "Act(?)"
@@ -203,7 +204,11 @@ and branches : type a. formatter -> (Constr.t, a branch) Abwd.t -> unit =
       branch ppf br
 
 and branch : type a. formatter -> Constr.t * a branch -> unit =
- fun ppf (c, Branch (vars, _, body)) ->
-  fprintf ppf "%s %s ↦ %a" (Constr.to_string c)
-    (String.concat " " (Vec.to_list_map (Option.value ~default:"_") vars))
-    check body.value
+ fun ppf (c, Branch (vars, body)) ->
+  let rec strvars : type a b ab. (a, b, ab) Namevec.t -> string = function
+    | [] -> ""
+    | [ Some x ] -> x
+    | [ None ] -> "_"
+    | Some x :: xs -> x ^ " " ^ strvars xs
+    | None :: xs -> "_ " ^ strvars xs in
+  fprintf ppf "%s %s ↦ %a" (Constr.to_string c) (strvars vars.value) check body.value

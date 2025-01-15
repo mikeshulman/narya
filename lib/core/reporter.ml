@@ -648,7 +648,9 @@ module Code = struct
     | Comment_end_in_string ->
         text "comment-end sequence `} in quoted string: cannot be commented out"
     | Error_printing_error e ->
-        textf "error while printing message:@ %a" (fun ppf () -> default_text e ppf) ()
+        textf "printing diagnostic message raised error %s: @ %a" (short_code e)
+          (fun ppf () -> default_text e ppf)
+          ()
     | Checking_canonical_at_nonuniverse (tm, ty) ->
         textf "checking %s at non-universe %a" tm pp_printed (print ty)
     | Bare_case_tree_construct str ->

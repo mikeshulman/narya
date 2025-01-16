@@ -91,7 +91,7 @@ let find_meta m =
           match Metamap.find_opt m data.metas with
           | Some (Ok d) -> d
           | Some (Error e) -> fatal e
-          | None -> fatal (Anomaly "undefined metavariable")))
+          | None -> fatal (Anomaly ("undefined metavariable: " ^ Meta.name m))))
 
 (* Marshal and unmarshal the constants and metavariables pertaining to a single compilation unit.  We ignore the "current" data because that is only relevant during typechecking commands, whereas this comes at the end of typechecking a whole file. *)
 

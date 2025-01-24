@@ -9,19 +9,21 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ### From source
 
-There is no distribution yet, so you have to compile Narya yourself.  This requires OCaml version 5.2.0 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
+There is no distribution yet, so you have to compile Narya yourself.  This requires OCaml version 5.2.1 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
 
 ```
-opam switch create 5.2.0
-opam install zarith uuseg bwd algaeff asai yuujinchou react lwt lambda-term fmlib fileutils
+opam switch create 5.2.1
+opam install dune
 
-cd ../narya
-dune build
+cd narya
+dune build narya.opam
+opam install . --deps-only
+dune build bin/narya.exe
 dune runtest
 dune install
 ```
 
-This will make the executable `narya` available in a directory such as `~/.opam/5.2.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
+This will make the executable `narya` available in a directory such as `~/.opam/5.2.1/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
 ### ProofGeneral (Emacs) mode
 
@@ -505,7 +507,7 @@ def Magma' : Type ≔ sig (
   op : t → t → t,
 )
 ```
-will yield a different result: `Magma` and `Magma'` are not convertible.
+will yield a different result: `Magma` and `Magma'` are not convertible (although they will be isomorphic).
 
 Like any definition, record types can have parameters.  For example, Σ-types are just a record type that can be defined by the user, if you wish:
 ```
@@ -593,11 +595,36 @@ Syntactically, tuples are an outfix notation that includes the parentheses, rath
 
 If `M` belongs to a record type that has a field named `fld`, then `M .fld` extracts the value of this field.  In particular, if `M` is a tuple, then this reduces to the corresponding component.  Note the space in `M .fld`, which distinguishes it from a single identifier named `M.fld` in the namespace `M`.
 
-It is sometimes helpful to think of an element of a record type as a "function" and of `M .fld` as "applying" it to the field name as an "argument".  Syntactically, at least, they are parsed exactly the same way, except that the field name is prefixed by a period.  That is, field projections behave like a symbol-free left-associative infix operator of tightness +ω, and can therefore be interspersed with ordinary applications: `f a .fld b` means `((f a) .fld) b`.
-
 A field projection `M .fld` requires `M` to synthesize a record type, and then synthesizes the value of the field `fld` in that record type (with any earlier fields that it depends on replaced by the corresponding fields of `M`).  Thus, if you want to write a "record redex" that creates a tuple and then immediately projects out one of its fields, you need to ascribe the tuple: `((a, b) : Σ A B) .fst`.
 
-Finally, like unlabeled tuples that default to the order in which fields were declared in the record type, fields can also be projected out by index: `M .0` means the zeroth field declared in the record type, `M .1` means the first field, and so on.  It's important to note that this is in reference to the order in which fields were declared in the record *type*, not in any tuple, even if labels were used in the tuple to give the components in a different order.  For instance, `((snd ≔ b, fst ≔ a) : Σ A B) .0` equals `a`.  As with tuples, positional field access is convenient for small examples (especially when using positional tuples as well), but confusing and brittle when there are many fields.
+Like unlabeled tuples that default to the order in which fields were declared in the record type, fields can also be projected out by index: `M .0` means the zeroth field declared in the record type, `M .1` means the first field, and so on.  It's important to note that this is in reference to the order in which fields were declared in the record *type*, not in any tuple, even if labels were used in the tuple to give the components in a different order.  For instance, `((snd ≔ b, fst ≔ a) : Σ A B) .0` equals `a`.  As with tuples, positional field access is convenient for small examples (especially when using positional tuples as well), but confusing and brittle when there are many fields.
+
+
+### Parsing field projections
+
+Field projections behave like a symbol-free left-associative infix operator of tightness +ω, and can therefore be interspersed with ordinary applications to form an "elimination spine": `f a .fld b` means `((f a) .fld) b`, in which we successively "eliminate" `f` by applying it to an argument (the elimination rule of a function type), project out a field (the elimination rule of a record type), and then apply it to another argument.  Indeed, it can sometimes be helpful to think of an element of a record type as a "function" and of `M .fld` as "applying" it to the field name as an "argument".
+
+It must be emphasized that *field projections bind with the same tightness as function application*, similarly associating to the left.  This applies even if the argument preceeding the field ends with a special character so that a space is not required, e.g. `f (g a).fld b` means `((f (g a)) .fld) b`.  If you mean to project the field from `g a`, you must write `f ((g a).fld) b`, or better `f (g a .fld) b`.  This convention differs from field projections in many functional languages such as OCaml and Haskell (although it matches the behavior of Agda), but we believe it is the correct choice in a language where function application is denoted by juxtaposition.  For example, in a language like Java where function calls are parenthesized, one frequently finds an idiom like
+```
+object.methodOne(x, y, z)
+  .methodTwo(a, b)
+  .methodThree(c, d, e)
+  .methodFour()
+```
+to call a sequence of methods on each other's outputs.  In Narya and Agda, you can write the same thing even more simply without the parentheses:
+```
+object .methodOne x y z
+  .methodTwo a b
+  .methodThree c d e
+  .methodFour
+```
+But in a language with application by juxtaposition but where field projection binds tighter than function application, such as OCaml and Haskell, you have to write lots of silly parentheses:
+```
+(((object.methodOne x y z)
+  .methodTwo a b)
+  .methodThree c d e)
+  .methodFour
+```
 
 
 ### Eta-conversion and reduction
@@ -612,7 +639,7 @@ then `pair a b` doesn't reduce to `(a,b)`.  But `pair a b .fst` does reduce to `
 ```
 def unpairfn (f : A → B × C) : (A → B) × (A → C) ≔ (x ↦ (f x).fst, x ↦ (f x).snd)
 ```
-then `unpairfn f .fst` does not reduce until applied to a further argument.  As with abstractions, you can force such reduction by wrapping the term in an identity function or a let-binding.
+then `unpairfn f .fst` does not reduce until applied to a further argument.  As with abstractions, you can force such reduction by wrapping the term in an identity function.
 
 
 ### Eta-expansion and opacity
@@ -1193,7 +1220,7 @@ def sqdec3 ≔ sq [ zero. ↦ zero. | suc. n ↦ n ]
 However, a let-bound local function can use a `let rec` instead to define a local recursive function, which is not possible with a pattern-matching lambda:
 ```
 def sqdbl (x : ℕ) : ℕ ≔
-  let dbl : ℕ → ℕ ≔ y ↦ match y [ zero. ↦ zero. | suc. n ↦ suc. (suc. (dbl n)) ] in
+  let rec dbl : ℕ → ℕ ≔ y ↦ match y [ zero. ↦ zero. | suc. n ↦ suc. (suc. (dbl n)) ] in
   sq dbl x
 ```
 In fact, `let rec` is *always* treated generatively and lifted to top-level like an ordinary `let` that contains a `match`.  Indeed, in the absence of something like a "fixpoint" operator there is no other possibility, as there is no term syntax for it to evaluate to.

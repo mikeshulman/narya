@@ -2,6 +2,7 @@
 
 To create a web page that will run Narya in a browser, you will need the JavaScript package manager `npm`.  Once you have this, run the following commands:
 ```
+opam install zarith_stubs_js
 cd narya
 dune build js/jsnarya.bc.js
 cd js

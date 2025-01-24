@@ -15,7 +15,7 @@ let () =
          {
            name = "amp";
            fixity = Infix No.zero;
-           pattern = [ `Var ("x", `Nobreak, []); `Op (Op "&", `Break, []); `Var ("y", `None, []) ];
+           pattern = Var (("x", `Nobreak, []), Var_nil ((Op "&", `Break, []), ("y", `None, [])));
            key = `Constant foo;
            val_vars = [ "y"; "x" ];
          }) in

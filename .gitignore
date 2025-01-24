@@ -30,3 +30,6 @@ _opam/
 
 # Emacs backups
 *~
+
+# Generated opam file
+narya.opam

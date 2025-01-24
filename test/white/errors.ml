@@ -27,7 +27,7 @@ let () =
   let idaa, _ = synth "Id A a0 a1" in
   let a2 = assume "a2" idaa in
   let () = unsynth ~print:() "sym a2" ~short:"E0601" in
-  let () = unsynth ~print:() "g" ~code:(Unbound_variable "g") in
+  let () = unsynth ~print:() "g" ~code:(Unbound_variable ("g", [])) in
   let ida, _ = synth "Id A" in
   let () = uncheck ~print:() "a" ida ~short:"E0401" in
   let idida, _ = synth "Id (Id A) a a (refl a) a a (refl a)" in
@@ -40,7 +40,9 @@ let () =
   let () = unsynth ~print:() ".fst x" ~code:Parse_error in
   let () = unsynth ~print:() "x .fs.t y" ~code:(Invalid_field ".fs.t") in
   let () = unsynth ~print:() "f (con.str. x)" ~code:(Invalid_constr "con.str.") in
-  let () = unsynth ~print:() "x |-> f 0.1.2 x" ~code:(Unbound_variable "0.1.2") in
+  let () =
+    unsynth ~print:() "x |-> f 0.1.2 x"
+      ~code:(Unbound_variable ("0.1.2", [ ([ "0" ], [ "1"; "2" ]) ])) in
   let () = unsynth ~print:() "let x.y ≔ z in w" ~code:(Invalid_variable [ "x"; "y" ]) in
   let () = unsynth ~print:() "x.y ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in
   let () = unsynth ~print:() "a x.y b ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in

@@ -1,3 +1,7 @@
+module type Type = sig
+  type t
+end
+
 module type Fam = sig
   type 'g t
 end

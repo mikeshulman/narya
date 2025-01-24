@@ -144,3 +144,37 @@ let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
   (* Interactive mode also has all the other units loaded. *)
   History.set_visible (Execute.get_all ());
   Core.Command.Mode.run ~env:{ interactive = true } @@ fun () -> f ()
+
+(* Some applications may not be able to put their entire main loop inside a single call to "run_top".  Specifically, js_of_ocaml applications may need to return control to the browser periodically, but want to maintain the state that's normally stored in the effect handlers wrapped by run_top.  To accommodate this, we implement a "pausable" coroutine version of run_top, using effects, that saves a continuation inside all the handlers and returns to it whenever needed.  When our run_top callback finishes a single command, it yields control by performing the "Next" effect, passing the output of the command it just executed.  The handler for this effect doesn't immediately continue, but stores the continuation in a global variable and returns control to the caller.  Then when a new command is to be executed, the continuation is resumed with the text of that command. *)
+
+module Pauseable (R : Signatures.Type) = struct
+  open Effect.Deep
+
+  type _ Effect.t += Next : R.t -> (unit -> R.t) Effect.t
+
+  (* The stored continuation, which points into the callback inside run_top. *)
+  let cont : (unit -> R.t, R.t) continuation option ref = ref None
+
+  (* The effect handler that saves the continuation and returns the output passed to 'Next'. *)
+  let effc : type b. b Effect.t -> ((b, R.t) continuation -> R.t) option = function
+    | Next output ->
+        Some
+          (fun k ->
+            cont := Some k;
+            output)
+    | _ -> None
+
+  (* The coroutine.  This calls itself with an infinite recursion and so never actually returns in an ordinary way, only by performing effects.  But it is declared to have a return type of R.t, to match that of the effects. *)
+  let rec corun_top (f : unit -> R.t) : R.t =
+    (* The "Next" effect returns control to the caller until we are continued.  At that point execution resumes here with a new callback, which we then pass off to ourselves recursively. *)
+    corun_top (Effect.perform (Next (f ())))
+
+  (* We initialize the setup by calling run_top inside the effect handler. *)
+  let init ?use_ansi ?exiter f =
+    try_with
+      (fun () -> run_top ?use_ansi ?exiter @@ fun () -> corun_top (Effect.perform (Next (f ()))))
+      () { effc }
+
+  (* After startup, the caller calls "next" with a callback to be executed inside the run_top handlers and return a value. *)
+  let next (f : unit -> R.t) : R.t = continue (Option.get !cont) f
+end

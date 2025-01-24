@@ -251,7 +251,7 @@ Notations are used from explicitly imported files, but not transitively.
   > EOF
 
   $ narya -source-only n1.ny n3.ny -e 'echo a % a'
-   ￫ warning[E2211]
+   ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
   
   a % a
@@ -259,7 +259,7 @@ Notations are used from explicitly imported files, but not transitively.
   
 
   $ narya -source-only n1.ny n3.ny -e 'echo a & a'
-   ￫ warning[E2211]
+   ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
   
   a
@@ -279,7 +279,7 @@ Notations are used from explicitly imported files, but not transitively.
   > EOF
 
   $ narya -source-only n4.ny
-   ￫ warning[E2211]
+   ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
   
   a % a

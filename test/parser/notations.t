@@ -27,27 +27,27 @@ Testing notation commands
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "/" := f x x'
-   ￫ error[E2209]
+   ￫ error[E2207]
    ￮ notation variable 'x' used twice
   
   [1]
 
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y "#" z := f x y'
-   ￫ error[E2208]
+   ￫ error[E2206]
    ￮ unused notation variable: 'z'
   
   [1]
 
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "/" := f x y'
-   ￫ error[E2210]
+   ￫ error[E2208]
    ￮ unbound variable(s) in notation definition: y
   
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y "#" x := f x y'
-   ￫ error[E2206]
+   ￫ error[E2204]
    ￮ duplicate notation variable: 'x'
   
   [1]
@@ -55,13 +55,13 @@ Testing notation commands
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation f : "#" x "&" y "#" := f x y'
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation f : x "&" y "#" := f x y'
-   ￫ error[E2205]
+   ￫ error[E2203]
    ￮ notation command doesn't match pattern (tightness must be omitted only for outfix notations)
   
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : "#" x "&" y "#" := f x y'
-   ￫ error[E2205]
+   ￫ error[E2203]
    ￮ notation command doesn't match pattern (tightness must be omitted only for outfix notations)
   
   [1]
@@ -84,7 +84,7 @@ Testing notation commands
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y := Type x y'
-   ￫ error[E2207]
+   ￫ error[E2205]
    ￮ invalid notation head: Type
   
   [1]
@@ -105,30 +105,30 @@ Testing notation commands
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : … := f x y'
    ￫ error[E2202]
-   ￮ notation has no symbols
+   ￮ invalid notation pattern: has no symbols
   
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : … x "&" y … := f x y'
-   ￫ error[E2204]
-   ￮ notation can't be both right and left associative
+   ￫ error[E2202]
+   ￮ invalid notation pattern: can't be both right and left associative
   
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A' -e 'notation 0 f : x := f x'
    ￫ error[E2202]
-   ￮ notation has no symbols
+   ￮ invalid notation pattern: has no symbols
   
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : "&" x y := f x y'
-   ￫ error[E2203]
-   ￮ missing notation symbol between variables
+   ￫ error[E2202]
+   ￮ invalid notation pattern: missing symbol between variables
   
   [1]
 
   $ narya -e 'axiom A:Type' -e 'axiom f:A->A->A' -e 'notation 0 f : x "&" y := f x y' -e 'notation 0 f2 : x "%" y := f x y' -e 'def ff (x y : A) : A := x & y' -e 'def ff2 (x y : A) : A := x % y' -e 'axiom a : A' -e 'echo ff a a' -e 'echo ff2 a a'
-   ￫ warning[E2211]
+   ￫ warning[E2209]
    ￮ replacing printing notation for f (previous notation will still be parseable)
   
   a % a

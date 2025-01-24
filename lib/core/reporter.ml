@@ -84,7 +84,7 @@ module Code = struct
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
         -> t
     | Unequal_indices : printable * printable -> t
-    | Unbound_variable : string -> t
+    | Unbound_variable : string * (string list * string list) list -> t
     | Undefined_constant : printable -> t
     | Undefined_metavariable : printable -> t
     | Nonsynthesizing : string -> t
@@ -110,9 +110,7 @@ module Code = struct
     | Too_many_commands : t
     | Invalid_tightness : string -> t
     | Fixity_mismatch : t
-    | Zero_notation_symbols : t
-    | Missing_notation_symbol : t
-    | Ambidextrous_notation : t
+    | Invalid_notation_pattern : string -> t
     | Invalid_notation_symbol : string -> t
     | Invalid_notation_head : string -> t
     | Duplicate_notation_variable : string -> t
@@ -234,9 +232,7 @@ module Code = struct
     | Too_many_commands -> Error
     | Invalid_tightness _ -> Error
     | Fixity_mismatch -> Error
-    | Zero_notation_symbols -> Error
-    | Missing_notation_symbol -> Error
-    | Ambidextrous_notation -> Error
+    | Invalid_notation_pattern _ -> Error
     | Invalid_notation_symbol _ -> Error
     | Invalid_notation_head _ -> Error
     | Duplicate_notation_variable _ -> Error
@@ -402,16 +398,14 @@ module Code = struct
     (* notation *)
     | Invalid_tightness _ -> "E2200"
     | Invalid_notation_symbol _ -> "E2201"
-    | Zero_notation_symbols -> "E2202"
-    | Missing_notation_symbol -> "E2203"
-    | Ambidextrous_notation -> "E2204"
-    | Fixity_mismatch -> "E2205"
-    | Duplicate_notation_variable _ -> "E2206"
-    | Invalid_notation_head _ -> "E2207"
-    | Unused_notation_variable _ -> "E2208"
-    | Notation_variable_used_twice _ -> "E2209"
-    | Unbound_variable_in_notation _ -> "E2210"
-    | Head_already_has_notation _ -> "E2211"
+    | Invalid_notation_pattern _ -> "E2202"
+    | Fixity_mismatch -> "E2203"
+    | Duplicate_notation_variable _ -> "E2204"
+    | Invalid_notation_head _ -> "E2205"
+    | Unused_notation_variable _ -> "E2206"
+    | Notation_variable_used_twice _ -> "E2207"
+    | Unbound_variable_in_notation _ -> "E2208"
+    | Head_already_has_notation _ -> "E2209"
     (* import *)
     | Circular_import _ -> "E2300"
     | Library_has_extension _ -> "W2301"
@@ -554,7 +548,24 @@ module Code = struct
         textf
           "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
           pp_printed (print t1) pp_printed (print t2)
-    | Unbound_variable c -> textf "unbound variable: %s" c
+    | Unbound_variable (c, alt) -> (
+        match alt with
+        | [] -> textf "unbound variable: %s" c
+        (* | [ (parts, fields) ] ->
+               textf "unbound variable: %s (hint: did you mean %s .%s ?)" c (String.concat "." parts)
+                 (String.concat " ." fields) *)
+        | _ ->
+            textf "@[<v 0>unbound variable: %s (hint: did you mean one of:@;<1 2>%a@ ?)@]" c
+              (pp_print_list
+                 ~pp_sep:(fun ppf () -> pp_print_break ppf 1 2)
+                 (fun ppf (p, f) ->
+                   pp_print_string ppf (String.concat "." p);
+                   pp_print_string ppf " .";
+                   pp_print_list
+                     ~pp_sep:(fun ppf () -> pp_print_string ppf " .")
+                     pp_print_string ppf f))
+              alt)
+    (* The difference between "unbound variable" and "undefined constant" is that "undefined constant" is a BUG: it means a constant name was found in Scope, but its definition is missing from Global.  "Unbound variable" is the user error of writing a name that's NEITHER a local variable nor a constant in scope. *)
     | Undefined_constant c -> textf "undefined constant: %a" pp_printed (print c)
     | Undefined_metavariable v -> textf "undefined metavariable: %a" pp_printed (print v)
     | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
@@ -599,9 +610,7 @@ module Code = struct
     | Fixity_mismatch ->
         text
           "notation command doesn't match pattern (tightness must be omitted only for outfix notations)"
-    | Zero_notation_symbols -> text "notation has no symbols"
-    | Missing_notation_symbol -> text "missing notation symbol between variables"
-    | Ambidextrous_notation -> text "notation can't be both right and left associative"
+    | Invalid_notation_pattern str -> textf "invalid notation pattern: %s" str
     | Invalid_tightness str -> textf "invalid tightness: %s" str
     | Invalid_notation_symbol str -> textf "invalid notation symbol: %s" str
     | Invalid_notation_head str -> textf "invalid notation head: %s" str
@@ -725,6 +734,7 @@ end
 
 include Asai.StructuredReporter.Make (Code)
 open Code
+
 
 let struct_at_degenerated_type eta name =
   match eta with

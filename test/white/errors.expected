@@ -99,7 +99,9 @@
  ￫ error[E0300]
  ￭ user-supplied term
  1 | x |-> f 0.1.2 x
-   ^ unbound variable: 0.1.2
+   ^ unbound variable: 0.1.2 (hint: did you mean one of:
+       0 .1 .2
+     ?)
 
  ￫ error[E0202]
  ￭ user-supplied term

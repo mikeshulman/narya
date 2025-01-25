@@ -169,6 +169,7 @@ let rec check : type a. formatter -> a check -> unit =
   | Record (_, _, _, _) -> fprintf ppf "Record(?)"
   | Refute (_, _) -> fprintf ppf "Refute(?)"
   | Hole (_, _) -> fprintf ppf "Hole"
+  | Fail _ -> fprintf ppf "Error"
 
 and synth : type a. formatter -> a synth -> unit =
  fun ppf s ->

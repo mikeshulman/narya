@@ -56,6 +56,7 @@ module Raw = struct
     | Hole : (string option, 'a) Bwv.t * unit located -> 'a check
     (* Empty match against the first one of the arguments belonging to an empty type. *)
     | Refute : 'a synth located list * [ `Explicit | `Implicit ] -> 'a check
+    | Fail : Reporter.Code.t -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)

@@ -760,6 +760,7 @@ let () =
       | Dump.Binder b -> Printed (Dump.binder, b)
       | Dump.Term tm -> Printed (Dump.term, tm)
       | Dump.Env e -> Printed (Dump.env, e)
+      | Dump.Check e -> Printed (Dump.check, e)
       | _ -> fatal (Anomaly "unknown printable")
 
 (* Hack to ensure the above code is executed. *)

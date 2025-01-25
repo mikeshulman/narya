@@ -467,7 +467,7 @@ let rec append_list_map : type a b n. (a -> b) -> (b, n) t -> a list -> b wrappe
   | [] -> Wrap xs
   | y :: ys -> append_list_map f (Snoc (xs, f y)) ys
 
-let of_list_map : type a b n. (a -> b) -> a list -> b wrapped = fun f ys -> append_list_map f Emp ys
+let of_list_map : type a b. (a -> b) -> a list -> b wrapped = fun f ys -> append_list_map f Emp ys
 
 let append_list : type a n. (a, n) t -> a list -> a wrapped =
  fun xs ys -> append_list_map (fun x -> x) xs ys

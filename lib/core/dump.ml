@@ -8,6 +8,7 @@ open Format
 open Syntax
 open Value
 open Term
+open Raw
 
 (* Functions to dump a partial direct representation of various kinds of syntax, avoiding the machinery of readback, unparsing, etc. that's needed for ordinary pretty-printing.  Intended only for debugging. *)
 
@@ -18,6 +19,7 @@ type printable +=
   | Binder : ('b, 's) binder -> printable
   | Term : ('b, 's) term -> printable
   | Env : ('n, 'b) Value.env -> printable
+  | Check : 'a check -> printable
 
 let dim : formatter -> 'a D.t -> unit =
  fun ppf d -> fprintf ppf "%d" (String.length (string_of_deg (id_deg d)))
@@ -142,3 +144,60 @@ and canonical : type b. formatter -> b canonical -> unit =
         | Eta -> "Eta"
         | Noeta -> "Noeta")
         (String.concat "," (List.map (fun (f, _) -> Field.to_string f) (Bwd.to_list fields)))
+
+let rec check : type a. formatter -> a check -> unit =
+ fun ppf c ->
+  match c with
+  | Synth s -> synth ppf s
+  | Lam (x, _, body) ->
+      fprintf ppf "Lam(%s, %a)" (Option.value ~default:"_" x.value) check body.value
+  | Struct (_, flds) ->
+      fprintf ppf "Struct(";
+      Mbwd.miter
+        (fun [ (f, (x : a check Asai.Range.located)) ] ->
+          fprintf ppf "%s ≔ %a, " (Option.fold ~none:"_" ~some:Field.to_string f) check x.value)
+        [ flds ];
+      fprintf ppf ")"
+  | Constr (c, args) ->
+      fprintf ppf "Constr(%s,(%a))" (Constr.to_string c.value)
+        (fun ppf ->
+          List.iter (fun (x : a check Asai.Range.located) -> fprintf ppf "%a, " check x.value))
+        args
+  | Empty_co_match -> fprintf ppf "Emptycomatch(?)"
+  | Data _ -> fprintf ppf "Data(?)"
+  | Codata _ -> fprintf ppf "Codata(?)"
+  | Record (_, _, _, _) -> fprintf ppf "Record(?)"
+  | Refute (_, _) -> fprintf ppf "Refute(?)"
+  | Hole (_, _) -> fprintf ppf "Hole"
+
+and synth : type a. formatter -> a synth -> unit =
+ fun ppf s ->
+  match s with
+  | Var (x, _) -> fprintf ppf "Var(%d)" (N.int_of_index x)
+  | Const c -> fprintf ppf "Const(%a)" pp_printed (print (PConstant c))
+  | Field (tm, fld) -> fprintf ppf "Field(%a, %s)" synth tm.value (Field.to_string_ori fld)
+  | Pi (_, _, _) -> fprintf ppf "Pi(?)"
+  | App (fn, arg) -> fprintf ppf "App(%a, %a)" synth fn.value check arg.value
+  | Asc (_, _) -> fprintf ppf "Asc(?)"
+  | Let (_, _, _) -> fprintf ppf "Let(?)"
+  | Letrec (_, _, _) -> fprintf ppf "LetRec(?)"
+  | Act (_, _, _) -> fprintf ppf "Act(?)"
+  | Match { tm; sort = _; branches = br; refutables = _ } ->
+      fprintf ppf "Match (%a, (%a))" synth tm.value branches br
+  | UU -> fprintf ppf "Type"
+
+and branches : type a. formatter -> (Constr.t, a branch) Abwd.t -> unit =
+ fun ppf brs ->
+  match brs with
+  | Emp -> ()
+  | Snoc (Emp, br) -> branch ppf br
+  | Snoc (brs, br) ->
+      branches ppf brs;
+      if not (Bwd.is_empty brs) then fprintf ppf ", ";
+      branch ppf br
+
+and branch : type a. formatter -> Constr.t * a branch -> unit =
+ fun ppf (c, Branch (vars, _, body)) ->
+  fprintf ppf "%s %s ↦ %a" (Constr.to_string c)
+    (String.concat " " (Vec.to_list_map (Option.value ~default:"_") vars))
+    check body.value

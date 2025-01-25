@@ -46,7 +46,7 @@ let speclist =
         (fun () ->
           arity := 1;
           refl_char := 'd';
-          refl_strings := [];
+          refl_names := [];
           internal := false),
       "Abbreviation for -arity 1 -direction d -external" );
     ("--help", Arg.Unit (fun () -> ()), "");

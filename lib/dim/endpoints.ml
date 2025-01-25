@@ -6,19 +6,22 @@ type 'l len = 'l N.t
 type wrapped = Wrap : 'l len -> wrapped
 type 'l t = 'l len * 'l N.index
 
-let data : wrapped option ref = ref None
+module Data = struct
+  type t = { arity : wrapped; refl_string : string; refl_names : string list; internal : bool }
+end
 
-let set_len x =
-  match !data with
-  | Some _ -> raise (Failure "arity can only be set once")
-  | None ->
-      let (Plus_something x) = N.plus_of_int x in
-      data := Some (Wrap (Nat x))
+module Config = Algaeff.Reader.Make (Data)
 
-let wrapped () =
-  match !data with
-  | Some x -> x
-  | None -> raise (Failure "arity unset")
+let run ~arity ~refl_char ~refl_names ~internal f =
+  let (Plus_something arity) = N.plus_of_int arity in
+  let refl_string = String.make 1 refl_char in
+  let env : Data.t = { arity = Wrap (Nat arity); refl_string; refl_names; internal } in
+  Config.run ~env f
+
+let wrapped () = (Config.read ()).arity
+let refl_string () = (Config.read ()).refl_string
+let refl_names () = (Config.read ()).refl_names
+let internal () = (Config.read ()).internal
 
 let uniq : type l1 l2. l1 len -> l2 len -> (l1, l2) Eq.t =
  fun l1 l2 ->
@@ -40,26 +43,11 @@ let to_string : type l. l t option -> string =
 
 let of_char : type l. l len -> char -> (l t option, unit) result =
  fun l c ->
-  let i = N.to_int (len l) - (int_of_char c - int_of_char '0') in
-  if i = 0 then Ok None
-  else
-    match N.index_of_int (len l) (i - 1) with
-    | Some j -> Ok (Some (l, j))
-    | None -> Error ()
-
-let refl_char_data : char ref = ref 'e'
-let refl_string_data : string ref = ref "e"
-let refl_names_data : string list ref = ref [ "refl"; "Id" ]
-
-let set_char c =
-  refl_char_data := c;
-  refl_string_data := String.make 1 c
-
-let set_names strs = refl_names_data := strs
-let refl_string () = !refl_string_data
-let refl_names () = !refl_names_data
-
-(*  *)
-let internal_data : (unit -> bool) ref = ref (fun () -> raise (Failure "internality unset"))
-let internal () = !internal_data ()
-let set_internal i = internal_data := fun () -> i
+  try
+    let i = N.to_int (len l) - (int_of_char c - int_of_char '0') in
+    if i = 0 then Ok None
+    else
+      match N.index_of_int (len l) (i - 1) with
+      | Some j -> Ok (Some (l, j))
+      | None -> Error ()
+  with Failure _ -> Error ()

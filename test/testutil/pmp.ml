@@ -6,7 +6,6 @@ open Norm
 open Parser
 open Asai.Range
 
-let () = Arity.install ()
 let unlocated (value : 'a) : 'a located = { value; loc = None }
 
 (* Poor man's parser, reusing the OCaml parser to make a vaguely usable syntax *)

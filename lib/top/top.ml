@@ -16,7 +16,7 @@ let unicode = ref true
 let execute = ref true
 let arity = ref 2
 let refl_char = ref 'e'
-let refl_strings = ref [ "refl"; "Id" ]
+let refl_names = ref [ "refl"; "Id" ]
 let internal = ref true
 let discreteness = ref false
 let source_only = ref false
@@ -25,7 +25,7 @@ let source_only = ref false
 let marshal_flags chan =
   Marshal.to_channel chan !arity [];
   Marshal.to_channel chan !refl_char [];
-  Marshal.to_channel chan !refl_strings [];
+  Marshal.to_channel chan !refl_names [];
   Marshal.to_channel chan !internal [];
   Marshal.to_channel chan !discreteness []
 
@@ -36,7 +36,7 @@ let unmarshal_flags chan =
   let rs = (Marshal.from_channel chan : string list) in
   let int = (Marshal.from_channel chan : bool) in
   let disc = (Marshal.from_channel chan : bool) in
-  if ar = !arity && rc = !refl_char && rs = !refl_strings && int = !internal && disc = !discreteness
+  if ar = !arity && rc = !refl_char && rs = !refl_names && int = !internal && disc = !discreteness
   then Ok ()
   else
     Error
@@ -45,7 +45,7 @@ let unmarshal_flags chan =
          (if int then "-internal" else "-external")
          (if disc then " -discreteness" else ""))
 
-(* Given a string like "r,refl,Id" as in a command-line "-direction" argument, set refl_char and refl_strings *)
+(* Given a string like "r,refl,Id" as in a command-line "-direction" argument, set refl_char and refl_names *)
 let set_refls str =
   match String.split_on_char ',' str with
   | [] -> raise (Failure "Empty direction names")
@@ -53,7 +53,7 @@ let set_refls str =
       raise (Failure "Direction name must be a single lowercase letter")
   | c :: names ->
       refl_char := c.[0];
-      refl_strings := names
+      refl_names := names
 
 (* Given a command and preceeding whitespace, execute the command (if we are executing commands), alert about open holes, and print the reformatted command if requested. *)
 let do_command = function
@@ -96,10 +96,8 @@ let run_top ?use_ansi ?(exiter = fun () -> exit 1) f =
   @@ fun () ->
   if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
   if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
-  Dim.Endpoints.set_len !arity;
-  Dim.Endpoints.set_char !refl_char;
-  Dim.Endpoints.set_names !refl_strings;
-  Dim.Endpoints.set_internal !internal;
+  Dim.Endpoints.run ~arity:!arity ~refl_char:!refl_char ~refl_names:!refl_names ~internal:!internal
+  @@ fun () ->
   (* The initial namespace for all compilation units. *)
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   let top_files =

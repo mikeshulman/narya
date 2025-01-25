@@ -3,7 +3,6 @@ open Parser
 open Print
 open Core
 
-let () = Arity.install ()
 let margin = ref 80
 let set_margin n = margin := n
 

@@ -435,3 +435,37 @@ Even trivial dependency blocks going on, as long as there is the potential for d
      ^ term synthesized type Type but is being checked against type Nat
   
   [1]
+
+  $ cat >multierr.ny <<EOF
+  > def color : Type ≔ data [ red. | green. | blue. ]
+  > axiom A:Type
+  > axiom a:A
+  > def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
+  > EOF
+
+  $ narya -v multierr.ny
+   ￫ info[I0000]
+   ￮ constant color defined
+  
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a assumed
+  
+   ￫ hint[E1101]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   4 | def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
+     ^ match will not refine the goal or context (match in synthesizing position): 
+  
+   ￫ error[E0401]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   4 | def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
+     ^ term synthesized type Type but is being checked against type A
+  
+   ￫ error[E0900]
+   ￭ $TESTCASE_ROOT/multierr.ny
+   4 | def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
+     ^ checking tuple against non-record type A
+  
+  [1]

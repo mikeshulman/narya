@@ -303,6 +303,33 @@ Synthesizing matches don't need to be annotated
     : bool
   
 
+Either branch can synthesize:
+
+  $ narya -source-only -v letcase.ny -e 'def not : bool -> bool := x |-> let n := match x [ true. |-> false. | false. |-> (true. : bool) ] in n' -e 'echo not true.' -e 'echo not false.' -e 'echo not u'
+   ￫ info[I0000]
+   ￮ constant bool defined
+  
+   ￫ info[I0001]
+   ￮ axiom u assumed
+  
+   ￫ hint[E1101]
+   ￭ command-line exec string
+   1 | def not : bool -> bool := x |-> let n := match x [ true. |-> false. | false. |-> (true. : bool) ] in n
+     ^ match will not refine the goal or context (match in synthesizing position): 
+  
+   ￫ info[I0000]
+   ￮ constant not defined
+  
+  false.
+    : bool
+  
+  true.
+    : bool
+  
+  _let.0.n{…}
+    : bool
+  
+
 Let doesn't make a case tree unless it needs to:
 
   $ cat >letnocase.ny <<EOF

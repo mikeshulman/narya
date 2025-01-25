@@ -94,6 +94,7 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
         spacing = (if !extra_spaces then `Wide else `Narrow);
       }
   @@ fun () ->
+  Annotate.run @@ fun () ->
   Readback.Display.run ~env:false @@ fun () ->
   Core.Discrete.run ~env:!discreteness @@ fun () ->
   Reporter.run

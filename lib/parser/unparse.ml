@@ -192,9 +192,9 @@ let rec get_spine :
 
 (* The primary unparsing function.  Given the variable names, unparse a term into given tightness intervals. *)
 let rec unparse :
-    type n lt ls rt rs.
+    type n lt ls rt rs s.
     n Names.t ->
-    (n, kinetic) term ->
+    (n, s) term ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
@@ -299,6 +299,10 @@ let rec unparse :
               | None ->
                   let args = of_list_map (fun x -> make_unparser vars (CubeOf.find_top x)) args in
                   unparse_spine vars (`Constr c) args li ri)))
+  | Realize tm -> unparse vars tm li ri
+  | Canonical _ -> fatal (Unimplemented "unparsing canonical types")
+  | Struct (Noeta, _, _, _) -> fatal (Unimplemented "unparsing comatches")
+  | Match _ -> fatal (Unimplemented "unparsing matches")
 
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
@@ -404,11 +408,11 @@ and unparse_field_var :
 
 (* For unparsing an iterated abstraction, we group together the fully-normal variables and at-least-partially-cube variables, since they have different notations.  There is no notation for partially-cube variables, so we make them fully cube.  We recursively descend through the structure of the term, storing in 'cube' which kind of variable we are picking up and continuing until we find either a non-abstraction or an abstraction of the wrong type.  *)
 and unparse_lam :
-    type n lt ls rt rs.
+    type n lt ls rt rs s.
     [ `Cube | `Normal ] ->
     n Names.t ->
     string option Bwd.t ->
-    (n, kinetic) term ->
+    (n, s) term ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
@@ -436,11 +440,11 @@ and unparse_lam :
 
 (* Once we hit either a non-abstraction or a different kind of abstraction, we pick the appropriate notation to use for the abstraction, depending on the kind of variables.  Note that both are (un)parsed as binary operators whose left-hand argument is an "application spine" of variables, produced here by unparse_abs. *)
 and unparse_lam_done :
-    type n lt ls rt rs.
+    type n lt ls rt rs s.
     [ `Cube | `Normal ] ->
     n Names.t ->
     string option Bwd.t ->
-    (n, kinetic) term ->
+    (n, s) term ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =

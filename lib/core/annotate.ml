@@ -2,7 +2,6 @@
 open Status
 open Reporter
 open Printable
-open Syntax
 
 type 'a located = 'a Asai.Range.located
 

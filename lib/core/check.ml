@@ -100,23 +100,17 @@ let rec motive_of_family :
       motive
   | _ -> fatal (Anomaly "non-family in motive_of_family")
 
-type (_, _, _) vars_of_vec =
+type (_, _, _) vars_of_names =
   | Vars :
       ('a, 'b, 'abc) N.plus * (N.zero, 'n, string option, 'b) NICubeOf.t
-      -> ('a, 'abc, 'n) vars_of_vec
+      -> ('a, 'abc, 'n) vars_of_names
 
-let vars_of_vec :
+let vars_of_names :
     type a c abc n.
-    Asai.Range.t option ->
-    n D.t ->
-    (a, c, abc) Fwn.bplus ->
-    (string option, c) Vec.t ->
-    (a, abc, n) vars_of_vec =
- fun loc dim abc xs ->
+    Asai.Range.t option -> n D.t -> (a, c, abc) Namevec.t -> (a, abc, n) vars_of_names =
+ fun loc dim xs ->
   let module S = struct
-    type 'b t =
-      | Ok : (a, 'b, 'ab) N.plus * ('ab, 'c, abc) Fwn.bplus * (string option, 'c) Vec.t -> 'b t
-      | Missing of int
+    type 'b t = Ok : (a, 'b, 'ab) N.plus * ('ab, 'c, abc) Namevec.t -> 'b t | Missing of int
   end in
   let module Build = NICubeOf.Traverse (S) in
   match
@@ -124,15 +118,14 @@ let vars_of_vec :
       {
         build =
           (fun _ -> function
-            | Ok (ab, Suc abc, x :: xs) -> Fwrap (NFamOf x, Ok (Suc ab, abc, xs))
+            | Ok (ab, x :: xs) -> Fwrap (NFamOf x, Ok (Suc ab, xs))
             | Ok _ -> Fwrap (NFamOf None, Missing (-1))
             | Missing j -> Fwrap (NFamOf None, Missing (j - 1)));
       }
-      (Ok (Zero, abc, xs))
+      (Ok (Zero, xs))
   with
-  | Wrap (names, Ok (ab, Zero, [])) -> Vars (ab, names)
-  | Wrap (_, Ok (_, abc, _)) ->
-      fatal ?loc (Wrong_boundary_of_record (Fwn.to_int (Fwn.bplus_right abc)))
+  | Wrap (names, Ok (ab, [])) -> Vars (ab, names)
+  | Wrap (_, Ok (_, xs)) -> fatal ?loc (Wrong_boundary_of_record (Fwn.to_int (Namevec.length xs)))
   | Wrap (_, Missing j) -> fatal ?loc (Wrong_boundary_of_record j)
 
 (* Slurp up an entire application spine.  Returns the function, and all the arguments, where each argument is paired with the location of its application.  So spine "f x y" would return "f" (located) along with [(location of "f x", "x" (located)); (location of "f x y", "y" (located))]. *)
@@ -165,8 +158,7 @@ let unless_error (v : 'a) (err : 'b Bwd.t) : ('a, Code.t) Result.t =
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
   | Checkable_branch : {
-      xs : (string option, 'c) Vec.t;
-      plus_args : ('a, 'c, 'ac) Fwn.bplus;
+      xs : ('a, 'c, 'ac) Namevec.t;
       (* If the body is None, that means the user omitted this branch.  (That might be ok, if it can be refuted by a pattern variable belonging to an empty type.) *)
       body : 'ac check located option;
       env : ('m, 'b) env;
@@ -178,8 +170,7 @@ type (_, _, _) checkable_branch =
 (* A "synthable branch" is similar, but records the fact that the user gave a synthesizing term.  *)
 type (_, _, _) synthable_branch =
   | Synthable_branch : {
-      xs : (string option, 'c) Vec.t;
-      plus_args : ('a, 'c, 'ac) Fwn.bplus;
+      xs : ('a, 'c, 'ac) Namevec.t;
       body : 'ac synth located;
       env : ('m, 'b) env;
       argtys : ('b, 'c, 'bc) Telescope.t;
@@ -191,23 +182,22 @@ type (_, _, _) synthable_branch =
 let merge_branches head user_branches data_constrs =
   let user_branches, leftovers =
     Bwd.fold_left
-      (fun (userbrs, databrs) (constr, Branch (xs, { value = plus_args; loc }, body)) ->
+      (fun (userbrs, databrs) (constr, Branch ({ value = xs; loc }, body)) ->
         (* We check at the preprocessing stage that there are no duplicate constructors in the match. *)
         if Abwd.mem constr userbrs then fatal ?loc (Duplicate_constructor_in_match constr);
         let databrs, databr = Abwd.extract constr databrs in
         let (Value.Dataconstr { env; args = argtys; indices = index_terms }) =
-          Reporter.with_loc loc @@ fun () ->
-          databr <|> No_such_constructor_in_match (phead head, constr) in
+          match databr with
+          | Some db -> db
+          | None -> fatal ?loc (No_such_constructor_in_match (phead head, constr)) in
         (* We also check during preprocessing that the user has supplied the right number of pattern variable arguments to the constructor.  The positive result of this check is then recorded in the common existential types bound by Checkable_branch. *)
-        match Fwn.compare (Fwn.bplus_right plus_args) (Telescope.length argtys) with
+        match Fwn.compare (Namevec.length xs) (Telescope.length argtys) with
         | Neq ->
             fatal ?loc
               (Wrong_number_of_arguments_to_pattern
-                 ( constr,
-                   Fwn.to_int (Fwn.bplus_right plus_args) - Fwn.to_int (Telescope.length argtys) ))
+                 (constr, Fwn.to_int (Namevec.length xs) - Fwn.to_int (Telescope.length argtys)))
         | Eq ->
-            let br =
-              Checkable_branch { xs; plus_args; body = Some body; env; argtys; index_terms } in
+            let br = Checkable_branch { xs; body = Some body; env; argtys; index_terms } in
             (Snoc (userbrs, (constr, br)), databrs))
       (Bwd.Emp, data_constrs) user_branches in
   (* If there are any constructors in the datatype left over that the user didn't supply branches for, we add them to the list at the end.  They will be tested for refutability. *)
@@ -215,9 +205,9 @@ let merge_branches head user_branches data_constrs =
     (Bwd_extra.to_list_map
        (fun (c, Value.Dataconstr { env; args = argtys; indices = index_terms }) ->
          let b = Telescope.length argtys in
-         let (Bplus plus_args) = Fwn.bplus b in
-         let xs = Vec.init (fun () -> (None, ())) b () in
-         (c, Checkable_branch { xs; body = None; plus_args; env; argtys; index_terms }))
+         let (Bplus plus_args) = Raw.Indexed.bplus b in
+         let xs = Namevec.none plus_args in
+         (c, Checkable_branch { xs; body = None; env; argtys; index_terms }))
        leftovers)
 
 exception Case_tree_construct_in_let
@@ -421,11 +411,11 @@ let rec check :
         match view_type ~severity ty "typechecking codata" with
         | UU tyargs -> check_codata status ctx tyargs Emp (Bwd.to_list fields) Emp
         | _ -> fatal (Checking_canonical_at_nonuniverse ("codatatype", PVal (ctx, ty))))
-    | Record (abc, xs, fields, opacity), Potential _ -> (
+    | Record (xs, fields, opacity), Potential _ -> (
         match view_type ~severity ty "typechecking record" with
         | UU tyargs ->
             let dim = TubeOf.inst tyargs in
-            let (Vars (af, vars)) = vars_of_vec abc.loc dim abc.value xs in
+            let (Vars (af, vars)) = vars_of_names xs.loc dim xs.value in
             check_record status dim ctx opacity tyargs vars Emp Zero af Emp fields Emp
         | _ -> fatal (Checking_canonical_at_nonuniverse ("record type", PVal (ctx, ty))))
     | Data constrs, Potential _ ->
@@ -450,8 +440,43 @@ let rec check :
           Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
         Global.add_hole meta pos ~vars ~termctx ~ty ~status;
         Meta (meta, energy status)
-    (* And lastly, if we have a synthesizing term, we synthesize it. *)
-    | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty in
+    (* If we have a synthesizing term, we synthesize it. *)
+    | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty
+    (* We pass through case tree leaf markers *)
+    | Realize ktm, Potential _ -> Realize (check (Kinetic `Nolet) ctx (locate_opt tm.loc ktm) ty)
+    | Realize ktm, Kinetic l -> check (Kinetic l) ctx (locate_opt tm.loc ktm) ty
+    (* Nothing is embedded *)
+    | Embed _, _ -> .
+    (* If we're using the checking type as an implicit first argument: *)
+    | ImplicitApp (fn, args), _ -> (
+        (* We read it back, so we can put it as the first argument in the generated term. *)
+        let cty = readback_val ctx ty in
+        (* Now we act like synth on an application. *)
+        let sfn, sty = synth (Kinetic `Nolet) ctx fn in
+        match view_type sty "ImplicitApp" with
+        | Pi (_, doms, cods, tyargs) -> (
+            (* Only 0-dimensional applications are allowed. *)
+            match D.compare (CubeOf.dim doms) D.zero with
+            | Eq -> (
+                (* The first argument must be a type. *)
+                match view_type (CubeOf.find_top doms) "ImplicitApp argument" with
+                | UU _ ->
+                    (* We build the implicit application term and its type. *)
+                    let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cty)) in
+                    let new_sty = tyof_app cods tyargs (CubeOf.singleton ty) in
+                    (* And then proceed applying to the rest of the arguments. *)
+                    let stm, sty = synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args in
+                    (* Then we have to check that the resulting type of the whole application agrees with the one we're checking against. *)
+                    equal_val (Ctx.length ctx) sty ty
+                    <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
+                    realize status stm
+                | _ ->
+                    fatal ?loc:fn.loc
+                      (Anomaly "first argument of an ImplicitMap is not of type Type"))
+            | Neq -> fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitApp", CubeOf.dim doms, D.zero))
+            )
+        | _ -> fatal ?loc:fn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn), PVal (ctx, sty))))
+  in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx tm;
   Annotate.ty ctx ty;
@@ -476,9 +501,9 @@ and check_of_synth :
       @@ fun () ->
       let cty = check (Kinetic `Nolet) ctx aty (universe D.zero) in
       let ety = eval_term (Ctx.env ctx) cty in
-      let ctm = check status ctx ctm ety in
       equal_val (Ctx.length ctx) ety ty
       <|> Unequal_synthesized_type (PVal (ctx, ety), PVal (ctx, ty));
+      let ctm = check status ctx ctm ety in
       ctm
   | _ ->
       let sval, sty = synth status ctx { value = stm; loc } in
@@ -721,7 +746,7 @@ and check_implicit_match :
     (a, b) Ctx.t ->
     a synth located ->
     (Constr.t, a branch) Abwd.t ->
-    a refutables ->
+    a refutables option ->
     kinetic value ->
     (b, potential) term =
  fun status ctx tm brs refutables motive ->
@@ -782,11 +807,11 @@ and check_nondep_match :
         List.fold_left
           (fun (branches, errs)
                ( constr,
-                 (Checkable_branch { xs; body; plus_args; env; argtys; index_terms = _ } :
+                 (Checkable_branch { xs; body; env; argtys; index_terms = _ } :
                    (a, m, ij) checkable_branch) ) ->
             let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
             (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-            let newctx, _, _, newnfs = ext_tel ctx env xs argtys plus_args efc in
+            let newctx, _, _, newnfs = ext_tel ctx env xs argtys efc in
             let perm = Tbwd.id_perm in
             let status = make_match_status status tm dim branches efc None perm constr in
             (* Finally, we recurse into the "body" of the branch.  We catch errors and accumuate them so that later branches can continue to be checked and produce their own errors even if earlier ones fail, but we pass through the errors that are getting caught elsewhere. *)
@@ -839,11 +864,11 @@ and synth_nondep_match :
       (* Now we split the branches into the synthesizing and non-synthesizing ones. *)
       let synth_branches, check_branches =
         List.partition_map
-          (fun (c, (Checkable_branch { xs; plus_args; body; env; argtys; index_terms } as cb)) ->
+          (fun (c, (Checkable_branch { xs; body; env; argtys; index_terms } as cb)) ->
             match body with
             | Some { value = Synth sbody; loc } ->
                 let body = locate_opt loc sbody in
-                Left (c, Synthable_branch { xs; plus_args; body; env; argtys; index_terms })
+                Left (c, Synthable_branch { xs; body; env; argtys; index_terms })
             | _ -> Right (c, cb))
           (merge_branches name brs data_constrs) in
       (* We iterate through the synthesizing branches looking for the first one that succeeds at synthesizing, accumulating errors from the ones that fail. *)
@@ -856,12 +881,12 @@ and synth_nondep_match :
               else errs in
             (None, errs, Constr.Map.empty, [])
         | ( constr,
-            (Synthable_branch { xs; body; plus_args; env; argtys; index_terms = _ } :
+            (Synthable_branch { xs; body; env; argtys; index_terms = _ } :
               (a, m, ij) synthable_branch) )
           :: brs ->
             (* Again, same preprocessing as in check_nondep_match. *)
             let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
-            let newctx, _, _, _ = ext_tel ctx env xs argtys plus_args efc in
+            let newctx, _, _, _ = ext_tel ctx env xs argtys efc in
             let perm = Tbwd.id_perm in
             let status = make_match_status status tm dim Constr.Map.empty efc None perm constr in
             Annotate.ctx status newctx (locate_opt body.loc (Synth body.value));
@@ -884,19 +909,19 @@ and synth_nondep_match :
       (* We put the remaining synthesizing branches back on the front of the checking ones. *)
       let check_branches =
         List.fold_right
-          (fun (c, Synthable_branch { xs; plus_args; body; env; argtys; index_terms }) cbs ->
+          (fun (c, Synthable_branch { xs; body; env; argtys; index_terms }) cbs ->
             let body = Some { value = Synth body.value; loc = body.loc } in
-            (c, Checkable_branch { xs; plus_args; body; env; argtys; index_terms }) :: cbs)
+            (c, Checkable_branch { xs; body; env; argtys; index_terms }) :: cbs)
           synth_branches check_branches in
       (* Now we proceed to check these branches, as in check_nondep_match.  See there for comments. *)
       let branches, errs =
         List.fold_left
           (fun (branches, errs)
                ( constr,
-                 (Checkable_branch { xs; body; plus_args; env; argtys; index_terms = _ } :
+                 (Checkable_branch { xs; body; env; argtys; index_terms = _ } :
                    (a, m, ij) checkable_branch) ) ->
             let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
-            let newctx, _, _, newnfs = ext_tel ctx env xs argtys plus_args efc in
+            let newctx, _, _, newnfs = ext_tel ctx env xs argtys efc in
             let perm = Tbwd.id_perm in
             let status = make_match_status status tm dim branches efc None perm constr in
             Reporter.try_with ~fatal:(fun e ->
@@ -963,11 +988,11 @@ and synth_dep_match :
         List.fold_left
           (fun (branches, errs)
                ( constr,
-                 (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
+                 (Checkable_branch { xs; body; env; argtys; index_terms } :
                    (a, m, ij) checkable_branch) ) ->
             let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
             (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-            let newctx, newenv, newvars, newnfs = ext_tel ctx env xs argtys plus_args efc in
+            let newctx, newenv, newvars, newnfs = ext_tel ctx env xs argtys efc in
             let perm = Tbwd.id_perm in
             let status = make_match_status status ctm dim branches efc None perm constr in
             (* To get the type at which to typecheck the body of the branch, we have to evaluate the general dependent motive at the indices of this constructor, its boundaries, and itself.  First we compute the indices. *)
@@ -1031,7 +1056,7 @@ and check_var_match :
     b Term.index ->
     kinetic value ->
     (Constr.t, a branch) Abwd.t ->
-    a refutables ->
+    a refutables option ->
     kinetic value ->
     Asai.Range.t option ->
     (b, potential) term =
@@ -1103,11 +1128,11 @@ and check_var_match :
         List.fold_left
           (fun (branches, errs)
                ( constr,
-                 (Checkable_branch { xs; body; plus_args; env; argtys; index_terms } :
+                 (Checkable_branch { xs; body; env; argtys; index_terms } :
                    (a, m, ij) checkable_branch) ) ->
             let (Snocs efc) = Tbwd.snocs (Telescope.length argtys) in
             (* Create new level variables for the pattern variables to which the constructor is applied, and add corresponding index variables to the context.  The types of those variables are specified in the telescope argtys, and have to be evaluated at the closure environment 'env' and the previous new variables (this is what ext_tel does).  For a higher-dimensional match, the new variables come with their boundaries in n-dimensional cubes. *)
-            let newctx, newenv, newvars, newnfs = ext_tel ctx env xs argtys plus_args efc in
+            let newctx, newenv, newvars, newnfs = ext_tel ctx env xs argtys efc in
             (* Evaluate the "index_terms" at the new pattern variables, obtaining what the indices should be for the new term that replaces the match variable in the match body. *)
             let index_vals =
               Vec.mmap
@@ -1213,7 +1238,10 @@ and check_var_match :
                                   else
                                     let _, sty = synth (Kinetic `Nolet) newctx x in
                                     is_empty sty)
-                                false (refutables.refutables plus_args)
+                                false
+                                (Option.fold
+                                   ~some:(fun r -> r.refutables (Namevec.bplus xs))
+                                   ~none:[] refutables)
                               (* If we found something to refute, we mark this branch as refuted in the compiled match. *)
                             then (branches |> Constr.Map.add constr Term.Refute, errs)
                             else fatal (Missing_constructor_in_match constr))))
@@ -1748,7 +1776,8 @@ and synth :
         emit (Matching_wont_refine ("match in synthesizing position", PUnit));
         synth_nondep_match status ctx tm branches None
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
-        synth_nondep_match status ctx tm branches (Some i) in
+        synth_nondep_match status ctx tm branches (Some i)
+    | Fail e, _ -> fatal e in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx (locate_opt tm.loc (Synth tm.value));
   let restm, resty = go () in

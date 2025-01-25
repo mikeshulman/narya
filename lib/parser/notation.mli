@@ -1,7 +1,7 @@
 open Bwd
 open Util
 open Core
-open Syntax.Raw
+open Raw
 open Asai.Range
 module TokMap : module type of Map.Make (Token)
 

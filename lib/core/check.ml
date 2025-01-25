@@ -135,15 +135,15 @@ let vars_of_vec :
       fatal ?loc (Wrong_boundary_of_record (Fwn.to_int (Fwn.bplus_right abc)))
   | Wrap (_, Missing j) -> fatal ?loc (Wrong_boundary_of_record j)
 
-(* Slurp up an entire application spine.  Returns the function, the locations of all the applications (e.g. in "f x y" returns the locations of "f x" and "f x y") and all the arguments. *)
+(* Slurp up an entire application spine.  Returns the function, and all the arguments, where each argument is paired with the location of its application.  So spine "f x y" would return "f" (located) along with [(location of "f x", "x" (located)); (location of "f x y", "y" (located))]. *)
 let spine :
-    type a. a synth located -> a synth located * Asai.Range.t option list * a check located list =
+    type a. a synth located -> a synth located * (Asai.Range.t option * a check located) list =
  fun tm ->
-  let rec spine tm locs args =
+  let rec spine tm args =
     match tm.value with
-    | Raw.App (fn, arg) -> spine fn (tm.loc :: locs) (arg :: args)
-    | _ -> (tm, locs, args) in
-  spine tm [] []
+    | Raw.App (fn, arg) -> spine fn ((tm.loc, arg) :: args)
+    | _ -> (tm, args) in
+  spine tm []
 
 (* Temporarily define a given head (constant or meta) to be a given value, in executing a callback.  However, if an error has occurred earlier in typechecking other parts of it, then instead bind that head to an error value that doesn't allow it to be used. *)
 let run_with_definition :
@@ -453,7 +453,7 @@ let rec check :
     (* And lastly, if we have a synthesizing term, we synthesize it. *)
     | Synth stm, _ -> check_of_synth status ctx stm tm.loc ty in
   with_loc tm.loc @@ fun () ->
-  Annotate.ctx status ctx;
+  Annotate.ctx status ctx tm;
   Annotate.ty ctx ty;
   let result = go () in
   Annotate.tm ctx result;
@@ -556,7 +556,7 @@ and synth_or_check_let :
     | Potential (c, args, hyp) -> Potential (c, args, fun body -> hyp (Let (name, v, body)))
     | Kinetic l -> Kinetic l in
   (* And synthesize or check the body in the extended context. *)
-  Annotate.ctx status newctx;
+  Annotate.ctx status newctx body;
   match (ty, body) with
   | Some ty, _ ->
       let sbody = check status newctx body ty in
@@ -592,7 +592,7 @@ and synth_or_check_letrec :
   (* Make a context for it *)
   let _, newctx = ext_metas ctx ac metas vtys Zero Zero Zero in
   (* And synthesize or check the body in the extended context. *)
-  Annotate.ctx status newctx;
+  Annotate.ctx status newctx body;
   match (ty, body) with
   | Some ty, _ ->
       let sbody = check status newctx body ty in
@@ -722,7 +722,7 @@ and check_implicit_match :
           check_nondep_match status ctx stm varty brs None motive tm.loc
       | `Var (Some level, { tm = _; ty = varty }, index) ->
           with_loc loc (fun () ->
-              Annotate.ctx status ctx;
+              Annotate.ctx status ctx (locate_opt loc (Synth (Var ix)));
               Annotate.ty ctx varty;
               Annotate.tm ctx (realize status (Term.Var index)));
           check_var_match status ctx level index varty brs refutables motive loc)
@@ -847,7 +847,7 @@ and synth_nondep_match :
             let newctx, _, _, _ = ext_tel ctx env xs argtys plus_args efc in
             let perm = Tbwd.id_perm in
             let status = make_match_status status tm dim Constr.Map.empty efc None perm constr in
-            Annotate.ctx status newctx;
+            Annotate.ctx status newctx (locate_opt body.loc (Synth body.value));
             (* Trap errors and accumulate them, going on to look for other synthesizing branches. *)
             Reporter.try_with ~fatal:(fun e -> find_synthing_branch (Snoc (errs, e)) brs)
             @@ fun () ->
@@ -890,7 +890,7 @@ and synth_nondep_match :
             match (body, motive) with
             (* The difference with the checking case is that we might have no motive, if all the synthesis failed.  In that case, the only reason we're going through this is to annotate the contexts of each branch. *)
             | Some body, None ->
-                with_loc body.loc (fun () -> Annotate.ctx status newctx);
+                Annotate.ctx status newctx body;
                 (branches, errs)
             | Some body, Some motive ->
                 ( branches
@@ -1675,9 +1675,9 @@ and synth :
         (realize status (pi x cdom ccod), universe D.zero)
     | App _, _ ->
         (* If there's at least one application, we slurp up all the applications, synthesize a type for the function, and then pass off to synth_apps to iterate through all the arguments. *)
-        let fn, locs, args = spine tm in
+        let fn, args = spine tm in
         let sfn, sty = synth (Kinetic `Nolet) ctx fn in
-        let stm, sty = synth_apps (Kinetic `Nolet) ctx { value = sfn; loc = fn.loc } sty locs args in
+        let stm, sty = synth_apps (Kinetic `Nolet) ctx { value = sfn; loc = fn.loc } sty fn args in
         (realize status stm, sty)
     | Act (str, fa, { value = Synth x; loc }), _ ->
         let x = { value = x; loc } in
@@ -1722,7 +1722,7 @@ and synth :
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
         synth_nondep_match status ctx tm branches (Some i) in
   with_loc tm.loc @@ fun () ->
-  Annotate.ctx status ctx;
+  Annotate.ctx status ctx (locate_opt tm.loc (Synth tm.value));
   let restm, resty = go () in
   Annotate.ty ctx resty;
   Annotate.tm ctx restm;
@@ -1735,30 +1735,30 @@ and synth_apps :
     (a, b) Ctx.t ->
     (b, kinetic) term located ->
     kinetic value ->
-    Asai.Range.t option list ->
-    a check located list ->
+    a synth located ->
+    (Asai.Range.t option * a check located) list ->
     (b, kinetic) term * kinetic value =
- fun status ctx sfn sty locs args ->
+ fun status ctx sfn sty fn args ->
   (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied.  Failure of view_type here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
-  let afn, aty, alocs, aargs =
+  let asfn, aty, afn, aargs =
     match view_type sty "synth_apps" with
     (* The obvious thing we can "apply" is an element of a pi-type. *)
-    | Pi (_, doms, cods, tyargs) -> synth_app ctx sfn doms cods tyargs locs args
+    | Pi (_, doms, cods, tyargs) -> synth_app ctx sfn doms cods tyargs fn args
     (* We can also "apply" a higher-dimensional *type*, leading to a (further) instantiation of it.  Here the number of arguments must exactly match *some* integral instantiation. *)
-    | UU tyargs -> synth_inst ctx sfn tyargs locs args
+    | UU tyargs -> synth_inst ctx sfn tyargs fn args
     (* Something that synthesizes a type that isn't a pi-type or a universe cannot be applied to anything, but this is a user error, not a bug. *)
     | _ ->
         fatal ?loc:sfn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn.value), PVal (ctx, sty)))
   in
   (* synth_app and synth_inst fail if there aren't enough arguments.  If they used up all the arguments, we're done; otherwise we continue with the rest of the arguments. *)
   match aargs with
-  | [] -> (afn.value, aty)
+  | [] -> (asfn.value, aty)
   | _ :: _ ->
-      with_loc afn.loc (fun () ->
-          Annotate.ctx status ctx;
+      with_loc asfn.loc (fun () ->
+          Annotate.ctx status ctx (locate_opt afn.loc (Synth afn.value));
           Annotate.ty ctx aty;
-          Annotate.tm ctx afn.value);
-      synth_apps status ctx afn aty alocs aargs
+          Annotate.tm ctx asfn.value);
+      synth_apps status ctx asfn aty afn aargs
 
 and synth_app :
     type a b n.
@@ -1767,16 +1767,19 @@ and synth_app :
     (n, kinetic value) CubeOf.t ->
     (n, unit) BindCube.t ->
     (D.zero, n, n, normal) TubeOf.t ->
-    Asai.Range.t option list ->
-    a check located list ->
-    (b, kinetic) term located * kinetic value * Asai.Range.t option list * a check located list =
- fun ctx sfn doms cods tyargs locs args ->
+    a synth located ->
+    (Asai.Range.t option * a check located) list ->
+    (b, kinetic) term located
+    * kinetic value
+    * a synth located
+    * (Asai.Range.t option * a check located) list =
+ fun ctx sfn doms cods tyargs fn args ->
   let module M = Monad.State (struct
-    type t = Asai.Range.t option * Asai.Range.t option list * a check located list
+    type t = Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
   end) in
   (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
   let eargtbl = Hashtbl.create 10 in
-  let [ cargs; eargs ], (newloc, rlocs, rest) =
+  let [ cargs; eargs ], (newloc, newfn, rest) =
     let open CubeOf.Monadic (M) in
     let open CubeOf.Infix in
     pmapM
@@ -1784,12 +1787,12 @@ and synth_app :
         map =
           (fun fa [ dom ] ->
             let open Monad.Ops (M) in
-            let* loc, ls, ts = M.get in
+            let* loc, f, ts = M.get in
             let* tm =
-              match (ls, ts) with
-              | _, [] | [], _ -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_function
-              | l :: ls, t :: ts ->
-                  let* () = M.put (l, ls, ts) in
+              match ts with
+              | [] -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_function
+              | (l, t) :: ts ->
+                  let* () = M.put (l, locate_opt l (App (f, t)), ts) in
                   return t in
             let ty =
               inst dom
@@ -1805,22 +1808,25 @@ and synth_app :
             Hashtbl.add eargtbl (SFace_of fa) { tm; ty };
             return (ctm @: [ tm ]));
       }
-      [ doms ] (Cons (Cons Nil)) (sfn.loc, locs, args) in
+      [ doms ] (Cons (Cons Nil)) (sfn.loc, fn, args) in
   (* Evaluate cod at these evaluated arguments and instantiate it at the appropriate values of tyargs. *)
   let output = tyof_app cods tyargs eargs in
-  ({ value = Term.App (sfn.value, cargs); loc = newloc }, output, rlocs, rest)
+  ({ value = Term.App (sfn.value, cargs); loc = newloc }, output, newfn, rest)
 
 and synth_inst :
     type a b n.
     (a, b) Ctx.t ->
     (b, kinetic) term located ->
     (D.zero, n, n, normal) TubeOf.t ->
-    Asai.Range.t option list ->
-    a check located list ->
-    (b, kinetic) term located * kinetic value * Asai.Range.t option list * a check located list =
- fun ctx sfn tyargs locs args ->
+    a synth located ->
+    (Asai.Range.t option * a check located) list ->
+    (b, kinetic) term located
+    * kinetic value
+    * a synth located
+    * (Asai.Range.t option * a check located) list =
+ fun ctx sfn tyargs fn args ->
   let module M = Monad.State (struct
-    type t = Asai.Range.t option * Asai.Range.t option list * a check located list
+    type t = Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
   end) in
   let n = TubeOf.inst tyargs in
   match D.compare_zero n with
@@ -1834,20 +1840,19 @@ and synth_inst :
       let eargtbl = Hashtbl.create 10 in
       let tyargs1 = TubeOf.pboundary (D.zero_plus m) msuc tyargs in
       (* What we really want, however, are two tubes of checked arguments *and* evaluated arguments. *)
-      let [ cargs; eargs ], (newloc, rlocs, rest) =
+      let [ cargs; eargs ], (newloc, newfn, rest) =
         pmapM
           {
             map =
               (fun fa [ tyarg ] ->
                 (* We iterate monadically with the list of available arguments in a state/maybe monad, taking one more argument every time we need it as long as there is one. *)
                 let open Monad.Ops (M) in
-                let* loc, ls, ts = M.get in
+                let* loc, f, ts = M.get in
                 let* tm =
-                  match (ls, ts) with
-                  | [], _ | _, [] ->
-                      with_loc loc @@ fun () -> fatal Not_enough_arguments_to_instantiation
-                  | l :: ls, t :: ts ->
-                      let* () = M.put (l, ls, ts) in
+                  match ts with
+                  | [] -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_instantiation
+                  | (l, t) :: ts ->
+                      let* () = M.put (l, locate_opt l (App (f, t)), ts) in
                       return t in
                 (* We check each such argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments. *)
                 let fa = sface_of_tface fa in
@@ -1867,9 +1872,9 @@ and synth_inst :
                 Hashtbl.add eargtbl (SFace_of fa) ntm;
                 return (ctm @: [ ntm ]));
           }
-          [ tyargs1 ] (Cons (Cons Nil)) (sfn.loc, locs, args) in
+          [ tyargs1 ] (Cons (Cons Nil)) (sfn.loc, fn, args) in
       (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
-      ({ value = Term.Inst (sfn.value, cargs); loc = newloc }, tyof_inst tyargs eargs, rlocs, rest)
+      ({ value = Term.Inst (sfn.value, cargs); loc = newloc }, tyof_inst tyargs eargs, newfn, rest)
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube.  See description in context of the call to it above during typechecking of a constructor. *)
 and check_at_tel :

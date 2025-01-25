@@ -150,6 +150,8 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
 
 (* Some applications may not be able to put their entire main loop inside a single call to "run_top".  Specifically, js_of_ocaml applications may need to return control to the browser periodically, but want to maintain the state that's normally stored in the effect handlers wrapped by run_top.  To accommodate this, we implement a "pausable" coroutine version of run_top, using effects, that saves a continuation inside all the handlers and returns to it whenever needed.  When our run_top callback finishes a single command, it yields control by performing the "Yield" effect, passing the output of the command it just executed.  The handler for this effect doesn't immediately continue, but stores the continuation in a global variable and returns control to the caller.  Then when we need to re-enter run_top, the continuation is resumed, passing it the code to be executed. *)
 
+exception Halt
+
 module Pauseable (R : Signatures.Type) = struct
   open Effect.Deep
 
@@ -174,8 +176,20 @@ module Pauseable (R : Signatures.Type) = struct
     (* The "Yield" effect returns control to the caller until we are continued.  At that point execution resumes here with a new callback, which we then pass off to ourselves recursively. *)
     corun_top (Effect.perform (Yield (f ())))
 
+  (* Whenever we need to restart, we discontinue the continuation, if any, and reset it. *)
+  let halt () =
+    try
+      match !cont with
+      | Some k ->
+          let _ = discontinue k Halt in
+          ()
+      | None -> ()
+    with Halt -> cont := None
+
   (* We initialize the setup by calling run_top inside the effect handler. *)
   let init ?use_ansi ?onechar_ops ?ascii_symbols f =
+    (* First we discontinue any existing continuation, to avoid leaks. *)
+    halt ();
     try_with
       (fun () -> run_top ?use_ansi ?onechar_ops ?ascii_symbols @@ fun () -> corun_top f)
       () { effc }

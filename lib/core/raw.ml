@@ -151,6 +151,10 @@ module Make (I : Indices) = struct
     | ImplicitApp : 'a synth located * (Asai.Range.t option * 'a check located) list -> 'a check
     (* Embed an arbitrary object *)
     | Embed : 'a I.embed -> 'a check
+    (* Try several terms until one of them works. *)
+    | First :
+        ([ `Data of Constr.t list | `Codata of Field.t list | `Any ] * 'a check * bool) list
+        -> 'a check
 
   and _ branch =
     (* The location of the third argument is that of the entire pattern. *)
@@ -299,7 +303,10 @@ module Resolve (R : Resolver) = struct
       | Embed e -> (
           match R.embed ctx e with
           | Left x -> (check ctx (locate_opt tm.loc x)).value
-          | Right x -> x) in
+          | Right x -> x)
+      | First tms ->
+          First (List.map (fun (t, x, b) -> (t, (check ctx (locate_opt tm.loc x)).value, b)) tms)
+    in
     let newtm = locate_opt tm.loc newtm in
     R.visit ctx newtm;
     newtm

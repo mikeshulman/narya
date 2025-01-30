@@ -476,7 +476,39 @@ let rec check :
             | Neq -> fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitApp", CubeOf.dim doms, D.zero))
             )
         | _ -> fatal ?loc:fn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn), PVal (ctx, sty))))
-  in
+    | First alts, _ ->
+        let rec go errs = function
+          | [] -> fatal (Choice_mismatch (PVal (ctx, ty)))
+          | (test, alt, passthru) :: alts -> (
+              match (view_type ty "check_first", test) with
+              | Canonical (_, Data { constrs = data_constrs; _ }, _), `Data constrs ->
+                  if
+                    List.for_all
+                      (fun constr ->
+                        Bwd.exists (fun (data_constr, _) -> constr = data_constr) data_constrs)
+                      constrs
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> check ?discrete status ctx (locate_opt tm.loc alt) ty
+                  else go errs alts
+              | Canonical (_, Codata { fields = codata_fields; _ }, _), `Codata fields ->
+                  if
+                    List.for_all
+                      (fun field ->
+                        Bwd.exists (fun (codata_field, _) -> field = codata_field) codata_fields)
+                      fields
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> check ?discrete status ctx (locate_opt tm.loc alt) ty
+                  else go errs alts
+              | _, `Any ->
+                  Reporter.try_with ~fatal:(fun d ->
+                      if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                  @@ fun () -> check ?discrete status ctx (locate_opt tm.loc alt) ty
+              | _ -> go errs alts) in
+        go Emp alts in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx tm;
   Annotate.ty ctx ty;

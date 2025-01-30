@@ -154,14 +154,13 @@ let rec check : type a. formatter -> a check -> unit =
   | Struct (_, flds) ->
       fprintf ppf "Struct(";
       Mbwd.miter
-        (fun [ (f, (x : a check Asai.Range.located)) ] ->
-          fprintf ppf "%s ≔ %a, " (Option.fold ~none:"_" ~some:Field.to_string f) check x.value)
+        (fun [ (f, x) ] ->
+          fprintf ppf "%s ≔ %a, " (Option.fold ~none:"_" ~some:Field.to_string f) check_loc x)
         [ flds ];
       fprintf ppf ")"
   | Constr (c, args) ->
       fprintf ppf "Constr(%s,(%a))" (Constr.to_string c.value)
-        (fun ppf ->
-          List.iter (fun (x : a check Asai.Range.located) -> fprintf ppf "%a, " check x.value))
+        (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") check_loc)
         args
   | Empty_co_match -> fprintf ppf "Emptycomatch(?)"
   | Data _ -> fprintf ppf "Data(?)"
@@ -172,9 +171,15 @@ let rec check : type a. formatter -> a check -> unit =
   | Realize x -> fprintf ppf "Realize %a" check x
   | ImplicitApp (fn, args) ->
       fprintf ppf "ImplicitApp (%a," synth fn.value;
-      List.iter (fun (_, (x : a check Asai.Range.located)) -> fprintf ppf "%a, " check x.value) args;
+      List.iter (fun (_, x) -> fprintf ppf "%a, " check_loc x) args;
       fprintf ppf ")"
   | Embed _ -> .
+  | First tms ->
+      fprintf ppf "First(%a)"
+        (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") check)
+        (List.map (fun (_, x, _) -> x) tms)
+
+and check_loc : type a. formatter -> a check located -> unit = fun ppf tm -> check ppf tm.value
 
 and synth : type a. formatter -> a synth -> unit =
  fun ppf s ->

@@ -1809,7 +1809,44 @@ and synth :
         synth_nondep_match status ctx tm branches None
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
         synth_nondep_match status ctx tm branches (Some i)
-    | Fail e, _ -> fatal e in
+    | Fail e, _ -> fatal e
+    | SFirst (alts, arg), _ ->
+        let _, sty = synth status ctx (locate_opt tm.loc arg) in
+        let vsty = view_type sty "synth_first" in
+        let rec go errs = function
+          | [] ->
+              if Bwd.is_empty errs then fatal (Choice_mismatch (PVal (ctx, sty)))
+              else fatal (Accumulated errs)
+          | (test, alt, passthru) :: alts -> (
+              match (vsty, test) with
+              | Canonical (_, Data { constrs = data_constrs; _ }, _), `Data constrs ->
+                  if
+                    List.for_all
+                      (fun constr ->
+                        Bwd.exists (fun (data_constr, _) -> constr = data_constr) data_constrs)
+                      constrs
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> synth status ctx (locate_opt tm.loc alt)
+                  else go errs alts
+              | Canonical (_, Codata { fields = codata_fields; _ }, _), `Codata fields ->
+                  if
+                    List.for_all
+                      (fun field ->
+                        Bwd.exists (fun (codata_field, _) -> field = codata_field) codata_fields)
+                      fields
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> synth status ctx (locate_opt tm.loc alt)
+                  else go errs alts
+              | _, `Any ->
+                  Reporter.try_with ~fatal:(fun d ->
+                      if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                  @@ fun () -> synth status ctx (locate_opt tm.loc alt)
+              | _ -> go errs alts) in
+        go Emp alts in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx (locate_opt tm.loc (Synth tm.value));
   let restm, resty = go () in

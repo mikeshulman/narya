@@ -126,6 +126,11 @@ module Make (I : Indices) = struct
       }
         -> 'a synth
     | Fail : Reporter.Code.t -> 'a synth
+    (* Try several terms, testing for each whether the synthesized type of the specified term has certain constructors or fields. *)
+    | SFirst :
+        ([ `Data of Constr.t list | `Codata of Field.t list | `Any ] * 'a synth * bool) list
+        * 'a synth
+        -> 'a synth
 
   (* Checkable raw terms *)
   and _ check =
@@ -151,7 +156,7 @@ module Make (I : Indices) = struct
     | ImplicitApp : 'a synth located * (Asai.Range.t option * 'a check located) list -> 'a check
     (* Embed an arbitrary object *)
     | Embed : 'a I.embed -> 'a check
-    (* Try several terms until one of them works. *)
+    (* Try several terms, testing for each whether the goal type has certain constructors or fields. *)
     | First :
         ([ `Data of Constr.t list | `Codata of Field.t list | `Any ] * 'a check * bool) list
         -> 'a check
@@ -271,7 +276,11 @@ module Resolve (R : Resolver) = struct
           let branches = Abwd.map (branch ctx) branches in
           let refutables = Option.map (refutables ctx) r in
           Match { tm; sort; branches; refutables }
-      | Fail e -> Fail e in
+      | Fail e -> Fail e
+      | SFirst (tms, arg) ->
+          SFirst
+            ( List.map (fun (t, x, b) -> (t, (synth ctx (locate_opt tm.loc x)).value, b)) tms,
+              (synth ctx (locate_opt tm.loc arg)).value ) in
     R.visit ctx (locate_opt tm.loc (T2.Synth newtm));
     locate_opt tm.loc newtm
 

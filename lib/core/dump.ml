@@ -197,6 +197,7 @@ and synth : type a. formatter -> a synth -> unit =
       fprintf ppf "Match (%a, (%a))" synth tm.value branches br
   | UU -> fprintf ppf "Type"
   | Fail _ -> fprintf ppf "Error"
+  | ImplicitSApp (fn, _, arg) -> fprintf ppf "ImplicitSApp(%a, %a)" synth fn.value synth arg.value
   | SFirst (tms, arg) ->
       fprintf ppf "SFirst(%a, %a)"
         (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") synth)

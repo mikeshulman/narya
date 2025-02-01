@@ -455,26 +455,25 @@ let rec check :
         let sfn, sty = synth (Kinetic `Nolet) ctx fn in
         match view_type sty "ImplicitApp" with
         | Pi (_, doms, cods, tyargs) -> (
-            (* Only 0-dimensional applications are allowed. *)
-            match D.compare (CubeOf.dim doms) D.zero with
-            | Eq -> (
-                (* The first argument must be a type. *)
-                match view_type (CubeOf.find_top doms) "ImplicitApp argument" with
-                | UU _ ->
-                    (* We build the implicit application term and its type. *)
-                    let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cty)) in
-                    let new_sty = tyof_app cods tyargs (CubeOf.singleton ty) in
-                    (* And then proceed applying to the rest of the arguments. *)
-                    let stm, sty = synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args in
-                    (* Then we have to check that the resulting type of the whole application agrees with the one we're checking against. *)
-                    equal_val (Ctx.length ctx) sty ty
-                    <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
-                    realize status stm
-                | _ ->
-                    fatal ?loc:fn.loc
-                      (Anomaly "first argument of an ImplicitMap is not of type Type"))
-            | Neq -> fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitApp", CubeOf.dim doms, D.zero))
-            )
+            (* Only 0-dimensional applications are allowed, and the first argument must be a type. *)
+            match
+              ( D.compare (CubeOf.dim doms) D.zero,
+                view_type (CubeOf.find_top doms) "ImplicitApp argument" )
+            with
+            | Eq, UU _ ->
+                (* We build the implicit application term and its type. *)
+                let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cty)) in
+                let new_sty = tyof_app cods tyargs (CubeOf.singleton ty) in
+                (* And then proceed applying to the rest of the arguments. *)
+                let stm, sty = synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args in
+                (* Then we have to check that the resulting type of the whole application agrees with the one we're checking against. *)
+                equal_val (Ctx.length ctx) sty ty
+                <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
+                realize status stm
+            | Eq, _ ->
+                fatal ?loc:fn.loc (Anomaly "first argument of an ImplicitMap is not of type Type")
+            | Neq, _ ->
+                fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitApp", CubeOf.dim doms, D.zero)))
         | _ -> fatal ?loc:fn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn), PVal (ctx, sty))))
     | First alts, _ ->
         let rec go errs = function
@@ -1810,6 +1809,35 @@ and synth :
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
         synth_nondep_match status ctx tm branches (Some i)
     | Fail e, _ -> fatal e
+    (* If we're using the synthesized type of an argument as an implicit first argument: *)
+    | ImplicitSApp (fn, apploc, arg), _ -> (
+        (* We synthesize both function and argument *)
+        let sfn, sfnty = synth (Kinetic `Nolet) ctx fn in
+        let _, sargty = synth (Kinetic `Nolet) ctx arg in
+        (* We read back the synthesized type, so we can put it as the first argument in the generated term. *)
+        let cargty = readback_val ctx sargty in
+        match view_type sfnty "ImplicitSApp" with
+        | Pi (_, doms, cods, tyargs) -> (
+            (* Only 0-dimensional applications are allowed, and the first argument must be a type. *)
+            match
+              ( D.compare (CubeOf.dim doms) D.zero,
+                view_type (CubeOf.find_top doms) "ImplicitSApp argument" )
+            with
+            | Eq, UU _ ->
+                (* We build the implicit application term and its type. *)
+                let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cargty)) in
+                let new_sty = tyof_app cods tyargs (CubeOf.singleton sargty) in
+                (* And then apply to the argument. *)
+                let stm, sty =
+                  synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn
+                    [ (apploc, locate_opt arg.loc (Synth arg.value)) ] in
+                (realize status stm, sty)
+            | Eq, _ ->
+                fatal ?loc:fn.loc (Anomaly "first argument of an ImplicitSMap is not of type Type")
+            | Neq, _ ->
+                fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitSApp", CubeOf.dim doms, D.zero)))
+        | _ ->
+            fatal ?loc:fn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn), PVal (ctx, sfnty))))
     | SFirst (alts, arg), _ ->
         let _, sty = synth status ctx (locate_opt tm.loc arg) in
         let vsty = view_type sty "synth_first" in

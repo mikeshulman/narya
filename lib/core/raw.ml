@@ -126,6 +126,8 @@ module Make (I : Indices) = struct
       }
         -> 'a synth
     | Fail : Reporter.Code.t -> 'a synth
+    (* Pass the synthesized type of an argument as an implicit first argument of a function. *)
+    | ImplicitSApp : 'a synth located * Asai.Range.t option * 'a synth located -> 'a synth
     (* Try several terms, testing for each whether the synthesized type of the specified term has certain constructors or fields. *)
     | SFirst :
         ([ `Data of Constr.t list | `Codata of Field.t list | `Any ] * 'a synth * bool) list
@@ -277,6 +279,7 @@ module Resolve (R : Resolver) = struct
           let refutables = Option.map (refutables ctx) r in
           Match { tm; sort; branches; refutables }
       | Fail e -> Fail e
+      | ImplicitSApp (fn, apploc, arg) -> ImplicitSApp (synth ctx fn, apploc, synth ctx arg)
       | SFirst (tms, arg) ->
           SFirst
             ( List.map (fun (t, x, b) -> (t, (synth ctx (locate_opt tm.loc x)).value, b)) tms,

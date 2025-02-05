@@ -18,7 +18,7 @@ opam install dune
 cd narya
 dune build narya.opam
 opam install . --deps-only
-dune build bin/narya.exe
+dune build @install
 dune runtest
 dune install
 ```

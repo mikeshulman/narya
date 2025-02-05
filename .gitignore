@@ -27,6 +27,7 @@ setup.log
 
 # Local OPAM switch
 _opam/
+narya.opam
 
 # Emacs backups
 *~

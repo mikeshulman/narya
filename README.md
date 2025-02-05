@@ -152,7 +152,7 @@ In interactive mode, the following additional commands are also available.  (How
 
 [ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
 
-Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment), it will automatically be retracted up to the point where you are editing.
+Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment, or by filling a hole with `C-c C-SPC` as described below), it will automatically be retracted up to the point where you are editing.
 
 In addition to the main window displaying your source file, there will be two other windows in split-screen labeled "goals" and "response".  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
 
@@ -176,8 +176,9 @@ As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (s
 - `C-c :` : Read a term from the minibuffer and synthesize its type (like `C-c C-v` with `synth`).
 - `C-c C-?` : Show the contexts and types of all open holes (like `C-c C-v` with `show holes`).
 - `C-c C-t` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
-- `C-c C-j` : Move the cursor to the position of the next open hole.
-- `C-c C-k` : Move the cursor to the position of the previous open hole.
+- `C-c C-j` : Move the cursor to the position of the next open hole.  This is the analogue of Agda's `C-c C-f`.
+- `C-c C-k` : Move the cursor to the position of the previous open hole.  This is the analogue of Agda's `C-c C-b`, which unfortunately has the very different meaning in ProofGeneral of "process the entire buffer".
+- `C-c C-SPC` : Fill the hole under point with a specified term, without retracting any code.
 
 
 ### Entering Unicode characters
@@ -457,32 +458,15 @@ When Narya reaches the end of a file (or command-line `-e` string) in which any 
 
 ### Solving holes
 
-Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The straightforward way to fill a hole is to edit the source code to replace the `?` by a term (perhaps containing other holes) and reload the file.  In interactive mode, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.  In ProofGeneral mode, you can `C-c C-u` to retract the hole-creating command and edit it (or just start editing it and it will auto-retract), and then re-process it with `C-c C-n`.
+Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The most straightforward way to fill a hole is to edit the source code to replace the `?` by a term (perhaps containing other holes) and reload the file.  In interactive mode, if you just entered a command containing a hole, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.  And in ProofGeneral mode, you can use `C-c C-u` or `C-c RET` to retract the hole-creating command (along with any commands after it) and edit it (or just start editing it and it will auto-retract), and then re-process it with `C-c C-n`.
 
-In interactive mode, it is also possible to solve a hole directly with the command `solve`.  This command identifies a hole by its number and supplies a term with which to fill the hole.  For example:
-```
-def f : Type → Type ≔ X ↦ ?
+It is also possible to fill a hole *without* retracting the command or any other commands after it.  In ProofGeneral mode, if you position the cursor over a hole (perhaps using `C-c C-j` and `C-c C-k` to move between holes) and type `C-c C-SPC`, ProofGeneral will prompt you for a term with which to solve the hole.  If this term does successfully solve the hole, it will be inserted to replace the `?` in the buffer, without retracting the original command or anything after it.  (Currently, extra parentheses will always be inserted around the new term to ensure that it parses in its new location; eventually they will only be inserted if necessary.)  This enables you to process a bunch of commands containing holes, some of which might be slow to run, and then progressively work on filling the holes in any desired order without having to retract and re-process anything.
 
- ￫ info[I0100]
- ￮ hole ?0 generated:
-   
-   X : Type
-   ----------------------------------------------------------------------
-   Type
+Of course, the term that you fill a hole with contain other holes.  The term solving a hole is parsed and typechecked *in the context where the hole was created*.  Thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
 
- ￫ info[I0000]
- ￮ constant f defined, containing 1 hole
+You can also solve a hole directly in interactive mode with the command `solve`, identifying a particular hole by its number as in `solve 0 ≔ X`.  (This is also the command issued by ProofGeneral under the hood when you use `C-c C-SPC`.)  But identifying a hole by number is too brittle to use in a file, so this command is only allowed in interactive mode.
 
-solve 0 ≔ X
-
- ￫ info[I0005]
- ￮ hole solved
-```
-Of course, the term given to `solve` can contain other holes, which will be printed and can themselves be solved later.  The term solving a hole is parsed and typechecked *in the context where the hole was created*: thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
-
-The identification of holes by sequential number is, of course, rather fragile: adding or removing a hole changes the numbers of all the holes after that point.  For this reason the `solve` command is only allowed in interactive mode.  Indeed, it is intended primarily as a backend for a so-far unimplemented ProofGeneral command that solve holes identified positionally as in Agda, and as a primitive for (so-far unimplemented) tactic proofs as in Coq and Lean; and in both of those cases the hole numbers will be managed programmatically rather than by the user.
-
-If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.  In ProofGeneral mode the key command `C-c C-?` issues `show holes`, while `C-c C-t` issues `show hole` with the hole number inferred automatically from the cursor position (which must be over an open hole).
+If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them in interactive mode with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.  In ProofGeneral mode the key command `C-c C-?` issues `show holes`, while `C-c C-t` issues `show hole` with the hole number inferred automatically from the cursor position (which must be over an open hole).  You can move between the existing holes with `C-c C-j` (next hole) and `C-c C-k` (previous hole).
 
 
 ## Record types and tuples

@@ -6,7 +6,11 @@ open Deg
 open Insertion
 open Shuffle
 
-(* A partial bijection is an insertion together with a shuffle. *)
+(* A partial bijection is an insertion together with a shuffle.  Specifically, a partial bijection from a dimension 'evaluation to a dimension 'intrinsic consists of:
+   - A dimension 'shared (the part of each that are bijective)
+   - An insertion of 'shared into another dimension 'result to obtain 'evaluation.  This performs the permutation of 'shared.
+   - A shuffle of 'shared into another dimension 'remaining to produce 'intrinsic.
+   We currently parametrize a partial bijection by 'evaluation (the domain), 'intrinsic (the codomain), and 'remaining.  We haven't needed the others so far. *)
 
 type (_, _, _) pbij =
   | Pbij :
@@ -17,11 +21,13 @@ let dom_pbij : type e i r. (e, i, r) pbij -> e D.t = fun (Pbij (ins, _)) -> dom_
 let cod_pbij : type e i r. (e, i, r) pbij -> i D.t = fun (Pbij (_, shuf)) -> out_shuffle shuf
 let remaining : type e i r. (e, i, r) pbij -> r D.t = fun (Pbij (_, shuf)) -> left_shuffle shuf
 
+(* An insertion is a partial bijection with zero 'remaining. *)
 let pbij_of_ins : type a b c. (a, b, c) insertion -> (a, c, D.zero) pbij =
  fun ins -> Pbij (ins, zero_shuffle (cod_right_ins ins))
 
 type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic, 'remaining) pbij -> 'evaluation pbij_of
 
+(* A partial bijection from a given 'evaluation dimension can be represented by a list of integers and direction strings.  The length of the list is the codomain 'intrinsic.  The integers in the list represent 'shared and the strings represent 'remaining, with their positions in the list giving the shuffle, and the values of the integers specifying where to insert them (into some dimension 'result) to produce 'evaluation. *)
 let rec pbij_of_int_strings :
     type e. e D.t -> [ `Int of int | `Str of string ] Bwd.t -> e pbij_of option =
  fun e strs ->
@@ -86,6 +92,7 @@ let strings_of_pbij : type n i r. (n, i, r) pbij -> string Bwd.t =
       | `Int i -> string_of_int i)
     (int_strings_of_pbij pbij)
 
+(* When representing that as a single string, we run all the integers and direction strings together with a single prefix . if the integers are all one-digit, otherwise we separate them by .s with a prefix .. *)
 let string_of_pbij : type n i r. (n, i, r) pbij -> string =
  fun pbij ->
   let strs = Bwd.to_list (strings_of_pbij pbij) in
@@ -99,6 +106,7 @@ type (_, _) pbij_between =
       ('evaluation, 'intrinsic, 'remaining) pbij
       -> ('evaluation, 'intrinsic) pbij_between
 
+(* Enumerate all the partial bijections from a given 'evaluation to a given 'intrinsic. *)
 let all_pbij_between :
     type evaluation intrinsic.
     evaluation D.t -> intrinsic D.t -> (evaluation, intrinsic) pbij_between Seq.t =
@@ -107,6 +115,8 @@ let all_pbij_between :
   let* (Ins_of ins) = all_ins_of evaluation in
   let* (Of_right shuf) = all_shuffles_right (cod_right_ins ins) intrinsic in
   return (Pbij_between (Pbij (ins, shuf)))
+
+(* A partial bijection can be composed with a degeneracy on the evaluation dimension to produce another partial bijection, with an induced degeneracy on the results. *)
 
 type (_, _, _) deg_comp_pbij_internal =
   | DCP :
@@ -149,9 +159,9 @@ let deg_comp_pbij : type m n i r. (m, n) deg -> (m, i, r) pbij -> (n, i) deg_com
   let (DCP (ins, shuf, s)) = deg_comp_pbij_internal d ins shuf in
   Deg_comp_pbij (Pbij (ins, shuf), s)
 
-(* Intrinsically well-typed maps with partial bijections as keys.  Each map has a fixed evaluation dimension and intrinsic dimension, but the result, shared, and remaining dimensions vary with the keys and values.  The values are parametrized by the remaining dimension as well as by an extra parameter that the map depends on; hence the whole notion of map is a functor parametrized by a Fam2.
+(* Intrinsically well-typed maps with partial bijections as keys.  Each map has a fixed 'evaluation dimension and 'intrinsic dimension, but the 'result, 'shared, and 'remaining dimensions vary with the keys and values.  The values are parametrized by the 'remaining dimension as well as by an extra parameter that the map depends on; hence the whole notion of map is a functor parametrized by a Fam2.
 
-   The definition of the map type involves itself recursively inside a Tuple, so we need a recursive module to tie that knot.  Recursive functors are not really implemented (in general they give "unsafe" errors), but there seems to be an exception that allows them as long as the recursive module call is never named or opened, though it can occur inline in a type definition (but not a function definition, since inline functor applications cannot appear in code).  Thus, it works to first define a recursive functor for just the necessary types and modules, and then another functor that includes it and defines the operations. *)
+   The definition of the map type involves itself recursively inside a Tuple, so we need a recursive module to tie that knot.  Recursive functors are not really implemented (in general they give "unsafe" errors), but there seems to be an exception that allows them as long as the recursive module call is never named or opened, though it can occur inline in a type definition (but not a function definition, since inline functor applications cannot appear in code).  Thus, it works to first define a recursive functor for just the necessary types and modules, and then another (non-recursive) functor that includes it and defines the operations. *)
 
 module rec Internal_Pbijmap : functor (F : Fam2) -> sig
   module Param : sig

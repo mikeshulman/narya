@@ -1601,6 +1601,7 @@ and check_struct :
     (a, b) Ctx.t ->
     ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
     kinetic value ->
+    (* This is the dimension to which the type has been substituted. *)
     m D.t ->
     (Field.t, (c, n) Term.codatafield) Abwd.t ->
     (b, s) term =

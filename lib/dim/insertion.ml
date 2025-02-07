@@ -104,7 +104,7 @@ let deg_of_plus_of_ins : type a b c. (a, b, c) insertion -> b deg_of_plus =
   let (Plus bc) = D.plus (cod_right_ins ins) in
   Of (bc, deg_of_ins_plus ins bc)
 
-(* Any degeneracy with a decomposition of its codomain factors as an insertion followed by a whiskered degeneracy. *)
+(* Any degeneracy with a decomposition of its codomain factors as an insertion followed by a whiskered degeneracy.  The whiskered degeneracy does all the permutation of 'a and inserting degenerate dimensions into it, and then the insertion puts 'c back in the corresponding places. *)
 
 type (_, _, _) insfact = Insfact : ('a, 'b) deg * ('ac, 'a, 'c) insertion -> ('ac, 'b, 'c) insfact
 
@@ -117,7 +117,7 @@ let rec insfact : type ac b c bc. (ac, bc) deg -> (b, c, bc) D.plus -> (ac, b, c
       let (Insfact (s, i)) = insfact s bc in
       Insfact (s, Suc (i, e))
 
-(* In particular, any insertion can be composed with a degeneracy to produce a smaller degeneracy and an insertion. *)
+(* In particular, since an insertion induces a degeneracy (a permutation) with a decomposition of its codomain, if we compose a degeneracy followed by an insertion, the result factors in the above way as an insertion followed by a whiskered degeneracy.  In the stated type of this operation, we also allow the given degeneracy to have any domain and codomain, and do the composition by extending both with identities as in comp_deg_extending. *)
 type (_, _, _) insfact_comp =
   | Insfact_comp :
       ('m, 'n) deg * ('ml, 'm, 'l) insertion * ('k, 'j, 'l) D.plus * ('a, 'i, 'ml) D.plus

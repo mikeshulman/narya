@@ -1,7 +1,7 @@
 open Deg
 open Perm
 
-(* A shuffle is a permutation of a sum that preserves the relative order of *both* inputs. *)
+(* A shuffle is a permutation of a sum that preserves the relative order of *both* inputs.  Specifically, an ('a, 'b, 'c) shuffle shuffles the two inputs 'a and 'b together to produce 'c. *)
 
 type (_, _, _) shuffle =
   | Zero : (D.zero, D.zero, D.zero) shuffle

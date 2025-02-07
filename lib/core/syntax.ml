@@ -57,7 +57,9 @@ module rec Term : sig
     | Struct :
         's eta
         * 'n D.t
-        * (Field.t, ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
+        * ( Field.t,
+            ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped )
+          Abwd.t
         * 's energy
         -> ('a, 's) term
     | Match : {
@@ -149,7 +151,9 @@ end = struct
         's eta
         * 'n D.t
         (* TODO: I think the 'a here is wrong: it should have a Plusmap of the 'remaining dimension of the pbij applied to it.  In particular, that's what I would expect to get out when typechecking higher fields, since that is done in a degenerated context.  If so, that means Pbijmap needs to be a functor depending on a Fam depending on the 'remaining dimension, and be applied here in the recursive module like CodCube.  It also means the definition of eval on Struct is wrong, since the types won't match, but I'm not sure how to fix it.  Perhaps a Value.Struct has to store fields separately from their closure environment rather than as individual lazy_evals, since some of them won't be evaluable unless a big enough degeneracy is applied?  *)
-        * (Field.t, ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
+        * ( Field.t,
+            ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped )
+          Abwd.t
         * 's energy
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
@@ -326,7 +330,7 @@ module rec Value : sig
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
     | Struct :
-        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
+        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t
         * ('nk, 'n, 'k) insertion
         * 's energy
         -> 's value
@@ -456,7 +460,7 @@ end = struct
     | Lam : 'k variables * ('k, 's) binder -> 's value
     (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension, with 'n the substitution dimension and 'nk the total dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation.  Finally, each field name is associated with a partial bijection in the case of a higher codatatype. *)
     | Struct :
-        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t
+        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t
         * ('nk, 'n, 'k) insertion
         * 's energy
         -> 's value

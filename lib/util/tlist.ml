@@ -30,4 +30,41 @@ module Tlist = struct
   let rec flatten_in : type ns n. (ns, n) flatten -> ns t = function
     | Flat_nil -> Nil
     | Flat_cons (_, ns) -> Cons (flatten_in ns)
+
+  (* Mapping a simple type-level function *)
+
+  module type TFun = sig
+    type ('p, 'a, 'b) t
+    type (_, _) exists = Exists : ('p, 'a, 'b) t -> ('p, 'a) exists
+
+    val exists : ('p, 'a) exists
+  end
+
+  module Map (F : TFun) = struct
+    type 'xs tlist = 'xs t
+
+    type (_, _, _) t =
+      | [] : ('p, nil, nil) t
+      | ( :: ) : ('p, 'x, 'y) F.t * ('p, 'xs, 'ys) t -> ('p, ('x, 'xs) cons, ('y, 'ys) cons) t
+
+    type (_, _) exists = Exists : ('p, 'xs, 'ys) t -> ('p, 'xs) exists
+
+    let rec exists : type p xs. xs tlist -> (p, xs) exists = function
+      | Nil -> Exists []
+      | Cons xs ->
+          let Exists y, Exists ys = (F.exists, exists xs) in
+          Exists (y :: ys)
+
+    type (_, _, _) exists_cons =
+      | Exists_cons : ('p, ('x, 'xs) cons, ('y, 'ys) cons) t -> ('p, 'x, 'xs) exists_cons
+
+    let exists_cons : type p x xs. (x, xs) cons tlist -> (p, x, xs) exists_cons = function
+      | Cons xs ->
+          let Exists y, Exists ys = (F.exists, exists xs) in
+          Exists_cons (y :: ys)
+
+    let rec cod : type p xs ys. (p, xs, ys) t -> ys tlist = function
+      | [] -> Nil
+      | _ :: xs -> Cons (cod xs)
+  end
 end

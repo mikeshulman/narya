@@ -1633,11 +1633,11 @@ and check_fields :
     n D.t ->
     Field.t list ->
     ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
-    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
-    (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
+    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t ->
+    (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     ((Field.t * string Bwd.t) option, a check located) Abwd.t
-    * (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t =
+    * (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t =
  fun status eta ctx ty dim fields tms etms ctms errs ->
   (* The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
   let str = Value.Struct (etms, ins_zero dim, energy status) in
@@ -1672,11 +1672,11 @@ and check_field :
     Field.t list ->
     (kinetic value, Code.t) Result.t ->
     ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
-    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
-    (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t ->
+    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t ->
+    (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     ((Field.t * string Bwd.t) option, a check located) Abwd.t
-    * (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) Pbijmap.wrapped) Abwd.t =
+    * (Field.t, (n, ((b, s) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t =
  fun status eta ctx ty dim fld fields prev_etm tms etms ctms errs ->
   let ins = ins_zero dim in
   let mkstatus lbl : (b, s) status -> (b, s) status = function
@@ -1688,7 +1688,7 @@ and check_field :
             (Term.Struct
                ( eta,
                  dim,
-                 Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (Some (tm, lbl))))),
+                 Snoc (ctms, (fld, PbijmapOf.Wrap (PbijmapOf.singleton dim (Some (tm, lbl))))),
                  energy status )) in
         Potential (c, args, hyp) in
   (* TODO: Currently we can only typecheck lower fields, so the strings labeling the pbij must be empty. *)
@@ -1706,9 +1706,10 @@ and check_field :
     let ety = tyof_field prev_etm ty fld ins in
     let ctm = check (mkstatus lbl status) ctx tm ety in
     let etms =
-      Abwd.add fld (Pbijmap.Wrap (Pbijmap.singleton (Some (lazy_eval (Ctx.env ctx) ctm, lbl)))) etms
-    in
-    let ctms = Snoc (ctms, (fld, Pbijmap.Wrap (Pbijmap.singleton (Some (ctm, lbl))))) in
+      Abwd.add fld
+        (PbijmapOf.Wrap (PbijmapOf.singleton dim (Some (lazy_eval (Ctx.env ctx) ctm, lbl))))
+        etms in
+    let ctms = Snoc (ctms, (fld, PbijmapOf.Wrap (PbijmapOf.singleton dim (Some (ctm, lbl))))) in
     (tms, etms, ctms, errs) in
   check_fields status eta ctx ty dim fields tms etms ctms errs
 

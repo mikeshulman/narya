@@ -251,37 +251,48 @@ let rec unparse :
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (Eta, dim, fields, _) ->
+  | Struct (Eta, _, fields, _) ->
+      let module A = PbijmapOf.Monadic (Monad.State (struct
+        type t = observation Bwd.t
+      end)) in
       unlocated
         (outfix ~notn:parens ~ws:[]
            ~inner:
              (Abwd.fold
-                (fun fld (Pbijmap.Wrap pbijtms) acc ->
-                  Pbijmap.fold dim
-                    (fun _ x acc ->
-                      match x with
-                      | Some (fldtm, lbl) ->
-                          let fldtm = unparse vars fldtm Interval.entire Interval.entire in
-                          Snoc
-                            ( acc,
-                              Term
-                                (match lbl with
-                                | `Labeled ->
-                                    unlocated
-                                      (infix ~notn:coloneq ~ws:[]
-                                         ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
-                                         ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
-                                         ~right_ok:(No.le_refl No.minus_omega))
-                                (* An unlabeled 1-tuple must be written (_ := M). *)
-                                | `Unlabeled when Bwd.length fields = 1 ->
-                                    unlocated
-                                      (infix ~notn:coloneq ~ws:[]
-                                         ~first:(unlocated (Placeholder [])) ~inner:Emp ~last:fldtm
-                                         ~left_ok:(No.le_refl No.minus_omega)
-                                         ~right_ok:(No.le_refl No.minus_omega))
-                                | `Unlabeled -> fldtm) )
-                      | None -> fatal (Anomaly "missing field in unparse"))
-                    pbijtms acc)
+                (fun fld (PbijmapOf.Wrap pbijtms) acc ->
+                  snd
+                    (A.miterM
+                       {
+                         it =
+                           (fun _ [ x ] acc ->
+                             match x with
+                             | Some (fldtm, lbl) ->
+                                 let fldtm = unparse vars fldtm Interval.entire Interval.entire in
+                                 ( (),
+                                   Snoc
+                                     ( acc,
+                                       Term
+                                         (match lbl with
+                                         | `Labeled ->
+                                             unlocated
+                                               (infix ~notn:coloneq ~ws:[]
+                                                  ~first:
+                                                    (unlocated
+                                                       (Ident ([ Field.to_string fld ], [])))
+                                                  ~inner:Emp ~last:fldtm
+                                                  ~left_ok:(No.le_refl No.minus_omega)
+                                                  ~right_ok:(No.le_refl No.minus_omega))
+                                         (* An unlabeled 1-tuple is printed (_ := M). *)
+                                         | `Unlabeled when Bwd.length fields = 1 ->
+                                             unlocated
+                                               (infix ~notn:coloneq ~ws:[]
+                                                  ~first:(unlocated (Placeholder [])) ~inner:Emp
+                                                  ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                                  ~right_ok:(No.le_refl No.minus_omega))
+                                         | `Unlabeled -> fldtm) ) )
+                             | None -> fatal (Anomaly "missing field in unparse"));
+                       }
+                       [ pbijtms ] acc))
                 fields Emp))
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)

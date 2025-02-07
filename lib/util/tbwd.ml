@@ -1,5 +1,6 @@
 (* Type-level backwards lists *)
 
+open Signatures
 open Tlist
 
 type emp = private Dummy_emp
@@ -285,11 +286,7 @@ module Tbwd = struct
         N.insert_many q j m n
 
   (* Tbwds of types satisfying a predicate. *)
-  module type Predicate = sig
-    type 'a t
-  end
-
-  module Of (P : Predicate) = struct
+  module Of (P : Fam) = struct
     type _ t = Of_emp : emp t | Of_snoc : 'xs t * 'x P.t -> ('xs, 'x) snoc t
 
     let rec insert : type a n b. (a, n, b) insert -> a t -> n P.t -> b t =
@@ -329,8 +326,8 @@ module Tbwd = struct
 
   (* Map a type-level function. *)
   module type TFun = sig
-    module Dom : Predicate
-    module Cod : Predicate
+    module Dom : Fam
+    module Cod : Fam
 
     (* We add an extra parameter because we want to get out, in particular, a map of monoid addition parametrized by the thing being added, and once a type is wrapped in a module there's no way to get it out as a parameter. *)
     type 'p param

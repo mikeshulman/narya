@@ -45,11 +45,11 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
         | Struct (tmflds, _, energy), _ ->
             let fields =
               Abwd.mapi
-                (fun fld (Pbijmap.Wrap pbijflds) ->
-                  match Pbijmap.find_singleton pbijflds with
+                (fun fld (PbijmapOf.Wrap pbijflds) ->
+                  match PbijmapOf.find_singleton pbijflds with
                   | Some (Some (fldtm, l)) ->
-                      Pbijmap.Wrap
-                        (Pbijmap.singleton
+                      PbijmapOf.Wrap
+                        (PbijmapOf.singleton dim
                            (Some
                               ( readback_at ctx (force_eval_term fldtm)
                                   (tyof_field (Ok tm) ty fld fldins),
@@ -63,8 +63,8 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
             let fields =
               Abwd.mapi
                 (fun fld _ ->
-                  Pbijmap.Wrap
-                    (Pbijmap.singleton
+                  PbijmapOf.Wrap
+                    (PbijmapOf.singleton dim
                        (Some
                           ( readback_at ctx (field_term tm fld fldins)
                               (tyof_field (Ok tm) ty fld fldins),
@@ -77,8 +77,8 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 let fields =
                   Abwd.mapi
                     (fun fld _ ->
-                      Pbijmap.Wrap
-                        (Pbijmap.singleton
+                      PbijmapOf.Wrap
+                        (PbijmapOf.singleton dim
                            (Some
                               ( readback_at ctx (field_term tm fld fldins)
                                   (tyof_field (Ok tm) ty fld fldins),

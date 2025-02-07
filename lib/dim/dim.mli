@@ -560,64 +560,144 @@ type (_, _) shuffle_right = Of_right : ('a, 'b, 'c) shuffle -> ('b, 'c) shuffle_
 
 val all_shuffles_right : 'b D.t -> 'c D.t -> ('b, 'c) shuffle_right Seq.t
 
-type (_, _) pbij
+type (_, _, _) pbij =
+  | Pbij :
+      ('evaluation, 'result, 'shared) insertion * ('remaining, 'shared, 'intrinsic) shuffle
+      -> ('evaluation, 'intrinsic, 'remaining) pbij
 
-val dom_pbij : ('e, 'i) pbij -> 'e D.t
-val cod_pbij : ('e, 'i) pbij -> 'i D.t
-val pbij_of_ins : ('a, 'b, 'c) insertion -> ('a, 'c) pbij
+val dom_pbij : ('e, 'i, 'r) pbij -> 'e D.t
+val cod_pbij : ('e, 'i, 'r) pbij -> 'i D.t
+val remaining : ('e, 'i, 'r) pbij -> 'r D.t
+val pbij_of_ins : ('a, 'b, 'c) insertion -> ('a, 'c, D.zero) pbij
 
-type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic) pbij -> 'evaluation pbij_of
+type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic, 'remaining) pbij -> 'evaluation pbij_of
 
+val pbij_of_int_strings : 'e D.t -> [ `Int of int | `Str of string ] Bwd.t -> 'e pbij_of option
 val pbij_of_strings : 'e D.t -> string Bwd.t -> 'e pbij_of option
-val strings_of_pbij : ('n, 'i) pbij -> string Bwd.t
-val string_of_pbij : ('n, 'i) pbij -> string
-val all_pbij_between : 'evaluation D.t -> 'intrinsic D.t -> ('evaluation, 'intrinsic) pbij Seq.t
+val int_strings_of_pbij : ('n, 'i, 'r) pbij -> [ `Int of int | `Str of string ] Bwd.t
+val strings_of_pbij : ('n, 'i, 'r) pbij -> string Bwd.t
+val string_of_pbij : ('n, 'i, 'r) pbij -> string
+
+type (_, _) pbij_between =
+  | Pbij_between :
+      ('evaluation, 'intrinsic, 'remaining) pbij
+      -> ('evaluation, 'intrinsic) pbij_between
+
+val all_pbij_between :
+  'evaluation D.t -> 'intrinsic D.t -> ('evaluation, 'intrinsic) pbij_between Seq.t
+
+type (_, _, _) deg_comp_pbij_internal =
+  | DCP :
+      ('evaluation, 'result, 'shared) insertion
+      * ('remaining, 'shared, 'intrinsic) shuffle
+      * ('old_result, 'result) deg
+      -> ('evaluation, 'old_result, 'intrinsic) deg_comp_pbij_internal
+
+val deg_comp_pbij_internal :
+  ('m, 'n) deg ->
+  ('m, 'res, 'sh) insertion ->
+  ('rem, 'sh, 'i) shuffle ->
+  ('n, 'res, 'i) deg_comp_pbij_internal
 
 type (_, _) deg_comp_pbij =
   | Deg_comp_pbij :
-      ('evaluation, 'intrinsic) pbij * ('old_result, 'result) deg
+      ('evaluation, 'intrinsic, 'remaining) pbij * ('old_result, 'result) deg
       -> ('evaluation, 'intrinsic) deg_comp_pbij
 
-val deg_comp_pbij : ('m, 'n) deg -> ('m, 'i) pbij -> ('n, 'i) deg_comp_pbij
+val deg_comp_pbij : ('m, 'n) deg -> ('m, 'i, 'r) pbij -> ('n, 'i) deg_comp_pbij
 
-module Pbijmap : sig
-  type (_, _, _) t
+module Pbijmap : functor (F : Fam2) -> sig
+  type ('evaluation, 'intrinsic, 'v) t
 
   val intrinsic : ('evaluation, 'intrinsic, 'v) t -> 'intrinsic D.t
 
   type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
 
-  val find : ('evaluation, 'intrinsic) pbij -> ('evaluation, 'intrinsic, 'v) t -> 'v
-  val find_singleton : ('evaluation, 'intrinsic, 'v) t -> 'v option
+  val find :
+    ('evaluation, 'intrinsic, 'remaining) pbij ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    ('remaining, 'v) F.t
 
   val set :
-    ('evaluation, 'intrinsic) pbij ->
-    'v ->
+    ('evaluation, 'intrinsic, 'remaining) pbij ->
+    ('remaining, 'v) F.t ->
     ('evaluation, 'intrinsic, 'v) t ->
     ('evaluation, 'intrinsic, 'v) t
+
+  val find_singleton : ('evaluation, 'intrinsic, 'v) t -> (D.zero, 'v) F.t option
+
+  type ('evaluation, 'intrinsic, 'v) builder = {
+    build : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'v) F.t;
+  }
 
   val build :
     'evaluation D.t ->
     'intrinsic D.t ->
-    (('evaluation, 'intrinsic) pbij -> 'v) ->
+    ('evaluation, 'intrinsic, 'v) builder ->
     ('evaluation, 'intrinsic, 'v) t
 
-  val singleton : 'v -> ('evaluation, D.zero, 'v) t
-  val map : ('v -> 'w) -> ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'intrinsic, 'w) t
+  val singleton : 'evaluation D.t -> (D.zero, 'v) F.t -> ('evaluation, D.zero, 'v) t
 
-  val iter :
-    'evaluation D.t ->
-    (('evaluation, 'intrinsic) pbij -> 'v -> unit) ->
-    ('evaluation, 'intrinsic, 'v) t ->
-    unit
+  module Heter : sig
+    type (_, _) hft =
+      | [] : ('a, nil) hft
+      | ( :: ) : ('a, 'v) F.t * ('a, 'vs) hft -> ('a, ('v, 'vs) cons) hft
 
-  val fold :
-    'evaluation D.t ->
-    (('evaluation, 'intrinsic) pbij -> 'v -> 'acc -> 'acc) ->
-    ('evaluation, 'intrinsic, 'v) t ->
-    'acc ->
-    'acc
+    type (_, _, _) ht =
+      | [] : ('e, 'i, nil) ht
+      | ( :: ) : ('e, 'i, 'v) t * ('e, 'i, 'vs) ht -> ('e, 'i, ('v, 'vs) cons) ht
+  end
+
+  module Applicatic : functor (M : Applicative.Plain) -> sig
+    type ('evaluation, 'intrinsic, 'vs, 'ws) pmapperM = {
+      map : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'vs) Heter.hft -> ('r, 'ws) Heter.hft M.t;
+    }
+
+    val pmapM :
+      ('a, 'b, ('c, 'd) cons, 'e) pmapperM ->
+      ('a, 'b, ('c, 'd) cons) Heter.ht ->
+      'e Tlist.t ->
+      ('a, 'b, 'e) Heter.ht M.t
+
+    type ('evaluation, 'intrinsic, 'vs, 'w) mmapperM = {
+      map : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'vs) Heter.hft -> ('r, 'w) F.t M.t;
+    }
+
+    val mmapM :
+      ('a, 'b, ('c, 'd) cons, 'e) mmapperM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> ('a, 'b, 'e) t M.t
+
+    type ('evaluation, 'intrinsic, 'vs) miteratorM = {
+      it : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'vs) Heter.hft -> unit M.t;
+    }
+
+    val miterM : ('a, 'b, ('c, 'd) cons) miteratorM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> unit M.t
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
+  end
+
+  module IdM : module type of Monadic (Monad.Identity)
+
+  val pmap :
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.pmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    'e Tlist.t ->
+    ('a, 'b, 'e) Heter.ht IdM.A.t
+
+  val mmap :
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.mmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    ('a, 'b, 'e) t IdM.A.t
+
+  val miter :
+    ('a, 'b, ('c, 'd) cons) IdM.miteratorM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> unit IdM.A.t
 end
+
+module PbijmapOf : module type of Pbijmap (struct
+  type ('a, 'b) t = 'b
+end)
 
 module Plusmap : sig
   module OfDom : module type of Tbwd.Of (D)

@@ -310,13 +310,17 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let fa = deg_plus (deg_zero m) (D.zero_plus n) m_n in
       let fields =
         Abwd.map
-          (fun (Pbijmap.Wrap pbijflds) ->
-            Pbijmap.Wrap
-              (Pbijmap.build mn (Pbijmap.intrinsic pbijflds) (fun pbij ->
-                   let (Deg_comp_pbij (p, _)) = deg_comp_pbij fa pbij in
-                   let open Monad.Ops (Monad.Maybe) in
-                   let* tm, l = Pbijmap.find p pbijflds in
-                   return (lazy_eval env tm, l))))
+          (fun (PbijmapOf.Wrap pbijflds) ->
+            PbijmapOf.Wrap
+              (PbijmapOf.build mn (PbijmapOf.intrinsic pbijflds)
+                 {
+                   build =
+                     (fun pbij ->
+                       let (Deg_comp_pbij (p, _)) = deg_comp_pbij fa pbij in
+                       let open Monad.Ops (Monad.Maybe) in
+                       let* tm, l = PbijmapOf.find p pbijflds in
+                       return (lazy_eval env tm, l));
+                 }))
           fields in
       Val (Struct (fields, ins, energy))
   | Constr (constr, n, args) ->
@@ -544,10 +548,10 @@ and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evalu
       | Some (Wrap pbijflds) -> (
           match
             ( D.compare (cod_left_ins structins) (dom_ins fldins),
-              D.compare (Pbijmap.intrinsic pbijflds) (cod_right_ins fldins) )
+              D.compare (PbijmapOf.intrinsic pbijflds) (cod_right_ins fldins) )
           with
           | Eq, Eq -> (
-              match Pbijmap.find (pbij_of_ins fldins) pbijflds with
+              match PbijmapOf.find (pbij_of_ins fldins) pbijflds with
               | Some (v, _) -> force_eval v
               | None -> fatal (Anomaly "field value unset"))
           | Neq, _ ->
@@ -556,7 +560,7 @@ and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evalu
           | _, Neq ->
               fatal
                 (Dimension_mismatch
-                   ("field intrinsic", Pbijmap.intrinsic pbijflds, cod_right_ins fldins)))
+                   ("field intrinsic", PbijmapOf.intrinsic pbijflds, cod_right_ins fldins)))
       | None -> (
           match energy with
           | Potential -> Unrealized

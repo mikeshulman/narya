@@ -107,13 +107,17 @@ module Act = struct
         let evaluation = dom_deg fa in
         let fields =
           Abwd.map
-            (fun (Pbijmap.Wrap pbijflds) ->
-              Pbijmap.Wrap
-                (Pbijmap.build evaluation (Pbijmap.intrinsic pbijflds) (fun pbij ->
-                     let (Deg_comp_pbij (p, fa)) = deg_comp_pbij fa pbij in
-                     let open Monad.Ops (Monad.Maybe) in
-                     let* tm, l = Pbijmap.find p pbijflds in
-                     return (act_lazy_eval tm fa, l))))
+            (fun (PbijmapOf.Wrap pbijflds) ->
+              PbijmapOf.Wrap
+                (PbijmapOf.build evaluation (PbijmapOf.intrinsic pbijflds)
+                   {
+                     build =
+                       (fun pbij ->
+                         let (Deg_comp_pbij (p, fa)) = deg_comp_pbij fa pbij in
+                         let open Monad.Ops (Monad.Maybe) in
+                         let* tm, l = PbijmapOf.find p pbijflds in
+                         return (act_lazy_eval tm fa, l));
+                   }))
             fields in
         Struct (fields, new_ins, energy)
     | Constr (name, dim, args) ->

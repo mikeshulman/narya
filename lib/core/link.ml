@@ -32,8 +32,17 @@ let rec term : type a s. (Compunit.t -> Compunit.t) -> (a, s) term -> (a, s) ter
         ( eta,
           dim,
           Abwd.map
-            (fun (Pbijmap.Wrap m) ->
-              Pbijmap.Wrap (Pbijmap.map (Option.map (fun (x, l) -> (term f x, l))) m))
+            (fun (PbijmapOf.Wrap m) ->
+              PbijmapOf.Wrap
+                (PbijmapOf.mmap
+                   {
+                     map =
+                       (fun _ [ x ] ->
+                         match x with
+                         | Some (x, l) -> Some (term f x, l)
+                         | None -> None);
+                   }
+                   [ m ]))
             flds,
           energy )
   | Match { tm; dim; branches } ->

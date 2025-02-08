@@ -615,32 +615,43 @@ and tyof_codatafield :
   (* The type of the field projection comes from the type associated to that field name in general, evaluated at the stored environment extended by the term itself and its boundaries. *)
   match fldty with
   | Term.Lower_codatafield fldty -> (
-      let tmcube =
-        Result.map (fun tm -> TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm)) tm
-      in
-      let env = Value.Ext (env, mn, tmcube) in
       match D.compare (cod_right_ins fldins) D.zero with
-      | Eq ->
-          (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
-          let insttm = eval_term env fldty in
-          let instargs =
-            TubeOf.mmap
-              {
-                map =
-                  (fun fa [ arg ] ->
-                    let fains = ins_zero (dom_tface fa) in
-                    let tm = field_term arg.tm fldname fains in
-                    let ty = tyof_field (Ok arg.tm) arg.ty fldname fains in
-                    { tm; ty });
-              }
-              [ TubeOf.middle (D.zero_plus m) mn tyargs ] in
-          Ok (inst insttm instargs)
+      | Eq -> Ok (tyof_lower_codatafield tm fldname fldty env tyargs m mn)
       | Neq -> Error (Wrap (cod_right_ins fldins), Wrap D.zero))
   | Higher_codatafield (k, kan, fldty) -> (
       let Eq = D.plus_uniq mn (D.plus_zero m) in
       match D.compare (cod_right_ins fldins) (D.pos k) with
       | Eq -> Ok (tyof_higher_codatafield tm fldname kan fldty env tyargs m fldins)
       | Neq -> Error (Wrap (cod_right_ins fldins), Wrap (D.pos k)))
+
+and tyof_lower_codatafield :
+    type m n mn a k r.
+    (kinetic value, Code.t) Result.t ->
+    Field.t ->
+    ((a, n) snoc, kinetic) term ->
+    (m, a) env ->
+    (D.zero, mn, mn, normal) TubeOf.t ->
+    m D.t ->
+    (m, n, mn) D.plus ->
+    kinetic value =
+ fun tm fldname fldty env tyargs m mn ->
+  let tmcube =
+    Result.map (fun tm -> TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm)) tm in
+  let env = Value.Ext (env, mn, tmcube) in
+  (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
+  let insttm = eval_term env fldty in
+  let instargs =
+    TubeOf.mmap
+      {
+        map =
+          (fun fa [ arg ] ->
+            let fains = ins_zero (dom_tface fa) in
+            let tm = field_term arg.tm fldname fains in
+            let ty = tyof_field (Ok arg.tm) arg.ty fldname fains in
+            { tm; ty });
+      }
+      [ TubeOf.middle (D.zero_plus m) mn tyargs ] in
+  inst insttm instargs
 
 and tyof_higher_codatafield :
     type m a k r kan.

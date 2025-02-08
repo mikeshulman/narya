@@ -598,10 +598,10 @@ and field_term : type n k nk. kinetic value -> Field.t -> (nk, n, k) insertion -
   let (Val v) = field x fld fldins in
   v
 
-(* Given a term and its record type, compute the type of a field projection, and the substitution dimension it was evaluated at.  There are two versions of this function, one for when we already know the insertion associated to the field, and one for when we are synthesizing it from the user's integer sequence.  First we define the shared part of both. *)
+(* Given a term and its record type, compute the type of a field projection, and the substitution dimension it was evaluated at.  There are two versions of this function, one for when we already know the insertion associated to the field, and one for when we are synthesizing it from the user's integer sequence.  First we define the shared part of both, where we have already found the codatafield from the codata type. *)
 
-and tyof_field_shared :
-    type m n mn a n k r.
+and tyof_codatafield :
+    type m n mn a k r.
     (kinetic value, Code.t) Result.t ->
     Field.t ->
     (a, n) codatafield ->
@@ -613,14 +613,12 @@ and tyof_field_shared :
     (kinetic value, dim_wrapped * dim_wrapped) Result.t =
  fun tm fldname fldty env tyargs m mn fldins ->
   (* The type of the field projection comes from the type associated to that field name in general, evaluated at the stored environment extended by the term itself and its boundaries. *)
-  let env =
-    Value.Ext
-      ( env,
-        mn,
-        Result.map (fun tm -> TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm)) tm
-      ) in
   match fldty with
   | Term.Lower_codatafield fldty -> (
+      let tmcube =
+        Result.map (fun tm -> TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm)) tm
+      in
+      let env = Value.Ext (env, mn, tmcube) in
       match D.compare (cod_right_ins fldins) D.zero with
       | Eq ->
           (* This type is m-dimensional, hence must be instantiated at a full m-tube. *)
@@ -641,27 +639,42 @@ and tyof_field_shared :
   | Higher_codatafield (k, kan, fldty) -> (
       let Eq = D.plus_uniq mn (D.plus_zero m) in
       match D.compare (cod_right_ins fldins) (D.pos k) with
-      | Eq ->
-          (* For a higher field, the type is defined in a degenerated context, so we have to shift the environment in order to evaluate it. *)
-          let r = cod_left_ins fldins in
-          let (Plus rk) = D.plus (cod_right_ins fldins) in
-          let p = perm_of_ins_plus fldins rk in
-          let insttm =
-            eval_term (Shift (Act (env, op_of_deg (deg_of_perm (perm_inv p))), rk, kan)) fldty in
-          let instargs =
-            TubeOf.build D.zero (D.zero_plus r)
-              {
-                build =
-                  (fun fa ->
-                    (* To get the instantiation arguments, we have to lift the faces along the field insertion to get the new insertion and the face to access.  *)
-                    let (Pface_lift_ins (fains, faplus)) = pface_lift_ins fa fldins in
-                    let arg = TubeOf.find tyargs faplus in
-                    let tm = field_term arg.tm fldname fains in
-                    let ty = tyof_field (Ok arg.tm) arg.ty fldname fains in
-                    { tm; ty });
-              } in
-          Ok (inst insttm instargs)
+      | Eq -> Ok (tyof_higher_codatafield tm fldname kan fldty env tyargs m fldins)
       | Neq -> Error (Wrap (cod_right_ins fldins), Wrap (D.pos k)))
+
+and tyof_higher_codatafield :
+    type m a k r kan.
+    (kinetic value, Code.t) Result.t ->
+    Field.t ->
+    (k, (a, D.zero) snoc, kan) Plusmap.t ->
+    (kan, kinetic) term ->
+    (m, a) env ->
+    (D.zero, m, m, normal) TubeOf.t ->
+    m D.t ->
+    (m, r, k) insertion ->
+    kinetic value =
+ fun tm fldname kan fldty env tyargs m fldins ->
+  let tmcube =
+    Result.map (fun tm -> TubeOf.plus_cube (val_of_norm_tube tyargs) (CubeOf.singleton tm)) tm in
+  let env = Value.Ext (env, D.plus_zero m, tmcube) in
+  (* For a higher field, the type is defined in a degenerated context, so we have to shift the environment in order to evaluate it. *)
+  let r = cod_left_ins fldins in
+  let (Plus rk) = D.plus (cod_right_ins fldins) in
+  let p = perm_of_ins_plus fldins rk in
+  let insttm = eval_term (Shift (Act (env, op_of_deg (deg_of_perm (perm_inv p))), rk, kan)) fldty in
+  let instargs =
+    TubeOf.build D.zero (D.zero_plus r)
+      {
+        build =
+          (fun fa ->
+            (* To get the instantiation arguments, we have to lift the faces along the field insertion to get the new insertion and the face to access.  *)
+            let (Pface_lift_ins (fains, faplus)) = pface_lift_ins fa fldins in
+            let arg = TubeOf.find tyargs faplus in
+            let tm = field_term arg.tm fldname fains in
+            let ty = tyof_field (Ok arg.tm) arg.ty fldname fains in
+            { tm; ty });
+      } in
+  inst insttm instargs
 
 (* This version is when we already know the insertion.  In this case, it's a bug if the field name or dimension don't match. *)
 and tyof_field :
@@ -689,7 +702,7 @@ and tyof_field :
           | Eq -> (
               match Field.find fields (`Name fld) with
               | Some (_, fldty) -> (
-                  match tyof_field_shared tm fld fldty env tyargs m mn fldins with
+                  match tyof_codatafield tm fld fldty env tyargs m mn fldins with
                   | Ok fldty -> fldty
                   | Error (Wrap a, Wrap b) ->
                       fatal ~severity (Dimension_mismatch ("tyof_field intrinsic", a, b)))
@@ -721,7 +734,7 @@ and tyof_field_withname :
           | Some (Ins_of fldins) -> (
               match Field.find fields fld with
               | Some (fldname, fldty) -> (
-                  match tyof_field_shared tm fldname fldty env tyargs m mn fldins with
+                  match tyof_codatafield tm fldname fldty env tyargs m mn fldins with
                   | Ok fldty -> (fldname, Any_ins fldins, fldty)
                   | Error (Wrap a, Wrap b) ->
                       fatal (Wrong_dimension_of_field (PVal (ctx, ty), fld, b, a)))

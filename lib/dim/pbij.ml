@@ -116,48 +116,121 @@ let all_pbij_between :
   let* (Of_right shuf) = all_shuffles_right (cod_right_ins ins) intrinsic in
   return (Pbij_between (Pbij (ins, shuf)))
 
-(* A partial bijection can be composed with a degeneracy on the evaluation dimension to produce another partial bijection, with an induced degeneracy on the results. *)
+(* A partial bijection can be composed with a degeneracy on the evaluation dimension to produce another partial bijection, with an induced degeneracy on the results.  Note that the first two outputs form a partial bijection. *)
 
-type (_, _, _) deg_comp_pbij_internal =
-  | DCP :
+type (_, _, _) deg_comp_ins =
+  | Deg_comp_ins :
       ('evaluation, 'result, 'shared) insertion
       * ('remaining, 'shared, 'intrinsic) shuffle
       * ('old_result, 'result) deg
-      -> ('evaluation, 'old_result, 'intrinsic) deg_comp_pbij_internal
+      -> ('evaluation, 'old_result, 'intrinsic) deg_comp_ins
 
-let rec deg_comp_pbij_internal :
+let rec deg_comp_ins :
+    type m n i res. (m, n) deg -> (m, res, i) insertion -> (n, res, i) deg_comp_ins =
+ fun deg ins ->
+  match ins with
+  | Zero _ -> Deg_comp_ins (Zero (cod_deg deg), Zero, deg)
+  | Suc (ins, i) -> (
+      match deg_coresidual deg i with
+      | Coresidual_zero deg ->
+          let (Deg_comp_ins (ins, shuf, s)) = deg_comp_ins deg ins in
+          Deg_comp_ins (ins, Left shuf, s)
+      | Coresidual_suc (deg, j) ->
+          let (Deg_comp_ins (ins, shuf, s)) = deg_comp_ins deg ins in
+          Deg_comp_ins (Suc (ins, j), Right shuf, s))
+
+(* A partial bijection can be composed with a degeneracy on the evaluation dimension to produce another partial bijection, with an induced degeneracy on the results. *)
+
+type (_, _, _, _) deg_comp_pbij =
+  | Deg_comp_pbij :
+      ('evaluation, 'result, 'shared) insertion
+      * ('remaining, 'shared, 'intrinsic) shuffle
+      * ('old_result, 'result) deg
+      * (('remaining, D.zero) Eq.t -> ('r, D.zero) Eq.t)
+      -> ('evaluation, 'old_result, 'intrinsic, 'r) deg_comp_pbij
+
+let rec deg_comp_pbij :
     type m n i res rem sh.
-    (m, n) deg ->
-    (m, res, sh) insertion ->
-    (rem, sh, i) shuffle ->
-    (n, res, i) deg_comp_pbij_internal =
+    (m, n) deg -> (m, res, sh) insertion -> (rem, sh, i) shuffle -> (n, res, i, rem) deg_comp_pbij =
  fun deg ins shuf ->
   match shuf with
   | Zero ->
       let (Zero _) = ins in
-      DCP (ins_zero (cod_deg deg), Zero, deg)
+      Deg_comp_pbij (ins_zero (cod_deg deg), Zero, deg, fun _ -> Eq)
   | Left shuf ->
-      let (DCP (ins, shuf, s)) = deg_comp_pbij_internal deg ins shuf in
-      DCP (ins, Left shuf, s)
+      let (Deg_comp_pbij (ins, shuf, s, _)) = deg_comp_pbij deg ins shuf in
+      Deg_comp_pbij
+        ( ins,
+          Left shuf,
+          s,
+          function
+          | _ -> . )
   | Right shuf -> (
       let (Suc (ins, i)) = ins in
       match deg_coresidual deg i with
       | Coresidual_zero deg ->
-          let (DCP (ins, shuf, s)) = deg_comp_pbij_internal deg ins shuf in
-          DCP (ins, Left shuf, s)
+          let (Deg_comp_pbij (ins, shuf, s, _)) = deg_comp_pbij deg ins shuf in
+          Deg_comp_pbij
+            ( ins,
+              Left shuf,
+              s,
+              function
+              | _ -> . )
       | Coresidual_suc (deg, j) ->
-          let (DCP (ins, shuf, s)) = deg_comp_pbij_internal deg ins shuf in
-          DCP (Suc (ins, j), Right shuf, s))
+          let (Deg_comp_pbij (ins, shuf, s, ifzero)) = deg_comp_pbij deg ins shuf in
+          Deg_comp_pbij (Suc (ins, j), Right shuf, s, ifzero))
 
-type (_, _) deg_comp_pbij =
-  | Deg_comp_pbij :
-      ('evaluation, 'intrinsic, 'remaining) pbij * ('old_result, 'result) deg
-      -> ('evaluation, 'intrinsic) deg_comp_pbij
+(* This is like deg_comp_pbij (for the insertion only, so far), but for adding a constant on the left rather than acting by an arbitrary degeneracy (for evaluation rather that acting).  This allows it to return more detailed information.  The dimension 'r (new remaining) is the piece of 'i (intrinsic) that lands in 'm (new added dimension on the left), while 'h (new shared) is the part that lands in 'n, and 't is the part of 'm that doesn't come from 'r.  Note that the first two outputs together form an ('n, 'i, 'r) pbij; that's why this is in this file, even though it doesn't refer explicitly to pbij.  *)
 
-let deg_comp_pbij : type m n i r. (m, n) deg -> (m, i, r) pbij -> (n, i) deg_comp_pbij =
- fun d (Pbij (ins, shuf)) ->
-  let (DCP (ins, shuf, s)) = deg_comp_pbij_internal d ins shuf in
-  Deg_comp_pbij (Pbij (ins, shuf), s)
+type (_, _, _, _) unplus_ins =
+  | Unplus_ins :
+      ('n, 's, 'h) insertion
+      * ('r, 'h, 'i) shuffle
+      * ('m, 't, 'r) insertion
+      * ('t, 'n, 'tn) D.plus
+      * ('tn, 'olds, 'h) insertion
+      -> ('m, 'n, 'olds, 'i) unplus_ins
+
+let rec unplus_ins :
+    type m n mn s i. m D.t -> (m, n, mn) D.plus -> (mn, s, i) insertion -> (m, n, s, i) unplus_ins =
+ fun m mn ins ->
+  match ins with
+  | Zero _ ->
+      (* i=0, r=0, h=0, t=m, tn=mn, s=n *)
+      Unplus_ins (Zero (D.plus_right mn), Zero, Zero m, mn, Zero (D.plus_out m mn))
+  | Suc (ins', x) -> (
+      match D.insert_in_plus mn x with
+      | Left (x, mn') ->
+          let (Unplus_ins (nsh, rhi, mtr, tn, tnsh)) = unplus_ins (D.insert_in m x) mn' ins' in
+          (* right-increment i and r, middle-increment m, keep s and h the same *)
+          Unplus_ins (nsh, Left rhi, Suc (mtr, x), tn, tnsh)
+      | Right (x, mn') ->
+          let (Unplus_ins (nsh, rhi, mtr, tn, tnsh)) = unplus_ins m mn' ins' in
+          (* right-increment i and h and s, middle-increment n, keep m and r the same *)
+          let (Plus tn') = D.plus (D.plus_right mn) in
+          Unplus_ins (Suc (nsh, x), Right rhi, mtr, tn', Suc (tnsh, D.plus_insert tn tn' x)))
+
+type (_, _, _, _, _, _) unplus_pbij =
+  | Unplus_pbij :
+      ('n, 'news, 'newh) insertion
+      * ('r, 'newh, 'i) shuffle
+      * ('oldr, 'newr, 'r) shuffle
+      * ('m, 't, 'newr) insertion
+      * ('t, 'n, 'tn) D.plus
+      * ('tn, 'olds, 'newh) insertion
+      -> ('m, 'n, 'olds, 'oldr, 'h, 'i) unplus_pbij
+
+let unplus_pbij :
+    type m n mn s i r h.
+    m D.t ->
+    (m, n, mn) D.plus ->
+    (mn, s, h) insertion ->
+    (r, h, i) shuffle ->
+    (m, n, s, r, h, i) unplus_pbij =
+ fun m mn ins shuf ->
+  let (Unplus_ins (nsh, rhi, mtr, tn, tnsh)) = unplus_ins m mn ins in
+  let (Comp_shuffle_right (rr, rhi)) = comp_shuffle_right rhi shuf in
+  Unplus_pbij (nsh, rhi, rr, mtr, tn, tnsh)
 
 (* Intrinsically well-typed maps with partial bijections as keys.  Each map has a fixed 'evaluation dimension and 'intrinsic dimension, but the 'result, 'shared, and 'remaining dimensions vary with the keys and values.  The values are parametrized by the 'remaining dimension as well as by an extra parameter that the map depends on; hence the whole notion of map is a functor parametrized by a Fam2.
 
@@ -226,7 +299,7 @@ module Pbijmap (F : Fam2) = struct
   type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
 
   let rec gfind :
-      type evaluation intrinsic remaining r1 r2 r v.
+      type evaluation intrinsic r1 r2 r v.
       (evaluation, intrinsic, r2) pbij ->
       (evaluation, intrinsic, r1, v) gt ->
       (r1, r2, r) D.plus ->
@@ -242,7 +315,7 @@ module Pbijmap (F : Fam2) = struct
         gfind (Pbij (ins, shuf)) m r12
 
   let find :
-      type evaluation intrinsic remaining remaining v.
+      type evaluation intrinsic remaining v.
       (evaluation, intrinsic, remaining) pbij -> (evaluation, intrinsic, v) t -> (remaining, v) F.t
       =
    fun p (m, _) -> gfind p m (D.zero_plus (remaining p))

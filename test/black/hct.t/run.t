@@ -158,6 +158,38 @@
     : refl A (sym s202 .rroot.12) (sym s212 .rroot.12)
   
 
+  $ narya -v sqrt.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0000]
+   ￮ constant ID defined
+  
+   ￫ info[I0000]
+   ￮ constant √IDA defined
+  
+   ￫ info[I0000]
+   ￮ constant η defined
+  
+   ￫ info[I0001]
+   ￮ axiom a0 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a1 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a2 assumed
+  
+  a0
+    : A
+  
+  a1
+    : A
+  
+  a2
+    : refl A a0 a1
+  
+
   $ narya -v isfibrant.ny
    ￫ info[I0000]
    ￮ constant isFibrant defined

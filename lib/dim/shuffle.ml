@@ -1,3 +1,4 @@
+open Util
 open Deg
 open Perm
 
@@ -61,6 +62,41 @@ let rec shuffle_zero : type a. a D.t -> (a, D.zero, a) shuffle = function
 let rec zero_shuffle : type a. a D.t -> (D.zero, a, a) shuffle = function
   | Nat Zero -> Zero
   | Nat (Suc a) -> Right (zero_shuffle (Nat a))
+
+let rec eq_of_zero_shuffle : type a b. (D.zero, a, b) shuffle -> (a, b) Eq.t = function
+  | Zero -> Eq
+  | Right s ->
+      let Eq = eq_of_zero_shuffle s in
+      Eq
+
+let rec eq_of_shuffle_zero : type a b. (a, D.zero, b) shuffle -> (a, b) Eq.t = function
+  | Zero -> Eq
+  | Left s ->
+      let Eq = eq_of_shuffle_zero s in
+      Eq
+
+type (_, _, _, _) comp_shuffle_right =
+  | Comp_shuffle_right :
+      ('a, 'b, 'ab) shuffle * ('ab, 'c, 'abc) shuffle
+      -> ('a, 'b, 'c, 'abc) comp_shuffle_right
+
+let rec comp_shuffle_right :
+    type a b c bc abc.
+    (b, c, bc) shuffle -> (a, bc, abc) shuffle -> (a, b, c, abc) comp_shuffle_right =
+ fun bc abc ->
+  match (bc, abc) with
+  | Zero, _ ->
+      let Eq = eq_of_shuffle_zero abc in
+      Comp_shuffle_right (shuffle_zero (left_shuffle abc), shuffle_zero (left_shuffle abc))
+  | _, Left abc ->
+      let (Comp_shuffle_right (ab, abc')) = comp_shuffle_right bc abc in
+      Comp_shuffle_right (Left ab, Left abc')
+  | Left bc, Right abc ->
+      let (Comp_shuffle_right (ab, abc')) = comp_shuffle_right bc abc in
+      Comp_shuffle_right (Right ab, Left abc')
+  | Right bc, Right abc ->
+      let (Comp_shuffle_right (ab, abc')) = comp_shuffle_right bc abc in
+      Comp_shuffle_right (ab, Right abc')
 
 type (_, _) shuffle_right = Of_right : ('a, 'b, 'c) shuffle -> ('b, 'c) shuffle_right
 

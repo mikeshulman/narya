@@ -2,6 +2,7 @@ open Bwd
 open Util
 open Tbwd
 open Dim
+open Dimbwd
 include Energy
 open Term
 
@@ -61,12 +62,24 @@ module rec Value : sig
         -> kinetic value
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
-    (* TODO: Perhaps a Value.Struct has to store fields separately from their closure environment rather than as individual lazy_evals, since some of them won't be evaluable unless a big enough degeneracy is applied?  *)
     | Struct :
-        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t
-        * ('nk, 'n, 'k) insertion
-        * 's energy
+        (Field.t, ('p, 's) structfield) Abwd.t * ('pk, 'p, 'k) insertion * 's energy
         -> 's value
+
+  and (_, _) structfield =
+    | Lower_structfield : 's lazy_eval * [ `Labeled | `Unlabeled ] -> ('n, 's) structfield
+    | Higher_structfield :
+        ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data
+        -> ('p, potential) structfield
+
+  and ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data = {
+    vals : ('p, 'i, potential lazy_eval option) InsmapOf.t;
+    intrinsic : 'i D.t;
+    plusdim : ('m, 'n, 'mn) D.plus;
+    env : ('m, 'a) env;
+    deg : ('p, 'mn) deg;
+    terms : ('n, 'i, 'a) PlusPbijmap.t;
+  }
 
   and _ evaluation =
     | Val : 's value -> 's evaluation
@@ -76,14 +89,7 @@ module rec Value : sig
 
   and _ canonical =
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
-    | Codata : {
-        eta : potential eta;
-        opacity : opacity;
-        env : ('m, 'a) env;
-        ins : ('mn, 'm, 'n) insertion;
-        fields : (Field.t, ('a, 'n) Term.codatafield) Abwd.t;
-      }
-        -> 'mn canonical
+    | Codata : ('mn, 'm, 'n, 'c, 'a) codata_args -> 'mn canonical
 
   and ('m, 'j, 'ij) data_args = {
     dim : 'm D.t;
@@ -91,6 +97,16 @@ module rec Value : sig
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
     discrete : [ `Yes | `Maybe | `No ];
+  }
+
+  and ('mn, 'm, 'n, 'c, 'a) codata_args = {
+    eta : potential eta;
+    opacity : opacity;
+    env : ('m, 'a) env;
+    termctx : ('c, ('a, 'n) snoc) termctx option Lazy.t;
+    ins : ('mn, 'm, 'n) insertion;
+    (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
+    fields : (Field.t, ('a, 'n) Term.codatafield) Abwd.t;
   }
 
   and (_, _) dataconstr =
@@ -191,12 +207,27 @@ end = struct
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * ('k, 's) binder -> 's value
-    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension, with 'n the substitution dimension and 'nk the total dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation.  Finally, the values associated to each field name are labeled by partial bijections in the case of a higher codatatype, whose 'evaluation dimension is the substitution dimension 'n. *)
+    (* The same is true for anonymous structs.  They have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel.  Here 'k is the Gel dimension, with 'n the substitution dimension and 'nk the total dimension. *)
     | Struct :
-        (Field.t, ('n, ('s lazy_eval * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t
-        * ('nk, 'n, 'k) insertion
-        * 's energy
+        (Field.t, ('p, 's) structfield) Abwd.t * ('pk, 'p, 'k) insertion * 's energy
         -> 's value
+
+  and (_, _) structfield =
+    (* We also remember which fields are labeled, for readback purposes, and we store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
+    | Lower_structfield : 's lazy_eval * [ `Labeled | `Unlabeled ] -> ('n, 's) structfield
+    (* In the higher case, they are always labeled.  There are multiple values are indexed by insertions, regarded as partial bijections with zero remaining dimensions; the 'evaluation dimension is the substitution dimension 'n and the 'intrinsic dimension is associated to the field.  We also store the original terms as a closure, since they may be needed to evaluate fields of degeneracies. *)
+    | Higher_structfield :
+        ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data
+        -> ('p, potential) structfield
+
+  and ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data = {
+    vals : ('p, 'i, potential lazy_eval option) InsmapOf.t;
+    intrinsic : 'i D.t;
+    plusdim : ('m, 'n, 'mn) D.plus;
+    env : ('m, 'a) env;
+    deg : ('p, 'mn) deg;
+    terms : ('n, 'i, 'a) PlusPbijmap.t;
+  }
 
   (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
   and _ evaluation =
@@ -211,15 +242,7 @@ end = struct
     (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definition below. *)
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms in a *lower* codatafield produces the data of a binder; so in the absence of higher codatatypes we can think of this as a family of binders, one for each field, that share the same environment and insertion.  (But with higher fields this is no longer the case, as the context of the types gets degenerated by their dimension.) *)
-    | Codata : {
-        eta : potential eta;
-        opacity : opacity;
-        env : ('m, 'a) env;
-        ins : ('mn, 'm, 'n) insertion;
-        (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
-        fields : (Field.t, ('a, 'n) Term.codatafield) Abwd.t;
-      }
-        -> 'mn canonical
+    | Codata : ('mn, 'm, 'n, 'c, 'a) codata_args -> 'mn canonical
 
   (* A datatype value stores: *)
   and ('m, 'j, 'ij) data_args = {
@@ -233,6 +256,16 @@ end = struct
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
     (* Whether it is discrete.  The value `Maybe means that it could be discrete based on its own parameters, indices, and constructor arguments, but either is waiting for its mutual companions to be typechecked, or at least one of them failed to be discrete.  Thus for equality-testing purposes, `Maybe is treated like `No. *)
     discrete : [ `Yes | `Maybe | `No ];
+  }
+
+  and ('mn, 'm, 'n, 'c, 'a) codata_args = {
+    eta : potential eta;
+    opacity : opacity;
+    env : ('m, 'a) env;
+    termctx : ('c, ('a, 'n) snoc) termctx option Lazy.t;
+    ins : ('mn, 'm, 'n) insertion;
+    (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
+    fields : (Field.t, ('a, 'n) Term.codatafield) Abwd.t;
   }
 
   (* Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
@@ -299,10 +332,14 @@ let dim_canonical : type m. m canonical -> m D.t = function
   | Codata { ins; _ } -> dom_ins ins
 
 (* The length of an environment is a tbwd of dimensions. *)
-let rec length_env : type n b. (n, b) env -> b Plusmap.OfDom.t = function
-  | Emp _ -> Of_emp
-  | Ext (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
-  | LazyExt (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
+let rec length_env : type n b. (n, b) env -> b Dbwd.t = function
+  | Emp _ -> Word Zero
+  | Ext (env, nk, _) ->
+      let (Word le) = length_env env in
+      Word (Suc (le, D.plus_right nk))
+  | LazyExt (env, nk, _) ->
+      let (Word le) = length_env env in
+      Word (Suc (le, D.plus_right nk))
   | Act (env, _) -> length_env env
   | Permute (p, env) -> Plusmap.OfDom.permute p (length_env env)
   | Shift (env, mn, nb) -> Plusmap.out (D.plus_right mn) (length_env env) nb

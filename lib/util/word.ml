@@ -215,6 +215,46 @@ module Make (G : Gen) = struct
         let (Suc_plus_eq_suc (y, i)) = suc_plus_eq_suc x in
         Suc_plus_eq_suc (Suc (y, g), Later i)
 
+  (* ********** More about insertion ********** *)
+
+  let rec insert : type a n b. (a, n, b) Tbwd.insert -> a t -> n G.t -> b t =
+   fun i (Word a) n ->
+    match i with
+    | Now -> Word (Suc (a, n))
+    | Later i ->
+        let (Suc (a, k)) = a in
+        let (Word ins) = insert i (Word a) n in
+        Word (Suc (ins, k))
+
+  let rec uninsert : type a n b. (a, n, b) Tbwd.insert -> b t -> a t =
+   fun i b ->
+    match i with
+    | Now ->
+        let (Word (Suc (b, _))) = b in
+        Word b
+    | Later i ->
+        let (Word (Suc (b, n))) = b in
+        let (Word ins) = uninsert i (Word b) in
+        Word (Suc (ins, n))
+
+  let rec inserted : type a n b. (a, n, b) Tbwd.insert -> b t -> n G.t =
+   fun i b ->
+    match i with
+    | Now ->
+        let (Word (Suc (_, n))) = b in
+        n
+    | Later i ->
+        let (Word (Suc (b, _))) = b in
+        inserted i (Word b)
+
+  let rec permute : type a b. (a, b) Tbwd.permute -> b t -> a t =
+   fun p b ->
+    match p with
+    | Id -> b
+    | Insert (p, i) ->
+        let (Word permuted) = permute p (uninsert i b) in
+        Word (Suc (permuted, inserted i b))
+
   (* ********** Subtraction ********** *)
 
   let rec minus : type m n mn. mn t -> (m, n, mn) plus -> m t =

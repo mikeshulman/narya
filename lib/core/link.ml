@@ -26,24 +26,7 @@ let rec term : type a s. (Compunit.t -> Compunit.t) -> (a, s) term -> (a, s) ter
   | Act (tm, s) -> Act (term f tm, s)
   | Let (x, v, body) -> Let (x, term f v, term f body)
   | Lam (x, body) -> Lam (x, term f body)
-  | Struct (eta, dim, flds, energy) ->
-      Struct
-        ( eta,
-          dim,
-          Abwd.map
-            (fun (PbijmapOf.Wrap m) ->
-              PbijmapOf.Wrap
-                (PbijmapOf.mmap
-                   {
-                     map =
-                       (fun _ [ x ] ->
-                         match x with
-                         | Some (x, l) -> Some (term f x, l)
-                         | None -> None);
-                   }
-                   [ m ]))
-            flds,
-          energy )
+  | Struct (eta, dim, flds, energy) -> Struct (eta, dim, Abwd.map (structfield f) flds, energy)
   | Match { tm; dim; branches } ->
       Match { tm = term f tm; dim; branches = Constr.Map.map (branch f) branches }
   | Realize tm -> Realize (term f tm)
@@ -60,8 +43,33 @@ and canonical : type a. (Compunit.t -> Compunit.t) -> a canonical -> a canonical
   match can with
   | Data { indices; constrs; discrete } ->
       Data { indices; constrs = Abwd.map (dataconstr f) constrs; discrete }
-  | Codata { eta; opacity; dim; fields } ->
-      Codata { eta; opacity; dim; fields = Abwd.map (codatafield f) fields }
+  | Codata { eta; opacity; dim; termctx = tc; fields } ->
+      Codata
+        {
+          eta;
+          opacity;
+          dim;
+          termctx = Option.map (termctx f) tc;
+          fields = Abwd.map (codatafield f) fields;
+        }
+
+and structfield :
+    type n a s.
+    (Compunit.t -> Compunit.t) -> (n, a, s) Term.structfield -> (n, a, s) Term.structfield =
+ fun f fld ->
+  match fld with
+  | Lower_structfield (x, l) -> Lower_structfield (term f x, l)
+  | Higher_structfield m ->
+      Higher_structfield
+        (PlusPbijmap.mmap
+           {
+             map =
+               (fun _ [ x ] ->
+                 match x with
+                 | PlusFam (Some (rb, x)) -> PlusFam (Some (rb, term f x))
+                 | PlusFam None -> PlusFam None);
+           }
+           [ m ])
 
 and codatafield : type a n. (Compunit.t -> Compunit.t) -> (a, n) codatafield -> (a, n) codatafield =
  fun f fld ->
@@ -85,7 +93,7 @@ and env : type a n b. (Compunit.t -> Compunit.t) -> (a, n, b) env -> (a, n, b) e
   | Emp n -> Emp n
   | Ext (e, nk, xs) -> Ext (env f e, nk, CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ xs ])
 
-let entry : type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) entry -> (b, f, mn) entry =
+and entry : type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) entry -> (b, f, mn) entry =
  fun f e ->
   match e with
   | Vis v ->
@@ -109,7 +117,7 @@ let entry : type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) entry -> (b, f
           [ bindings ] in
       Invis bindings
 
-let rec termctx_ordered :
+and termctx_ordered :
     type a b. (Compunit.t -> Compunit.t) -> (a, b) ordered_termctx -> (a, b) ordered_termctx =
  fun f ctx ->
   match ctx with
@@ -117,7 +125,7 @@ let rec termctx_ordered :
   | Ext (ctx, e, ax) -> Ext (termctx_ordered f ctx, entry f e, ax)
   | Lock ctx -> Lock (termctx_ordered f ctx)
 
-let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) termctx -> (a, b) termctx =
+and termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) termctx -> (a, b) termctx =
  fun f (Permute (p, ctx)) -> Permute (p, termctx_ordered f ctx)
 
 let metadef : type x y z. (Compunit.t -> Compunit.t) -> (x, y, z) Metadef.t -> (x, y, z) Metadef.t =

@@ -37,6 +37,13 @@ module rec Term : sig
 
   module CodCube : module type of Cube (CodFam)
 
+  module PlusFam : sig
+    type (_, _) t =
+      | PlusFam : (('r, 'b, 'rb) Plusmap.t * ('rb, potential) Term.term) option -> ('r, 'b) t
+  end
+
+  module PlusPbijmap : module type of Pbijmap (PlusFam)
+
   type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
 
   type (_, _) term =
@@ -56,12 +63,7 @@ module rec Term : sig
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta
-        * 'n D.t
-        * ( Field.t,
-            ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped )
-          Abwd.t
-        * 's energy
+        's eta * 'n D.t * (Field.t, ('n, 'a, 's) structfield) Abwd.t * 's energy
         -> ('a, 's) term
     | Match : {
         tm : ('a, kinetic) term;
@@ -78,6 +80,10 @@ module rec Term : sig
         -> ('a, 'n) branch
     | Refute
 
+  and (_, _, _) structfield =
+    | Lower_structfield : ('a, 's) term * [ `Labeled | `Unlabeled ] -> ('n, 'a, 's) structfield
+    | Higher_structfield : ('n, 'i, 'a) PlusPbijmap.t -> ('n, 'a, potential) structfield
+
   and _ canonical =
     | Data : {
         indices : 'i Fwn.t;
@@ -89,6 +95,7 @@ module rec Term : sig
         eta : potential eta;
         opacity : opacity;
         dim : 'n D.t;
+        termctx : ('c, ('a, 'n) snoc) termctx option;
         fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
       }
         -> 'a canonical
@@ -152,6 +159,13 @@ end = struct
 
   module CodCube = Cube (CodFam)
 
+  module PlusFam = struct
+    type (_, _) t =
+      | PlusFam : (('r, 'b, 'rb) Plusmap.t * ('rb, potential) Term.term) option -> ('r, 'b) t
+  end
+
+  module PlusPbijmap = Pbijmap (PlusFam)
+
   (* A typechecked De Bruijn index is a well-scoped natural number together with a definite strict face (the top face, if none was supplied explicitly).  Unlike a raw De Bruijn index, the scoping is by a tbwd rather than a type-level nat.  This allows the face to also be well-scoped: its codomain must be the dimension appearing in the hctx at that position.  And since we already have defined Tbwd.insert, we can re-use that instead of re-defining this inductively. *)
   type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
 
@@ -177,13 +191,7 @@ end = struct
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta
-        * 'n D.t
-        (* TODO: I think the 'a here is wrong: it should have a Plusmap of the 'remaining dimension of the pbij applied to it.  In particular, that's what I would expect to get out when typechecking higher fields, since that is done in a degenerated context.  If so, that means Pbijmap needs to be a functor depending on a Fam depending on the 'remaining dimension, and be applied here in the recursive module like CodCube.  It also means the definition of eval on Struct is wrong, since the types won't match, but I'm not sure how to fix it.  Perhaps a Value.Struct has to store fields separately from their closure environment rather than as individual lazy_evals, since some of them won't be evaluable unless a big enough degeneracy is applied?  *)
-        * ( Field.t,
-            ('n, (('a, 's) term * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped )
-          Abwd.t
-        * 's energy
+        's eta * 'n D.t * (Field.t, ('n, 'a, 's) structfield) Abwd.t * 's energy
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
     | Match : {
@@ -204,6 +212,10 @@ end = struct
     (* A branch that was refuted during typechecking doesn't need a body to compute with, but we still mark its presence as a signal that it should be stuck (this can occur when normalizing in an inconsistent context). *)
     | Refute
 
+  and (_, _, _) structfield =
+    | Lower_structfield : ('a, 's) term * [ `Labeled | `Unlabeled ] -> ('n, 'a, 's) structfield
+    | Higher_structfield : ('n, 'i, 'a) PlusPbijmap.t -> ('n, 'a, potential) structfield
+
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =
     (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
@@ -218,6 +230,7 @@ end = struct
         eta : potential eta;
         opacity : opacity;
         dim : 'n D.t;
+        termctx : ('c, ('a, 'n) snoc) termctx option;
         fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
       }
         -> 'a canonical
@@ -367,4 +380,8 @@ let ordered_ext_let :
 
 let ext_let (Permute (p, ctx)) xs b =
   let ctx = ordered_ext_let ctx xs b in
+  Permute (Insert (p, Top), ctx)
+
+let ext (Permute (p, ctx)) xs ty =
+  let ctx = ordered_ext_let ctx xs { ty; tm = None } in
   Permute (Insert (p, Top), ctx)

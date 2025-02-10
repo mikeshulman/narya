@@ -82,6 +82,7 @@ module Ordered = struct
   type (_, _, _) degctx =
     | Degctx : ('k, 'b, 'kb) Plusmap.t * ('a, 'kb) t * ('k, 'b) env -> ('a, 'b, 'k) degctx
 
+  (* TODO: Short-circuit if k=0. *)
   let rec degenerate : type a b k. (a, b) t -> k D.t -> (a, b, k) degctx =
    fun ctx k ->
     match ctx with

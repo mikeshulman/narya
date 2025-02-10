@@ -40,37 +40,38 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
 
 and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 
-and fields :
-    type s n.
-    n D.t ->
-    formatter ->
-    (Field.t, (n, (s lazy_eval * [ `Labeled | `Unlabeled ]) option) PbijmapOf.wrapped) Abwd.t ->
-    unit =
+and fields : type s n. n D.t -> formatter -> (Field.t, (n, s) Value.structfield) Abwd.t -> unit =
  fun n ppf -> function
   | Emp -> fprintf ppf "Emp"
-  | Snoc (flds, (f, Wrap m)) ->
-      PbijmapOf.miter
+  | Snoc (flds, (f, Lower_structfield (v, l))) ->
+      fprintf ppf "%a <: " (fields n) flds;
+      lazy_eval ppf f "" v l
+  | Snoc (flds, (f, Higher_structfield { vals; _ })) ->
+      fprintf ppf "%a <: " (fields n) flds;
+      InsmapOf.miter n
         {
           it =
             (fun p [ x ] ->
               match x with
-              | None -> fprintf ppf "%a <: None" (fields n) flds
-              | Some (v, l) -> (
-                  match !v with
-                  | Ready v ->
-                      fprintf ppf "%a <: (%s%s, %a, %s)" (fields n) flds (Field.to_string f)
-                        (string_of_pbij p) evaluation v
-                        (match l with
-                        | `Unlabeled -> "`Unlabeled"
-                        | `Labeled -> "`Labeled")
-                  | _ ->
-                      fprintf ppf "%a <: (%s%s, (Deferred), %s)" (fields n) flds (Field.to_string f)
-                        (string_of_pbij p)
-                        (match l with
-                        | `Unlabeled -> "`Unlabeled"
-                        | `Labeled -> "`Labeled")));
+              | None -> fprintf ppf "None"
+              | Some v -> lazy_eval ppf f (string_of_ins p) v `Labeled);
         }
-        [ m ]
+        [ vals ]
+
+and lazy_eval :
+    type s. formatter -> Field.t -> string -> s lazy_eval -> [ `Labeled | `Unlabeled ] -> unit =
+ fun ppf f p v l ->
+  match !v with
+  | Ready v ->
+      fprintf ppf "(%s%s, %a, %s)" (Field.to_string f) p evaluation v
+        (match l with
+        | `Unlabeled -> "`Unlabeled"
+        | `Labeled -> "`Labeled")
+  | _ ->
+      fprintf ppf "(%s%s, (Deferred), %s)" (Field.to_string f) p
+        (match l with
+        | `Unlabeled -> "`Unlabeled"
+        | `Labeled -> "`Labeled")
 
 and evaluation : type s. formatter -> s evaluation -> unit =
  fun ppf v ->

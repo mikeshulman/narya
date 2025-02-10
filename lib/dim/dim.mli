@@ -547,6 +547,103 @@ type any_ins = Any_ins : ('a, 'b, 'c) insertion -> any_ins
 
 val all_ins_of : 'ab D.t -> 'ab ins_of Seq.t
 
+module Insmap (F : Fam) : sig
+  type (_, _, _) t
+  type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
+
+  val find :
+    ('evaluation, 'shared, 'intrinsic) insertion -> ('evaluation, 'intrinsic, 'v) t -> 'v F.t
+
+  val set :
+    ('evaluation, 'shared, 'intrinsic) insertion ->
+    'v F.t ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val find_singleton : ('evaluation, 'intrinsic, 'v) t -> 'v F.t option
+
+  type ('evaluation, 'intrinsic, 'v) builder = {
+    build : 'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'v F.t;
+  }
+
+  val build :
+    'evaluation D.t ->
+    'intrinsic D.t ->
+    ('evaluation, 'intrinsic, 'v) builder ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val singleton : 'v F.t -> ('evaluation, D.zero, 'v) t
+
+  module Heter : sig
+    type _ hft = [] : nil hft | ( :: ) : 'v F.t * 'vs hft -> ('v, 'vs) cons hft
+
+    type (_, _, _) ht =
+      | [] : ('e, 'i, nil) ht
+      | ( :: ) : ('e, 'i, 'v) t * ('e, 'i, 'vs) ht -> ('e, 'i, ('v, 'vs) cons) ht
+  end
+
+  module Applicatic : functor (M : Applicative.Plain) -> sig
+    type ('evaluation, 'intrinsic, 'vs, 'ws) pmapperM = {
+      map :
+        'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'vs Heter.hft -> 'ws Heter.hft M.t;
+    }
+
+    val pmapM :
+      'a D.t ->
+      ('a, 'b, ('c, 'd) cons, 'e) pmapperM ->
+      ('a, 'b, ('c, 'd) cons) Heter.ht ->
+      'e Tlist.t ->
+      ('a, 'b, 'e) Heter.ht M.t
+
+    type ('evaluation, 'intrinsic, 'vs, 'w) mmapperM = {
+      map : 'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'vs Heter.hft -> 'w F.t M.t;
+    }
+
+    val mmapM :
+      'a D.t ->
+      ('a, 'b, ('c, 'd) cons, 'e) mmapperM ->
+      ('a, 'b, ('c, 'd) cons) Heter.ht ->
+      ('a, 'b, 'e) t M.t
+
+    type ('evaluation, 'intrinsic, 'vs) miteratorM = {
+      it : 'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'vs Heter.hft -> unit M.t;
+    }
+
+    val miterM :
+      'a D.t -> ('a, 'b, ('c, 'd) cons) miteratorM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> unit M.t
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
+  end
+
+  module IdM : module type of Monadic (Monad.Identity)
+
+  val pmap :
+    'a D.t ->
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.pmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    'e Tlist.t ->
+    ('a, 'b, 'e) Heter.ht IdM.A.t
+
+  val mmap :
+    'a D.t ->
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.mmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    ('a, 'b, 'e) t IdM.A.t
+
+  val miter :
+    'a D.t ->
+    ('a, 'b, ('c, 'd) cons) IdM.miteratorM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    unit IdM.A.t
+end
+
+module InsmapOf : module type of Insmap (struct
+  type 'b t = 'b
+end)
+
 type (_, _, _) shuffle
 
 val plus_of_shuffle : ('a, 'b, 'c) shuffle -> ('a, 'b, 'c) D.plus
@@ -556,6 +653,8 @@ val left_shuffle : ('a, 'b, 'c) shuffle -> 'a D.t
 val right_shuffle : ('a, 'b, 'c) shuffle -> 'b D.t
 val out_shuffle : ('a, 'b, 'c) shuffle -> 'c D.t
 val shuffle_zero : 'a D.t -> ('a, D.zero, 'a) shuffle
+val zero_shuffle : 'a D.t -> (D.zero, 'a, 'a) shuffle
+val eq_of_zero_shuffle : (D.zero, 'a, 'b) shuffle -> ('a, 'b) Eq.t
 
 type (_, _) shuffle_right = Of_right : ('a, 'b, 'c) shuffle -> ('b, 'c) shuffle_right
 
@@ -587,25 +686,57 @@ type (_, _) pbij_between =
 val all_pbij_between :
   'evaluation D.t -> 'intrinsic D.t -> ('evaluation, 'intrinsic) pbij_between Seq.t
 
-type (_, _, _) deg_comp_pbij_internal =
-  | DCP :
+type (_, _, _) deg_comp_ins =
+  | Deg_comp_ins :
       ('evaluation, 'result, 'shared) insertion
       * ('remaining, 'shared, 'intrinsic) shuffle
       * ('old_result, 'result) deg
-      -> ('evaluation, 'old_result, 'intrinsic) deg_comp_pbij_internal
+      -> ('evaluation, 'old_result, 'intrinsic) deg_comp_ins
 
-val deg_comp_pbij_internal :
+val deg_comp_ins : ('m, 'n) deg -> ('m, 'res, 'i) insertion -> ('n, 'res, 'i) deg_comp_ins
+
+type (_, _, _, _) deg_comp_pbij =
+  | Deg_comp_pbij :
+      ('evaluation, 'result, 'shared) insertion
+      * ('remaining, 'shared, 'intrinsic) shuffle
+      * ('old_result, 'result) deg
+      * (('remaining, D.zero) Eq.t -> ('r, D.zero) Eq.t)
+      -> ('evaluation, 'old_result, 'intrinsic, 'r) deg_comp_pbij
+
+val deg_comp_pbij :
   ('m, 'n) deg ->
   ('m, 'res, 'sh) insertion ->
   ('rem, 'sh, 'i) shuffle ->
-  ('n, 'res, 'i) deg_comp_pbij_internal
+  ('n, 'res, 'i, 'rem) deg_comp_pbij
 
-type (_, _) deg_comp_pbij =
-  | Deg_comp_pbij :
-      ('evaluation, 'intrinsic, 'remaining) pbij * ('old_result, 'result) deg
-      -> ('evaluation, 'intrinsic) deg_comp_pbij
+type (_, _, _, _) unplus_ins =
+  | Unplus_ins :
+      ('n, 's, 'h) insertion
+      * ('r, 'h, 'i) shuffle
+      * ('m, 't, 'r) insertion
+      * ('t, 'n, 'tn) D.plus
+      * ('tn, 'olds, 'h) insertion
+      -> ('m, 'n, 'olds, 'i) unplus_ins
 
-val deg_comp_pbij : ('m, 'n) deg -> ('m, 'i, 'r) pbij -> ('n, 'i) deg_comp_pbij
+val unplus_ins :
+  'm D.t -> ('m, 'n, 'mn) D.plus -> ('mn, 's, 'i) insertion -> ('m, 'n, 's, 'i) unplus_ins
+
+type (_, _, _, _, _, _) unplus_pbij =
+  | Unplus_pbij :
+      ('n, 'news, 'newh) insertion
+      * ('r, 'newh, 'i) shuffle
+      * ('oldr, 'newr, 'r) shuffle
+      * ('m, 't, 'newr) insertion
+      * ('t, 'n, 'tn) D.plus
+      * ('tn, 'olds, 'newh) insertion
+      -> ('m, 'n, 'olds, 'oldr, 'h, 'i) unplus_pbij
+
+val unplus_pbij :
+  'm D.t ->
+  ('m, 'n, 'mn) D.plus ->
+  ('mn, 's, 'h) insertion ->
+  ('r, 'h, 'i) shuffle ->
+  ('m, 'n, 's, 'r, 'h, 'i) unplus_pbij
 
 module Pbijmap : functor (F : Fam2) -> sig
   type ('evaluation, 'intrinsic, 'v) t
@@ -701,8 +832,8 @@ module PbijmapOf : module type of Pbijmap (struct
 end)
 
 module Plusmap : sig
-  module OfDom : module type of Tbwd.Of (D)
-  module OfCod : module type of Tbwd.Of (D) with type 'a t = 'a OfDom.t
+  module OfDom : module type of Word.Make (D)
+  module OfCod : module type of Word.Make (D) with type 'a t = 'a OfDom.t
 
   type ('a, 'b, 'c) t =
     | Map_emp : ('p, emp, emp) t

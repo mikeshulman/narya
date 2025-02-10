@@ -1,6 +1,5 @@
 open Dim
 open Reporter
-open Syntax
 open Value
 
 type ('a, 'b) actor = { act : 'm 'n. 'a -> ('m, 'n) deg -> 'b }

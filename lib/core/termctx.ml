@@ -5,12 +5,15 @@ open Tbwd
 open Dim
 open Dimbwd
 open Reporter
-open Syntax
 open Term
 
 (* Here we define a data structure analogous to Ctx.t, but using terms rather than values.  This is used to store the context of a metavariable, as the value context containing level variables is too volatile to store in the Galaxy.  We also define a function to evaluate a Termctx into a Ctx.  (We can also read back a Ctx into a Termctx, but we wait to define that operation until readback.ml for dependency reasons.) *)
 
 type 'b binding = { ty : ('b, kinetic) term; tm : ('b, kinetic) term option }
+
+type (_, _) has_fields =
+  | No_fields : ('m, N.zero) has_fields
+  | Has_fields : (D.zero, 'f2) has_fields
 
 type (_, _, _) entry =
   | Vis : {
@@ -19,7 +22,7 @@ type (_, _, _) entry =
       vars : (N.zero, 'n, string option, 'f1) NICubeOf.t;
       (* The reason for the "snoc" here is so that some of the terms and types in these bindings can refer to other ones.  Of course it should really be only the *later* ones that can refer to the *earlier* ones, but we don't have a way to specify that in the type parameters. *)
       bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
-      hasfields : ('m, 'f2) Ctx.has_fields;
+      hasfields : ('m, 'f2) has_fields;
       fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
       fplus : ('f1, 'f2, 'f) N.plus;
     }

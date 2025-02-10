@@ -3,7 +3,6 @@ open Tbwd
 open Tlist
 open Dim
 open Reporter
-open Syntax
 open Value
 open Norm
 open Readback

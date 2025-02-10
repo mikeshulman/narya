@@ -3,7 +3,6 @@ open Util
 open Perhaps
 open Tbwd
 open Reporter
-open Syntax
 open Term
 open Value
 open Domvars

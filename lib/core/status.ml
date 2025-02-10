@@ -2,7 +2,6 @@ open Bwd
 open Util
 open Tbwd
 open Dim
-open Syntax
 open Term
 open Value
 

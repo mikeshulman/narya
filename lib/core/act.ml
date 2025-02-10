@@ -2,7 +2,7 @@ open Bwd
 open Util
 open Dim
 open Reporter
-open Syntax
+open Term
 open Value
 
 (* Operator actions on values.  Unlike substitution, operator actions take a *value* as input (and produces another value). *)

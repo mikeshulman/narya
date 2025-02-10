@@ -1,6 +1,5 @@
 (* This module should not be opened, but used qualified. *)
 
-open Syntax
 open Term
 
 type ('a, 'b, 's) t = {

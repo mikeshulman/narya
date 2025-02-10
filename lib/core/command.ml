@@ -2,9 +2,9 @@ open Bwd
 open Util
 open Tbwd
 open Dim
-open Syntax
 open Raw
 open Term
+open Value
 open Norm
 open Check
 open Readback

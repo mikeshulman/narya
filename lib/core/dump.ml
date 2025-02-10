@@ -5,7 +5,6 @@ open Dim
 open Util
 open Reporter
 open Format
-open Syntax
 open Value
 open Term
 open Raw

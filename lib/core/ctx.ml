@@ -6,7 +6,6 @@ open Tbwd
 open Dim
 open Dimbwd
 open Reporter
-open Syntax
 open Term
 open Value
 
@@ -77,15 +76,13 @@ end = struct
     | Error e -> fatal e
 end
 
+type ('m, 'f) has_fields = ('m, 'f) Termctx.has_fields
+
 (* Test whether all the variables in a cube of bindings are free (none are let-bound). *)
 let all_free : type n. (n, Binding.t) CubeOf.t -> bool =
  fun b ->
   let open CubeOf.Monadic (Monad.Maybe) in
   Option.is_some (mmapM { map = (fun _ [ x ] -> Option.map (fun _ -> ()) (Binding.level x)) } [ b ])
-
-type (_, _) has_fields =
-  | No_fields : ('m, N.zero) has_fields
-  | Has_fields : (D.zero, 'f2) has_fields
 
 (* A context is a list of "entries", which can be either visible or invisible in the raw world.  An (f,n) entry contains f raw variables and an n-dimensional cube of checked variables. *)
 type (_, _) entry =

@@ -1,7 +1,6 @@
 open Util
 open Core
 open Parser
-open Syntax
 open Value
 open Norm
 open Asai.Range

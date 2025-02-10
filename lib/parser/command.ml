@@ -656,7 +656,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
               let etm = Norm.eval_term (Emp D.zero) ctm in
               Readback.readback_at Ctx.empty etm ety
             else ctm in
-          let bty = Readback.readback_at Ctx.empty ety (Syntax.universe D.zero) in
+          let bty = Readback.readback_at Ctx.empty ety (Value.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           let uty = unparse Names.empty bty Interval.entire Interval.entire in
           let ppf = Format.std_formatter in

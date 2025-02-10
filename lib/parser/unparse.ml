@@ -4,7 +4,6 @@ open Tbwd
 open Bwd_extra
 open Dim
 open Core
-open Syntax
 open Term
 open Notation
 open Builtins

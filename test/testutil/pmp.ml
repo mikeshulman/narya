@@ -1,6 +1,5 @@
 open Util
 open Core
-open Syntax
 open Value
 open Norm
 open Parser

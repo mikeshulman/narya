@@ -1,7 +1,6 @@
 open Bwd
 open Util
 open Tbwd
-open Syntax
 open Term
 
 type definition = Axiom of [ `Parametric | `Nonparametric ] | Defined of (emp, potential) term

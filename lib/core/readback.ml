@@ -3,7 +3,6 @@ open Util
 open Tbwd
 open Reporter
 open Dim
-open Syntax
 open Term
 open Value
 open Domvars
@@ -252,6 +251,7 @@ and readback_at_tel :
            xs tys tyargs
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
+(* To readback an environment, since readback is type-directed we need the types of *all* the terms in it, which is to say its codomain context.  We store this as a Termctx since we need to evaluate and instantiate the types at the previous terms in the environment as we go. *)
 and readback_env :
     type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.t -> (b, n, d) Term.env =
  fun ctx env (Permute (_, envctx)) -> readback_ordered_env ctx env envctx

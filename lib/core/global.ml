@@ -4,7 +4,6 @@ open Bwd
 open Util
 open Tbwd
 open Reporter
-open Syntax
 open Term
 open Status
 

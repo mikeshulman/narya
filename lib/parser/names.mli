@@ -2,7 +2,6 @@ open Util
 open Tbwd
 open Dim
 open Core
-open Syntax
 open Term
 module StringMap : module type of Map.Make (String)
 

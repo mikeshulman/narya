@@ -1,6 +1,5 @@
 open Util
 open Dim
-open Syntax
 open Term
 
 (* When "linking" a pre-compiled file with the current run, we need to walk the unmarshaled terms and replace the old autonumbers of compilation units, from when the file was compiled, with the current ones. *)

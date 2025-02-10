@@ -1,6 +1,5 @@
 open Dim
 open Reporter
-open Syntax
 open Value
 open Readback
 open Norm
@@ -99,7 +98,7 @@ module Ordered = struct
               let (Plus km) = D.plus dim in
               let plusdim = D.plus_assocl km plusdim k_mn in
               let bindings, newval = degenerate_binding (length newctx) k k_mn bindings ctx env in
-              let hasfields = Ctx.No_fields in
+              let hasfields = Termctx.No_fields in
               ( Ctx.Vis { dim = D.plus_out k km; plusdim; vars; bindings; hasfields; fields; fplus },
                 Ext (env, k_mn, Ok newval) )
           | Invis xs ->

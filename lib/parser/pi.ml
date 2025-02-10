@@ -1,6 +1,6 @@
 open Dim
 open Core
-open Syntax
+open Value
 open Norm
 open Check
 open Notation

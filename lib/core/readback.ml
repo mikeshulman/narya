@@ -253,18 +253,18 @@ and readback_at_tel :
 
 (* To readback an environment, since readback is type-directed we need the types of *all* the terms in it, which is to say its codomain context.  We store this as a Termctx since we need to evaluate and instantiate the types at the previous terms in the environment as we go. *)
 and readback_env :
-    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.t -> (b, n, d) Term.env =
+    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) termctx -> (b, n, d) Term.env =
  fun ctx env (Permute (_, envctx)) -> readback_ordered_env ctx env envctx
 
 and readback_ordered_env :
-    type n a b c d.
-    (a, b) Ctx.t -> (n, d) Value.env -> (c, d) Termctx.Ordered.t -> (b, n, d) Term.env =
+    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) ordered_termctx -> (b, n, d) Term.env
+    =
  fun ctx env envctx ->
   match envctx with
   | Emp -> Emp (dim_env env)
   | Lock envctx -> readback_ordered_env ctx env envctx
-  | Snoc (envctx, entry, _) -> (
-      let (Plus mk) = D.plus (Termctx.dim_entry entry) in
+  | Ext (envctx, entry, _) -> (
+      let (Plus mk) = D.plus (dim_entry entry) in
       let (Looked_up { act; op = Op (fc, fd); entry = xs }) =
         lookup_cube env mk Now (id_op (dim_env env)) in
       let xs = act_cube { act } (CubeOf.subcube fc xs) fd in
@@ -300,7 +300,7 @@ and readback_ordered_env :
 
 let readback_bindings :
     type a b n.
-    (a, (b, n) snoc) Ctx.t -> (n, Binding.t) CubeOf.t -> (n, (b, n) snoc Termctx.binding) CubeOf.t =
+    (a, (b, n) snoc) Ctx.t -> (n, Binding.t) CubeOf.t -> (n, (b, n) snoc binding) CubeOf.t =
  fun ctx vbs ->
   CubeOf.mmap
     {
@@ -308,8 +308,7 @@ let readback_bindings :
         (fun _ [ b ] ->
           match Binding.level b with
           | Some _ ->
-              ({ tm = None; ty = readback_val ctx (Binding.value b).ty }
-                : (b, n) snoc Termctx.binding)
+              ({ tm = None; ty = readback_val ctx (Binding.value b).ty } : (b, n) snoc binding)
           | None ->
               {
                 tm = Some (readback_nf ctx (Binding.value b));
@@ -318,8 +317,7 @@ let readback_bindings :
     }
     [ vbs ]
 
-let readback_entry :
-    type a b f n. (a, (b, n) snoc) Ctx.t -> (f, n) Ctx.entry -> (b, f, n) Termctx.entry =
+let readback_entry : type a b f n. (a, (b, n) snoc) Ctx.t -> (f, n) Ctx.entry -> (b, f, n) entry =
  fun ctx e ->
   match e with
   | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
@@ -336,11 +334,11 @@ let readback_entry :
       Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
   | Invis bindings -> Invis (readback_bindings ctx bindings)
 
-let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) Termctx.Ordered.t = function
+let rec readback_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> (a, b) ordered_termctx = function
   | Emp -> Emp
   | Snoc (rest, e, af) as ctx ->
-      Snoc (readback_ordered_ctx rest, readback_entry (Ctx.of_ordered ctx) e, af)
+      Ext (readback_ordered_ctx rest, readback_entry (Ctx.of_ordered ctx) e, af)
   | Lock ctx -> Lock (readback_ordered_ctx ctx)
 
-let readback_ctx : type a b. (a, b) Ctx.t -> (a, b) Termctx.t = function
+let readback_ctx : type a b. (a, b) Ctx.t -> (a, b) termctx = function
   | Permute (p, _, ctx) -> Permute (p, readback_ordered_ctx ctx)

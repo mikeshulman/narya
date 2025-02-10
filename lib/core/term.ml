@@ -2,6 +2,7 @@ open Bwd
 open Util
 open Tbwd
 open Dim
+open Dimbwd
 include Energy
 
 (* ******************** Names ******************** *)
@@ -116,6 +117,34 @@ module rec Term : sig
     | Ext :
         ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
         -> ('a, 'n, ('b, 'k) snoc) env
+
+  and 'b binding = { ty : ('b, kinetic) term; tm : ('b, kinetic) term option }
+
+  and (_, _) has_fields =
+    | No_fields : ('m, N.zero) has_fields
+    | Has_fields : (D.zero, 'f2) has_fields
+
+  and (_, _, _) entry =
+    | Vis : {
+        dim : 'm D.t;
+        plusdim : ('m, 'n, 'mn) D.plus;
+        vars : (N.zero, 'n, string option, 'f1) NICubeOf.t;
+        bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
+        hasfields : ('m, 'f2) has_fields;
+        fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
+        fplus : ('f1, 'f2, 'f) N.plus;
+      }
+        -> ('b, 'f, 'mn) entry
+    | Invis : ('n, ('b, 'n) snoc binding) CubeOf.t -> ('b, N.zero, 'n) entry
+
+  and (_, _) ordered_termctx =
+    | Emp : (N.zero, emp) ordered_termctx
+    | Ext :
+        ('a, 'b) ordered_termctx * ('b, 'x, 'n) entry * ('a, 'x, 'ax) N.plus
+        -> ('ax, ('b, 'n) snoc) ordered_termctx
+    | Lock : ('a, 'b) ordered_termctx -> ('a, 'b) ordered_termctx
+
+  and ('a, 'b) termctx = Permute : ('a, 'i) N.perm * ('i, 'b) ordered_termctx -> ('a, 'b) termctx
 end = struct
   module CodFam = struct
     type ('k, 'a) t = (('a, 'k) snoc, kinetic) Term.term
@@ -222,6 +251,36 @@ end = struct
     | Ext :
         ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
         -> ('a, 'n, ('b, 'k) snoc) env
+
+  (* A termctx is a data structure analogous to a Ctx.t, but using terms rather than values (and thus we will not explain its structure here; see ctx.ml).  This is used to store the context of a metavariable, as the value context containing level variables is too volatile to store there.  We also store it (lazily) with a codatatype that has higher fields, so we can use it to read back the closure environment to degenerate it. *)
+  and 'b binding = { ty : ('b, kinetic) term; tm : ('b, kinetic) term option }
+
+  and (_, _) has_fields =
+    | No_fields : ('m, N.zero) has_fields
+    | Has_fields : (D.zero, 'f2) has_fields
+
+  and (_, _, _) entry =
+    | Vis : {
+        dim : 'm D.t;
+        plusdim : ('m, 'n, 'mn) D.plus;
+        vars : (N.zero, 'n, string option, 'f1) NICubeOf.t;
+        (* The reason for the "snoc" here is so that some of the terms and types in these bindings can refer to other ones.  Of course it should really be only the *later* ones that can refer to the *earlier* ones, but we don't have a way to specify that in the type parameters. *)
+        bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
+        hasfields : ('m, 'f2) has_fields;
+        fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
+        fplus : ('f1, 'f2, 'f) N.plus;
+      }
+        -> ('b, 'f, 'mn) entry
+    | Invis : ('n, ('b, 'n) snoc binding) CubeOf.t -> ('b, N.zero, 'n) entry
+
+  and (_, _) ordered_termctx =
+    | Emp : (N.zero, emp) ordered_termctx
+    | Ext :
+        ('a, 'b) ordered_termctx * ('b, 'x, 'n) entry * ('a, 'x, 'ax) N.plus
+        -> ('ax, ('b, 'n) snoc) ordered_termctx
+    | Lock : ('a, 'b) ordered_termctx -> ('a, 'b) ordered_termctx
+
+  and ('a, 'b) termctx = Permute : ('a, 'i) N.perm * ('i, 'b) ordered_termctx -> ('a, 'b) termctx
 end
 
 include Term
@@ -272,3 +331,40 @@ let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
 let dim_codatafield : type a n. (a, n) codatafield -> dim_wrapped = function
   | Lower_codatafield _ -> Wrap D.zero
   | Higher_codatafield (k, _, _) -> Wrap (D.pos k)
+
+let dim_entry : type b f n. (b, f, n) entry -> n D.t = function
+  | Vis { bindings; _ } | Invis bindings -> CubeOf.dim bindings
+
+let rec ordered_dbwd : type a b. (a, b) ordered_termctx -> b Dbwd.t = function
+  | Emp -> Word Zero
+  | Ext (ctx, e, _) ->
+      let (Word b) = ordered_dbwd ctx in
+      Word (Suc (b, dim_entry e))
+  | Lock ctx -> ordered_dbwd ctx
+
+let dbwd (Permute (_, ctx)) = ordered_dbwd ctx
+
+let ordered_ext_let :
+    type a b.
+    (a, b) ordered_termctx ->
+    string option ->
+    (b, D.zero) snoc binding ->
+    (a N.suc, (b, D.zero) snoc) ordered_termctx =
+ fun ctx x b ->
+  Ext
+    ( ctx,
+      Vis
+        {
+          dim = D.zero;
+          plusdim = D.plus_zero D.zero;
+          vars = NICubeOf.singleton x;
+          bindings = CubeOf.singleton b;
+          hasfields = No_fields;
+          fields = Emp;
+          fplus = Zero;
+        },
+      Suc Zero )
+
+let ext_let (Permute (p, ctx)) xs b =
+  let ctx = ordered_ext_let ctx xs b in
+  Permute (Insert (p, Top), ctx)

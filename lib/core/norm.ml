@@ -470,7 +470,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
               (* We compute the output type of the application. *)
               let newty = lazy (tyof_app cods tyargs arg) in
               (* We add the new argument to the existing application spine. *)
-              let args = Snoc (args, App (Arg newarg, ins_zero k)) in
+              let args = Bwd.Snoc (args, App (Arg newarg, ins_zero k)) in
               if GluedEval.read () then
                 (* We add the argument to the lazy value and return a glued neutral. *)
                 let value = apply_lazy value newarg in
@@ -572,7 +572,7 @@ and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evalu
       match act_value viewed_tm p with
       | Uninst (Neu { head; args; value }, (lazy ty)) -> (
           let newty = Lazy.from_val (tyof_field (Ok tm) ty fld fldins) in
-          let args = Snoc (args, App (Field (fld, fldplus), ins_zero n)) in
+          let args = Bwd.Snoc (args, App (Field (fld, fldplus), ins_zero n)) in
           if GluedEval.read () then
             let value = field_lazy value fld fldins in
             Val (Uninst (Neu { head; args; value }, newty))
@@ -1058,10 +1058,8 @@ let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> k
 
 let eval_bindings :
     type a b n.
-    (a, b) Ctx.Ordered.t -> (n, (b, n) snoc Termctx.binding) CubeOf.t -> (n, Ctx.Binding.t) CubeOf.t
-    =
+    (a, b) Ctx.Ordered.t -> (n, (b, n) snoc binding) CubeOf.t -> (n, Ctx.Binding.t) CubeOf.t =
  fun ctx cbs ->
-  let open Termctx in
   let i = Ctx.Ordered.length ctx in
   let vbs = CubeOf.build (CubeOf.dim cbs) { build = (fun _ -> Ctx.Binding.unknown ()) } in
   let tempctx = Ctx.Ordered.Snoc (ctx, Invis vbs, Zero) in
@@ -1086,24 +1084,24 @@ let eval_bindings :
       [ cbs; vbs ] in
   vbs
 
-let eval_entry : type a b f n. (a, b) Ctx.Ordered.t -> (b, f, n) Termctx.entry -> (f, n) Ctx.entry =
+let eval_entry : type a b f n. (a, b) Ctx.Ordered.t -> (b, f, n) entry -> (f, n) Ctx.entry =
  fun ctx e ->
   match e with
-  | Termctx.Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
+  | Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus } ->
       let bindings = eval_bindings ctx bindings in
       let fields = Bwv.map (fun (f, x, _) -> (f, x)) fields in
       Vis { dim; plusdim; vars; bindings; hasfields; fields; fplus }
   | Invis bindings -> Invis (eval_bindings ctx bindings)
 
-let rec eval_ordered_ctx : type a b. (a, b) Termctx.Ordered.t -> (a, b) Ctx.Ordered.t = function
-  | Termctx.Ordered.Emp -> Emp
-  | Snoc (ctx, e, af) ->
+let rec eval_ordered_ctx : type a b. (a, b) ordered_termctx -> (a, b) Ctx.Ordered.t = function
+  | Emp -> Emp
+  | Ext (ctx, e, af) ->
       let ectx = eval_ordered_ctx ctx in
       Snoc (ectx, eval_entry ectx e, af)
   | Lock ctx -> Lock (eval_ordered_ctx ctx)
 
-let eval_ctx : type a b. (a, b) Termctx.t -> (a, b) Ctx.t = function
-  | Termctx.Permute (p, ctx) ->
+let eval_ctx : type a b. (a, b) termctx -> (a, b) Ctx.t = function
+  | Permute (p, ctx) ->
       let ctx = eval_ordered_ctx ctx in
       Permute (p, Ctx.Ordered.env ctx, ctx)
 

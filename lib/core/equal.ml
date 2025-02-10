@@ -272,20 +272,20 @@ module Equal = struct
           xs ys tys tyargs
     | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
-  and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.t -> unit option =
+  and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) termctx -> unit option =
    fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
 
   and equal_ordered_env :
-      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.Ordered.t -> unit option =
+      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) ordered_termctx -> unit option =
    fun lvl env1 env2 envctx ->
     (* Copied from readback_ordered_env *)
     match envctx with
     | Emp -> Some ()
     | Lock envctx -> equal_ordered_env lvl env1 env2 envctx
-    | Snoc (envctx, entry, _) -> (
+    | Ext (envctx, entry, _) -> (
         let open Monad.Ops (Monad.Maybe) in
         let open CubeOf.Monadic (Monad.Maybe) in
-        let (Plus mk) = D.plus (Termctx.dim_entry entry) in
+        let (Plus mk) = D.plus (dim_entry entry) in
         let (Looked_up { act = act1; op = Op (fc1, fd1); entry = xs1 }) =
           lookup_cube env1 mk Now (id_op (dim_env env1)) in
         let xs1 = act_cube { act = act1 } (CubeOf.subcube fc1 xs1) fd1 in

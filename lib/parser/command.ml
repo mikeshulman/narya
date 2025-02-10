@@ -12,6 +12,7 @@ open Print
 open Reporter
 open User
 open Modifier
+open Printable
 module Trie = Yuujinchou.Trie
 
 type def = {
@@ -373,7 +374,7 @@ module Parse = struct
     | `Seq wsseq ->
         let* wslparen = token LParen in
         let* ops =
-          zero_or_more_fold_left Emp
+          zero_or_more_fold_left Bwd.Emp
             (fun x y -> return (Snoc (x, y)))
             (backtrack
                (let* op = modifier () in
@@ -391,7 +392,7 @@ module Parse = struct
     | `Union wsunion ->
         let* wslparen = token LParen in
         let* ops =
-          zero_or_more_fold_left Emp
+          zero_or_more_fold_left Bwd.Emp
             (fun x y -> return (Snoc (x, y)))
             (backtrack
                (let* op = modifier () in
@@ -565,7 +566,7 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
 
 let show_hole err = function
   | Eternity.Find_number (m, { tm = `Undefined; termctx; ty; energy = _ }, { vars; _ }) ->
-      emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
+      emit (Hole (Meta.name m, PHole (vars, termctx, ty)))
   | _ -> fatal err
 
 let to_string : Command.t -> string = function

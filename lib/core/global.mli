@@ -16,7 +16,7 @@ val add_error : Constant.t -> Reporter.Code.t -> unit
 
 val add_meta :
   ('a, 'b, 's) Meta.t ->
-  termctx:('a, 'b) Termctx.t ->
+  termctx:('a, 'b) termctx ->
   ty:('b, kinetic) term ->
   tm:[ `Defined of ('b, 's) term | `Axiom ] ->
   energy:'s energy ->
@@ -30,7 +30,7 @@ val add_hole :
   ('a, 'b, 's) Meta.t ->
   unit Asai.Range.located ->
   vars:(string option, 'a) Bwv.t ->
-  termctx:('a, 'b) Termctx.t ->
+  termctx:('a, 'b) termctx ->
   ty:('b, kinetic) term ->
   status:('b, 's) Status.status ->
   unit
@@ -54,7 +54,7 @@ type eternity = {
     'a 'b 's.
     ('a, 'b, 's) Meta.t ->
     (string option, 'a) Bwv.t ->
-    ('a, 'b) Termctx.t ->
+    ('a, 'b) termctx ->
     ('b, kinetic) term ->
     ('b, 's) Status.status ->
     unit;

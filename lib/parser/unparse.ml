@@ -639,7 +639,7 @@ let rec unparse_ctx :
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
     (string * [ `Original | `Renamed ], a) Bwv.t ->
-    (a, b) Termctx.Ordered.t ->
+    (a, b) ordered_termctx ->
     b Names.t
     * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
     =
@@ -656,14 +656,14 @@ let rec unparse_ctx :
   match ctx with
   | Emp -> (names, Emp)
   | Lock ctx -> unparse_ctx names `Locked vars ctx
-  | Snoc (ctx, entry, af) -> (
+  | Ext (ctx, entry, af) -> (
       let vars, xs = Bwv.unappend af vars in
       let names, result = unparse_ctx names lock vars ctx in
       match entry with
       | Invis bindings ->
           (* We treat an invisible binding as consisting of all nameless variables, and autogenerate names for them all. *)
           let x, names = Names.add_cube_autogen (CubeOf.dim bindings) names in
-          let do_binding (b : b Termctx.binding) (res : S.t) : unit * S.t =
+          let do_binding (b : b binding) (res : S.t) : unit * S.t =
             let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
             let tm =
               Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
@@ -700,7 +700,7 @@ let rec unparse_ctx :
           let fnames = Bwv.mmap (fun [ (x, _); (f, _, _) ] -> (f, x)) [ fs; fields ] in
           let names = Names.unsafe_add names (Variables (dim, plusdim, xs)) (Bwv.to_bwd fnames) in
           (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
-          let do_binding fab (b : b Termctx.binding) (res : S.t) : unit * S.t =
+          let do_binding fab (b : b binding) (res : S.t) : unit * S.t =
             match (hasfields, is_id_sface fab) with
             | Has_fields, Some _ -> ((), res)
             | _ ->
@@ -773,7 +773,7 @@ let () =
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)
       | PMeta v -> Printed (Uuseg_string.pp_utf_8, Meta.name v)
-      | Termctx.PHole (vars, Permute (p, ctx), ty) ->
+      | PHole (vars, Permute (p, ctx), ty) ->
           Printed
             ( (fun ppf (ctx, ty) -> Print.pp_hole ppf ctx ty),
               let vars, names = Names.uniquify_vars vars in

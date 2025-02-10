@@ -6,6 +6,7 @@ open Tbwd
 open Reporter
 open Term
 open Status
+open Printable
 
 (* The global environment of constants and definition-local metavariables. *)
 
@@ -63,7 +64,7 @@ type eternity = {
     'a 'b 's.
     ('a, 'b, 's) Meta.t ->
     (string option, 'a) Bwv.t ->
-    ('a, 'b) Termctx.t ->
+    ('a, 'b) termctx ->
     ('b, kinetic) term ->
     ('b, 's) status ->
     unit;
@@ -177,7 +178,7 @@ let add_hole m pos ~vars ~termctx ~ty ~status =
       S.modify @@ fun d ->
       {
         d with
-        current_holes = Snoc (d.current_holes, (Wrap m, Termctx.PHole (vars, termctx, ty), pos));
+        current_holes = Snoc (d.current_holes, (Wrap m, PHole (vars, termctx, ty), pos));
         holes = Meta.WrapSet.add (Wrap m) d.holes;
       }
   | Error cmd -> fatal (No_holes_allowed cmd)

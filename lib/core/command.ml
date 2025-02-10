@@ -33,7 +33,7 @@ type t =
   | Solve :
       Global.data
       * ('b, 's) status
-      * ('a, 'b) Termctx.t
+      * ('a, 'b) termctx
       * 'a check located
       * ('b, kinetic) term
       * (('b, 's) term -> unit)

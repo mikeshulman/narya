@@ -85,9 +85,7 @@ and env : type a n b. (Compunit.t -> Compunit.t) -> (a, n, b) env -> (a, n, b) e
   | Emp n -> Emp n
   | Ext (e, nk, xs) -> Ext (env f e, nk, CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ xs ])
 
-let entry :
-    type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) Termctx.entry -> (b, f, mn) Termctx.entry
-    =
+let entry : type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) entry -> (b, f, mn) entry =
  fun f e ->
   match e with
   | Vis v ->
@@ -95,7 +93,7 @@ let entry :
         CubeOf.mmap
           {
             map =
-              (fun _ [ (b : (b, mn) Tbwd.snoc Termctx.binding) ] : (b, mn) Tbwd.snoc Termctx.binding ->
+              (fun _ [ (b : (b, mn) Tbwd.snoc binding) ] : (b, mn) Tbwd.snoc binding ->
                 { ty = term f b.ty; tm = Option.map (term f) b.tm });
           }
           [ v.bindings ] in
@@ -105,21 +103,21 @@ let entry :
         CubeOf.mmap
           {
             map =
-              (fun _ [ (b : (b, mn) Tbwd.snoc Termctx.binding) ] : (b, mn) Tbwd.snoc Termctx.binding ->
+              (fun _ [ (b : (b, mn) Tbwd.snoc binding) ] : (b, mn) Tbwd.snoc binding ->
                 { ty = term f b.ty; tm = Option.map (term f) b.tm });
           }
           [ bindings ] in
       Invis bindings
 
 let rec termctx_ordered :
-    type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.Ordered.t -> (a, b) Termctx.Ordered.t =
+    type a b. (Compunit.t -> Compunit.t) -> (a, b) ordered_termctx -> (a, b) ordered_termctx =
  fun f ctx ->
   match ctx with
   | Emp -> Emp
-  | Snoc (ctx, e, ax) -> Snoc (termctx_ordered f ctx, entry f e, ax)
+  | Ext (ctx, e, ax) -> Ext (termctx_ordered f ctx, entry f e, ax)
   | Lock ctx -> Lock (termctx_ordered f ctx)
 
-let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.t -> (a, b) Termctx.t =
+let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) termctx -> (a, b) termctx =
  fun f (Permute (p, ctx)) -> Permute (p, termctx_ordered f ctx)
 
 let metadef : type x y z. (Compunit.t -> Compunit.t) -> (x, y, z) Metadef.t -> (x, y, z) Metadef.t =

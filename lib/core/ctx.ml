@@ -76,8 +76,6 @@ end = struct
     | Error e -> fatal e
 end
 
-type ('m, 'f) has_fields = ('m, 'f) Termctx.has_fields
-
 (* Test whether all the variables in a cube of bindings are free (none are let-bound). *)
 let all_free : type n. (n, Binding.t) CubeOf.t -> bool =
  fun b ->

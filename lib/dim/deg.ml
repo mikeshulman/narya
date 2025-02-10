@@ -121,6 +121,17 @@ let rec insert_deg : type m n nsuc. (m, n) deg -> (n, nsuc) D.insert -> (m, nsuc
       let (Commute_insert (i2, j1)) = D.commute_insert ~lift:j0 ~over:i1 in
       Insert_deg (i2, Suc (s1, j1))
 
+(* The degeneracy (which is a permutation) that swaps two dimensions. *)
+let rec swap_deg : type m n mn nm. (m, n, mn) D.plus -> (n, m, nm) D.plus -> (mn, nm) deg =
+ fun mn nm ->
+  match nm with
+  | Zero ->
+      let Eq = D.plus_uniq mn (D.zero_plus (D.plus_right mn)) in
+      id_deg (D.plus_right mn)
+  | Suc nm' ->
+      let (Insert_plus (mn', i)) = D.insert_plus Now mn in
+      Suc (swap_deg mn' nm', i)
+
 (* ********** Comparing degeneracies ********** *)
 
 (* Check whether a degeneracy is an identity, identifying its domain and codomain if so. *)

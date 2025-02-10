@@ -45,6 +45,7 @@ val deg_plus_deg :
 val plus_deg :
   'm D.t -> ('m, 'n, 'mn) D.plus -> ('m, 'l, 'ml) D.plus -> ('l, 'n) deg -> ('ml, 'mn) deg
 
+val swap_deg : ('m, 'n, 'mn) D.plus -> ('n, 'm, 'nm) D.plus -> ('mn, 'nm) deg
 val is_id_deg : ('m, 'n) deg -> ('m, 'n) Eq.t option
 val pos_deg : 'n D.pos -> ('m, 'n) deg -> 'm D.pos
 val deg_equiv : ('m, 'n) deg -> ('k, 'l) deg -> unit option

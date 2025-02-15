@@ -12,6 +12,12 @@ let intern (str : string) : t = str
 
 module Set = Set.Make (Field)
 
+module PbijSet = Stdlib.Set.Make (struct
+  type t = Field.t * string list
+
+  let compare = compare
+end)
+
 let to_string (x : t) : string = x
 
 type or_index = [ `Name of t | `Index of int ]

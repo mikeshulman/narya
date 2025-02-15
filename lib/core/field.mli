@@ -12,6 +12,12 @@ val intern : string -> t
 
 module Set : module type of Set.Make (Field)
 
+module PbijSet : module type of Stdlib.Set.Make (struct
+  type t = Field.t * string list
+
+  let compare = compare
+end)
+
 val to_string : t -> string
 
 type or_index = [ `Name of t | `Index of int ]

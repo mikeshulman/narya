@@ -62,7 +62,7 @@ module Code = struct
     | Unequal_synthesized_type : printable * printable -> t
     | Checking_tuple_at_degenerated_record : printable -> t
     | Missing_field_in_tuple : Field.t -> t
-    | Missing_method_in_comatch : Field.t -> t
+    | Missing_method_in_comatch : Field.t * ('e, 'r, 'i) pbij option -> t
     | Extra_field_in_tuple : Field.t option -> t
     | Extra_method_in_comatch : Field.t -> t
     | Invalid_field_in_tuple : t
@@ -496,8 +496,9 @@ module Code = struct
         textf "can't comatch against a codatatype %a with a nonidentity degeneracy applied"
           pp_printed (print r)
     | Missing_field_in_tuple f -> textf "record field '%s' missing in tuple" (Field.to_string f)
-    | Missing_method_in_comatch f ->
-        textf "codata method '%s' missing in comatch" (Field.to_string f)
+    | Missing_method_in_comatch (f, p) ->
+        textf "codata method '%s%s' missing in comatch" (Field.to_string f)
+          (Option.fold ~none:"" ~some:string_of_pbij p)
     | Extra_field_in_tuple f -> (
         match f with
         | Some f -> textf "field '%s' in tuple doesn't occur in record type" (Field.to_string f)
@@ -775,7 +776,7 @@ let missing_field_in_struct : type s. s eta -> Field.t -> Code.t =
  fun eta fld ->
   match eta with
   | Eta -> Missing_field_in_tuple fld
-  | Noeta -> Missing_method_in_comatch fld
+  | Noeta -> Missing_method_in_comatch (fld, None)
 
 let struct_at_nonrecord : type s. s eta -> printable -> Code.t =
  fun eta p ->

@@ -106,7 +106,7 @@ let rec all_shuffles_right : type b c. b D.t -> c D.t -> (b, c) shuffle_right Se
   | Nat Zero -> Seq.cons (Of_right (shuffle_zero c)) Seq.empty
   | Nat (Suc b') -> (
       match c with
-      | Nat Zero -> raise (Invalid_argument "shuffles_right")
+      | Nat Zero -> Seq.empty
       | Nat (Suc c') ->
           Seq.append
             (Seq.map (fun (Of_right s) -> Of_right (Left s)) (all_shuffles_right b (Nat c')))

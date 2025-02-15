@@ -1753,7 +1753,7 @@ and check_field :
         | None -> (
             match Abwd.find_opt_and_update_key None key tms with
             | Some (tm, tms) -> (tm, tms, `Unlabeled)
-            | None -> fatal (Missing_field_in_tuple fld)) in
+            | None -> fatal (missing_field_in_struct eta fld)) in
       let etms, ctms, errs =
         (* We trap any errors produced by 'check', adding them instead to the list of accumulated errors and going on.  Note that if any previous fields that have already failed, then prev_etm will be bound to an error value, and so if the type of this field depends on the value of any previous one, tyof_field will raise that error, which we catch and add to the list; but it will be (Accumulated Emp) so it won't be displayed to the user. *)
         Reporter.try_with ~fatal:(fun e -> (etms, ctms, Snoc (errs, e))) @@ fun () ->
@@ -1841,7 +1841,7 @@ and check_higher_field :
         match Abwd.find_opt key tms with
         | Some tm -> (tm, tms)
         (* Higher fields cannot be positional *)
-        | None -> fatal (Missing_field_in_tuple fld) in
+        | None -> fatal (Missing_method_in_comatch (fld, Some pbij)) in
       let evals, cvals, errs =
         (* We trap any errors produced by 'tyof_field' or 'check', adding them instead to the list of accumulated errors and going on.  Note that if any previous fields that have already failed, then prev_etm will be bound to an error value, and so if the type of this field depends on the value of any previous one, tyof_field will raise that error, which we catch and add to the list; but it will be (Accumulated Emp) so it won't be displayed to the user. *)
         Reporter.try_with ~fatal:(fun e -> (evals, cvals, Snoc (errs, e))) @@ fun () ->

@@ -736,7 +736,7 @@ let () =
 
 let rec process_comatch :
     type n.
-    ((Field.t * string Bwd.t) option, n check located) Abwd.t * Field.Set.t ->
+    ((Field.t * string Bwd.t) option, n check located) Abwd.t * Field.PbijSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -747,17 +747,19 @@ let rec process_comatch :
   | Term { value = Field (x, pbij, _); loc } :: Term tm :: obs ->
       let tm = process ctx tm in
       let fld = Field.intern x in
-      if Field.Set.mem fld found then fatal ?loc (Duplicate_method_in_comatch fld)
+      if Field.PbijSet.mem (fld, pbij) found then fatal ?loc (Duplicate_method_in_comatch fld)
         (* Comatches can't have unlabeled fields *)
       else
         process_comatch
-          (Abwd.add (Some (fld, Bwd.of_list pbij)) tm flds, Field.Set.add fld found)
+          (Abwd.add (Some (fld, Bwd.of_list pbij)) tm flds, Field.PbijSet.add (fld, pbij) found)
           ctx obs loc
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
 
 let () =
   set_processor comatch
-    { process = (fun ctx obs loc _ -> process_comatch (Abwd.empty, Field.Set.empty) ctx obs loc) }
+    {
+      process = (fun ctx obs loc _ -> process_comatch (Abwd.empty, Field.PbijSet.empty) ctx obs loc);
+    }
 
 (* Comatches will be printed with a different instantiation of the functions that print matches. *)
 

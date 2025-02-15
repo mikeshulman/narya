@@ -17,6 +17,8 @@ end
 
 module Mode = Algaeff.Reader.Make (ModeState)
 
+let () = Mode.register_printer (function `Read -> Some "unhandled Command.Mode.read effect")
+
 (* A mutual "def" command can contain multiple constant definitions, each one checking or synthesizing.  *)
 type defconst =
   | Def_check : {

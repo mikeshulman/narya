@@ -767,6 +767,7 @@ let () =
               let ty = unparse names ty Interval.entire Interval.entire in
               (ctx, Term ty) )
       | Dump.Val tm -> Printed (Dump.value, tm)
+      | Dump.DeepVal (tm, n) -> Printed (Dump.dvalue n, tm)
       | Dump.Uninst tm -> Printed (Dump.uninst, tm)
       | Dump.Head h -> Printed (Dump.head, h)
       | Dump.Binder b -> Printed (Dump.binder, b)

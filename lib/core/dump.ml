@@ -13,12 +13,18 @@ open Raw
 
 type printable +=
   | Val : 's value -> printable
+  | DeepVal : 's value * int -> printable
   | Uninst : uninst -> printable
   | Head : head -> printable
   | Binder : ('b, 's) binder -> printable
   | Term : ('b, 's) term -> printable
   | Env : ('n, 'b) Value.env -> printable
   | Check : 'a check -> printable
+
+type force_eval_type = { force : 's. 's lazy_eval -> 's evaluation }
+
+let force_eval : force_eval_type ref =
+  ref { force = (fun _ -> raise (Failure "Dump.force_eval not set")) }
 
 let dim : formatter -> 'a D.t -> unit =
  fun ppf d -> fprintf ppf "%d" (String.length (string_of_deg (id_deg d)))
@@ -32,7 +38,7 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
   | Inst { tm; dim = d; args = _; tys = _ } ->
       fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
   | Lam (_, _) -> fprintf ppf "Lam ?"
-  | Struct (f, ins, _) -> fprintf ppf "Struct (%a)" (fields (cod_left_ins ins)) f
+  | Struct (f, ins, _) -> fprintf ppf "Struct (%a)" (fields depth (cod_left_ins ins)) f
   | Constr (c, d, args) ->
       fprintf ppf "Constr (%s, %a, (%a))" (Constr.to_string c) dim d
         (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") value)
@@ -40,45 +46,51 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
 
 and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 
-and fields : type s n. n D.t -> formatter -> (Field.t, (n, s) Value.structfield) Abwd.t -> unit =
- fun n ppf -> function
+and fields :
+    type s n. int -> n D.t -> formatter -> (Field.t, (n, s) Value.structfield) Abwd.t -> unit =
+ fun depth n ppf -> function
   | Emp -> fprintf ppf "Emp"
   | Snoc (flds, (f, Lower_structfield (v, l))) ->
-      fprintf ppf "%a <: " (fields n) flds;
-      lazy_eval ppf f "" v l
+      fprintf ppf "%a <: " (fields depth n) flds;
+      lazy_eval depth ppf f "" v l
   | Snoc (flds, (f, Higher_structfield { vals; _ })) ->
-      fprintf ppf "%a <: " (fields n) flds;
+      fprintf ppf "%a <: " (fields depth n) flds;
       InsmapOf.miter n
         {
           it =
             (fun p [ x ] ->
               match x with
               | None -> fprintf ppf "None"
-              | Some v -> lazy_eval ppf f (string_of_ins p) v `Labeled);
+              | Some v -> lazy_eval depth ppf f (string_of_ins p) v `Labeled);
         }
         [ vals ]
 
 and lazy_eval :
-    type s. formatter -> Field.t -> string -> s lazy_eval -> [ `Labeled | `Unlabeled ] -> unit =
- fun ppf f p v l ->
-  match !v with
-  | Ready v ->
-      fprintf ppf "(%s%s, %a, %s)" (Field.to_string f) p evaluation v
-        (match l with
-        | `Unlabeled -> "`Unlabeled"
-        | `Labeled -> "`Labeled")
-  | _ ->
-      fprintf ppf "(%s%s, (Deferred), %s)" (Field.to_string f) p
-        (match l with
-        | `Unlabeled -> "`Unlabeled"
-        | `Labeled -> "`Labeled")
+    type s.
+    int -> formatter -> Field.t -> string -> s lazy_eval -> [ `Labeled | `Unlabeled ] -> unit =
+ fun depth ppf f p v l ->
+  if depth > 0 then evaluation (depth - 1) ppf (!force_eval.force v)
+  else
+    match !v with
+    | Ready v ->
+        fprintf ppf "(%s%s, %a, %s)" (Field.to_string f) p
+          (evaluation (depth - 1))
+          v
+          (match l with
+          | `Unlabeled -> "`Unlabeled"
+          | `Labeled -> "`Labeled")
+    | _ ->
+        fprintf ppf "(%s%s, (Deferred), %s)" (Field.to_string f) p
+          (match l with
+          | `Unlabeled -> "`Unlabeled"
+          | `Labeled -> "`Labeled")
 
-and evaluation : type s. formatter -> s evaluation -> unit =
- fun ppf v ->
+and evaluation : type s. int -> formatter -> s evaluation -> unit =
+ fun depth ppf v ->
   match v with
   | Unrealized -> fprintf ppf "Unrealized"
-  | Realize v -> fprintf ppf "Realize (%a)" value v
-  | Val v -> fprintf ppf "Val (%a)" value v
+  | Realize v -> fprintf ppf "Realize (%a)" (dvalue depth) v
+  | Val v -> fprintf ppf "Val (%a)" (dvalue depth) v
   | Canonical _ -> fprintf ppf "Canonical ?"
 
 and uninst : formatter -> uninst -> unit =

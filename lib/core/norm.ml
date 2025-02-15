@@ -546,7 +546,7 @@ and tyof_app :
 and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evaluation =
  fun tm fld fldins ->
   match view_term tm with
-  (* TODO: Is it okay to ignore the insertion here?  I'm currently assuming that it must be zero if this field projection is well-typed. *)
+  (* TODO: Is it okay to ignore the structins (Gel) here?  I'm currently assuming that it must be zero if this field projection is well-typed. *)
   | Struct (fields, structins, energy) -> (
       match Abwd.find_opt fld fields with
       | Some (Lower_structfield (v, _)) -> force_eval v
@@ -568,34 +568,29 @@ and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evalu
           match energy with
           | Potential -> Unrealized
           | Kinetic -> fatal (Anomaly ("missing field in eval struct: " ^ Field.to_string fld))))
-  | viewed_tm -> (
-      (* We push the permutation from the insertion inside. *)
+  | Uninst (Neu { head; args; value }, (lazy ty)) -> (
       let n, k = (cod_left_ins fldins, cod_right_ins fldins) in
       let (Plus fldplus) = D.plus k in
-      let p = deg_of_perm (perm_inv (perm_of_ins_plus fldins fldplus)) in
-      match act_value viewed_tm p with
-      | Uninst (Neu { head; args; value }, (lazy ty)) -> (
-          let newty = Lazy.from_val (tyof_field (Ok tm) ty fld fldins) in
-          let args = Bwd.Snoc (args, App (Field (fld, fldplus), ins_zero n)) in
-          if GluedEval.read () then
-            let value = field_lazy value fld fldins in
-            Val (Uninst (Neu { head; args; value }, newty))
-          else
-            match force_eval value with
-            | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
-            | Val tm -> (
-                match field tm fld fldins with
-                | Realize x -> Val x
-                | Canonical (Data d) ->
-                    let newtm =
-                      Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty) in
-                    if Option.is_none !(d.tyfam) then
-                      d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
-                    Val newtm
-                | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
-            | Canonical _ -> fatal (Anomaly "field projection of canonical type")
-            | Realize _ -> fatal (Anomaly "realized neutral"))
-      | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld, `Ins fldins)))
+      let newty = Lazy.from_val (tyof_field (Ok tm) ty fld fldins) in
+      let args = Bwd.Snoc (args, App (Field (fld, fldplus), ins_zero n)) in
+      if GluedEval.read () then
+        let value = field_lazy value fld fldins in
+        Val (Uninst (Neu { head; args; value }, newty))
+      else
+        match force_eval value with
+        | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
+        | Val tm -> (
+            match field tm fld fldins with
+            | Realize x -> Val x
+            | Canonical (Data d) ->
+                let newtm = Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty) in
+                if Option.is_none !(d.tyfam) then
+                  d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
+                Val newtm
+            | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
+        | Canonical _ -> fatal (Anomaly "field projection of canonical type")
+        | Realize _ -> fatal (Anomaly "realized neutral"))
+  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld, `Ins fldins))
 
 and field_term : type n k nk. kinetic value -> Field.t -> (nk, n, k) insertion -> kinetic value =
  fun x fld fldins ->
@@ -1295,3 +1290,4 @@ let is_discrete : ?discrete:unit Constant.Map.t -> kinetic value -> bool =
   | _ -> false
 
 let () = Act.forward_view_term := view_term
+let () = Dump.force_eval := { force = force_eval }

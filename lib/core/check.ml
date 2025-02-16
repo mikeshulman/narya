@@ -1657,7 +1657,7 @@ and check_struct :
             | true, _ -> fields
             | false, Some x -> Snoc (fields, (fld, x))
             | false, None -> fatal (Anomaly "missing field in check"))
-        | None, _ -> fatal (Extra_field_in_tuple None))
+        | None, tm -> fatal ?loc:tm.loc (Extra_field_in_tuple None))
       Emp tms in
   Term.Struct (eta, m, fields, energy status)
 

@@ -744,11 +744,12 @@ let rec process_comatch :
  fun (flds, found) ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Struct (Noeta, flds); loc }
-  | Term { value = Field (x, pbij, _); loc } :: Term tm :: obs ->
+  | Term { value = Field (x, pbij, _); loc = fldloc } :: Term tm :: obs ->
       let tm = process ctx tm in
       let fld = Field.intern x in
-      if Field.PbijSet.mem (fld, pbij) found then fatal ?loc (Duplicate_method_in_comatch fld)
+      if Field.PbijSet.mem (fld, pbij) found then
         (* Comatches can't have unlabeled fields *)
+        fatal ?loc:fldloc (Duplicate_method_in_comatch fld)
       else
         process_comatch
           (Abwd.add (Some (fld, Bwd.of_list pbij)) tm flds, Field.PbijSet.add (fld, pbij) found)

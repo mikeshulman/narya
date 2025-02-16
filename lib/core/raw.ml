@@ -133,7 +133,7 @@ module Make (I : Indices) = struct
   and _ check =
     | Synth : 'a synth -> 'a check
     | Lam : I.name located * [ `Cube | `Normal ] * 'a I.suc check located -> 'a check
-    (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones. *)
+    (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones.  We also include a list of strings to indicate a pbij for higher fields. *)
     | Struct : 's eta * ((Field.t * string Bwd.t) option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
     (* "[]", which could be either an empty pattern-matching lambda or an empty comatch *)
@@ -154,10 +154,10 @@ module Make (I : Indices) = struct
     (* Embed an arbitrary object *)
     | Embed : 'a I.embed -> 'a check
 
-  and _ branch =
-    (* The location of the third argument is that of the entire pattern. *)
-    | Branch : ('a, 'b, 'ab) Namevec.t located * 'ab check located -> 'a branch
+  (* The location of the namevec is that of the whole pattern. *)
+  and _ branch = Branch : ('a, 'b, 'ab) Namevec.t located * 'ab check located -> 'a branch
 
+  (*  *)
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
 
   (* A field of a codatatype has a specified dimension as well as a self variable and a type.  At the raw level we don't need any more information about higher fields. *)

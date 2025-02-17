@@ -70,6 +70,13 @@ let rec plus_ins :
       let (Plus ab') = D.plus (D.insert_in (D.plus_right ab) i) in
       Suc (plus_ins a ab' ac ins, D.plus_insert ab' ab i)
 
+(* If a+b=ab, then there is an identity permutation that inserts b on the right of a. *)
+let rec ins_of_plus : type a b ab. a D.t -> (a, b, ab) D.plus -> (ab, a, b) insertion =
+ fun a ab ->
+  match ab with
+  | Zero -> Zero a
+  | Suc ab -> Suc (ins_of_plus a ab, Now)
+
 (* An insertion induces a degeneracy, which is in fact a permutation. *)
 let rec deg_of_ins_plus : type a b c bc. (a, b, c) insertion -> (b, c, bc) D.plus -> (a, bc) deg =
  fun i bc ->

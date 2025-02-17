@@ -41,12 +41,13 @@ type (_, _, _, _) shuffleable =
   | Nontrivial : {
       dbwd : 'c Dbwd.t;
       shuffle : ('r, 'h, 'i) shuffle;
-      eval_readback :
+      deg_env :
         's 'sh 'r_sh.
         ('s, 'h, 'sh) D.plus ->
         ('r, 'sh, 'r_sh) D.plus ->
         ('sh, ('c, D.zero) snoc) env ->
         ('r_sh, ('c, D.zero) snoc) env;
+      deg_nf : normal -> normal;
     }
       -> ('r, 'h, 'i, 'c) shuffleable
 
@@ -91,14 +92,14 @@ and view_type ?(severity = Asai.Diagnostic.Bug) (ty : kinetic value) (err : stri
         match D.compare n D.zero with
         | Eq -> (ty, Full_tube (TubeOf.empty D.zero))
         | Neq -> fatal ~severity (Type_not_fully_instantiated (err, n)))
-    | Uninst _ -> fatal ~severity (Type_expected err)
+    | Uninst _ -> fatal ~severity (Type_expected (err, Dump.Val ty))
     | Inst { tm = ty; dim = _; args; tys = _ } -> (
         match D.compare (TubeOf.uninst args) D.zero with
         | Eq ->
             let Eq = D.plus_uniq (TubeOf.plus args) (D.zero_plus (TubeOf.inst args)) in
             (ty, Full_tube args)
         | Neq -> fatal ~severity (Type_not_fully_instantiated (err, TubeOf.uninst args)))
-    | _ -> fatal ~severity (Type_expected err) in
+    | _ -> fatal ~severity (Type_expected (err, Dump.Val ty)) in
   match uty with
   | UU n -> (
       match (D.compare n (TubeOf.inst tyargs), D.compare (TubeOf.uninst tyargs) D.zero) with
@@ -546,7 +547,7 @@ and tyof_app :
 and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evaluation =
  fun tm fld fldins ->
   match view_term tm with
-  (* TODO: Is it okay to ignore the structins (Gel) here?  I'm currently assuming that it must be zero if this field projection is well-typed. *)
+  (* TODO: Is it okay to ignore the insertion here?  I'm currently assuming that it must be zero if this field projection is well-typed. *)
   | Struct (fields, structins, energy) -> (
       match Abwd.find_opt fld fields with
       | Some (Lower_structfield (v, _)) -> force_eval v
@@ -568,29 +569,35 @@ and field : type n k nk s. s value -> Field.t -> (nk, n, k) insertion -> s evalu
           match energy with
           | Potential -> Unrealized
           | Kinetic -> fatal (Anomaly ("missing field in eval struct: " ^ Field.to_string fld))))
-  | Uninst (Neu { head; args; value }, (lazy ty)) -> (
+  | viewed_tm -> (
+      (* We push the permutation from the insertion inside. *)
       let n, k = (cod_left_ins fldins, cod_right_ins fldins) in
       let (Plus fldplus) = D.plus k in
-      let newty = Lazy.from_val (tyof_field (Ok tm) ty fld fldins) in
-      let args = Bwd.Snoc (args, App (Field (fld, fldplus), ins_zero n)) in
-      if GluedEval.read () then
-        let value = field_lazy value fld fldins in
-        Val (Uninst (Neu { head; args; value }, newty))
-      else
-        match force_eval value with
-        | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
-        | Val tm -> (
-            match field tm fld fldins with
-            | Realize x -> Val x
-            | Canonical (Data d) ->
-                let newtm = Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty) in
-                if Option.is_none !(d.tyfam) then
-                  d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
-                Val newtm
-            | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
-        | Canonical _ -> fatal (Anomaly "field projection of canonical type")
-        | Realize _ -> fatal (Anomaly "realized neutral"))
-  | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld, `Ins fldins))
+      let p = deg_of_perm (perm_inv (perm_of_ins_plus fldins fldplus)) in
+      match act_value viewed_tm p with
+      | Uninst (Neu { head; args; value }, (lazy ty)) -> (
+          let newty = Lazy.from_val (tyof_field (Ok tm) ty fld fldins) in
+          let args = Bwd.Snoc (args, App (Field (fld, fldplus), ins_zero n)) in
+          if GluedEval.read () then
+            let value = field_lazy value fld fldins in
+            Val (Uninst (Neu { head; args; value }, newty))
+          else
+            match force_eval value with
+            | Unrealized -> Val (Uninst (Neu { head; args; value = ready Unrealized }, newty))
+            | Val tm -> (
+                (* At this point we've already pushed the insertion inside in computing our neutral, so the remaining insertion on the field to compute of its value is "the identity" of appropriate dimensions *)
+                match field tm fld (ins_of_plus n fldplus) with
+                | Realize x -> Val x
+                | Canonical (Data d) ->
+                    let newtm =
+                      Uninst (Neu { head; args; value = ready (Canonical (Data d)) }, newty) in
+                    if Option.is_none !(d.tyfam) then
+                      d.tyfam := Some (lazy { tm = newtm; ty = Lazy.force newty });
+                    Val newtm
+                | value -> Val (Uninst (Neu { head; args; value = ready value }, newty)))
+            | Canonical _ -> fatal (Anomaly "field projection of canonical type")
+            | Realize _ -> fatal (Anomaly "realized neutral"))
+      | _ -> fatal ~severity:Asai.Diagnostic.Bug (No_such_field (`Other, `Name fld, `Ins fldins)))
 
 and field_term : type n k nk. kinetic value -> Field.t -> (nk, n, k) insertion -> kinetic value =
  fun x fld fldins ->
@@ -611,14 +618,15 @@ and tyof_codatafield :
     (* We allow passing through a shuffle and eval-readback as well, in the case that this is a higher field being called recursively as part of the instantiation arguments. *)
     ?shuf:(r, k, i, a) shuffleable ->
     (m, s, k) insertion ->
-    (kinetic value, dim_wrapped * dim_wrapped) Result.t =
+    (kinetic value, string * dim_wrapped * dim_wrapped) Result.t =
  fun tm fldname fldty env tyargs m mn ?shuf fldins ->
   (* The type of the field projection comes from the type associated to that field name in general, evaluated at the stored environment extended by the term itself and its boundaries. *)
+  Reporter.trace "tyof_codatafield" @@ fun () ->
   match fldty with
   | Term.Lower_codatafield fldty -> (
       match D.compare (cod_right_ins fldins) D.zero with
       | Eq -> Ok (tyof_lower_codatafield tm fldname fldty env tyargs m mn)
-      | Neq -> Error (Wrap (cod_right_ins fldins), Wrap D.zero))
+      | Neq -> Error ("lower", Wrap (cod_right_ins fldins), Wrap D.zero))
   | Higher_codatafield (i, ic0, fldty) -> (
       let Eq = D.plus_uniq mn (D.plus_zero m) in
       match shuf with
@@ -629,12 +637,12 @@ and tyof_codatafield :
               Ok
                 (tyof_higher_codatafield tm fldname env tyargs fldins ic0 fldty
                    ~shuf:(Trivial (D.pos i)))
-          | Neq -> Error (Wrap (cod_right_ins fldins), Wrap (D.pos i)))
+          | Neq -> Error ("no shuf", Wrap (cod_right_ins fldins), Wrap (D.pos i)))
       | Some shuf -> (
           (* If a shuffle/eval-readback was supplied, then its intrinsic dimension has to match the one given in the field. *)
           match D.compare (intrinsic_shuffleable shuf) (D.pos i) with
           | Eq -> Ok (tyof_higher_codatafield tm fldname env tyargs fldins ic0 fldty ~shuf)
-          | Neq -> Error (Wrap (intrinsic_shuffleable shuf), Wrap (D.pos i))))
+          | Neq -> Error ("shuf", Wrap (intrinsic_shuffleable shuf), Wrap (D.pos i))))
 
 (* We dispatch to separate helper functions for lower fields and higher fields that assume all the dimensions are correct.  These helper functions can be called directly by a caller who knows that all the dimensions are correct, such as check_field where the field is obtained by iterating directly through the codatatype. *)
 and tyof_lower_codatafield :
@@ -675,16 +683,16 @@ and tyof_higher_codatafield :
     (n, c) env ->
     (* And so it has a boundary n-tube. *)
     (D.zero, n, n, normal) TubeOf.t ->
-    (* The field has intrinsic dimension i, determined by a pbij from n to i, with result s, remaining r, shared h. *)
+    (* The field has intrinsic dimension i, determined by a pbij from n to i, with result s, remaining r, shared h.  We record the insertion and shuffle separately, with a shuffleable recording explicitly whether the shuffle is nontrivial and including a readback callback if so.  This is because we will have to readback a (s+h, [c;0]) env, in some context, and evaluate in an (r,a) env coming from degenerating that context, to get an (r+s+h, [c;0]) env, but readback depends on this file. *)
     (n, s, h) insertion ->
+    shuf:(r, h, i, c) shuffleable ->
     (* We add i to all the dimensions in [c;0] to get i+[c;0]. *)
     (i, (c, D.zero) snoc, ic) Plusmap.t ->
-    (* The unevaluated type of the field is a term in context of this length i+[c;0]. *)
+    (* The unevaluated type of the field is a term in context of this length i+[c;0].  The extra 0 is for the 'self' variable, which is always 0-dimensional when *defining* the codatatype. *)
     (ic, kinetic) term ->
-    (* Below we will have to readback a (s+h, [c;0]) env, in some context, and evaluate in an (r,a) env coming from degenerating that context, to get an (r+s+h, [c;0]) env.  However, readback depends on this file, so we have to implement this by a callback. *)
-    shuf:(r, h, i, c) shuffleable ->
     kinetic value =
- fun tm fldname codataenv tyargs fldins ic0 fldty ~shuf ->
+ fun tm fldname codataenv tyargs fldins ~shuf ic0 fldty ->
+  Reporter.trace "tyof_higher_codatafield" @@ fun () ->
   let n = dom_ins fldins in
   let s = cod_left_ins fldins in
   let h = cod_right_ins fldins (* = right_shuffle fldshuf *) in
@@ -704,7 +712,7 @@ and tyof_higher_codatafield :
     (* When r=0 and h=i, we can just shift this to get an (s, h+[c;0]) env, which is the same as (s, i+[c;0]), so it matches the context of fldty. *)
     | Trivial _ -> Shift (env, sh, ic0)
     (* In the general case... *)
-    | Nontrivial { dbwd = _; shuffle; eval_readback } ->
+    | Nontrivial { dbwd = _; shuffle; deg_env; deg_nf = _ } ->
         (* First we do some dimension arithemetic. *)
         let r = left_shuffle shuffle in
         let i = out_shuffle shuffle in
@@ -713,7 +721,7 @@ and tyof_higher_codatafield :
         let (Plus sr_h) = D.plus h in
         let s_rh = D.plus_assocr sr rh sr_h in
         (* Then we eval-readback to get an (r+s+h, [c;0]) env. *)
-        let env = eval_readback sh r_sh env in
+        let env = deg_env sh r_sh env in
         (* Then we permute it to get an (s+r+h, [c;0]) env, and act by the shuffle to get (s+i, [c;0]) *)
         let swapdeg = deg_plus (swap_deg sr rs) rs_h sr_h in
         let shuffledeg = plus_deg s s_rh si (deg_of_shuffle shuffle rh) in
@@ -724,6 +732,7 @@ and tyof_higher_codatafield :
   let insttm = eval_term env fldty in
   (* Since the result is s-dimensional, it has to be instantiated at a full s-tube. *)
   let instargs =
+    Reporter.trace "instantiating" @@ fun () ->
     TubeOf.build D.zero (D.zero_plus s)
       {
         build =
@@ -732,10 +741,20 @@ and tyof_higher_codatafield :
             let (Pface_lift_ins (type m) ((fains, faplus) : (m, k, h) insertion * (m, n) pface)) =
               pface_lift_ins fa fldins in
             let arg = TubeOf.find tyargs faplus in
-            let tm = field_term arg.tm fldname fains in
-            (* The shuffle part of the pbij is unchanged, and we can pass through the same eval-readback function. *)
-            let ty = tyof_field (Ok arg.tm) arg.ty fldname ~shuf fains in
-            { tm; ty });
+            match shuf with
+            | Trivial _ ->
+                let tm = field_term arg.tm fldname fains in
+                let ty = tyof_field (Ok arg.tm) arg.ty fldname ~shuf fains in
+                { tm; ty }
+            | Nontrivial { dbwd = _; shuffle; deg_env = _; deg_nf } ->
+                (* In this case, we have to degenerate the arguments, since they depend on the context. *)
+                let arg = deg_nf arg in
+                (* We also use these extra dimensions to make the pbij into an insertion. *)
+                let (Plus rm) = D.plus (dom_tface faplus) in
+                let arg_ins = ins_plus_of_pbij fains shuffle rm in
+                let tm = field_term arg.tm fldname arg_ins in
+                let ty = tyof_field (Ok arg.tm) arg.ty fldname arg_ins in
+                { tm; ty });
       } in
   inst insttm instargs
 
@@ -750,6 +769,7 @@ and tyof_field :
     (m, s, h) insertion ->
     kinetic value =
  fun tm ty fld ?shuf fldins ->
+  Reporter.trace "tyof_field" @@ fun () ->
   let severity = Asai.Diagnostic.Bug in
   match view_type ty "tyof_field" with
   | Canonical (type mn)
@@ -759,6 +779,7 @@ and tyof_field :
              (mn, m', n, d, a) codata_args),
          tyargs ) :
         head * mn canonical * (D.zero, mn, mn, normal) TubeOf.t) -> (
+      Reporter.trace "tyof_field 1" @@ fun () ->
       (* The type cannot have a nonidentity degeneracy applied to it (though it can be at a higher dimension). *)
       if Option.is_none (is_id_ins codatains) then
         fatal ~severity (No_such_field (`Degenerated_record eta, `Name fld, `Ins fldins));
@@ -773,6 +794,7 @@ and tyof_field :
           | Eq -> (
               match Field.find fields (`Name fld) with
               | Some (_, fldty) -> (
+                  Reporter.trace "tyof_field 2" @@ fun () ->
                   let shuf : (r, h, i, a) shuffleable option =
                     match shuf with
                     | None -> None
@@ -781,10 +803,11 @@ and tyof_field :
                         match Dbwd.compare dbwd (length_env env) with
                         | Eq -> shuf
                         | Neq -> fatal (Anomaly "context length mismatch in tyof_field")) in
+                  Reporter.trace "tyof_field 3" @@ fun () ->
                   match tyof_codatafield tm fld fldty env tyargs m mn ?shuf fldins with
                   | Ok fldty -> fldty
-                  | Error (Wrap a, Wrap b) ->
-                      fatal ~severity (Dimension_mismatch ("tyof_field intrinsic", a, b)))
+                  | Error (msg, Wrap a, Wrap b) ->
+                      fatal ~severity (Dimension_mismatch ("tyof_field intrinsic " ^ msg, a, b)))
               | None ->
                   fatal ~severity
                     (No_such_field (`Record (eta, phead head), `Name fld, `Ins fldins)))))
@@ -815,7 +838,7 @@ and tyof_field_withname :
               | Some (fldname, fldty) -> (
                   match tyof_codatafield tm fldname fldty env tyargs m mn fldins with
                   | Ok fldty -> (fldname, Any_ins fldins, fldty)
-                  | Error (Wrap a, Wrap b) ->
+                  | Error (_, Wrap a, Wrap b) ->
                       fatal (Wrong_dimension_of_field (PVal (ctx, ty), fld, b, a)))
               | None -> fatal (No_such_field (`Record (eta, phead head), fld, `Ints ints)))))
   | _ -> fatal (No_such_field (`Other, fld, `Ints ints))
@@ -1289,5 +1312,6 @@ let is_discrete : ?discrete:unit Constant.Map.t -> kinetic value -> bool =
       (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
   | _ -> false
 
-let () = Act.forward_view_term := view_term
-let () = Dump.force_eval := { force = force_eval }
+let () =
+  Act.forward_view_term := view_term;
+  Dump.force_eval := { force = force_eval }

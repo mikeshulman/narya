@@ -1705,7 +1705,7 @@ def √ℕ : Type ≔ codata [
 | x .root.e : ℕ
 ]
 ```
-Recall that a field name cannot contain internal periods.  In fact, the name of the field here is actually just `root`: the suffix `e` indicates that it is a 1-dimensional field (when `e` is the direction letter, as in the default configuration).  The argument `x` of this field is therefore a 1-dimensional "cube variable", as we can see by leaving a hole instead:
+Recall that a field name cannot contain internal periods.  This may appear to be an exception, but in fact the real name of the field here is actually just `root`.  The suffix `e` is a marker indicating that it is a 1-dimensional field (when `e` is the direction letter, as in the default configuration).  The argument `x` of this field is therefore a 1-dimensional "cube variable", as we can see by leaving a hole instead:
 ```
 def √ℕ : Type ≔ codata [
 | x .root.e : ?
@@ -1739,18 +1739,20 @@ echo z .root.1
 z .root.1
   : ℕ
 ```
-Just as the higher-dimensional versions of an ordinary codatatype inherit fields of the same name, the same is true for higher codatatypes, but with a twist.  Namely, a 1-dimensional field like `root` induces *two* fields that can be projected out of a 2-dimensional version of `√ℕ`, corresponding to the two directions of a square, and these are distinguished by using different numerical suffixes.  For example, if we have
+Just as the higher-dimensional versions of an ordinary codatatype inherit fields of the same name, the same is true for higher codatatypes, but with a twist.  Namely, a 1-dimensional field like `root` induces *two* fields that can be projected out of a 2-dimensional version of `√ℕ`, corresponding to the two directions of a square, and these are distinguished by different numerical suffixes.  For example, if we have
 ```
 x22 : √ℕ⁽ᵉᵉ⁾ x00 x01 x02 x10 x11 x12 x20 x21
 ```
 with `x00` through `x21` of appropriate types, then the two projectable fields of `x22` and their types are
 ```
-x22 .root.1 : refl A (s02 .root.1) (s12 .root.1)
-x22 .root.2 : refl A (s20 .root.1) (s21 .root.1)
+x22 .root.1 : refl A (x02 .root.1) (x12 .root.1)
+x22 .root.2 : refl A (x20 .root.1) (x21 .root.1)
 ```
 Unsurprisingly, these two fields are related by symmetry: `x22 .root.2` is equal to `(sym x22) .root.1` and vice versa.  To implement this equality, in fact `x22 .root.1` computes to `(sym x22) .root.2`.  (I don't know of a principled reason for a computation of this sort to go in one direction rather than the other; the present direction was just easier to implement.)  Recall also that `sym x⁽ᵉᵉ⁾ = x⁽ᵉᵉ⁾`, from which it follows that `x⁽ᵉᵉ⁾ .root.1 = x⁽ᵉᵉ⁾ .root.2`.
 
-In general, a 1-dimensional field like `root` induces *n* fields of an *n*-dimenional version of a higher codatatype, distinguished by numerical suffixes.  A 2-dimensional field, defined in the `codata` declaration as `.field.ee`, induces (*n*)(*n*-1) fields distinguished by replacing each `e` by a digit indicating the direction: for instance, when *n*=3 the six fields are `.field.12`, `.field.13`, `.field.23`, `.field.21`, `.field.32`, and `.field.31`.  (If any of the numbers goes above `9`, then the suffix can start instead with `..` and the numbers be separated by additional periods, e.g. `.field.12` is equivalent to `.field..1.2` but in the latter notation `1` and `2` can also be multi-digit numbers.)  As in the 1-dimensional case, all six of these fields are permuted by the symmetry operations acting on the object being projected, and to implement this equality all six of them compute to `.field.23` of a symmetrized input.
+In general, a 1-dimensional field like `root` induces *n* fields of an *n*-dimenional version of a higher codatatype, distinguished by numerical suffixes from 1 to *n*.  A 2-dimensional field, defined in the `codata` declaration as `.field.ee`, induces (*n*)(*n*-1) fields of the *n*-dimensional version of the type, distinguished by numerical suffixes consisting of pairs of digits each from 1 to *n*.  For instance, when *n*=3 the six fields are `.field.12`, `.field.13`, `.field.23`, `.field.21`, `.field.32`, and `.field.31`.  As in the 1-dimensional case, all six of these fields are permuted by the symmetry operations acting on the object being projected, and to implement this equality all six of them compute to `.field.23` of a symmetrized input.
+
+If any of the numbers goes above `9`, then the suffix can start instead with `..` and the numbers be separated by additional periods.  In other words, `.field.12` is equivalent to `.field..1.2` but in the latter notation `1` and `2` can also be multi-digit numbers.  Whereas, the twelfth field of a 12-dimensional version of a higher codatatype induced by a 1-dimensional field can be written `.field..12`.
 
 When typechecking the type of a higher field in a `codata` definition, not only the argument variable but also all the *parameters in the context* are made higher-dimensional.  This is why we only defined `√ℕ` for a fixed constant type `ℕ`: if we tried to define it with a parameter we would have trouble:
 ```
@@ -1793,7 +1795,22 @@ All five methods are 1-dimensional, so their types are defined in a higher-dimen
 ```
 In other words, the behavior of fibrancy only becomes visible once we have not just one fibrant type, but an equality between fibrant types (including their witnesses of fibrancy).  Given this, the fields `trr` and `trl` say that we can transport elements back and forth across such an equality, while the fields `liftr` and `liftl` give "path lifting" operations that "equate" each point to its transported version, heterogeneously along the family `A`.  Finally, the last field `id` says corecursively that the (heterogeneous) identity types of a fibrant type are again fibrant.  Taken together, this suffices to construct all the higher groupoid structure in homotopy type theory.  Some examples can be found in `test/black/hct.t/isfibrant.ny`.
 
-Comatching against a higher coinductive type is not yet implemented (so in particular you cannot prove that anything is fibrant, only postulate it).  Once it is implemented, it will require giving a clause for all instances of each field whose dimensions may be only *partially* specified.  For instance, comatching into `Id √ℕ x y` will require two clauses labeled `.root.1` and `.root.e`, with the latter is checked in a higher-dimensional context just like the type of `.root.e` itself in the codata declaration.
+When comatching against a higher coinductive type, the context is also degenerated when defining values for the higher fields.  For instance:
+```
+def t (x:A) : √ℕ ≔ [
+| .root.e ↦ ?
+]
+
+ ￫ info[I0100]
+ ￮ hole ?0 generated:
+   
+   x.0 : A
+   x.1 : A
+   x.2 : refl A x.0 x.1
+   ----------------------------------------------------------------------
+   ℕ
+```
+If comatching against a higher-dimensional version of a higher coinductive type, you must give a clause for all instances of each field whose dimensions may be only *partially* specified.
 
 
 ### Parametrically discrete types

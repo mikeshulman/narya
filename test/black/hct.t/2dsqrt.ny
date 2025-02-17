@@ -32,11 +32,22 @@ axiom a22: A⁽ᵉᵉ⁾ a00 a01 a02 a10 a11 a12 a20 a21
 
 def ta ≔ t⁽ᵉᵉ⁾ a00 a01 a02 a10 a11 a12 a20 a21 a22
 
+echo sym ta
+
 echo ta .root.12 .x00
 echo ta .root.21 .x00
-echo ta .root.12 .x01
+
+
+{` These are the same... `}
+echo ta .root.21
+echo (sym ta) .root.12
+
+{` But their .x01 fields are different! (The second one is right.) `}
 echo ta .root.21 .x01
+echo (sym ta) .root.12 .x01
+
+
 echo ta .root.12 .x02
 echo ta .root.21 .x02
 echo ta .root.12 .x22
-echo ta .root.21 .x22
+echo (sym ta) .root.21 .x22

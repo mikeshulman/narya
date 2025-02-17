@@ -158,7 +158,7 @@ module Code = struct
     | No_remaining_patterns : t
     | Invalid_refutation : t
     | Duplicate_pattern_variable : string -> t
-    | Type_expected : string -> t
+    | Type_expected : string * printable -> t
     | Circular_import : string list -> t
     | Loading_file : string -> t
     | File_loaded : string * [ `Compiled | `Source ] -> t
@@ -729,7 +729,7 @@ module Code = struct
     | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
     | Duplicate_pattern_variable x ->
         textf "variable name '%s' used more than once in match patterns" x
-    | Type_expected str -> textf "expected type while %s" str
+    | Type_expected (str, got) -> textf "expected type while %s, got %a" str pp_printed (print got)
     | Circular_import files ->
         textf "circular imports:@,@[<v 2>%a@]"
           (pp_print_list

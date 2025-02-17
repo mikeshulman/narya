@@ -503,6 +503,7 @@ val plus_ins :
   ('b, 'c, 'd) insertion ->
   ('ab, 'ac, 'd) insertion
 
+val ins_of_plus : 'a D.t -> ('a, 'b, 'ab) D.plus -> ('ab, 'a, 'b) insertion
 val deg_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val deg_of_ins : ('a, 'b, 'c) insertion -> 'a deg_to
 val perm_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) perm

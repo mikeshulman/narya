@@ -44,7 +44,7 @@
    ￫ info[I0001]
    ￮ axiom s22 assumed
   
-  s22 .root.2
+  sym s22 .root.2
     : refl A (s02 .root.1) (s12 .root.1)
   
   s22 .root.2
@@ -139,23 +139,23 @@
    ￫ info[I0001]
    ￮ axiom s222 assumed
   
-  s222 .rroot.23
+  s222⁽³¹²⁾ .rroot.23
     : refl A (s022 .rroot.12) (s122 .rroot.12)
   
-  s222 .rroot.23
+  s222⁽²¹³⁾ .rroot.23
     : refl A (s202 .rroot.12) (s212 .rroot.12)
   
   s222 .rroot.23
     : refl A (s220 .rroot.12) (s221 .rroot.12)
   
-  s222 .rroot.23
-    : refl A (s022 .rroot.12) (s122 .rroot.12)
+  s222⁽³²¹⁾ .rroot.23
+    : refl A (sym s022 .rroot.12) (sym s122 .rroot.12)
   
-  s222 .rroot.23
-    : refl A (s220 .rroot.12) (s221 .rroot.12)
+  s222⁽¹³²⁾ .rroot.23
+    : refl A (sym s220 .rroot.12) (sym s221 .rroot.12)
   
-  s222 .rroot.23
-    : refl A (s202 .rroot.12) (s212 .rroot.12)
+  s222⁽²³¹⁾ .rroot.23
+    : refl A (sym s202 .rroot.12) (sym s212 .rroot.12)
   
 
   $ narya -v sqrt.ny
@@ -188,74 +188,6 @@
   
   a2
     : refl A a0 a1
-  
-
-  $ narya -v 2dsqrt.ny
-   ￫ info[I0001]
-   ￮ axiom A assumed
-  
-   ￫ info[I0000]
-   ￮ constant ID2 defined
-  
-   ￫ info[I0000]
-   ￮ constant √√ID2A defined
-  
-   ￫ info[I0000]
-   ￮ constant t defined
-  
-   ￫ info[I0001]
-   ￮ axiom a00 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a01 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a02 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a10 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a11 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a12 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a20 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a21 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom a22 assumed
-  
-   ￫ info[I0000]
-   ￮ constant ta defined
-  
-  a00
-    : A
-  
-  a00
-    : A
-  
-  a01
-    : A
-  
-  a10
-    : A
-  
-  a02
-    : refl A a00 a01
-  
-  a20
-    : refl A a00 a10
-  
-  a22
-    : A⁽ᵉᵉ⁾ a00 a01 a02 a10 a11 a12 a20 a21
-  
-  sym a22
-    : A⁽ᵉᵉ⁾ a00 a10 a20 a01 a11 a21 a02 a12
   
 
   $ narya -v isfibrant.ny

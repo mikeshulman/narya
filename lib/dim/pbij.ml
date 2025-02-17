@@ -232,6 +232,23 @@ let unplus_pbij :
   let (Comp_shuffle_right (rr, rhi)) = comp_shuffle_right rhi shuf in
   Unplus_pbij (nsh, rhi, rr, mtr, tn, tnsh)
 
+(* Convert a pbij to an insertion by increasing the evaluation dimension on the left to include the remaining dimension. *)
+let rec ins_plus_of_pbij :
+    type n s h r i rn.
+    (n, s, h) insertion -> (r, h, i) shuffle -> (r, n, rn) D.plus -> (rn, s, i) insertion =
+ fun ins shuf rn ->
+  match shuf with
+  | Zero ->
+      let Eq = D.plus_uniq rn (D.zero_plus (dom_ins ins)) in
+      ins
+  | Right shuf' ->
+      let (Suc (ins', x)) = ins in
+      let (Plus rn') = D.plus (D.insert_in (dom_ins ins) x) in
+      Suc (ins_plus_of_pbij ins' shuf' rn', D.plus_insert rn' rn x)
+  | Left shuf' ->
+      let (Insert_plus (rn', x)) = D.insert_plus Now rn in
+      Suc (ins_plus_of_pbij ins shuf' rn', x)
+
 (* Intrinsically well-typed maps with partial bijections as keys.  Each map has a fixed 'evaluation dimension and 'intrinsic dimension, but the 'result, 'shared, and 'remaining dimensions vary with the keys and values.  The values are parametrized by the 'remaining dimension as well as by an extra parameter that the map depends on; hence the whole notion of map is a functor parametrized by a Fam2.
 
    The definition of the map type involves itself recursively inside a Tuple, so we need a recursive module to tie that knot.  Recursive functors are not really implemented (in general they give "unsafe" errors), but there seems to be an exception that allows them as long as the recursive module call is never named or opened, though it can occur inline in a type definition (but not a function definition, since inline functor applications cannot appear in code).  Thus, it works to first define a recursive functor for just the necessary types and modules, and then another (non-recursive) functor that includes it and defines the operations. *)

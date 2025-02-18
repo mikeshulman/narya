@@ -137,7 +137,7 @@ module Act = struct
                           (fun (type s) (ins : (q, s, i) insertion) ->
                             (* First we unfactor this q-insertion through deg0 to get a partial bijection from p to i. *)
                             let (Deg_comp_ins (type s2 r2 h2)
-                                  ((ins2, shuf2, _deg2) :
+                                  ((ins2, shuf2, deg2) :
                                     (p, s2, h2) insertion * (r2, h2, i) shuffle * (s, s2) deg)) =
                               deg_comp_ins deg0 ins in
                             let r2 = left_shuffle shuf2 in
@@ -145,7 +145,8 @@ module Act = struct
                             match D.compare_zero r2 with
                             | Zero ->
                                 let Eq = eq_of_zero_shuffle shuf2 in
-                                Option.map (fun v -> act_lazy_eval v deg0) (InsmapOf.find ins2 vals)
+                                (* Note we have to act by deg2 here, not by deg0, since the field *values* only have the corresponding 'result dimension. *)
+                                Option.map (fun v -> act_lazy_eval v deg2) (InsmapOf.find ins2 vals)
                             | Pos _s -> (
                                 (* Otherwise, we have to look into the 'terms' to find something to evaluate.  We start by further unfactoring through 'deg1' (combining it with deg0 first, to simplify the results) and 'plusdim' to get down to the original record dimension 'n and evaluation dimension 'm.  *)
                                 let (Deg_comp_ins (type s3 r3 h3)

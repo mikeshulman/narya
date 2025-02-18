@@ -1651,12 +1651,13 @@ and check_struct :
   let fields =
     Bwd.fold_left
       (fun fields -> function
-        | Some (fld, _), _ -> (
+        | Some (fld, _), tm -> (
             (* In the case of higher fields, the same field name will appear more than once in tms, but it will appear only once in the returned ctms; thus we take it only if it hasn't already been taken. *)
             match (Abwd.mem fld fields, Abwd.find_opt fld ctms) with
             | true, _ -> fields
             | false, Some x -> Snoc (fields, (fld, x))
-            | false, None -> fatal (Anomaly "missing field in check"))
+            (* TODO: It would be nice to locate this error on the field/method name rather than its value.  Also, accumulate all of them. *)
+            | false, None -> fatal ?loc:tm.loc (extra_field_in_struct eta fld))
         | None, tm -> fatal ?loc:tm.loc (Extra_field_in_tuple None))
       Emp tms in
   Term.Struct (eta, m, fields, energy status)

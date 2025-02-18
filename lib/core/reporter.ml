@@ -772,6 +772,12 @@ let struct_at_degenerated_type : type s. s eta -> printable -> Code.t =
   | Eta -> Checking_tuple_at_degenerated_record name
   | Noeta -> Comatching_at_degenerated_codata name
 
+let extra_field_in_struct : type s. s eta -> Field.t -> Code.t =
+ fun eta fld ->
+  match eta with
+  | Eta -> Extra_field_in_tuple (Some fld)
+  | Noeta -> Extra_method_in_comatch fld
+
 let missing_field_in_struct : type s. s eta -> Field.t -> Code.t =
  fun eta fld ->
   match eta with

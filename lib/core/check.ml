@@ -1727,7 +1727,7 @@ and check_field :
     (c, n) Term.codatafield ->
     (* The up-until-now term being checked *)
     (kinetic value, Code.t) Result.t ->
-    (* AS before, user terms, checked terms, value terms, and errors *)
+    (* As before, user terms, checked terms, value terms, and errors *)
     ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
     (Field.t, (m, b, s) Term.structfield) Abwd.t ->
     (Field.t, (m, s) Value.structfield) Abwd.t ->
@@ -1758,7 +1758,7 @@ and check_field :
       let etms, ctms, errs =
         (* We trap any errors produced by 'check', adding them instead to the list of accumulated errors and going on.  Note that if any previous fields that have already failed, then prev_etm will be bound to an error value, and so if the type of this field depends on the value of any previous one, tyof_field will raise that error, which we catch and add to the list; but it will be (Accumulated Emp) so it won't be displayed to the user. *)
         Reporter.try_with ~fatal:(fun e -> (etms, ctms, Snoc (errs, e))) @@ fun () ->
-        (* We don't need the error-checking of tyof_field, since we are getting our fields directly from the codatatype definition and so we already know that they have the right dimensions.  So we can call directly into the helper function tyof_lower_codatafield. *)
+        (* We don't need the error-checking of tyof_field, since we are getting our fields directly from the codatatype definition and so we already know that they have the right dimensions.  So we can call directly into the helper function tyof_lower_codatafield.  Note that we pass it prev_etm, env, and tyargs that consist of values in the old context, but the return value ety is in the new degenerated context. *)
         let ety = tyof_lower_codatafield prev_etm fld fldty env tyargs m mn in
         let ctm = check (mkstatus lbl status) ctx tm ety in
         let etms = Abwd.add fld (Lower_structfield (lazy_eval (Ctx.env ctx) ctm, lbl)) etms in
@@ -1825,7 +1825,9 @@ and check_higher_field :
       let (Degctx (type rb)
             ((plusmap, degctx, degenv) : (r, b, rb) Plusmap.t * (a, rb) Ctx.t * (r, b) env)) =
         degctx ctx r in
-      let mkstatus : (b, potential) status -> (rb, potential) status = function
+      (* TODO: This needs fixing.  The arguments need to be eval-readbacked into degctx, and for that to make sense also I think the *head* needs to be higher-dimensional.  Allowing higher-dimensional heads in status might be a big change with impacts elsewhere. *)
+      let status : (rb, potential) status =
+        match status with
         | Potential (c, args, hyp) ->
             let (Plus nk) = D.plus (cod_right_ins fldins) in
             let args = Snoc (args, App (Field (fld, nk), fldins)) in
@@ -1887,7 +1889,7 @@ and check_higher_field :
             } in
         (* Evaluate the type for this instance of the field, and check the user's type against it. *)
         let ety = tyof_higher_codatafield prev_etm fld env tyargs fldins ic0 fldty ~shuf in
-        let ctm = check (mkstatus status) degctx tm ety in
+        let ctm = check status degctx tm ety in
         (* Add the typechecked term to the list *)
         let cvals = PlusPbijmap.set pbij (PlusFam (Some (plusmap, ctm))) cvals in
         (* If there are no remaining dimensions, we can evaluate the term and add it to the list of evaluated fields. *)

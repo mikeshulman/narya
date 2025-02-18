@@ -685,11 +685,13 @@ and tyof_higher_codatafield :
     (D.zero, n, n, normal) TubeOf.t ->
     (* The field has intrinsic dimension i, determined by a pbij from n to i, with result s, remaining r, shared h.  We record the insertion and shuffle separately, with a shuffleable recording explicitly whether the shuffle is nontrivial and including a readback callback if so.  This is because we will have to readback a (s+h, [c;0]) env, in some context, and evaluate in an (r,a) env coming from degenerating that context, to get an (r+s+h, [c;0]) env, but readback depends on this file. *)
     (n, s, h) insertion ->
+    (* It's very important that these callbacks be called on *all values* before they are used, including tm, env, and tyargs, since they start out in the non-degenerated context but everything has to actually happen in the degenerated one. *)
     shuf:(r, h, i, c) shuffleable ->
     (* We add i to all the dimensions in [c;0] to get i+[c;0]. *)
     (i, (c, D.zero) snoc, ic) Plusmap.t ->
     (* The unevaluated type of the field is a term in context of this length i+[c;0].  The extra 0 is for the 'self' variable, which is always 0-dimensional when *defining* the codatatype. *)
     (ic, kinetic) term ->
+    (* In the nontrivial case, the return value is also in the degenerated context. *)
     kinetic value =
  fun tm fldname codataenv tyargs fldins ~shuf ic0 fldty ->
   Reporter.trace "tyof_higher_codatafield" @@ fun () ->

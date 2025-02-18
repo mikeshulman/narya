@@ -1,4 +1,4 @@
-  $ narya -v hct.ny
+  $ narya -v sqrt.ny
    ￫ info[I0001]
    ￮ axiom A assumed
   
@@ -50,117 +50,80 @@
   s22 .root.2
     : refl A (s20 .root.1) (s21 .root.1)
   
-
-  $ narya -v 2dct.ny
+  s2⁽¹ᵉ⁾ .root.2
+    : refl A (refl s0 .root.1) (refl s1 .root.1)
+  
+  refl s2 .root.2
+    : refl A (s2 .root.1) (s2 .root.1)
+  
+  s0⁽ᵉᵉ⁾ .root.2
+    : refl A (refl s0 .root.1) (refl s0 .root.1)
+  
+  s0⁽ᵉᵉ⁾ .root.2
+    : refl A (refl s0 .root.1) (refl s0 .root.1)
+  
    ￫ info[I0001]
-   ￮ axiom A assumed
+   ￮ axiom B assumed
+  
+   ￫ info[I0001]
+   ￮ axiom f assumed
   
    ￫ info[I0000]
-   ￮ constant √√A defined
+   ￮ constant √f defined
   
    ￫ info[I0001]
-   ￮ axiom s000 assumed
+   ￮ axiom b0 assumed
   
    ￫ info[I0001]
-   ￮ axiom s001 assumed
+   ￮ axiom b1 assumed
   
    ￫ info[I0001]
-   ￮ axiom s002 assumed
+   ￮ axiom b2 assumed
+  
+  f b0 b1 b2
+    : A
   
    ￫ info[I0001]
-   ￮ axiom s010 assumed
+   ￮ axiom t00 assumed
   
    ￫ info[I0001]
-   ￮ axiom s011 assumed
+   ￮ axiom t01 assumed
   
    ￫ info[I0001]
-   ￮ axiom s012 assumed
+   ￮ axiom t10 assumed
   
    ￫ info[I0001]
-   ￮ axiom s020 assumed
+   ￮ axiom t11 assumed
   
    ￫ info[I0001]
-   ￮ axiom s021 assumed
+   ￮ axiom t02 assumed
   
    ￫ info[I0001]
-   ￮ axiom s022 assumed
+   ￮ axiom t12 assumed
   
    ￫ info[I0001]
-   ￮ axiom s100 assumed
+   ￮ axiom t20 assumed
   
    ￫ info[I0001]
-   ￮ axiom s101 assumed
+   ￮ axiom t21 assumed
   
    ￫ info[I0001]
-   ￮ axiom s102 assumed
+   ￮ axiom t22 assumed
+  
+  refl f t00 t01 t02 t10 t11 t12 t20 t21 t22
+    : refl A (f t00 t10 t20) (f t01 t11 t21)
   
    ￫ info[I0001]
-   ￮ axiom s110 assumed
+   ￮ axiom a assumed
   
-   ￫ info[I0001]
-   ￮ axiom s111 assumed
+   ￫ info[I0000]
+   ￮ constant s2' defined
   
-   ￫ info[I0001]
-   ￮ axiom s112 assumed
+  a
+    : A
   
-   ￫ info[I0001]
-   ￮ axiom s120 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s121 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s122 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s200 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s201 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s202 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s210 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s211 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s212 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s220 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s221 assumed
-  
-   ￫ info[I0001]
-   ￮ axiom s222 assumed
-  
-  s222⁽³¹²⁾ .rroot.23
-    : refl A (s022 .rroot.12) (s122 .rroot.12)
-  
-  s222⁽²¹³⁾ .rroot.23
-    : refl A (s202 .rroot.12) (s212 .rroot.12)
-  
-  s222 .rroot.23
-    : refl A (s220 .rroot.12) (s221 .rroot.12)
-  
-  s222⁽³²¹⁾ .rroot.23
-    : refl A (sym s022 .rroot.12) (sym s122 .rroot.12)
-  
-  s222⁽¹³²⁾ .rroot.23
-    : refl A (sym s220 .rroot.12) (sym s221 .rroot.12)
-  
-  s222⁽²³¹⁾ .rroot.23
-    : refl A (sym s202 .rroot.12) (sym s212 .rroot.12)
-  
-
-  $ narya -v sqrt.ny
-   ￫ info[I0001]
-   ￮ axiom A assumed
+  refl a
+    : refl A a a
   
    ￫ info[I0000]
    ￮ constant ID defined
@@ -189,6 +152,95 @@
   a2
     : refl A a0 a1
   
+   ￫ info[I0001]
+   ￮ axiom u0 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u1 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u2 assumed
+  
+  u2 .root.1
+    : ID A
+  
+   ￫ info[I0000]
+   ￮ constant u2' defined, containing 2 holes
+  
+   ￫ info[I3003]
+   ￮ hole ?0:
+     
+     ----------------------------------------------------------------------
+     refl ID A A (refl A) (refl u0 .root.1) (refl u1 .root.1)
+  
+   ￫ info[I3003]
+   ￮ hole ?1:
+     
+     ----------------------------------------------------------------------
+     ID A
+  
+   ￫ info[I0001]
+   ￮ axiom u00 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u01 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u02 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u10 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u11 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u12 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u20 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u21 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom u22 assumed
+  
+  sym u22 .root.2
+    : refl ID A A (refl A) (u02 .root.1) (u12 .root.1)
+  
+  u22 .root.2
+    : refl ID A A (refl A) (u20 .root.1) (u21 .root.1)
+  
+   ￫ info[I0000]
+   ￮ constant u22' defined, containing 3 holes
+  
+   ￫ info[I3003]
+   ￮ hole ?2:
+     
+     ----------------------------------------------------------------------
+     ID⁽ᵉᵉ⁾ A A (refl A) A A (refl A) (refl A) (refl A) A⁽ᵉᵉ⁾
+       (refl u00 .root.1) (refl u01 .root.1) (u02⁽¹ᵉ⁾ .root.2)
+       (refl u10 .root.1) (refl u11 .root.1) (u12⁽¹ᵉ⁾ .root.2)
+       (u20⁽¹ᵉ⁾ .root.2) (u21⁽¹ᵉ⁾ .root.2)
+  
+   ￫ info[I3003]
+   ￮ hole ?3:
+     
+     ----------------------------------------------------------------------
+     refl ID A A (refl A) (u20 .root.1) (u21 .root.1)
+  
+   ￫ info[I3003]
+   ￮ hole ?4:
+     
+     ----------------------------------------------------------------------
+     refl ID A A (refl A) (u02 .root.1) (u12 .root.1)
+  
+   ￫ error[E3002]
+   ￮ file $TESTCASE_ROOT/sqrt.ny contains open holes
+  
+  [1]
+
 
   $ narya -v isfibrant.ny
    ￫ info[I0000]

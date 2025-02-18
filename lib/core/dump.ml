@@ -35,10 +35,23 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
   | Uninst (tm, ty) ->
       if depth > 0 then fprintf ppf "Uninst (%a, %a)" uninst tm (dvalue (depth - 1)) (Lazy.force ty)
       else fprintf ppf "Uninst (%a, ?)" uninst tm
-  | Inst { tm; dim = d; args = _; tys = _ } ->
-      fprintf ppf "Inst (%a, %a, ?, ?)" uninst tm dim (D.pos d)
+  | Inst { tm; dim = d; args; tys = _ } ->
+      fprintf ppf "Inst (%a, %a, (" uninst tm dim (D.pos d);
+      let started = ref false in
+      TubeOf.miter
+        {
+          it =
+            (fun _ [ (x : normal) ] ->
+              if !started then fprintf ppf ", ";
+              started := true;
+              dvalue depth ppf x.tm);
+        }
+        [ args ];
+      fprintf ppf "), ?)"
   | Lam (_, _) -> fprintf ppf "Lam ?"
-  | Struct (f, ins, _) -> fprintf ppf "Struct (%a)" (fields depth (cod_left_ins ins)) f
+  | Struct (f, ins, _) ->
+      let n = cod_left_ins ins in
+      fprintf ppf "Struct %s (%a)" (string_of_dim n) (fields depth n) f
   | Constr (c, d, args) ->
       fprintf ppf "Constr (%s, %a, (%a))" (Constr.to_string c) dim d
         (pp_print_list ~pp_sep:(fun ppf () -> pp_print_string ppf ", ") value)
@@ -69,21 +82,18 @@ and lazy_eval :
     type s.
     int -> formatter -> Field.t -> string -> s lazy_eval -> [ `Labeled | `Unlabeled ] -> unit =
  fun depth ppf f p v l ->
-  if depth > 0 then evaluation (depth - 1) ppf (!force_eval.force v)
+  let l =
+    match l with
+    | `Unlabeled -> "`Unlabeled"
+    | `Labeled -> "`Labeled" in
+  if depth > 0 then
+    fprintf ppf "(%s%s, %a, %s)" (Field.to_string f) p
+      (evaluation (depth - 1))
+      (!force_eval.force v) l
   else
     match !v with
-    | Ready v ->
-        fprintf ppf "(%s%s, %a, %s)" (Field.to_string f) p
-          (evaluation (depth - 1))
-          v
-          (match l with
-          | `Unlabeled -> "`Unlabeled"
-          | `Labeled -> "`Labeled")
-    | _ ->
-        fprintf ppf "(%s%s, (Deferred), %s)" (Field.to_string f) p
-          (match l with
-          | `Unlabeled -> "`Unlabeled"
-          | `Labeled -> "`Labeled")
+    | Ready v -> fprintf ppf "(%s%s, %a, %s)" (Field.to_string f) p (evaluation (depth - 1)) v l
+    | _ -> fprintf ppf "(%s%s, (Deferred), %s)" (Field.to_string f) p l
 
 and evaluation : type s. int -> formatter -> s evaluation -> unit =
  fun depth ppf v ->
@@ -111,7 +121,7 @@ and app : formatter -> app -> unit =
 
 and arg : type n. formatter -> n arg -> unit =
  fun ppf -> function
-  | Arg xs -> value ppf (CubeOf.find_top xs).tm
+  | Arg xs -> fprintf ppf "(...%a)" value (CubeOf.find_top xs).tm
   | Field (fld, _) -> fprintf ppf ".%s.?" (Field.to_string fld)
 
 and head : formatter -> head -> unit =
@@ -145,7 +155,8 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Const c -> fprintf ppf "Const %a" pp_printed (print (PConstant c))
   | Meta (v, _) -> fprintf ppf "Meta %a" pp_printed (print (PMeta v))
   | MetaEnv (v, _) -> fprintf ppf "MetaEnv (%a,?)" pp_printed (print (PMeta v))
-  | Field (tm, fld, _) -> fprintf ppf "Field (%a, %s, ?)" term tm (Field.to_string fld)
+  | Field (tm, fld, ins) ->
+      fprintf ppf "Field (%a, %s, %s)" term tm (Field.to_string fld) (string_of_ins ins)
   | UU n -> fprintf ppf "UU %a" dim n
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
   | Pi (x, doms, _) ->
@@ -219,7 +230,7 @@ and synth : type a. formatter -> a synth -> unit =
   | Asc (tm, ty) -> fprintf ppf "Asc(%a, %a)" check tm.value check ty.value
   | Let (_, _, _) -> fprintf ppf "Let(?)"
   | Letrec (_, _, _) -> fprintf ppf "LetRec(?)"
-  | Act (_, _, _) -> fprintf ppf "Act(?)"
+  | Act (str, fa, x) -> fprintf ppf "Act(%s, %s, %a)" str (string_of_deg fa) check x.value
   | Match { tm; sort = _; branches = br; refutables = _ } ->
       fprintf ppf "Match (%a, (%a))" synth tm.value branches br
   | UU -> fprintf ppf "Type"

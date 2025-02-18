@@ -113,8 +113,23 @@
   refl f t00 t01 t02 t10 t11 t12 t20 t21 t22
     : refl A (f t00 t10 t20) (f t01 t11 t21)
   
+  refl f t00 t10 t20 t01 t11 t21 t02 t12 (sym t22)
+    : refl A (f t00 t01 t02) (f t10 t11 t12)
+  
    ￫ info[I0001]
    ￮ axiom a assumed
+  
+   ￫ info[I0000]
+   ￮ constant √a defined
+  
+  a
+    : A
+  
+  refl a
+    : refl A a a
+  
+  refl a
+    : refl A a a
   
    ￫ info[I0000]
    ￮ constant s2' defined
@@ -124,6 +139,9 @@
   
   refl a
     : refl A a a
+  
+  refl f b0 b1 b2 b0 b1 b2 (refl b0) (refl b1) b2⁽¹ᵉ⁾
+    : refl A (f b0 b0 (refl b0)) (f b1 b1 (refl b1))
   
    ￫ info[I0000]
    ￮ constant ID defined
@@ -241,6 +259,229 @@
   
   [1]
 
+  $ narya -v 2dsqrt.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0000]
+   ￮ constant √√A defined
+  
+   ￫ info[I0001]
+   ￮ axiom s000 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s001 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s002 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s010 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s011 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s012 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s020 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s021 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s022 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s100 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s101 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s102 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s110 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s111 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s112 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s120 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s121 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s122 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s200 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s201 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s202 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s210 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s211 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s212 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s220 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s221 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom s222 assumed
+  
+  s222⁽³¹²⁾ .rroot.23
+    : refl A (s022 .rroot.12) (s122 .rroot.12)
+  
+  s222⁽²¹³⁾ .rroot.23
+    : refl A (s202 .rroot.12) (s212 .rroot.12)
+  
+  s222 .rroot.23
+    : refl A (s220 .rroot.12) (s221 .rroot.12)
+  
+  s222⁽³²¹⁾ .rroot.23
+    : refl A (sym s022 .rroot.12) (sym s122 .rroot.12)
+  
+  s222⁽¹³²⁾ .rroot.23
+    : refl A (sym s220 .rroot.12) (sym s221 .rroot.12)
+  
+  s222⁽²³¹⁾ .rroot.23
+    : refl A (sym s202 .rroot.12) (sym s212 .rroot.12)
+  
+   ￫ info[I0000]
+   ￮ constant ID2 defined
+  
+   ￫ info[I0000]
+   ￮ constant √√ID2A defined
+  
+   ￫ info[I0000]
+   ￮ constant t defined
+  
+   ￫ info[I0001]
+   ￮ axiom a00 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a01 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a02 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a10 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a11 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a12 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a20 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a21 assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a22 assumed
+  
+   ￫ info[I0000]
+   ￮ constant ta defined
+  
+  t⁽ᵉᵉ⁾ a00 a01 a02 a10 a11 a12 a20 a21 a22 .rroot.12
+    : ID2 A
+  
+  t⁽ᵉᵉ⁾ a00 a10 a20 a01 a11 a21 a02 a12 (sym a22) .rroot.12
+    : ID2 A
+  
+  a00
+    : A
+  
+  a00
+    : A
+  
+  a01
+    : A
+  
+  a10
+    : A
+  
+  a02
+    : refl A a00 a01
+  
+  a20
+    : refl A a00 a10
+  
+  a10
+    : A
+  
+  a01
+    : A
+  
+  a11
+    : A
+  
+  a11
+    : A
+  
+  a12
+    : refl A a10 a11
+  
+  a21
+    : refl A a01 a11
+  
+  a20
+    : refl A a00 a10
+  
+  a02
+    : refl A a00 a01
+  
+  a21
+    : refl A a01 a11
+  
+  a12
+    : refl A a10 a11
+  
+  a22
+    : A⁽ᵉᵉ⁾ a00 a01 a02 a10 a11 a12 a20 a21
+  
+  sym a22
+    : A⁽ᵉᵉ⁾ a00 a10 a20 a01 a11 a21 a02 a12
+  
+  t⁽ᵉᵉ⁾ a00 a10 a20 a01 a11 a21 a02 a12 (sym a22) .rroot.12
+    : ID2 A
+  
+  t⁽ᵉᵉ⁾ a00 a10 a20 a01 a11 a21 a02 a12 (sym a22) .rroot.12
+    : ID2 A
+  
+  a10
+    : A
+  
+  a10
+    : A
+  
+  a20
+    : refl A a00 a10
+  
+  a20
+    : refl A a00 a10
+  
 
   $ narya -v isfibrant.ny
    ￫ info[I0000]

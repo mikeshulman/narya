@@ -1,5 +1,4 @@
 {` The "amazing right adjoint" can only be defined for closed types. `}
-
 axiom A : Type
 
 def √A : Type ≔ codata [
@@ -47,7 +46,7 @@ axiom b0 : B
 axiom b1 : B
 axiom b2 : Id B b0 b1
 
-{` When we have this element sufficiently degenerated, we can project out its field and get the value we supplied, applied to the correct arguments. `}
+{` When we have this element sufficiently degenerated, we can project out its field(s) and get the value we supplied, applied to the correct arguments. `}
 echo refl √f b0 b1 b2 .root.1
 
 {` And similarly at the next dimension. `}
@@ -62,13 +61,18 @@ axiom t21 : Id B t01 t11
 axiom t22 : Id (Id B) t00 t01 t02 t10 t11 t12 t20 t21
 
 echo √f⁽ᵉᵉ⁾  t00 t01 t02 t10 t11 t12 t20 t21 t22 .root.2
-{` TODO: Bug here! `}
-{`
 echo √f⁽ᵉᵉ⁾  t00 t01 t02 t10 t11 t12 t20 t21 t22 .root.1
- `}
 
-{` We can also define elements of degenerate versions of √A. `}
+{` We can also see that sym fixes refl-refl on a non-neutral element. `}
 axiom a : A
+def √a : √A ≔ [
+| .root.e ↦ a
+]
+echo refl √a .root.1
+echo refl (refl √a) .root.1
+echo refl (refl √a) .root.2
+
+{` We can also define elements of degenerate versions of √A, as higher coinductive types in their own right.  In this case we have to give a value for the "actual" field that has appeared, as well as the higher field that is now further degenerated. `}
 
 def s2' : Id √A (√f b0) (√f b1) ≔ [
 | .root.e ↦ refl f b0 b1 b2 b0 b1 b2 (refl b0) (refl b1) (sym (refl b2))
@@ -80,8 +84,7 @@ echo s2' .root.1
 
 {` The other one only comes into play when we degenerate. `}
 echo refl s2' .root.2
-{` TODO: Bug here! `}
-` echo refl s2' .root.1
+echo refl s2' .root.1
 
 {` One way to define the unit of the adjunction Id ⊣ √ is to wrap up Id and its endpoints in a sig. `}
 def ID (X : Type) : Type ≔ sig (

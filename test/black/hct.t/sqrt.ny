@@ -28,6 +28,7 @@ echo s22 .root.2
 {` We can also take the fields of refl s2. `}
 echo refl s2 .root.1
 echo refl s2 .root.2
+echo refl (s2 .root.1)
 
 {` Since sym fixes refl-refl, the two fields of refl-refl s0 are the same. `}
 echo refl (refl s0) .root.1

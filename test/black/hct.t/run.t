@@ -56,6 +56,9 @@
   refl s2 .root.2
     : refl A (s2 .root.1) (s2 .root.1)
   
+  refl s2 .root.2
+    : refl A (s2 .root.1) (s2 .root.1)
+  
   s0⁽ᵉᵉ⁾ .root.2
     : refl A (refl s0 .root.1) (refl s0 .root.1)
   
@@ -481,6 +484,32 @@
   
   a20
     : refl A a00 a10
+  
+
+  $ narya -v sqrtsqrt.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0000]
+   ￮ constant √A defined
+  
+   ￫ info[I0000]
+   ￮ constant √√A defined
+  
+   ￫ info[I0000]
+   ￮ constant √_√A defined
+  
+   ￫ info[I0000]
+   ￮ constant f defined
+  
+   ￫ info[I0000]
+   ￮ constant g defined
+  
+   ￫ info[I0000]
+   ￮ constant fg defined
+  
+   ￫ info[I0000]
+   ￮ constant gf defined
   
 
   $ narya -v isfibrant.ny

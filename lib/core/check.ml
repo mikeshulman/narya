@@ -145,8 +145,9 @@ let run_with_definition :
  fun head tm errs f ->
   match (head, errs) with
   (* In the case of an error, we bind the head to the error "Accumulated Emp".  That has the effect that accesses to it fail, but aren't displayed to the user as anything, since what's really going on is that we refuse to even try to typecheck later parts of a term that depend on previous parts that already failed, and this "error" is just detecting that dependence. *)
-  | Constant c, Emp -> Global.with_definition c (Global.Defined tm) f
-  | Constant c, Snoc _ -> Global.without_definition c (Accumulated Emp) f
+  (* We ignore the substituted dimension of the head, since this is really setting the *global* definition, which is not substituted. *)
+  | Constant (c, _), Emp -> Global.with_definition c (Global.Defined tm) f
+  | Constant (c, _), Snoc _ -> Global.without_definition c (Accumulated Emp) f
   | Meta (m, _), Emp -> Global.with_meta_definition m tm f
   | Meta (m, _), Snoc _ -> Global.without_meta_definition m (Accumulated Emp) f
 
@@ -575,7 +576,7 @@ and synth_or_check_let :
       let sv, svty =
         match v.value with
         | Asc (vtm, rvty) ->
-            (* If the bound term is explicitly ascribed, then we can give the metavariable a type while checking its body.  This is probably irrelevant until we have "let rec", but we do it anyway. *)
+            (* If the bound term is explicitly ascribed, then we can give the metavariable a type while checking its body.  This is probably mainly only useful with "let rec". *)
             let vty = check (Kinetic `Nolet) ctx rvty (universe D.zero) in
             Global.add_meta meta ~termctx ~tm:`Axiom ~ty:vty ~energy:Potential;
             let evty = eval_term (Ctx.env ctx) vty in
@@ -1427,23 +1428,29 @@ and check_data :
           let disc, (checked_constrs : (Constr.t, (b, i) Term.dataconstr) Abwd.t), errs =
             Reporter.try_with ~fatal:(fun e -> (true, checked_constrs, Snoc (errs, e))) @@ fun () ->
             let Checked_tel (args, newctx), disc = check_tel ?discrete ctx args in
+            (* Note the type of each field is checked *kinetically*: it's not part of the case tree. *)
             let coutput = check (Kinetic `Nolet) newctx output (universe D.zero) in
             match eval_term (Ctx.env newctx) coutput with
             | Uninst (Neu { head = Const { name = out_head; ins }; args = out_apps; value = _ }, _)
               -> (
                 match head with
-                | Constant cc when cc = out_head && Option.is_some (is_id_ins ins) -> (
-                    let (Wrap indices) =
-                      get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps)
-                        output.loc in
-                    match Fwn.compare (Vec.length indices) num_indices with
-                    | Eq ->
-                        ( disc,
-                          checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }),
-                          errs )
-                    | _ ->
-                        (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
-                        fatal (Anomaly "length of indices mismatch"))
+                | Constant (cc, n) when cc = out_head && Option.is_some (is_id_ins ins) -> (
+                    match D.compare_zero n with
+                    | Pos _ ->
+                        fatal ?loc:output.loc
+                          (Unimplemented "indexed inductive types nested inside higher comatches")
+                    | Zero -> (
+                        let (Wrap indices) =
+                          get_indices newctx c (Bwd.to_list current_apps) (Bwd.to_list out_apps)
+                            output.loc in
+                        match Fwn.compare (Vec.length indices) num_indices with
+                        | Eq ->
+                            ( disc,
+                              checked_constrs |> Abwd.add c (Term.Dataconstr { args; indices }),
+                              errs )
+                        | _ ->
+                            (* I think this shouldn't ever happen, no matter what the user writes, since we know at this point that the output is a full application of the correct constant, so it must have the right number of arguments. *)
+                            fatal (Anomaly "length of indices mismatch")))
                 | _ -> fatal ?loc:output.loc (Invalid_constructor_type c))
             | _ -> fatal ?loc:output.loc (Invalid_constructor_type c) in
           check_data
@@ -1571,6 +1578,7 @@ and check_codata :
       | Zero, _ ->
           let checked_fields, errs =
             Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
+            (* Note the type of each field is checked *kinetically*: it's not part of the case tree. *)
             let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
             (Snoc (checked_fields, (fld, Lower_codatafield cty)), errs) in
           check_codata status ctx tyargs checked_fields raw_fields errs ~has_higher_fields
@@ -1578,6 +1586,7 @@ and check_codata :
           let (Degctx (plusmap, degctx, _)) = degctx newctx fdim in
           let checked_fields, errs =
             Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
+            (* Note the type of each field is checked *kinetically*: it's not part of the case tree. *)
             let cty = check (Kinetic `Nolet) degctx rty (universe D.zero) in
             (Snoc (checked_fields, (fld, Higher_codatafield (pfdim, plusmap, cty))), errs) in
           check_codata status ctx tyargs checked_fields raw_fields errs ~has_higher_fields
@@ -1825,19 +1834,89 @@ and check_higher_field :
       let (Degctx (type rb)
             ((plusmap, degctx, degenv) : (r, b, rb) Plusmap.t * (a, rb) Ctx.t * (r, b) env)) =
         degctx ctx r in
-      (* TODO: This needs fixing.  The arguments need to be eval-readbacked into degctx, and for that to make sense also I think the *head* needs to be higher-dimensional.  Allowing higher-dimensional heads in status might be a big change with impacts elsewhere. *)
-      let status : (rb, potential) status =
+      (* To make a new status, the arguments need to be eval-readbacked into degctx, and for that to make sense the head needs to be higher-dimensional also. *)
+      let newstatus : (rb, potential) status =
         match status with
-        | Potential (c, args, hyp) ->
+        | Potential (type aa)
+            ((head, args, hyp) :
+              aa potential_head * app Bwd.t * ((b, potential) term -> (aa, potential) term)) ->
+            (* We increase the dimension of the potential_head, and also compute a value for the head.  This value is in the *old* context (not the degenerated one)! *)
+            let head : aa potential_head =
+              match head with
+              | Constant (c, n) ->
+                  let (Plus rn) = D.plus n in
+                  Constant (c, D.plus_out r rn)
+              | Meta (meta, metaenv) ->
+                  let (Plus rn) = D.plus (dim_env metaenv) in
+                  let d = Global.find_meta meta in
+                  (* In the case of a metavariable, we eval-readback its stored environment to raise it to degctx. *)
+                  Meta (meta, eval_env degenv rn (readback_env ctx metaenv d.termctx)) in
+            (* We also eval-readback the args to raise them to degctx. *)
+            let args =
+              Bwd.map
+                (function
+                  | Value.App (Field (f, nk), appins) ->
+                      let n = cod_left_ins appins in
+                      let (Plus rn) = D.plus n in
+                      let (Plus rn_k) = D.plus (D.plus_right nk) in
+                      let (Plus r_nz) = D.plus (dom_ins appins) in
+                      let newins = plus_ins r r_nz rn appins in
+                      Value.App (Field (f, rn_k), newins)
+                  | App (type n nz z) ((Arg arg, appins) : n arg * (nz, n, z) insertion) ->
+                      let n = CubeOf.dim arg in
+                      let (Plus rn) = D.plus n in
+                      let (Plus r_nz) = D.plus (dom_ins appins) in
+                      let newins = plus_ins r r_nz rn appins in
+                      (* First we readback the terms and types. *)
+                      let [ tms; tys ] =
+                        CubeOf.pmap
+                          { map = (fun _ [ x ] -> [ readback_nf ctx x; readback_val ctx x.ty ]) }
+                          [ arg ] (Cons (Cons Nil)) in
+                      (* Now we evaluate them in degenv to increase the dimension.  *)
+                      let etms = eval_args degenv rn (D.plus_out r rn) tms in
+                      let etys = eval_args degenv rn (D.plus_out r rn) tys in
+                      (* Now we have to reassociate the terms with the types to make a new cube of normals.  This is like norm_of_vals_cube, except that the types are already instantiated to dimension n, and we have only to instantiate them the rest of the way at dimension r. *)
+                      let new_tm_tbl = Hashtbl.create 10 in
+                      let newarg =
+                        CubeOf.mmap
+                          {
+                            map =
+                              (fun fab [ tm; ty ] ->
+                                let (SFace_of_plus (ml, fa, fb)) = sface_of_plus rn fab in
+                                let instargs =
+                                  TubeOf.build D.zero
+                                    (D.zero_plus (dom_sface fa))
+                                    {
+                                      build =
+                                        (fun fc ->
+                                          let (Plus kl) = D.plus (D.plus_right ml) in
+                                          Hashtbl.find new_tm_tbl
+                                            (SFace_of
+                                               (sface_plus_sface
+                                                  (comp_sface fa (sface_of_tface fc))
+                                                  rn kl fb)));
+                                    } in
+                                let ty = inst ty instargs in
+                                let newtm = { tm; ty } in
+                                Hashtbl.add new_tm_tbl (SFace_of fab) newtm;
+                                newtm);
+                          }
+                          [ etms; etys ] in
+                      Value.App (Arg newarg, newins))
+                args in
             let (Plus nk) = D.plus (cod_right_ins fldins) in
-            let args = Snoc (args, App (Field (fld, nk), fldins)) in
-            let hyp tm =
+            (* We add the current field projection to the args, with an insertion obtained by incorporating the remaining dimensions into the evaluation. *)
+            let (Plus rm) = D.plus m in
+            let newins = ins_plus_of_pbij fldins fldshuf rm in
+            let args = Snoc (args, Value.App (Field (fld, nk), newins)) in
+            (* To hypothesize a value for the current term, we insert the supposed value as the value of this field.  Note the context rb of the supposed value is the degenerated rb instead of the original b, but this is exactly right for the value that's supposed to go in at this pbij.  *)
+            let hyp (tm : (rb, potential) term) : (aa, potential) term =
               let hsf =
                 Term.Higher_structfield (PlusPbijmap.set pbij (PlusFam (Some (plusmap, tm))) cvals)
               in
               let ctms = Snoc (ctms, (fld, hsf)) in
               hyp (Term.Struct (Noeta, m, ctms, energy status)) in
-            Potential (c, args, hyp) in
+            Potential (head, args, hyp) in
       (* Get the user's supplied term for this partial bijection *)
       let key = Some (fld, strings_of_pbij pbij) in
       let tm, tms =
@@ -1889,7 +1968,7 @@ and check_higher_field :
             } in
         (* Evaluate the type for this instance of the field, and check the user's type against it. *)
         let ety = tyof_higher_codatafield prev_etm fld env tyargs fldins ic0 fldty ~shuf in
-        let ctm = check status degctx tm ety in
+        let ctm = check newstatus degctx tm ety in
         (* Add the typechecked term to the list *)
         let cvals = PlusPbijmap.set pbij (PlusFam (Some (plusmap, ctm))) cvals in
         (* If there are no remaining dimensions, we can evaluate the term and add it to the list of evaluated fields. *)

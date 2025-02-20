@@ -69,12 +69,15 @@ let check_term (def : defined_const) (discrete : unit Constant.Map.t option) :
       let ety = eval_term (Ctx.env ctx) ty in
       let tm =
         Ctx.lam ctx
-          (check ?discrete (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in
+          (check ?discrete
+             (Potential (Constant (const, D.zero), Ctx.apps ctx, Ctx.lam ctx))
+             ctx tm ety) in
       Global.set const (Defined tm);
       (const, tm)
   | Defined_synth { const; params; tm } ->
       let Checked_tel (cparams, ctx), _ = check_tel Ctx.empty params in
-      let ctm, ety = synth (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
+      let ctm, ety =
+        synth (Potential (Constant (const, D.zero), Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
       let cty = readback_val ctx ety in
       let ty = Telescope.pis cparams cty in
       let tm = Ctx.lam ctx ctm in

@@ -170,7 +170,7 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
                       (* To compute those lower-dimensional versions, we recursively evaluate the same constant in lower-dimensional contexts. *)
                       let tm =
                         eval_term (act_env env (op_of_sface (sface_of_tface fa))) (Const name) in
-                      (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a normal term it had to be annotated with its type. *)
+                      (* We need to know the type of each lower-dimensional version in order to annotate it as a "normal" instantiation argument.  But we already computed that type while evaluating the term itself, since as a neutral term it had to be annotated with its type. *)
                       match tm with
                       | Uninst (Neu _, (lazy ty)) -> { tm; ty }
                       | _ -> fatal (Anomaly "eval of lower-dim constant not neutral/canonical"));
@@ -303,17 +303,7 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Plus m_n) = D.plus n in
       let mn = D.plus_out m m_n in
       (* Then we evaluate all the arguments, not just in the given environment (of dimension m), but in that environment acted on by all the strict faces of m.  Since the given arguments are indexed by strict faces of n, the result is a collection of values indexed by strict faces of m+n.  *)
-      let eargs =
-        CubeOf.build mn
-          {
-            build =
-              (* Specifically, for each face of m+n... *)
-              (fun fab ->
-                (* ...we decompose it as a sum of a face "fa" of m and a face "fb" of n... *)
-                let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
-                (* ...and evaluate the supplied argument indexed by the face fb of n, in an environment acted on by the face fa of m. *)
-                eval_term (act_env env (op_of_sface fa)) (CubeOf.find args fb));
-          } in
+      let eargs = eval_args env m_n mn args in
       (* Having evaluated the function and its arguments, we now pass the job off to a helper function. *)
       apply efn eargs
   | Field (tm, fld, fldins) ->
@@ -434,7 +424,7 @@ and eval_with_boundary :
  fun env tm ->
   CubeOf.build (dim_env env) { build = (fun fa -> eval_term (act_env env (op_of_sface fa)) tm) }
 
-(* A helper function that doesn't get the correct types if we define it inline. *)
+(* Evaluate a cube of arguments for an application. *)
 and eval_args :
     type m n mn a.
     (m, a) env ->
@@ -446,8 +436,11 @@ and eval_args :
   CubeOf.build mn
     {
       build =
+        (* Specifically, for each face of m+n... *)
         (fun fab ->
+          (* ...we decompose it as a sum of a face "fa" of m and a face "fb" of n... *)
           let (SFace_of_plus (_, fa, fb)) = sface_of_plus m_n fab in
+          (* ...and evaluate the supplied argument indexed by the face fb of n, in an environment acted on by the face fa of m. *)
           eval_term (act_env env (op_of_sface fa)) (CubeOf.find tms fb));
     }
 
@@ -809,6 +802,12 @@ and tyof_field :
                   match tyof_codatafield tm fld fldty env tyargs m mn ?shuf fldins with
                   | Ok fldty -> fldty
                   | Error (msg, Wrap a, Wrap b) ->
+                      (match tm with
+                      | Ok tm -> Format.printf "tyof_field tm: %a\n%!" Dump.value tm
+                      | Error _ -> Format.printf "tyof_field no tm\n%!");
+                      Format.printf "tyof_field ty: %a\n%!" Dump.value ty;
+                      Format.printf "tyof_field fld: %s%s\n\n%!" (Field.to_string fld)
+                        (string_of_ins fldins);
                       fatal ~severity (Dimension_mismatch ("tyof_field intrinsic " ^ msg, a, b)))
               | None ->
                   fatal ~severity

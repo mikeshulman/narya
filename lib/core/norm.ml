@@ -781,37 +781,36 @@ and tyof_field :
       let m = cod_left_ins codatains in
       let (Plus mn) = D.plus (cod_right_ins codatains) in
       let mn' = D.plus_out m mn in
-      match D.compare (TubeOf.inst tyargs) mn' with
-      | Neq -> fatal ~severity (Dimension_mismatch ("tyof_field tyargs", TubeOf.inst tyargs, mn'))
-      | Eq -> (
-          match D.compare m (dom_ins fldins) with
-          | Neq -> fatal ~severity (Dimension_mismatch ("tyof_field evaluation", m, dom_ins fldins))
-          | Eq -> (
-              match Field.find fields (`Name fld) with
-              | Some (_, fldty) -> (
-                  Reporter.trace "tyof_field 2" @@ fun () ->
-                  let shuf : (r, h, i, a) shuffleable option =
-                    match shuf with
-                    | None -> None
-                    | Some (Trivial i) -> Some (Trivial i)
-                    | Some (Nontrivial { dbwd; _ }) -> (
-                        match Dbwd.compare dbwd (length_env env) with
-                        | Eq -> shuf
-                        | Neq -> fatal (Anomaly "context length mismatch in tyof_field")) in
-                  Reporter.trace "tyof_field 3" @@ fun () ->
-                  match tyof_codatafield tm fld fldty env tyargs m mn ?shuf fldins with
-                  | Ok fldty -> fldty
-                  | Error (msg, Wrap a, Wrap b) ->
-                      (match tm with
-                      | Ok tm -> Format.printf "tyof_field tm: %a\n%!" Dump.value tm
-                      | Error _ -> Format.printf "tyof_field no tm\n%!");
-                      Format.printf "tyof_field ty: %a\n%!" Dump.value ty;
-                      Format.printf "tyof_field fld: %s%s\n\n%!" (Field.to_string fld)
-                        (string_of_ins fldins);
-                      fatal ~severity (Dimension_mismatch ("tyof_field intrinsic " ^ msg, a, b)))
-              | None ->
-                  fatal ~severity
-                    (No_such_field (`Record (eta, phead head), `Name fld, `Ins fldins)))))
+      (* Note that n is the Gel dimension while m is the evaluation dimension.  So we need an m+n tube of type arguments, but the insertion labeling the field being accessed has only m as its evaluation dimension. *)
+      match (D.compare mn' (TubeOf.inst tyargs), D.compare m (dom_ins fldins)) with
+      | Neq, _ ->
+          fatal ~severity (Dimension_mismatch ("tyof_field tyargs", mn', TubeOf.inst tyargs))
+      | _, Neq -> fatal ~severity (Dimension_mismatch ("tyof_field evaluation", m, dom_ins fldins))
+      | Eq, Eq -> (
+          match Field.find fields (`Name fld) with
+          | Some (_, fldty) -> (
+              Reporter.trace "tyof_field 2" @@ fun () ->
+              let shuf : (r, h, i, a) shuffleable option =
+                match shuf with
+                | None -> None
+                | Some (Trivial i) -> Some (Trivial i)
+                | Some (Nontrivial { dbwd; _ }) -> (
+                    match Dbwd.compare dbwd (length_env env) with
+                    | Eq -> shuf
+                    | Neq -> fatal (Anomaly "context length mismatch in tyof_field")) in
+              Reporter.trace "tyof_field 3" @@ fun () ->
+              match tyof_codatafield tm fld fldty env tyargs m mn ?shuf fldins with
+              | Ok fldty -> fldty
+              | Error (msg, Wrap a, Wrap b) ->
+                  (match tm with
+                  | Ok tm -> Format.printf "tyof_field tm: %a\n%!" Dump.value tm
+                  | Error _ -> Format.printf "tyof_field no tm\n%!");
+                  Format.printf "tyof_field ty: %a\n%!" Dump.value ty;
+                  Format.printf "tyof_field fld: %s%s\n\n%!" (Field.to_string fld)
+                    (string_of_ins fldins);
+                  fatal ~severity (Dimension_mismatch ("tyof_field intrinsic " ^ msg, a, b)))
+          | None ->
+              fatal ~severity (No_such_field (`Record (eta, phead head), `Name fld, `Ins fldins))))
   | _ -> fatal ~severity (No_such_field (`Other, `Name fld, `Ins fldins))
 
 (* This version is for when we are synthesizing the insertion, so we return the resulting insertion along with the type.  The field might also be given positionally in this case, so we also return the field name when we find it.  In this case, mismatches in field names or dimensions are user errors. *)

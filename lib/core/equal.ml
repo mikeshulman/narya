@@ -56,7 +56,7 @@ module Equal = struct
                        ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t);
                    ] ->
                 equal_at ctx (field_term x fld fldins) (field_term y fld fldins)
-                  (tyof_field (Ok x) ty fld fldins))
+                  (tyof_field (Ok x) ty fld ~shuf:Trivial fldins))
               [ fields ]
         (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative. *)
         | Noeta -> equal_val ctx x y)

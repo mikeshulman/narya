@@ -59,7 +59,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                         ( fld,
                           Term.Structfield.Lower
                             ( readback_at ctx (force_eval_term fldtm)
-                                (tyof_field (Ok tm) ty fld fldins),
+                                (tyof_field (Ok tm) ty fld ~shuf:Trivial fldins),
                               l ) ))
                     tmflds in
                 Some (Term.Struct (Eta, dim, fields, energy))
@@ -73,7 +73,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                         ( fld,
                           Term.Structfield.Lower
                             ( readback_at ctx (field_term tm fld fldins)
-                                (tyof_field (Ok tm) ty fld fldins),
+                                (tyof_field (Ok tm) ty fld ~shuf:Trivial fldins),
                               l ) ))
                     fields in
                 Some (Struct (Eta, dim, fields, Kinetic))
@@ -88,7 +88,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                             ( fld,
                               Term.Structfield.Lower
                                 ( readback_at ctx (field_term tm fld fldins)
-                                    (tyof_field (Ok tm) ty fld fldins),
+                                    (tyof_field (Ok tm) ty fld ~shuf:Trivial fldins),
                                   l ) ))
                         fields in
                     Some (Struct (Eta, dim, fields, Kinetic))
@@ -336,7 +336,7 @@ let readback_entry : type a b f n. (a, (b, n) snoc) Ctx.t -> (f, n) Ctx.entry ->
       let fields =
         Bwv.map
           (fun (f, x) ->
-            let fldty = readback_val ctx (tyof_field (Ok top.tm) top.ty f fins) in
+            let fldty = readback_val ctx (tyof_field (Ok top.tm) top.ty f ~shuf:Trivial fins) in
             (f, x, fldty))
           fields in
       let bindings = readback_bindings ctx bindings in

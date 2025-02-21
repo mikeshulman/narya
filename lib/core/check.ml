@@ -2007,7 +2007,8 @@ and synth :
             | Some v ->
                 (* TODO: Double-check that this zero is correct *)
                 let ins = ins_zero D.zero in
-                (realize status (Term.Field (Var v, fld, ins)), tyof_field (Ok x.tm) x.ty fld ins)
+                ( realize status (Term.Field (Var v, fld, ins)),
+                  tyof_field (Ok x.tm) x.ty fld ~shuf:Trivial ins )
             | None -> fatal (Anomaly "level not found in field view")))
     | Const name, _ -> (
         let ty, tm = Global.find name in

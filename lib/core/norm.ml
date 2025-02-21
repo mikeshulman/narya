@@ -37,7 +37,7 @@ let rec take_args :
 
 (* Eval-readback callback for tyof_higher_codatafield *)
 type (_, _, _, _) shuffleable =
-  | Trivial : 'i D.t -> (D.zero, 'i, 'i, 'c) shuffleable
+  | Trivial : (D.zero, 'i, 'i, 'c) shuffleable
   | Nontrivial : {
       dbwd : 'c Dbwd.t;
       shuffle : ('r, 'h, 'i) shuffle;
@@ -50,10 +50,6 @@ type (_, _, _, _) shuffleable =
       deg_nf : normal -> normal;
     }
       -> ('r, 'h, 'i, 'c) shuffleable
-
-let intrinsic_shuffleable : type r h i c. (r, h, i, c) shuffleable -> i D.t = function
-  | Trivial i -> i
-  | Nontrivial { shuffle; _ } -> out_shuffle shuffle
 
 (* A "view" is the aspect of a type or term that we match against to determine its behavior.  A view of a term is just another term, but in WHNF.  A view of a type is either a universe, a pi-type, another canonical type (data or codata), or a neutral.  The non-neutral sorts come with their instantiations that have been checked to have the correct dimension. *)
 
@@ -573,7 +569,7 @@ and field : type n k nk s. s value -> k Field.t -> (nk, n, k) insertion -> s eva
       let p = deg_of_perm (perm_inv (perm_of_ins_plus fldins fldplus)) in
       match act_value viewed_tm p with
       | Uninst (Neu { head; args; value }, (lazy ty)) -> (
-          let newty = Lazy.from_val (tyof_field (Ok tm) ty fld fldins) in
+          let newty = Lazy.from_val (tyof_field (Ok tm) ty fld ~shuf:Trivial fldins) in
           let args = Bwd.Snoc (args, App (Field (fld, fldplus), ins_zero n)) in
           if GluedEval.read () then
             let value = field_lazy value fld fldins in
@@ -613,26 +609,17 @@ and tyof_codatafield :
     m D.t ->
     (m, n, mn) D.plus ->
     (* We allow passing through a shuffle and eval-readback as well, in the case that this is a higher field being called recursively as part of the instantiation arguments. *)
-    ?shuf:(r, k, i, a) shuffleable ->
+    shuf:(r, k, i, a) shuffleable ->
     (m, s, k) insertion ->
-    (kinetic value, string * dim_wrapped * dim_wrapped) Result.t =
- fun tm fldname fldty env tyargs m mn ?shuf fldins ->
+    kinetic value =
+ fun tm fldname fldty env tyargs m mn ~shuf fldins ->
   (* The type of the field projection comes from the type associated to that field name in general, evaluated at the stored environment extended by the term itself and its boundaries. *)
   Reporter.trace "tyof_codatafield" @@ fun () ->
   match fldty with
-  | Term.Codatafield.Lower fldty -> Ok (tyof_lower_codatafield tm fldname fldty env tyargs m mn)
-  | Term.Codatafield.Higher (ic0, fldty) -> (
+  | Term.Codatafield.Lower fldty -> tyof_lower_codatafield tm fldname fldty env tyargs m mn
+  | Term.Codatafield.Higher (ic0, fldty) ->
       let Eq = D.plus_uniq mn (D.plus_zero m) in
-      match shuf with
-      | None -> (
-          (* If no shuffle/eval-readback was supplied, then the shared and intrinsic dimensions must match. *)
-          match D.compare (cod_right_ins fldins) (Field.dim fldname) with
-          | Eq ->
-              Ok
-                (tyof_higher_codatafield tm fldname env tyargs fldins ic0 fldty
-                   ~shuf:(Trivial (Field.dim fldname)))
-          | Neq -> Error ("no shuf", Wrap (cod_right_ins fldins), Wrap (Field.dim fldname)))
-      | Some shuf -> Ok (tyof_higher_codatafield tm fldname env tyargs fldins ic0 fldty ~shuf))
+      tyof_higher_codatafield tm fldname env tyargs fldins ic0 fldty ~shuf
 
 (* We dispatch to separate helper functions for lower fields and higher fields that assume all the dimensions are correct.  These helper functions can be called directly by a caller who knows that all the dimensions are correct, such as check_field where the field is obtained by iterating directly through the codatatype. *)
 and tyof_lower_codatafield :
@@ -658,7 +645,7 @@ and tyof_lower_codatafield :
           (fun fa [ arg ] ->
             let fains = ins_zero (dom_tface fa) in
             let tm = field_term arg.tm fldname fains in
-            let ty = tyof_field (Ok arg.tm) arg.ty fldname fains in
+            let ty = tyof_field (Ok arg.tm) arg.ty fldname ~shuf:Trivial fains in
             { tm; ty });
       }
       [ TubeOf.middle (D.zero_plus m) mn tyargs ] in
@@ -702,7 +689,7 @@ and tyof_higher_codatafield :
   let env =
     match shuf with
     (* When r=0 and h=i, we can just shift this to get an (s, h+[c;0]) env, which is the same as (s, i+[c;0]), so it matches the context of fldty. *)
-    | Trivial _ -> Shift (env, sh, ic0)
+    | Trivial -> Shift (env, sh, ic0)
     (* In the general case... *)
     | Nontrivial { dbwd = _; shuffle; deg_env; deg_nf = _ } ->
         (* First we do some dimension arithemetic. *)
@@ -734,7 +721,7 @@ and tyof_higher_codatafield :
               pface_lift_ins fa fldins in
             let arg = TubeOf.find tyargs faplus in
             match shuf with
-            | Trivial _ ->
+            | Trivial ->
                 let tm = field_term arg.tm fldname fains in
                 let ty = tyof_field (Ok arg.tm) arg.ty fldname ~shuf fains in
                 { tm; ty }
@@ -745,7 +732,7 @@ and tyof_higher_codatafield :
                 let (Plus rm) = D.plus (dom_tface faplus) in
                 let arg_ins = ins_plus_of_pbij fains shuffle rm in
                 let tm = field_term arg.tm fldname arg_ins in
-                let ty = tyof_field (Ok arg.tm) arg.ty fldname arg_ins in
+                let ty = tyof_field (Ok arg.tm) arg.ty fldname ~shuf:Trivial arg_ins in
                 { tm; ty });
       } in
   inst insttm instargs
@@ -757,15 +744,14 @@ and tyof_field :
     kinetic value ->
     i Field.t ->
     (* We allow passing through a shuffle and eval-readback as well, in the case that this is a higher field being called recursively as part of the instantiation arguments. *)
-    ?shuf:(r, h, i, c) shuffleable ->
+    shuf:(r, h, i, c) shuffleable ->
     (m, s, h) insertion ->
     kinetic value =
- fun tm ty fld ?shuf fldins ->
+ fun tm ty fld ~shuf fldins ->
   let errfld =
     match shuf with
-    | None -> `Ins (fld, fldins)
-    | Some (Trivial _) -> `Ins (fld, fldins)
-    | Some (Nontrivial { shuffle; _ }) -> `Pbij (fld, Pbij (fldins, shuffle)) in
+    | Trivial -> `Ins (fld, fldins)
+    | Nontrivial { shuffle; _ } -> `Pbij (fld, Pbij (fldins, shuffle)) in
   Reporter.trace "tyof_field" @@ fun () ->
   let severity = Asai.Diagnostic.Bug in
   match view_type ty "tyof_field" with
@@ -790,27 +776,17 @@ and tyof_field :
       | _, Neq -> fatal ~severity (Dimension_mismatch ("tyof_field evaluation", m, dom_ins fldins))
       | Eq, Eq -> (
           match Term.CodatafieldAbwd.find_opt fields fld with
-          | Some fldty -> (
+          | Some fldty ->
               Reporter.trace "tyof_field 2" @@ fun () ->
-              let shuf : (r, h, i, a) shuffleable option =
+              let shuf : (r, h, i, a) shuffleable =
                 match shuf with
-                | None -> None
-                | Some (Trivial i) -> Some (Trivial i)
-                | Some (Nontrivial { dbwd; _ }) -> (
+                | Trivial -> Trivial
+                | Nontrivial { dbwd; _ } -> (
                     match Dbwd.compare dbwd (length_env env) with
                     | Eq -> shuf
                     | Neq -> fatal (Anomaly "context length mismatch in tyof_field")) in
               Reporter.trace "tyof_field 3" @@ fun () ->
-              match tyof_codatafield tm fld fldty env tyargs m mn ?shuf fldins with
-              | Ok fldty -> fldty
-              | Error (msg, Wrap a, Wrap b) ->
-                  (match tm with
-                  | Ok tm -> Format.printf "tyof_field tm: %a\n%!" Dump.value tm
-                  | Error _ -> Format.printf "tyof_field no tm\n%!");
-                  Format.printf "tyof_field ty: %a\n%!" Dump.value ty;
-                  Format.printf "tyof_field fld: %s%s\n\n%!" (Field.to_string fld)
-                    (string_of_ins fldins);
-                  fatal ~severity (Dimension_mismatch ("tyof_field intrinsic " ^ msg, a, b)))
+              tyof_codatafield tm fld fldty env tyargs m mn ~shuf fldins
           | None -> fatal ~severity (No_such_field (`Record (eta, phead head), errfld))))
   | _ -> fatal ~severity (No_such_field (`Other, errfld))
 
@@ -840,24 +816,22 @@ and tyof_field_withname :
               match ins_of_ints m ints with
               | None -> fatal (Invalid_field_suffix (PVal (ctx, ty), fldname, ints, m))
               | Some (Ins_of fldins) -> (
-                  let fld = Field.intern fldname (cod_right_ins fldins) in
+                  let i = cod_right_ins fldins in
+                  let fld = Field.intern fldname i in
                   match Term.CodatafieldAbwd.find_opt fields fld with
-                  | Some fldty -> (
-                      match tyof_codatafield tm fld fldty env tyargs m mn fldins with
-                      | Ok fldty -> (WithIns (fld, fldins), fldty)
-                      | Error (_, Wrap a, Wrap b) ->
-                          fatal (Wrong_dimension_of_field (PVal (ctx, ty), errfld, b, a)))
+                  | Some fldty ->
+                      let fldty =
+                        tyof_codatafield tm fld fldty env tyargs m mn ~shuf:Trivial fldins in
+                      (WithIns (fld, fldins), fldty)
                   | None -> fatal (No_such_field (`Record (eta, phead head), errfld))))
           | `Int k -> (
               try
                 let (Entry (fld, fldty)) = List.nth (Bwd.to_list fields) k in
                 match D.compare_zero (Field.dim fld) with
-                | Zero -> (
+                | Zero ->
                     let fldins = ins_zero m in
-                    match tyof_codatafield tm fld fldty env tyargs m mn fldins with
-                    | Ok fldty -> (WithIns (fld, fldins), fldty)
-                    | Error (_, Wrap a, Wrap b) ->
-                        fatal (Wrong_dimension_of_field (PVal (ctx, ty), errfld, b, a)))
+                    let fldty = tyof_codatafield tm fld fldty env tyargs m mn ~shuf:Trivial fldins in
+                    (WithIns (fld, fldins), fldty)
                 | Pos _ -> fatal (No_such_field (`Record (eta, phead head), errfld))
               with Failure _ -> fatal (No_such_field (`Record (eta, phead head), errfld)))))
   | _ -> fatal (No_such_field (`Other, errfld))

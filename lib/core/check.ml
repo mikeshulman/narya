@@ -249,8 +249,15 @@ let rec check :
     | Synth (Act (str, fa, x) as stm), _ -> (
         match perm_of_deg fa with
         | None -> check_of_synth status ctx stm tm.loc ty
-        | Some fa ->
-            let fa, fainv = (deg_of_perm fa, deg_of_perm (perm_inv fa)) in
+        | Some pfa ->
+            let fainv = deg_of_perm (perm_inv pfa) in
+            Reporter.try_with ~fatal:(fun d ->
+                (* If the user has given a symmetrized term that synthesizes but doesn't match the checking type, we want the error reported to be Unequal_synthesized_type.  So we fall back to synthesizing if the checking type doesn't symmetrize.  *)
+                match d.message with
+                | Low_dimensional_argument_of_degeneracy _ ->
+                    check_of_synth status ctx stm tm.loc ty
+                | _ -> fatal_diagnostic d)
+            @@ fun () ->
             let ty_fainv =
               gact_ty None ty fainv ~err:(Low_dimensional_argument_of_degeneracy (str, cod_deg fa))
             in

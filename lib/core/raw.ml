@@ -107,7 +107,7 @@ module Make (I : Indices) = struct
     | Var : 'a index -> 'a synth
     | Const : Constant.t -> 'a synth
     (* A field projection from a possibly-higher-coinductive type comes with a suffix that is a string of integers, denoting a partial bijection between n and m that is total on n.  This is the same as an injection from n to m, or equivalently an insertion of n into m∖l to produce m, where l = image(n). *)
-    | Field : 'a synth located * Field.or_index * int Bwd.t -> 'a synth
+    | Field : 'a synth located * [ `Name of string * int Bwd.t | `Int of int ] -> 'a synth
     | Pi : I.name * 'a check located * 'a I.suc check located -> 'a synth
     | App : 'a synth located * 'a check located -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth
@@ -133,14 +133,14 @@ module Make (I : Indices) = struct
   and _ check =
     | Synth : 'a synth -> 'a check
     | Lam : I.name located * [ `Cube | `Normal ] * 'a I.suc check located -> 'a check
-    (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by a "Field.t option" so as to include any unlabeled fields, with their relative order to the labeled ones.  We also include a list of strings to indicate a pbij for higher fields. *)
-    | Struct : 's eta * ((Field.t * string Bwd.t) option, 'a check located) Abwd.t -> 'a check
+    (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by an option so as to include any unlabeled fields, with their relative order to the labeled ones.  The field hasn't been interned to an intrinsic dimension yet (that depends on what it checks against), so it's just a string name, plus a list of strings to indicate a pbij for higher fields. *)
+    | Struct : ('s, 'et) eta * ((string * string Bwd.t) option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
     (* "[]", which could be either an empty pattern-matching lambda or an empty comatch *)
     | Empty_co_match : 'a check
     | Data : (Constr.t, 'a dataconstr located) Abwd.t -> 'a check
-    (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables. *)
-    | Codata : (Field.t, 'a codatafield) Abwd.t -> 'a check
+    (* A codatatype binds one more "self" variable in the types of each of its fields.  For a higher-dimensional codatatype (like a codata version of Gel), this becomes a cube of variables.  The field also knows its dimension already. *)
+    | Codata : (Field.wrapped, 'a codatafield) Abwd.t -> 'a check
     (* A record type binds its "self" variable namelessly, exposing it to the user by additional variables that are bound locally to its fields.  This can't be "cubeified" as easily, so we have the user specify a list of ordinary variables to be its boundary.  Thus, in practice below 'c must be a number of faces associated to a dimension, but the parser doesn't know the dimension, so it can't ensure that.  The unnamed internal variable is included as the last one. *)
     | Record : ('a, 'c, 'ac) Namevec.t located * ('ac, 'd, 'acd) tel * opacity -> 'a check
     (* Empty match against the first one of the arguments belonging to an empty type. *)
@@ -160,8 +160,8 @@ module Make (I : Indices) = struct
   (*  *)
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
 
-  (* A field of a codatatype has a specified dimension as well as a self variable and a type.  At the raw level we don't need any more information about higher fields. *)
-  and _ codatafield = Codatafield : I.name * 'k D.t * 'a I.suc check located -> 'a codatafield
+  (* A field of a codatatype has a self variable and a type.  At the raw level we don't need any more information about higher fields. *)
+  and _ codatafield = Codatafield : I.name * 'a I.suc check located -> 'a codatafield
 
   (* A raw match stores the information about the pattern variables available from previous matches that could be used to refute missing cases.  But it can't store them as raw terms, since they have to be in the correct context extended by the new pattern variables generated in any such case.  So it stores them as a callback that puts them in any such extended context. *)
   and 'a refutables = { refutables : 'b 'ab. ('a, 'b, 'ab) bplus -> 'ab synth located list }
@@ -250,7 +250,7 @@ module Resolve (R : Resolver) = struct
           | Ok ix -> Var (ix, fa)
           | Error e -> Fail e)
       | Const c -> Const c
-      | Field (tm, fld, ins) -> Field (synth ctx tm, fld, ins)
+      | Field (tm, fld) -> Field (synth ctx tm, fld)
       | Pi (x, dom, cod) -> Pi (R.rename ctx x, check ctx dom, check (R.snoc ctx x) cod)
       | App (fn, arg) -> App (synth ctx fn, check ctx arg)
       | Asc (tm, ty) -> Asc (check ctx tm, check ctx ty)
@@ -290,8 +290,8 @@ module Resolve (R : Resolver) = struct
       | Codata fields ->
           Codata
             (Abwd.map
-               (fun (T1.Codatafield (x, ins, fld)) ->
-                 T2.Codatafield (R.rename ctx x, ins, check (R.snoc ctx x) fld))
+               (fun (T1.Codatafield (x, fld)) ->
+                 T2.Codatafield (R.rename ctx x, check (R.snoc ctx x) fld))
                fields)
       | Record (xs, fields, opaq) ->
           let (Bplus ac2) = T2.bplus (T1.Namevec.length xs.value) in

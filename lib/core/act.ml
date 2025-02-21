@@ -104,126 +104,18 @@ module Act = struct
     | Lam (x, body) ->
         let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
         Lam (act_variables x fa, act_binder body fa)
-    | Struct (type p k pk)
+    | Struct (type p k pk et)
         ((fields, ins, energy) :
-          (Field.t, (p, status) Value.structfield) Abwd.t * (pk, p, k) insertion * status energy) ->
+          (p * status * et) Value.StructfieldAbwd.t * (pk, p, k) insertion * status energy) ->
         let (Insfact_comp (type q l ql j z)
               ((deg0, new_ins, _, _) :
                 (q, p) deg * (ql, q, l) insertion * (k, j, l) D.plus * (m, z, ql) D.plus)) =
           insfact_comp ins s in
-        let evaluation = dom_deg deg0 in
         let fields =
-          Abwd.map
-            (fun (sfld : (p, status) structfield) : (q, status) structfield ->
-              match sfld with
-              (* For a lower structfield, we just act in a straightforward way on each (lazy) value. *)
-              | Lower_structfield (v, l) -> Lower_structfield (act_lazy_eval v deg0, l)
-              | Higher_structfield (type m n mn i a)
-                  (* Higher structfields are trickier. *)
-                  ({ vals; intrinsic; plusdim; env; deg = deg1; terms } :
-                    (m, n, mn, p, i, a) higher_structfield_data) ->
-                  (* That means
-                     vals : (p, i, potential lazy_eval option) InsmapOf.t;
-                     intrinsic : i D.t;
-                     plusdim : (m, n, mn) D.plus;
-                     env : (m, a) env;
-                     deg1 : (p, mn) deg;
-                     terms : (n, i, a) PlusPbijmap.t; *)
-                  (* Also in here we have status = potential. *)
-                  (* Now we want to change p to q by acting by fa : (q, p) deg.  We'll keep almost everything the same and simply compose deg with fa.  The sticky bit is to update vals, which has to become an Insmap with evaluation dimension q rather than p.
-                  *)
-                  let vals =
-                    InsmapOf.build evaluation intrinsic
-                      {
-                        build =
-                          (fun (type s) (ins : (q, s, i) insertion) ->
-                            (* First we unfactor this q-insertion through deg0 to get a partial bijection from p to i. *)
-                            let (Deg_comp_ins (type s2 r2 h2)
-                                  ((ins2, shuf2, deg2) :
-                                    (p, s2, h2) insertion * (r2, h2, i) shuffle * (s, s2) deg)) =
-                              deg_comp_ins deg0 ins in
-                            let r2 = left_shuffle shuf2 in
-                            (* If this partial bijection is itself just an insertion, then we can simply use it as an index into the old vals and act in a simple way, as we did for lower structfields. *)
-                            match D.compare_zero r2 with
-                            | Zero ->
-                                let Eq = eq_of_zero_shuffle shuf2 in
-                                (* Note we have to act by deg2 here, not by deg0, since the field *values* only have the corresponding 'result dimension. *)
-                                Option.map (fun v -> act_lazy_eval v deg2) (InsmapOf.find ins2 vals)
-                            | Pos _s -> (
-                                (* Otherwise, we have to look into the 'terms' to find something to evaluate.  We start by further unfactoring through 'deg1' (combining it with deg0 first, to simplify the results) and 'plusdim' to get down to the original record dimension 'n and evaluation dimension 'm.  *)
-                                let (Deg_comp_ins (type s3 r3 h3)
-                                      ((ins3, shuf3, deg3) :
-                                        (mn, s3, h3) insertion * (r3, h3, i) shuffle * (s, s3) deg))
-                                    =
-                                  deg_comp_ins (comp_deg deg1 deg0) ins in
-                                (* The dimensions that disappear in this degeneracy, and hence will have to be added back in, are those added by the degeneracy deg3 (s - s3) and those in the remaining dimensions r3. *)
-                                let (Unplus_pbij (type s4 h4 r4 r34 t tn)
-                                      ((ins4, shuf4, rr, mtr, _tn, tnsh) :
-                                        (n, s4, h4) insertion
-                                        * (r34, h4, i) shuffle
-                                        * (r3, r4, r34) shuffle
-                                        * (m, t, r4) insertion
-                                        * (t, n, tn) D.plus
-                                        * (tn, s3, h4) insertion)) =
-                                  unplus_pbij (dim_env env) plusdim ins3 shuf3 in
-                                match PlusPbijmap.find (Pbij (ins4, shuf4)) terms with
-                                | PlusFam None -> None
-                                | PlusFam (type ra)
-                                    (Some (ra, tm) :
-                                      ((r34, a, ra) Plusmap.t * (ra, potential) term) option) ->
-                                    (* Now the game is to build a degeneracy that we can apply to the environment 'env' so that we can shift it by 'ra' and evaluate the term 'tm'.  That means we need to get an environment whose dimension is something+r34.  We start by adding r3.
-                                       m + r3
-                                       ≅ (t + r4) + r3    (mtr)
-                                       ≅ t + (r4 + r3)
-                                       ≅ t + (r3 + r4)
-                                       ≅ t + r34          (rr)
-                                    *)
-                                    let m = dim_env env in
-                                    let r3 = left_shuffle rr in
-                                    let (Plus mr3) = D.plus r3 in
-                                    let plusr3 = plus_deg m (D.plus_zero m) mr3 (deg_zero r3) in
-                                    let env1 = act_env env (op_of_deg plusr3) in
-                                    (* env1 has dimension m + r3 *)
-                                    let r4 = cod_right_ins mtr in
-                                    let (Plus tr4) = D.plus r4 in
-                                    let mtrp = deg_of_perm (perm_inv (perm_of_ins_plus mtr tr4)) in
-                                    let (Plus tr4_r3) = D.plus r3 in
-                                    let env2 = act_env env1 (op_of_deg (deg_plus mtrp mr3 tr4_r3)) in
-                                    (* env2 has dimension (t + r4) + r3 *)
-                                    let (Plus r4r3) = D.plus r3 in
-                                    let (Plus r3r4) = D.plus r4 in
-                                    let t_r4r3 = D.plus_assocr tr4 r4r3 tr4_r3 in
-                                    let (Plus t_r3r4) = D.plus (D.plus_out r3 r3r4) in
-                                    let rrswap = swap_deg r3r4 r4r3 in
-                                    let t = cod_left_ins mtr in
-                                    let env3 =
-                                      act_env env2 (op_of_deg (plus_deg t t_r4r3 t_r3r4 rrswap))
-                                    in
-                                    (* env3 has dimension t + (r3 + r4). *)
-                                    let r34 = out_shuffle rr in
-                                    let (Plus t_r34) = D.plus r34 in
-                                    let drr = plus_deg t t_r3r4 t_r34 (deg_of_shuffle rr r3r4) in
-                                    let env4 = act_env env3 (op_of_deg drr) in
-                                    (* env4 has dimension t + r34 *)
-                                    let env5 = Shift (env4, t_r34, ra) in
-                                    (* env5 has dimension t.  So when we evaluate the n-dimensional record type in this environment, we get an object of dimension
-                                       t + n
-                                       = tn        (tn)
-                                       ≅ s3 + h4  (tnsh)
-                                       ← s + h4   (deg3)
-                                    *)
-                                    let etm = lazy_eval env5 tm in
-                                    let h4 = cod_right_ins tnsh in
-                                    let (Plus s3h4) = D.plus h4 in
-                                    let ptnsh =
-                                      deg_of_perm (perm_inv (perm_of_ins_plus tnsh s3h4)) in
-                                    let (Plus sh4) = D.plus h4 in
-                                    let deg3_h4 = deg_plus deg3 s3h4 sh4 in
-                                    Some (act_lazy_eval etm (comp_deg ptnsh deg3_h4))));
-                      } in
-                  let deg = comp_deg deg1 deg0 in
-                  Higher_structfield { vals; intrinsic; plusdim; env; deg; terms })
-            fields in
+          Mbwd.mmap
+            (fun [ StructfieldAbwd.Entry (fld, sfld) ] ->
+              StructfieldAbwd.Entry (fld, act_structfield deg0 sfld))
+            [ fields ] in
         Struct (fields, new_ins, energy)
     | Constr (name, dim, args) ->
         let (Of fa) = deg_plus_to s dim ~on:"constr" in
@@ -231,6 +123,115 @@ module Act = struct
           ( name,
             dom_deg fa,
             List.map (fun tm -> act_cube { act = (fun x s -> act_value x s) } tm fa) args )
+
+  and act_structfield :
+      type p q i status et.
+      (q, p) deg -> (i, p * status * et) Structfield.t -> (i, q * status * et) Structfield.t =
+   fun deg0 sfld ->
+    match sfld with
+    (* For a lower structfield, we just act in a straightforward way on each (lazy) value. *)
+    | Lower (v, l) -> Lower (act_lazy_eval v deg0, l)
+    | Higher (type m n mn a)
+        (* Higher structfields are trickier. *)
+        ({ vals; intrinsic; plusdim; env; deg = deg1; terms } :
+          (m, n, mn, p, i, a) Structfield.higher_data) ->
+        (* That means
+           vals : (p, i, potential lazy_eval option) InsmapOf.t;
+           intrinsic : i D.t;
+           plusdim : (m, n, mn) D.plus;
+           env : (m, a) env;
+           deg1 : (p, mn) deg;
+           terms : (n, i, a) PlusPbijmap.t; *)
+        (* Also in here we have status = potential. *)
+        (* Now we want to change p to q by acting by fa : (q, p) deg.  We'll keep almost everything the same and simply compose deg with fa.  The sticky bit is to update vals, which has to become an Insmap with evaluation dimension q rather than p.
+        *)
+        let vals =
+          InsmapOf.build (dom_deg deg0) intrinsic
+            {
+              build =
+                (fun (type s) (ins : (q, s, i) insertion) ->
+                  (* First we unfactor this q-insertion through deg0 to get a partial bijection from p to i. *)
+                  let (Deg_comp_ins (type s2 r2 h2)
+                        ((ins2, shuf2, deg2) :
+                          (p, s2, h2) insertion * (r2, h2, i) shuffle * (s, s2) deg)) =
+                    deg_comp_ins deg0 ins in
+                  let r2 = left_shuffle shuf2 in
+                  (* If this partial bijection is itself just an insertion, then we can simply use it as an index into the old vals and act in a simple way, as we did for lower structfields. *)
+                  match D.compare_zero r2 with
+                  | Zero ->
+                      let Eq = eq_of_zero_shuffle shuf2 in
+                      (* Note we have to act by deg2 here, not by deg0, since the field *values* only have the corresponding 'result dimension. *)
+                      Option.map (fun v -> act_lazy_eval v deg2) (InsmapOf.find ins2 vals)
+                  | Pos _s -> (
+                      (* Otherwise, we have to look into the 'terms' to find something to evaluate.  We start by further unfactoring through 'deg1' (combining it with deg0 first, to simplify the results) and 'plusdim' to get down to the original record dimension 'n and evaluation dimension 'm.  *)
+                      let (Deg_comp_ins (type s3 r3 h3)
+                            ((ins3, shuf3, deg3) :
+                              (mn, s3, h3) insertion * (r3, h3, i) shuffle * (s, s3) deg)) =
+                        deg_comp_ins (comp_deg deg1 deg0) ins in
+                      (* The dimensions that disappear in this degeneracy, and hence will have to be added back in, are those added by the degeneracy deg3 (s - s3) and those in the remaining dimensions r3. *)
+                      let (Unplus_pbij (type s4 h4 r4 r34 t tn)
+                            ((ins4, shuf4, rr, mtr, _tn, tnsh) :
+                              (n, s4, h4) insertion
+                              * (r34, h4, i) shuffle
+                              * (r3, r4, r34) shuffle
+                              * (m, t, r4) insertion
+                              * (t, n, tn) D.plus
+                              * (tn, s3, h4) insertion)) =
+                        unplus_pbij (dim_env env) plusdim ins3 shuf3 in
+                      match PlusPbijmap.find (Pbij (ins4, shuf4)) terms with
+                      | PlusFam None -> None
+                      | PlusFam (type ra)
+                          (Some (ra, tm) : ((r34, a, ra) Plusmap.t * (ra, potential) term) option)
+                        ->
+                          (* Now the game is to build a degeneracy that we can apply to the environment 'env' so that we can shift it by 'ra' and evaluate the term 'tm'.  That means we need to get an environment whose dimension is something+r34.  We start by adding r3.
+                             m + r3
+                             ≅ (t + r4) + r3    (mtr)
+                             ≅ t + (r4 + r3)
+                             ≅ t + (r3 + r4)
+                             ≅ t + r34          (rr)
+                          *)
+                          let m = dim_env env in
+                          let r3 = left_shuffle rr in
+                          let (Plus mr3) = D.plus r3 in
+                          let plusr3 = plus_deg m (D.plus_zero m) mr3 (deg_zero r3) in
+                          let env1 = act_env env (op_of_deg plusr3) in
+                          (* env1 has dimension m + r3 *)
+                          let r4 = cod_right_ins mtr in
+                          let (Plus tr4) = D.plus r4 in
+                          let mtrp = deg_of_perm (perm_inv (perm_of_ins_plus mtr tr4)) in
+                          let (Plus tr4_r3) = D.plus r3 in
+                          let env2 = act_env env1 (op_of_deg (deg_plus mtrp mr3 tr4_r3)) in
+                          (* env2 has dimension (t + r4) + r3 *)
+                          let (Plus r4r3) = D.plus r3 in
+                          let (Plus r3r4) = D.plus r4 in
+                          let t_r4r3 = D.plus_assocr tr4 r4r3 tr4_r3 in
+                          let (Plus t_r3r4) = D.plus (D.plus_out r3 r3r4) in
+                          let rrswap = swap_deg r3r4 r4r3 in
+                          let t = cod_left_ins mtr in
+                          let env3 = act_env env2 (op_of_deg (plus_deg t t_r4r3 t_r3r4 rrswap)) in
+                          (* env3 has dimension t + (r3 + r4). *)
+                          let r34 = out_shuffle rr in
+                          let (Plus t_r34) = D.plus r34 in
+                          let drr = plus_deg t t_r3r4 t_r34 (deg_of_shuffle rr r3r4) in
+                          let env4 = act_env env3 (op_of_deg drr) in
+                          (* env4 has dimension t + r34 *)
+                          let env5 = Shift (env4, t_r34, ra) in
+                          (* env5 has dimension t.  So when we evaluate the n-dimensional record type in this environment, we get an object of dimension
+                             t + n
+                             = tn        (tn)
+                             ≅ s3 + h4  (tnsh)
+                             ← s + h4   (deg3)
+                          *)
+                          let etm = lazy_eval env5 tm in
+                          let h4 = cod_right_ins tnsh in
+                          let (Plus s3h4) = D.plus h4 in
+                          let ptnsh = deg_of_perm (perm_inv (perm_of_ins_plus tnsh s3h4)) in
+                          let (Plus sh4) = D.plus h4 in
+                          let deg3_h4 = deg_plus deg3 s3h4 sh4 in
+                          Some (act_lazy_eval etm (comp_deg ptnsh deg3_h4))));
+            } in
+        let deg = comp_deg deg1 deg0 in
+        Higher { vals; intrinsic; plusdim; env; deg; terms }
 
   and act_evaluation : type m n s. s evaluation -> (m, n) deg -> s evaluation =
    fun tm s ->
@@ -446,7 +447,7 @@ let act_value_cube :
  fun force xs s -> act_cube { act = (fun x s -> act_value (force x) s) } xs s
 
 (* Like apply_lazy for fields.  Was deferred to here since it requires pushing the insertion through with act. *)
-let field_lazy : type s m n k. s lazy_eval -> Field.t -> (m, n, k) insertion -> s lazy_eval =
+let field_lazy : type s n t i. s lazy_eval -> i Field.t -> (n, t, i) insertion -> s lazy_eval =
  fun lev fld fldins ->
   let n, k = (cod_left_ins fldins, cod_right_ins fldins) in
   let (Plus nk) = D.plus k in

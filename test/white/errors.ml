@@ -1,3 +1,4 @@
+open Dim
 open Testutil.Mcp
 
 let () =
@@ -50,9 +51,7 @@ let () =
   let () = unsynth ~print:() "↦ x" ~code:Parse_error in
   let () = unsynth ~print:() "(f x) y ↦ z" ~code:Parse_error in
   let () = unsynth ~print:() "_" ~code:(Unimplemented "unification arguments") in
-  let () =
-    unsynth ~print:() "a ↦ ( fst ≔ a, fst ≔ a )"
-      ~code:(Duplicate_field_in_tuple (Core.Field.intern "fst")) in
+  let () = unsynth ~print:() "a ↦ ( fst ≔ a, fst ≔ a )" ~code:(Duplicate_field_in_tuple "fst") in
   let () = unsynth ~print:() "( (x) ≔ a )" ~code:Invalid_field_in_tuple in
   let () = unsynth ~print:() "[ _ ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
   let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
@@ -67,8 +66,8 @@ let () =
   let bb = assume "B" atou in
   let sigab = check "Σ A B" uu in
   let () =
-    uncheck ~print:() "( fst ≔ a )" sigab ~code:(Missing_field_in_tuple (Core.Field.intern "snd"))
-  in
+    uncheck ~print:() "( fst ≔ a )" sigab
+      ~code:(Missing_field_in_tuple (Core.Field.intern "snd" D.zero, None)) in
   let () = uncheck ~print:() "( fst ≔ a )" aa ~short:"E0900" in
   let nat = check "ℕ" uu in
   let () = uncheck ~print:() "( fst ≔ a )" nat ~short:"E0900" in
@@ -131,8 +130,7 @@ let () =
   let gg' = assume "gg'" symr2ty in
   let _ =
     unsynth ~print:() "gg' .ungel"
-      ~code:(No_such_field (`Degenerated_record Eta, Core.Field.intern_ori "ungel", `Ints Emp))
-  in
+      ~code:(No_such_field (`Degenerated_record Eta, `Strings ("ungel", Emp))) in
 
   (* Cube variables *)
   let () = uncheck ~print:() "x ↦ x.0" atoa ~short:"E0506" in

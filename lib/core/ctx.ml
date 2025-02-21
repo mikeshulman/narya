@@ -93,7 +93,7 @@ type (_, _) entry =
       bindings : ('mn, Binding.t) CubeOf.t;
       (* While typechecking a record, we expose the "self" variable as a list of "illusory" variables, visible only to raw terms, that are substituted at typechecking time with the fields of self. *)
       hasfields : ('m, 'f2) has_fields;
-      fields : (Field.t * string, 'f2) Bwv.t;
+      fields : (D.zero Field.t * string, 'f2) Bwv.t;
       fplus : ('f1, 'f2, 'f) N.plus;
     }
       -> ('f, 'mn) entry
@@ -148,7 +148,7 @@ module Ordered = struct
       (a, b) t ->
       (N.zero, n, string option, f1) NICubeOf.t ->
       (n, Binding.t) CubeOf.t ->
-      (Field.t * string, f2) Bwv.t ->
+      (D.zero Field.t * string, f2) Bwv.t ->
       (f1, f2, f) N.plus ->
       (a, f, af) N.plus ->
       (af, (b, n) snoc) t =
@@ -233,7 +233,7 @@ module Ordered = struct
       (a, b) t ->
       a Raw.index ->
       (* We return either an ordinary variable or an illusory field-access variable. *)
-      [ `Var of level option * normal * b index | `Field of level * normal * Field.t ] =
+      [ `Var of level option * normal * b index | `Field of level * normal * D.zero Field.t ] =
    fun ctx k ->
     match (ctx, k) with
     | Emp, _ -> .
@@ -247,7 +247,8 @@ module Ordered = struct
       (f, n) entry ->
       (a, f, af) N.plus ->
       af Raw.index ->
-      [ `Var of level option * normal * (b, n) snoc index | `Field of level * normal * Field.t ] =
+      [ `Var of level option * normal * (b, n) snoc index
+      | `Field of level * normal * D.zero Field.t ] =
    fun ctx e pf k ->
     let pop = function
       | `Var (i, x, Index (v, fa)) -> `Var (i, x, Index (Later v, fa))

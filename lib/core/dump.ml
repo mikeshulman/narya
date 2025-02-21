@@ -59,14 +59,14 @@ let rec dvalue : type s. int -> formatter -> s value -> unit =
 
 and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 
-and fields :
-    type s n. int -> n D.t -> formatter -> (Field.t, (n, s) Value.structfield) Abwd.t -> unit =
+and fields : type s n et. int -> n D.t -> formatter -> (n * s * et) Value.StructfieldAbwd.t -> unit
+    =
  fun depth n ppf -> function
   | Emp -> fprintf ppf "Emp"
-  | Snoc (flds, (f, Lower_structfield (v, l))) ->
+  | Snoc (flds, Entry (f, Lower (v, l))) ->
       fprintf ppf "%a <: " (fields depth n) flds;
       lazy_eval depth ppf f "" v l
-  | Snoc (flds, (f, Higher_structfield { vals; _ })) ->
+  | Snoc (flds, Entry (f, Higher { vals; _ })) ->
       fprintf ppf "%a <: " (fields depth n) flds;
       InsmapOf.miter n
         {
@@ -79,8 +79,8 @@ and fields :
         [ vals ]
 
 and lazy_eval :
-    type s.
-    int -> formatter -> Field.t -> string -> s lazy_eval -> [ `Labeled | `Unlabeled ] -> unit =
+    type s i.
+    int -> formatter -> i Field.t -> string -> s lazy_eval -> [ `Labeled | `Unlabeled ] -> unit =
  fun depth ppf f p v l ->
   let l =
     match l with
@@ -156,7 +156,7 @@ and term : type b s. formatter -> (b, s) term -> unit =
   | Meta (v, _) -> fprintf ppf "Meta %a" pp_printed (print (PMeta v))
   | MetaEnv (v, _) -> fprintf ppf "MetaEnv (%a,?)" pp_printed (print (PMeta v))
   | Field (tm, fld, ins) ->
-      fprintf ppf "Field (%a, %s, %s)" term tm (Field.to_string fld) (string_of_ins ins)
+      fprintf ppf "Field (%a, %s%s)" term tm (Field.to_string fld) (string_of_ins ins)
   | UU n -> fprintf ppf "UU %a" dim n
   | Inst (tm, _) -> fprintf ppf "Inst (%a, ?)" term tm
   | Pi (x, doms, _) ->
@@ -182,7 +182,8 @@ and canonical : type b. formatter -> b canonical -> unit =
         (match eta with
         | Eta -> "Eta"
         | Noeta -> "Noeta")
-        (String.concat "," (List.map (fun (f, _) -> Field.to_string f) (Bwd.to_list fields)))
+        (String.concat ","
+           (Bwd_extra.to_list_map (fun (CodatafieldAbwd.Entry (f, _)) -> Field.to_string f) fields))
 
 let rec check : type a. formatter -> a check -> unit =
  fun ppf c ->
@@ -195,9 +196,8 @@ let rec check : type a. formatter -> a check -> unit =
       Mbwd.miter
         (fun [ (f, (x : a check Asai.Range.located)) ] ->
           let f =
-            match f with
-            | Some (f, ins) -> String.concat "." (Field.to_string f :: Bwd.to_list ins)
-            | None -> "_" in
+            Option.fold ~some:(fun (f, ps) -> String.concat "." (f :: Bwd.to_list ps)) ~none:"_" f
+          in
           fprintf ppf "%s ≔ %a, " f check x.value)
         [ flds ];
       fprintf ppf ")"
@@ -224,7 +224,14 @@ and synth : type a. formatter -> a synth -> unit =
   match s with
   | Var (x, _) -> fprintf ppf "Var(%d)" (N.int_of_index x)
   | Const c -> fprintf ppf "Const(%a)" pp_printed (print (PConstant c))
-  | Field (tm, fld, _) -> fprintf ppf "Field(%a, %s)" synth tm.value (Field.to_string_ori fld)
+  | Field (tm, fld) ->
+      fprintf ppf "Field(%a, %s)" synth tm.value
+        (match fld with
+        | `Name (f, p) ->
+            if Bwd.exists (fun i -> i > 9) p then
+              "." ^ f ^ ".." ^ String.concat "." (Bwd_extra.to_list_map string_of_int p)
+            else "." ^ f ^ "." ^ String.concat "" (Bwd_extra.to_list_map string_of_int p)
+        | `Int i -> "." ^ string_of_int i)
   | Pi (_, _, _) -> fprintf ppf "Pi(?)"
   | App (fn, arg) -> fprintf ppf "App(%a, %a)" synth fn.value check arg.value
   | Asc (tm, ty) -> fprintf ppf "Asc(%a, %a)" check tm.value check ty.value

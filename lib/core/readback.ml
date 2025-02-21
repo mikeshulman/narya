@@ -35,59 +35,81 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))
-  | Canonical (_, Codata { eta = Eta; opacity; fields; env = _; ins; termctx = _ }, _), _ -> (
-      let dim = cod_left_ins ins in
-      let fldins = ins_zero dim in
-      let readback_at_record (tm : kinetic value) ty =
-        match (tm, opacity) with
-        (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
-        | Struct (tmflds, _, energy), _ ->
-            let fields =
-              Abwd.mapi
-                (fun fld (Lower_structfield (fldtm, l)) ->
-                  Term.Lower_structfield
-                    (readback_at ctx (force_eval_term fldtm) (tyof_field (Ok tm) ty fld fldins), l))
-                tmflds in
-            Some (Term.Struct (Eta, dim, fields, energy))
-        (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
-        | _, `Transparent l when Display.read () ->
-            let fields =
-              Abwd.mapi
-                (fun fld _ ->
-                  Term.Lower_structfield
-                    ( readback_at ctx (field_term tm fld fldins) (tyof_field (Ok tm) ty fld fldins),
-                      l ))
-                fields in
-            Some (Struct (Eta, dim, fields, Kinetic))
-        | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
-            match force_eval value with
-            | Val (Struct _) ->
+  | ( Canonical (type mn)
+        (( _,
+           Codata (type m n c a et)
+             ({ eta; opacity; fields; env = _; ins; termctx = _ } :
+               (mn, m, n, c, a, et) codata_args),
+           _ ) :
+          head * mn canonical * (D.zero, mn, mn, normal) TubeOf.t),
+      _ ) -> (
+      match (eta, fields) with
+      | Eta, (fields : (a * n * has_eta) Term.CodatafieldAbwd.t) -> (
+          let dim = cod_left_ins ins in
+          let fldins = ins_zero dim in
+          let readback_at_record (tm : kinetic value) ty =
+            match (tm, opacity) with
+            (* If the term is a struct, we read back its fields.  Even though this is not technically an eta-expansion, we have to do it here rather than in readback_val because we need the record type to determine the types at which to read back the fields. *)
+            | Struct (tmflds, _, energy), _ ->
                 let fields =
-                  Abwd.mapi
-                    (fun fld _ ->
-                      Term.Lower_structfield
-                        ( readback_at ctx (field_term tm fld fldins)
-                            (tyof_field (Ok tm) ty fld fldins),
-                          l ))
+                  Mbwd.map
+                    (* We don't need to consider the Higher case since we are kinetic. *)
+                      (fun (Value.StructfieldAbwd.Entry (fld, Value.Structfield.Lower (fldtm, l))) ->
+                      Term.StructfieldAbwd.Entry
+                        ( fld,
+                          Term.Structfield.Lower
+                            ( readback_at ctx (force_eval_term fldtm)
+                                (tyof_field (Ok tm) ty fld fldins),
+                              l ) ))
+                    tmflds in
+                Some (Term.Struct (Eta, dim, fields, energy))
+            (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
+            | _, `Transparent l when Display.read () ->
+                let fields =
+                  Mbwd.map
+                    (fun (CodatafieldAbwd.Entry (type i)
+                           ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t)) ->
+                      Term.StructfieldAbwd.Entry
+                        ( fld,
+                          Term.Structfield.Lower
+                            ( readback_at ctx (field_term tm fld fldins)
+                                (tyof_field (Ok tm) ty fld fldins),
+                              l ) ))
                     fields in
                 Some (Struct (Eta, dim, fields, Kinetic))
-            | _ -> None)
-        (* If the term is not a struct and the record type is not transparent/translucent, we pass off to synthesizing readback. *)
-        | _ -> None in
-      match is_id_ins ins with
-      | Some _ -> (
-          match readback_at_record tm ty with
-          | Some res -> res
-          | None -> readback_val ctx tm)
-      | None -> (
-          (* A nontrivially permuted record is not a record type, but we can permute its arguments to find elements of a record type that we can then eta-expand and re-permute. *)
-          let (Perm_to p) = perm_of_ins ins in
-          let pinv = deg_of_perm (perm_inv p) in
-          let ptm = act_value tm pinv in
-          let pty = act_ty tm ty pinv in
-          match readback_at_record ptm pty with
-          | Some res -> Act (res, deg_of_perm p)
-          | None -> readback_val ctx tm))
+            | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
+                match force_eval value with
+                | Val (Struct _) ->
+                    let fields =
+                      Mbwd.map
+                        (fun (CodatafieldAbwd.Entry (type i)
+                               ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t)) ->
+                          Term.StructfieldAbwd.Entry
+                            ( fld,
+                              Term.Structfield.Lower
+                                ( readback_at ctx (field_term tm fld fldins)
+                                    (tyof_field (Ok tm) ty fld fldins),
+                                  l ) ))
+                        fields in
+                    Some (Struct (Eta, dim, fields, Kinetic))
+                | _ -> None)
+            (* If the term is not a struct and the record type is not transparent/translucent, we pass off to synthesizing readback. *)
+            | _ -> None in
+          match is_id_ins ins with
+          | Some _ -> (
+              match readback_at_record tm ty with
+              | Some res -> res
+              | None -> readback_val ctx tm)
+          | None -> (
+              (* A nontrivially permuted record is not a record type, but we can permute its arguments to find elements of a record type that we can then eta-expand and re-permute. *)
+              let (Perm_to p) = perm_of_ins ins in
+              let pinv = deg_of_perm (perm_inv p) in
+              let ptm = act_value tm pinv in
+              let pty = act_ty tm ty pinv in
+              match readback_at_record ptm pty with
+              | Some res -> Act (res, deg_of_perm p)
+              | None -> readback_val ctx tm))
+      | Noeta, _ -> readback_val ctx tm)
   | Canonical (_, Data { constrs; _ }, tyargs), Constr (xconstr, xn, xargs) -> (
       let (Dataconstr { env; args = argtys; indices = _ }) =
         Abwd.find_opt xconstr constrs <|> Anomaly "constr not found in readback" in

@@ -22,6 +22,25 @@ module rec Value : sig
 
   module BindCube : module type of Cube (BindFam)
 
+  module Structfield : sig
+    type (_, _) t =
+      (* We remember which fields are labeled, for readback purposes, and we store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
+      | Lower : 's Value.lazy_eval * [ `Labeled | `Unlabeled ] -> (D.zero, 'n * 's * 'et) t
+      (* In the higher case, they are always labeled.  There are multiple values are indexed by insertions, regarded as partial bijections with zero remaining dimensions; the 'evaluation dimension is the substitution dimension 'n and the 'intrinsic dimension is associated to the field.  We also store the original terms as a closure, since they may be needed to evaluate fields of degeneracies. *)
+      | Higher : ('m, 'n, 'mn, 'p, 'i, 'a) higher_data -> ('i, 'p * potential * no_eta) t
+
+    and ('m, 'n, 'mn, 'p, 'i, 'a) higher_data = {
+      vals : ('p, 'i, potential Value.lazy_eval option) InsmapOf.t;
+      intrinsic : 'i D.t;
+      plusdim : ('m, 'n, 'mn) D.plus;
+      env : ('m, 'a) Value.env;
+      deg : ('p, 'mn) deg;
+      terms : ('n, 'i, 'a) PlusPbijmap.t;
+    }
+  end
+
+  module StructfieldAbwd : module type of Field.Abwd (Structfield)
+
   type head =
     | Var : { level : level; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
@@ -32,11 +51,11 @@ module rec Value : sig
       }
         -> head
 
+  and app = App : 'n arg * ('nk, 'n, 'k) insertion -> app
+
   and 'n arg =
     | Arg : ('n, normal) CubeOf.t -> 'n arg
-    | Field : Field.t * ('n, 'k, 'nk) D.plus -> 'n arg
-
-  and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
+    | Field : 'i Field.t * ('t, 'i, 'n) D.plus -> 't arg
 
   and (_, _) binder =
     | Bind : {
@@ -62,24 +81,7 @@ module rec Value : sig
         -> kinetic value
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
-    | Struct :
-        (Field.t, ('p, 's) structfield) Abwd.t * ('pk, 'p, 'k) insertion * 's energy
-        -> 's value
-
-  and (_, _) structfield =
-    | Lower_structfield : 's lazy_eval * [ `Labeled | `Unlabeled ] -> ('n, 's) structfield
-    | Higher_structfield :
-        ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data
-        -> ('p, potential) structfield
-
-  and ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data = {
-    vals : ('p, 'i, potential lazy_eval option) InsmapOf.t;
-    intrinsic : 'i D.t;
-    plusdim : ('m, 'n, 'mn) D.plus;
-    env : ('m, 'a) env;
-    deg : ('p, 'mn) deg;
-    terms : ('n, 'i, 'a) PlusPbijmap.t;
-  }
+    | Struct : ('p * 's * 'et) StructfieldAbwd.t * ('pk, 'p, 'k) insertion * 's energy -> 's value
 
   and _ evaluation =
     | Val : 's value -> 's evaluation
@@ -89,7 +91,7 @@ module rec Value : sig
 
   and _ canonical =
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
-    | Codata : ('mn, 'm, 'n, 'c, 'a) codata_args -> 'mn canonical
+    | Codata : ('mn, 'm, 'n, 'c, 'a, 'et) codata_args -> 'mn canonical
 
   and ('m, 'j, 'ij) data_args = {
     dim : 'm D.t;
@@ -99,14 +101,13 @@ module rec Value : sig
     discrete : [ `Yes | `Maybe | `No ];
   }
 
-  and ('mn, 'm, 'n, 'c, 'a) codata_args = {
-    eta : potential eta;
+  and ('mn, 'm, 'n, 'c, 'a, 'et) codata_args = {
+    eta : (potential, 'et) eta;
     opacity : opacity;
     env : ('m, 'a) env;
     termctx : ('c, ('a, 'n) snoc) termctx option Lazy.t;
     ins : ('mn, 'm, 'n) insertion;
-    (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
-    fields : (Field.t, ('a, 'n) Term.codatafield) Abwd.t;
+    fields : ('a * 'n * 'et) Term.CodatafieldAbwd.t;
   }
 
   and (_, _) dataconstr =
@@ -149,6 +150,25 @@ end = struct
 
   module BindCube = Cube (BindFam)
 
+  module Structfield = struct
+    type (_, _) t =
+      (* We remember which fields are labeled, for readback purposes, and we store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
+      | Lower : 's Value.lazy_eval * [ `Labeled | `Unlabeled ] -> (D.zero, 'n * 's * 'et) t
+      (* In the higher case, they are always labeled.  There are multiple values are indexed by insertions, regarded as partial bijections with zero remaining dimensions; the 'evaluation dimension is the substitution dimension 'n and the 'intrinsic dimension is associated to the field.  We also store the original terms as a closure, since they may be needed to evaluate fields of degeneracies. *)
+      | Higher : ('m, 'n, 'mn, 'p, 'i, 'a) higher_data -> ('i, 'p * potential * no_eta) t
+
+    and ('m, 'n, 'mn, 'p, 'i, 'a) higher_data = {
+      vals : ('p, 'i, potential Value.lazy_eval option) InsmapOf.t;
+      intrinsic : 'i D.t;
+      plusdim : ('m, 'n, 'mn) D.plus;
+      env : ('m, 'a) Value.env;
+      deg : ('p, 'mn) deg;
+      terms : ('n, 'i, 'a) PlusPbijmap.t;
+    }
+  end
+
+  module StructfieldAbwd = Field.Abwd (Structfield)
+
   (* The head of an elimination spine is a variable, a constant, or a substituted metavariable.  *)
   type head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
@@ -164,12 +184,12 @@ end = struct
         -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
+  and app = App : 'n arg * ('nk, 'n, 'k) insertion -> app
+
   and 'n arg =
     | Arg : ('n, normal) CubeOf.t -> 'n arg
-    (* For a higher field, the actual evaluation dimension is 'nk, but the result dimension is only 'n.  So the dimension of the arg is 'n, since that's the output dimension that a degeneracy acting on could be pushed through.  However, since a degeneracy of dimension up to 'nk can act on the inside, we can push in the whole insertion and store only a plus outside. *)
-    | Field : Field.t * ('n, 'k, 'nk) D.plus -> 'n arg
-
-  and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
+    (* For a higher field with ('n, 't, 'i) insertion, the actual evaluation dimension is 'n, but the result dimension is only 't.  So the dimension of the arg is 't, since that's the output dimension that a degeneracy acting on could be pushed through.  However, since a degeneracy of dimension up to 'n can act on the inside, we can push in the whole insertion and store only a plus outside. *)
+    | Field : 'i Field.t * ('t, 'i, 'n) D.plus -> 't arg
 
   (* Lambdas and Pis both bind a variable, along with its dependencies.  These are recorded as defunctionalized closures.  Since they are produced by higher-dimensional substitutions and operator actions, the dimension of the binder can be different than the dimension of the environment that closes its body.  Accordingly, in addition to the environment and degeneracy to close its body, we store information about how to map the eventual arguments into the bound variables in the body.  *)
   and (_, _) binder =
@@ -208,26 +228,7 @@ end = struct
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * ('k, 's) binder -> 's value
     (* The same is true for anonymous structs.  They have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel.  Here 'k is the Gel dimension, with 'n the substitution dimension and 'nk the total dimension. *)
-    | Struct :
-        (Field.t, ('p, 's) structfield) Abwd.t * ('pk, 'p, 'k) insertion * 's energy
-        -> 's value
-
-  and (_, _) structfield =
-    (* We also remember which fields are labeled, for readback purposes, and we store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
-    | Lower_structfield : 's lazy_eval * [ `Labeled | `Unlabeled ] -> ('n, 's) structfield
-    (* In the higher case, they are always labeled.  There are multiple values are indexed by insertions, regarded as partial bijections with zero remaining dimensions; the 'evaluation dimension is the substitution dimension 'n and the 'intrinsic dimension is associated to the field.  We also store the original terms as a closure, since they may be needed to evaluate fields of degeneracies. *)
-    | Higher_structfield :
-        ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data
-        -> ('p, potential) structfield
-
-  and ('m, 'n, 'mn, 'p, 'i, 'a) higher_structfield_data = {
-    vals : ('p, 'i, potential lazy_eval option) InsmapOf.t;
-    intrinsic : 'i D.t;
-    plusdim : ('m, 'n, 'mn) D.plus;
-    env : ('m, 'a) env;
-    deg : ('p, 'mn) deg;
-    terms : ('n, 'i, 'a) PlusPbijmap.t;
-  }
+    | Struct : ('p * 's * 'et) StructfieldAbwd.t * ('pk, 'p, 'k) insertion * 's energy -> 's value
 
   (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
   and _ evaluation =
@@ -242,7 +243,7 @@ end = struct
     (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definition below. *)
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
     (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms in a *lower* codatafield produces the data of a binder; so in the absence of higher codatatypes we can think of this as a family of binders, one for each field, that share the same environment and insertion.  (But with higher fields this is no longer the case, as the context of the types gets degenerated by their dimension.) *)
-    | Codata : ('mn, 'm, 'n, 'c, 'a) codata_args -> 'mn canonical
+    | Codata : ('mn, 'm, 'n, 'c, 'a, 'et) codata_args -> 'mn canonical
 
   (* A datatype value stores: *)
   and ('m, 'j, 'ij) data_args = {
@@ -258,14 +259,13 @@ end = struct
     discrete : [ `Yes | `Maybe | `No ];
   }
 
-  and ('mn, 'm, 'n, 'c, 'a) codata_args = {
-    eta : potential eta;
+  and ('mn, 'm, 'n, 'c, 'a, 'et) codata_args = {
+    eta : (potential, 'et) eta;
     opacity : opacity;
     env : ('m, 'a) env;
     termctx : ('c, ('a, 'n) snoc) termctx option Lazy.t;
     ins : ('mn, 'm, 'n) insertion;
-    (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
-    fields : (Field.t, ('a, 'n) Term.codatafield) Abwd.t;
+    fields : ('a * 'n * 'et) Term.CodatafieldAbwd.t;
   }
 
   (* Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)

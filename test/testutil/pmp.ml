@@ -33,8 +33,7 @@ let rec parse_chk : type n. (string, n) Bwv.t -> pmt -> n Raw.check located =
         (Raw.Struct
            ( Eta,
              List.fold_left
-               (fun acc (fld, tm) ->
-                 Abwd.add (Some (Field.intern fld, Bwd.Emp)) (parse_chk ctx tm) acc)
+               (fun acc (fld, tm) -> Abwd.add (Some (fld, Bwd.Emp)) (parse_chk ctx tm) acc)
                Abwd.empty tms ))
   | Constr c -> unlocated (Raw.Constr (unlocated (Constr.intern c), []))
   | App (fn, arg) as tm -> (
@@ -56,7 +55,7 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth located =
       | Some c -> unlocated (Raw.Const c)
       | None -> Reporter.fatal (Unbound_variable (x, [])))
   | UU -> unlocated Raw.UU
-  | Field (x, fld) -> unlocated (Raw.Field (parse_syn ctx x, Field.intern_ori fld, Emp))
+  | Field (x, fld) -> unlocated (Raw.Field (parse_syn ctx x, `Name (fld, Emp)))
   | Pi (x, dom, cod) ->
       unlocated (Raw.Pi (Some x, parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod))
   | App (fn, arg) -> unlocated (Raw.App (parse_syn ctx fn, parse_chk ctx arg))

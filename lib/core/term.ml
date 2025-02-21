@@ -44,6 +44,24 @@ module rec Term : sig
 
   module PlusPbijmap : module type of Pbijmap (PlusFam)
 
+  module Codatafield : sig
+    type (_, _) t =
+      | Lower : (('a, 'n) snoc, kinetic) Term.term -> (D.zero, 'a * 'n * 'et) t
+      | Higher :
+          ('i, ('a, D.zero) snoc, 'ian) Plusmap.t * ('ian, kinetic) Term.term
+          -> ('i, 'a * D.zero * no_eta) t
+  end
+
+  module CodatafieldAbwd : module type of Field.Abwd (Codatafield)
+
+  module Structfield : sig
+    type (_, _) t =
+      | Lower : ('a, 's) Term.term * [ `Labeled | `Unlabeled ] -> (D.zero, 'n * 'a * 's * 'et) t
+      | Higher : ('n, 'i, 'a) PlusPbijmap.t -> ('i, 'n * 'a * potential * no_eta) t
+  end
+
+  module StructfieldAbwd : module type of Field.Abwd (Structfield)
+
   type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
 
   type (_, _) term =
@@ -51,7 +69,7 @@ module rec Term : sig
     | Const : Constant.t -> ('a, kinetic) term
     | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
     | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
-    | Field : ('a, kinetic) term * Field.t * ('nk, 'n, 'k) insertion -> ('a, kinetic) term
+    | Field : ('a, kinetic) term * 'i Field.t * ('n, 't, 'i) insertion -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
     | Pi :
@@ -63,7 +81,7 @@ module rec Term : sig
     | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta * 'n D.t * (Field.t, ('n, 'a, 's) structfield) Abwd.t * 's energy
+        ('s, 'et) eta * 'n D.t * ('n * 'a * 's * 'et) StructfieldAbwd.t * 's energy
         -> ('a, 's) term
     | Match : {
         tm : ('a, kinetic) term;
@@ -80,10 +98,6 @@ module rec Term : sig
         -> ('a, 'n) branch
     | Refute
 
-  and (_, _, _) structfield =
-    | Lower_structfield : ('a, 's) term * [ `Labeled | `Unlabeled ] -> ('n, 'a, 's) structfield
-    | Higher_structfield : ('n, 'i, 'a) PlusPbijmap.t -> ('n, 'a, potential) structfield
-
   and _ canonical =
     | Data : {
         indices : 'i Fwn.t;
@@ -92,11 +106,11 @@ module rec Term : sig
       }
         -> 'a canonical
     | Codata : {
-        eta : potential eta;
+        eta : (potential, 'et) eta;
         opacity : opacity;
         dim : 'n D.t;
         termctx : ('c, ('a, 'n) snoc) termctx option;
-        fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
+        fields : ('a * 'n * 'et) CodatafieldAbwd.t;
       }
         -> 'a canonical
 
@@ -106,12 +120,6 @@ module rec Term : sig
         indices : (('pa, kinetic) term, 'i) Vec.t;
       }
         -> ('p, 'i) dataconstr
-
-  and (_, _) codatafield =
-    | Lower_codatafield : (('a, 'n) snoc, kinetic) term -> ('a, 'n) codatafield
-    | Higher_codatafield :
-        'k D.pos * ('k, ('a, D.zero) snoc, 'kan) Plusmap.t * ('kan, kinetic) term
-        -> ('a, D.zero) codatafield
 
   and ('a, 'b, 'ab) tel =
     | Emp : ('a, Fwn.zero, 'a) tel
@@ -138,7 +146,7 @@ module rec Term : sig
         vars : (N.zero, 'n, string option, 'f1) NICubeOf.t;
         bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
         hasfields : ('m, 'f2) has_fields;
-        fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
+        fields : (D.zero Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
         fplus : ('f1, 'f2, 'f) N.plus;
       }
         -> ('b, 'f, 'mn) entry
@@ -166,6 +174,26 @@ end = struct
 
   module PlusPbijmap = Pbijmap (PlusFam)
 
+  module Codatafield = struct
+    (* A codatafield has an intrinsic dimension, and a type that depends on one additional variable, but in a degenerated context.  If it is zero-dimensional, the degeneration does nothing, but we store that case separately so we don't need to construct and carry around lots of trivial Plusmaps. *)
+    type (_, _) t =
+      | Lower : (('a, 'n) snoc, kinetic) Term.term -> (D.zero, 'a * 'n * 'et) t
+      (* For the present, we don't allow Gel-like fields in higher-dimensional codatatypes, just for simplicity. *)
+      | Higher :
+          ('i, ('a, D.zero) snoc, 'ian) Plusmap.t * ('ian, kinetic) Term.term
+          -> ('i, 'a * D.zero * no_eta) t
+  end
+
+  module CodatafieldAbwd = Field.Abwd (Codatafield)
+
+  module Structfield = struct
+    type (_, _) t =
+      | Lower : ('a, 's) Term.term * [ `Labeled | `Unlabeled ] -> (D.zero, 'n * 'a * 's * 'et) t
+      | Higher : ('n, 'i, 'a) PlusPbijmap.t -> ('i, 'n * 'a * potential * no_eta) t
+  end
+
+  module StructfieldAbwd = Field.Abwd (Structfield)
+
   (* A typechecked De Bruijn index is a well-scoped natural number together with a definite strict face (the top face, if none was supplied explicitly).  Unlike a raw De Bruijn index, the scoping is by a tbwd rather than a type-level nat.  This allows the face to also be well-scoped: its codomain must be the dimension appearing in the hctx at that position.  And since we already have defined Tbwd.insert, we can re-use that instead of re-defining this inductively. *)
   type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
 
@@ -176,7 +204,7 @@ end = struct
     | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
     (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
     | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
-    | Field : ('a, kinetic) term * Field.t * ('nk, 'n, 'k) insertion -> ('a, kinetic) term
+    | Field : ('a, kinetic) term * 'i Field.t * ('n, 't, 'i) insertion -> ('a, kinetic) term
     | UU : 'n D.t -> ('a, kinetic) term
     | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
     (* Since the user doesn't write higher-dimensional pi-types explicitly, there is always only one variable name in a pi-type. *)
@@ -191,7 +219,7 @@ end = struct
     (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
     | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
     | Struct :
-        's eta * 'n D.t * (Field.t, ('n, 'a, 's) structfield) Abwd.t * 's energy
+        ('s, 'et) eta * 'n D.t * ('n * 'a * 's * 'et) StructfieldAbwd.t * 's energy
         -> ('a, 's) term
     (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
     | Match : {
@@ -212,10 +240,6 @@ end = struct
     (* A branch that was refuted during typechecking doesn't need a body to compute with, but we still mark its presence as a signal that it should be stuck (this can occur when normalizing in an inconsistent context). *)
     | Refute
 
-  and (_, _, _) structfield =
-    | Lower_structfield : ('a, 's) term * [ `Labeled | `Unlabeled ] -> ('n, 'a, 's) structfield
-    | Higher_structfield : ('n, 'i, 'a) PlusPbijmap.t -> ('n, 'a, potential) structfield
-
   (* A canonical type is either a datatype or a codatatype/record. *)
   and _ canonical =
     (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
@@ -227,11 +251,11 @@ end = struct
         -> 'a canonical
     (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields).  We retain the order of the fields by storing them in an Abwd rather than a Map so as to enable positional access as well as named access. *)
     | Codata : {
-        eta : potential eta;
+        eta : (potential, 'et) eta;
         opacity : opacity;
         dim : 'n D.t;
         termctx : ('c, ('a, 'n) snoc) termctx option;
-        fields : (Field.t, ('a, 'n) codatafield) Abwd.t;
+        fields : ('a * 'n * 'et) CodatafieldAbwd.t;
       }
         -> 'a canonical
 
@@ -242,14 +266,6 @@ end = struct
         indices : (('pa, kinetic) term, 'i) Vec.t;
       }
         -> ('p, 'i) dataconstr
-
-  (* A codatafield has an intrinsic dimension, and a type that depends on one additional variable, but in a degenerated context.  If it is zero-dimensional, the degeneration does nothing, but we store that case separately so we don't need to construct and carry around lots of trivial Plusmaps. *)
-  and (_, _) codatafield =
-    | Lower_codatafield : (('a, 'n) snoc, kinetic) term -> ('a, 'n) codatafield
-    (* For the present, we don't allow higher fields in higher-dimensional codatatypes, just for simplicity. *)
-    | Higher_codatafield :
-        'k D.pos * ('k, ('a, D.zero) snoc, 'kan) Plusmap.t * ('kan, kinetic) term
-        -> ('a, D.zero) codatafield
 
   (* A telescope is a list of types, each dependent on the previous ones.  Note that 'a and 'ab are lists of dimensions, but 'b is just a forwards natural number counting the number of *zero-dimensional* variables added to 'a to get 'ab.  *)
   and ('a, 'b, 'ab) tel =
@@ -280,7 +296,7 @@ end = struct
         (* The reason for the "snoc" here is so that some of the terms and types in these bindings can refer to other ones.  Of course it should really be only the *later* ones that can refer to the *earlier* ones, but we don't have a way to specify that in the type parameters. *)
         bindings : ('mn, ('b, 'mn) snoc binding) CubeOf.t;
         hasfields : ('m, 'f2) has_fields;
-        fields : (Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
+        fields : (D.zero Field.t * string * (('b, 'mn) snoc, kinetic) term, 'f2) Bwv.t;
         fplus : ('f1, 'f2, 'f) N.plus;
       }
         -> ('b, 'f, 'mn) entry
@@ -340,10 +356,6 @@ end
 let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
   | Emp n -> n
   | Ext (e, _, _) -> dim_term_env e
-
-let dim_codatafield : type a n. (a, n) codatafield -> dim_wrapped = function
-  | Lower_codatafield _ -> Wrap D.zero
-  | Higher_codatafield (k, _, _) -> Wrap (D.pos k)
 
 let dim_entry : type b f n. (b, f, n) entry -> n D.t = function
   | Vis { bindings; _ } | Invis bindings -> CubeOf.dim bindings

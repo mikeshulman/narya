@@ -168,7 +168,7 @@ let rec get_spine :
     type b n.
     (n, kinetic) term ->
     [ `App of (n, kinetic) term * (n, kinetic) term Bwd.t
-    | `Field of (n, kinetic) term * Field.t * int Bwd.t * (n, kinetic) term Bwd.t ] =
+    | `Field of (n, kinetic) term * string * int Bwd.t * (n, kinetic) term Bwd.t ] =
  fun tm ->
   match tm with
   | App (fn, arg) -> (
@@ -181,7 +181,7 @@ let rec get_spine :
       match get_spine fn with
       | `App (head, args) -> `App (head, append_bwd args)
       | `Field (head, fld, ins, args) -> `Field (head, fld, ins, append_bwd args))
-  | Field (head, fld, ins) -> `Field (head, fld, ints_of_ins ins, Emp)
+  | Field (head, fld, ins) -> `Field (head, Field.to_string fld, ints_of_ins ins, Emp)
   (* We have to look through identity degeneracies here. *)
   | Act (body, s) -> (
       match is_id_deg s with
@@ -207,7 +207,8 @@ let rec unparse :
   | MetaEnv (v, _) ->
       unlocated
         (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
-  | Field (tm, fld, ins) -> unparse_spine vars (`Field (tm, fld, ints_of_ins ins)) Emp li ri
+  | Field (tm, fld, ins) ->
+      unparse_spine vars (`Field (tm, Field.to_string fld, ints_of_ins ins)) Emp li ri
   | UU n ->
       unparse_act vars
         { unparse = (fun _ _ -> unlocated (outfix ~notn:universe ~ws:[] ~inner:Emp)) }
@@ -250,15 +251,17 @@ let rec unparse :
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (type m)
-      ((Eta, _, fields, _) : s eta * m D.t * (Field.t, (m, n, s) structfield) Abwd.t * s energy) ->
+  | Struct (type m et)
+      ((Eta, _, fields, _) : (s, et) eta * m D.t * (m * n * s * et) StructfieldAbwd.t * s energy) ->
       unlocated
         (outfix ~notn:parens ~ws:[]
            ~inner:
-             (Abwd.fold
-                (fun fld (structfield : (m, n, s) structfield) acc ->
+             (Bwd.fold_left
+                (fun acc
+                     (Term.StructfieldAbwd.Entry (type i)
+                       ((fld, structfield) : i Field.t * (i, m * n * s * et) Structfield.t)) ->
                   match structfield with
-                  | Lower_structfield (fldtm, lbl) ->
+                  | Lower (fldtm, lbl) ->
                       let fldtm = unparse vars fldtm Interval.entire Interval.entire in
                       Snoc
                         ( acc,
@@ -276,9 +279,8 @@ let rec unparse :
                                   (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))
                                      ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
                                      ~right_ok:(No.le_refl No.minus_omega))
-                            | `Unlabeled -> fldtm) )
-                  | Higher_structfield _ -> fatal (Unimplemented "unparsing comatches"))
-                fields Emp))
+                            | `Unlabeled -> fldtm) ))
+                Emp fields))
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
       match unparse_numeral tm with
@@ -317,7 +319,7 @@ and unparse_spine :
     n Names.t ->
     [ `Term of (n, kinetic) term
     | `Constr of Constr.t
-    | `Field of (n, kinetic) term * Field.t * int Bwd.t
+    | `Field of (n, kinetic) term * string * int Bwd.t
     | `Degen of string
     | `Unparser of unparser ] ->
     unparser Bwd.t ->
@@ -369,10 +371,10 @@ and unparse_spine :
               parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))))
 
 and unparse_field :
-    type n lt ls rt rs.
+    type n lt ls rt rs i.
     n Names.t ->
     (n, kinetic) term ->
-    Field.t ->
+    string ->
     int Bwd.t ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
@@ -384,22 +386,18 @@ and unparse_field :
       match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
           let fn = unparse vars tm li Interval.plus_omega_only in
-          let arg =
-            unlocated (Field (Field.to_string fld, Bwd_extra.to_list_map string_of_int ins, []))
-          in
+          let arg = unlocated (Field (fld, Bwd_extra.to_list_map string_of_int ins, [])) in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
           let fn = unparse vars tm Interval.plus_omega_only Interval.plus_omega_only in
-          let arg =
-            unlocated (Field (Field.to_string fld, Bwd_extra.to_list_map string_of_int ins, []))
-          in
+          let arg = unlocated (Field (fld, Bwd_extra.to_list_map string_of_int ins, [])) in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
           parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))
 
 and unparse_field_var :
     type n lt ls rt rs.
-    n Names.t -> (n, kinetic) term -> Field.t -> (lt, ls, rt, rs) parse located option =
+    n Names.t -> (n, kinetic) term -> string -> (lt, ls, rt, rs) parse located option =
  fun vars tm fld ->
   match tm with
   | Var x -> (
@@ -683,7 +681,8 @@ let rec unparse_ctx :
            fun _ (NFamOf (x, _)) -> NFamOf (Some x) in
           let xs = NICubeOf.map { map = projector } vardata in
           (* With the variables projected out, we add them to the Names.t.  We use Names.unsafe_add because at this point the variables have already been uniquified by Names.uniquify_vars. *)
-          let fnames = Bwv.mmap (fun [ (x, _); (f, _, _) ] -> (f, x)) [ fs; fields ] in
+          let fnames =
+            Bwv.mmap (fun [ (x, _); (f, _, _) ] -> (Field.to_string f, x)) [ fs; fields ] in
           let names = Names.unsafe_add names (Variables (dim, plusdim, xs)) (Bwv.to_bwd fnames) in
           (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
           let do_binding fab (b : b binding) (res : S.t) : unit * S.t =

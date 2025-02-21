@@ -13,6 +13,12 @@ open Printconfig
 open Range
 module StringSet = Set.Make (String)
 
+module StringsSet = Set.Make (struct
+  type t = string * string list
+
+  let compare = compare
+end)
+
 (* ********************
    Parentheses
  ******************** *)
@@ -569,8 +575,8 @@ let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
 let rec process_tuple :
     type n.
     bool ->
-    ((Field.t * string Bwd.t) option, n check located) Abwd.t ->
-    Field.Set.t ->
+    ((string * string Bwd.t) option, n check located) Abwd.t ->
+    StringSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -582,15 +588,14 @@ let rec process_tuple :
   | Term { value = Notn n; loc } :: obs when equal (notn n) coloneq -> (
       let ws = Option.fold ~none:ws ~some:snd (take_opt (Op ",") ws) in
       match args n with
-      | [ Term { value = Ident ([ x ], _); loc = xloc }; Term tm ] ->
+      | [ Term { value = Ident ([ fld ], _); loc = xloc }; Term tm ] ->
           let tm = process ctx tm in
-          let fld = Field.intern x in
-          if Field.Set.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
+          if StringSet.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
           else
             process_tuple false
               (* Tuples have no higher fields, so the bwd of strings labeling a dimension is always empty. *)
               (Abwd.add (Some (fld, Bwd.Emp)) tm flds)
-              (Field.Set.add fld found) ctx obs loc ws
+              (StringSet.add fld found) ctx obs loc ws
       | [ Term { value = Placeholder _; _ }; Term tm ] ->
           let tm = process ctx tm in
           process_tuple false (Abwd.add None tm flds) found ctx obs loc ws
@@ -608,7 +613,7 @@ let () =
       process =
         (fun ctx obs loc ws ->
           let _, ws = take LParen ws in
-          process_tuple true Abwd.empty Field.Set.empty ctx obs loc ws);
+          process_tuple true Abwd.empty StringSet.empty ctx obs loc ws);
     }
 
 let pp_coloneq space ppf obs ws =
@@ -736,7 +741,7 @@ let () =
 
 let rec process_comatch :
     type n.
-    ((Field.t * string Bwd.t) option, n check located) Abwd.t * Field.PbijSet.t ->
+    ((string * string Bwd.t) option, n check located) Abwd.t * StringsSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -744,23 +749,20 @@ let rec process_comatch :
  fun (flds, found) ctx obs loc ->
   match obs with
   | [] -> { value = Raw.Struct (Noeta, flds); loc }
-  | Term { value = Field (x, pbij, _); loc = fldloc } :: Term tm :: obs ->
+  | Term { value = Field (fld, pbij, _); loc = fldloc } :: Term tm :: obs ->
       let tm = process ctx tm in
-      let fld = Field.intern x in
-      if Field.PbijSet.mem (fld, pbij) found then
+      if StringsSet.mem (fld, pbij) found then
         (* Comatches can't have unlabeled fields *)
-        fatal ?loc:fldloc (Duplicate_method_in_comatch fld)
+        fatal ?loc:fldloc (Duplicate_method_in_comatch (fld, pbij))
       else
         process_comatch
-          (Abwd.add (Some (fld, Bwd.of_list pbij)) tm flds, Field.PbijSet.add (fld, pbij) found)
+          (Abwd.add (Some (fld, Bwd.of_list pbij)) tm flds, StringsSet.add (fld, pbij) found)
           ctx obs loc
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
 
 let () =
   set_processor comatch
-    {
-      process = (fun ctx obs loc _ -> process_comatch (Abwd.empty, Field.PbijSet.empty) ctx obs loc);
-    }
+    { process = (fun ctx obs loc _ -> process_comatch (Abwd.empty, StringsSet.empty) ctx obs loc) }
 
 (* Comatches will be printed with a different instantiation of the functions that print matches. *)
 
@@ -1432,7 +1434,7 @@ let () = set_tree codata (Closed_entry (eop Codata (op LBracket (codata_fields t
 
 let rec process_codata :
     type n.
-    (Field.t, n Raw.codatafield) Abwd.t ->
+    (Field.wrapped, n Raw.codatafield) Abwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -1460,14 +1462,14 @@ let rec process_codata :
         | Placeholder _ -> None
         | Ident (x, _) -> fatal ?loc:xloc (Invalid_variable x)
         | _ -> fatal ?loc:xloc Parse_error in
-      let fld = Field.intern fstr in
       match dim_of_string (String.concat "" fdstr) with
       | Some (Any fdim) -> (
-          match Abwd.find_opt fld flds with
+          let fld = Field.intern fstr fdim in
+          match Abwd.find_opt (Field.Wrap fld) flds with
           | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
           | None ->
               let ty = process (Bwv.snoc ctx x) ty in
-              process_codata (Abwd.add fld (Raw.Codatafield (x, fdim, ty)) flds) ctx obs loc)
+              process_codata (Abwd.add (Field.Wrap fld) (Raw.Codatafield (x, ty)) flds) ctx obs loc)
       | None -> fatal (Invalid_field (String.concat "." ("" :: fstr :: fdstr))))
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
 
@@ -1559,7 +1561,8 @@ let rec process_tel :
   match obs with
   | [] -> Any_tel Emp
   | Term { value = Ident ([ name ], _); loc } :: Term ty :: obs ->
-      if StringSet.mem name seen then fatal ?loc (Duplicate_field_in_record (Field.intern name));
+      if StringSet.mem name seen then
+        fatal ?loc (Duplicate_field_in_record (Field.intern name D.zero));
       let ty = process ctx ty in
       let ctx = Bwv.snoc ctx (Some name) in
       let (Any_tel tel) = process_tel ctx (StringSet.add name seen) obs in

@@ -16,7 +16,7 @@ type printable +=
   | PString : string -> printable
   | PConstant of Constant.t
   | PMeta : ('x, 'b, 's) Meta.t -> printable
-  | PField : Field.t -> printable
+  | PField : 'i Field.t -> printable
   | PConstr : Constr.t -> printable
 
 (* The function that actually does the work of printing a "printable" will be defined in Parser.Unparse.  But we need to be able to "call" that function in this file to define "default_text" that converts structured messages to text.  Thus, in this file we define a mutable global variable to contain that function, starting with a dummy function, and call its value to print "printable"s; then in Parser.Unparse we will set the value of that variable after defining the function it should contain. *)
@@ -39,7 +39,7 @@ let string_of_dim0 dim =
   let str = string_of_dim dim in
   if str = "" then "0" else str
 
-let record_or_codata : type s. s eta -> string = function
+let record_or_codata : type s et. (s, et) eta -> string = function
   | Eta -> "record"
   | Noeta -> "codata"
 
@@ -61,16 +61,16 @@ module Code = struct
     | Instantiating_zero_dimensional_type : printable -> t
     | Unequal_synthesized_type : printable * printable -> t
     | Checking_tuple_at_degenerated_record : printable -> t
-    | Missing_field_in_tuple : Field.t -> t
-    | Missing_method_in_comatch : Field.t * ('e, 'r, 'i) pbij option -> t
-    | Extra_field_in_tuple : Field.t option -> t
-    | Extra_method_in_comatch : Field.t -> t
+    | Missing_field_in_tuple : 'i Field.t * ('e, 'i, 'r) pbij option -> t
+    | Missing_method_in_comatch : 'i Field.t * ('e, 'i, 'r) pbij option -> t
+    | Extra_field_in_tuple : string option -> t
+    | Extra_method_in_comatch : (string * string Bwd.t) -> t
     | Invalid_field_in_tuple : t
-    | Duplicate_field_in_tuple : Field.t -> t
-    | Duplicate_method_in_codata : Field.t -> t
-    | Duplicate_field_in_record : Field.t -> t
+    | Duplicate_field_in_tuple : string -> t
+    | Duplicate_method_in_codata : 'i Field.t -> t
+    | Duplicate_field_in_record : 'i Field.t -> t
     | Invalid_method_in_comatch : t
-    | Duplicate_method_in_comatch : Field.t -> t
+    | Duplicate_method_in_comatch : string * string list -> t
     | Missing_constructor_in_match : Constr.t -> t
     | Unnamed_variable_in_match : t
     | Checking_lambda_at_nonfunction : printable -> t
@@ -82,15 +82,20 @@ module Code = struct
         -> t
     | Wrong_number_of_arguments_to_constructor : Constr.t * int -> t
     | No_such_field :
-        [ `Record of 's eta * printable
+        [ `Record of ('s, 'et) eta * printable
         | `Nonrecord of printable
         | `Other
-        | `Degenerated_record of 's eta ]
-        * Field.or_index
-        * [ `Ins of ('ab, 'a, 'b) insertion | `Ints of int Bwd.t ]
+        | `Degenerated_record of ('s, 'et) eta ]
+        (* We don't require the i's to match, since that might be part of the error. *)
+        * [ `Ins of 'i Field.t * ('n, 't, 'i2) insertion
+          | `Pbij of 'i Field.t * ('n, 'i, 'r) pbij
+          | `Strings of string * int Bwd.t
+          | `Int of int ]
         -> t
-    | Wrong_dimension_of_field : printable * Field.or_index * 'intrinsic D.t * 'used D.t -> t
-    | Invalid_field_suffix : printable * Field.or_index * 'evaluation D.t * int Bwd.t -> t
+    | Wrong_dimension_of_field :
+        printable * [ `Strings of string * int Bwd.t | `Int of int ] * 'intrinsic D.t * 'used D.t
+        -> t
+    | Invalid_field_suffix : printable * string * int Bwd.t * 'evaluation D.t -> t
     | Missing_instantiation_constructor :
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
         -> t
@@ -495,22 +500,25 @@ module Code = struct
     | Comatching_at_degenerated_codata r ->
         textf "can't comatch against a codatatype %a with a nonidentity degeneracy applied"
           pp_printed (print r)
-    | Missing_field_in_tuple f -> textf "record field '%s' missing in tuple" (Field.to_string f)
+    | Missing_field_in_tuple (f, _) ->
+        textf "record field '%s' missing in tuple" (Field.to_string f)
     | Missing_method_in_comatch (f, p) ->
         textf "codata method '%s%s' missing in comatch" (Field.to_string f)
           (Option.fold ~none:"" ~some:string_of_pbij p)
     | Extra_field_in_tuple f -> (
         match f with
-        | Some f -> textf "field '%s' in tuple doesn't occur in record type" (Field.to_string f)
+        | Some f -> textf "field '%s' in tuple doesn't occur in record type" f
         | None -> text "too many un-labeled fields in tuple")
-    | Extra_method_in_comatch f ->
-        textf "method '%s' in comatch doesn't occur in codata type" (Field.to_string f)
+    | Extra_method_in_comatch (f, p) ->
+        textf "method '%s' in comatch doesn't occur in codata type"
+          (String.concat "." (f :: Bwd.to_list p))
     | Invalid_field_in_tuple -> text "invalid field in tuple"
     | Invalid_method_in_comatch -> text "invalid method in comatch"
-    | Duplicate_field_in_tuple f ->
-        textf "record field '%s' appears more than once in tuple" (Field.to_string f)
-    | Duplicate_method_in_comatch f ->
-        textf "method '%s' appears more than once in comatch" (Field.to_string f)
+    | Duplicate_field_in_tuple f -> textf "record field '%s' appears more than once in tuple" f
+    | Duplicate_method_in_comatch (f, p) ->
+        textf "method '%s%s' appears more than once in comatch" f
+          (if List.exists (fun x -> String.length x > 1) p then ".." ^ String.concat "." p
+           else "." ^ String.concat "" p)
     | Missing_constructor_in_match c ->
         textf "missing match clause for constructor %s" (Constr.to_string c)
     | Unnamed_variable_in_match -> text "unnamed match variable"
@@ -536,32 +544,34 @@ module Code = struct
         if n > 0 then textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
         else
           textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c) (abs n)
-    | No_such_field (d, f, ins) -> (
-        let ins =
-          match ins with
-          | `Ins ins -> string_of_ins ins
-          | `Ints ints -> string_of_ins_ints ints in
+    | No_such_field (d, f) -> (
+        let f =
+          match f with
+          | `Ins (f, p) -> Field.to_string f ^ string_of_ins p
+          | `Pbij (f, p) -> Field.to_string f ^ string_of_pbij p
+          | `Strings (str, ints) -> str ^ string_of_ins_ints ints
+          | `Int n -> string_of_int n in
         match d with
         | `Record (eta, d) ->
-            textf "%s type %a has no field named %s" (record_or_codata eta) pp_printed (print d)
-              (Field.to_string_ori f ^ ins)
+            textf "%s type %a has no field named %s" (record_or_codata eta) pp_printed (print d) f
         | `Nonrecord d ->
-            textf "non-record/codata type %a has no field named %s" pp_printed (print d)
-              (Field.to_string_ori f ^ ins)
-        | `Other -> textf "term has no field named %s" (Field.to_string_ori f ^ ins)
+            textf "non-record/codata type %a has no field named %s" pp_printed (print d) f
+        | `Other -> textf "term has no field named %s" f
         | `Degenerated_record eta ->
             let rc = record_or_codata eta in
             textf
               "%s type with a nonidentity degeneracy applied is no longer a %s, hence has no field named %s"
-              rc rc
-              (Field.to_string_ori f ^ ins))
+              rc rc f)
     | Wrong_dimension_of_field (ty, f, intrinsic, used) ->
-        textf "field %s of type %a has intrinsic dimension %s, can't be used at %s"
-          (Field.to_string_ori f) pp_printed (print ty) (string_of_dim0 intrinsic)
-          (string_of_dim0 used)
-    | Invalid_field_suffix (ty, f, evaldim, used) ->
-        textf "invalid suffix %s for field %s of %s-dimensional type %a" (string_of_ins_ints used)
-          (Field.to_string_ori f) (string_of_dim0 evaldim) pp_printed (print ty)
+        let f =
+          match f with
+          | `Strings (str, ints) -> str ^ string_of_ins_ints ints
+          | `Int n -> string_of_int n in
+        textf "field %s of type %a has intrinsic dimension %s, can't be used at %s" f pp_printed
+          (print ty) (string_of_dim0 intrinsic) (string_of_dim0 used)
+    | Invalid_field_suffix (ty, f, p, evaldim) ->
+        textf "invalid suffix %s for field %s of %s-dimensional type %a" (string_of_ins_ints p) f
+          (string_of_dim0 evaldim) pp_printed (print ty)
     | Missing_instantiation_constructor (exp, got) ->
         let pp_got =
           match got with
@@ -766,25 +776,26 @@ end
 include Asai.StructuredReporter.Make (Code)
 open Code
 
-let struct_at_degenerated_type : type s. s eta -> printable -> Code.t =
+let struct_at_degenerated_type : type s et. (s, et) eta -> printable -> Code.t =
  fun eta name ->
   match eta with
   | Eta -> Checking_tuple_at_degenerated_record name
   | Noeta -> Comatching_at_degenerated_codata name
 
-let extra_field_in_struct : type s. s eta -> Field.t -> Code.t =
+let extra_field_in_struct : type s et i. (s, et) eta -> string * string Bwd.t -> Code.t =
  fun eta fld ->
   match eta with
-  | Eta -> Extra_field_in_tuple (Some fld)
+  | Eta -> Extra_field_in_tuple (Some (fst fld))
   | Noeta -> Extra_method_in_comatch fld
 
-let missing_field_in_struct : type s. s eta -> Field.t -> Code.t =
- fun eta fld ->
+let missing_field_in_struct :
+    type s et i n r. (s, et) eta -> ?pbij:(n, i, r) pbij -> i Field.t -> Code.t =
+ fun eta ?pbij fld ->
   match eta with
-  | Eta -> Missing_field_in_tuple fld
-  | Noeta -> Missing_method_in_comatch (fld, None)
+  | Eta -> Missing_field_in_tuple (fld, pbij)
+  | Noeta -> Missing_method_in_comatch (fld, pbij)
 
-let struct_at_nonrecord : type s. s eta -> printable -> Code.t =
+let struct_at_nonrecord : type s et. (s, et) eta -> printable -> Code.t =
  fun eta p ->
   match eta with
   | Eta -> Checking_tuple_at_nonrecord p

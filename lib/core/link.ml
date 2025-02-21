@@ -26,7 +26,15 @@ let rec term : type a s. (Compunit.t -> Compunit.t) -> (a, s) term -> (a, s) ter
   | Act (tm, s) -> Act (term f tm, s)
   | Let (x, v, body) -> Let (x, term f v, term f body)
   | Lam (x, body) -> Lam (x, term f body)
-  | Struct (eta, dim, flds, energy) -> Struct (eta, dim, Abwd.map (structfield f) flds, energy)
+  | Struct (eta, dim, flds, energy) ->
+      Struct
+        ( eta,
+          dim,
+          Mbwd.map
+            (fun (Term.StructfieldAbwd.Entry (fld, x)) ->
+              Term.StructfieldAbwd.Entry (fld, structfield f x))
+            flds,
+          energy )
   | Match { tm; dim; branches } ->
       Match { tm = term f tm; dim; branches = Constr.Map.map (branch f) branches }
   | Realize tm -> Realize (term f tm)
@@ -50,17 +58,22 @@ and canonical : type a. (Compunit.t -> Compunit.t) -> a canonical -> a canonical
           opacity;
           dim;
           termctx = Option.map (termctx f) tc;
-          fields = Abwd.map (codatafield f) fields;
+          fields =
+            Mbwd.map
+              (fun (CodatafieldAbwd.Entry (fld, x)) -> CodatafieldAbwd.Entry (fld, codatafield f x))
+              fields;
         }
 
 and structfield :
-    type n a s.
-    (Compunit.t -> Compunit.t) -> (n, a, s) Term.structfield -> (n, a, s) Term.structfield =
+    type n a s i et.
+    (Compunit.t -> Compunit.t) ->
+    (i, n * a * s * et) Term.Structfield.t ->
+    (i, n * a * s * et) Term.Structfield.t =
  fun f fld ->
   match fld with
-  | Lower_structfield (x, l) -> Lower_structfield (term f x, l)
-  | Higher_structfield m ->
-      Higher_structfield
+  | Lower (x, l) -> Lower (term f x, l)
+  | Higher m ->
+      Higher
         (PlusPbijmap.mmap
            {
              map =
@@ -71,11 +84,13 @@ and structfield :
            }
            [ m ])
 
-and codatafield : type a n. (Compunit.t -> Compunit.t) -> (a, n) codatafield -> (a, n) codatafield =
+and codatafield :
+    type a n i et.
+    (Compunit.t -> Compunit.t) -> (i, a * n * et) Codatafield.t -> (i, a * n * et) Codatafield.t =
  fun f fld ->
   match fld with
-  | Lower_codatafield tm -> Lower_codatafield (term f tm)
-  | Higher_codatafield (k, ka, tm) -> Higher_codatafield (k, ka, term f tm)
+  | Lower tm -> Lower (term f tm)
+  | Higher (ka, tm) -> Higher (ka, term f tm)
 
 and dataconstr : type p i. (Compunit.t -> Compunit.t) -> (p, i) dataconstr -> (p, i) dataconstr =
  fun f (Dataconstr { args; indices }) ->

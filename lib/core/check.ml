@@ -412,11 +412,11 @@ let rec check :
         | UU tyargs ->
             let has_higher_fields =
               Bwd.fold_left
-                (fun acc (_, Codatafield (_, k, _)) ->
+                (fun acc (Field.Wrap fld, _) ->
                   match acc with
                   | Some () -> Some ()
                   | None -> (
-                      match D.compare k D.zero with
+                      match D.compare (Field.dim fld) D.zero with
                       | Eq -> None
                       | Neq -> Some ()))
                 None fields in
@@ -1501,14 +1501,14 @@ and get_indices :
 
 (* The common prefix of checking a codatatype or record type, which returns a (cube of) variables belonging to the up-until-now type so that later fields can refer to earlier ones.  It also dynamically binds the current constant or metavariable, if possible, to that value for recursive purposes.  Since this binding has to scope over the rest of the functions that are specific to codata or records, it uses CPS. *)
 and with_codata_so_far :
-    type a b n c.
+    type a b n c et.
     (b, potential) status ->
-    potential eta ->
+    (potential, et) eta ->
     (a, b) Ctx.t ->
     opacity ->
     n D.t ->
     (D.zero, n, n, normal) TubeOf.t ->
-    (Field.t, (b, n) Term.codatafield) Abwd.t ->
+    (b * n * et) Term.CodatafieldAbwd.t ->
     has_higher_fields:unit option ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     ((n, Ctx.Binding.t) CubeOf.t -> (b, potential) term -> c) ->
@@ -1555,8 +1555,8 @@ and check_codata :
     (b, potential) status ->
     (a, b) Ctx.t ->
     (D.zero, n, n, normal) TubeOf.t ->
-    (Field.t, (b, n) Term.codatafield) Abwd.t ->
-    (Field.t * a Raw.codatafield) list ->
+    (b * n * no_eta) Term.CodatafieldAbwd.t ->
+    (Field.wrapped * a Raw.codatafield) list ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     has_higher_fields:unit option ->
     (b, potential) term =
@@ -1570,25 +1570,25 @@ and check_codata :
             errs
           @@ fun _ codataterm -> codataterm
       | Snoc _ -> fatal (Accumulated errs))
-  | (fld, Codatafield (x, fdim, rty)) :: raw_fields -> (
+  | (Wrap fld, Codatafield (x, rty)) :: raw_fields -> (
       with_codata_so_far status Noeta ctx `Opaque dim tyargs checked_fields ~has_higher_fields errs
       @@ fun domvars _ ->
       let newctx = Ctx.cube_vis ctx x domvars in
-      match (D.compare_zero fdim, D.compare_zero (TubeOf.inst tyargs)) with
+      match (D.compare_zero (Field.dim fld), D.compare_zero (TubeOf.inst tyargs)) with
       | Zero, _ ->
           let checked_fields, errs =
             Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
             (* Note the type of each field is checked *kinetically*: it's not part of the case tree. *)
             let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
-            (Snoc (checked_fields, (fld, Lower_codatafield cty)), errs) in
+            (Snoc (checked_fields, Entry (fld, Lower cty)), errs) in
           check_codata status ctx tyargs checked_fields raw_fields errs ~has_higher_fields
-      | Pos pfdim, Zero ->
-          let (Degctx (plusmap, degctx, _)) = degctx newctx fdim in
+      | Pos _, Zero ->
+          let (Degctx (plusmap, degctx, _)) = degctx newctx (Field.dim fld) in
           let checked_fields, errs =
             Reporter.try_with ~fatal:(fun e -> (checked_fields, Snoc (errs, e))) @@ fun () ->
             (* Note the type of each field is checked *kinetically*: it's not part of the case tree. *)
             let cty = check (Kinetic `Nolet) degctx rty (universe D.zero) in
-            (Snoc (checked_fields, (fld, Higher_codatafield (pfdim, plusmap, cty))), errs) in
+            (Snoc (checked_fields, Entry (fld, Codatafield.Higher (plusmap, cty))), errs) in
           check_codata status ctx tyargs checked_fields raw_fields errs ~has_higher_fields
       | Pos _, Pos _ -> fatal (Unimplemented "higher fields in higher-dimensional codatatypes"))
 
@@ -1600,10 +1600,10 @@ and check_record :
     opacity ->
     (D.zero, n, n, normal) TubeOf.t ->
     (N.zero, n, string option, f1) NICubeOf.t ->
-    (Field.t * string, f2) Bwv.t ->
+    (D.zero Field.t * string, f2) Bwv.t ->
     (f1, f2, f) N.plus ->
     (a, f, af) N.plus ->
-    (Field.t, (b, n) Term.codatafield) Abwd.t ->
+    (b * n * has_eta) Term.CodatafieldAbwd.t ->
     (af, d, acd) Raw.tel ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     (b, potential) term =
@@ -1620,7 +1620,7 @@ and check_record :
       with_codata_so_far status Eta ctx opacity dim tyargs checked_fields ~has_higher_fields:None
         errs
       @@ fun domvars _ ->
-      let fld = Field.intern name in
+      let fld = Field.intern name D.zero in
       Reporter.try_with ~fatal:(fun e ->
           let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
           check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af)
@@ -1629,25 +1629,25 @@ and check_record :
       @@ fun () ->
       let newctx = Ctx.vis_fields ctx vars domvars ctx_fields fplus af in
       let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
-      let checked_fields = Snoc (checked_fields, (fld, Lower_codatafield cty)) in
+      let checked_fields = Snoc (checked_fields, Entry (fld, Lower cty)) in
       let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
       check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
         raw_fields errs
 
 and check_struct :
-    type a b c d s m n mn.
+    type a b c d s m n mn et.
     (b, s) status ->
-    s eta ->
+    (s, et) eta ->
     (a, b) Ctx.t ->
     (* The type we are checking against *)
     kinetic value ->
     (* m is the dimension to which that type has been substituted, and n is the Gel dimension of that type. *)
     m D.t ->
     (m, n, mn) D.plus ->
-    (mn, m, n, d, c) codata_args ->
+    (mn, m, n, d, c, et) codata_args ->
     (D.zero, mn, mn, normal) TubeOf.t ->
     (* The fields supplied by the user *)
-    ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
+    ((string * string Bwd.t) option, a check located) Abwd.t ->
     (b, s) term =
  fun status eta ctx ty m mn ({ fields; _ } as codata_args) tyargs tms ->
   (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful).  Note that check_fields returns a modified version of the *user* fields 'tms', since it may need to resolve positional fields to named ones. *)
@@ -1660,40 +1660,43 @@ and check_struct :
   let fields =
     Bwd.fold_left
       (fun fields -> function
-        | Some (fld, _), tm -> (
+        | Some ((fld, _) as fldins), tm -> (
             (* In the case of higher fields, the same field name will appear more than once in tms, but it will appear only once in the returned ctms; thus we take it only if it hasn't already been taken. *)
-            match (Abwd.mem fld fields, Abwd.find_opt fld ctms) with
-            | true, _ -> fields
-            | false, Some x -> Snoc (fields, (fld, x))
+            match
+              ( Term.StructfieldAbwd.find_string_opt fields fld,
+                Term.StructfieldAbwd.find_string_opt ctms fld )
+            with
+            | Some _, _ -> fields
+            | None, Some x -> Snoc (fields, x)
             (* TODO: It would be nice to locate this error on the field/method name rather than its value.  Also, accumulate all of them. *)
-            | false, None -> fatal ?loc:tm.loc (extra_field_in_struct eta fld))
+            | None, None -> fatal ?loc:tm.loc (extra_field_in_struct eta fldins))
         | None, tm -> fatal ?loc:tm.loc (Extra_field_in_tuple None))
       Emp tms in
   Term.Struct (eta, m, fields, energy status)
 
 and check_fields :
-    type a b c d s m n mn.
+    type a b c d s m n mn et.
     (b, s) status ->
-    s eta ->
+    (s, et) eta ->
     (a, b) Ctx.t ->
     (* As before, the type, its substitution dimension, its Gel dimension, and its arguments *)
     kinetic value ->
     m D.t ->
     (m, n, mn) D.plus ->
-    (mn, m, n, d, c) codata_args ->
+    (mn, m, n, d, c, et) codata_args ->
     (* The fields from the codatatype, to be checked against *)
-    (Field.t * (c, n) Term.codatafield) list ->
+    (c * n * et) Term.CodatafieldAbwd.entry list ->
     (D.zero, mn, mn, normal) TubeOf.t ->
     (* The fields supplied by the user *)
-    ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
+    ((string * string Bwd.t) option, a check located) Abwd.t ->
     (* The fields we have checked so far *)
-    (Field.t, (m, b, s) Term.structfield) Abwd.t ->
+    (m * b * s * et) Term.StructfieldAbwd.t ->
     (* Evaluated versions of the fields we have checked so far *)
-    (Field.t, (m, s) Value.structfield) Abwd.t ->
+    (m * s * et) Value.StructfieldAbwd.t ->
     (* Errors we have accumulated so far *)
     Code.t Asai.Diagnostic.t Bwd.t ->
-    ((Field.t * string Bwd.t) option, a check located) Abwd.t
-    * (Field.t, (m, b, s) Term.structfield) Abwd.t =
+    ((string * string Bwd.t) option, a check located) Abwd.t
+    * (m * b * s * et) Term.StructfieldAbwd.t =
  fun status eta ctx ty m mn codata_args fields tyargs tms ctms etms errs ->
   (* Build a temporary value-struct consisting of the so-far checked and evaluated fields.  The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
   let str = Value.Struct (etms, ins_zero m, energy status) in
@@ -1703,7 +1706,7 @@ and check_fields :
       match errs with
       | Emp -> (tms, ctms)
       | Snoc _ -> fatal (Accumulated errs))
-  | (fld, cdf) :: fields, Potential (name, args, hyp) ->
+  | Entry (fld, cdf) :: fields, Potential (name, args, hyp) ->
       (* Temporarily bind the current constant to the up-until-now value (or an error, if any have occurred yet), for (co)recursive purposes.  Note that this means as soon as one field fails, no other fields can be typechecked if they depend *at all* on earlier ones, even ones that didn't fail.  This could be improved in the future. *)
       run_with_definition name (hyp (Term.Struct (eta, m, ctms, energy status))) errs @@ fun () ->
       (* The insertion on the *constant* being checked, by contrast, is always zero, since the constant is not nontrivially substituted at all yet. *)
@@ -1714,49 +1717,49 @@ and check_fields :
       in
       check_field status eta ctx ty m mn codata_args fields tyargs fld cdf prev_etm tms ctms etms
         errs
-  | (fld, cdf) :: fields, Kinetic _ ->
+  | Entry (fld, cdf) :: fields, Kinetic _ ->
       let prev_etm = unless_error str errs in
       check_field status eta ctx ty m mn codata_args fields tyargs fld cdf prev_etm tms ctms etms
         errs
 
 and check_field :
-    type a b c d s m n mn i r.
+    type a b c d s m n mn i r et.
     (b, s) status ->
-    s eta ->
+    (s, et) eta ->
     (a, b) Ctx.t ->
     (* As before, the type, its dimensions, and its arguments *)
     kinetic value ->
     m D.t ->
     (m, n, mn) D.plus ->
-    (mn, m, n, d, c) codata_args ->
-    (Field.t * (c, n) Term.codatafield) list ->
+    (mn, m, n, d, c, et) codata_args ->
+    (c * n * et) Term.CodatafieldAbwd.entry list ->
     (D.zero, mn, mn, normal) TubeOf.t ->
     (* The field being checked, by name and by data from the codatatype *)
-    Field.t ->
-    (c, n) Term.codatafield ->
+    i Field.t ->
+    (i, c * n * et) Term.Codatafield.t ->
     (* The up-until-now term being checked *)
     (kinetic value, Code.t) Result.t ->
     (* As before, user terms, checked terms, value terms, and errors *)
-    ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
-    (Field.t, (m, b, s) Term.structfield) Abwd.t ->
-    (Field.t, (m, s) Value.structfield) Abwd.t ->
+    ((string * string Bwd.t) option, a check located) Abwd.t ->
+    (m * b * s * et) Term.StructfieldAbwd.t ->
+    (m * s * et) Value.StructfieldAbwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
-    ((Field.t * string Bwd.t) option, a check located) Abwd.t
-    * (Field.t, (m, b, s) Term.structfield) Abwd.t =
+    ((string * string Bwd.t) option, a check located) Abwd.t
+    * (m * b * s * et) Term.StructfieldAbwd.t =
  fun status eta ctx ty m mn ({ env; termctx; _ } as codata_args) fields tyargs fld cdf prev_etm tms
      ctms etms errs ->
   match (cdf, status, eta, termctx) with
-  | Lower_codatafield fldty, _, _, _ ->
+  | Lower fldty, _, _, _ ->
       let ins = ins_zero m in
       let mkstatus lbl : (b, s) status -> (b, s) status = function
         | Kinetic l -> Kinetic l
         | Potential (c, args, hyp) ->
             let args = Snoc (args, App (Field (fld, D.plus_zero m), ins)) in
             let hyp tm =
-              let ctms = Snoc (ctms, (fld, Lower_structfield (tm, lbl))) in
+              let ctms = Snoc (ctms, Entry (fld, Lower (tm, lbl))) in
               hyp (Term.Struct (eta, m, ctms, energy status)) in
             Potential (c, args, hyp) in
-      let key = Some (fld, Bwd.Emp) in
+      let key = Some (Field.to_string fld, Bwd.Emp) in
       let tm, tms, lbl =
         match Abwd.find_opt key tms with
         | Some tm -> (tm, tms, `Labeled)
@@ -1770,22 +1773,20 @@ and check_field :
         (* We don't need the error-checking of tyof_field, since we are getting our fields directly from the codatatype definition and so we already know that they have the right dimensions.  So we can call directly into the helper function tyof_lower_codatafield.  Note that we pass it prev_etm, env, and tyargs that consist of values in the old context, but the return value ety is in the new degenerated context. *)
         let ety = tyof_lower_codatafield prev_etm fld fldty env tyargs m mn in
         let ctm = check (mkstatus lbl status) ctx tm ety in
-        let etms = Abwd.add fld (Lower_structfield (lazy_eval (Ctx.env ctx) ctm, lbl)) etms in
-        let ctms = Snoc (ctms, (fld, Lower_structfield (ctm, lbl))) in
+        let etms = Snoc (etms, Entry (fld, Lower (lazy_eval (Ctx.env ctx) ctm, lbl))) in
+        let ctms = Snoc (ctms, Entry (fld, Lower (ctm, lbl))) in
         (etms, ctms, errs) in
       check_fields status eta ctx ty m mn codata_args fields tyargs tms ctms etms errs
-  | Higher_codatafield (i, ic0, fldty), Potential _, Noeta, (lazy (Some termctx)) ->
+  | Higher (ic0, fldty), Potential _, Noeta, (lazy (Some termctx)) ->
       let Eq = D.plus_uniq mn (D.plus_zero m) in
-      let i = D.pos i in
+      let i = Field.dim fld in
       check_higher_field status ctx ty m i codata_args fields termctx tyargs tms ctms etms errs fld
         (PlusPbijmap.build m i { build = (fun _ -> PlusFam None) })
         (InsmapOf.build m i { build = (fun _ -> None) })
         (all_pbij_between m i) prev_etm ic0 fldty
-  | Higher_codatafield _, Kinetic _, _, _ ->
-      fatal (Anomaly "higher codatafield in kinetic checking")
-  | Higher_codatafield _, _, Eta, _ -> fatal (Anomaly "higher codatafield in eta checking")
-  | Higher_codatafield _, Potential _, _, (lazy None) ->
+  | Higher _, Potential _, _, (lazy None) ->
       fatal (Anomaly "missing termctx in codatatype with higher fields")
+  | Higher _, Kinetic _, _, _ -> .
 
 and check_higher_field :
     type a b c d m i r ic0.
@@ -1796,17 +1797,17 @@ and check_higher_field :
     (* m = substitution dimension, i = intrinsic dimension *)
     m D.t ->
     i D.t ->
-    (m, m, D.zero, d, c) codata_args ->
-    (Field.t * (c, D.zero) Term.codatafield) list ->
+    (m, m, D.zero, d, c, no_eta) codata_args ->
+    (c * D.zero * no_eta) Term.CodatafieldAbwd.entry list ->
     (d, (c, D.zero) snoc) termctx ->
     (D.zero, m, m, normal) TubeOf.t ->
     (* As before, user terms, checked terms, value terms, and errors *)
-    ((Field.t * string Bwd.t) option, a check located) Abwd.t ->
-    (Field.t, (m, b, potential) Term.structfield) Abwd.t ->
-    (Field.t, (m, potential) Value.structfield) Abwd.t ->
+    ((string * string Bwd.t) option, a check located) Abwd.t ->
+    (m * b * potential * no_eta) Term.StructfieldAbwd.t ->
+    (m * potential * no_eta) Value.StructfieldAbwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
     (* Field being checked *)
-    Field.t ->
+    i Field.t ->
     (* Values of this field checked so far, as terms *)
     (m, i, b) PlusPbijmap.t ->
     (* Evaluated versions of those of them that are insertions (hence can be used) *)
@@ -1818,8 +1819,8 @@ and check_higher_field :
     (* The unevaluated type of the current field being checked. *)
     (i, (c, D.zero) snoc, ic0) Plusmap.t ->
     (ic0, kinetic) term ->
-    ((Field.t * string Bwd.t) option, a check located) Abwd.t
-    * (Field.t, (m, b, potential) Term.structfield) Abwd.t =
+    ((string * string Bwd.t) option, a check located) Abwd.t
+    * (m * b * potential * no_eta) Term.StructfieldAbwd.t =
  fun status ctx ty m intrinsic ({ env; _ } as codata_args) fields termctx tyargs tms ctms etms errs
      fld cvals evals pbijs prev_etm ic0 fldty ->
   (* We recurse through all the partial bijections that could be associated to this field name. *)
@@ -1904,21 +1905,21 @@ and check_higher_field :
                           [ etms; etys ] in
                       Value.App (Arg newarg, newins))
                 args in
-            let (Plus nk) = D.plus (cod_right_ins fldins) in
+            let (Plus ni) = D.plus intrinsic in
             (* We add the current field projection to the args, with an insertion obtained by incorporating the remaining dimensions into the evaluation. *)
             let (Plus rm) = D.plus m in
             let newins = ins_plus_of_pbij fldins fldshuf rm in
-            let args = Snoc (args, Value.App (Field (fld, nk), newins)) in
+            let args = Snoc (args, Value.App (Field (fld, ni), newins)) in
             (* To hypothesize a value for the current term, we insert the supposed value as the value of this field.  Note the context rb of the supposed value is the degenerated rb instead of the original b, but this is exactly right for the value that's supposed to go in at this pbij.  *)
             let hyp (tm : (rb, potential) term) : (aa, potential) term =
               let hsf =
-                Term.Higher_structfield (PlusPbijmap.set pbij (PlusFam (Some (plusmap, tm))) cvals)
+                Term.Structfield.Higher (PlusPbijmap.set pbij (PlusFam (Some (plusmap, tm))) cvals)
               in
-              let ctms = Snoc (ctms, (fld, hsf)) in
+              let ctms = Snoc (ctms, Entry (fld, hsf)) in
               hyp (Term.Struct (Noeta, m, ctms, energy status)) in
             Potential (head, args, hyp) in
       (* Get the user's supplied term for this partial bijection *)
-      let key = Some (fld, strings_of_pbij pbij) in
+      let key = Some (Field.to_string fld, strings_of_pbij pbij) in
       let tm, tms =
         match Abwd.find_opt key tms with
         | Some tm -> (tm, tms)
@@ -1986,10 +1987,10 @@ and check_higher_field :
       let env = Ctx.env ctx in
       let deg = id_deg (D.plus_out (dim_env env) plusdim) in
       let etms =
-        Abwd.add fld
-          (Higher_structfield { vals = evals; intrinsic; plusdim; env; deg; terms = cvals })
-          etms in
-      let ctms = Snoc (ctms, (fld, Higher_structfield cvals)) in
+        Snoc
+          (etms, Entry (fld, Higher { vals = evals; intrinsic; plusdim; env; deg; terms = cvals }))
+      in
+      let ctms = Snoc (ctms, Entry (fld, Higher cvals)) in
       check_fields status Noeta ctx ty m (D.plus_zero m) codata_args fields tyargs tms ctms etms
         errs
 
@@ -2013,11 +2014,11 @@ and synth :
         match (tm, Ctx.locked ctx) with
         | Axiom `Nonparametric, true -> fatal (Locked_axiom (PConstant name))
         | _ -> (realize status (Const name), eval_term (Emp D.zero) ty))
-    | Field (tm, fld, ins), _ ->
+    | Field (tm, fld), _ ->
         let stm, sty = synth (Kinetic `Nolet) ctx tm in
         (* To take a field of something, the type of the something must be a record-type that contains such a field, possibly substituted to a higher dimension and instantiated. *)
         let etm = eval_term (Ctx.env ctx) stm in
-        let fld, Any_ins ins, newty = tyof_field_withname (Ok etm) sty fld ctx ins in
+        let WithIns (fld, ins), newty = tyof_field_withname ctx (Ok etm) sty fld in
         (realize status (Field (stm, fld, ins)), newty)
     | UU, _ -> (realize status (Term.UU D.zero), universe D.zero)
     | Pi (x, dom, cod), _ ->

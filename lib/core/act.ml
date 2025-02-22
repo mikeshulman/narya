@@ -67,9 +67,7 @@ module Act = struct
   let rec act_value : type m n status. status value -> (m, n) deg -> status value =
    fun v s ->
     match v with
-    | Uninst (tm, (lazy ty)) ->
-        (* TODO: Why is this Lazy.from_val instead of "lazy"? *)
-        Uninst (act_uninst tm s, Lazy.from_val (act_ty v ty s))
+    | Uninst (tm, (lazy ty)) -> Uninst (act_uninst tm s, lazy (act_ty v ty s))
     | Inst { tm; dim; args; tys } ->
         let (Of fa) = deg_plus_to s (TubeOf.uninst args) ~on:"instantiation" in
         (* The action on an instantiation instantiates the same dimension j, but the leftover dimensions are now the domain of the degeneracy. *)

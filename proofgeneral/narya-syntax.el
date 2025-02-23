@@ -2,18 +2,18 @@
 
 ;; We omit "solve" and "undo" because these should NOT appear in source files.
 (defconst narya-commands
-	"\\<\\(axiom\\|def\\|echo\\|synth\\|notation\\|import\\|export\\|quit\\|show\\|section\\|end\\)\\>")
+  "\\<\\(axiom\\|def\\|echo\\|synth\\|notation\\|import\\|export\\|quit\\|show\\|section\\|end\\)\\>")
 
 ;; As noted in the PG source, the default function proof-generic-state-preserving-p is not really correct; it thinks that things like "def" are state-preserving.  These are the commands that it makes sense for PG to issue directly to the prover without their being in the file.
 (defun narya-state-preserving-p (cmd)
-	(string-match "^echo\\|synth\\|show" cmd))
+  (string-match "^echo\\|synth\\|show" cmd))
 
 (defconst narya-core-font-lock-keywords
   `(
     (,narya-commands
-    . 'font-lock-keyword-face)
+     . 'font-lock-keyword-face)
     ("\\<\\(Type\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\>"
-    . 'font-lock-constant-face)
+     . 'font-lock-constant-face)
     )
   "Narya core language font-lock keywords")
 
@@ -37,5 +37,9 @@
           '(?… ".")
           '(?⩲ ".")
           ))
-              
+
 (provide 'narya-syntax)
+
+;; Local Variables:
+;; indent-tabs-mode: nil
+;; End:

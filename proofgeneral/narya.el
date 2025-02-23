@@ -42,6 +42,33 @@ Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-
           (overlay-put ovl 'face 'narya-hole-face)
           (push ovl narya-hole-overlays))))))
 
+(defun narya-skip-comments-backwards ()
+	"Skip backwards to the last non-whitespace, non-comment character."
+	(let ((continue t)
+				(line-comment nil)
+				(block-comment nil))
+		(while (and continue (> (point) (point-min)))
+			(setq block-comment (numberp (nth 4 (syntax-ppss)))
+						line-comment (eq (nth 4 (syntax-ppss)) t))
+			(backward-char 1)
+			;; Skip all whitespace and comments
+			(unless (or (looking-at "[ \t\n]")
+									(nth 4 (syntax-ppss)))
+				;; If our new character is not a whitespace or a comment, we're going to stop unless it's the beginning of a comment.
+				(cond
+				 (block-comment (backward-char 1))
+				 (line-comment)
+				 (t (setq continue nil))))))
+	;; Move back across the non-whitespace, non-comment character we found
+	(forward-char 1))
+
+(defun narya-parse-cmdstart ()
+	"Parse a complete command, not including any comments that follow it."
+	(let ((parsed (proof-script-generic-parse-cmdstart)))
+	  (when (eq parsed 'cmd)
+	    (narya-skip-comments-backwards))
+	  parsed))
+
 (defun narya-handle-output (cmd string)
   "Parse and handle Narya's output.
 If called with an invisible command, store hole data in a global
@@ -151,6 +178,7 @@ handling in Proof General."
  
 	 ;; Commands
    proof-script-command-start-regexp     narya-commands
+	 proof-script-parse-function           'narya-parse-cmdstart
 
 	 ;; Undo
 	 proof-non-undoables-regexp            "undo"

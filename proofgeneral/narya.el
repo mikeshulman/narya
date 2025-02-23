@@ -318,8 +318,12 @@ pending hole data stored by `narya-handle-output`."
             (setq insert-start (overlay-start hole-overlay)) ;; Store start position for later use
             (setq byte-insert-start (position-bytes insert-start)) ;; Get byte-based start position
             (goto-char insert-start)
-            (delete-region (overlay-start hole-overlay) (overlay-end hole-overlay))
-            (insert "(" term ")") ;; Insert term with parentheses to guarantee correct parsing.
+						;; Insert the term and delete the hole.  We do it in this
+						;; order so that if the hole is at the very end of the
+						;; processed region, the inserted term will end up
+						;; *inside* the processed region.
+            (insert "(" term ")") ;; Use parentheses to guarantee correct parsing.
+            (delete-region (point) (overlay-end hole-overlay))
             ;; Delete the overlay for the solved hole and update the hole list.
             (delete-overlay hole-overlay)
             (setq narya-hole-overlays (delq hole-overlay narya-hole-overlays))

@@ -147,7 +147,6 @@ handling in Proof General."
 	 ;; So far, it appears that it really does work for these two to be separately disjunctive.
    proof-script-comment-start-regexp     "{`\\|`"  ;; Matches either block or line comment start
    proof-script-comment-end-regexp       "`}\\|\n" ;; Matches either block comment end or newline for line comments
-   proof-script-fly-past-comments        t         ;; Ignores comments during processing and navigation
 	 comment-quote-nested                  nil			 ;; Nested comments are allowed
  
 	 ;; Commands

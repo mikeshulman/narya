@@ -259,6 +259,9 @@
    ￫ info[I0000]
    ￮ constant braid defined
   
+   ￫ info[I0000]
+   ￮ constant braid2 defined
+  
 
   $ narya -v checksym.ny
    ￫ info[I0001]

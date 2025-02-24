@@ -115,3 +115,12 @@ def braid :
       a100 a101 a102 a110 a111 a112 a120 a121 a122
       a200 a201 a202 a210 a211 a212 a220 a221 a222)))
   ≔ refl a222⁽³²¹⁾
+
+{` Alternative notation for the braid equation `}
+
+def braid2 :
+  Id (A⁽ᵉᵉᵉ⁾ a000 a100 a200 a010 a110 a210 a020 a120 (sym a220) a001 a101 a201
+      a011 a111 a211 a021 a121 (sym a221) a002 a102 (sym a202) a012 a112
+      (sym a212) (sym a022) (sym a122))
+  a222⁽²¹³⁾⁽¹³²⁾⁽²¹³⁾ a222⁽¹³²⁾⁽²¹³⁾⁽¹³²⁾
+  ≔ refl a222⁽³²¹⁾

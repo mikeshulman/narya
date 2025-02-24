@@ -1819,13 +1819,32 @@ def t (x:A) : √ℕ ≔ [
  ￫ info[I0100]
  ￮ hole ?0 generated:
    
-   x.0 : A
-   x.1 : A
-   x.2 : refl A x.0 x.1
+   x.0 : ℕ
+   x.1 : ℕ
+   x.2 : refl ℕ x.0 x.1
    ----------------------------------------------------------------------
    ℕ
 ```
-If comatching against a higher-dimensional version of a higher coinductive type, you must give a clause for all instances of each field whose dimensions may be only *partially* specified.
+If comatching against a higher-dimensional version of a higher coinductive type, you must give a clause for all instances of each field whose dimensions may be only *partially* specified.  For instance:
+```
+def f : Id √ℕ n₀ n₁ ≔ [
+| .root.e ↦ ?
+| .root.1 ↦ ?
+]
+
+ ￫ info[I3003]
+ ￮ hole ?0:
+   
+   ----------------------------------------------------------------------
+   refl ℕ (refl n₀ .root.1) (refl n₁ .root.1)
+
+ ￫ info[I3003]
+ ￮ hole ?1:
+   
+   ----------------------------------------------------------------------
+   ℕ
+```
+In other words, `Id √ℕ n₀ n₁` behaves like a higher coinductive type itself, which has one *ordinary* field `root.1` and one *higher* (1-dimensional) field `root.e`.  Similarly, instances of `Id (Id √ℕ)` are higher coinductive types with two ordinary fields `root.1` and `root.2` and one higher field `root.e`, and so on.
 
 
 ### Parametrically discrete types

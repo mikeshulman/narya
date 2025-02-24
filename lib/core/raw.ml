@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Dim
 include Energy
@@ -107,7 +106,7 @@ module Make (I : Indices) = struct
     | Var : 'a index -> 'a synth
     | Const : Constant.t -> 'a synth
     (* A field projection from a possibly-higher-coinductive type comes with a suffix that is a string of integers, denoting a partial bijection between n and m that is total on n.  This is the same as an injection from n to m, or equivalently an insertion of n into m∖l to produce m, where l = image(n). *)
-    | Field : 'a synth located * [ `Name of string * int Bwd.t | `Int of int ] -> 'a synth
+    | Field : 'a synth located * [ `Name of string * int list | `Int of int ] -> 'a synth
     | Pi : I.name * 'a check located * 'a I.suc check located -> 'a synth
     | App : 'a synth located * 'a check located -> 'a synth
     | Asc : 'a check located * 'a check located -> 'a synth
@@ -134,7 +133,7 @@ module Make (I : Indices) = struct
     | Synth : 'a synth -> 'a check
     | Lam : I.name located * [ `Cube | `Normal ] * 'a I.suc check located -> 'a check
     (* A "Struct" is our current name for both tuples and comatches, which share a lot of their implementation even though they are conceptually and syntactically distinct.  Those with eta=`Eta are tuples, those with eta=`Noeta are comatches.  We index them by an option so as to include any unlabeled fields, with their relative order to the labeled ones.  The field hasn't been interned to an intrinsic dimension yet (that depends on what it checks against), so it's just a string name, plus a list of strings to indicate a pbij for higher fields. *)
-    | Struct : ('s, 'et) eta * ((string * string Bwd.t) option, 'a check located) Abwd.t -> 'a check
+    | Struct : ('s, 'et) eta * ((string * string list) option, 'a check located) Abwd.t -> 'a check
     | Constr : Constr.t located * 'a check located list -> 'a check
     (* "[]", which could be either an empty pattern-matching lambda or an empty comatch *)
     | Empty_co_match : 'a check

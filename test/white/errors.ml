@@ -130,7 +130,7 @@ let () =
   let gg' = assume "gg'" symr2ty in
   let _ =
     unsynth ~print:() "gg' .ungel"
-      ~code:(No_such_field (`Degenerated_record Eta, `Strings ("ungel", Emp))) in
+      ~code:(No_such_field (`Degenerated_record Eta, `Strings ("ungel", []))) in
 
   (* Cube variables *)
   let () = uncheck ~print:() "x ↦ x.0" atoa ~short:"E0506" in

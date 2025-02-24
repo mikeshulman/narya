@@ -171,8 +171,8 @@ and process_apply :
   | (Term { value = Field (fld, pbij, _); _ }, loc) :: args -> (
       try
         let fld =
-          try `Int (int_of_string fld)
-          with Failure _ -> `Name (fld, Bwd_extra.of_list_map int_of_string pbij) in
+          try `Int (int_of_string fld) with Failure _ -> `Name (fld, List.map int_of_string pbij)
+        in
         process_apply ctx { value = Field (fn, fld); loc } args
       with Failure _ -> fatal (Invalid_field (String.concat "." ("" :: fld :: pbij))))
   | (Term arg, loc) :: args -> process_apply ctx { value = Raw.App (fn, process ctx arg); loc } args

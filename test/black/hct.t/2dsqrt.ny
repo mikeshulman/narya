@@ -38,7 +38,7 @@ axiom s222 : √√A⁽ᵉᵉᵉ⁾
   s100 s101 s102 s110 s111 s112 s120 s121 s122
   s200 s201 s202 s210 s211 s212 s220 s221
 
-{` Here are the six fields, with their six different types.  Note that they all compute to .rroot.23 of a symmetrized s222. `}
+{` Here are the six fields, with their six different types.  Note that they all compute to .rroot.12 of a symmetrized s222. `}
 echo s222 .rroot.12
 echo s222 .rroot.13
 echo s222 .rroot.23

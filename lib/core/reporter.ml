@@ -64,7 +64,7 @@ module Code = struct
     | Missing_field_in_tuple : 'i Field.t * ('e, 'i, 'r) pbij option -> t
     | Missing_method_in_comatch : 'i Field.t * ('e, 'i, 'r) pbij option -> t
     | Extra_field_in_tuple : string option -> t
-    | Extra_method_in_comatch : (string * string Bwd.t) -> t
+    | Extra_method_in_comatch : (string * string list) -> t
     | Invalid_field_in_tuple : t
     | Duplicate_field_in_tuple : string -> t
     | Duplicate_method_in_codata : 'i Field.t -> t
@@ -89,13 +89,13 @@ module Code = struct
         (* We don't require the i's to match, since that might be part of the error. *)
         * [ `Ins of 'i Field.t * ('n, 't, 'i2) insertion
           | `Pbij of 'i Field.t * ('n, 'i, 'r) pbij
-          | `Strings of string * int Bwd.t
+          | `Strings of string * int list
           | `Int of int ]
         -> t
     | Wrong_dimension_of_field :
-        printable * [ `Strings of string * int Bwd.t | `Int of int ] * 'intrinsic D.t * 'used D.t
+        printable * [ `Strings of string * int list | `Int of int ] * 'intrinsic D.t * 'used D.t
         -> t
-    | Invalid_field_suffix : printable * string * int Bwd.t * 'evaluation D.t -> t
+    | Invalid_field_suffix : printable * string * int list * 'evaluation D.t -> t
     | Missing_instantiation_constructor :
         Constr.t * [ `Constr of Constr.t | `Nonconstr of printable ]
         -> t
@@ -510,8 +510,7 @@ module Code = struct
         | Some f -> textf "field '%s' in tuple doesn't occur in record type" f
         | None -> text "too many un-labeled fields in tuple")
     | Extra_method_in_comatch (f, p) ->
-        textf "method '%s' in comatch doesn't occur in codata type"
-          (String.concat "." (f :: Bwd.to_list p))
+        textf "method '%s' in comatch doesn't occur in codata type" (String.concat "." (f :: p))
     | Invalid_field_in_tuple -> text "invalid field in tuple"
     | Invalid_method_in_comatch -> text "invalid method in comatch"
     | Duplicate_field_in_tuple f -> textf "record field '%s' appears more than once in tuple" f
@@ -782,7 +781,7 @@ let struct_at_degenerated_type : type s et. (s, et) eta -> printable -> Code.t =
   | Eta -> Checking_tuple_at_degenerated_record name
   | Noeta -> Comatching_at_degenerated_codata name
 
-let extra_field_in_struct : type s et i. (s, et) eta -> string * string Bwd.t -> Code.t =
+let extra_field_in_struct : type s et i. (s, et) eta -> string * string list -> Code.t =
  fun eta fld ->
   match eta with
   | Eta -> Extra_field_in_tuple (Some (fst fld))

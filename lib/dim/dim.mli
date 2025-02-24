@@ -539,9 +539,9 @@ val pface_lift_ins : ('m, 'n) pface -> ('nk, 'n, 'k) insertion -> ('m, 'k, 'nk) 
 
 type _ ins_of = Ins_of : ('ab, 'a, 'b) insertion -> 'ab ins_of
 
-val ins_of_ints : 'ab D.t -> int Bwd.t -> 'ab ins_of option
-val ints_of_ins : ('ab, 'a, 'b) insertion -> int Bwd.t
-val string_of_ins_ints : int Bwd.t -> string
+val ins_of_ints : 'ab D.t -> int list -> 'ab ins_of option
+val ints_of_ins : ('ab, 'a, 'b) insertion -> int list
+val string_of_ins_ints : int list -> string
 val string_of_ins : ('ab, 'a, 'b) insertion -> string
 
 type any_ins = Any_ins : ('a, 'b, 'c) insertion -> any_ins
@@ -673,10 +673,10 @@ val pbij_of_ins : ('a, 'b, 'c) insertion -> ('a, 'c, D.zero) pbij
 
 type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic, 'remaining) pbij -> 'evaluation pbij_of
 
-val pbij_of_int_strings : 'e D.t -> [ `Int of int | `Str of string ] Bwd.t -> 'e pbij_of option
-val pbij_of_strings : 'e D.t -> string Bwd.t -> 'e pbij_of option
-val int_strings_of_pbij : ('n, 'i, 'r) pbij -> [ `Int of int | `Str of string ] Bwd.t
-val strings_of_pbij : ('n, 'i, 'r) pbij -> string Bwd.t
+val pbij_of_int_strings : 'e D.t -> [ `Int of int | `Str of string ] list -> 'e pbij_of option
+val pbij_of_strings : 'e D.t -> string list -> 'e pbij_of option
+val int_strings_of_pbij : ('n, 'i, 'r) pbij -> [ `Int of int | `Str of string ] list
+val strings_of_pbij : ('n, 'i, 'r) pbij -> string list
 val string_of_pbij : ('n, 'i, 'r) pbij -> string
 
 type (_, _) pbij_between =

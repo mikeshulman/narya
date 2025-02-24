@@ -168,7 +168,7 @@ let rec get_spine :
     type b n.
     (n, kinetic) term ->
     [ `App of (n, kinetic) term * (n, kinetic) term Bwd.t
-    | `Field of (n, kinetic) term * string * int Bwd.t * (n, kinetic) term Bwd.t ] =
+    | `Field of (n, kinetic) term * string * int list * (n, kinetic) term Bwd.t ] =
  fun tm ->
   match tm with
   | App (fn, arg) -> (
@@ -319,7 +319,7 @@ and unparse_spine :
     n Names.t ->
     [ `Term of (n, kinetic) term
     | `Constr of Constr.t
-    | `Field of (n, kinetic) term * string * int Bwd.t
+    | `Field of (n, kinetic) term * string * int list
     | `Degen of string
     | `Unparser of unparser ] ->
     unparser Bwd.t ->
@@ -375,7 +375,7 @@ and unparse_field :
     n Names.t ->
     (n, kinetic) term ->
     string ->
-    int Bwd.t ->
+    int list ->
     (lt, ls) Interval.tt ->
     (rt, rs) Interval.tt ->
     (lt, ls, rt, rs) parse located =
@@ -386,11 +386,11 @@ and unparse_field :
       match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
           let fn = unparse vars tm li Interval.plus_omega_only in
-          let arg = unlocated (Field (fld, Bwd_extra.to_list_map string_of_int ins, [])) in
+          let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
           let fn = unparse vars tm Interval.plus_omega_only Interval.plus_omega_only in
-          let arg = unlocated (Field (fld, Bwd_extra.to_list_map string_of_int ins, [])) in
+          let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
           parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))

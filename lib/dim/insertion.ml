@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Tlist
 open Signatures
@@ -190,17 +189,17 @@ let rec pface_lift_ins :
 (* Construct an insertion from a domain and a list of numbers. *)
 type _ ins_of = Ins_of : ('ab, 'a, 'b) insertion -> 'ab ins_of
 
-let rec ins_of_ints : type ab. ab D.t -> int Bwd.t -> ab ins_of option =
+let rec ins_of_ints : type ab. ab D.t -> int list -> ab ins_of option =
  fun ab ns ->
   match ns with
-  | Emp -> Some (Ins_of (Zero ab))
-  | Snoc (ns, n) -> (
-      match (ab, N.index_of_int ab (N.to_int ab - n)) with
+  | [] -> Some (Ins_of (Zero ab))
+  | n :: ns -> (
+      match (ab, N.index_of_int ab (n - 1)) with
       | Nat (Suc ab), Some ix -> (
           let ab = N.Nat ab in
           try
             let ns =
-              Bwd.map
+              List.map
                 (fun i ->
                   if i < n then i
                   else if i > n then i - 1
@@ -214,15 +213,15 @@ let rec ins_of_ints : type ab. ab D.t -> int Bwd.t -> ab ins_of option =
       | _, None -> None)
 
 (* Conversely, display an insertion as a list of numbers. *)
-let rec ints_of_ins : type ab a b. (ab, a, b) insertion -> int Bwd.t = function
-  | Zero _ -> Emp
+let rec ints_of_ins : type ab a b. (ab, a, b) insertion -> int list = function
+  | Zero _ -> []
   | Suc (ins, ix) ->
-      let x = N.to_int (dom_ins ins) + 1 - N.int_of_index (N.index_of_insert ix) in
-      Snoc (Bwd.map (fun i -> if i >= x then i + 1 else i) (ints_of_ins ins), x)
+      let x = N.int_of_index (N.index_of_insert ix) + 1 in
+      x :: List.map (fun i -> if i >= x then i + 1 else i) (ints_of_ins ins)
 
-let string_of_ins_ints : int Bwd.t -> string =
+let string_of_ins_ints : int list -> string =
  fun ints ->
-  let strs = Bwd_extra.to_list_map string_of_int ints in
+  let strs = List.map string_of_int ints in
   if List.is_empty strs then ""
   else if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
     ".." ^ String.concat "." strs

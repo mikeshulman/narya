@@ -195,9 +195,7 @@ let rec check : type a. formatter -> a check -> unit =
       fprintf ppf "Struct(";
       Mbwd.miter
         (fun [ (f, (x : a check Asai.Range.located)) ] ->
-          let f =
-            Option.fold ~some:(fun (f, ps) -> String.concat "." (f :: Bwd.to_list ps)) ~none:"_" f
-          in
+          let f = Option.fold ~some:(fun (f, ps) -> String.concat "." (f :: ps)) ~none:"_" f in
           fprintf ppf "%s ≔ %a, " f check x.value)
         [ flds ];
       fprintf ppf ")"
@@ -228,9 +226,9 @@ and synth : type a. formatter -> a synth -> unit =
       fprintf ppf "Field(%a, %s)" synth tm.value
         (match fld with
         | `Name (f, p) ->
-            if Bwd.exists (fun i -> i > 9) p then
-              "." ^ f ^ ".." ^ String.concat "." (Bwd_extra.to_list_map string_of_int p)
-            else "." ^ f ^ "." ^ String.concat "" (Bwd_extra.to_list_map string_of_int p)
+            if List.exists (fun i -> i > 9) p then
+              "." ^ f ^ ".." ^ String.concat "." (List.map string_of_int p)
+            else "." ^ f ^ "." ^ String.concat "" (List.map string_of_int p)
         | `Int i -> "." ^ string_of_int i)
   | Pi (_, _, _) -> fprintf ppf "Pi(?)"
   | App (fn, arg) -> fprintf ppf "App(%a, %a)" synth fn.value check arg.value

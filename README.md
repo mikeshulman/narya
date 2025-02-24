@@ -1760,12 +1760,12 @@ x22 : √ℕ⁽ᵉᵉ⁾ x00 x01 x02 x10 x11 x12 x20 x21
 ```
 with `x00` through `x21` of appropriate types, then the two projectable fields of `x22` and their types are
 ```
-x22 .root.1 : refl A (x02 .root.1) (x12 .root.1)
-x22 .root.2 : refl A (x20 .root.1) (x21 .root.1)
+x22 .root.1 : refl A (x20 .root.1) (x21 .root.1)
+x22 .root.2 : refl A (x02 .root.1) (x12 .root.1)
 ```
-Unsurprisingly, these two fields are related by symmetry: `x22 .root.2` is equal to `(sym x22) .root.1` and vice versa.  To implement this equality, in fact `x22 .root.1` computes to `(sym x22) .root.2`.  (I don't know of a principled reason for a computation of this sort to go in one direction rather than the other; the present direction was just easier to implement.)  Recall also that `sym x⁽ᵉᵉ⁾ = x⁽ᵉᵉ⁾`, from which it follows that `x⁽ᵉᵉ⁾ .root.1 = x⁽ᵉᵉ⁾ .root.2`.
+Unsurprisingly, these two fields are related by symmetry: `x22 .root.2` is equal to `(sym x22) .root.1` and vice versa.  To implement this equality, in fact `x22 .root.2` computes to `(sym x22) .root.1`.  (I don't know of a principled reason for a computation of this sort to go in one direction rather than the other; the present direction was just easier to implement.)  Recall also that `sym x⁽ᵉᵉ⁾ = x⁽ᵉᵉ⁾`, from which it follows that `x⁽ᵉᵉ⁾ .root.1 = x⁽ᵉᵉ⁾ .root.2`.
 
-In general, a 1-dimensional field like `root` induces *n* fields of an *n*-dimenional version of a higher codatatype, distinguished by numerical suffixes from 1 to *n*.  A 2-dimensional field, defined in the `codata` declaration as `.field.ee`, induces (*n*)(*n*-1) fields of the *n*-dimensional version of the type, distinguished by numerical suffixes consisting of pairs of digits each from 1 to *n*.  For instance, when *n*=3 the six fields are `.field.12`, `.field.13`, `.field.23`, `.field.21`, `.field.32`, and `.field.31`.  As in the 1-dimensional case, all six of these fields are permuted by the symmetry operations acting on the object being projected, and to implement this equality all six of them compute to `.field.23` of a symmetrized input.
+In general, a 1-dimensional field like `root` induces *n* fields of an *n*-dimenional version of a higher codatatype, distinguished by numerical suffixes from 1 to *n*.  A 2-dimensional field, defined in the `codata` declaration as `.field.ee`, induces (*n*)(*n*-1) fields of the *n*-dimensional version of the type, distinguished by numerical suffixes consisting of pairs of digits each from 1 to *n*.  For instance, when *n*=3 the six fields are `.field.12`, `.field.13`, `.field.23`, `.field.21`, `.field.32`, and `.field.31`.  As in the 1-dimensional case, all six of these fields are permuted by the symmetry operations acting on the object being projected, and to implement this equality all six of them compute to `.field.12` of a symmetrized input.
 
 If any of the numbers goes above `9`, then the suffix can start instead with `..` and the numbers be separated by additional periods.  In other words, `.field.12` is equivalent to `.field..1.2` but in the latter notation `1` and `2` can also be multi-digit numbers.  Whereas, the twelfth field of a 12-dimensional version of a higher codatatype induced by a 1-dimensional field can be written `.field..12`.
 

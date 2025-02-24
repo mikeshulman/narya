@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Tlist
 open Signatures
@@ -29,16 +28,16 @@ type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic, 'remaining) pbij -> 'evalua
 
 (* A partial bijection from a given 'evaluation dimension can be represented by a list of integers and direction strings.  The length of the list is the codomain 'intrinsic.  The integers in the list represent 'shared and the strings represent 'remaining, with their positions in the list giving the shuffle, and the values of the integers specifying where to insert them (into some dimension 'result) to produce 'evaluation. *)
 let rec pbij_of_int_strings :
-    type e. e D.t -> [ `Int of int | `Str of string ] Bwd.t -> e pbij_of option =
+    type e. e D.t -> [ `Int of int | `Str of string ] list -> e pbij_of option =
  fun e strs ->
   match strs with
-  | Emp -> Some (Pbij_of (Pbij (ins_zero e, Zero)))
-  | Snoc (strs, `Int n) -> (
-      match (e, N.index_of_int e (N.to_int e - n)) with
+  | [] -> Some (Pbij_of (Pbij (ins_zero e, Zero)))
+  | `Int n :: strs -> (
+      match (e, N.index_of_int e (n + 1)) with
       | Nat (Suc e), Some ix -> (
           let e = N.Nat e in
           let strs =
-            Bwd.map
+            List.map
               (function
                 | `Int i ->
                     if i < n then `Int i
@@ -52,41 +51,40 @@ let rec pbij_of_int_strings :
           | None -> None)
       | Nat Zero, Some _ -> .
       | _, None -> None)
-  | Snoc (strs, `Str str) when str = Endpoints.refl_string () -> (
+  | `Str str :: strs when str = Endpoints.refl_string () -> (
       match pbij_of_int_strings e strs with
       | Some (Pbij_of (Pbij (ins, shuf))) -> Some (Pbij_of (Pbij (ins, Left shuf)))
       | None -> None)
-  | Snoc (_, `Str _) -> None
+  | `Str _ :: _ -> None
 
-let pbij_of_strings : type e. e D.t -> string Bwd.t -> e pbij_of option =
+let pbij_of_strings : type e. e D.t -> string list -> e pbij_of option =
  fun e strs ->
   pbij_of_int_strings e
-    (Bwd.map
+    (List.map
        (fun x ->
          match int_of_string_opt x with
          | Some i -> `Int i
          | None -> `Str x)
        strs)
 
-let rec int_strings_of_pbij : type n i r. (n, i, r) pbij -> [ `Int of int | `Str of string ] Bwd.t =
+let rec int_strings_of_pbij : type n i r. (n, i, r) pbij -> [ `Int of int | `Str of string ] list =
  fun (Pbij (ins, shuf)) ->
   match shuf with
-  | Zero -> Emp
-  | Left shuf -> Snoc (int_strings_of_pbij (Pbij (ins, shuf)), `Str (Endpoints.refl_string ()))
+  | Zero -> []
+  | Left shuf -> `Str (Endpoints.refl_string ()) :: int_strings_of_pbij (Pbij (ins, shuf))
   | Right shuf ->
       let (Suc (ins, ix)) = ins in
-      let x = N.to_int (dom_ins ins) + 1 - N.int_of_index (N.index_of_insert ix) in
-      Snoc
-        ( Bwd.map
-            (function
-              | `Int i -> if i >= x then `Int (i + 1) else `Int i
-              | `Str str -> `Str str)
-            (int_strings_of_pbij (Pbij (ins, shuf))),
-          `Int x )
+      let x = N.int_of_index (N.index_of_insert ix) + 1 in
+      `Int x
+      :: List.map
+           (function
+             | `Int i -> if i >= x then `Int (i + 1) else `Int i
+             | `Str str -> `Str str)
+           (int_strings_of_pbij (Pbij (ins, shuf)))
 
-let strings_of_pbij : type n i r. (n, i, r) pbij -> string Bwd.t =
+let strings_of_pbij : type n i r. (n, i, r) pbij -> string list =
  fun pbij ->
-  Bwd.map
+  List.map
     (function
       | `Str s -> s
       | `Int i -> string_of_int i)
@@ -95,7 +93,7 @@ let strings_of_pbij : type n i r. (n, i, r) pbij -> string Bwd.t =
 (* When representing that as a single string, we run all the integers and direction strings together with a single prefix . if the integers are all one-digit, otherwise we separate them by .s with a prefix .. *)
 let string_of_pbij : type n i r. (n, i, r) pbij -> string =
  fun pbij ->
-  let strs = Bwd.to_list (strings_of_pbij pbij) in
+  let strs = strings_of_pbij pbij in
   if List.is_empty strs then ""
   else if List.fold_right (fun s m -> max (String.length s) m) strs 0 > 1 then
     ".." ^ String.concat "." strs

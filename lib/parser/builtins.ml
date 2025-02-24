@@ -581,7 +581,7 @@ let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
 let rec process_tuple :
     type n.
     bool ->
-    ((string * string Bwd.t) option, n check located) Abwd.t ->
+    ((string * string list) option, n check located) Abwd.t ->
     StringSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
@@ -600,7 +600,7 @@ let rec process_tuple :
           else
             process_tuple false
               (* Tuples have no higher fields, so the bwd of strings labeling a dimension is always empty. *)
-              (Abwd.add (Some (fld, Bwd.Emp)) tm flds)
+              (Abwd.add (Some (fld, [])) tm flds)
               (StringSet.add fld found) ctx obs loc ws
       | [ Term { value = Placeholder _; _ }; Term tm ] ->
           let tm = process ctx tm in
@@ -747,7 +747,7 @@ let () =
 
 let rec process_comatch :
     type n.
-    ((string * string Bwd.t) option, n check located) Abwd.t * StringsSet.t ->
+    ((string * string list) option, n check located) Abwd.t * StringsSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -762,7 +762,7 @@ let rec process_comatch :
         fatal ?loc:fldloc (Duplicate_method_in_comatch (fld, pbij))
       else
         process_comatch
-          (Abwd.add (Some (fld, Bwd.of_list pbij)) tm flds, StringsSet.add (fld, pbij) found)
+          (Abwd.add (Some (fld, pbij)) tm flds, StringsSet.add (fld, pbij) found)
           ctx obs loc
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for comatch")
 

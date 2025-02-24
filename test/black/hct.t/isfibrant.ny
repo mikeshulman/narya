@@ -33,7 +33,7 @@ def inverse (A : Fib) (x y : A .t) (p : Id (A .t) x y)
 def transport2 (A : Type) (B : A → Fib) (x y : A) (p q : Id A x y)
   (r : Id (Id A x y) p q) (b : B x .t)
   : Id (B y .t) (transport A B x y p b) (transport A B x y q b)
-  ≔ B⁽ᵉᵉ⁾ x x (refl x) y y (refl y) p q r .f .id.1
+  ≔ B⁽ᵉᵉ⁾ x x (refl x) y y (refl y) p q r .f .id.2
        b (transport A B x y p b) (refl B x y p .f .liftr.1 b)
        b (transport A B x y q b) (refl B x y q .f .liftr.1 b)
        .trr.1 (refl b)
@@ -43,16 +43,16 @@ def refl_transport_1 (A : Type) (B : A → Fib)
   (x₀₀ x₀₁ : A) (x₀₂ : Id A x₀₀ x₀₁) (x₁₀ x₁₁ : A) (x₁₂ : Id A x₁₀ x₁₁)
   (x₂₀ : Id A x₀₀ x₁₀) (x₂₁ : Id A x₀₁ x₁₁)
   (x₂₂ : Id (Id A) x₀₀ x₀₁ x₀₂ x₁₀ x₁₁ x₁₂ x₂₀ x₂₁)
-  (y₀ : B x₀₀ .t) (y₁ : B x₁₀ .t) (y₂ : Id B x₀₀ x₁₀ x₂₀ .t y₀ y₁)
-  : Id B x₀₁ x₁₁ x₂₁ .t (transport A B x₀₀ x₀₁ x₀₂ y₀) (transport A B x₁₀ x₁₁ x₁₂ y₁)
+  (y₀ : B x₀₀ .t) (y₁ : B x₀₁ .t) (y₂ : Id B x₀₀ x₀₁ x₀₂ .t y₀ y₁)
+  : Id B x₁₀ x₁₁ x₁₂ .t (transport A B x₀₀ x₁₀ x₂₀ y₀) (transport A B x₀₁ x₁₁ x₂₁ y₁)
   ≔ Id (Id B) x₀₀ x₀₁ x₀₂ x₁₀ x₁₁ x₁₂ x₂₀ x₂₁ x₂₂ .f .trr.1 y₀ y₁ y₂
 
 def refl_transport_2 (A : Type) (B : A → Fib)
   (x₀₀ x₀₁ : A) (x₀₂ : Id A x₀₀ x₀₁) (x₁₀ x₁₁ : A) (x₁₂ : Id A x₁₀ x₁₁)
   (x₂₀ : Id A x₀₀ x₁₀) (x₂₁ : Id A x₀₁ x₁₁)
   (x₂₂ : Id (Id A) x₀₀ x₀₁ x₀₂ x₁₀ x₁₁ x₁₂ x₂₀ x₂₁)
-  (y₀ : B x₀₀ .t) (y₁ : B x₀₁ .t) (y₂ : Id B x₀₀ x₀₁ x₀₂ .t y₀ y₁)
-  : Id B x₁₀ x₁₁ x₁₂ .t (transport A B x₀₀ x₁₀ x₂₀ y₀) (transport A B x₀₁ x₁₁ x₂₁ y₁)
+  (y₀ : B x₀₀ .t) (y₁ : B x₁₀ .t) (y₂ : Id B x₀₀ x₁₀ x₂₀ .t y₀ y₁)
+  : Id B x₀₁ x₁₁ x₂₁ .t (transport A B x₀₀ x₀₁ x₀₂ y₀) (transport A B x₁₀ x₁₁ x₁₂ y₁)
   ≔ Id (Id B) x₀₀ x₀₁ x₀₂ x₁₀ x₁₁ x₁₂ x₂₀ x₂₁ x₂₂ .f .trr.2 y₀ y₁ y₂
 
 {` Two-dimensional globular identity types (which compute to squares with refl on two sides). `}
@@ -118,7 +118,7 @@ def Jβ (A : Fib) (a : A .t) (P : (y : A .t) → Id (A .t) a y → Fib)
 	   let c ≔ cube .liftr.1 a⁽ᵉᵉ⁾ in
      P⁽ᵉᵉ⁾ a a (refl a) a a (refl a) (refl a) q (sym t)
        (refl a) (refl a) a⁽ᵉᵉ⁾ (refl a) (refl a) a⁽ᵉᵉ⁾ a⁽ᵉᵉ⁾ (sym s)
-       c⁽³²¹⁾ .f .id.1
+       c⁽³²¹⁾ .f .id.2
        pa pa (refl pa)
        pa (J A a P pa a (refl a))
           (refl P a a q (refl a) (refl a) (sym s) .f .liftr.1 pa)

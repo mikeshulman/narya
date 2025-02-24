@@ -44,25 +44,25 @@
    ￫ info[I0001]
    ￮ axiom s22 assumed
   
-  sym s22 .root.2
-    : refl A (s02 .root.1) (s12 .root.1)
-  
-  s22 .root.2
+  s22 .root.1
     : refl A (s20 .root.1) (s21 .root.1)
   
-  s2⁽¹ᵉ⁾ .root.2
+  sym s22 .root.1
+    : refl A (s02 .root.1) (s12 .root.1)
+  
+  refl s2 .root.1
+    : refl A (s2 .root.1) (s2 .root.1)
+  
+  s2⁽ᵉ¹⁾ .root.1
     : refl A (refl s0 .root.1) (refl s1 .root.1)
   
-  refl s2 .root.2
+  refl s2 .root.1
     : refl A (s2 .root.1) (s2 .root.1)
   
-  refl s2 .root.2
-    : refl A (s2 .root.1) (s2 .root.1)
-  
-  s0⁽ᵉᵉ⁾ .root.2
+  s0⁽ᵉᵉ⁾ .root.1
     : refl A (refl s0 .root.1) (refl s0 .root.1)
   
-  s0⁽ᵉᵉ⁾ .root.2
+  s0⁽ᵉᵉ⁾ .root.1
     : refl A (refl s0 .root.1) (refl s0 .root.1)
   
    ￫ info[I0001]
@@ -113,11 +113,11 @@
    ￫ info[I0001]
    ￮ axiom t22 assumed
   
-  refl f t00 t01 t02 t10 t11 t12 t20 t21 t22
-    : refl A (f t00 t10 t20) (f t01 t11 t21)
-  
   refl f t00 t10 t20 t01 t11 t21 t02 t12 (sym t22)
     : refl A (f t00 t01 t02) (f t10 t11 t12)
+  
+  refl f t00 t01 t02 t10 t11 t12 t20 t21 t22
+    : refl A (f t00 t10 t20) (f t01 t11 t21)
   
    ￫ info[I0001]
    ￮ axiom a assumed
@@ -140,11 +140,11 @@
   a
     : A
   
+  refl f b0 b1 b2 b0 b1 b2 (refl b0) (refl b1) b2⁽ᵉ¹⁾
+    : refl A (f b0 b0 (refl b0)) (f b1 b1 (refl b1))
+  
   refl a
     : refl A a a
-  
-  refl f b0 b1 b2 b0 b1 b2 (refl b0) (refl b1) b2⁽¹ᵉ⁾
-    : refl A (f b0 b0 (refl b0)) (f b1 b1 (refl b1))
   
    ￫ info[I0000]
    ￮ constant ID defined
@@ -227,11 +227,11 @@
    ￫ info[I0001]
    ￮ axiom u22 assumed
   
-  sym u22 .root.2
-    : refl ID A A (refl A) (u02 .root.1) (u12 .root.1)
-  
-  u22 .root.2
+  u22 .root.1
     : refl ID A A (refl A) (u20 .root.1) (u21 .root.1)
+  
+  sym u22 .root.1
+    : refl ID A A (refl A) (u02 .root.1) (u12 .root.1)
   
    ￫ info[I0000]
    ￮ constant u22' defined, containing 3 holes
@@ -241,9 +241,9 @@
      
      ----------------------------------------------------------------------
      ID⁽ᵉᵉ⁾ A A (refl A) A A (refl A) (refl A) (refl A) A⁽ᵉᵉ⁾
-       (refl u00 .root.1) (refl u01 .root.1) (u02⁽¹ᵉ⁾ .root.2)
-       (refl u10 .root.1) (refl u11 .root.1) (u12⁽¹ᵉ⁾ .root.2)
-       (u20⁽¹ᵉ⁾ .root.2) (u21⁽¹ᵉ⁾ .root.2)
+       (refl u00 .root.1) (refl u01 .root.1) (u02⁽ᵉ¹⁾ .root.1)
+       (refl u10 .root.1) (refl u11 .root.1) (u12⁽ᵉ¹⁾ .root.1)
+       (u20⁽ᵉ¹⁾ .root.1) (u21⁽ᵉ¹⁾ .root.1)
   
    ￫ info[I3003]
    ￮ hole ?3:
@@ -350,22 +350,22 @@
    ￫ info[I0001]
    ￮ axiom s222 assumed
   
-  s222⁽³¹²⁾ .rroot.23
-    : refl A (s022 .rroot.12) (s122 .rroot.12)
-  
-  s222⁽²¹³⁾ .rroot.23
-    : refl A (s202 .rroot.12) (s212 .rroot.12)
-  
-  s222 .rroot.23
+  s222 .rroot.12
     : refl A (s220 .rroot.12) (s221 .rroot.12)
   
-  s222⁽³²¹⁾ .rroot.23
-    : refl A (sym s022 .rroot.12) (sym s122 .rroot.12)
+  s222⁽¹³²⁾ .rroot.12
+    : refl A (s202 .rroot.12) (s212 .rroot.12)
   
-  s222⁽¹³²⁾ .rroot.23
+  s222⁽²³¹⁾ .rroot.12
+    : refl A (s022 .rroot.12) (s122 .rroot.12)
+  
+  s222⁽²¹³⁾ .rroot.12
     : refl A (sym s220 .rroot.12) (sym s221 .rroot.12)
   
-  s222⁽²³¹⁾ .rroot.23
+  s222⁽³²¹⁾ .rroot.12
+    : refl A (sym s022 .rroot.12) (sym s122 .rroot.12)
+  
+  s222⁽³¹²⁾ .rroot.12
     : refl A (sym s202 .rroot.12) (sym s212 .rroot.12)
   
    ￫ info[I0000]

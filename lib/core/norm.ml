@@ -796,7 +796,7 @@ and tyof_field_withname :
     (a, b) Ctx.t ->
     (kinetic value, Code.t) Result.t ->
     kinetic value ->
-    [ `Name of string * int Bwd.t | `Int of int ] ->
+    [ `Name of string * int list | `Int of int ] ->
     Field.with_ins * kinetic value =
  fun ctx tm ty infld ->
   let errfld =

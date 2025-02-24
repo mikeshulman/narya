@@ -1654,7 +1654,7 @@ and check_struct :
     (mn, m, n, d, c, et) codata_args ->
     (D.zero, mn, mn, normal) TubeOf.t ->
     (* The fields supplied by the user *)
-    ((string * string Bwd.t) option, a check located) Abwd.t ->
+    ((string * string list) option, a check located) Abwd.t ->
     (b, s) term =
  fun status eta ctx ty m mn ({ fields; _ } as codata_args) tyargs tms ->
   (* The type of each record field, at which we check the corresponding field supplied in the struct, is the type associated to that field name in general, evaluated at the supplied parameters and at "the term itself".  We don't have the whole term available while typechecking, of course, but we can build a version of it that contains all the previously typechecked fields, which is all we need for a well-typed record.  So we iterate through the fields (in the order specified in the *type*, since that determines the dependencies) while also accumulating the previously typechecked and evaluated fields.  At the end, we throw away the evaluated fields (although as usual, that seems wasteful).  Note that check_fields returns a modified version of the *user* fields 'tms', since it may need to resolve positional fields to named ones. *)
@@ -1695,14 +1695,14 @@ and check_fields :
     (c * n * et) Term.CodatafieldAbwd.entry list ->
     (D.zero, mn, mn, normal) TubeOf.t ->
     (* The fields supplied by the user *)
-    ((string * string Bwd.t) option, a check located) Abwd.t ->
+    ((string * string list) option, a check located) Abwd.t ->
     (* The fields we have checked so far *)
     (m * b * s * et) Term.StructfieldAbwd.t ->
     (* Evaluated versions of the fields we have checked so far *)
     (m * s * et) Value.StructfieldAbwd.t ->
     (* Errors we have accumulated so far *)
     Code.t Asai.Diagnostic.t Bwd.t ->
-    ((string * string Bwd.t) option, a check located) Abwd.t
+    ((string * string list) option, a check located) Abwd.t
     * (m * b * s * et) Term.StructfieldAbwd.t =
  fun status eta ctx ty m mn codata_args fields tyargs tms ctms etms errs ->
   (* Build a temporary value-struct consisting of the so-far checked and evaluated fields.  The insertion on a struct being checked is the identity, but it stores the substitution dimension of the type being checked against.  If this is a higher-dimensional record (e.g. Gel), there could be a nontrivial right dimension being trivially inserted, but that will get added automatically by an appropriate symmetry action if it happens. *)
@@ -1747,11 +1747,11 @@ and check_field :
     (* The up-until-now term being checked *)
     (kinetic value, Code.t) Result.t ->
     (* As before, user terms, checked terms, value terms, and errors *)
-    ((string * string Bwd.t) option, a check located) Abwd.t ->
+    ((string * string list) option, a check located) Abwd.t ->
     (m * b * s * et) Term.StructfieldAbwd.t ->
     (m * s * et) Value.StructfieldAbwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
-    ((string * string Bwd.t) option, a check located) Abwd.t
+    ((string * string list) option, a check located) Abwd.t
     * (m * b * s * et) Term.StructfieldAbwd.t =
  fun status eta ctx ty m mn ({ env; termctx; _ } as codata_args) fields tyargs fld cdf prev_etm tms
      ctms etms errs ->
@@ -1766,7 +1766,7 @@ and check_field :
               let ctms = Snoc (ctms, Entry (fld, Lower (tm, lbl))) in
               hyp (Term.Struct (eta, m, ctms, energy status)) in
             Potential (c, args, hyp) in
-      let key = Some (Field.to_string fld, Bwd.Emp) in
+      let key = Some (Field.to_string fld, []) in
       let tm, tms, lbl =
         match Abwd.find_opt key tms with
         | Some tm -> (tm, tms, `Labeled)
@@ -1809,7 +1809,7 @@ and check_higher_field :
     (d, (c, D.zero) snoc) termctx ->
     (D.zero, m, m, normal) TubeOf.t ->
     (* As before, user terms, checked terms, value terms, and errors *)
-    ((string * string Bwd.t) option, a check located) Abwd.t ->
+    ((string * string list) option, a check located) Abwd.t ->
     (m * b * potential * no_eta) Term.StructfieldAbwd.t ->
     (m * potential * no_eta) Value.StructfieldAbwd.t ->
     Code.t Asai.Diagnostic.t Bwd.t ->
@@ -1826,7 +1826,7 @@ and check_higher_field :
     (* The unevaluated type of the current field being checked. *)
     (i, (c, D.zero) snoc, ic0) Plusmap.t ->
     (ic0, kinetic) term ->
-    ((string * string Bwd.t) option, a check located) Abwd.t
+    ((string * string list) option, a check located) Abwd.t
     * (m * b * potential * no_eta) Term.StructfieldAbwd.t =
  fun status ctx ty m intrinsic ({ env; _ } as codata_args) fields termctx tyargs tms ctms etms errs
      fld cvals evals pbijs prev_etm ic0 fldty ->

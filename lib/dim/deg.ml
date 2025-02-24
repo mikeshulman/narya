@@ -1,4 +1,3 @@
-open Bwd
 open Util
 open Arith
 
@@ -210,39 +209,38 @@ type any_deg = Any_deg : ('m, 'n) deg -> any_deg
 
 (* ******************** Printing and parsing ******************** *)
 
-let rec strings_of_deg : type a b. (a, b) deg -> string Bwd.t = function
-  | Zero a -> Bwd_extra.init (D.to_int a) (fun _ -> Endpoints.refl_string ())
-  | Suc (s, k) ->
-      Bwd_extra.insert (D.int_of_insert k)
-        (string_of_int (D.to_int (cod_deg s) + 1))
-        (strings_of_deg s)
+(* A degeneracy is represented by a list of positive integers and strings.  The integers give a permutation of the codomain, and the strings are endpoint-denoting characters indicating where degeneracies are inserted in the domain.  Thus the length of the list is equal to the length of the domain. *)
+
+let rec strings_of_deg : type a b. int -> (a, b) deg -> string list =
+ fun i -> function
+  | Zero a -> List.init (D.to_int a) (fun _ -> Endpoints.refl_string ())
+  | Suc (s, k) -> List_extra.insert (D.int_of_insert k) (string_of_int i) (strings_of_deg (i + 1) s)
 
 let string_of_deg : type a b. (a, b) deg -> string =
- fun s ->
-  String.concat (if D.to_int (cod_deg s) > 9 then "-" else "") (Bwd.to_list (strings_of_deg s))
+ fun s -> String.concat (if D.to_int (cod_deg s) > 9 then "-" else "") (strings_of_deg 1 s)
 
 type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
 
-(* A degeneracy is represented by a list of positive integers and strings.  The integers give a permutation of the codomain, and the strings are 'r' characters indicating where degeneracies are inserted in the domain.  Thus the length of the list (here a Bwv) is equal to the length of the domain.  The integer supplied is the length of the codomain. *)
+(* The list of the Bwv is the length of the domain.  *)
 let rec deg_of_strings :
     type n. ([ `Int of int | `Str of string ], n) Bwv.t -> int -> n deg_to option =
  fun xs i ->
   let open Monad.Ops (Monad.Maybe) in
-  (* If the codomain has length 0, then all the remaining generating dimensions must be degeneracies, and the degeneracy is a Zero. *)
-  if i <= 0 then
+  let finished () =
     if Bwv.fold_right (fun x b -> x = `Str (Endpoints.refl_string ()) && b) xs true then
       Some (To (Zero (Bwv.length xs)))
-    else None
-  else
-    (* Otherwise, there must be at least one remaining generating dimension. *)
-    match xs with
-    | Emp -> None
-    | Snoc _ ->
-        (* We find where the last generating dimension of the *codomain* occurs and remove it, remembering its index to supply to Suc. *)
-        let* xs, j = Bwv.find_remove (`Int i) xs in
-        (* Then what's left we can recurse into with a smaller expected codomain. *)
-        let* (To s) = deg_of_strings xs (i - 1) in
-        return (To (Suc (s, D.insert_of_index j)))
+    else None in
+  (* We find where the expected number of the *codomain* occurs and remove it, remembering its index to supply to Suc.
+     If the list is empty, or if we otherwise don't find it, then we must have removed all the numbers and only refl strings are left. *)
+  match xs with
+  | Emp -> finished ()
+  | Snoc _ -> (
+      match Bwv.find_remove (`Int i) xs with
+      | None -> finished ()
+      | Some (xs, j) ->
+          (* IF we do find it, then what's left we can recurse into with an incremented expectation. *)
+          let* (To s) = deg_of_strings xs (i + 1) in
+          return (To (Suc (s, D.insert_of_index j))))
 
 (* We could write the next function monadically to include the errors as options, but it's simpler to just raise a local exception. *)
 exception Invalid_direction_name of string
@@ -260,14 +258,14 @@ let deg_of_string : string -> any_deg option =
     | None -> if x = Endpoints.refl_string () then (`Str x, m) else raise (Invalid_direction_name x)
   in
   try
-    let Wrap strs, i =
-      List.fold_left
-        (fun (Bwv.Wrap l, i) c ->
+    let Wrap strs, _i =
+      List.fold_right
+        (fun c (Bwv.Wrap l, i) ->
           let x, i = parsestr c i in
           (Wrap (Snoc (l, x)), i))
-        (Wrap Emp, 0) strs in
+        strs (Wrap Emp, 0) in
     (* Finally we pass off to deg_of_strings. *)
-    match deg_of_strings strs i with
+    match deg_of_strings strs 1 with
     | None -> None
     | Some (To s) -> Some (Any_deg s)
   with Invalid_direction_name _ -> None

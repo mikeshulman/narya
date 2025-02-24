@@ -45,11 +45,12 @@ axiom a222 : Id (Id (Id A))
   a200 a201 a202 a210 a211 a212 a220 a221
 
 {` Nothing `}
+echo a222
 echo a222⁽¹²³⁾
 
 {` One transposition `}
 echo sym a222
-echo a222⁽²¹³⁾
+echo a222⁽¹³²⁾
 
 {` The other transposition `}
 def sym2 (x00 x01 : A) (x02 : Id A x00 x01) (x10 x11 : A) (x12 : Id A x10 x11)
@@ -61,7 +62,7 @@ echo refl sym2
   a000 a001 a002 a010 a011 a012 a020 a021 a022
   a100 a101 a102 a110 a111 a112 a120 a121 a122
   a200 a201 a202 a210 a211 a212 a220 a221 a222
-echo a222⁽¹³²⁾
+echo a222⁽²¹³⁾
 
 {` The two sides of the braid equation, in stages `}
 
@@ -70,7 +71,7 @@ echo refl sym2
   a000 a010 a020 a001 a011 a021 a002 a012 (sym a022)
   a100 a110 a120 a101 a111 a121 a102 a112 (sym a122)
   a200 a210 a220 a201 a211 a221 a202 a212 (sym a222)
-echo a222⁽²³¹⁾
+echo a222⁽³¹²⁾
 
 {` sym-apsym-sym `}
 echo sym (refl sym2
@@ -84,7 +85,7 @@ echo sym (refl sym2
   a000 a001 a002 a010 a011 a012 a020 a021 a022
   a100 a101 a102 a110 a111 a112 a120 a121 a122
   a200 a201 a202 a210 a211 a212 a220 a221 a222)
-echo a222⁽³¹²⁾
+echo a222⁽²³¹⁾
 
 {` apsym-sym-apsym `}
 echo refl sym2

@@ -96,7 +96,9 @@ let rec process :
               fatal_diagnostic { severity; message; backtrace; extra_remarks; explanation }
           | _ -> fatal_diagnostic d)
   | Constr (ident, _) -> { value = Raw.Constr ({ value = Constr.intern ident; loc }, []); loc }
-  | Field _ -> fatal (Anomaly "field is head")
+  | Field _ ->
+      (* This can happen if the user tries to project a field from a constructor. *)
+      fatal Parse_error
   | Superscript (Some x, str, _) -> (
       match deg_of_string str with
       | Some (Any s) ->

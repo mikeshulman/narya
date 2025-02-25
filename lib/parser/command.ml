@@ -76,6 +76,11 @@ module Command = struct
         what : [ `Hole of Whitespace.t list * int | `Holes ];
         wswhat : Whitespace.t list;
       }
+    | Display of {
+        wsdisplay : Whitespace.t list;
+        what : [ `Compact | `Noncompact | `Unicode | `ASCII ];
+        wswhat : Whitespace.t list;
+      }
     | Undo of { wsundo : Whitespace.t list; count : int; wscount : Whitespace.t list }
     | Section of {
         wssection : Whitespace.t list;
@@ -459,6 +464,18 @@ module Parse = struct
       | `Holes ws -> return (`Holes, ws) in
     return (Show { wsshow; what; wswhat })
 
+  let display =
+    let* wsdisplay = token Display in
+    let* what, wswhat =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ "compact" ] -> Some ((`Compact, ws), state)
+          | Ident [ "noncompact" ] -> Some ((`Noncompact, ws), state)
+          | Ident [ "unicode" ] -> Some ((`Unicode, ws), state)
+          | Ident [ "ascii" ] -> Some ((`ASCII, ws), state)
+          | _ -> None) in
+    return (Display { wsdisplay; what; wswhat })
+
   let undo =
     let* wsundo = token Undo in
     let* count, wscount = integer in
@@ -496,6 +513,7 @@ module Parse = struct
     </> import
     </> solve
     </> show
+    </> display
     </> undo
     </> section
     </> endcmd
@@ -578,6 +596,7 @@ let to_string : Command.t -> string = function
   | Import _ -> "import"
   | Solve _ -> "solve"
   | Show _ -> "show"
+  | Display _ -> "display"
   | Quit _ -> "quit"
   | Undo _ -> "undo"
   | Section _ -> "section"
@@ -765,6 +784,20 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           match Eternity.all_holes () with
           | [] -> emit No_open_holes
           | holes -> List.iter (show_hole (Anomaly "defined hole in undefined list")) holes))
+  | Display { what; _ } -> (
+      match what with
+      | `Compact ->
+          Display.modify (fun s -> { s with style = `Compact });
+          emit (Display_set "compact")
+      | `Noncompact ->
+          Display.modify (fun s -> { s with style = `Noncompact });
+          emit (Display_set "noncompact")
+      | `Unicode ->
+          Display.modify (fun s -> { s with chars = `Unicode });
+          emit (Display_set "unicode")
+      | `ASCII ->
+          Display.modify (fun s -> { s with chars = `ASCII });
+          emit (Display_set "ASCII"))
   | Undo { count; _ } ->
       History.undo count;
       emit (Commands_undone count)
@@ -968,6 +1001,18 @@ let pp_command : formatter -> t -> Whitespace.t list =
       let ws, rest = Whitespace.split wswhat in
       pp_ws `None ppf ws;
       pp_close_box ppf ();
+      rest
+  | Display { wsdisplay; what; wswhat } ->
+      pp_tok ppf Display;
+      pp_ws `Nobreak ppf wsdisplay;
+      pp_print_string ppf
+        (match what with
+        | `Compact -> "compact"
+        | `Noncompact -> "noncompact"
+        | `Unicode -> "unicode"
+        | `ASCII -> "ascii");
+      let ws, rest = Whitespace.split wswhat in
+      pp_ws `None ppf ws;
       rest
   | Undo { wsundo; count; wscount } ->
       pp_tok ppf Undo;

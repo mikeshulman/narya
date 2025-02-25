@@ -40,6 +40,7 @@ type t =
   | Export
   | Solve
   | Show
+  | Display
   | Undo
   | Section
   | End
@@ -181,6 +182,7 @@ let to_string = function
   | Export -> "export"
   | Solve -> "solve"
   | Show -> "show"
+  | Display -> "display"
   | Undo -> "undo"
   | Section -> "section"
   | End -> "end"

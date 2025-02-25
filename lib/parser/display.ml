@@ -33,3 +33,4 @@ let alt_char uni asc =
   | `ASCII -> asc
 
 let run = State.run
+let modify = State.modify

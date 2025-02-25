@@ -4,7 +4,6 @@ open Format
 open Uuseg_string
 open Reporter
 open Notation
-open Printconfig
 
 (* Given an alist of lists, if it's not empty enforce that the first element has an expected key and return its value and the rest of the alist, or if it is empty return an empty list and an empty alist.  In other words, treat an alist as an infinite stream that's filled out with empty lists at the end.  This is used for destructing 'Whitespace.alist's because the parse trees produced by parsing have actual data there, while those produced by unparsing have nothing. *)
 let take (tok : Token.t) (ws : Whitespace.alist) =
@@ -121,11 +120,11 @@ let pp_ws (space : space) (ppf : formatter) (ws : Whitespace.t list) : unit =
 (* Print a parse tree. *)
 let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
   let (Term tr) = wtr in
-  match state () with
+  match Display.state () with
   | `Case -> (
       match tr.value with
       | Notn n -> pp_notn_case space ppf (notn n) (args n) (whitespace n)
-      | _ -> as_term @@ fun () -> pp_term space ppf wtr)
+      | _ -> Display.as_term @@ fun () -> pp_term space ppf wtr)
   | `Term -> (
       match tr.value with
       | Notn n -> pp_notn space ppf (notn n) (args n) (whitespace n)
@@ -155,7 +154,7 @@ let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
           pp_ws space ppf w)
 
 and pp_superscript ppf str =
-  match chars () with
+  match Display.chars () with
   | `Unicode ->
       pp_utf_8 ppf Token.super_lparen_string;
       pp_utf_8 ppf (Token.to_super str);
@@ -176,7 +175,7 @@ and pp_notn_case :
  fun space ppf n obs ws ->
   match print_as_case n with
   | Some pp -> pp space ppf obs ws
-  | None -> as_term @@ fun () -> pp_notn space ppf n obs ws
+  | None -> Display.as_term @@ fun () -> pp_notn space ppf n obs ws
 
 and pp_notn :
     type left tight right.
@@ -195,7 +194,7 @@ and pp_spine (space : space) (ppf : formatter) (tr : observation) : unit =
   match tr with
   | Term { value = App { fn; arg; _ }; _ } ->
       pp_spine
-        (match spacing () with
+        (match Display.spacing () with
         | `Wide -> `Break
         | `Narrow -> `Custom (("", 0, ""), ("", 0, "")))
         ppf (Term fn);

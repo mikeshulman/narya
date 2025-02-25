@@ -99,7 +99,7 @@ let print (tm : string) : unit =
   | { value = Synth rtm; loc } ->
       let ctm, ety = synth (Kinetic `Nolet) Ctx.empty { value = rtm; loc } in
       let etm = eval_term (Emp D.zero) ctm in
-      Display.run ~env:true @@ fun () ->
+      Readback.Displaying.run ~env:true @@ fun () ->
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in
       pp_term `None Format.std_formatter (Term utm);
@@ -112,9 +112,9 @@ let run f =
   Eternity.run ~init:Eternity.empty @@ fun () ->
   Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
-  Printconfig.run ~env:Printconfig.default @@ fun () ->
+  Display.run ~env:Display.default @@ fun () ->
   Annotate.run @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
+  Readback.Displaying.run ~env:false @@ fun () ->
   Discrete.run ~env:false @@ fun () ->
   Dim.Endpoints.run ~arity:2 ~refl_char:'e' ~refl_names:[ "refl"; "Id" ] ~internal:true @@ fun () ->
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->

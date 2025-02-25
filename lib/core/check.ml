@@ -437,7 +437,8 @@ let rec check :
         (* Holes aren't numbered by the file they appear in. *)
         let meta = Meta.make_hole (Ctx.raw_length ctx) (Ctx.dbwd ctx) (energy status) in
         let ty, termctx =
-          Readback.Display.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx) in
+          Readback.Displaying.run ~env:true @@ fun () -> (readback_val ctx ty, readback_ctx ctx)
+        in
         Global.add_hole meta pos ~vars ~termctx ~ty ~status;
         Meta (meta, energy status)
     (* If we have a synthesizing term, we synthesize it. *)

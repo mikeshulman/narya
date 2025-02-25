@@ -28,7 +28,7 @@ let default : Config.t =
 
 module Reader = Algaeff.Reader.Make (Config)
 
-let () = Reader.register_printer (function `Read -> Some "unhandled Printconfig read effect")
+let () = Reader.register_printer (function `Read -> Some "unhandled Display read effect")
 
 (*  *)
 let style () = (Reader.read ()).style

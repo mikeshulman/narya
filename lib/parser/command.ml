@@ -3,6 +3,7 @@ open Dim
 open Util
 open List_extra
 open Core
+open Readback
 open Notation
 open Postprocess
 open Unparse
@@ -649,14 +650,14 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
       action_taken ();
       match rtm.value with
       | Synth stm ->
-          Readback.Display.run ~env:true @@ fun () ->
+          Readback.Displaying.run ~env:true @@ fun () ->
           let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
           let btm =
             if eval then
               let etm = Norm.eval_term (Emp D.zero) ctm in
-              Readback.readback_at Ctx.empty etm ety
+              readback_at Ctx.empty etm ety
             else ctm in
-          let bty = Readback.readback_at Ctx.empty ety (Syntax.universe D.zero) in
+          let bty = readback_at Ctx.empty ety (Syntax.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           let uty = unparse Names.empty bty Interval.entire Interval.entire in
           let ppf = Format.std_formatter in

@@ -1,7 +1,6 @@
 open Core
 open Reporter
 open Uuseg_string
-open Printconfig
 
 type t =
   | Field of string (* Starting with . *)
@@ -154,15 +153,15 @@ let to_string = function
   | LBrace -> "{"
   | RBrace -> "}"
   | Query -> "?"
-  | Arrow -> alt_char "→" "->"
-  | Mapsto -> alt_char "↦" "|->"
-  | DblMapsto -> alt_char "⤇" "|=>"
+  | Arrow -> Display.alt_char "→" "->"
+  | Mapsto -> Display.alt_char "↦" "|->"
+  | DblMapsto -> Display.alt_char "⤇" "|=>"
   | Colon -> ":"
-  | Coloneq -> alt_char "≔" ":="
-  | DblColoneq -> alt_char "⩴" "::="
-  | Pluseq -> alt_char "⩲" "+="
+  | Coloneq -> Display.alt_char "≔" ":="
+  | DblColoneq -> Display.alt_char "⩴" "::="
+  | Pluseq -> Display.alt_char "⩲" "+="
   | Dot -> "."
-  | Ellipsis -> alt_char "…" "..."
+  | Ellipsis -> Display.alt_char "…" "..."
   | String s -> "\"" ^ s ^ "\""
   | Underscore -> "_"
   | Internal s -> s

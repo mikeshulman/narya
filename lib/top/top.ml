@@ -3,6 +3,7 @@
 open Bwd
 open Util
 open Core
+open Readback
 open Parser
 module Execute = Execute
 
@@ -84,7 +85,7 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   (* By default, we ignore the hole positions. *)
   Global.HolePos.try_with ~get:(fun () -> { holes = Emp; offset = 0 }) ~set:(fun _ -> ())
   @@ fun () ->
-  Printconfig.run
+  Display.run
     ~env:
       {
         style = (if !compact then `Compact else `Noncompact);
@@ -96,7 +97,7 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
       }
   @@ fun () ->
   Annotate.run @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
+  Readback.Displaying.run ~env:false @@ fun () ->
   Core.Discrete.run ~env:!discreteness @@ fun () ->
   Reporter.run
     ~emit:(fun d ->

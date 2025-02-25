@@ -1,3 +1,5 @@
+(* This state module tracks user-configurable display states.  These are set by command-line flags or by the "display" command which is out-of-band, i.e. doesn't appear in files and is instead issued by the user interactively or through proof general. *)
+
 type style = [ `Compact | `Noncompact ]
 type chars = [ `Unicode | `ASCII ]
 type metas = [ `Anonymous | `Numbered ]
@@ -11,20 +13,23 @@ end
 let default : Config.t =
   { style = `Compact; chars = `Unicode; metas = `Numbered; argstyle = `Spaces; spacing = `Wide }
 
-module Reader = Algaeff.Reader.Make (Config)
+module State = Util.State.Make (Config)
 
-let () = Reader.register_printer (function `Read -> Some "unhandled Display read effect")
+let () =
+  State.register_printer (function
+    | `Get -> Some "unhandled Display get effect"
+    | `Set _ -> Some "unhandled Display set effect")
 
 (*  *)
-let style () = (Reader.read ()).style
-let chars () = (Reader.read ()).chars
-let metas () = (Reader.read ()).metas
-let argstyle () = (Reader.read ()).argstyle
-let spacing () = (Reader.read ()).spacing
+let style () = (State.get ()).style
+let chars () = (State.get ()).chars
+let metas () = (State.get ()).metas
+let argstyle () = (State.get ()).argstyle
+let spacing () = (State.get ()).spacing
 
 let alt_char uni asc =
-  match (Reader.read ()).chars with
+  match (State.get ()).chars with
   | `Unicode -> uni
   | `ASCII -> asc
 
-let run = Reader.run
+let run = State.run

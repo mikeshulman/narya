@@ -144,11 +144,11 @@ let test_compactness () =
   ()
 
 let () =
-  let env = Display.default in
+  let init = Display.default in
   run @@ fun () ->
   Print.State.run ~env:`Case @@ fun () ->
-  Display.run ~env test_reformat;
+  Display.run ~init test_reformat;
   Printf.printf "--------------------\nNoncompactly\n--------------------\n\n";
-  Display.run ~env:{ env with style = `Noncompact } test_compactness;
+  Display.run ~init:{ init with style = `Noncompact } test_compactness;
   Printf.printf "\n--------------------\nCompactly\n--------------------\n\n";
-  Display.run ~env test_compactness
+  Display.run ~init test_compactness

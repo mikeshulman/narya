@@ -88,7 +88,7 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   @@ fun () ->
   Print.State.run ~env:`Case @@ fun () ->
   Display.run
-    ~env:
+    ~init:
       {
         style = (if !compact then `Compact else `Noncompact);
         chars = (if !unicode then `Unicode else `ASCII);

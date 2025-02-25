@@ -4,7 +4,7 @@ open Testutil.Print
 let () =
   run @@ fun () ->
   Print.State.run ~env:`Case @@ fun () ->
-  Parser.Display.run ~env:{ Parser.Display.default with style = `Noncompact } @@ fun () ->
+  Parser.Display.run ~init:{ Parser.Display.default with style = `Noncompact } @@ fun () ->
   reformat "f x ` hello\n` goodbye\n y z";
   reformat "f x {` hello `}\n` goodbye\n y z";
   reformat "f x {` hello\nworld `}\n` goodbye\n y z";

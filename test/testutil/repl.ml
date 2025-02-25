@@ -113,7 +113,7 @@ let run f =
   Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
   Print.State.run ~env:`Term @@ fun () ->
-  Display.run ~env:Display.default @@ fun () ->
+  Display.run ~init:Display.default @@ fun () ->
   Annotate.run @@ fun () ->
   Readback.Displaying.run ~env:false @@ fun () ->
   Discrete.run ~env:false @@ fun () ->

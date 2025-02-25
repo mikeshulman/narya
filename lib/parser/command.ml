@@ -967,6 +967,7 @@ let pp_command : formatter -> t -> Whitespace.t list =
       | `Holes -> pp_print_string ppf "holes");
       let ws, rest = Whitespace.split wswhat in
       pp_ws `None ppf ws;
+      pp_close_box ppf ();
       rest
   | Undo { wsundo; count; wscount } ->
       pp_tok ppf Undo;

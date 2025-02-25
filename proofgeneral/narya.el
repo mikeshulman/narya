@@ -374,6 +374,30 @@ pending hole data stored by `narya-handle-output`."
   (interactive "sTerm to synthesize: ")
   (proof-shell-invisible-command (concat "synth " term)))
 
+(defvar narya-minibuffer-commands
+  '("echo"
+    "synth"
+    "show hole"
+    "show holes"
+    "display compact"
+    "display noncompact"
+    "display unicode"
+    "display ascii"))
+
+(defun narya-minibuffer-cmd (cmd)
+  "Wrapper around `proof-minibuffer-cmd' with completion for Narya commands."
+  (interactive
+   (list (completing-read
+          "Command: " narya-minibuffer-commands nil nil
+	  (and current-prefix-arg (region-active-p)
+	       (concat
+                " "
+                (replace-regexp-in-string
+	         "[ \t\n]+" " "
+	         (buffer-substring (region-beginning) (region-end)))))
+	  'proof-minibuffer-history nil t)))
+  (proof-minibuffer-cmd cmd))
+
 ;; Proof General key bindings, with suggested Narya bindings marked
 ;; C-c C-a --> apply/refine in a hole
 ;; C-c C-b proof-process-buffer
@@ -398,6 +422,7 @@ pending hole data stored by `narya-handle-output`."
 ;;         --> show current hole if any, focused proof if any
 ;; C-c C-u proof-undo-last-successful-command
 ;; C-c C-v proof-minibuffer-cmd
+;;         --> narya-minibuffer-cmd (wrapped)
 ;; C-c C-w pg-response-clear-displays
 ;; C-c C-x proof-shell-exit
 ;; C-c C-y --> case split (Y looks like a split)
@@ -458,6 +483,7 @@ pending hole data stored by `narya-handle-output`."
 (keymap-set narya-mode-map "C-c C-k" 'narya-previous-hole)
 (keymap-set narya-mode-map "C-c ;" 'narya-echo)
 (keymap-set narya-mode-map "C-c :" 'narya-synth)
+(keymap-set narya-mode-map "C-c C-v" 'narya-minibuffer-cmd)
 
 (provide 'narya)
 

@@ -163,6 +163,7 @@ module Code = struct
     | Section_opened : string list -> t
     | Section_closed : string list -> t
     | No_such_section : t
+    | Display_set : string -> t
     | Break : t
     | Accumulated : t Asai.Diagnostic.t Bwd.t -> t
     | No_holes_allowed : string -> t
@@ -285,6 +286,7 @@ module Code = struct
     | Section_opened _ -> Info
     | Section_closed _ -> Info
     | No_such_section -> Error
+    | Display_set _ -> Info
     | Break -> Error
     | Accumulated _ -> Error
     | No_holes_allowed _ -> Error
@@ -434,6 +436,7 @@ module Code = struct
     | Commands_undone _ -> "I0006"
     | Section_opened _ -> "I0007"
     | Section_closed _ -> "I0008"
+    | Display_set _ -> "I0100"
     (* Control of execution *)
     | Quit _ -> "I0200"
     | Break -> "E0201"
@@ -729,6 +732,7 @@ module Code = struct
     | Commands_undone n -> if n = 1 then text "1 command undone" else textf "%d commands undone" n
     | Section_opened prefix -> textf "section %s opened" (String.concat "." prefix)
     | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
+    | Display_set str -> textf "display set: %s" str
     | No_such_section -> text "no section here to end"
     | Break -> text "user interrupt"
     | No_holes_allowed cmd -> textf "command '%s' cannot contain holes" cmd
@@ -736,7 +740,6 @@ end
 
 include Asai.StructuredReporter.Make (Code)
 open Code
-
 
 let struct_at_degenerated_type eta name =
   match eta with

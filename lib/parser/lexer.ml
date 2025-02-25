@@ -222,6 +222,7 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "export" -> return Export
   | "solve" -> return Solve
   | "show" -> return Show
+  | "display" -> return Display
   | "undo" -> return Undo
   | "section" -> return Section
   | "end" -> return End

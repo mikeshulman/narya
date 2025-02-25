@@ -3,7 +3,9 @@
 open Bwd
 open Util
 open Core
+open Readback
 open Parser
+open Print
 module Execute = Execute
 
 (* Global flags, as set for instance by command-line arguments. *)
@@ -60,15 +62,15 @@ let set_refls str =
 
 (* Given a command and preceeding whitespace, execute the command (if we are executing commands), alert about open holes, and print the reformatted command if requested. *)
 let do_command = function
-  | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
+  | ws, None -> Execute.reformat_maybe @@ fun ppf -> pp_ws `None ppf ws
   | ws, Some cmd ->
       if !execute then Execute.execute_command cmd;
       let n = Eternity.unsolved () in
       if n > 0 then Reporter.emit (Open_holes n);
       Execute.reformat_maybe @@ fun ppf ->
-      Print.pp_ws `None ppf ws;
+      pp_ws `None ppf ws;
       let last = Parser.Command.pp_command ppf cmd in
-      Print.pp_ws `None ppf last;
+      pp_ws `None ppf last;
       Format.pp_print_newline ppf ()
 
 (* This exception is raised when a fatal error occurs in loading the non-interactive inputs.  The caller should catch it and perform an appropriate kind of "exit".  *)
@@ -84,11 +86,11 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   (* By default, we ignore the hole positions. *)
   Global.HolePos.try_with ~get:(fun () -> { holes = Emp; offset = 0 }) ~set:(fun _ -> ())
   @@ fun () ->
-  Printconfig.run
-    ~env:
+  Print.State.run ~env:`Case @@ fun () ->
+  Display.run
+    ~init:
       {
         style = (if !compact then `Compact else `Noncompact);
-        state = `Case;
         chars = (if !unicode then `Unicode else `ASCII);
         metas = (if !number_metas then `Numbered else `Anonymous);
         argstyle = (if !parenthesize_arguments then `Parens else `Spaces);
@@ -96,7 +98,7 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
       }
   @@ fun () ->
   Annotate.run @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
+  Readback.Displaying.run ~env:false @@ fun () ->
   Core.Discrete.run ~env:!discreteness @@ fun () ->
   Reporter.run
     ~emit:(fun d ->

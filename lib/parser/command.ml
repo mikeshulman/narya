@@ -78,8 +78,10 @@ module Command = struct
       }
     | Display of {
         wsdisplay : Whitespace.t list;
-        what : [ `Compact | `Noncompact | `Unicode | `ASCII ];
-        wswhat : Whitespace.t list;
+        wscoloneq : Whitespace.t list;
+        what :
+          [ `Style of Whitespace.t list * Display.style * Whitespace.t list
+          | `Chars of Whitespace.t list * Display.chars * Whitespace.t list ];
       }
     | Undo of { wsundo : Whitespace.t list; count : int; wscount : Whitespace.t list }
     | Section of {
@@ -464,17 +466,36 @@ module Parse = struct
       | `Holes ws -> return (`Holes, ws) in
     return (Show { wsshow; what; wswhat })
 
+  let style_of_token : Token.t -> Display.style option = function
+    | Ident [ "compact" ] -> Some `Compact
+    | Ident [ "noncompact" ] -> Some `Noncompact
+    | _ -> None
+
+  let chars_of_token : Token.t -> Display.chars option = function
+    | Ident [ "unicode" ] -> Some `Unicode
+    | Ident [ "ascii" ] -> Some `ASCII
+    | _ -> None
+
   let display =
     let* wsdisplay = token Display in
     let* what, wswhat =
       step "" (fun state _ (tok, ws) ->
           match tok with
-          | Ident [ "compact" ] -> Some ((`Compact, ws), state)
-          | Ident [ "noncompact" ] -> Some ((`Noncompact, ws), state)
-          | Ident [ "unicode" ] -> Some ((`Unicode, ws), state)
-          | Ident [ "ascii" ] -> Some ((`ASCII, ws), state)
+          | Ident [ "style" ] -> Some ((`Style, ws), state)
+          | Ident [ "chars" ] -> Some ((`Chars, ws), state)
           | _ -> None) in
-    return (Display { wsdisplay; what; wswhat })
+    let* wscoloneq = token Coloneq in
+    match what with
+    | `Style ->
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* style = style_of_token tok in
+            return (Display { wsdisplay; wscoloneq; what = `Style (wswhat, style, ws) }, state))
+    | `Chars ->
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* chars = chars_of_token tok in
+            return (Display { wsdisplay; wscoloneq; what = `Chars (wswhat, chars, ws) }, state))
 
   let undo =
     let* wsundo = token Undo in
@@ -786,18 +807,12 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           | holes -> List.iter (show_hole (Anomaly "defined hole in undefined list")) holes))
   | Display { what; _ } -> (
       match what with
-      | `Compact ->
-          Display.modify (fun s -> { s with style = `Compact });
-          emit (Display_set "compact")
-      | `Noncompact ->
-          Display.modify (fun s -> { s with style = `Noncompact });
-          emit (Display_set "noncompact")
-      | `Unicode ->
-          Display.modify (fun s -> { s with chars = `Unicode });
-          emit (Display_set "unicode")
-      | `ASCII ->
-          Display.modify (fun s -> { s with chars = `ASCII });
-          emit (Display_set "ASCII"))
+      | `Style (_, style, _) ->
+          Display.modify (fun s -> { s with style });
+          emit (Display_set ("style", Display.to_string (style :> Display.values)))
+      | `Chars (_, chars, _) ->
+          Display.modify (fun s -> { s with chars });
+          emit (Display_set ("chars", Display.to_string (chars :> Display.values))))
   | Undo { count; _ } ->
       History.undo count;
       emit (Commands_undone count)
@@ -1002,16 +1017,23 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_ws `None ppf ws;
       pp_close_box ppf ();
       rest
-  | Display { wsdisplay; what; wswhat } ->
+  | Display { wsdisplay; wscoloneq; what } ->
       pp_tok ppf Display;
       pp_ws `Nobreak ppf wsdisplay;
-      pp_print_string ppf
-        (match what with
-        | `Compact -> "compact"
-        | `Noncompact -> "noncompact"
-        | `Unicode -> "unicode"
-        | `ASCII -> "ascii");
-      let ws, rest = Whitespace.split wswhat in
+      let how, wshow =
+        match what with
+        | `Style (wswhat, how, wshow) ->
+            pp_print_string ppf "style";
+            pp_ws `Nobreak ppf wswhat;
+            ((how :> Display.values), wshow)
+        | `Chars (wswhat, how, wshow) ->
+            pp_print_string ppf "chars";
+            pp_ws `Nobreak ppf wswhat;
+            ((how :> Display.values), wshow) in
+      pp_tok ppf Coloneq;
+      pp_ws `Nobreak ppf wscoloneq;
+      pp_print_string ppf (Display.to_string how);
+      let ws, rest = Whitespace.split wshow in
       pp_ws `None ppf ws;
       rest
   | Undo { wsundo; count; wscount } ->

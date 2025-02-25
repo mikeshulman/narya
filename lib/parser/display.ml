@@ -5,6 +5,13 @@ type chars = [ `Unicode | `ASCII ]
 type metas = [ `Anonymous | `Numbered ]
 type argstyle = [ `Spaces | `Parens ]
 type spacing = [ `Wide | `Narrow ]
+type values = [ `Unicode | `ASCII | `Compact | `Noncompact ]
+
+let to_string : values -> string = function
+  | `Compact -> "compact"
+  | `Unicode -> "unicode"
+  | `Noncompact -> "noncompact"
+  | `ASCII -> "ASCII"
 
 module Config = struct
   type t = { style : style; chars : chars; metas : metas; argstyle : argstyle; spacing : spacing }

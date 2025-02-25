@@ -379,10 +379,10 @@ pending hole data stored by `narya-handle-output`."
     "synth"
     "show hole"
     "show holes"
-    "display compact"
-    "display noncompact"
-    "display unicode"
-    "display ascii"))
+    "display style ≔ compact"
+    "display style ≔ noncompact"
+    "display chars ≔ unicode"
+    "display chars ≔ ascii"))
 
 (defun narya-minibuffer-cmd (cmd)
   "Wrapper around `proof-minibuffer-cmd' with completion for Narya commands."

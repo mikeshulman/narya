@@ -1,8 +1,8 @@
   $ cat - >display.ny <<EOF
   > echo Type -> Type
-  > display ascii
+  > display chars ≔ ascii
   > echo Type -> Type
-  > display unicode
+  > display chars ≔ unicode
   > echo Type -> Type
   > EOF
 
@@ -11,13 +11,13 @@
     : Type
   
    ￫ info[I0100]
-   ￮ display set: ASCII
+   ￮ display set chars to ASCII
   
   Type -> Type
     : Type
   
    ￫ info[I0100]
-   ￮ display set: unicode
+   ￮ display set chars to unicode
   
   Type → Type
     : Type

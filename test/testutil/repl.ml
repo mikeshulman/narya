@@ -112,6 +112,7 @@ let run f =
   Eternity.run ~init:Eternity.empty @@ fun () ->
   Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
+  Print.State.run ~env:`Term @@ fun () ->
   Display.run ~env:Display.default @@ fun () ->
   Annotate.run @@ fun () ->
   Readback.Displaying.run ~env:false @@ fun () ->

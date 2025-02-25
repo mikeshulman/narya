@@ -664,7 +664,7 @@ let pp_tuple space ppf obs ws =
       pp_close_box ppf ();
       pp_ws space ppf wsrparen
   | _ :: _ ->
-      let style, state, spacing = (Display.style (), Display.state (), Display.spacing ()) in
+      let style, state, spacing = (Display.style (), Print.State.read (), Display.spacing ()) in
       (match state with
       | `Term ->
           if style = `Noncompact then pp_open_box ppf 0;

@@ -1,4 +1,5 @@
 open Parser
+open Print
 open Testutil.Print
 
 (* TODO: Some of the pretty-printing routines yield blank spaces at the end of lines, though they otherwise look nice.  It would be nice if we could tweak them to not do that, or failing that do some postprocessing to remove the extra spaces. *)
@@ -143,8 +144,9 @@ let test_compactness () =
   ()
 
 let () =
-  let env : Display.Config.t = { Display.default with state = `Case } in
+  let env = Display.default in
   run @@ fun () ->
+  Print.State.run ~env:`Case @@ fun () ->
   Display.run ~env test_reformat;
   Printf.printf "--------------------\nNoncompactly\n--------------------\n\n";
   Display.run ~env:{ env with style = `Noncompact } test_compactness;

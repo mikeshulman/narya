@@ -5,6 +5,22 @@ open Uuseg_string
 open Reporter
 open Notation
 
+(* This reader module tracks whether we're currently printing a case tree or a term. *)
+module Print = struct
+  module State = struct
+    include Algaeff.Reader.Make (struct
+      type t = [ `Term | `Case ]
+    end)
+
+    let as_term f = scope (fun _ -> `Term) f
+    let as_case f = scope (fun _ -> `Case) f
+  end
+end
+
+open Print
+
+let () = State.register_printer (function `Read -> Some "unhandled Print.State read effect")
+
 (* Given an alist of lists, if it's not empty enforce that the first element has an expected key and return its value and the rest of the alist, or if it is empty return an empty list and an empty alist.  In other words, treat an alist as an infinite stream that's filled out with empty lists at the end.  This is used for destructing 'Whitespace.alist's because the parse trees produced by parsing have actual data there, while those produced by unparsing have nothing. *)
 let take (tok : Token.t) (ws : Whitespace.alist) =
   match ws with
@@ -120,11 +136,11 @@ let pp_ws (space : space) (ppf : formatter) (ws : Whitespace.t list) : unit =
 (* Print a parse tree. *)
 let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
   let (Term tr) = wtr in
-  match Display.state () with
+  match State.read () with
   | `Case -> (
       match tr.value with
       | Notn n -> pp_notn_case space ppf (notn n) (args n) (whitespace n)
-      | _ -> Display.as_term @@ fun () -> pp_term space ppf wtr)
+      | _ -> State.as_term @@ fun () -> pp_term space ppf wtr)
   | `Term -> (
       match tr.value with
       | Notn n -> pp_notn space ppf (notn n) (args n) (whitespace n)
@@ -175,7 +191,7 @@ and pp_notn_case :
  fun space ppf n obs ws ->
   match print_as_case n with
   | Some pp -> pp space ppf obs ws
-  | None -> Display.as_term @@ fun () -> pp_notn space ppf n obs ws
+  | None -> State.as_term @@ fun () -> pp_notn space ppf n obs ws
 
 and pp_notn :
     type left tight right.

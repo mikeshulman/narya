@@ -25,6 +25,8 @@ let source_only = ref false
 let number_metas = ref true
 let parenthesize_arguments = ref false
 let extra_spaces = ref true
+let show_function_boundaries = ref false
+let show_type_boundaries = ref false
 
 (* Marshal the current flags to a file. *)
 let marshal_flags chan =
@@ -95,6 +97,8 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
         metas = (if !number_metas then `Numbered else `Anonymous);
         argstyle = (if !parenthesize_arguments then `Parens else `Spaces);
         spacing = (if !extra_spaces then `Wide else `Narrow);
+        function_boundaries = (if !show_function_boundaries then `Show else `Hide);
+        type_boundaries = (if !show_type_boundaries then `Show else `Hide);
       }
   @@ fun () ->
   Annotate.run @@ fun () ->

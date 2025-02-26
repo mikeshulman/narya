@@ -71,6 +71,10 @@ let rec pface_of_sface : type m n. (m, n) sface -> [ `Proper of (m, n) pface | `
       | `Proper fb -> `Proper (Mid fb)
       | `Id Eq -> `Id Eq)
 
+let pface_plus :
+    type m n mn k kn. (k, m) pface -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) pface =
+ fun d mn kn -> tface_plus d mn mn kn
+
 (* Any strict face can be added to a tube face on the left to get another tube face. *)
 
 let rec sface_plus_tface :

@@ -20,6 +20,31 @@ let parens = make "parens" Outfix
 (* Parentheses are parsed, processed, and printed along with tuples, since their notation overlaps.  *)
 
 (* ********************
+   Braces
+ ******************** *)
+
+(* Braces were defined in Postprocess; here we say how to parse and print them, and how *not* to process them on their own. *)
+
+let () =
+  set_tree braces (Closed_entry (eop LBrace (term RBrace (Done_closed braces))));
+  set_processor braces { process = (fun _ _ _ _ -> fatal Parse_error) };
+  set_print braces (fun space ppf obs ws ->
+      match obs with
+      | [ body ] ->
+          let wslbrace, ws = take LBrace ws in
+          let wsrbrace, ws = take RBrace ws in
+          taken_last ws;
+          pp_open_hovbox ppf 1;
+          if true then (
+            pp_tok ppf LBrace;
+            pp_ws `None ppf wslbrace;
+            pp_term `None ppf body;
+            pp_tok ppf RBrace);
+          pp_close_box ppf ();
+          pp_ws space ppf wsrbrace
+      | _ -> fatal (Anomaly "invalid notation arguments for braces"))
+
+(* ********************
    Let-binding
  ******************** *)
 
@@ -1915,6 +1940,7 @@ let builtins =
   ref
     (Situation.empty
     |> Situation.add parens
+    |> Situation.add braces
     |> Situation.add letin
     |> Situation.add letrec
     |> Situation.add asc

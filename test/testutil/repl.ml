@@ -109,6 +109,7 @@ let print (tm : string) : unit =
 let run f =
   Lexer.Specials.run @@ fun () ->
   Parser.Unparse.install ();
+  History.run_empty @@ fun () ->
   Eternity.run ~init:Eternity.empty @@ fun () ->
   Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
@@ -126,7 +127,7 @@ let run f =
       raise (Failure "Fatal error"))
   @@ fun () ->
   let init_visible = Parser.Pi.install Scope.Trie.empty in
-  Scope.run ~init_visible @@ fun () -> f ()
+  Scope.run ~init_visible ~options:Options.default @@ fun () -> f ()
 
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

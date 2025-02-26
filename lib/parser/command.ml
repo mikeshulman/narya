@@ -81,7 +81,20 @@ module Command = struct
         wscoloneq : Whitespace.t list;
         what :
           [ `Style of Whitespace.t list * Display.style * Whitespace.t list
-          | `Chars of Whitespace.t list * Display.chars * Whitespace.t list ];
+          | `Chars of Whitespace.t list * Display.chars * Whitespace.t list
+          | `Function_boundaries of
+            Whitespace.t list * Whitespace.t list * Display.show * Whitespace.t list
+          | `Type_boundaries of
+            Whitespace.t list * Whitespace.t list * Display.show * Whitespace.t list ];
+      }
+    | Option of {
+        wsoption : Whitespace.t list;
+        wscoloneq : Whitespace.t list;
+        what :
+          [ `Function_boundaries of
+            Whitespace.t list * Whitespace.t list * Options.implicitness * Whitespace.t list
+          | `Type_boundaries of
+            Whitespace.t list * Whitespace.t list * Options.implicitness * Whitespace.t list ];
       }
     | Undo of { wsundo : Whitespace.t list; count : int; wscount : Whitespace.t list }
     | Section of {
@@ -476,6 +489,11 @@ module Parse = struct
     | Ident [ "ascii" ] -> Some `ASCII
     | _ -> None
 
+  let show_of_token : Token.t -> Display.show option = function
+    | Ident [ "on" ] -> Some `Show
+    | Ident [ "off" ] -> Some `Hide
+    | _ -> None
+
   let display =
     let* wsdisplay = token Display in
     let* what, wswhat =
@@ -483,19 +501,73 @@ module Parse = struct
           match tok with
           | Ident [ "style" ] -> Some ((`Style, ws), state)
           | Ident [ "chars" ] -> Some ((`Chars, ws), state)
+          | Ident [ "function" ] -> Some ((`Function, ws), state)
+          | Ident [ "type" ] -> Some ((`Type, ws), state)
           | _ -> None) in
-    let* wscoloneq = token Coloneq in
     match what with
     | `Style ->
+        let* wscoloneq = token Coloneq in
         step "" (fun state _ (tok, ws) ->
             let open Monad.Ops (Monad.Maybe) in
             let* style = style_of_token tok in
             return (Display { wsdisplay; wscoloneq; what = `Style (wswhat, style, ws) }, state))
     | `Chars ->
+        let* wscoloneq = token Coloneq in
         step "" (fun state _ (tok, ws) ->
             let open Monad.Ops (Monad.Maybe) in
             let* chars = chars_of_token tok in
             return (Display { wsdisplay; wscoloneq; what = `Chars (wswhat, chars, ws) }, state))
+    | `Function ->
+        let* wsb = token (Ident [ "boundaries" ]) in
+        let* wscoloneq = token Coloneq in
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* show = show_of_token tok in
+            return
+              ( Display { wsdisplay; wscoloneq; what = `Function_boundaries (wswhat, wsb, show, ws) },
+                state ))
+    | `Type ->
+        let* wsb = token (Ident [ "boundaries" ]) in
+        let* wscoloneq = token Coloneq in
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* show = show_of_token tok in
+            return
+              ( Display { wsdisplay; wscoloneq; what = `Type_boundaries (wswhat, wsb, show, ws) },
+                state ))
+
+  let implicit_of_token : Token.t -> Options.implicitness option = function
+    | Ident [ "implicit" ] -> Some `Implicit
+    | Ident [ "explicit" ] -> Some `Explicit
+    | _ -> None
+
+  let option =
+    let* wsoption = token Option in
+    let* what, wswhat =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ "function" ] -> Some ((`Function, ws), state)
+          | Ident [ "type" ] -> Some ((`Type, ws), state)
+          | _ -> None) in
+    match what with
+    | `Function ->
+        let* wsb = token (Ident [ "boundaries" ]) in
+        let* wscoloneq = token Coloneq in
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* show = implicit_of_token tok in
+            return
+              ( Option { wsoption; wscoloneq; what = `Function_boundaries (wswhat, wsb, show, ws) },
+                state ))
+    | `Type ->
+        let* wsb = token (Ident [ "boundaries" ]) in
+        let* wscoloneq = token Coloneq in
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* show = implicit_of_token tok in
+            return
+              ( Option { wsoption; wscoloneq; what = `Type_boundaries (wswhat, wsb, show, ws) },
+                state ))
 
   let undo =
     let* wsundo = token Undo in
@@ -535,6 +607,7 @@ module Parse = struct
     </> solve
     </> show
     </> display
+    </> option
     </> undo
     </> section
     </> endcmd
@@ -618,6 +691,7 @@ let to_string : Command.t -> string = function
   | Solve _ -> "solve"
   | Show _ -> "show"
   | Display _ -> "display"
+  | Option _ -> "option"
   | Quit _ -> "quit"
   | Undo _ -> "undo"
   | Section _ -> "section"
@@ -784,11 +858,12 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
   | Solve { number; tm = Term tm; _ } -> (
       (* Solve does NOT create a new history entry because it is NOT undoable. *)
       let (Find_number
-            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; status; vars })) =
+            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; status; vars; options }))
+          =
         Eternity.find_number number in
       match metatm with
       | `Undefined ->
-          History.run_with_scope ~init_visible:scope @@ fun () ->
+          History.run_with_scope ~init_visible:scope ~options @@ fun () ->
           let tm = process vars tm in
           (* We set the hole location offset to the start of the *term*, so that ProofGeneral can create hole overlays in the right places when solving a hole and creating new holes. *)
           Global.HolePos.modify (fun st ->
@@ -812,7 +887,26 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           emit (Display_set ("style", Display.to_string (style :> Display.values)))
       | `Chars (_, chars, _) ->
           Display.modify (fun s -> { s with chars });
-          emit (Display_set ("chars", Display.to_string (chars :> Display.values))))
+          emit (Display_set ("chars", Display.to_string (chars :> Display.values)))
+      | `Function_boundaries (_, _, function_boundaries, _) ->
+          Display.modify (fun s -> { s with function_boundaries });
+          emit
+            (Display_set
+               ("function boundaries", Display.to_string (function_boundaries :> Display.values)))
+      | `Type_boundaries (_, _, type_boundaries, _) ->
+          Display.modify (fun s -> { s with type_boundaries });
+          emit
+            (Display_set ("type boundaries", Display.to_string (type_boundaries :> Display.values)))
+      )
+  | Option { what; _ } -> (
+      History.do_command @@ fun () ->
+      match what with
+      | `Function_boundaries (_, _, function_boundaries, _) ->
+          Scope.modify_options (fun opt -> { opt with function_boundaries });
+          emit (Option_set ("function boundaries", Options.to_string function_boundaries))
+      | `Type_boundaries (_, _, type_boundaries, _) ->
+          Scope.modify_options (fun opt -> { opt with type_boundaries });
+          emit (Option_set ("function boundaries", Options.to_string type_boundaries)))
   | Undo { count; _ } ->
       History.undo count;
       emit (Commands_undone count)
@@ -1029,10 +1123,45 @@ let pp_command : formatter -> t -> Whitespace.t list =
         | `Chars (wswhat, how, wshow) ->
             pp_print_string ppf "chars";
             pp_ws `Nobreak ppf wswhat;
+            ((how :> Display.values), wshow)
+        | `Function_boundaries (wsfunction, wsboundaries, how, wshow) ->
+            pp_print_string ppf "function";
+            pp_ws `Nobreak ppf wsfunction;
+            pp_print_string ppf "boundaries";
+            pp_ws `Nobreak ppf wsboundaries;
+            ((how :> Display.values), wshow)
+        | `Type_boundaries (wstype, wsboundaries, how, wshow) ->
+            pp_print_string ppf "type";
+            pp_ws `Nobreak ppf wstype;
+            pp_print_string ppf "boundaries";
+            pp_ws `Nobreak ppf wsboundaries;
             ((how :> Display.values), wshow) in
       pp_tok ppf Coloneq;
       pp_ws `Nobreak ppf wscoloneq;
       pp_print_string ppf (Display.to_string how);
+      let ws, rest = Whitespace.split wshow in
+      pp_ws `None ppf ws;
+      rest
+  | Option { wsoption; wscoloneq; what } ->
+      pp_tok ppf Option;
+      pp_ws `Nobreak ppf wsoption;
+      let how, wshow =
+        match what with
+        | `Function_boundaries (wsfunction, wsboundaries, how, wshow) ->
+            pp_print_string ppf "function";
+            pp_ws `Nobreak ppf wsfunction;
+            pp_print_string ppf "boundaries";
+            pp_ws `Nobreak ppf wsboundaries;
+            ((how :> Options.values), wshow)
+        | `Type_boundaries (wstype, wsboundaries, how, wshow) ->
+            pp_print_string ppf "type";
+            pp_ws `Nobreak ppf wstype;
+            pp_print_string ppf "boundaries";
+            pp_ws `Nobreak ppf wsboundaries;
+            ((how :> Options.values), wshow) in
+      pp_tok ppf Coloneq;
+      pp_ws `Nobreak ppf wscoloneq;
+      pp_print_string ppf (Options.to_string how);
       let ws, rest = Whitespace.split wshow in
       pp_ws `None ppf ws;
       rest

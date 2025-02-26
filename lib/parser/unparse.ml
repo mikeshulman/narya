@@ -169,17 +169,32 @@ let rec get_bwd :
 let rec get_spine :
     type b n.
     (n, kinetic) term ->
-    [ `App of (n, kinetic) term * (n, kinetic) term Bwd.t
-    | `Field of (n, kinetic) term * Field.t * (n, kinetic) term Bwd.t ] =
+    [ `App of (n, kinetic) term * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
+    | `Field of (n, kinetic) term * Field.t * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
+    ] =
  fun tm ->
   match tm with
   | App (fn, arg) -> (
       let module M = CubeOf.Monadic (Monad.State (struct
-        type t = (n, kinetic) term Bwd.t
+        type t = ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
       end)) in
       (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
       let append_bwd args =
-        snd (M.miterM { it = (fun _ [ x ] s -> ((), Snoc (s, x))) } [ arg ] args) in
+        snd
+          (M.miterM
+             {
+               it =
+                 (fun fa [ x ] s ->
+                   match
+                     ( Implicitboundaries.functions (),
+                       Display.function_boundaries (),
+                       is_id_sface fa )
+                   with
+                   | `Implicit, `Show, None -> ((), Snoc (s, (x, `Implicit)))
+                   | `Implicit, `Hide, None -> ((), s)
+                   | _ -> ((), Snoc (s, (x, `Explicit))));
+             }
+             [ arg ] args) in
       match get_spine fn with
       | `App (head, args) -> `App (head, append_bwd args)
       | `Field (head, fld, args) -> `Field (head, fld, append_bwd args))
@@ -223,9 +238,11 @@ let rec unparse :
   | Pi _ -> unparse_pis vars Emp tm li ri
   | App _ -> (
       match get_spine tm with
-      | `App (fn, args) -> unparse_spine vars (`Term fn) (Bwd.map (make_unparser vars) args) li ri
+      | `App (fn, args) ->
+          unparse_spine vars (`Term fn) (Bwd.map (make_unparser_implicit vars) args) li ri
       | `Field (head, fld, args) ->
-          unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser vars) args) li ri)
+          unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser_implicit vars) args) li ri
+      )
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
       let tm = unparse vars tm Interval.entire Interval.entire in
@@ -308,6 +325,20 @@ let rec unparse :
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
+
+(* A version that wraps implicit arguments in braces. *)
+and make_unparser_implicit :
+    type n. n Names.t -> (n, kinetic) term * [ `Implicit | `Explicit ] -> unparser =
+ fun vars (tm, i) ->
+  match i with
+  | `Explicit -> { unparse = (fun li ri -> unparse vars tm li ri) }
+  | `Implicit ->
+      {
+        unparse =
+          (fun _ _ ->
+            let tm = unparse vars tm Interval.entire Interval.entire in
+            unlocated (outfix ~notn:Postprocess.braces ~ws:[] ~inner:(Snoc (Emp, Term tm))));
+      }
 
 (* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
 and unparse_spine :

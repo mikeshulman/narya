@@ -130,11 +130,14 @@ let vars_of_names :
 
 (* Slurp up an entire application spine.  Returns the function, and all the arguments, where each argument is paired with the location of its application.  So spine "f x y" would return "f" (located) along with [(location of "f x", "x" (located)); (location of "f x y", "y" (located))]. *)
 let spine :
-    type a. a synth located -> a synth located * (Asai.Range.t option * a check located) list =
+    type a.
+    a synth located ->
+    a synth located
+    * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list =
  fun tm ->
   let rec spine tm args =
     match tm.value with
-    | Raw.App (fn, arg) -> spine fn ((tm.loc, arg) :: args)
+    | Raw.App (fn, arg, impl) -> spine fn ((tm.loc, arg, impl) :: args)
     | _ -> (tm, args) in
   spine tm []
 
@@ -466,6 +469,7 @@ let rec check :
                     let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cty)) in
                     let new_sty = tyof_app cods tyargs (CubeOf.singleton ty) in
                     (* And then proceed applying to the rest of the arguments. *)
+                    let args = List.map (fun (l, x) -> (l, x, locate_opt None `Explicit)) args in
                     let stm, sty = synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args in
                     (* Then we have to check that the resulting type of the whole application agrees with the one we're checking against. *)
                     equal_val (Ctx.length ctx) sty ty
@@ -1794,7 +1798,7 @@ and synth_apps :
     (b, kinetic) term located ->
     kinetic value ->
     a synth located ->
-    (Asai.Range.t option * a check located) list ->
+    (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list ->
     (b, kinetic) term * kinetic value =
  fun status ctx sfn sty fn args ->
   (* To determine what to do, we inspect the (fully instantiated) *type* of the function being applied.  Failure of view_type here is really a bug, not a user error: the user can try to check something against an abstraction as if it were a type, but our synthesis functions should never synthesize (say) a lambda-abstraction as if it were a type. *)
@@ -1826,14 +1830,42 @@ and synth_app :
     (n, unit) BindCube.t ->
     (D.zero, n, n, normal) TubeOf.t ->
     a synth located ->
-    (Asai.Range.t option * a check located) list ->
+    (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list ->
     (b, kinetic) term located
     * kinetic value
     * a synth located
-    * (Asai.Range.t option * a check located) list =
+    * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list =
  fun ctx sfn doms cods tyargs fn args ->
+  let implicitness = Implicitboundaries.functions () in
+  (* Based on the global implicit-function-boundaries setting, the dimension of the application, and whether the first argument is implicit, decide whether we are taking a whole cube of arguments or only one argument with the boundary synthesized from it. *)
+  let module TakenArgs = struct
+    type t = Take | Given : (n, 'k, 'nk) D.plus * (D.zero, 'nk, 'nk, normal) TubeOf.t -> t
+  end in
+  let taken_args : TakenArgs.t =
+    match (args, implicitness, D.compare_zero (CubeOf.dim doms)) with
+    | [], _, _ -> fatal (Anomaly "no arguments in synth_app")
+    (* If the application if zero-dimensional, or if the global setting is explicit, or if the global setting is implicit and the first argument is implicit, take a whole cube. *)
+    | _, _, Zero | _, `Explicit, Pos _ | (_, _, { value = `Implicit; _ }) :: _, `Implicit, Pos _ ->
+        Take
+    (* Otherwise, the first argument must be explicit and synthesizing. *)
+    | (_, { value = Synth toptm; loc }, { value = `Explicit; _ }) :: _, `Implicit, Pos _ -> (
+        (* We synthesize its type, extract the instantiation arguments, and store them to fill in the boundary arguments. *)
+        let _, argty = synth (Kinetic `Nolet) ctx (locate_opt loc toptm) in
+        let (Full_tube argtyargs) = get_tyargs argty "primary argument" in
+        (* A function of one dimension can be applied to a primary argument of a *higher* dimension, since a cube is also a square.  So we require only that the dimension of argtyargs factors through the application dimension. *)
+        match factor (TubeOf.inst argtyargs) (CubeOf.dim doms) with
+        | Some (Factor nk) -> Given (nk, argtyargs)
+        | None ->
+            fatal ~severity:Asai.Diagnostic.Error ?loc
+              (Dimension_mismatch
+                 ("primary function argument", TubeOf.inst argtyargs, CubeOf.dim doms)))
+    | (_, _, { value = `Explicit; _ }) :: _, `Implicit, Pos _ ->
+        fatal (Nonsynthesizing "primary argument with implicit function boundaries") in
   let module M = Monad.State (struct
-    type t = Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
+    type t =
+      Asai.Range.t option
+      * a synth located
+      * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list
   end) in
   (* Pick up the right number of arguments for the dimension, leaving the others for a later call to synth_app.  Then check each argument against the corresponding type in "doms", instantiated at the appropriate evaluated previous arguments, and evaluate it, producing Cubes of checked terms and values.  Since each argument has to be checked against a type instantiated at the *values* of the previous ones, we also store those in a hashtable as we go. *)
   let eargtbl = Hashtbl.create 10 in
@@ -1846,12 +1878,7 @@ and synth_app :
           (fun fa [ dom ] ->
             let open Monad.Ops (M) in
             let* loc, f, ts = M.get in
-            let* tm =
-              match ts with
-              | [] -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_function
-              | (l, t) :: ts ->
-                  let* () = M.put (l, locate_opt l (App (f, t)), ts) in
-                  return t in
+            (* The type of this argument is obtained by instantiating the domain higher-dimensional type at the previous arguments. *)
             let ty =
               inst dom
                 (TubeOf.build D.zero
@@ -1861,8 +1888,42 @@ and synth_app :
                        (fun fc ->
                          Hashtbl.find eargtbl (SFace_of (comp_sface fa (sface_of_tface fc))));
                    }) in
-            let ctm = check (Kinetic `Nolet) ctx tm ty in
-            let tm = eval_term (Ctx.env ctx) ctm in
+            let* ctm, tm =
+              match (pface_of_sface fa, taken_args) with
+              (* If we are synthesizing the implicit boundary and this is a proper face, we look up the corresponding normal value, check that it has the correct type, and read it back to get the required checked term. *)
+              | `Proper fa, Given (nk, argtyargs) ->
+                  let (Plus ml) = D.plus (D.plus_right nk) in
+                  let { tm = etm; ty = ety } = TubeOf.find argtyargs (pface_plus fa nk ml) in
+                  equal_val (Ctx.length ctx) ety ty
+                  (* TODO: The location of this error is problematic, since the implicit argument isn't there to locate it on. *)
+                  <|> Unequal_synthesized_type (PVal (ctx, ety), PVal (ctx, ty));
+                  let ctm = readback_at ctx etm ety in
+                  return (ctm, etm)
+              (* Otherwise, we pull an argument of the appropriate implicitness, check it against the correct type. *)
+              | _ ->
+                  let* tm =
+                    match ts with
+                    | [] -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_function
+                    | (l, t, ({ value = i; loc } as impl)) :: ts ->
+                        (match (is_id_sface fa, i, implicitness) with
+                        | Some _, `Implicit, _ ->
+                            fatal ?loc
+                              (Unexpected_implicitness (`Implicit, "expecting primary argument"))
+                        | None, `Implicit, `Explicit ->
+                            fatal ?loc
+                              (Unexpected_implicitness
+                                 (`Implicit, "function boundaries are explicit"))
+                        | None, `Explicit, `Implicit ->
+                            fatal ?loc
+                              (Unexpected_implicitness
+                                 (`Explicit, "function boundaries are implicit"))
+                        | _ -> ());
+                        let* () = M.put (l, locate_opt l (App (f, t, impl)), ts) in
+                        return t in
+                  let ctm = check (Kinetic `Nolet) ctx tm ty in
+                  let etm = eval_term (Ctx.env ctx) ctm in
+                  return (ctm, etm) in
+            (* In both cases, we store the resulting value term as a normal in the hashtable of previous values, to use in instantiating later types. *)
             Hashtbl.add eargtbl (SFace_of fa) { tm; ty };
             return (ctm @: [ tm ]));
       }
@@ -1877,14 +1938,19 @@ and synth_inst :
     (b, kinetic) term located ->
     (D.zero, n, n, normal) TubeOf.t ->
     a synth located ->
-    (Asai.Range.t option * a check located) list ->
+    (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list ->
     (b, kinetic) term located
     * kinetic value
     * a synth located
-    * (Asai.Range.t option * a check located) list =
+    * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list =
  fun ctx sfn tyargs fn args ->
+  let _implicitness = Implicitboundaries.types () in
+  (* TODO: get types *)
   let module M = Monad.State (struct
-    type t = Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
+    type t =
+      Asai.Range.t option
+      * a synth located
+      * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list
   end) in
   let n = TubeOf.inst tyargs in
   match D.compare_zero n with
@@ -1909,8 +1975,9 @@ and synth_inst :
                 let* tm =
                   match ts with
                   | [] -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_instantiation
-                  | (l, t) :: ts ->
-                      let* () = M.put (l, locate_opt l (App (f, t)), ts) in
+                  | (l, t, i) :: ts ->
+                      (* TODO: the codimension-1 faces should be explicit *)
+                      let* () = M.put (l, locate_opt l (App (f, t, i)), ts) in
                       return t in
                 (* We check each such argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments. *)
                 let fa = sface_of_tface fa in

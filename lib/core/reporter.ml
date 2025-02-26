@@ -91,6 +91,7 @@ module Code = struct
     | Low_dimensional_argument_of_degeneracy : (string * 'a D.t) -> t
     | Missing_argument_of_degeneracy : string -> t
     | Applying_nonfunction_nontype : printable * printable -> t
+    | Unexpected_implicitness : [ `Implicit | `Explicit ] * string -> t
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
@@ -164,6 +165,7 @@ module Code = struct
     | Section_closed : string list -> t
     | No_such_section : t
     | Display_set : string * string -> t
+    | Option_set : string * string -> t
     | Break : t
     | Accumulated : t Asai.Diagnostic.t Bwd.t -> t
     | No_holes_allowed : string -> t
@@ -214,6 +216,7 @@ module Code = struct
     | Invalid_variable_face _ -> Error
     | Not_enough_arguments_to_instantiation -> Error
     | Applying_nonfunction_nontype _ -> Error
+    | Unexpected_implicitness _ -> Error
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy _ -> Error
@@ -287,6 +290,7 @@ module Code = struct
     | Section_closed _ -> Info
     | No_such_section -> Error
     | Display_set _ -> Info
+    | Option_set _ -> Info
     | Break -> Error
     | Accumulated _ -> Error
     | No_holes_allowed _ -> Error
@@ -341,6 +345,7 @@ module Code = struct
     (* Function-types *)
     | Checking_lambda_at_nonfunction _ -> "E0700"
     | Applying_nonfunction_nontype _ -> "E0701"
+    | Unexpected_implicitness _ -> "E0702"
     (* Record fields *)
     | No_such_field _ -> "E0800"
     (* Tuples *)
@@ -436,7 +441,8 @@ module Code = struct
     | Commands_undone _ -> "I0006"
     | Section_opened _ -> "I0007"
     | Section_closed _ -> "I0008"
-    | Display_set _ -> "I0100"
+    | Option_set _ -> "I0100"
+    | Display_set _ -> "I0101"
     (* Control of execution *)
     | Quit _ -> "I0200"
     | Break -> "E0201"
@@ -579,6 +585,12 @@ module Code = struct
         textf
           "@[<hv 0>attempt to apply/instantiate@;<1 2>%a@ of type@;<1 2>%a@ which is not a function-type or universe@]"
           pp_printed (print tm) pp_printed (print ty)
+    | Unexpected_implicitness (i, str) ->
+        textf "unexpected %s argument: %s"
+          (match i with
+          | `Implicit -> "implicit"
+          | `Explicit -> "explicit")
+          str
     | Unimplemented str -> textf "%s not yet implemented" str
     | Matching_datatype_has_degeneracy ty ->
         textf "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"
@@ -733,6 +745,7 @@ module Code = struct
     | Section_opened prefix -> textf "section %s opened" (String.concat "." prefix)
     | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
     | Display_set (setting, str) -> textf "display set %s to %s" setting str
+    | Option_set (setting, str) -> textf "option set %s to %s" setting str
     | No_such_section -> text "no section here to end"
     | Break -> text "user interrupt"
     | No_holes_allowed cmd -> textf "command '%s' cannot contain holes" cmd

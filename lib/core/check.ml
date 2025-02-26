@@ -1891,7 +1891,7 @@ and synth_inst :
   | Zero -> fatal (Instantiating_zero_dimensional_type (PTerm (ctx, sfn.value)))
   | Pos pn ->
       (* We take enough arguments to instatiate a type of dimension n by one. *)
-      let (Is_suc (m, msuc)) = suc_pos pn in
+      let (Is_suc (m, msuc, _)) = suc_pos pn in
       let open TubeOf.Monadic (M) in
       let open TubeOf.Infix in
       (* We will need random access to the previously evaluated arguments, so we store them in a hashtable as we go. *)

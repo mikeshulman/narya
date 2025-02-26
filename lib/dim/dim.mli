@@ -16,9 +16,16 @@ module Endpoints : sig
   val run :
     arity:int -> refl_char:char -> refl_names:string list -> internal:bool -> (unit -> 'a) -> 'a
 
+  val uniq : 'l1 len -> 'l2 len -> ('l1, 'l2) Eq.t
+  val len : 'l len -> 'l N.t
   val wrapped : unit -> wrapped
   val internal : unit -> bool
 end
+
+type _ is_singleton
+type _ is_suc = Is_suc : 'n D.t * ('n, 'one, 'm) D.plus * 'one is_singleton -> 'm is_suc
+
+val suc_pos : 'n D.pos -> 'n is_suc
 
 type any_dim = Any : 'n D.t -> any_dim
 
@@ -247,6 +254,9 @@ type (_, _, _) pface_of_plus =
 
 val pface_of_plus : ('m, 'n, 'k, 'nk) tface -> ('m, 'n, 'k) pface_of_plus
 
+val singleton_tface :
+  ('m, 'n, 'k, 'nk) tface -> 'k is_singleton -> 'l Endpoints.len -> ('m, 'n) sface * 'l N.index
+
 module Tube (F : Fam2) : sig
   module C : module type of Cube (F)
 
@@ -258,6 +268,14 @@ module Tube (F : Fam2) : sig
 
   val pboundary :
     ('m, 'k, 'mk) D.plus -> ('k, 'l, 'kl) D.plus -> ('m, 'kl, 'mkl, 'b) t -> ('mk, 'l, 'mkl, 'b) t
+
+  val of_cube_bwv :
+    'n D.t ->
+    'k is_singleton ->
+    ('n, 'k, 'nk) D.plus ->
+    'l Endpoints.len ->
+    (('n, 'b) C.t, 'l) Bwv.t ->
+    ('n, 'k, 'nk, 'b) t
 
   val plus : ('m, 'k, 'mk, 'b) t -> ('m, 'k, 'mk) D.plus
   val inst : ('m, 'k, 'mk, 'b) t -> 'k D.t
@@ -554,13 +572,6 @@ module Plusmap : sig
   end
 
 (*  *)
-type one
-
-val one : one D.t
-
-type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
-
-val suc_pos : 'n D.pos -> 'n is_suc
 val deg_of_name : string -> any_deg option
 val name_of_deg : ('a, 'b) deg -> string option
 

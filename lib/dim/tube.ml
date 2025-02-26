@@ -3,6 +3,7 @@ open Util
 open Signatures
 open Tlist
 open Hlist
+open Singleton
 open Cube
 open Sface
 open Bwsface
@@ -125,6 +126,19 @@ module Tube (F : Fam2) = struct
       (m, k, mk) D.plus -> (k, l, kl) D.plus -> (m, kl, mkl, b) t -> (mk, l, mkl, b) t =
    fun mk kl tr -> gpboundary mk kl tr
 
+  (* A tube that instantiates exactly one dimension is equivalently a Bwv of cubes. *)
+  let of_cube_bwv :
+      type n k nk b l.
+      n D.t ->
+      k is_singleton ->
+      (n, k, nk) D.plus ->
+      l Endpoints.len ->
+      ((n, b) C.t, l) Bwv.t ->
+      (n, k, nk, b) t =
+   fun n k nk l cubes ->
+    let One, Suc Zero = (k, nk) in
+    Branch (l, cubes, Leaf n)
+
   (* Heterogeneous lists and multimaps *)
 
   (* The structure of hlists for tubes is exactly parallel to that for cubes. *)
@@ -134,44 +148,6 @@ module Tube (F : Fam2) = struct
       | ( :: ) :
           ('m, 'k, 'mk, 'nk, 'x) gt * ('m, 'k, 'mk, 'nk, 'xs) hgt
           -> ('m, 'k, 'mk, 'nk, ('x, 'xs) cons) hgt
-
-    (* Unused *)
-    (*
-    type (_, _, _, _, _, _) hgts =
-      | Nil : ('m, 'k, 'mk, 'nk, nil, nil) hgts
-      | Cons :
-          ('m, 'k, 'mk, 'nk, 'xs, 'ys) hgts
-          -> ('m, 'k, 'mk, 'nk, ('x, 'xs) cons, (('m, 'k, 'mk, 'nk, 'x) gt, 'ys) cons) hgts
-
-         let rec hlist_of_hgt :
-             type m k mk n xs ys. (m, k, mk, n, xs, ys) hgts -> (m, k, mk, n, xs) hgt -> ys hlist =
-          fun hs xs ->
-           match (hs, xs) with
-           | Nil, [] -> []
-           | Cons hs, x :: xs -> x :: hlist_of_hgt hs xs
-
-         let rec hgt_of_hlist :
-             type m k mk n xs ys. (m, k, mk, n, xs, ys) hgts -> ys hlist -> (m, k, mk, n, xs) hgt =
-          fun hs xs ->
-           match (hs, xs) with
-           | Nil, [] -> []
-           | Cons hs, x :: xs -> x :: hgt_of_hlist hs xs
-
-         let rec tlist_hgts : type m k mk n xs ys. (m, k, mk, n, xs, ys) hgts -> xs tlist -> ys tlist =
-          fun hs xs ->
-           match (hs, xs) with
-           | Nil, Nil -> Nil
-           | Cons hs, Cons xs -> Cons (tlist_hgts hs xs)
-
-         type (_, _, _, _, _) has_hgts =
-           | Hgts : ('m, 'k, 'mk, 'nk, 'xs, 'xss) hgts -> ('m, 'k, 'mk, 'nk, 'xs) has_hgts
-
-         let rec hgts_of_tlist : type m k mk n xs. xs tlist -> (m, k, mk, n, xs) has_hgts = function
-           | Nil -> Hgts Nil
-           | Cons xs ->
-               let (Hgts xss) = hgts_of_tlist xs in
-               Hgts (Cons xss)
-    *)
 
     type (_, _, _) ends =
       | Ends :

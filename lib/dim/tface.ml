@@ -142,3 +142,9 @@ let singleton_tface :
       let Zero = n0 in
       let Eq = Endpoints.uniq l l' in
       (s, i)
+
+(* A tface is codimension-1 if it has exactly one endpoint. *)
+
+let rec is_codim1 : type m n k nk. (m, n, k, nk) tface -> unit option = function
+  | End (fa, _, _) -> Option.map (fun _ -> ()) (is_id_sface fa)
+  | Mid s -> is_codim1 s

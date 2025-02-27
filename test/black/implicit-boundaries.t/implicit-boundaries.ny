@@ -24,7 +24,21 @@ axiom a22 : Id (Id A) a00 a01 a02 a10 a11 a12 a20 a21
 
 echo refl (refl f) a22
 
+option type boundaries ≔ implicit
+
+echo Id (Id A) a02 a12 a20 a21
+
+echo Id (Id A) {a00} {a01} a02 a12 a20 a21
+
+echo Id (Id A) {a00} {a01} a02 {a10} {a11} a12 a20 a21
+
+echo Id (Id A) a02 {a10} {a11} a12 a20 a21
+
 option function boundaries ≔ explicit
+
+echo refl (refl f) a00 a01 a02 a10 a11 a12 a20 a21 a22
+
+option type boundaries ≔ explicit
 
 echo refl (refl f) a00 a01 a02 a10 a11 a12 a20 a21 a22
 

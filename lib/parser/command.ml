@@ -906,7 +906,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           emit (Option_set ("function boundaries", Options.to_string function_boundaries))
       | `Type_boundaries (_, _, type_boundaries, _) ->
           Scope.modify_options (fun opt -> { opt with type_boundaries });
-          emit (Option_set ("function boundaries", Options.to_string type_boundaries)))
+          emit (Option_set ("type boundaries", Options.to_string type_boundaries)))
   | Undo { count; _ } ->
       History.undo count;
       emit (Commands_undone count)

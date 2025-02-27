@@ -232,9 +232,23 @@ let rec unparse :
   | Inst (ty, tyargs) ->
       (* We unparse instantiations like application spines, since that is how they are represented in user syntax.
          TODO: How can we allow special notations for some instantiations, like x=y for Id A x y? *)
-      unparse_spine vars (`Term ty)
-        (Bwd.map (make_unparser vars) (TubeOf.append_bwd Emp tyargs))
-        li ri
+      let module M = TubeOf.Monadic (Monad.State (struct
+        type t = unparser Bwd.t
+      end)) in
+      (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
+      let (), args =
+        M.miterM
+          {
+            it =
+              (fun fa [ x ] s ->
+                match (Implicitboundaries.types (), Display.type_boundaries (), is_codim1 fa) with
+                | `Implicit, `Show, None ->
+                    ((), Snoc (s, make_unparser_implicit vars (x, `Implicit)))
+                | `Implicit, `Hide, None -> ((), s)
+                | _ -> ((), Snoc (s, make_unparser_implicit vars (x, `Explicit))));
+          }
+          [ tyargs ] Emp in
+      unparse_spine vars (`Term ty) args li ri
   | Pi _ -> unparse_pis vars Emp tm li ri
   | App _ -> (
       match get_spine tm with
@@ -286,7 +300,7 @@ let rec unparse :
                                  ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
                                  ~inner:Emp ~last:tm ~left_ok:(No.le_refl No.minus_omega)
                                  ~right_ok:(No.le_refl No.minus_omega))
-                        (* An unlabeled 1-tuple must be written (_ := M). *)
+                        (* An unlabeled 1-tuple is currently unparsed as (_ := M), not (M,). *)
                         | `Unlabeled when Bwd.length fields = 1 ->
                             unlocated
                               (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))

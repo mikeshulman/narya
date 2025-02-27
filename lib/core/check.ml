@@ -1826,6 +1826,8 @@ and synth_apps :
 and synth_arg_cube :
     type a b n c.
     err:Reporter.Code.t ->
+    implicit:[ `Implicit | `Explicit ] ->
+    which:string ->
     (a, b) Ctx.t ->
     (kinetic value -> normal -> c) ->
     (n, kinetic value) CubeOf.t ->
@@ -1836,15 +1838,14 @@ and synth_arg_cube :
     * (Asai.Range.t option
       * a synth located
       * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list) =
- fun ~err ctx choose doms (sfnloc, fn, args) ->
-  let implicitness = Implicitboundaries.functions () in
+ fun ~err ~implicit ~which ctx choose doms (sfnloc, fn, args) ->
   (* Based on the global implicit-function-boundaries setting, the dimension of the application, and whether the first argument is implicit, decide whether we are taking a whole cube of arguments or only one argument with the boundary synthesized from it. *)
   let module TakenArgs = struct
     type t = Take | Given : (n, 'k, 'nk) D.plus * (D.zero, 'nk, 'nk, normal) TubeOf.t -> t
   end in
   let taken_args : TakenArgs.t =
-    match (args, implicitness, D.compare_zero (CubeOf.dim doms)) with
-    | [], _, _ -> fatal (Anomaly "no arguments in synth_app")
+    match (args, implicit, D.compare_zero (CubeOf.dim doms)) with
+    | [], _, _ -> fatal err
     (* If the application if zero-dimensional, or if the global setting is explicit, or if the global setting is implicit and the first argument is implicit, take a whole cube. *)
     | _, _, Zero | _, `Explicit, Pos _ | (_, _, { value = `Implicit; _ }) :: _, `Implicit, Pos _ ->
         Take
@@ -1859,9 +1860,9 @@ and synth_arg_cube :
         | None ->
             fatal ~severity:Asai.Diagnostic.Error ?loc
               (Dimension_mismatch
-                 ("primary function argument", TubeOf.inst argtyargs, CubeOf.dim doms)))
+                 ("primary " ^ which ^ " argument", TubeOf.inst argtyargs, CubeOf.dim doms)))
     | (_, _, { value = `Explicit; _ }) :: _, `Implicit, Pos _ ->
-        fatal (Nonsynthesizing "primary argument with implicit function boundaries") in
+        fatal (Nonsynthesizing ("primary argument with implicit " ^ which ^ " boundaries")) in
   let module M = Monad.State (struct
     type t =
       Asai.Range.t option
@@ -1906,18 +1907,19 @@ and synth_arg_cube :
                     match ts with
                     | [] -> with_loc loc @@ fun () -> fatal err
                     | (l, t, ({ value = i; loc } as impl)) :: ts ->
-                        (match (is_id_sface fa, i, implicitness) with
+                        (match (is_id_sface fa, i, implicit) with
                         | Some _, `Implicit, _ ->
                             fatal ?loc
-                              (Unexpected_implicitness (`Implicit, "expecting primary argument"))
+                              (Unexpected_implicitness
+                                 (`Implicit, "expecting primary " ^ which ^ " argument"))
                         | None, `Implicit, `Explicit ->
                             fatal ?loc
                               (Unexpected_implicitness
-                                 (`Implicit, "function boundaries are explicit"))
+                                 (`Implicit, which ^ " boundaries are explicit"))
                         | None, `Explicit, `Implicit ->
                             fatal ?loc
                               (Unexpected_implicitness
-                                 (`Explicit, "function boundaries are implicit"))
+                                 (`Explicit, which ^ " boundaries are implicit"))
                         | _ -> ());
                         let* () = M.put (l, locate_opt l (App (f, t, impl)), ts) in
                         return t in
@@ -1946,8 +1948,9 @@ and synth_app :
     * a synth located
     * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list =
  fun ctx sfn doms cods tyargs fn args ->
+  let implicit = Implicitboundaries.functions () in
   let (cargs, eargs), (newloc, newfn, rest) =
-    synth_arg_cube ~err:Not_enough_arguments_to_function ctx
+    synth_arg_cube ~err:Not_enough_arguments_to_function ~implicit ~which:"function" ctx
       (fun tm _ -> tm)
       doms (sfn.loc, fn, args) in
   (* Evaluate cod at these evaluated arguments and instantiate it at the appropriate values of tyargs. *)
@@ -1970,6 +1973,7 @@ and synth_inst :
   match D.compare_zero n with
   | Zero -> fatal (Instantiating_zero_dimensional_type (PTerm (ctx, sfn.value)))
   | Pos pn ->
+      let implicit = Implicitboundaries.types () in
       (* We take enough arguments to instatiate a type of dimension n by one. *)
       let (Is_suc (m, msuc, k)) = suc_pos pn in
       let tyargs1 =
@@ -1980,12 +1984,15 @@ and synth_inst :
       let doms = TubeOf.to_cube_bwv k msuc l tyargs1 in
       let module M = Monad.State (struct
         type t =
-          Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
+          Asai.Range.t option
+          * a synth located
+          * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list
       end) in
       let open Bwv.Monadic (M) in
       let (cargs, nargs), (newloc, newfn, rest) =
         mapM1_2
-          (synth_arg_cube ~err:Not_enough_arguments_to_instantiation ctx (fun _ ntm -> ntm))
+          (synth_arg_cube ~err:Not_enough_arguments_to_instantiation ~implicit ~which:"type" ctx
+             (fun _ ntm -> ntm))
           doms (sfn.loc, fn, args) in
       (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
       let cargs = TubeOf.of_cube_bwv m k msuc l cargs in

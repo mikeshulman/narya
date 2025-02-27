@@ -258,6 +258,8 @@ val pface_of_plus : ('m, 'n, 'k, 'nk) tface -> ('m, 'n, 'k) pface_of_plus
 val singleton_tface :
   ('m, 'n, 'k, 'nk) tface -> 'k is_singleton -> 'l Endpoints.len -> ('m, 'n) sface * 'l N.index
 
+val is_codim1 : ('m, 'n, 'k, 'nk) tface -> unit option
+
 module Tube (F : Fam2) : sig
   module C : module type of Cube (F)
 

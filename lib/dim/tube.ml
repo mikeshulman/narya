@@ -139,6 +139,19 @@ module Tube (F : Fam2) = struct
     let One, Suc Zero = (k, nk) in
     Branch (l, cubes, Leaf n)
 
+  let to_cube_bwv :
+      type n k nk b l.
+      k is_singleton ->
+      (n, k, nk) D.plus ->
+      l Endpoints.len ->
+      (n, k, nk, b) t ->
+      ((n, b) C.t, l) Bwv.t =
+   fun k nk l tube ->
+    let One, Suc Zero = (k, nk) in
+    let (Branch (l', cubes, Leaf _)) = tube in
+    let Eq = Endpoints.uniq l l' in
+    cubes
+
   (* Heterogeneous lists and multimaps *)
 
   (* The structure of hlists for tubes is exactly parallel to that for cubes. *)

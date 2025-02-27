@@ -277,6 +277,13 @@ module Tube (F : Fam2) : sig
     (('n, 'b) C.t, 'l) Bwv.t ->
     ('n, 'k, 'nk, 'b) t
 
+  val to_cube_bwv :
+    'k is_singleton ->
+    ('n, 'k, 'nk) D.plus ->
+    'l Endpoints.len ->
+    ('n, 'k, 'nk, 'b) t ->
+    (('n, 'b) C.t, 'l) Bwv.t
+
   val plus : ('m, 'k, 'mk, 'b) t -> ('m, 'k, 'mk) D.plus
   val inst : ('m, 'k, 'mk, 'b) t -> 'k D.t
   val uninst : ('m, 'k, 'mk, 'b) t -> 'm D.t

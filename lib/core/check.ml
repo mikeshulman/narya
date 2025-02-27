@@ -1818,20 +1818,17 @@ and synth_apps :
           Annotate.tm ctx asfn.value);
       synth_apps status ctx asfn aty afn aargs
 
-and synth_app :
-    type a b n.
+(* This is a common subroutine for synth_app and synth_inst that picks up a whole cube of arguments and checks their types.  Since in one case we need a cube of values and the other case a cube of normals, we let the caller choose. *)
+and synth_arg_cube :
+    type a b n c.
+    err:Reporter.Code.t ->
     (a, b) Ctx.t ->
-    (b, kinetic) term located ->
+    (kinetic value -> normal -> c) ->
     (n, kinetic value) CubeOf.t ->
-    (n, unit) BindCube.t ->
-    (D.zero, n, n, normal) TubeOf.t ->
-    a synth located ->
-    (Asai.Range.t option * a check located) list ->
-    (b, kinetic) term located
-    * kinetic value
-    * a synth located
-    * (Asai.Range.t option * a check located) list =
- fun ctx sfn doms cods tyargs fn args ->
+    Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list ->
+    ((n, (b, kinetic) term) CubeOf.t * (n, c) CubeOf.t)
+    * (Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list) =
+ fun ~err ctx choose doms (sfnloc, fn, args) ->
   let module M = Monad.State (struct
     type t = Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
   end) in
@@ -1848,7 +1845,7 @@ and synth_app :
             let* loc, f, ts = M.get in
             let* tm =
               match ts with
-              | [] -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_function
+              | [] -> with_loc loc @@ fun () -> fatal err
               | (l, t) :: ts ->
                   let* () = M.put (l, locate_opt l (App (f, t)), ts) in
                   return t in
@@ -1863,10 +1860,31 @@ and synth_app :
                    }) in
             let ctm = check (Kinetic `Nolet) ctx tm ty in
             let tm = eval_term (Ctx.env ctx) ctm in
-            Hashtbl.add eargtbl (SFace_of fa) { tm; ty };
-            return (ctm @: [ tm ]));
+            let ntm = { tm; ty } in
+            Hashtbl.add eargtbl (SFace_of fa) ntm;
+            return (ctm @: [ choose tm ntm ]));
       }
-      [ doms ] (Cons (Cons Nil)) (sfn.loc, fn, args) in
+      [ doms ] (Cons (Cons Nil)) (sfnloc, fn, args) in
+  ((cargs, eargs), (newloc, newfn, rest))
+
+and synth_app :
+    type a b n.
+    (a, b) Ctx.t ->
+    (b, kinetic) term located ->
+    (n, kinetic value) CubeOf.t ->
+    (n, unit) BindCube.t ->
+    (D.zero, n, n, normal) TubeOf.t ->
+    a synth located ->
+    (Asai.Range.t option * a check located) list ->
+    (b, kinetic) term located
+    * kinetic value
+    * a synth located
+    * (Asai.Range.t option * a check located) list =
+ fun ctx sfn doms cods tyargs fn args ->
+  let (cargs, eargs), (newloc, newfn, rest) =
+    synth_arg_cube ~err:Not_enough_arguments_to_function ctx
+      (fun tm _ -> tm)
+      doms (sfn.loc, fn, args) in
   (* Evaluate cod at these evaluated arguments and instantiate it at the appropriate values of tyargs. *)
   let output = tyof_app cods tyargs eargs in
   ({ value = Term.App (sfn.value, cargs); loc = newloc }, output, newfn, rest)
@@ -1883,56 +1901,31 @@ and synth_inst :
     * a synth located
     * (Asai.Range.t option * a check located) list =
  fun ctx sfn tyargs fn args ->
-  let module M = Monad.State (struct
-    type t = Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
-  end) in
   let n = TubeOf.inst tyargs in
   match D.compare_zero n with
   | Zero -> fatal (Instantiating_zero_dimensional_type (PTerm (ctx, sfn.value)))
   | Pos pn ->
       (* We take enough arguments to instatiate a type of dimension n by one. *)
-      let (Is_suc (m, msuc, _)) = suc_pos pn in
-      let open TubeOf.Monadic (M) in
-      let open TubeOf.Infix in
-      (* We will need random access to the previously evaluated arguments, so we store them in a hashtable as we go. *)
-      let eargtbl = Hashtbl.create 10 in
-      let tyargs1 = TubeOf.pboundary (D.zero_plus m) msuc tyargs in
-      (* What we really want, however, are two tubes of checked arguments *and* evaluated arguments. *)
-      let [ cargs; eargs ], (newloc, newfn, rest) =
-        pmapM
-          {
-            map =
-              (fun fa [ tyarg ] ->
-                (* We iterate monadically with the list of available arguments in a state/maybe monad, taking one more argument every time we need it as long as there is one. *)
-                let open Monad.Ops (M) in
-                let* loc, f, ts = M.get in
-                let* tm =
-                  match ts with
-                  | [] -> with_loc loc @@ fun () -> fatal Not_enough_arguments_to_instantiation
-                  | (l, t) :: ts ->
-                      let* () = M.put (l, locate_opt l (App (f, t)), ts) in
-                      return t in
-                (* We check each such argument against the corresponding type instantiation argument, itself instantiated at the values of the appropriate previous arguments. *)
-                let fa = sface_of_tface fa in
-                let k = dom_sface fa in
-                let kargs =
-                  TubeOf.build D.zero (D.zero_plus k)
-                    {
-                      build =
-                        (fun fb ->
-                          Hashtbl.find eargtbl (SFace_of (comp_sface fa (sface_of_tface fb))));
-                    } in
-                let ty = inst tyarg.tm kargs in
-                let ctm = check (Kinetic `Nolet) ctx tm ty in
-                (* Then we evaluate it and assemble a normal version to store in the hashtbl, before returning the checked and evaluated versions. *)
-                let tm = eval_term (Ctx.env ctx) ctm in
-                let ntm = { tm; ty } in
-                Hashtbl.add eargtbl (SFace_of fa) ntm;
-                return (ctm @: [ ntm ]));
-          }
-          [ tyargs1 ] (Cons (Cons Nil)) (sfn.loc, fn, args) in
+      let (Is_suc (m, msuc, k)) = suc_pos pn in
+      let tyargs1 =
+        TubeOf.mmap
+          { map = (fun _ [ { tm; ty = _ } ] -> tm) }
+          [ TubeOf.pboundary (D.zero_plus m) msuc tyargs ] in
+      let (Wrap l) = Endpoints.wrapped () in
+      let doms = TubeOf.to_cube_bwv k msuc l tyargs1 in
+      let module M = Monad.State (struct
+        type t =
+          Asai.Range.t option * a synth located * (Asai.Range.t option * a check located) list
+      end) in
+      let open Bwv.Monadic (M) in
+      let (cargs, nargs), (newloc, newfn, rest) =
+        mapM1_2
+          (synth_arg_cube ~err:Not_enough_arguments_to_instantiation ctx (fun _ ntm -> ntm))
+          doms (sfn.loc, fn, args) in
       (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
-      ({ value = Term.Inst (sfn.value, cargs); loc = newloc }, tyof_inst tyargs eargs, newfn, rest)
+      let cargs = TubeOf.of_cube_bwv m k msuc l cargs in
+      let nargs = TubeOf.of_cube_bwv m k msuc l nargs in
+      ({ value = Term.Inst (sfn.value, cargs); loc = newloc }, tyof_inst tyargs nargs, newfn, rest)
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube.  See description in context of the call to it above during typechecking of a constructor. *)
 and check_at_tel :

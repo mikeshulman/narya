@@ -55,6 +55,10 @@ The Narya executable accepts at least the following command-line flags.
 - `-unicode` and `-ascii`: Display and reformat code using Unicode (default) or ASCII
 - `-noncompact` and `-compact`: Select reformatting mode
 - `-reformat`: Display reformatted code on stdout after parsing
+- `-show-function-boundaries`: Display boundaries of functions, when implicit
+- `-hide-function-boundaries`: Hide boundaries of functions, when implicit
+- `-show-type-boundaries`: Display boundaries of functions, when implicit
+- `-hide-type-boundaries`: Hide boundaries of functions, when implicit
 
 #### Controlling parametricity
 
@@ -149,7 +153,18 @@ In interactive mode, the following additional commands are also available.  (How
 
 1. `display SETTING`
 
-   Set one of the display settings (that are also set by command-line flags), which can be either `unicode`, `ascii`, `compact`, or `noncompact`.
+   Set one of the display settings (that are also set by command-line flags).  Possible display settings are
+   
+   ```
+   display style ≔ compact
+   display style ≔ noncompact
+   display chars ≔ unicode
+   display chars ≔ ascii
+   display function boundaries ≔ on
+   display function boundaries ≔ off
+   display type boundaries ≔ on
+   display type boundaries ≔ off
+   ```
 
 
 ### ProofGeneral mode
@@ -1531,13 +1546,13 @@ There are many ways in which a type theory can be "higher-dimensional", by which
 
 ### Identity/bridge types of canonical types
 
-Every type `A` has a binary identity/bridge type denoted `Id A x y`, and each term `x:A` has a reflexivity term `refl x : Id A x x`.  (The argument of `refl` must synthesize.)  There is no "transport" for these types (hence "bridge" is really a more appropriate name).  But they are "observational" in the sense that the identity/bridge type of a canonical type is another canonical type of the same sort.
+Every type `A` has a binary identity/bridge type denoted `Id A x y`, and each term `x:A` has a reflexivity term `refl x : Id A x x`.  (The argument of `refl` must synthesize.)  There is no built-in "transport" for these types (hence "bridge" is really a more appropriate name).  But they are "observational" in the sense that the identity/bridge type of a canonical type is another canonical type of the same sort.
 
 For example, `Id (A → B) f g` is a function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`.  In particular, `refl f` is a function of a type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (f x₁)`, witnessing that all functions preserve "equalities" or "relatedness".  Thus the operation traditionally denoted `ap` in homotopy type theory is just `refl` applied to a function (although since the argument of `refl` must synthesize, if the function is an abstraction it must be ascribed).  Similarly, `Id (A × B) u v` is a type of pairs of identities, so if we have `p : Id A (u .fst) (v .fst)` and `q : Id B (u .snd) (v .snd)` we can form `(p,q) : Id (A × B) u v`, and so on for other record types, datatypes, and codatatypes.
 
 However, in Narya `Id (A → B) f g` does not *reduce* to the *ordinary* function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`: instead it simply *behaves* like it, in the sense that its elements can be applied like functions and we can define elements of its as abstractions.  This should be compared with how `Covec A 2` doesn't reduce to `A × (A × ⊤)` but behaves like it in terms of what its elements are and what we can do with them.  In particular, `Id (A → B) f g` and `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)` are definitionally isomorphic, with the functions in both directions being η-expansions `f ↦ (x₀ x₁ x₂ ↦ f x₀ x₁ x₂)`.  For most purposes this behavior is just as good as a reduction, and it retains more information about the type, which, as before, is useful for many purposes.  (In fact, with our current understanding, it appears to be *essential* for Narya's normalization and typechecking algorithms.)
 
-The same is true for other canonical types, e.g. `Id (A × B) u v` does not reduce to `Id A (u .fst) (v .fst) × Id B (u .snd) (v .snd)`, but it is *a* record type that is definitionally isomorphic to it.  Similarly, identity types of codatatypes behave like types of bisimulations: `Id (Stream A) s t` is a codatatype that behaves as if it were defined by
+The same is true for other canonical types, e.g. `Id (A × B) u v` does not reduce to `Id A (u .fst) (v .fst) × Id B (u .snd) (v .snd)`, but it is *a* record type, with fields named `fst` and `snd`, that is definitionally isomorphic to it by η-expansions.  Similarly, identity types of codatatypes behave like types of bisimulations: `Id (Stream A) s t` is a codatatype that behaves as if it were defined by
 ```
 codata [
 | _ .head : Id A (s .head) (t .head)
@@ -1563,6 +1578,8 @@ According to internal parametricity, we morally think of `Id Type A B` as being 
 
 The first is literally true: given `R : Id Type A B` and `a:A`, `b:B` we have `R a b : Type`.  We refer to this as *instantiating* the higher-dimensional type `R`.  In fact, `Id A x y` itself is an instantiation, as we have `Id A : Id Type A A`, which moreover is really just a notational variant of `refl A`.
 
+However, unlike a true function `A → B → Type`, an element of `Id Type A B` cannot be "partially applied": you cannot write `Id A a`.  But of course, you can η-expand it and write `x ↦ Id A a x`.  (If there is demand, we might implement an automatic η-expansion of the former to the latter.)
+
 For the second there is another wrinkle: we can define elements of `Id Type A B` by abstracting, but the body of the abstraction must be a *newly declared canonical type* rather than a pre-existing one.  This also seems to be essential to deal with symmetries (see below) in the normalization and typechecking algorithm.  Moreover, the current implementation allows this body to be a *record type* or *codatatype*, but not a *datatype*, and it does not permit other case tree operations in between such as pattern-matching.
 
 For record types, there is a syntax that reflects this restriction: instead of the expected `x y ↦ sig (⋯)` we write `sig x y ↦ (⋯)`, explicitly binding all the boundary variables as part of the record type syntax.  For example, here is the universal 1-dimensional record type, traditionally called "Gel":
@@ -1571,12 +1588,12 @@ def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig a b ↦ ( unge
 ```
 For codatatypes, we simply use the ordinary syntax, but the "self" variable automatically becomes a cube variable of the appropriate dimension (see below).
 
-We plan to lift this restriction in the future, but in practice it is not very onerous.  For most applications, the above "Gel" record type can simply be defined once and used everywhere, rather than declaring new higher-dimensional types all the time.  Note that because record-types satisfy η-conversion, `Gel A B R a b` is definitionally isomorphic to `R a b`.  Thus, `Id Type A B` contains `A → B → Type` as a "retract up to definitional isomorphism".  This appears to be sufficient for all applications of internal parametricity.  (`Id Type` does not itself satisfy any η-conversion rule.)
+We may allow more flexibility in the future, but in practice the current restrictions do not seem very onerous.  For most applications, the above "Gel" record type can simply be defined once and used everywhere, rather than declaring new higher-dimensional types all the time.  Note that because record-types satisfy η-conversion, `Gel A B R a b` is definitionally isomorphic to `R a b`.  Thus, `Id Type A B` contains `A → B → Type` as a "retract up to definitional isomorphism".  This appears to be sufficient for all applications of internal parametricity.  (`Id Type` does not itself satisfy any η-conversion rule.)
 
 
 ### Heterogeneous identity/bridge types
 
-If `B : A → Type`, then `refl B x₀ x₁ x₂ : Id Type (B x₀) (B x₁)`.  Thus, given `y₀ : B x₀` and `y₁ : B x₁`, we can instantiate this identification at them to obtain a type `refl B x₀ x₁ x₂ y₀ y₁`. of *heterogeneous* identifications/bridges relating `y₀` and `y₁` "along" or "over" `x₂`.
+If `B : A → Type`, then `refl B x₀ x₁ x₂ : Id Type (B x₀) (B x₁)`.  Thus, given `y₀ : B x₀` and `y₁ : B x₁`, we can instantiate this identification at them to obtain a type `refl B x₀ x₁ x₂ y₀ y₁`. of *heterogeneous* identifications/bridges relating `y₀` and `y₁` "along" or "over" `x₂`.  Since `Id` is a notational variant of `refl`, this type can also be written suggestively as `Id B x₀ x₁ x₂ y₀ y₁`.
 
 Such heterogeneous identity/bridge types are used in the computation (up to definitional isomorphism) of identity/bridge types of *dependent* function types.  Specifically, `Id ((x:A) → B x) f g` acts like a function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → refl B x₀ x₁ x₂ (f x₀) (g x₁)`.  They also appear in identity/bridge types of other canonical types, such as when one field of a record type depends on previous ones.  For instance, `Id (Σ A B) u v` behaves like a record type
 ```
@@ -1609,7 +1626,7 @@ B₂ : refl Π A₀ A₁ A₂ (x₀ ↦ Type) (x₁ ↦ Type) (x₀ x₁ x₂ �
 In particular, this is what Narya uses when printing higher-dimensional function-types (although it also uses cube variables, see below).
 
 
-### Higher-dimensional cubes and degeneracies
+### Higher-dimensional cubes
 
 Iterating `Id` or `refl` multiple times produces higher-dimensional cube types and cubes.  For instance, since `Id A` acts like a function `A → A → Type`, *its* identity type or reflexivity type `Id (Id A)` acts as a function-type
 ```
@@ -1617,24 +1634,74 @@ Iterating `Id` or `refl` multiple times produces higher-dimensional cube types a
   → (x₁₀ : A) (x₁₁ : A) (x₁₂ : Id A x₁₀ x₁₁)
   → (x₂₀ : Id A x₀₀ x₁₀) (x₂₁ : Id A x₀₁ x₁₁) → Type
 ```
-We can view this as assigning to any boundary for a 2-dimensional square a type of fillers for that square.  Similarly, `Id (Id (Id A))` yields a type of 3-dumensional cubes, and so on.
+We can view this as assigning to any boundary for a 2-dimensional square a type of fillers for that square.  Similarly, `Id (Id (Id A))` yields a type of 3-dumensional cubes, and so on.  Likewise, iterating `refl` on functions acts on these cubes: if `f : A → B`, then
+```
+refl (refl f) : Id A a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁
+  → Id B (f a₀₀) (f a₀₁) (refl f a₀₀ a₀₁ a₀₂) (f a₁₀) (f a₁₁) (refl f a₁₀ a₁₁ a₁₂)
+          (refl f a₀₀ a₁₀ a₂₀) (refl f a₀₁ a₁₁ a₂₁)
+```
+
+More generally, just as any "1-dimensional type" `A₂ : Id Type A₀ A₁` can be instantiated at endpoints `a₀:A₀` and `a₁:A₁` to produce an ordinary (0-dimensional) type `A₂ a₀ a₁ : Type`, any element `A₂₂ : Id (Id Type) A₀₀ A₀₁ A₀₂ A₁₀ A₁₁ A₁₂ A₂₀ A₂₁` can be instantiated at a "heterogeneous square boundary" consisting of
+```
+a₀₀ : A₀₀
+a₀₁ : A₀₁
+a₀₂ : A₀₂ a₀₀ a₀₁
+a₁₀ : A₁₀
+a₁₁ : A₁₁
+a₁₂ : A₁₂ a₁₀ a₁₁
+a₂₀ : A₂₀ a₀₀ a₁₀
+a₂₁ : A₂₁ a₀₁ a₁₁
+```
+to obtain an ordinary 0-dimensional type `A₂₂ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁` whose elements are "heterogeneous squares".
+
+We mentioned above that a 1-dimensional type cannot be "partially instantiated" such as `Id A a₀`.  A higher-dimensional type *can* be partially instantiated, but not arbitrarily: you must give exactly enough arguments to reduce it to a type of some specific lower dimension.  For a 2-dimensional type such as `A₂₂` above, this means that in addition to its full 0-dimensional instantiations such as `A₂₂ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁`, it has partial 1-dimensional instantiations such as
+```
+A₂₂ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ : Id Type (A₂₀ a₀₀ a₁₀) (A₂₁ a₀₁ a₁₁)
+```
+Note that this has exactly the right type that it can be *further* instantiated by `a₂₀ a₂₁` to produce a 0-dimensional type.  In fact, the fundamental operation is actually a "partial instantiation" that reduces the dimension by one; a "full instantiation" is just a sequence of these.
+
+
+### Symmetries and degeneracies
 
 There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions.  Like `refl`, if the argument of `sym` synthesizes, then it synthesizes a symmetrized type; but in this case the argument must synthesize a "2-dimensional" type.  (The need to be able to "detect" 2-dimensionality here is roughly what imposes the requirements on our normalization/typechecking algorithm mentioned above.)  In addition, unlike `refl`, an application of `sym` can also check if its argument does, since the type it is checked against can be "unsymmetrized" to obtain the necessary type for its argument to check against.
 
 Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies: `M⁽¹ᵉ²⁾` or `M^(1e2)` where the superscript represents the degeneracy, with `e` denoting a degenerate dimension and nonzero digits denoting a permutation.  (The `e` stands for "equality", since our `Id` is eventually intended to be the identity type of Higher Observational Type Theory.)  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and letters with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.  This notation can always synthesize if `M` does, while like `sym` it can also check if the degeneracy is a "pure permutation", consisting only of digits without any `e`s.
 
-Degeneracies can be extended by identities on the right.  For instance, the two degeneracies taking a 1-dimensional object to a 2-dimensional one are denoted `1e` and `e1`, and of these `e1` can be written as simply `e` and coincides with ordinary `refl` applied to an object that happens to be 1-dimensional.
+Degeneracies can be extended by identities on the right and remain the same operation.  For instance, the two degeneracies taking a 1-dimensional object to a 2-dimensional one are denoted `1e` and `e1`, and of these `e1` can be written as simply `e` and coincides with ordinary `refl` applied to an object that happens to be 1-dimensional.
 
 Degeneracy operations are functorial.  For pure symmetries, this means composing permutations.  For instance, the "Yang-Baxter equation" holds, equating `M⁽²¹³⁾⁽¹³²⁾⁽²¹³⁾` with `M⁽¹³²⁾⁽²¹³⁾⁽¹³²⁾`, as both reduce to `M⁽³²¹⁾`.  Reflexivities also compose with permutations in a fairly straightforward way, e.g. `M⁽ᵉ¹⁾⁽²¹⁾` reduces to `M^⁽¹ᵉ⁾`.
 
-The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to higher degeneracies, with one exception.  Ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `1e`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.
+The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to symmetries and higher degeneracies of such types, with one exception.  To explain the exception, observe that ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `1e`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.
 
 For instance, `Gel A B R` is a 1-dimensional type, belonging to `Id Type A B`.  Thus, we can form the 2-dimensional type `(Gel A B R)⁽¹ᵉ⁾`, and instantiate it using `a₂ : Id A a₀ a₁` and `b₂ : Id B b₀ b₁` and `r₀ : R a₀ b₀` and `r₁ : R a₁ b₁` to get a 0-dimensional type `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂`.  But this type is not canonical, and in particular not a record type; in particular given `M : (Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` we cannot write `M .ungel`.  However, we have `sym M : (Gel A B R)⁽ᵉ¹⁾ a₀ a₁ a₂ b₀ b₁ b₂ (r₀,) (r₁,)`, which doesn't permute the intrinsic dimension `1` with the degenerate dimension `e` and *is* therefore a record type, and so we can write `sym M .ungel`, which has type `Id R a₀ a₁ a₂ b₀ b₁ b₂ r₀ r₁`.  In addition, since `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` is *isomorphic* to this record type, it also satisfies an eta-rule: two of its terms `M` and `N` are definitionally equal as soon as `sym M .ungel` and `sym N .ungel` are.
 
 
+### Implicit boundaries
+
+Until now we have been writing all the arguments of higher-dimensional types and functions explicitly.  There are times when this is necessary, but it is clear that in many cases it is redundant.  For instance, in `refl f a₀ a₁ a₂`, since the type of `a₂` must be `Id A a₀ a₁`, if we know this type (that is, if `a₂` synthesizes) then `a₀` and `a₁` are uniquely determined.
+
+In general, this is the sort of issue that implicit arguments and higher-order unification are designed to deal with.  Narya does not yet have either of these features in general, but it does have a specialized version that essentially uses bidirectional typechecking to synthesize the redundant parts of boundaries in higher-dimensional function applications and type instantiations.  This feature is currently off by default; it can be turned on with the two commands
+```
+option function boundaries ≔ implicit
+option type boundaries ≔ implicit
+```
+(and back off again with the similar `≔ explicit` commands).
+
+When function boundaries are implicit, a higher-dimensional function application takes only *one* argument, the top-dimensional one; thus instead of `refl f a₀ a₁ a₂` you can (and must) write `refl f a₂`, and instead of `refl (refl f) a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁ a₂₂` you can (and must) write `refl f a₂₂`.  It is possible to give the implicit arguments explicitly by surrounding them with curly braces, as in `refl f {a₀} {a₁} a₂`, but if you do this you must give *all* of them explicitly; there are no half measures.
+
+When type boundaries are implicit, a full instantiation of a higher-dimensional type takes only the *highest-dimensional* arguments.  For ordinary 1-dimensional identity types, this changes nothing, since both arguments `a₀` and `a₁` of `Id A a₀ a₁` are 0-dimensional and that is the highest dimension of any argument.  But for squares, instead of `Id (Id A) a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁` you can (and must) write `Id (Id A) a₀₂ a₁₂ a₂₀ a₂₁` since these are the four 1-dimensional arguments; the 0-dimensional ones are inferred from their boundaries (which are required to match up correctly where they overlap).  And you can of course give them explicitly with `Id (Id A) {a₀₀} {a₀₁} a₀₂ {a₁₀} {a₁₁} a₁₂ a₂₀ a₂₁`.  In this case there are some half measures: if you give any lower-dimensional argument explicitly you must give all the arguments in that "block" explictly, but you can omit those in other blocks; for instance you can write `Id (Id A) {a₀₀} {a₀₁} a₀₂ a₁₂ a₂₀ a₂₁` or `Id (Id A) a₀₂ {a₁₀} {a₁₁} a₁₂ a₂₀ a₂₁`.
+
+Normally, when boundaries are implicit, Narya also *prints* higher-dimensional function applications and type instantiations with the lower-dimensional boundaries omitted.  However, you can tell it to print these arguments explicitly with the commands
+```
+display function boundaries ≔ on
+display type boundaries ≔ on
+```
+(and switch back with `≔ off`).  These commands are not available in source files, since they should not be un-done; they can be given in interactive mode, or in ProofGeneral with `C-c C-v`, or you can use the corresponding command-line flags such as `-show-function-boundaries`.  When these options are `on` *and* implicitness for the relevant kinds of boundaries is also on, Narya prints *all* the lower-dimensional arguments explicitly with curly braces around them.  There are no half measures here, for functions or for types.  In the future, we may implement a way to switch on such display for some constants and/or variables but not others.
+
+
 ### Cubes of variables
 
-Since there is no unifier and no implicit arguments yet, all the arguments of higher-dimensional cubes and functions must be given explicitly.  However, there is a shorthand syntax for higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M` (or `x |=> M` in ASCII).  This binds `x` as a "family" or "cube" of variables whose names are suffixed with face names in ternary notation: `x.0` and `x.1` and `x.2`, or in higher dimensions `x.00` through `x.22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`", but rather there are really *three different variables* that just happen to have the names `x.0` and `x.1` and `x.2`.  (There is no potential for collision with user-defined names, since ordinary local variable names cannot contain internal periods.  Of course, `x.0` can shadow a global definition of a constant `0` in namespace `x`.)
+Implicitness of arguments to higher-dimensional *applications* has no bearing on higher-dimensional *abstractions*: the "implicit arguments" still must be named in an abstraction in the usual way, regardless of whether implicitness is on or not.  (This will also be Narya's approach to implicit arguments more generally.)  However, there is a different shorthand syntax for higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M` (or `x |=> M` in ASCII).  This binds `x` as a "family" or "cube" of variables whose names are suffixed with face names in ternary notation: `x.0` and `x.1` and `x.2`, or in higher dimensions `x.00` through `x.22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`", but rather there are really *three different variables* that just happen to have the names `x.0` and `x.1` and `x.2`.  (There is no potential for collision with user-defined names, since ordinary local variable names cannot contain internal periods.  Of course, `x.0` can shadow a global definition of a constant `0` in namespace `x`.)
 
 These "cube variables" also appear automatically when matching against a higher-dimensional version of a datatype.  For instance, we can do an encode-decode proof for the natural numbers by matching directly on `Id ℕ` (using pattern-matching abstractions):
 ```
@@ -1654,7 +1721,7 @@ def encode (m n : ℕ) : Id ℕ m n → code m n ≔
 [ zero. ↦ ()
 | suc. p ↦ (_ ≔ encode p.0 p.1 p.2)]
 ```
-Here in the definition of `encode`, the pattern variable `p` of the `suc.` branch is automatically made into a 1-dimensional cube of variables since we are matching against an element of `Id ℕ`, so in the body we can refer to `p.0`, `p.1`, and `p.2`.  In the future, we may implement a dual syntax for simultaneously *applying* a function to a whole cube of variables of this sort as well.
+Here in the definition of `encode`, the pattern variable `p` of the `suc.` branch is automatically made into a 1-dimensional cube of variables since we are matching against an element of `Id ℕ`, so in the body we can refer to `p.0`, `p.1`, and `p.2`.  In the future, we may implement a dual syntax for simultaneously *applying* a higher-dimensional function to a whole cube of variables of this sort as well, although of course if implicit application is on you can just write `refl f x.2` and so on.
 
 Similarly, when defining a codatatype lying in a higher universe, the "self" variable automatically becomes a cube variable, so that the boundary of the type is accessible through its faces.  For instance, here is a codatatype version of Gel:
 ```

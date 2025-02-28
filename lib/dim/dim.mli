@@ -260,6 +260,10 @@ val singleton_tface :
 
 val is_codim1 : ('m, 'n, 'k, 'nk) tface -> unit option
 
+type (_, _, _) tface_of = Tface_of : ('m, 'n, 'k, 'nk) tface -> ('n, 'k, 'nk) tface_of
+
+val codim1_envelope : ('m, 'n, 'k, 'nk) tface -> ('n, 'k, 'nk) tface_of
+
 module Tube (F : Fam2) : sig
   module C : module type of Cube (F)
 

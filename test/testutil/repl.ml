@@ -101,7 +101,7 @@ let print (tm : string) : unit =
       let etm = eval_term (Emp D.zero) ctm in
       Readback.Displaying.run ~env:true @@ fun () ->
       let btm = readback_at Ctx.empty etm ety in
-      let utm = unparse Names.empty btm Interval.entire Interval.entire in
+      let utm = unparse Names.empty btm No.Interval.entire No.Interval.entire in
       pp_term `None Format.std_formatter (Term utm);
       Format.pp_print_newline Format.std_formatter ()
   | _ -> fatal (Nonsynthesizing "argument of print")

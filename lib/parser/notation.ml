@@ -208,7 +208,7 @@ let notn :
 
 (* When parsing from left to right, we have to return a partial parse tree without knowing yet what tightness interval it will have to be in from the right.  So we return it as a callback that takes that interval as an argument and can fail, returning the name of the offending notation if it fails.  One could argue that instead the allowable tightness intervals should be returned along with the partial parse tree and used to restrict the allowable notations parsed afterwards.  But that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Doing it this way also makes it easier to trap it and issue a more informative error message. *)
 type ('lt, 'ls) right_wrapped_parse = {
-  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
+  get : 'rt 'rs. ('rt, 'rs) No.iinterval -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
 }
 
 (* The primary key is used to compare notations. *)
@@ -231,12 +231,12 @@ let left n = n.left
 let right n = n.right
 
 (* A notation has associated upper tightness intervals on both the left and the right, which specify what tightnesses of other notations can appear in an open subterm on that side.  Thus, both of these intervals start at the tightness of the notation, with their open- or closed-ness determined by its associativity. *)
-let interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) Interval.tt =
+let interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) No.iinterval =
  fun n ->
   let (Open strictness) = left n in
   { strictness; endpoint = tightness n }
 
-let interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.tt =
+let interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) No.iinterval =
  fun n ->
   let (Open strictness) = right n in
   { strictness; endpoint = tightness n }
@@ -363,16 +363,16 @@ let rec to_branch : type t s. (t, s) tree -> (t, s) branch option = function
   | Lazy (lazy t) -> to_branch t
 
 let rec lower_tree :
-    type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) tree -> (t1, s1) tree =
+    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) tree -> (t1, s1) tree =
  fun sub xs ->
   match xs with
   | Inner br -> Inner (lower_branch sub br)
-  | Done_open (lt, n) -> Done_open (Interval.subset_contains sub lt, n)
+  | Done_open (lt, n) -> Done_open (No.Interval.subset_contains sub lt, n)
   | Done_closed n -> Done_closed n
   | Lazy tr -> Lazy (lazy (lower_tree sub (Lazy.force tr)))
 
 and lower_branch :
-    type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) branch -> (t1, s1) branch =
+    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) branch -> (t1, s1) branch =
  fun sub { ops; field; term } ->
   {
     ops = TokMap.map (lower_tree sub) ops;
@@ -380,7 +380,8 @@ and lower_branch :
     term = Option.map (TokMap.map (lower_tree sub)) term;
   }
 
-let lower : type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) entry -> (t1, s1) entry =
+let lower :
+    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) entry -> (t1, s1) entry =
  fun sub map -> TokMap.map (lower_tree sub) map
 
 let rec names : type t s. (t, s) tree -> string list = function
@@ -397,7 +398,7 @@ and names_tmap : type t s. (t, s) tree TokMap.t -> string list =
 
 let rec merge_tree :
     type t1 s1 t2 s2.
-    (t2, s2, t1, s1) Interval.subset -> (t1, s1) tree -> (t2, s2) tree -> (t1, s1) tree =
+    (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) tree -> (t2, s2) tree -> (t1, s1) tree =
  fun sub xs ys ->
   let open Monad.Ops (Monad.Maybe) in
   Option.value
@@ -416,7 +417,7 @@ let rec merge_tree :
 
 and merge_tmap :
     type t1 s1 t2 s2.
-    (t2, s2, t1, s1) Interval.subset ->
+    (t2, s2, t1, s1) No.Interval.subset ->
     (t1, s1) tree TokMap.t ->
     (t2, s2) tree TokMap.t ->
     (t1, s1) tree TokMap.t =
@@ -430,7 +431,7 @@ and merge_tmap :
 
 and merge_branch :
     type t1 s1 t2 s2.
-    (t2, s2, t1, s1) Interval.subset -> (t1, s1) branch -> (t2, s2) branch -> (t1, s1) branch =
+    (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) branch -> (t2, s2) branch -> (t1, s1) branch =
  fun sub x y ->
   let ops = merge_tmap sub x.ops y.ops in
   let field = merge_opt (merge_tree sub) (lower_tree sub) x.field y.field in
@@ -439,5 +440,5 @@ and merge_branch :
 
 let merge :
     type t1 t2 s1 s2.
-    (t2, s2, t1, s1) Interval.subset -> (t1, s1) entry -> (t2, s2) entry -> (t1, s1) entry =
+    (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) entry -> (t2, s2) entry -> (t1, s1) entry =
  fun sub xs ys -> merge_tmap sub xs ys

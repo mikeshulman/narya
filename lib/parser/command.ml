@@ -698,8 +698,8 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
               readback_at Ctx.empty etm ety
             else ctm in
           let bty = readback_at Ctx.empty ety (Syntax.universe D.zero) in
-          let utm = unparse Names.empty btm Interval.entire Interval.entire in
-          let uty = unparse Names.empty bty Interval.entire Interval.entire in
+          let utm = unparse Names.empty btm No.Interval.entire No.Interval.entire in
+          let uty = unparse Names.empty bty No.Interval.entire No.Interval.entire in
           let ppf = Format.std_formatter in
           pp_open_vbox ppf 2;
           pp_term `None ppf (Term utm);

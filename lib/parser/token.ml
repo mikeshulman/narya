@@ -1,7 +1,6 @@
 open Core
 open Reporter
 open Uuseg_string
-open Printconfig
 
 type t =
   (* A Field is an identifier starting with a period, broken into a list of components by internal periods, and with the first component stored separately.  The later components are only used to indicate the partial bijection identifying an instance of a "higher" field of a higher codatatype.  Thus for a record or ordinary codatatype the list is empty.  *)
@@ -42,6 +41,8 @@ type t =
   | Export
   | Solve
   | Show
+  | Display
+  | Option
   | Undo
   | Section
   | End
@@ -158,15 +159,15 @@ let to_string = function
   | LBrace -> "{"
   | RBrace -> "}"
   | Query -> "?"
-  | Arrow -> alt_char "→" "->"
-  | Mapsto -> alt_char "↦" "|->"
-  | DblMapsto -> alt_char "⤇" "|=>"
+  | Arrow -> Display.alt_char "→" "->"
+  | Mapsto -> Display.alt_char "↦" "|->"
+  | DblMapsto -> Display.alt_char "⤇" "|=>"
   | Colon -> ":"
-  | Coloneq -> alt_char "≔" ":="
-  | DblColoneq -> alt_char "⩴" "::="
-  | Pluseq -> alt_char "⩲" "+="
+  | Coloneq -> Display.alt_char "≔" ":="
+  | DblColoneq -> Display.alt_char "⩴" "::="
+  | Pluseq -> Display.alt_char "⩲" "+="
   | Dot -> "."
-  | Ellipsis -> alt_char "…" "..."
+  | Ellipsis -> Display.alt_char "…" "..."
   | String s -> "\"" ^ s ^ "\""
   | Underscore -> "_"
   | Internal s -> s
@@ -186,6 +187,8 @@ let to_string = function
   | Export -> "export"
   | Solve -> "solve"
   | Show -> "show"
+  | Display -> "display"
+  | Option -> "option"
   | Undo -> "undo"
   | Section -> "section"
   | End -> "end"

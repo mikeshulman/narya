@@ -58,7 +58,8 @@ and parse_syn : type n. (string, n) Bwv.t -> pmt -> n Raw.synth located =
   | Field (x, fld) -> unlocated (Raw.Field (parse_syn ctx x, `Name (fld, [])))
   | Pi (x, dom, cod) ->
       unlocated (Raw.Pi (Some x, parse_chk ctx dom, parse_chk (Snoc (ctx, x)) cod))
-  | App (fn, arg) -> unlocated (Raw.App (parse_syn ctx fn, parse_chk ctx arg))
+  | App (fn, arg) ->
+      unlocated (Raw.App (parse_syn ctx fn, parse_chk ctx arg, locate_opt None `Explicit))
   | Deg (x, str) -> (
       let x = (parse_chk ctx x).value in
       match Dim.deg_of_name str with

@@ -1,4 +1,5 @@
 open Util
+open Singleton
 open Sface
 
 (* "Tube faces" are strict faces that are constrained to lie in a particular tube. *)
@@ -88,6 +89,10 @@ let rec insert_pface : type m n nsuc. (m, n) pface -> (n, nsuc) D.insert -> (m, 
           let (Insert_pface (i, f)) = insert_pface f i in
           Insert_pface (Later i, Mid f))
 
+let pface_plus :
+    type m n mn k kn. (k, m) pface -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) pface =
+ fun d mn kn -> tface_plus d mn mn kn
+
 (* Any strict face can be added to a tube face on the left to get another tube face. *)
 
 let rec sface_plus_tface :
@@ -142,3 +147,22 @@ let pface_of_plus : type m n k nk. (m, n, k, nk) tface -> (m, n, k) pface_of_plu
   let (TFace_of_plus (pq, s, d)) = tface_of_plus Zero d in
   let Eq = D.plus_uniq (cod_plus_of_tface d) (D.zero_plus (codr_tface d)) in
   PFace_of_plus (pq, s, d)
+
+(* A tube face with exactly one instantiated dimension can be decomposed into an endpoint and a strict face. *)
+
+let singleton_tface :
+    type m n k nk l.
+    (m, n, k, nk) tface -> k is_singleton -> l Endpoints.len -> (m, n) sface * l N.index =
+ fun d k l ->
+  let One = k in
+  match d with
+  | End (s, n0, (l', i)) ->
+      let Zero = n0 in
+      let Eq = Endpoints.uniq l l' in
+      (s, i)
+
+(* A tface is codimension-1 if it has exactly one endpoint. *)
+
+let rec is_codim1 : type m n k nk. (m, n, k, nk) tface -> unit option = function
+  | End (fa, _, _) -> Option.map (fun _ -> ()) (is_id_sface fa)
+  | Mid s -> is_codim1 s

@@ -10,6 +10,7 @@ open Builtins
 open Reporter
 open Printable
 open Range
+open Readback
 module StringMap = Map.Make (String)
 
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
@@ -167,17 +168,33 @@ let rec get_bwd :
 let rec get_spine :
     type b n.
     (n, kinetic) term ->
-    [ `App of (n, kinetic) term * (n, kinetic) term Bwd.t
-    | `Field of (n, kinetic) term * string * int list * (n, kinetic) term Bwd.t ] =
+    [ `App of (n, kinetic) term * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
+    | `Field of
+      (n, kinetic) term * string * int list * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
+    ] =
  fun tm ->
   match tm with
   | App (fn, arg) -> (
       let module M = CubeOf.Monadic (Monad.State (struct
-        type t = (n, kinetic) term Bwd.t
+        type t = ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
       end)) in
       (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
       let append_bwd args =
-        snd (M.miterM { it = (fun _ [ x ] s -> ((), Snoc (s, x))) } [ arg ] args) in
+        snd
+          (M.miterM
+             {
+               it =
+                 (fun fa [ x ] s ->
+                   match
+                     ( Implicitboundaries.functions (),
+                       Display.function_boundaries (),
+                       is_id_sface fa )
+                   with
+                   | `Implicit, `Show, None -> ((), Snoc (s, (x, `Implicit)))
+                   | `Implicit, `Hide, None -> ((), s)
+                   | _ -> ((), Snoc (s, (x, `Explicit))));
+             }
+             [ arg ] args) in
       match get_spine fn with
       | `App (head, args) -> `App (head, append_bwd args)
       | `Field (head, fld, ins, args) -> `Field (head, fld, ins, append_bwd args))
@@ -202,11 +219,11 @@ let rec unparse :
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> unlocated (Ident (Scope.name_of c, []))
   | Meta (v, _) ->
-      unlocated (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v else "?") ], []))
+      unlocated (Ident ([ (if Display.metas () == `Numbered then Meta.name v else "?") ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)
   | MetaEnv (v, _) ->
       unlocated
-        (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
+        (Ident ([ (if Display.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
   | Field (tm, fld, ins) ->
       unparse_spine vars (`Field (tm, Field.to_string fld, ints_of_ins ins)) Emp li ri
   | UU n ->
@@ -216,15 +233,33 @@ let rec unparse :
   | Inst (ty, tyargs) ->
       (* We unparse instantiations like application spines, since that is how they are represented in user syntax.
          TODO: How can we allow special notations for some instantiations, like x=y for Id A x y? *)
-      unparse_spine vars (`Term ty)
-        (Bwd.map (make_unparser vars) (TubeOf.append_bwd Emp tyargs))
-        li ri
+      let module M = TubeOf.Monadic (Monad.State (struct
+        type t = unparser Bwd.t
+      end)) in
+      (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
+      let (), args =
+        M.miterM
+          {
+            it =
+              (fun fa [ x ] s ->
+                match (Implicitboundaries.types (), Display.type_boundaries (), is_codim1 fa) with
+                | `Implicit, `Show, None ->
+                    ((), Snoc (s, make_unparser_implicit vars (x, `Implicit)))
+                | `Implicit, `Hide, None -> ((), s)
+                | _ -> ((), Snoc (s, make_unparser_implicit vars (x, `Explicit))));
+          }
+          [ tyargs ] Emp in
+      unparse_spine vars (`Term ty) args li ri
   | Pi _ -> unparse_pis vars Emp tm li ri
   | App _ -> (
       match get_spine tm with
-      | `App (fn, args) -> unparse_spine vars (`Term fn) (Bwd.map (make_unparser vars) args) li ri
+      | `App (fn, args) ->
+          unparse_spine vars (`Term fn) (Bwd.map (make_unparser_implicit vars) args) li ri
       | `Field (head, fld, ins, args) ->
-          unparse_spine vars (`Field (head, fld, ins)) (Bwd.map (make_unparser vars) args) li ri)
+          unparse_spine vars
+            (`Field (head, fld, ins))
+            (Bwd.map (make_unparser_implicit vars) args)
+            li ri)
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
       let tm = unparse vars tm Interval.entire Interval.entire in
@@ -273,7 +308,7 @@ let rec unparse :
                                      ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
                                      ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
                                      ~right_ok:(No.le_refl No.minus_omega))
-                            (* An unlabeled 1-tuple is printed (_ := M). *)
+                            (* An unlabeled 1-tuple is currently unparsed as (_ := M). *)
                             | `Unlabeled when Bwd.length fields = 1 ->
                                 unlocated
                                   (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))
@@ -312,6 +347,20 @@ let rec unparse :
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
+
+(* A version that wraps implicit arguments in braces. *)
+and make_unparser_implicit :
+    type n. n Names.t -> (n, kinetic) term * [ `Implicit | `Explicit ] -> unparser =
+ fun vars (tm, i) ->
+  match i with
+  | `Explicit -> { unparse = (fun li ri -> unparse vars tm li ri) }
+  | `Implicit ->
+      {
+        unparse =
+          (fun _ _ ->
+            let tm = unparse vars tm Interval.entire Interval.entire in
+            unlocated (outfix ~notn:Postprocess.braces ~ws:[] ~inner:(Snoc (Emp, Term tm))));
+      }
 
 (* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
 and unparse_spine :
@@ -354,7 +403,7 @@ and unparse_spine :
               let arg = arg.unparse Interval.empty ri in
               (* We parenthesize the argument if the style dictates and it doesn't already have parentheses. *)
               let arg =
-                match Printconfig.argstyle () with
+                match Display.argstyle () with
                 | `Spaces -> arg
                 | `Parens -> parenthesize_maybe arg in
               unlocated (App { fn; arg; left_ok; right_ok })
@@ -363,7 +412,7 @@ and unparse_spine :
                 unparse_spine vars head args Interval.plus_omega_only Interval.plus_omega_only in
               let arg = arg.unparse Interval.empty Interval.plus_omega_only in
               let arg =
-                match Printconfig.argstyle () with
+                match Display.argstyle () with
                 | `Spaces -> arg
                 | `Parens -> parenthesize_maybe arg in
               let left_ok = No.le_refl No.plus_omega in
@@ -724,7 +773,7 @@ let () =
           Reporter.emit (Error_printing_error d.message);
           Printed ((fun ppf () -> Format.pp_print_string ppf "PRINTING_ERROR"), ()))
       @@ fun () ->
-      Readback.Display.run ~env:true @@ fun () ->
+      Readback.Displaying.run ~env:true @@ fun () ->
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
       | PInt i -> Printed (Format.pp_print_int, i)
@@ -740,20 +789,19 @@ let () =
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Names.of_ctx ctx) (Readback.readback_val ctx tm) Interval.entire
-                   Interval.entire) )
+                (unparse (Names.of_ctx ctx) (readback_val ctx tm) Interval.entire Interval.entire)
+            )
       | PNormal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
-              Term
-                (unparse (Names.of_ctx ctx) (Readback.readback_nf ctx tm) Interval.entire
-                   Interval.entire) )
+              Term (unparse (Names.of_ctx ctx) (readback_nf ctx tm) Interval.entire Interval.entire)
+            )
       | PUninst (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Names.of_ctx ctx) (Readback.readback_uninst ctx tm) Interval.entire
-                   Interval.entire) )
+                (unparse (Names.of_ctx ctx) (readback_uninst ctx tm) Interval.entire Interval.entire)
+            )
       | PConstant name ->
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)

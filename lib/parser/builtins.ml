@@ -9,7 +9,6 @@ open Raw
 open Reporter
 open Notation
 open Monad.Ops (Monad.Maybe)
-open Printconfig
 open Range
 module StringSet = Set.Make (String)
 
@@ -26,6 +25,31 @@ end)
 let parens = make "parens" Outfix
 
 (* Parentheses are parsed, processed, and printed along with tuples, since their notation overlaps.  *)
+
+(* ********************
+   Braces
+ ******************** *)
+
+(* Braces were defined in Postprocess; here we say how to parse and print them, and how *not* to process them on their own. *)
+
+let () =
+  set_tree braces (Closed_entry (eop LBrace (term RBrace (Done_closed braces))));
+  set_processor braces { process = (fun _ _ _ _ -> fatal Parse_error) };
+  set_print braces (fun space ppf obs ws ->
+      match obs with
+      | [ body ] ->
+          let wslbrace, ws = take LBrace ws in
+          let wsrbrace, ws = take RBrace ws in
+          taken_last ws;
+          pp_open_hovbox ppf 1;
+          if true then (
+            pp_tok ppf LBrace;
+            pp_ws `None ppf wslbrace;
+            pp_term `None ppf body;
+            pp_tok ppf RBrace);
+          pp_close_box ppf ();
+          pp_ws space ppf wsrbrace
+      | _ -> fatal (Anomaly "invalid notation arguments for braces"))
 
 (* ********************
    Let-binding
@@ -56,7 +80,7 @@ let process_let :
 
 let pp_let toks space ppf obs ws =
   let rec pp_let toks space ppf obs ws =
-    let style = style () in
+    let style = Display.style () in
     let ws, wslets =
       List.fold_left_map
         (fun ws tok ->
@@ -650,7 +674,7 @@ let rec pp_fields : formatter -> observation list -> Whitespace.alist -> Whitesp
           let wscomma, ws = take (Op ",") ws in
           pp_tok ppf (Op ",");
           pp_ws
-            (match spacing () with
+            (match Display.spacing () with
             | `Wide -> `Break
             | `Narrow -> `Custom (("", 0, ""), ("", 0, "")))
             ppf wscomma;
@@ -679,7 +703,7 @@ let pp_tuple space ppf obs ws =
       pp_close_box ppf ();
       pp_ws space ppf wsrparen
   | _ :: _ ->
-      let style, state, spacing = (style (), state (), spacing ()) in
+      let style, state, spacing = (Display.style (), Print.State.read (), Display.spacing ()) in
       (match state with
       | `Term ->
           if style = `Noncompact then pp_open_box ppf 0;
@@ -1313,7 +1337,7 @@ let rec pp_branches : bool -> formatter -> observation list -> Whitespace.alist 
       let wsmapsto, ws = take Mapsto ws in
       match obs with
       | body :: obs ->
-          let style = style () in
+          let style = Display.style () in
           if brk || style = `Noncompact then pp_print_break ppf 0 2 else pp_print_string ppf " ";
           (match body with
           | Term { value = Notn n; _ }
@@ -1368,7 +1392,7 @@ and pp_discriminees ppf obs ws =
   | _ -> fatal (Anomaly "missing variable in match")
 
 and pp_match box space ppf obs ws =
-  let style = style () in
+  let style = Display.style () in
   match take_opt Match ws with
   | Some (wsmtch, ws) ->
       if box then pp_open_vbox ppf 0;
@@ -1497,7 +1521,9 @@ let rec pp_codata_fields ppf obs ws =
       pp_tok ppf Colon;
       pp_ws `Nobreak ppf wscolon;
       pp_close_box ppf ();
-      pp_term (if style () = `Compact && List.is_empty obs then `Nobreak else `Break) ppf body;
+      pp_term
+        (if Display.style () = `Compact && List.is_empty obs then `Nobreak else `Break)
+        ppf body;
       pp_codata_fields ppf obs ws
   | _ :: _ -> fatal (Anomaly "invalid notation arguments for codata")
 
@@ -1658,7 +1684,7 @@ let rec pp_record_fields ppf obs ws =
       let ws = must_start_with (Op ",") ws in
       let wscomma, ws = take (Op ",") ws in
       pp_term `None ppf body;
-      if style () = `Compact && List.is_empty obs then pp_ws `None ppf wscomma
+      if Display.style () = `Compact && List.is_empty obs then pp_ws `None ppf wscomma
       else (
         pp_tok ppf (Op ",");
         pp_ws `Break ppf wscomma);
@@ -1790,7 +1816,8 @@ let rec pp_data_constrs ppf obs ws =
       pp_tok ppf (Op "|");
       pp_ws `Nobreak ppf wsbar;
       if List.is_empty obs then (
-        if style () = `Compact then pp_term `Nobreak ppf constr else pp_term `Break ppf constr;
+        if Display.style () = `Compact then pp_term `Nobreak ppf constr
+        else pp_term `Break ppf constr;
         pp_close_box ppf ())
       else (
         pp_term `Break ppf constr;
@@ -1943,6 +1970,7 @@ let builtins =
   ref
     (Situation.empty
     |> Situation.add parens
+    |> Situation.add braces
     |> Situation.add letin
     |> Situation.add letrec
     |> Situation.add asc

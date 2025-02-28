@@ -6,6 +6,7 @@ open Term
 type ('a, 'b, 's) homewhen = {
   global : Global.data;
   scope : Scope.trie;
+  options : Options.t;
   status : ('b, 's) status;
   vars : (string option, 'a) Bwv.t;
 }

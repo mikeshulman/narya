@@ -98,7 +98,7 @@ let print (tm : string) : unit =
   | { value = Synth rtm; loc } ->
       let ctm, ety = synth (Kinetic `Nolet) Ctx.empty { value = rtm; loc } in
       let etm = eval_term (Emp D.zero) ctm in
-      Display.run ~env:true @@ fun () ->
+      Readback.Displaying.run ~env:true @@ fun () ->
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm Interval.entire Interval.entire in
       pp_term `None Format.std_formatter (Term utm);
@@ -108,12 +108,14 @@ let print (tm : string) : unit =
 let run f =
   Lexer.Specials.run @@ fun () ->
   Parser.Unparse.install ();
+  History.run_empty @@ fun () ->
   Eternity.run ~init:Eternity.empty @@ fun () ->
   Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
-  Printconfig.run ~env:Printconfig.default @@ fun () ->
+  Print.State.run ~env:`Term @@ fun () ->
+  Display.run ~init:Display.default @@ fun () ->
   Annotate.run @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
+  Readback.Displaying.run ~env:false @@ fun () ->
   Discrete.run ~env:false @@ fun () ->
   Dim.Endpoints.run ~arity:2 ~refl_char:'e' ~refl_names:[ "refl"; "Id" ] ~internal:true @@ fun () ->
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
@@ -124,7 +126,7 @@ let run f =
       raise (Failure "Fatal error"))
   @@ fun () ->
   let init_visible = Parser.Pi.install Scope.Trie.empty in
-  Scope.run ~init_visible @@ fun () -> f ()
+  Scope.run ~init_visible ~options:Options.default @@ fun () -> f ()
 
 let gel_install () =
   def "Gel" "(A B : Type) (R : A → B → Type) → Id Type A B" "A B R ↦ sig a b ↦ ( ungel : R a b )"

@@ -27,9 +27,21 @@ This will make the executable `narya` available in a directory such as `~/.opam/
 
 ### ProofGeneral (Emacs) mode
 
-The recommended mode of use of Narya is with its [ProofGeneral](https://proofgeneral.github.io/) Emacs mode (for further description of this, see below).  To install Narya's ProofGeneral mode, first install Emacs and ProofGeneral and find the ProofGeneral installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.  In this directory, create a subdirectory called `narya` and copy (or, better, symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.  Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny")` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.  Then restart Emacs.
+The recommended mode of use of Narya is with its [ProofGeneral](https://proofgeneral.github.io/) Emacs mode (for further description of this, see below).  Unfortunately, ProofGeneral is not well-designed for users adding new proof assistant modes.  The steps to install Narya's ProofGeneral mode are:
 
-Note that you will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them) and also whenever ProofGeneral is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
+1. Install Emacs and ProofGeneral.  The recommended way to install ProofGeneral is from [MELPA](https://melpa.org/) using Emacs' package manager, as described at the [ProofGeneral page](https://proofgeneral.github.io/).
+
+1. Find the ProofGeneral installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.
+
+1. In this directory, create a subdirectory called `narya` and copy (or, better, symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.
+
+1. Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny" nil (".nyo"))` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.
+
+1. If there is a byte-compiled Emacs Lisp file `proof-site.elc` in the `generic` directory, either delete it, or re-create it from your edited `proof-site.el` using `M-x byte-compile-file`.
+
+1. Restart Emacs.
+
+You will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them), whenever ProofGeneral is updated, and whenever Emacs is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
 
 ### In-browser version
 

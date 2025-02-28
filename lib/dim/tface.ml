@@ -166,3 +166,12 @@ let singleton_tface :
 let rec is_codim1 : type m n k nk. (m, n, k, nk) tface -> unit option = function
   | End (fa, _, _) -> Option.map (fun _ -> ()) (is_id_sface fa)
   | Mid s -> is_codim1 s
+
+type (_, _, _) tface_of = Tface_of : ('m, 'n, 'k, 'nk) tface -> ('n, 'k, 'nk) tface_of
+
+(* Every tface belongs to a unique codimension-1 tface. *)
+let rec codim1_envelope : type m n k nk. (m, n, k, nk) tface -> (n, k, nk) tface_of = function
+  | End (fa, nk, l) -> Tface_of (End (id_sface (cod_sface fa), nk, l))
+  | Mid s ->
+      let (Tface_of s1) = codim1_envelope s in
+      Tface_of (Mid s1)

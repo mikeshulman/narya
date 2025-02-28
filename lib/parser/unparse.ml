@@ -164,6 +164,19 @@ let rec get_bwd :
       get_bwd (CubeOf.find_top rdc) (CubeOf.find_top rac :: elts)
   | _ -> None
 
+let synths : type n. (n, kinetic) term -> bool = function
+  | Var _ | Const _
+  | Meta (_, _)
+  | MetaEnv (_, _)
+  | Field (_, _, _)
+  | UU _
+  | Inst (_, _)
+  | Pi (_, _, _)
+  | App (_, _)
+  | Act (_, _)
+  | Let (_, _, _) -> true
+  | Constr (_, _, _) | Lam (_, _) | Struct (_, _, _, _) -> false
+
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
 let rec get_spine :
     type b n.
@@ -180,6 +193,7 @@ let rec get_spine :
       end)) in
       (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
       let append_bwd args =
+        let all_args = not (synths (CubeOf.find_top arg)) in
         snd
           (M.miterM
              {
@@ -188,10 +202,11 @@ let rec get_spine :
                    match
                      ( Implicitboundaries.functions (),
                        Display.function_boundaries (),
-                       is_id_sface fa )
+                       is_id_sface fa,
+                       all_args )
                    with
-                   | `Implicit, `Show, None -> ((), Snoc (s, (x, `Implicit)))
-                   | `Implicit, `Hide, None -> ((), s)
+                   | `Implicit, `Hide, None, false -> ((), s)
+                   | `Implicit, _, None, _ -> ((), Snoc (s, (x, `Implicit)))
                    | _ -> ((), Snoc (s, (x, `Explicit))));
              }
              [ arg ] args) in
@@ -242,10 +257,13 @@ let rec unparse :
           {
             it =
               (fun fa [ x ] s ->
-                match (Implicitboundaries.types (), Display.type_boundaries (), is_codim1 fa) with
-                | `Implicit, `Show, None ->
-                    ((), Snoc (s, make_unparser_implicit vars (x, `Implicit)))
-                | `Implicit, `Hide, None -> ((), s)
+                let (Tface_of fa1) = codim1_envelope fa in
+                let all_args = not (synths (TubeOf.find tyargs fa1)) in
+                match
+                  (Implicitboundaries.types (), Display.type_boundaries (), is_codim1 fa, all_args)
+                with
+                | `Implicit, `Hide, None, false -> ((), s)
+                | `Implicit, _, None, _ -> ((), Snoc (s, make_unparser_implicit vars (x, `Implicit)))
                 | _ -> ((), Snoc (s, make_unparser_implicit vars (x, `Explicit))));
           }
           [ tyargs ] Emp in
@@ -583,9 +601,24 @@ and unparse_pis :
             type t = unparser Bwd.t
           end) in
           let module MOf = CubeOf.Monadic (S) in
+          let all_args = not (synths (CubeOf.find_top doms)) in
           let (), args =
             MOf.miterM
-              { it = (fun _ [ dom ] args -> ((), Snoc (args, make_unparser vars dom))) }
+              {
+                it =
+                  (fun fa [ dom ] args ->
+                    let newdoms =
+                      match
+                        ( Implicitboundaries.functions (),
+                          Display.function_boundaries (),
+                          is_id_sface fa,
+                          all_args )
+                      with
+                      | `Implicit, `Hide, None, false -> []
+                      | `Implicit, _, None, _ -> [ (dom, `Implicit) ]
+                      | _ -> [ (dom, `Explicit) ] in
+                    ((), Bwd.append args (List.map (make_unparser_implicit vars) newdoms)));
+              }
               [ doms ] Emp in
           let module MCod = CodCube.Monadic (S) in
           let (), args =
@@ -593,10 +626,15 @@ and unparse_pis :
               {
                 it =
                   (fun fa [ cod ] args ->
+                    let impl =
+                      match (Implicitboundaries.functions (), is_id_sface fa) with
+                      | `Implicit, None -> `Implicit
+                      | _ -> `Explicit in
                     ( (),
                       Snoc
-                        (args, make_unparser vars (Lam (singleton_variables (dom_sface fa) x, cod)))
-                    ));
+                        ( args,
+                          make_unparser_implicit vars
+                            (Lam (singleton_variables (dom_sface fa) x, cod), impl) ) ));
               }
               [ cods ] args in
           unparse_pis_final vars accum

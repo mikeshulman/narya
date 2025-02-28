@@ -183,7 +183,7 @@ def eqv (A B : Type) : Type ≔ sig (
     (to_fro (to a)),
 )
 
-notation 1 iso : A "≅" B ≔ eqv A B
+notation 1 eqv : A "≅" B ≔ eqv A B
 
 def fro_to_fro (A B : Type) (e : A ≅ B) (y:B)
   : eq (eq A (e .fro (e .to (e .fro y))) (e .fro y))
@@ -371,9 +371,8 @@ def eqvId (A0 : Type) (A1 : Type) (A2 : Id Type A0 A1)
            b0 b1 b2 (ε0 b0) (ε1 b1)
            (ε2 b0 b1 b2))
 
-
 {` Fibrancy transports across equivalences. `}
-def 𝕗iso (A B : Type) (e : A ≅ B) (𝕗A : isFibrant A) : isFibrant B ≔ [
+def 𝕗eqv (A B : Type) (e : A ≅ B) (𝕗A : isFibrant A) : isFibrant B ≔ [
 | .trr.e ↦ b0 ↦ e.1 .to (𝕗A.2 .trr.1 (e.0 .fro b0))
 | .trl.e ↦ b1 ↦ e.0 .to (𝕗A.2 .trl.1 (e.1 .fro b1))
 | .liftr.e ↦ b0 ↦
@@ -387,12 +386,28 @@ def 𝕗iso (A B : Type) (e : A ≅ B) (𝕗A : isFibrant A) : isFibrant B ≔ [
        (e.2 .to (𝕗A.2 .trl.1 (e.1 .fro b1)) (e.1 .fro b1)
                 (𝕗A.2 .liftl.1 (e.1 .fro b1)))
 | .id.e ↦ b0 b1 ↦
-  𝕗iso (A.2 (e.0 .fro b0) (e.1 .fro b1)) (B.2 b0 b1)
+  𝕗eqv (A.2 (e.0 .fro b0) (e.1 .fro b1)) (B.2 b0 b1)
        (eqvId A.0 A.1 A.2 B.0 B.1 B.2 e.0 e.1 e.2 b0 b1)
        (𝕗A.2 .id.1 (e.0 .fro b0) (e.1 .fro b1)) ]
 
 option function boundaries ≔ implicit
 option type boundaries ≔ implicit
+
+{` Symmetry is an equivalence `}
+def sym_eqv (A00 A01 : Type) (A02 : Id Type A00 A01)
+  (A10 A11 : Type) (A12 : Id Type A10 A11)
+  (A20 : Id Type A00 A10) (A21 : Id Type A01 A11)
+  (A22 : Id (Id Type) A02 A12 A20 A21)
+  (a00 : A00) (a01 : A01) (a02 : A02 a00 a01)
+  (a10 : A10) (a11 : A11) (a12 : A12 a10 a11)
+  (a20 : A20 a00 a10) (a21 : A21 a01 a11)
+  : A22 a02 a12 a20 a21 ≅ sym A22 a20 a21 a02 a12 ≔ (
+to ≔ a22 ↦ sym a22,
+fro ≔ a22 ↦ sym a22,
+to_fro ≔ _ ↦ rfl.,
+fro_to ≔ _ ↦ rfl.,
+to_fro_to ≔ _ ↦ rfl. )
+
 
 {` The unit type `}
 
@@ -411,7 +426,7 @@ def 𝕗⊤ : isFibrant ⊤ ≔ [
 | .trl.e ↦ x ↦ x
 | .liftr.e ↦ _ ↦ ()
 | .liftl.e ↦ _ ↦ ()
-| .id.e ↦ x y ↦ 𝕗iso ⊤ (Id ⊤ x y) (id_⊤_iso x y) 𝕗⊤ ]
+| .id.e ↦ x y ↦ 𝕗eqv ⊤ (Id ⊤ x y) (id_⊤_iso x y) 𝕗⊤ ]
 
 {` Product types `}
 
@@ -437,7 +452,7 @@ def 𝕗prod (A B : Type) (𝕗A : isFibrant A) (𝕗B : isFibrant B)
 | .liftr.e ↦ u0 ↦ (𝕗A.2 .liftr.1 (u0 .fst), 𝕗B.2 .liftr.1 (u0 .snd))
 | .liftl.e ↦ u1 ↦ (𝕗A.2 .liftl.1 (u1 .fst), 𝕗B.2 .liftl.1 (u1 .snd))
 | .id.e ↦ u0 u1 ↦
-  𝕗iso (A.2 (u0 .fst) (u1 .fst) × B.2 (u0 .snd) (u1 .snd))
+  𝕗eqv (A.2 (u0 .fst) (u1 .fst) × B.2 (u0 .snd) (u1 .snd))
       (refl prod A.2 B.2 u0 u1)
       (id_prod_iso A.0 A.1 A.2 B.0 B.1 B.2
                    (u0 .fst) (u1 .fst) (u0 .snd) (u1 .snd))
@@ -477,7 +492,7 @@ def 𝕗Σ (A : Type) (B : A → Type)
   (𝕗A.2 .liftl.1 (u1 .fst),
    𝕗B.2 (𝕗A.2 .liftl.1 (u1 .fst)) .liftl.1 (u1 .snd))
 | .id.e ↦ u0 u1 ↦
-  𝕗iso (Σ (A.2 (u0 .fst) (u1 .fst))
+  𝕗eqv (Σ (A.2 (u0 .fst) (u1 .fst))
          (a2 ↦ B.2 a2 (u0 .snd) (u1 .snd)))
        (Id Σ A.2 B.2 u0 u1)
        (id_Σ_iso A.0 A.1 A.2 B.0 B.1 B.2
@@ -511,10 +526,20 @@ def 𝕗Π (A : Type) (B : A → Type)
   𝕗B.2 (𝕗A.2 .liftl.1 a1) .trr.1 (f0 (𝕗A.2 .trl.1 a1))
 | .trl.e ↦ f1 a0 ↦
   𝕗B.2 (𝕗A.2 .liftr.1 a0) .trl.1 (f1 (𝕗A.2 .trr.1 a0))
-| .liftr.e ↦ f0 a0 a1 a2 ↦ ?
-| .liftl.e ↦ f1 a0 a1 a2 ↦ ?
+| .liftr.e ↦ f0 a ⤇
+  refl 𝕗B.2 (sym (sym (refl 𝕗A.2) .id.1 a.2 (𝕗A.2 .liftl.1 a.1)
+                                 .liftl.1 (refl a.1)))
+    .id.1 (refl f0 (𝕗A.2⁽ᵉ¹⁾ .id.1 a.2 (𝕗A.2 .liftl.1 a.1) .trl.1 (refl a.1)))
+          (refl (𝕗B.2 (𝕗A.2 .liftl.1 a.1) .trr.1 (f0 (𝕗A.2 .trl.1 a.1))))
+    .trl.1 (𝕗B.2 (𝕗A.2 .liftl.1 a.1) .liftr.1 (f0 (𝕗A.2 .trl.1 a.1)))
+| .liftl.e ↦ f1 a ⤇
+  refl 𝕗B.2 (sym (sym (refl 𝕗A.2) .id.1 a.2 (𝕗A.2 .liftr.1 a.0)
+                                 .liftr.1 (refl a.0)))
+    .id.1 (refl (𝕗B.2 (𝕗A.2 .liftr.1 a.0) .trl.1 (f1 (𝕗A.2 .trr.1 a.0))))
+          (refl f1 (𝕗A.2⁽ᵉ¹⁾ .id.1 a.2 (𝕗A.2 .liftr.1 a.0) .trr.1 (refl a.0)))
+    .trl.1 (𝕗B.2 (𝕗A.2 .liftr.1 a.0) .liftl.1 (f1 (𝕗A.2 .trr.1 a.0)))
 | .id.e ↦ f0 f1 ↦
-  𝕗iso ((a0 : A.0) (a1 : A.1) (a2 : A.2 a0 a1) → B.2 a2 (f0 a0) (f1 a1))
+  𝕗eqv ((a0 : A.0) (a1 : A.1) (a2 : A.2 a0 a1) → B.2 a2 (f0 a0) (f1 a1))
     (Id Π A.2 B.2 f0 f1)
     (id_Π_iso A.0 A.1 A.2 B.0 B.1 B.2 f0 f1)
     (𝕗Π A.0 (a0 ↦ (a1:A.1)(a2:A.2 a0 a1)→B.2 a2 (f0 a0) (f1 a1)) 𝕗A.0
@@ -590,7 +615,7 @@ def 𝕗sum (A B : Type) (𝕗A : isFibrant A) (𝕗B : isFibrant B)
 | .liftl.e ↦ [
   | left. a1 ↦ left. (𝕗A.2 .liftl.1 a1)
   | right. b1 ↦ right. (𝕗B.2 .liftl.1 b1) ]
-| .id.e ↦ u0 u1 ↦ (𝕗iso
+| .id.e ↦ u0 u1 ↦ (𝕗eqv
     (sum_code A.0 A.1 A.2 B.0 B.1 B.2 u0 u1)
     (Id sum A.2 B.2 u0 u1)
     (id_sum_iso A.0 A.1 A.2 B.0 B.1 B.2 u0 u1)
@@ -643,7 +668,7 @@ def 𝕗ℕ : isFibrant ℕ ≔ [
 | .trl.e ↦ x ↦ x
 | .liftr.e ↦ x ↦ refl x
 | .liftl.e ↦ x ↦ refl x
-| .id.e ↦ n0 n1 ↦ 𝕗iso (ℕ_code n0 n1) (Id ℕ n0 n1) (id_ℕ_iso n0 n1)
+| .id.e ↦ n0 n1 ↦ 𝕗eqv (ℕ_code n0 n1) (Id ℕ n0 n1) (id_ℕ_iso n0 n1)
                         (𝕗_ℕ_code n0 n1) ]
 
 {` Gel types `}
@@ -673,7 +698,7 @@ def is11 (A B : Type) (R : A → B → Type) : Type ≔ sig (
   uliftl : (a:A) (b:B) (r:R a b)
        → Id ((x ↦ R x b) : A → Type) (utrl a b r) r (liftl b) )
 
-def is11_iso (A B : Type) (R S : A → B → Type)
+def is11_eqv (A B : Type) (R S : A → B → Type)
   (e : (a:A)(b:B) → R a b ≅ S a b) (re : is11 A B R)
   : is11 A B S ≔ (
 trr ≔ re .trr,
@@ -697,20 +722,6 @@ uliftl ≔ a b s ↦
     (refl e (re .utrl a b (e a b .fro s)) (refl b)
       .to (re .uliftl a b (e a b .fro s))) )
 
-def sym_iso (A00 A01 : Type) (A02 : Id Type A00 A01)
-  (A10 A11 : Type) (A12 : Id Type A10 A11)
-  (A20 : Id Type A00 A10) (A21 : Id Type A01 A11)
-  (A22 : Id (Id Type) A02 A12 A20 A21)
-  (a00 : A00) (a01 : A01) (a02 : A02 a00 a01)
-  (a10 : A10) (a11 : A11) (a12 : A12 a10 a11)
-  (a20 : A20 a00 a10) (a21 : A21 a01 a11)
-  : A22 a02 a12 a20 a21 ≅ sym A22 a20 a21 a02 a12 ≔ (
-to ≔ a22 ↦ sym a22,
-fro ≔ a22 ↦ sym a22,
-to_fro ≔ _ ↦ rfl.,
-fro_to ≔ _ ↦ rfl.,
-to_fro_to ≔ _ ↦ rfl. )
-
 def pre_univalence (A B : Fib) (R : Id Type (A .t) (B .t))
   (𝕗R : (a : A .t) (b : B .t) → isFibrant (R a b))
   (re : is11 (A .t) (B .t) (x y ↦ R x y))
@@ -732,10 +743,10 @@ def pre_univalence (A B : Fib) (R : Id Type (A .t) (B .t))
      (A.2 .t a0 a1, A.2 .f .id.1 a0 a1)
      (B.2 .t b0 b1, B.2 .f .id.1 b0 b1)
      (sym R.2 r0 r1)
-     (a2 b2 ↦ 𝕗iso
+     (a2 b2 ↦ 𝕗eqv
        (R.2 a2 b2 r0 r1)
        (sym R.2 r0 r1 a2 b2)
-       (sym_iso (A.0 .t) (A.1 .t) (A.2 .t) (B.0 .t) (B.1 .t) (B.2 .t)
+       (sym_eqv (A.0 .t) (A.1 .t) (A.2 .t) (B.0 .t) (B.1 .t) (B.2 .t)
                  R.0 R.1 R.2 a0 a1 a2 b0 b1 b2 r0 r1)
        (𝕗R.2 a2 b2 .id.1 r0 r1))
      (trr ≔ a2 ↦
@@ -757,9 +768,9 @@ def univalence (A B : Fib) (R : A .t → B .t → Fib)
   : Id Fib A B
   ≔ let Rt : A .t → B .t → Type ≔ x y ↦ R x y .t in
     pre_univalence A B (Gel (A .t) (B .t) Rt)
-      (a b ↦ 𝕗iso (R a b .t) (Gel (A .t) (B .t) Rt a b)
+      (a b ↦ 𝕗eqv (R a b .t) (Gel (A .t) (B .t) Rt a b)
                   (Gel_iso (A .t) (B .t) Rt a b) (R a b .f))
-      (is11_iso (A .t) (B .t) (x y ↦ R x y .t)
+      (is11_eqv (A .t) (B .t) (x y ↦ R x y .t)
                 (a b ↦ Gel (A .t) (B .t) (x y ↦ R x y .t) a b)
                 (a b ↦ Gel_iso (A .t) (B .t) (x y ↦ R x y .t) a b)
                 re)
@@ -815,7 +826,7 @@ def 𝕗Fib : isFibrant Fib ≔ [
       | .liftr.e ↦ a10 b10 c10 ↦ ?
       | .liftl.1 ↦ b1 ↦ ?
       | .liftl.e ↦ a11 b11 c11 ↦ ?
-      | .id.1 ↦ a1 b1 ↦ 𝕗iso
+      | .id.1 ↦ a1 b1 ↦ 𝕗eqv
         (C0 .t (A.2 .f .trl.1 a1) (B.2 .f .trl.1 b1))
         (Gel (A.1 .t) (B.1 .t)
           (a10 b10 ↦ C0 .t (A.2 .f .trl.1 a10) (B.2 .f .trl.1 b10)) a1 b1)

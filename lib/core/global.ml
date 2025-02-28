@@ -301,7 +301,7 @@ let do_holes make_msg =
     [ d.current_holes ];
   d.current_metas
 
-(* At the end of a succesful normal command, notify the user of generated holes, save the newly created metavariables, and return the number of holes created to notify the user of. *)
+(* At the end of a succesful normal command, notify the user of generated holes and save the newly created metavariables. *)
 let end_command make_msg =
   let metas = do_holes make_msg in
   save_metas metas;

@@ -433,7 +433,7 @@ let rec check :
     | Record _, Kinetic l -> kinetic_of_potential l ctx tm ty "sig"
     | Data _, Kinetic l -> kinetic_of_potential l ctx tm ty "data"
     (* If the user left a hole, we create an eternal metavariable. *)
-    | Hole (vars, pos), _ ->
+    | Hole (vars, pos, _li, _ri), _ ->
         (* Holes aren't numbered by the file they appear in. *)
         let meta = Meta.make_hole (Ctx.raw_length ctx) (Ctx.dbwd ctx) (energy status) in
         let ty, termctx =

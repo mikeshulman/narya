@@ -106,6 +106,7 @@ let rec process :
           { value = Synth (Act (str, s, body)); loc }
       | None -> fatal (Invalid_degeneracy str))
   | Superscript (None, _, _) -> fatal (Anomaly "degeneracy is head")
+  | Hole (li, ri, _) -> { value = Hole (ctx, Option.get loc, Interval li, Interval ri); loc }
 
 and process_spine :
     type n lt ls rt rs.

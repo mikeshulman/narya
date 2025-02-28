@@ -131,6 +131,9 @@ and (_, _, _, _) parse =
   | Superscript :
       ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
       -> ('lt, 'ls, 'rt, 'rs) parse
+  | Hole :
+      ('lt, 'ls) No.iinterval * ('rt, 'rs) No.iinterval * Whitespace.t list
+      -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object).  The whitespace argument is often ignored, but it allows complicated notation processing functions to be shared between the processor and the printer, and sometimes the processing functions need to inspect the sequence of tokens which is stored with the whitespace. *)
 and processor = {
@@ -330,7 +333,10 @@ let rec split_ending_whitespace :
           ({ value = Field (f, first); loc }, rest)
       | Superscript (x, s, ws) ->
           let first, rest = Whitespace.split ws in
-          ({ value = Superscript (x, s, first); loc }, rest))
+          ({ value = Superscript (x, s, first); loc }, rest)
+      | Hole (li, ri, ws) ->
+          let first, rest = Whitespace.split ws in
+          ({ value = Hole (li, ri, first); loc }, rest))
 
 (* Helper functions for constructing notation trees *)
 

@@ -12,6 +12,7 @@ and parse_tree =
   | Constr of string
   | Field of string
   | Superscript of parse_tree option * string
+  | Hole
 
 let rec get_obs (obs : Notation.observation) : obs =
   match obs with
@@ -28,6 +29,7 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Field (x, _) -> Field x
   | Superscript (None, s, _) -> Superscript (None, s)
   | Superscript (Some x, s, _) -> Superscript (Some (get_tree x.value), s)
+  | Hole _ -> Hole
 
 let parse tm =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in

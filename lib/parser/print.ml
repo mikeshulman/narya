@@ -167,6 +167,9 @@ let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
           pp_ws space ppf w
       | Superscript (None, s, w) ->
           pp_superscript ppf s;
+          pp_ws space ppf w
+      | Hole (_, _, w) ->
+          pp_print_string ppf "?";
           pp_ws space ppf w)
 
 and pp_superscript ppf str =

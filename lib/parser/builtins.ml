@@ -1883,31 +1883,6 @@ let () =
   set_print bwd (pp_lst "<")
 
 (* ********************
-   Holes
- ******************** *)
-
-let hole = make "hole" Outfix
-
-let () =
-  set_tree hole (Closed_entry (eop Query (Done_closed hole)));
-  set_processor hole
-    {
-      process =
-        (fun ctx obs loc _ ->
-          match obs with
-          | [] -> { value = Hole (ctx, Option.get loc); loc }
-          | _ -> fatal (Anomaly "invalid notation arguments for hole"));
-    };
-  set_print hole @@ fun space ppf obs ws ->
-  match obs with
-  | [] ->
-      let wshole, ws = take Query ws in
-      taken_last ws;
-      pp_print_string ppf "?";
-      pp_ws space ppf wshole
-  | _ -> fatal (Anomaly (Printf.sprintf "invalid notation arguments for hole: %d" (List.length ws)))
-
-(* ********************
    Generating the state
  ******************** *)
 
@@ -1933,7 +1908,6 @@ let builtins =
     |> Situation.add record
     |> Situation.add data
     |> Situation.add fwd
-    |> Situation.add bwd
-    |> Situation.add hole)
+    |> Situation.add bwd)
 
 let run : type a. (unit -> a) -> a = fun f -> Situation.run_on !builtins f

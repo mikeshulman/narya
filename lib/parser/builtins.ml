@@ -1895,7 +1895,7 @@ let () =
       process =
         (fun ctx obs loc _ ->
           match obs with
-          | [] -> { value = Hole (ctx, locate () loc); loc }
+          | [] -> { value = Hole (ctx, Option.get loc); loc }
           | _ -> fatal (Anomaly "invalid notation arguments for hole"));
     };
   set_print hole @@ fun space ppf obs ws ->

@@ -29,7 +29,7 @@ val with_holes : (unit, string) Result.t -> (unit -> 'a) -> 'a
 
 val add_hole :
   ('a, 'b, 's) Meta.t ->
-  unit Asai.Range.located ->
+  Asai.Range.t ->
   vars:(string option, 'a) Bwv.t ->
   termctx:('a, 'b) Termctx.t ->
   ty:('b, kinetic) term ->

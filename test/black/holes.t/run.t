@@ -8,6 +8,12 @@
    ￫ info[I0000]
    ￮ constant id defined
   
+   ￫ info[I0001]
+   ￮ axiom b assumed
+  
+   ￫ info[I0001]
+   ￮ axiom g assumed
+  
    ￫ info[I0000]
    ￮ constant f defined, containing 1 hole
   
@@ -23,9 +29,8 @@
    ￫ info[I3003]
    ￮ hole ?1:
      
-     x : A
      ----------------------------------------------------------------------
-     B
+     A → B
   
    ￫ info[I0000]
    ￮ constant ℕ defined

@@ -55,6 +55,8 @@ end
 module Flags = Algaeff.Reader.Make (FlagData)
 
 let () = Flags.register_printer (function `Read -> Some "unhandled Flags.read effect")
+
+(* TODO: Perhaps these should use a customizable formatter, since we may be reformatting source files. *)
 let reformat_maybe f = if (Flags.read ()).reformat then f std_formatter else ()
 let reformat_maybe_ws f = if (Flags.read ()).reformat then f std_formatter else []
 

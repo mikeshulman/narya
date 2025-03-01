@@ -4,9 +4,13 @@ axiom B : Type
 
 def id : Type → Type ≔ X ↦ X
 
-def f : A → B ≔ ?
+axiom b : B
 
-def f' : A → B ≔ x ↦ ?
+axiom g : (A → B) → A → B
+
+def f : A → B ≔ g ?
+
+def f' : A → B ≔ ?
 
 def ℕ : Type ≔ data [
 | zero. : ℕ

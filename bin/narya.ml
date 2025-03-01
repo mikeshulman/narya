@@ -105,14 +105,20 @@ let rec repl terminal history buf =
         let str = Buffer.contents buf in
         let* () = Lwt_io.flush Lwt_io.stdout in
         (* In interactive mode, we display all messages verbosely, and don't quit on fatal errors except for the Quit command. *)
-        Reporter.try_with
-          ~emit:(fun d -> Reporter.display ~output:stdout d)
-          ~fatal:(fun d ->
-            Reporter.display ~output:stdout d;
-            match d.message with
-            | Quit _ -> exit 0
-            | _ -> ())
-          (fun () -> do_command (Command.parse_single str));
+        ( Reporter.try_with
+            ~emit:(fun d -> Reporter.display ~output:stdout d)
+            ~fatal:(fun d ->
+              Reporter.display ~output:stdout d;
+              match d.message with
+              | Quit _ -> exit 0
+              | _ -> ())
+        @@ fun () ->
+          match Command.parse_single str with
+          | _, Some cmd when (Execute.Flags.read ()).execute ->
+              Execute.execute_command cmd;
+              let n = Eternity.unsolved () in
+              if n > 0 then Reporter.emit (Open_holes n)
+          | _ -> () );
         LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
       else (
@@ -153,17 +159,19 @@ let rec interact_pg () : unit =
     done;
     let cmd = Buffer.contents buf in
     let holes = ref Emp in
+    let parens = ref false in
     ( Global.HolePos.run ~init:{ holes = Emp; offset = 0 } @@ fun () ->
       Reporter.try_with
       (* ProofGeneral sets TERM=dumb, but in fact it can display ANSI colors, so we tell Asai to override TERM and use colors unconditionally. *)
         ~emit:(fun d ->
           match d.message with
           | Hole _ -> holes := Snoc (!holes, d.message)
+          | Needs_parentheses -> parens := true
           | _ -> Reporter.display ~use_ansi:true ~output:stdout d)
         ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
         (fun () ->
           try
-            do_command (Command.parse_single cmd);
+            let _reformat = do_command (Command.parse_single cmd) in
             Format.printf "\x0C[goals]\x0C\n%!";
             Mbwd.miter
               (fun [ h ] ->
@@ -174,7 +182,10 @@ let rec interact_pg () : unit =
             let st = Global.HolePos.get () in
             Mbwd.miter
               (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h (s - st.offset) (e - st.offset))
-              [ st.holes ]
+              [ st.holes ];
+            Format.printf "\x0C[reformat]\x0C\n%!";
+            (* reformat (); *)
+            if !parens then Format.printf "parens\n%!" else Format.printf "noparens\n%!"
           with Sys.Break -> Reporter.fatal Break) );
     interact_pg ()
   with End_of_file -> ()

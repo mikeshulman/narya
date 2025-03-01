@@ -70,7 +70,7 @@ module Command = struct
         number : int;
         wsnumber : Whitespace.t list;
         wscoloneq : Whitespace.t list;
-        mutable tm : observation;
+        tm : observation;
       }
     | Show of {
         wsshow : Whitespace.t list;
@@ -804,7 +804,10 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
                 let ppf = Format.formatter_of_buffer buf in
                 (Print.State.as_case @@ fun () -> pp_term `None ppf data.tm);
                 Format.pp_print_flush ppf ();
-                Reporter.try_with ~fatal:(fun _ -> data.tm <- Term (parenthesize tm)) @@ fun () ->
+                Reporter.try_with ~fatal:(fun _ ->
+                    (* data.tm <- Term (parenthesize tm) *)
+                    emit Needs_parentheses)
+                @@ fun () ->
                 let _ =
                   TermParse.Term.parse ~li:(Interval li) ~ri:(Interval ri)
                     (`String { content = Buffer.contents buf; title = None }) in

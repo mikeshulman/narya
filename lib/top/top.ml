@@ -60,21 +60,20 @@ let set_refls str =
       refl_char := c.[0];
       refl_names := names
 
-(* Execute a parsed command (if requested by Flags), alert about open holes, and reformat it (if requested by Flags). *)
+(* Execute a parsed command (if requested by Flags), alert about open holes, and return a function that reformats it (if requested by Flags). *)
 let do_command = function
-  | ws, None -> Execute.reformat_maybe @@ fun ppf -> pp_ws `None ppf ws
+  | ws, None -> fun () -> Execute.reformat_maybe @@ fun ppf -> pp_ws `None ppf ws
   | ws, Some cmd ->
-      let reformat_end () =
+      if (Execute.Flags.read ()).execute then (
+        Execute.execute_command cmd;
+        let n = Eternity.unsolved () in
+        if n > 0 then Reporter.emit (Open_holes n));
+      fun () ->
         Execute.reformat_maybe @@ fun ppf ->
         pp_ws `None ppf ws;
         let last = Parser.Command.pp_command ppf cmd in
         pp_ws `None ppf last;
-        Format.pp_print_newline ppf () in
-      Fun.protect
-        (fun () -> if (Execute.Flags.read ()).execute then Execute.execute_command cmd)
-        ~finally:reformat_end;
-      let n = Eternity.unsolved () in
-      if n > 0 then Reporter.emit (Open_holes n)
+        Format.pp_print_newline ppf ()
 
 (* This exception is raised when a fatal error occurs in loading the non-interactive inputs.  The caller should catch it and perform an appropriate kind of "exit".  *)
 exception Exit

@@ -136,12 +136,10 @@ let pp_ws (space : space) (ppf : formatter) (ws : Whitespace.t list) : unit =
 (* Print a parse tree. *)
 let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
   let (Term tr) = wtr in
-  match State.read () with
-  | `Case -> (
-      match tr.value with
-      | Notn n -> pp_notn_case space ppf (notn n) (args n) (whitespace n)
-      | _ -> State.as_term @@ fun () -> pp_term space ppf wtr)
-  | `Term -> (
+  match tr.value with
+  | Notn n when print_in_case (notn n) -> pp_notn space ppf (notn n) (args n) (whitespace n)
+  | _ -> (
+      State.as_term @@ fun () ->
       match tr.value with
       | Notn n -> pp_notn space ppf (notn n) (args n) (whitespace n)
       | App _ ->
@@ -182,19 +180,6 @@ and pp_superscript ppf str =
       pp_utf_8 ppf "^(";
       pp_utf_8 ppf str;
       pp_utf_8 ppf ")"
-
-and pp_notn_case :
-    type left tight right.
-    space ->
-    formatter ->
-    (left, tight, right) notation ->
-    observation list ->
-    Whitespace.alist ->
-    unit =
- fun space ppf n obs ws ->
-  match print_as_case n with
-  | Some pp -> pp space ppf obs ws
-  | None -> State.as_term @@ fun () -> pp_notn space ppf n obs ws
 
 and pp_notn :
     type left tight right.

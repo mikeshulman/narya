@@ -510,10 +510,8 @@ let pp_abs cube space ppf obs ws =
 let () =
   set_processor abs (process_abs `Normal);
   set_processor cubeabs (process_abs `Cube);
-  set_print abs (pp_abs `Normal);
-  set_print cubeabs (pp_abs `Cube);
-  set_print_as_case abs (pp_abs `Normal);
-  set_print_as_case cubeabs (pp_abs `Cube)
+  set_print abs ~in_case:true (pp_abs `Normal);
+  set_print cubeabs ~in_case:true (pp_abs `Cube)
 
 (* ********************
    The universe
@@ -698,9 +696,7 @@ let pp_tuple space ppf obs ws =
       pp_ws space ppf wsrparen;
       pp_close_box ppf ()
 
-let () =
-  set_print parens pp_tuple;
-  set_print_as_case parens pp_tuple
+let () = set_print parens ~in_case:true pp_tuple
 
 (* ********************
    Comatches
@@ -1391,11 +1387,11 @@ and pp_match box space ppf obs ws =
 
 (* Matches and comatches are only valid in case trees. *)
 let () =
-  set_print_as_case implicit_mtch (pp_match true);
-  set_print_as_case explicit_mtch (pp_match true);
-  set_print_as_case mtchlam (pp_match true);
-  set_print_as_case comatch (pp_match true);
-  set_print_as_case empty_co_match (pp_match true)
+  set_print implicit_mtch ~in_case:true (pp_match true);
+  set_print explicit_mtch ~in_case:true (pp_match true);
+  set_print mtchlam ~in_case:true (pp_match true);
+  set_print comatch ~in_case:true (pp_match true);
+  set_print empty_co_match ~in_case:true (pp_match true)
 
 (* ********************
    Codatatypes
@@ -1491,7 +1487,7 @@ let pp_codata space ppf obs ws =
   pp_ws space ppf wsrbrack;
   pp_close_box ppf ()
 
-let () = set_print codata pp_codata
+let () = set_print codata ~in_case:true pp_codata
 
 (* ********************
    Record types
@@ -1650,7 +1646,7 @@ let pp_record space ppf obs ws =
   pp_ws space ppf wsrparen;
   pp_close_box ppf ()
 
-let () = set_print record pp_record
+let () = set_print record ~in_case:true pp_record
 
 (* ********************
    Datatypes
@@ -1786,7 +1782,7 @@ let pp_data space ppf obs ws =
   pp_ws space ppf wsrbrack;
   pp_close_box ppf ()
 
-let () = set_print data pp_data
+let () = set_print data ~in_case:true pp_data
 
 (* ********************
    Forwards Lists

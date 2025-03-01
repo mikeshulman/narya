@@ -167,9 +167,9 @@ and ('left, 'tight, 'right) notation = {
   (* The remaining fields are mutable because they have to be able to refer to the notation object itself, so we have a circular data structure.  They aren't expected to mutate further after being set once.  Thus we store them as options, to record whether they have been set. *)
   mutable tree : ('left, 'tight) notation_entry option;
   mutable processor : processor option;
-  (* Some notations only make sense in terms, others only make sense in case trees, and some make sense in either.  Thus, a notation can supply either or both of these printing functions. *)
   mutable print : printer option;
-  mutable print_as_case : printer option;
+  (* Whether this notation can appear in a case tree.  Otherwise, encountering it terminates the case tree in a leaf. *)
+  mutable print_in_case : bool;
 }
 
 module Notation = struct
@@ -264,9 +264,11 @@ let set_processor n c =
   | None -> n.processor <- Some c
 
 let print n = n.print
-let set_print n p = n.print <- Some p
-let print_as_case n = n.print_as_case
-let set_print_as_case n p = n.print_as_case <- Some p
+let print_in_case n = n.print_in_case
+
+let set_print n ?(in_case = false) p =
+  n.print <- Some p;
+  n.print_in_case <- in_case
 
 (* Create a new notation with specified name, fixity, and tightness.  Its mutable fields must be set later. *)
 let make :
@@ -285,8 +287,8 @@ let make :
     right;
     tree = None;
     print = None;
-    print_as_case = None;
     processor = None;
+    print_in_case = false;
   }
 
 let rec split_last_whitespace (ws : Whitespace.alist) : Whitespace.alist * Whitespace.t list =

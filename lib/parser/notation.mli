@@ -139,9 +139,8 @@ val set_tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entr
 val processor : ('left, 'tight, 'right) notation -> processor
 val set_processor : ('left, 'tight, 'right) notation -> processor -> unit
 val print : ('left, 'tight, 'right) notation -> printer option
-val set_print : ('left, 'tight, 'right) notation -> printer -> unit
-val print_as_case : ('left, 'tight, 'right) notation -> printer option
-val set_print_as_case : ('left, 'tight, 'right) notation -> printer -> unit
+val print_in_case : ('left, 'tight, 'right) notation -> bool
+val set_print : ('left, 'tight, 'right) notation -> ?in_case:bool -> printer -> unit
 val make : string -> ('left, 'tight, 'right) fixity -> ('left, 'tight, 'right) notation
 val equal : ('l1, 't1, 'r1) notation -> ('l2, 't2, 'r2) notation -> bool
 

@@ -67,6 +67,8 @@ type eternity = {
     ('a, 'b) Termctx.t ->
     ('b, kinetic) term ->
     ('b, 's) status ->
+    No.interval option ->
+    No.interval option ->
     unit;
 }
 
@@ -140,7 +142,11 @@ let add_error c e =
 let add_meta m ~termctx ~ty ~tm ~energy =
   let tm = (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined ]) in
   S.modify @@ fun d ->
-  { d with current_metas = d.current_metas |> Metamap.add m (Ok { tm; termctx; ty; energy }) }
+  {
+    d with
+    current_metas =
+      d.current_metas |> Metamap.add m (Ok { tm; termctx; ty; energy; li = None; ri = None });
+  }
 
 (* Set the definition of a Global metavariable, required to already exist but not be defined. *)
 let set_meta m ~tm =
@@ -171,10 +177,10 @@ let () =
 let with_holes env f = HolesAllowed.run ~env f
 
 (* Add a new hole.  This is an eternal metavariable, so we pass off to Eternity, and also save some information about it locally so that we can discard it if the command errors (in interactive mode this doesn't stop the program) and notify the user if the command succeeds, and also discard it if this command is later undone. *)
-let add_hole m loc ~vars ~termctx ~ty ~status =
+let add_hole m loc ~vars ~termctx ~ty ~status ~li ~ri =
   match HolesAllowed.read () with
   | Ok () ->
-      !eternity.add m vars termctx ty status;
+      !eternity.add m vars termctx ty status (Some li) (Some ri);
       S.modify @@ fun d ->
       {
         d with

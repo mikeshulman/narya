@@ -34,6 +34,8 @@ val add_hole :
   termctx:('a, 'b) Termctx.t ->
   ty:('b, kinetic) term ->
   status:('b, 's) Status.status ->
+  li:No.interval ->
+  ri:No.interval ->
   unit
 
 val hole_exists : ('a, 'b, 's) Meta.t -> bool
@@ -58,6 +60,8 @@ type eternity = {
     ('a, 'b) Termctx.t ->
     ('b, kinetic) term ->
     ('b, 's) Status.status ->
+    No.interval option ->
+    No.interval option ->
     unit;
 }
 

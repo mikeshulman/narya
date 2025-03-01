@@ -393,14 +393,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
         </> succeed first_arg
 
   (* The master term-parsing combinator parses an lclosed of arbitrary tightness, with specified ending tokens.  If the ending tokens are empty, it must extend until the next token that can't be part of a term (like a command name or EOF).  It does NOT parse the initial Bof token, since it can also appear as part of a command. *)
-  let term toks =
+  let term ?(li = No.Interval No.Interval.entire) ?(ri = No.Interval No.Interval.entire) toks =
+    let Interval li, Interval ri = (li, ri) in
     let tokmap =
       List.fold_left
         (fun map tok ->
           TokMap.add tok (Lazy (lazy (fatal (Anomaly "dummy notation tree accessed")))) map)
         TokMap.empty toks in
-    let* tm = lclosed No.Interval.entire tokmap in
-    match tm.get No.Interval.entire with
+    let* tm = lclosed li tokmap in
+    match tm.get ri with
     | Ok tm -> return (Term tm)
     | Error e -> fatal (Anomaly ("Outer term failed: " ^ e))
 
@@ -427,15 +428,15 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
   let bof = step (fun state _ (tok, ws) -> if tok = Bof then Some (ws, state) else None)
 
   (* TODO: Save the whitespace! *)
-  let term_only () =
+  let term_only ?li ?ri () =
     let* _ = bof in
-    term []
+    term ?li ?ri []
 end
 
 module Term = struct
   module C = Combinators (ParseTree)
 
-  let parse (source : Asai.Range.source) : C.Lex_and_parse.t =
+  let parse ?li ?ri (source : Asai.Range.source) : C.Lex_and_parse.t =
     let (env : Range.Data.t), run =
       match source with
       | `String src ->
@@ -446,7 +447,7 @@ module Term = struct
           ( { source = `File name; length = In_channel.length ic },
             fun p -> C.Lex_and_parse.run_on_channel ic p ) in
     Range.run ~env @@ fun () ->
-    let p = C.Lex_and_parse.make Lexer.Parser.start (C.Basic.make () (C.term_only ())) in
+    let p = C.Lex_and_parse.make Lexer.Parser.start (C.Basic.make () (C.term_only ?li ?ri ())) in
     let p = run p in
     C.ensure_success p
 

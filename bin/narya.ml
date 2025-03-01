@@ -182,6 +182,7 @@ let rec interact_pg () : unit =
 let () =
   try
     run_top @@ fun () ->
+    (* Note: run_top executes the input files, so here we only have to do the interaction. *)
     Mbwd.miter
       (fun [ file ] ->
         let p, src = Parser.Command.Parse.start_parse (`File file) in

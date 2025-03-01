@@ -273,7 +273,7 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
       | _ -> Reporter.fatal_diagnostic d);
   Scope.get_export ()
 
-(* Subroutine that parses and executes all the commands in a source. *)
+(* Parse, execute (if requested by Flags), and reformat (if requested by Flags) all the commands in a source. *)
 and batch first ws p src =
   let reformat_end () =
     reformat_maybe (fun ppf ->

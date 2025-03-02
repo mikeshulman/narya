@@ -23,10 +23,13 @@ let take_opt (tok : Token.t) (ws : Whitespace.alist) =
   | [] -> Some ([], [])
   | (t, x) :: xs -> if tok = t then Some (x, xs) else None
 
-let must_start_with (tok : Token.t) (ws : Whitespace.alist) =
-  match ws with
-  | (t, _) :: _ when t = tok -> ws
-  | _ -> (tok, []) :: ws
+(* Ensure that WS starts with at least COUNT copies of TOK. *)
+let must_start_with ?(count = 1) (tok : Token.t) (ws : Whitespace.alist) =
+  let rec how_many n ws =
+    match ws with
+    | (t, _) :: ws when t = tok -> how_many (n + 1) ws
+    | _ -> n in
+  List.append (List.init (max 0 (count - how_many 0 ws)) (fun _ -> (tok, []))) ws
 
 (* Ensure that we took all the elements. *)
 let taken_last (ws : Whitespace.alist) =

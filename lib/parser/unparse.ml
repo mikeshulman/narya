@@ -253,7 +253,14 @@ let rec unparse :
       unparse_lam cube vars Emp tm li ri
   | Struct (Eta, _, fields, _) ->
       unlocated
-        (outfix ~notn:parens ~ws:[]
+        (outfix
+           ~notn:
+             (match Bwd.length fields with
+             | 0 -> empty_tuple
+             (* We always unparse 1-tuples using parens, no commas or bars. *)
+             | 1 -> parens
+             | _ -> comma_tuple)
+           ~ws:[]
            ~inner:
              (Abwd.fold
                 (fun fld (tm, l) acc ->
@@ -268,7 +275,7 @@ let rec unparse :
                                  ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
                                  ~inner:Emp ~last:tm ~left_ok:(No.le_refl No.minus_omega)
                                  ~right_ok:(No.le_refl No.minus_omega))
-                        (* An unlabeled 1-tuple must be written (_ := M). *)
+                        (* An unlabeled 1-tuple is currently unparsed as (_ := M). *)
                         | `Unlabeled when Bwd.length fields = 1 ->
                             unlocated
                               (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))

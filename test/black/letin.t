@@ -352,10 +352,7 @@ Let doesn't make a case tree unless it needs to:
    ￫ info[I0000]
    ￮ constant foo' defined
   
-  (
-    fst ≔ X ↦ X,
-    snd ≔ Type,
-  )
+  ( fst ≔ X ↦ X, snd ≔ Type )
     : prod (Type → Type) Type
   
 

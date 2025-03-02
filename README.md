@@ -483,7 +483,7 @@ If you have forgotten the context and type of a hole that were displayed when it
 
 ## Record types and tuples
 
-We now describe the various other classes of types that can be defined by the user, starting with the simplest, record types.
+We now describe the various other classes of types that can be defined by the user, starting with the simplest: record types.
 
 ### Defining record types
 
@@ -512,7 +512,7 @@ def Σ (A : Type) (B : A → Type) : Type ≔ sig (
   snd : B fst,
 )
 ```
-However, we consider it better style in general to use specialized record types rather than generic Σ-types, as it provides better error-checking and documentation of the meaning of the fields.  It is also probably more efficient to use one record type with a lot of fields than an iterated Σ-type.  In the future we plan to implement metaprogramming-like capabilities for proving theorems about arbitrary record types, so that using them in preference to generic Σ-types does not entail a loss of expressivity.
+However, we consider it better style in general to use specialized record types rather than generic Σ-types, as it provides better error-checking and documentation of the meaning of the fields.  It is also probably more efficient to use one record type with a lot of fields than an iterated Σ-type.  In the future we plan to implement metaprogramming-like capabilities for proving theorems about arbitrary record types, so that using them in preference to generic Σ-types will not entail a loss of expressivity.
 
 Currently user notations cannot bind variables, so it is not possible to define a binding notation such as `(x : A) × B x` for Σ-types.  But if we define a non-dependent product type, we can give it an infix notation:
 ```
@@ -585,6 +585,15 @@ def wrapped_zero : wrapped_nat ≔ (zero. ,)
 ```
 
 Syntactically, tuples are an outfix notation that includes the parentheses, rather than an infix meaning of the comma; thus the parentheses are always required.  Tuples are not associative: neither `(a, (b, c))` nor `((a, b), c)` can be written as `(a,b,c)`.  The latter belongs to a record type with three fields, whereas the former two belong to a record type with two fields, one of which is itself a record type with two fields.  (This aligns with the behavior of functional programming languages such as Haskell and OCaml.)
+
+Finally, there is an alternative notation for tuples that uses bars `|` rather than commas.  In this case there may not be a trailing bar, but there can be an extra initial one.
+```
+def nat.magma : Magma ≔ (
+| t ≔ ℕ
+| op ≔ plus
+)
+```
+Some people prefer the look of this when a tuple definition stretches over multiple lines, especially given its parallelism to match and comatch statements (below).
 
 
 ### Accessing fields

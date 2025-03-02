@@ -74,6 +74,7 @@ module Command = struct
         wscoloneq : Whitespace.t list;
         mutable tm : observation;
       }
+    (* Show and Undo don't get reformatted (see pp_command, below), so there's no need to store whitespace in them, but we do it anyway for completeness. *)
     | Show of {
         wsshow : Whitespace.t list;
         what : [ `Hole of Whitespace.t list * int | `Holes ];
@@ -900,6 +901,7 @@ let rec pp_defs : formatter -> Token.t -> Whitespace.t list -> def list -> White
       pp_close_box ppf ();
       pp_defs ppf And rest defs
 
+(* We only print commands that can appear in source files or for which ProofGeneral may need reformatting info (e.g. solve). *)
 let pp_command : formatter -> t -> Whitespace.t list =
  fun ppf cmd ->
   match cmd with
@@ -1022,46 +1024,6 @@ let pp_command : formatter -> t -> Whitespace.t list =
       pp_print_flush ppf ();
       pp_set_margin ppf old_margin;
       rest
-  | Show { wsshow; what; wswhat } ->
-      pp_open_hvbox ppf 2;
-      pp_tok ppf Show;
-      pp_ws `Nobreak ppf wsshow;
-      (match what with
-      | `Hole (ws, number) ->
-          pp_print_string ppf "hole";
-          pp_ws `Nobreak ppf ws;
-          pp_print_int ppf number
-      | `Holes -> pp_print_string ppf "holes");
-      let ws, rest = Whitespace.split wswhat in
-      pp_ws `None ppf ws;
-      pp_close_box ppf ();
-      rest
-  | Display { wsdisplay; wscoloneq; what } ->
-      pp_tok ppf Display;
-      pp_ws `Nobreak ppf wsdisplay;
-      let how, wshow =
-        match what with
-        | `Style (wswhat, how, wshow) ->
-            pp_print_string ppf "style";
-            pp_ws `Nobreak ppf wswhat;
-            ((how :> Display.values), wshow)
-        | `Chars (wswhat, how, wshow) ->
-            pp_print_string ppf "chars";
-            pp_ws `Nobreak ppf wswhat;
-            ((how :> Display.values), wshow) in
-      pp_tok ppf Coloneq;
-      pp_ws `Nobreak ppf wscoloneq;
-      pp_print_string ppf (Display.to_string how);
-      let ws, rest = Whitespace.split wshow in
-      pp_ws `None ppf ws;
-      rest
-  | Undo { wsundo; count; wscount } ->
-      pp_tok ppf Undo;
-      pp_ws `Nobreak ppf wsundo;
-      pp_print_int ppf count;
-      let ws, rest = Whitespace.split wscount in
-      pp_ws `None ppf ws;
-      rest
   | Section { wssection; prefix; wsprefix; wscoloneq } ->
       pp_tok ppf Section;
       pp_ws `Nobreak ppf wssection;
@@ -1081,3 +1043,5 @@ let pp_command : formatter -> t -> Whitespace.t list =
   | Quit ws -> ws
   | Bof ws -> ws
   | Eof -> []
+  (* These commands can't appear in a source file, and ProofGeneral doesn't need any reformatting info from them, so we display nothing.  In fact, in the case of Undo, PG uses this emptiness to determine that it should not replace any command in the buffer. *)
+  | Show _ | Display _ | Undo _ -> []

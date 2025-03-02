@@ -2,6 +2,8 @@ axiom A : Type
 
 axiom B : Type
 
+echo B
+
 def id : Type → Type ≔ X ↦ X
 
 axiom b : B

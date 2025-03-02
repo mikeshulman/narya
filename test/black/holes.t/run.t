@@ -5,6 +5,9 @@
    ￫ info[I0001]
    ￮ axiom B assumed
   
+  B
+    : Type
+  
    ￫ info[I0000]
    ￮ constant id defined
   

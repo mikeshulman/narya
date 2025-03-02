@@ -35,6 +35,11 @@
   :type 'boolean
   :group 'narya)
 
+(defcustom narya-reformat-commands t
+  "Automatically reformat processed commands."
+  :type 'boolean
+  :group 'narya)
+
 (defvar narya-pending-hole-positions nil
   "Temporary storage for hole positions when executing commands invisibly.")
 
@@ -60,6 +65,13 @@ Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-
       (overlay-put ovl 'narya-hole hole-id)
       (overlay-put ovl 'face 'narya-hole-face)
       (push ovl narya-hole-overlays))))
+
+(defun narya-create-marked-hole-overlays (start end)
+  "Create hole overlays from markers of the form ¿0? from START to END."
+  (goto-char start)
+  (while (re-search-forward "¿\\([[:digit:]]\\)+\\?" end 'limit)
+    (narya-create-hole-overlay (match-beginning 0) (match-end 0) (string-to-number (match-string 1)))
+    (replace-match "?")))
 
 (defun narya-skip-comments-backwards ()
   "Skip backwards to the last non-whitespace, non-comment character."
@@ -105,7 +117,8 @@ handling in Proof General."
         (rstart 0) (rend 0) (gstart 0) (gend 0) (dpos 0)
         ;; Temporary storage for hole data.
         (parsed-hole-data nil)
-        (error-found nil))
+        (error-found nil)
+        (reformatted nil))
     ;; Check for errors in the output first.
     (when (string-match proof-shell-error-regexp string)
       (setq error-found t
@@ -130,22 +143,32 @@ handling in Proof General."
                                  (list hstart-offset hend-offset hole))))
         ;; Now grab the reformatting info
         (string-match "\x0C\\[reformat\\]\x0C\n" string dpos)
+        ;; Remove trailing newlines and trailing spaces on any line
+        (setq reformatted (replace-regexp-in-string "[ \t]+\n" "\n" (string-trim-right (substring string (match-end 0)))))
         ;; Handle parsed hole data based on the visibility of the command
         (if (member 'invisible flags)
             ;; For invisible commands ("solve"), store the parsed data globally, both the holes and the reformatted term
             (setq narya-pending-hole-positions parsed-hole-data
-                  ;; Remove trailing newlines and trailing spaces on any line
-                  narya-pending-hole-reformatted
-                  (replace-regexp-in-string "[ \t]+\n" "\n"
-                                            (string-trim-right (substring string (match-end 0)))))
+                  narya-pending-hole-reformatted reformatted)
           ;; For visible commands, create overlays directly
           (when span
             (proof-with-script-buffer
-             (let ((bpos (position-bytes (save-excursion
-                                           (goto-char (overlay-start span))
-                                           (skip-chars-forward " \t\n")
-                                           (point)))))
-               (narya-create-hole-overlays bpos parsed-hole-data))))))
+             (if (and narya-reformat-commands (not (equal reformatted "")))
+                 (let ((inhibit-read-only t)
+                       (start (set-marker (make-marker) (overlay-start span)))
+                       (end (set-marker (make-marker) (overlay-end span))))
+                   (save-excursion
+                     (goto-char start)
+                     (while (looking-at "[ \t\n]")
+                       (forward-char 1))
+                     (insert reformatted)
+                     (delete-region (point) end)
+                     (narya-create-marked-hole-overlays start end)))
+               (let ((bpos (position-bytes (save-excursion
+                                             (goto-char (overlay-start span))
+                                             (skip-chars-forward " \t\n")
+                                             (point)))))
+                 (narya-create-hole-overlays bpos parsed-hole-data)))))))
       ;; Handle the goals section output if `proof-shell-exec-loop` is active
       (when (proof-shell-exec-loop)
         (setq proof-shell-last-goals-output (substring string gstart gend))
@@ -394,10 +417,7 @@ pending hole data stored by `narya-handle-output'."
                 ;; Create new overlays from holes in the new term
                 (cond
                  (narya-reformat-holes
-                  (goto-char insert-start)
-                  (while (re-search-forward "¿\\([[:digit:]]\\)+\\?" insert-end 'limit)
-                    (narya-create-hole-overlay (match-beginning 0) (match-end 0) (string-to-number (match-string 1)))
-                    (replace-match "?"))
+                  (narya-create-marked-hole-overlays insert-start insert-end)
                   (message "Hole solved."))
                  (narya-pending-hole-positions
                   (narya-create-hole-overlays (+ byte-insert-start (if parens 1 0)) narya-pending-hole-positions)

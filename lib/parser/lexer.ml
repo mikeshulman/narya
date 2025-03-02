@@ -14,8 +14,13 @@ module Located_token = struct
   type t = Position.range * Token_whitespace.t
 end
 
+(* As the lexer "state" we remember whether we just saw a line comment. *)
+module LexerState = struct
+  type t = [ `Linecomment | `None ]
+end
+
 (* We define the lexer using a basic utf-8 character parser from Fmlib. *)
-module Basic = Ucharacter.Make_utf8 (Bool) (Located_token) (Unit)
+module Basic = Ucharacter.Make_utf8 (LexerState) (Located_token) (Unit)
 open Basic
 
 let backquote = Uchar.of_char '`'
@@ -26,7 +31,7 @@ let rbrace = Uchar.of_char '}'
 (* A line comment starts with a backquote and extends to the end of the line.  *)
 let line_comment : Whitespace.t t =
   let* c = uword (fun c -> c = backquote) (fun c -> c <> newline) "line comment" in
-  let* () = set true in
+  let* () = set `Linecomment in
   return (`Line (String.sub c 1 (String.length c - 1)))
 
 (* A block comment starts with {` and ends with `}, and can be nested.  *)
@@ -43,9 +48,10 @@ let block_comment : Whitespace.t t =
     | _ when c = backquote -> rest buf nesting `Backquote
     | _ -> rest (buf ^ Utf8.Encoder.to_internal c) nesting (state_of c) in
   let* _ = backtrack (string "{`") "\"{`\"" in
-  let* () = set false in
+  let* () = set `None in
   rest "" 0 `None
 
+(* This combinator parses not just newlines but also spaces and tabs, but it only counts the number of newlines.  Thus it returns (`Newlines 0) if it parses only spaces and tabs (possibly including the newline at the end of a preceding line comment). *)
 let newlines : Whitespace.t t =
   let* n =
     one_or_more_fold_left
@@ -53,12 +59,13 @@ let newlines : Whitespace.t t =
       (fun n c -> return (if c = '\n' then n + 1 else n))
       (one_of_chars " \t\n\r" "space, tab, or newline") in
   let* line = get in
-  let* () = set false in
-  return (`Newlines (if line then n - 1 else n))
+  let* () = set `None in
+  (* If we just saw a line comment, then we don't include the newline that *ended* the line comment as a "newline". *)
+  return (`Newlines (if line = `Linecomment then n - 1 else n))
 
-(* Whitespace.T consists of spaces, tabs, newlines, and comments. *)
+(* Whitespace.t consists of spaces, tabs, newlines, and comments.  We only record newlines when there are a positive number of them. *)
 let whitespace : Whitespace.t list t =
-  let* () = set false in
+  let* () = set `None in
   let* ws =
     zero_or_more_fold_left Emp
       (fun ws w -> if w = `Newlines 0 then return ws else return (Snoc (ws, w)))
@@ -267,8 +274,8 @@ module Parser = struct
   include Basic.Parser
 
   (* This is how we make the lexer to plug into the parser. *)
-  let start : t = make_partial Position.start false bof
-  let restart (lex : t) : t = make_partial (position lex) false token |> transfer_lookahead lex
+  let start : t = make_partial Position.start `None bof
+  let restart (lex : t) : t = make_partial (position lex) `None token |> transfer_lookahead lex
 end
 
 module Single_token = struct

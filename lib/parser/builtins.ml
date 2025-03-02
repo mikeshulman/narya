@@ -1597,7 +1597,7 @@ let () = set_print codata pp_codata
 
 let record = make "record" Outfix
 
-let rec record_fields () =
+let rec record_comma_fields () =
   Inner
     {
       empty_branch with
@@ -1605,7 +1605,27 @@ let rec record_fields () =
       term =
         Some
           (TokMap.singleton Colon
-             (terms [ (Op ",", Lazy (lazy (record_fields ()))); (RParen, Done_closed record) ]));
+             (terms
+                [ (Op ",", Lazy (lazy (record_comma_fields ()))); (RParen, Done_closed record) ]));
+    }
+
+let rec record_bar_fields () =
+  term Colon (terms [ (Op "|", Lazy (lazy (record_bar_fields ()))); (RParen, Done_closed record) ])
+
+let record_fields () =
+  Inner
+    {
+      empty_branch with
+      ops = TokMap.of_list [ (RParen, Done_closed record); (Op "|", record_bar_fields ()) ];
+      term =
+        Some
+          (TokMap.singleton Colon
+             (terms
+                [
+                  (Op ",", Lazy (lazy (record_comma_fields ())));
+                  (Op "|", Lazy (lazy (record_bar_fields ())));
+                  (RParen, Done_closed record);
+                ]));
     }
 
 let () =
@@ -1693,26 +1713,22 @@ let () =
                   | _ -> fatal ?loc:attr.loc Unrecognized_attribute in
                 (opacity, ws, obs)
             | _ -> fatal (Anomaly "invalid notation arguments for record") in
-          match take_opt Mapsto ws with
-          | None ->
+          match (take_opt Mapsto ws, obs) with
+          | None, _ ->
               let ctx = Bwv.snoc ctx None in
               let (Any_tel tel) = process_tel ctx StringSet.empty obs in
               { value = Record ({ value = [ None ]; loc }, tel, opacity); loc }
-          | Some _ -> (
-              match obs with
-              | Term x :: obs ->
-                  with_loc x.loc @@ fun () ->
-                  let (Wrap vars) = Vec.of_list (List.map fst (process_var_list x [ (None, []) ])) in
-                  let (Bplus ac) = Fwn.bplus (Vec.length vars) in
-                  let ctx = Bwv.append ac ctx vars in
-                  let (Any_tel tel) = process_tel ctx StringSet.empty obs in
-                  Range.locate
-                    (Record (locate_opt x.loc (namevec_of_vec ac vars), tel, opacity))
-                    loc
-              | _ -> fatal (Anomaly "invalid notation arguments for record")));
+          | Some _, Term x :: obs ->
+              with_loc x.loc @@ fun () ->
+              let (Wrap vars) = Vec.of_list (List.map fst (process_var_list x [ (None, []) ])) in
+              let (Bplus ac) = Fwn.bplus (Vec.length vars) in
+              let ctx = Bwv.append ac ctx vars in
+              let (Any_tel tel) = process_tel ctx StringSet.empty obs in
+              Range.locate (Record (locate_opt x.loc (namevec_of_vec ac vars), tel, opacity)) loc
+          | _ -> fatal (Anomaly "invalid notation arguments for record"));
     }
 
-let rec pp_record_fields ppf obs ws =
+let rec pp_record_comma_fields ppf obs ws =
   match obs with
   | [] ->
       let wsrparen, ws = take RParen ws in
@@ -1732,7 +1748,28 @@ let rec pp_record_fields ppf obs ws =
       else (
         pp_tok ppf (Op ",");
         pp_ws `Break ppf wscomma);
-      pp_record_fields ppf obs ws
+      pp_record_comma_fields ppf obs ws
+  | [ _ ] -> fatal (Anomaly "invalid notation arguments for record")
+
+let rec pp_record_bar_fields ppf obs ws =
+  match obs with
+  | [] ->
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      wsrparen
+  | var :: body :: obs ->
+      pp_open_hvbox ppf 2;
+      let wsbar, ws = take (Op "|") ws in
+      pp_tok ppf (Op "|");
+      pp_ws `Nobreak ppf wsbar;
+      pp_term `Break ppf var;
+      let wscolon, ws = take Colon ws in
+      pp_tok ppf Colon;
+      pp_ws `Nobreak ppf wscolon;
+      pp_close_box ppf ();
+      pp_term `None ppf body;
+      pp_print_cut ppf ();
+      pp_record_bar_fields ppf obs ws
   | [ _ ] -> fatal (Anomaly "invalid notation arguments for record")
 
 let pp_record space ppf obs ws =
@@ -1740,15 +1777,46 @@ let pp_record space ppf obs ws =
   let wssig, ws = take Sig ws in
   pp_tok ppf Sig;
   pp_ws `Nobreak ppf wssig;
+  let obs, ws =
+    match (take_opt (Op "#") ws, obs) with
+    | None, _ -> (obs, ws)
+    | Some (wshash, ws), attr :: obs ->
+        pp_tok ppf (Op "#");
+        pp_ws `None ppf wshash;
+        let wslp, ws = take LParen ws in
+        pp_tok ppf LParen;
+        pp_ws `None ppf wslp;
+        pp_term `None ppf attr;
+        let wsrp, ws = take RParen ws in
+        pp_tok ppf RParen;
+        pp_ws `None ppf wsrp;
+        (obs, ws)
+    | _ -> fatal (Anomaly "invalid notation arguments for record") in
+  let obs, ws =
+    match (take_opt Mapsto ws, obs) with
+    | None, _ -> (obs, ws)
+    | Some (wsmapsto, ws), x :: obs ->
+        pp_term `Nobreak ppf x;
+        pp_tok ppf Mapsto;
+        pp_ws `Break ppf wsmapsto;
+        (obs, ws)
+    | _ -> fatal (Anomaly "invalid notation arguments for record") in
   let wslparen, ws = take LParen ws in
   pp_tok ppf LParen;
   pp_ws `Break ppf wslparen;
-  let wsrparen = pp_record_fields ppf obs ws in
+  let wsrparen =
+    match take_opt (Op "|") ws with
+    | Some _ ->
+        let ws = must_start_with (Op "|") ws in
+        pp_record_bar_fields ppf obs ws
+    | None -> pp_record_comma_fields ppf obs ws in
   pp_tok ppf RParen;
   pp_ws space ppf wsrparen;
   pp_close_box ppf ()
 
-let () = set_print record pp_record
+let () =
+  set_print record pp_record;
+  set_print_as_case record pp_record
 
 (* ********************
    Datatypes

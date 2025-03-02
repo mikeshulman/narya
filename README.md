@@ -541,6 +541,15 @@ or even zero fields:
 def ⊤ : Type ≔ sig ()
 ```
 
+Finally, there is an alternative notation for record types that uses bars `|` instead of commas.  In this case there may not be a trailing bar, but there can be an extra initial one.
+```
+def Magma : Type ≔ sig (
+| t : Type
+| op : t → t → t
+)
+```
+Some people prefer the look of this when a record type definition stretches over multiple lines, especially given its parallelism to data and codata types (below).
+
 
 ### Tuples
 

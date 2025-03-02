@@ -359,10 +359,11 @@ pending hole data stored by `narya-handle-output'."
         (message "Place the cursor on a hole.")
       ;; Otherwise, proceed to solve the hole with a user-provided term.
       (let ((term (read-string "Enter the term to solve the hole: "))
-            (parens nil))
+            (parens nil)
+            (column (current-column)))
         ;; Send the solution command invisibly to the proof shell, synchronously.
         (proof-shell-invisible-command
-         (format "solve %d := %s" (overlay-get hole-overlay 'narya-hole) term) t)
+         (format "solve %d %d := %s" (overlay-get hole-overlay 'narya-hole) column term) t)
         ;; Check for errors in the proof shell output.
         (if (eq proof-shell-last-output-kind 'error)
             (message "You entered an incorrect term.")
@@ -376,7 +377,8 @@ pending hole data stored by `narya-handle-output'."
 	    ;; processed region, the inserted term will end up
 	    ;; *inside* the processed region.
             (if narya-reformat-holes
-                (insert narya-pending-hole-reformatted)
+                (let ((spaces (concat "\n" (make-string column ? ))))
+                  (insert (string-replace "\n" spaces narya-pending-hole-reformatted)))
               (setq parens
                     (and (equal (elt narya-pending-hole-reformatted 0) ?\()
                          (not (equal (elt term 0) ?\())))

@@ -23,6 +23,12 @@
      ----------------------------------------------------------------------
      A → B
   
+   ￫ info[I0001]
+   ￮ axiom a_very_long_variable assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a_very_long_function assumed
+  
    ￫ info[I0000]
    ￮ constant f' defined, containing 1 hole
   

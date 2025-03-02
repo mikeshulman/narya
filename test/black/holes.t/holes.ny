@@ -10,6 +10,10 @@ axiom g : (A → B) → A → B
 
 def f : A → B ≔ g ?
 
+axiom a_very_long_variable : A
+
+axiom a_very_long_function : A → A → A → A → A → A → A → B
+
 def f' : A → B ≔ ?
 
 def ℕ : Type ≔ data [

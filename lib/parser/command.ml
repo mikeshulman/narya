@@ -69,6 +69,8 @@ module Command = struct
         wssolve : Whitespace.t list;
         number : int;
         wsnumber : Whitespace.t list;
+        column : int;
+        wscolumn : Whitespace.t list;
         wscoloneq : Whitespace.t list;
         mutable tm : observation;
       }
@@ -447,9 +449,10 @@ module Parse = struct
   let solve =
     let* wssolve = token Solve in
     let* number, wsnumber = integer in
+    let* column, wscolumn = integer </> return (0, []) in
     let* wscoloneq = token Coloneq in
     let* tm = C.term [] in
-    return (Solve { wssolve; number; wsnumber; wscoloneq; tm })
+    return (Solve { wssolve; number; wsnumber; column; wscolumn; wscoloneq; tm })
 
   let show =
     let* wsshow = token Show in
@@ -1008,17 +1011,16 @@ let pp_command : formatter -> t -> Whitespace.t list =
           pp_ws `None ppf ws;
           pp_close_box ppf ();
           rest)
-  | Solve { wssolve = _; number = _; wsnumber = _; wscoloneq = _; tm = Term tm } ->
-      (* pp_open_hvbox ppf 2;
-         pp_tok ppf Solve;
-         pp_ws `Nobreak ppf wssolve;
-         pp_print_int ppf number;
-         pp_ws `Break ppf wsnumber;
-         pp_tok ppf Coloneq;
-         pp_ws `Nobreak ppf wscoloneq; *)
+  | Solve { column; tm = Term tm; _ } ->
+      (* We (mis)use pretty-printing of a solve *command* to actually just reformat the solving *term*.  This is appropriate since "solve" should never appear in a source file, and when it's called from ProofGeneral, PG knows that the reformatted return is the new string to insert at the hole location. *)
       let tm, rest = split_ending_whitespace tm in
+      (* When called from ProofGeneral, the 'column' is the column number of the hole, so the reformatted term should "start at that indentation".  The best way I've thought of so far to mimic that effect is to reduce the margin by that amount, and then add extra indentation to each new line on the ProofGeneral end.  *)
+      let old_margin = pp_get_margin ppf () in
+      pp_set_margin ppf (old_margin - column);
       pp_term `None ppf (Term tm);
-      (* pp_close_box ppf (); *)
+      (* Apparently pp_set_margin silently drops anything in the pretty-printing queue, so we have to flush it before resetting the margin. *)
+      pp_print_flush ppf ();
+      pp_set_margin ppf old_margin;
       rest
   | Show { wsshow; what; wswhat } ->
       pp_open_hvbox ppf 2;

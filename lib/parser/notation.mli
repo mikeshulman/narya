@@ -58,8 +58,12 @@ and (_, _, _, _) parse =
   | Superscript :
       ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
       -> ('lt, 'ls, 'rt, 'rs) parse
-  | Hole :
-      ('lt, 'ls) No.iinterval * ('rt, 'rs) No.iinterval * Whitespace.t list
+  | Hole : {
+      li : ('lt, 'ls) No.iinterval;
+      ri : ('rt, 'rs) No.iinterval;
+      num : int ref;
+      ws : Whitespace.t list;
+    }
       -> ('lt, 'ls, 'rt, 'rs) parse
 
 and ('left, 'tight) notation_entry =

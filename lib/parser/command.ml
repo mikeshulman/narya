@@ -70,7 +70,7 @@ module Command = struct
         number : int;
         wsnumber : Whitespace.t list;
         wscoloneq : Whitespace.t list;
-        tm : observation;
+        mutable tm : observation;
       }
     | Show of {
         wsshow : Whitespace.t list;
@@ -804,10 +804,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
                 let ppf = Format.formatter_of_buffer buf in
                 (Print.State.as_case @@ fun () -> pp_term `None ppf data.tm);
                 Format.pp_print_flush ppf ();
-                Reporter.try_with ~fatal:(fun _ ->
-                    (* data.tm <- Term (parenthesize tm) *)
-                    emit Needs_parentheses)
-                @@ fun () ->
+                Reporter.try_with ~fatal:(fun _ -> data.tm <- Term (parenthesize tm)) @@ fun () ->
                 let _ =
                   TermParse.Term.parse ~li:(Interval li) ~ri:(Interval ri)
                     (`String { content = Buffer.contents buf; title = None }) in
@@ -1011,17 +1008,17 @@ let pp_command : formatter -> t -> Whitespace.t list =
           pp_ws `None ppf ws;
           pp_close_box ppf ();
           rest)
-  | Solve { wssolve; number; wsnumber; wscoloneq; tm = Term tm } ->
-      pp_open_hvbox ppf 2;
-      pp_tok ppf Solve;
-      pp_ws `Nobreak ppf wssolve;
-      pp_print_int ppf number;
-      pp_ws `Break ppf wsnumber;
-      pp_tok ppf Coloneq;
-      pp_ws `Nobreak ppf wscoloneq;
+  | Solve { wssolve = _; number = _; wsnumber = _; wscoloneq = _; tm = Term tm } ->
+      (* pp_open_hvbox ppf 2;
+         pp_tok ppf Solve;
+         pp_ws `Nobreak ppf wssolve;
+         pp_print_int ppf number;
+         pp_ws `Break ppf wsnumber;
+         pp_tok ppf Coloneq;
+         pp_ws `Nobreak ppf wscoloneq; *)
       let tm, rest = split_ending_whitespace tm in
       pp_term `None ppf (Term tm);
-      pp_close_box ppf ();
+      (* pp_close_box ppf (); *)
       rest
   | Show { wsshow; what; wswhat } ->
       pp_open_hvbox ppf 2;

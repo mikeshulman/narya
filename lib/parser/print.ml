@@ -133,6 +133,8 @@ let pp_ws (space : space) (ppf : formatter) (ws : Whitespace.t list) : unit =
       pp_open_vbox ppf 0;
       pp ppf ws
 
+type Format.stag += Hole of int
+
 (* Print a parse tree. *)
 let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
   let (Term tr) = wtr in
@@ -166,9 +168,11 @@ let rec pp_term (space : space) (ppf : formatter) (wtr : observation) : unit =
       | Superscript (None, s, w) ->
           pp_superscript ppf s;
           pp_ws space ppf w
-      | Hole (_, _, w) ->
+      | Hole { num; ws; _ } ->
+          pp_open_stag ppf (Hole !num);
           pp_print_string ppf "?";
-          pp_ws space ppf w)
+          pp_close_stag ppf ();
+          pp_ws space ppf ws)
 
 and pp_superscript ppf str =
   match Display.chars () with

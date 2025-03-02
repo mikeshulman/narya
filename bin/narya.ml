@@ -148,6 +148,17 @@ let interact () =
 
 (* In ProofGeneral interaction mode, the prompt is delimited by formfeeds, and commands are ended by a formfeed on a line by itself.  This prevents any possibility of collision with other input or output.  This doesn't require initialization. *)
 let rec interact_pg () : unit =
+  Format.pp_set_formatter_stag_functions Format.std_formatter
+    {
+      mark_open_stag =
+        (function
+        | Print.Hole n -> "¿" ^ string_of_int n
+        | _ -> "");
+      mark_close_stag = (fun _ -> "");
+      print_open_stag = (fun _ -> ());
+      print_close_stag = (fun _ -> ());
+    };
+  Format.pp_set_tags Format.std_formatter true;
   Format.printf "\x0C[narya]\x0C\n%!";
   try
     let buf = Buffer.create 20 in
@@ -159,19 +170,17 @@ let rec interact_pg () : unit =
     done;
     let cmd = Buffer.contents buf in
     let holes = ref Emp in
-    let parens = ref false in
     ( Global.HolePos.run ~init:{ holes = Emp; offset = 0 } @@ fun () ->
       Reporter.try_with
       (* ProofGeneral sets TERM=dumb, but in fact it can display ANSI colors, so we tell Asai to override TERM and use colors unconditionally. *)
         ~emit:(fun d ->
           match d.message with
           | Hole _ -> holes := Snoc (!holes, d.message)
-          | Needs_parentheses -> parens := true
           | _ -> Reporter.display ~use_ansi:true ~output:stdout d)
         ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
         (fun () ->
           try
-            let _reformat = do_command (Command.parse_single cmd) in
+            let reformat = do_command (Command.parse_single cmd) in
             Format.printf "\x0C[goals]\x0C\n%!";
             Mbwd.miter
               (fun [ h ] ->
@@ -184,14 +193,14 @@ let rec interact_pg () : unit =
               (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h (s - st.offset) (e - st.offset))
               [ st.holes ];
             Format.printf "\x0C[reformat]\x0C\n%!";
-            (* reformat (); *)
-            if !parens then Format.printf "parens\n%!" else Format.printf "noparens\n%!"
+            reformat ()
           with Sys.Break -> Reporter.fatal Break) );
     interact_pg ()
   with End_of_file -> ()
 
 let () =
   try
+    if !proofgeneral then reformat := true;
     run_top @@ fun () ->
     (* Note: run_top executes the input files, so here we only have to do the interaction. *)
     Mbwd.miter

@@ -169,7 +169,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                        | `Ident x -> Ident (x, w)
                        | `Constr x -> Constr (x, w)
                        | `Placeholder -> Placeholder w
-                       | `Hole -> Hole (tight, ri, w))));
+                       | `Hole -> Hole { li = tight; ri; ws = w; num = ref 0 })));
             } in
     (* Then "lclosed" ends by calling "lopen" with its interval and ending ops, and also its own result (with extra argument added if necessary).  Note that we don't incorporate d.tightness here; it is only used to find the delimiter of the right-hand argument if the notation we parsed was right-open.  In particular, therefore, a right-closed notation can be followed by anything, even a left-open notation that binds tighter than it does; the only restriction is if we're inside the right-hand argument of some containing right-open notation, so we inherit a "tight" from there.  *)
     lopen tight stop res
@@ -374,7 +374,14 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
                                                   | `Constr x -> Constr (x, w)
                                                   | `Placeholder -> Placeholder w
                                                   | `Field x -> Field (x, w)
-                                                  | `Hole -> Hole (No.Interval.empty, ri, w))));
+                                                  | `Hole ->
+                                                      Hole
+                                                        {
+                                                          li = No.Interval.empty;
+                                                          ri;
+                                                          ws = w;
+                                                          num = ref 0;
+                                                        })));
                                        }
                                        sups in
                                    match arg.get ivl with

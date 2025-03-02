@@ -423,6 +423,7 @@ let () =
     pp_print_custom_break ppf ~fits:("", 1, "") ~breaks:("", 0, " ");
     pp_tok ppf Arrow;
     pp_ws `Nobreak ppf wsarrow;
+    (* TODO: Sometimes the space here should come *after* the close box. *)
     pp_term space ppf cod);
   pp_close_box ppf ()
 
@@ -487,6 +488,7 @@ let process_abs cube =
         | _ -> fatal (Anomaly "invalid notation arguments for abstraction"));
   }
 
+(* TODO: Don't open a new box in case state? *)
 let pp_abs cube space ppf obs ws =
   match obs with
   | [ vars; body ] ->
@@ -639,6 +641,7 @@ let rec pp_fields : formatter -> observation list -> Whitespace.alist -> Whitesp
             ppf wscomma;
           pp_fields ppf obs ws)
 
+(* TODO: Don't open a box in case state? *)
 let pp_tuple space ppf obs ws =
   match obs with
   | [] ->
@@ -1384,6 +1387,9 @@ and pp_match box space ppf obs ws =
         pp_tok ppf RBracket;
         pp_ws space ppf wsrbrack);
       if box then pp_close_box ppf ()
+
+(* I seem to want something like this in place of "pp_match true" below, but it also breaks things *)
+let pp_outer_match space ppf obs ws = pp_match (state () = `Term) space ppf obs ws
 
 (* Matches and comatches are only valid in case trees. *)
 let () =

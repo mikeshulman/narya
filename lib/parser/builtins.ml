@@ -411,8 +411,7 @@ let rec pp_doms : formatter -> pi_dom list -> unit =
       pp_term `None ppf ty;
       pp_doms ppf doms
 
-let () =
-  set_print arrow @@ fun space ppf obs ws ->
+let pp_arrow space ppf obs ws =
   let doms, wsarrow, cod = get_pi `First obs ws in
   pp_open_box ppf 1;
   if true then (
@@ -426,6 +425,8 @@ let () =
     pp_ws `Nobreak ppf wsarrow;
     pp_term space ppf cod);
   pp_close_box ppf ()
+
+let () = set_print arrow pp_arrow
 
 (* ********************
    Abstraction

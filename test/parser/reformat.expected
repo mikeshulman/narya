@@ -285,7 +285,10 @@ let x
   in
 x
 
-( fst ≔ M, snd ≔ N )
+(
+  fst ≔ M,
+  snd ≔ N,
+)
 
 f ( fst ≔ M, snd ≔ N )
 
@@ -323,15 +326,24 @@ f
     snd ≔ blah,
   )
 
-( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
+(
+  fst ≔ M,
+  snd ≔ ( foo ≔ N, bar ≔ P ),
+)
 
-( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
+(
+  fst ≔ M,
+  snd ≔ ( foo ≔ N, bar ≔ P ),
+)
 
 f
   ( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ),
   )
 
-(| fst ≔ M | snd ≔ N  )
+(
+  | fst ≔ M 
+  | snd ≔ N 
+)
 
 f (| fst ≔ M | snd ≔ N  )
 
@@ -611,7 +623,8 @@ let x
       blah blah in
 x
 
-( fst ≔ M, snd ≔ N )
+( fst ≔ M,
+  snd ≔ N )
 
 f ( fst ≔ M, snd ≔ N )
 
@@ -641,15 +654,19 @@ f
         blah blah,
     snd ≔ blah )
 
-( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
+( fst ≔ M,
+  snd ≔ ( foo ≔ N, bar ≔ P ) )
 
-( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ) )
+( fst ≔ M,
+  snd ≔ ( foo ≔ N, bar ≔ P ) )
 
 f
   ( fst ≔ M,
     snd ≔ ( foo ≔ N, bar ≔ P ) )
 
-(| fst ≔ M | snd ≔ N )
+(
+  | fst ≔ M 
+  | snd ≔ N )
 
 f (| fst ≔ M | snd ≔ N )
 

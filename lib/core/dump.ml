@@ -183,7 +183,10 @@ and synth : type a. formatter -> a synth -> unit =
   | Const c -> fprintf ppf "Const(%a)" pp_printed (print (PConstant c))
   | Field (tm, fld) -> fprintf ppf "Field(%a, %s)" synth tm.value (Field.to_string_ori fld)
   | Pi (_, _, _) -> fprintf ppf "Pi(?)"
-  | App (fn, arg) -> fprintf ppf "App(%a, %a)" synth fn.value check arg.value
+  | App (fn, arg, { value = `Explicit; _ }) ->
+      fprintf ppf "App(%a, %a)" synth fn.value check arg.value
+  | App (fn, arg, { value = `Implicit; _ }) ->
+      fprintf ppf "App(%a, {%a})" synth fn.value check arg.value
   | Asc (tm, ty) -> fprintf ppf "Asc(%a, %a)" check tm.value check ty.value
   | Let (_, _, _) -> fprintf ppf "Let(?)"
   | Letrec (_, _, _) -> fprintf ppf "LetRec(?)"

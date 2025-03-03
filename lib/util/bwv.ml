@@ -196,6 +196,29 @@ module Applicatic (M : Applicative.Plain) = struct
   let mapM2 : type x y z n. (x -> y -> z M.t) -> (x, n) t -> (y, n) t -> (z, n) t M.t =
    fun f xs ys -> mmapM (fun [ x; y ] -> f x y) [ xs; ys ]
 
+  let mapM1_2 : type x y z n. (x -> (y * z) M.t) -> (x, n) t -> ((y, n) t * (z, n) t) M.t =
+   fun f xs ->
+    let open Applicative.Ops (M) in
+    let+ [ ys; zs ] =
+      pmapM
+        (fun [ x ] ->
+          let+ y, z = f x in
+          [ y; z ])
+        [ xs ] (Cons (Cons Nil)) in
+    (ys, zs)
+
+  let mapM1_3 :
+      type x y z w n. (x -> (y * z * w) M.t) -> (x, n) t -> ((y, n) t * (z, n) t * (w, n) t) M.t =
+   fun f xs ->
+    let open Applicative.Ops (M) in
+    let+ [ ys; zs; ws ] =
+      pmapM
+        (fun [ x ] ->
+          let+ y, z, w = f x in
+          [ y; z; w ])
+        [ xs ] (Cons (Cons (Cons Nil))) in
+    (ys, zs, ws)
+
   let iterM : type x n. (x -> unit M.t) -> (x, n) t -> unit M.t =
    fun f xs -> miterM (fun [ x ] -> f x) [ xs ]
 

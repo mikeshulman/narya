@@ -2,6 +2,12 @@
 
 type zero = private Dummy_zero
 type 'n suc = private Dummy_suc
+type one = zero suc
+type two = one suc
+type three = two suc
+type four = three suc
+type five = four suc
+type six = five suc
 
 (* We can add a backwards nat to a forwards nat and get a backwards one.  This is the length-level analogue of appending a forward list on the end of a backwards one.  *)
 
@@ -15,8 +21,6 @@ let zero : zero t = Zero
 
 let suc : type n. n t -> n suc t = function
   | n -> Suc n
-
-type one = zero suc
 
 let one : one t = suc zero
 

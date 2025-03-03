@@ -10,13 +10,13 @@
   Type → Type
     : Type
   
-   ￫ info[I0100]
+   ￫ info[I0101]
    ￮ display set chars to ASCII
   
   Type -> Type
     : Type
   
-   ￫ info[I0100]
+   ￫ info[I0101]
    ￮ display set chars to unicode
   
   Type → Type

@@ -41,6 +41,7 @@ type t =
   | Solve
   | Show
   | Display
+  | Option
   | Undo
   | Section
   | End
@@ -183,6 +184,7 @@ let to_string = function
   | Solve -> "solve"
   | Show -> "show"
   | Display -> "display"
+  | Option -> "option"
   | Undo -> "undo"
   | Section -> "section"
   | End -> "end"

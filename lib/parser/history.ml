@@ -37,7 +37,7 @@ let run_empty : type a. (unit -> a) -> a =
     ~set:(fun situation -> S.modify (fun d -> { d with present = { d.present with situation } }))
     f
 
-(* Every undoable command (e.g. def, axiom, notation, import, export) should be wrapped in this. *)
+(* Every undoable command (e.g. def, axiom, notation, import, export, option) should be wrapped in this. *)
 let do_command f =
   (* First we save the state at the end of the previous command to the past, freeing up the present to be modified by the current command. *)
   S.modify (fun d -> { d with past = Snoc (d.past, d.present) });
@@ -68,6 +68,6 @@ let set_visible visible =
   S.modify (fun d -> { d with present = { d.present with situation } })
 
 (* Put a given starting visible namespace into the scope, and also extract the notations from it.  Since this uses Scope.run and Situation.run_on, it *overrides* (dynamically, locally) the "actual" namespace and notations in the outer state.  It is used for loading files and strings, which are atomic undo units, and for "going back in time" temporarily to solve an old hole. *)
-let run_with_scope ~init_visible f =
-  Scope.run ~init_visible @@ fun () ->
+let run_with_scope ~init_visible ?options f =
+  Scope.run ~init_visible ?options @@ fun () ->
   Situation.run_on (Situation.add_users !Builtins.builtins init_visible) @@ f

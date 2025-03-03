@@ -35,7 +35,7 @@ let rec take_args :
   | arg :: args, Suc plus -> take_args (Ext (env, mn, Ok arg)) mn args plus
   | _ -> fatal (Anomaly "wrong number of arguments in argument list")
 
-(* A "view" is the aspect of a type or term that we match against to determine its behavior.  A view of a term is just another term, but in WHNF.  A view of a type is either a universe, a pi-type, another canonical type (data or codata), or a neutral.  The non-neutral sorts come with their instantiations that have been checked to have the correct dimension. *)
+(* A "view" is the aspect of a type or term that we match against to determine its behavior.  A view of a term is just another term, but in WHNF.  A view of a type is either a universe, a pi-type, another canonical type (data or codata), or a neutral.  All come with their instantiations that have been checked to have the correct dimension. *)
 
 type view_type =
   | UU : (D.zero, 'k, 'k, normal) TubeOf.t -> view_type
@@ -46,7 +46,7 @@ type view_type =
       * (D.zero, 'k, 'k, normal) TubeOf.t
       -> view_type
   | Canonical : head * 'k canonical * (D.zero, 'k, 'k, normal) TubeOf.t -> view_type
-  | Neutral : head -> view_type
+  | Neutral : head * (D.zero, 'k, 'k, normal) TubeOf.t -> view_type
 
 let rec view_term : type s. s value -> s value =
  fun tm ->
@@ -121,7 +121,7 @@ and view_type ?(severity = Asai.Diagnostic.Bug) (ty : kinetic value) (err : stri
               (* Always a bug *)
               fatal (Dimension_mismatch ("view canonical", dim_canonical c, TubeOf.inst tyargs)))
       | Realize v -> view_type ~severity (inst v tyargs) err
-      | _ -> Neutral head)
+      | _ -> Neutral (head, tyargs))
 
 (* Evaluation of terms and evaluation of case trees are technically separate things.  In particular, evaluating a kinetic (standard) term always produces just a value, whereas evaluating a potential term (a function case tree) can either
 
@@ -1008,6 +1008,15 @@ let rec tyof_inst :
       } in
   inst (universe m) margs
 
+(* Get the instantiation arguments of a type, of any sort. *)
+let get_tyargs ?(severity = Asai.Diagnostic.Bug) (ty : kinetic value) (err : string) :
+    normal full_tube =
+  match view_type ~severity ty err with
+  | UU tyargs -> Full_tube tyargs
+  | Pi (_, _, _, tyargs) -> Full_tube tyargs
+  | Canonical (_, _, tyargs) -> Full_tube tyargs
+  | Neutral (_, tyargs) -> Full_tube tyargs
+
 (* Check whether a given type is discrete, or has one of the the supplied constant heads (since for testing whether a newly defined datatype can be discrete, it and members of its mutual families can appear in its own parameters and arguments). *)
 let is_discrete : ?discrete:unit Constant.Map.t -> kinetic value -> bool =
  fun ?discrete ty ->
@@ -1016,7 +1025,7 @@ let is_discrete : ?discrete:unit Constant.Map.t -> kinetic value -> bool =
   (* The currently-being-defined types may not be canonical yet: if they don't have definitions yet they are neutral. *)
   | Canonical (Const { name; ins }, _, _), Some consts ->
       Option.is_some (is_id_ins ins) && Constant.Map.mem name consts
-  | Neutral (Const { name; ins }), Some consts ->
+  | Neutral (Const { name; ins }, _), Some consts ->
       Option.is_some (is_id_ins ins) && Constant.Map.mem name consts
       (* In theory, pi-types with discrete codomain, and record types with discrete fields, could also be discrete.  But that would be trickier to check as it would require evaluating their codomain and fields under binders, and eta-conversion for those types should implement direct discreteness automatically.  So the only thing we're missing is that they can't appear as arguments to a constructor of some other discrete datatype. *)
   | _ -> false

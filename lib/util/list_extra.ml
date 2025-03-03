@@ -8,3 +8,13 @@ let rec split_last = function
       match split_last xs with
       | Some (ys, y) -> Some (x :: ys, y)
       | None -> None)
+
+(* Insert an element at a specified position (counting from the left). *)
+let rec insert : type a. int -> a -> a list -> a list =
+ fun i x xs ->
+  if i < 0 then raise (Invalid_argument "List_extra.insert")
+  else if i = 0 then x :: xs
+  else
+    match xs with
+    | [] -> raise (Invalid_argument "List_extra.insert")
+    | y :: xs -> y :: insert (i - 1) x xs

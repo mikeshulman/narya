@@ -105,14 +105,6 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
    Like `echo`, but does not normalize the term, only computes its type.
 
-1.
-   ```
-   show hole HOLE
-   show holes
-   ```
-
-   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
-
 1. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
    Declare a new mixfix notation.  Every notation must have a `NAME`, which is an identifier like the name of a constant, and a `TIGHTNESS` unless it is outfix (see below).  The `PATTERN` of a notation is discussed below.  The value of a notation consists of a `HEAD`, which is either a previously defined constant or a datatype constructor (see below), followed by the `ARGUMENTS` that must consist of exactly the variables appearing in the pattern, once each, in some order.
@@ -151,6 +143,14 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
 In interactive mode, the following additional commands are also available.  (However, they are mostly intended for use in the ProofGeneral backend, see below.)
 
+1.
+   ```
+   show hole HOLE
+   show holes
+   ```
+
+   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
+
 1. `solve HOLE ≔ TERM`
 
    Fill hole number `HOLE` with the term `TERM` (see below).
@@ -158,6 +158,10 @@ In interactive mode, the following additional commands are also available.  (How
 1. `undo N`
 
    Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo`, `synth`, `show`, and `solve`: those commands are skipped over when undoing.  (Of course `solve` does modify the global state, but it is not undoable because it doesn't affect the "processed position" in ProofGeneral.)  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently from Narya's memory (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.
+
+1. `display SETTING`
+
+   Set one of the display settings (that are also set by command-line flags), which can be either `unicode`, `ascii`, `compact`, or `noncompact`.
 
 
 ### ProofGeneral mode
@@ -178,7 +182,7 @@ The most useful ProofGeneral key commands for Narya are the following.  (As usua
 - `C-c C-.` : Move the cursor to the end of the processed region.
 - `C-M-a` : Move the cursor to the beginning of the command it is inside.
 - `C-M-e` : Move the cursor to the end of the command it is inside.
-- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo`, `synth`, and `show`.
+- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo`, `synth`, `show`, and `display`.
 - `C-c C-c` : Interrupt Narya if a command is taking too long.  Narya attempts to recover, but its state may be unreliable afterwards.
 - `M-;` : Insert a comment, remove a comment, or comment out a region.  This is a standard Emacs command, but is customized to use line comments on code lines and block comments elsewhere.
 
@@ -1645,17 +1649,32 @@ Iterating `Id` or `refl` multiple times produces higher-dimensional cube types a
 ```
 We can view this as assigning to any boundary for a 2-dimensional square a type of fillers for that square.  Similarly, `Id (Id (Id A))` yields a type of 3-dumensional cubes, and so on.
 
-There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions.  Like `refl`, if the argument of `sym` synthesizes, then it synthesizes a symmetrized type; but in this case the argument must synthesize a "2-dimensional" type.  (The need to be able to "detect" 2-dimensionality here is roughly what imposes the requirements on our normalization/typechecking algorithm mentioned above.)  In addition, unlike `refl`, an application of `sym` can also check if its argument does, since the type it is checked against can be "unsymmetrized" to obtain the necessary type for its argument to check against.
+There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions.  Like `refl`, if the argument of `sym` synthesizes, then the `sym` synthesizes a symmetrized type; but in this case the argument must synthesize a "2-dimensional" type.  (The need to be able to "detect" 2-dimensionality here is roughly what imposes the requirements on our normalization/typechecking algorithm mentioned above.)  In addition, unlike `refl`, an application of `sym` can also check if its argument does, since the type it is checked against can be "unsymmetrized" to obtain the necessary type for its argument to check against.
 
-Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies: `M⁽¹ᵉ²⁾` or `M^(1e2)` where the superscript represents the degeneracy, with `e` denoting a degenerate dimension and nonzero digits denoting a permutation.  (The `e` stands for "equality", since our `Id` is eventually intended to be the identity type of Higher Observational Type Theory.)  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and letters with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.  This notation can always synthesize if `M` does, while like `sym` it can also check if the degeneracy is a "pure permutation", consisting only of digits without any `e`s.
+Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies, for example `M⁽²ᵉ¹⁾` or `M^(2e1)` where the superscript represents the degeneracy, with `e` denoting a degenerate dimension and nonzero digits denoting a permutation.  (The `e` stands for "equality", since our `Id` is eventually intended to be the identity type of Higher Observational Type Theory.)  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and letters with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.  This notation can always synthesize if `M` does, while like `sym` it can also check if the degeneracy is a "pure permutation", consisting only of digits without any `e`s.
 
-Degeneracies can be extended by identities on the right.  For instance, the two degeneracies taking a 1-dimensional object to a 2-dimensional one are denoted `1e` and `e1`, and of these `e1` can be written as simply `e` and coincides with ordinary `refl` applied to an object that happens to be 1-dimensional.
+Degeneracies can be extended by identities on the left and remain the same operator.  For instance, the two degeneracies taking a 1-dimensional object to a 2-dimensional one are denoted `1e` and `e1`, and of these `1e` can be written as simply `e` and coincides with ordinary `refl` applied to an object that happens to be 1-dimensional.
 
-Degeneracy operations are functorial.  For pure symmetries, this means composing permutations.  For instance, the "Yang-Baxter equation" holds, equating `M⁽²¹³⁾⁽¹³²⁾⁽²¹³⁾` with `M⁽¹³²⁾⁽²¹³⁾⁽¹³²⁾`, as both reduce to `M⁽³²¹⁾`.  Reflexivities also compose with permutations in a fairly straightforward way, e.g. `M⁽ᵉ¹⁾⁽²¹⁾` reduces to `M^⁽¹ᵉ⁾`.
+A mnemonic for the names of permutation operators is that the permutation numbers indicate the motion of arguments.  For instance, if we have a 3-dimensional cube
+```
+a222 : Id (Id (Id A))
+  a000 a001 a002 a010 a011 a012 a020 a021 a022
+  a100 a101 a102 a110 a111 a112 a120 a121 a122
+  a200 a201 a202 a210 a211 a212 a220 a221
+```
+then to work out the boundary of a permuted cube such as `a222⁽³¹²⁾`, consider the motion of the "axes" `a001`, `a010`, and `a100`.  The permutation notation `(312)` denotes the permutation sending 1 to 3, sending 2 to 1, and sending 3 to 2.  Therefore, the first axis `a001` moves to the position previously occupied by the third axis `a100`, the second axis `a010` moves to the position previously occupied by the first axis `a001`, and the third axis `a100` moves to the position previously occupied by the second axis `a010`.  This determines the motion of the other boundary faces (although not which of them end up symmetrized):
+```
+a222⁽³¹²⁾ : A⁽ᵉᵉᵉ⁾
+  a000 a010 a020 a100 a110 a120 a200 a210 a220
+  a001 a011 a021 a101 a111 a121 a201 a211 a221
+  a002 a012 (sym a022) a102 a112 (sym a122) (sym a202) (sym a212)
+```
 
-The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to higher degeneracies, with one exception.  Ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `1e`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.
+Degeneracy operations are functorial.  For pure symmetries, this means composing permutations.  For instance, the "Yang-Baxter equation" holds, equating `M⁽²¹³⁾⁽¹³²⁾⁽²¹³⁾` with `M⁽¹³²⁾⁽²¹³⁾⁽¹³²⁾`, as both reduce to `M⁽³²¹⁾`.  Reflexivities also compose with permutations in a fairly straightforward way, e.g. `M⁽¹ᵉ⁾⁽²¹⁾` reduces to `M^⁽ᵉ¹⁾`.
 
-For instance, `Gel A B R` is a 1-dimensional type, belonging to `Id Type A B`.  Thus, we can form the 2-dimensional type `(Gel A B R)⁽¹ᵉ⁾`, and instantiate it using `a₂ : Id A a₀ a₁` and `b₂ : Id B b₀ b₁` and `r₀ : R a₀ b₀` and `r₁ : R a₁ b₁` to get a 0-dimensional type `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂`.  But this type is not canonical, and in particular not a record type; in particular given `M : (Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` we cannot write `M .ungel`.  However, we have `sym M : (Gel A B R)⁽ᵉ¹⁾ a₀ a₁ a₂ b₀ b₁ b₂ (r₀,) (r₁,)`, which doesn't permute the intrinsic dimension `1` with the degenerate dimension `e` and *is* therefore a record type, and so we can write `sym M .ungel`, which has type `Id R a₀ a₁ a₂ b₀ b₁ b₂ r₀ r₁`.  In addition, since `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` is *isomorphic* to this record type, it also satisfies an eta-rule: two of its terms `M` and `N` are definitionally equal as soon as `sym M .ungel` and `sym N .ungel` are.
+The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to higher degeneracies, with one exception.  Ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `e1`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.
+
+For instance, `Gel A B R` is a 1-dimensional type, belonging to `Id Type A B`.  Thus, we can form the 2-dimensional type `(Gel A B R)⁽ᵉ¹⁾`, and instantiate it using `a₂ : Id A a₀ a₁` and `b₂ : Id B b₀ b₁` and `r₀ : R a₀ b₀` and `r₁ : R a₁ b₁` to get a 0-dimensional type `(Gel A B R)⁽ᵉ¹⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂`.  But this type is not canonical, and in particular not a record type; in particular given `M : (Gel A B R)⁽ᵉ¹⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` we cannot write `M .ungel`.  However, we have `sym M : (Gel A B R)⁽¹ᵉ⁾ a₀ a₁ a₂ b₀ b₁ b₂ (r₀,) (r₁,)`, which doesn't permute the intrinsic dimension `1` with the degenerate dimension `e` and *is* therefore a record type, and so we can write `sym M .ungel`, which has type `Id R a₀ a₁ a₂ b₀ b₁ b₂ r₀ r₁`.  In addition, since `(Gel A B R)⁽ᵉ¹⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` is *isomorphic* to this record type, it also satisfies an eta-rule: two of its terms `M` and `N` are definitionally equal as soon as `sym M .ungel` and `sym N .ungel` are.
 
 
 ### Cubes of variables

@@ -3,6 +3,7 @@ open Dim
 open Util
 open List_extra
 open Core
+open Readback
 open Notation
 open Postprocess
 open Unparse
@@ -74,6 +75,13 @@ module Command = struct
         wsshow : Whitespace.t list;
         what : [ `Hole of Whitespace.t list * int | `Holes ];
         wswhat : Whitespace.t list;
+      }
+    | Display of {
+        wsdisplay : Whitespace.t list;
+        wscoloneq : Whitespace.t list;
+        what :
+          [ `Style of Whitespace.t list * Display.style * Whitespace.t list
+          | `Chars of Whitespace.t list * Display.chars * Whitespace.t list ];
       }
     | Undo of { wsundo : Whitespace.t list; count : int; wscount : Whitespace.t list }
     | Section of {
@@ -458,6 +466,37 @@ module Parse = struct
       | `Holes ws -> return (`Holes, ws) in
     return (Show { wsshow; what; wswhat })
 
+  let style_of_token : Token.t -> Display.style option = function
+    | Ident [ "compact" ] -> Some `Compact
+    | Ident [ "noncompact" ] -> Some `Noncompact
+    | _ -> None
+
+  let chars_of_token : Token.t -> Display.chars option = function
+    | Ident [ "unicode" ] -> Some `Unicode
+    | Ident [ "ascii" ] -> Some `ASCII
+    | _ -> None
+
+  let display =
+    let* wsdisplay = token Display in
+    let* what, wswhat =
+      step "" (fun state _ (tok, ws) ->
+          match tok with
+          | Ident [ "style" ] -> Some ((`Style, ws), state)
+          | Ident [ "chars" ] -> Some ((`Chars, ws), state)
+          | _ -> None) in
+    let* wscoloneq = token Coloneq in
+    match what with
+    | `Style ->
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* style = style_of_token tok in
+            return (Display { wsdisplay; wscoloneq; what = `Style (wswhat, style, ws) }, state))
+    | `Chars ->
+        step "" (fun state _ (tok, ws) ->
+            let open Monad.Ops (Monad.Maybe) in
+            let* chars = chars_of_token tok in
+            return (Display { wsdisplay; wscoloneq; what = `Chars (wswhat, chars, ws) }, state))
+
   let undo =
     let* wsundo = token Undo in
     let* count, wscount = integer in
@@ -495,6 +534,7 @@ module Parse = struct
     </> import
     </> solve
     </> show
+    </> display
     </> undo
     </> section
     </> endcmd
@@ -577,6 +617,7 @@ let to_string : Command.t -> string = function
   | Import _ -> "import"
   | Solve _ -> "solve"
   | Show _ -> "show"
+  | Display _ -> "display"
   | Quit _ -> "quit"
   | Undo _ -> "undo"
   | Section _ -> "section"
@@ -649,14 +690,14 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
       action_taken ();
       match rtm.value with
       | Synth stm ->
-          Readback.Display.run ~env:true @@ fun () ->
+          Readback.Displaying.run ~env:true @@ fun () ->
           let ctm, ety = Check.synth (Kinetic `Nolet) Ctx.empty { value = stm; loc = rtm.loc } in
           let btm =
             if eval then
               let etm = Norm.eval_term (Emp D.zero) ctm in
-              Readback.readback_at Ctx.empty etm ety
+              readback_at Ctx.empty etm ety
             else ctm in
-          let bty = Readback.readback_at Ctx.empty ety (Syntax.universe D.zero) in
+          let bty = readback_at Ctx.empty ety (Syntax.universe D.zero) in
           let utm = unparse Names.empty btm Interval.entire Interval.entire in
           let uty = unparse Names.empty bty Interval.entire Interval.entire in
           let ppf = Format.std_formatter in
@@ -764,6 +805,14 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
           match Eternity.all_holes () with
           | [] -> emit No_open_holes
           | holes -> List.iter (show_hole (Anomaly "defined hole in undefined list")) holes))
+  | Display { what; _ } -> (
+      match what with
+      | `Style (_, style, _) ->
+          Display.modify (fun s -> { s with style });
+          emit (Display_set ("style", Display.to_string (style :> Display.values)))
+      | `Chars (_, chars, _) ->
+          Display.modify (fun s -> { s with chars });
+          emit (Display_set ("chars", Display.to_string (chars :> Display.values))))
   | Undo { count; _ } ->
       History.undo count;
       emit (Commands_undone count)
@@ -965,6 +1014,26 @@ let pp_command : formatter -> t -> Whitespace.t list =
           pp_print_int ppf number
       | `Holes -> pp_print_string ppf "holes");
       let ws, rest = Whitespace.split wswhat in
+      pp_ws `None ppf ws;
+      pp_close_box ppf ();
+      rest
+  | Display { wsdisplay; wscoloneq; what } ->
+      pp_tok ppf Display;
+      pp_ws `Nobreak ppf wsdisplay;
+      let how, wshow =
+        match what with
+        | `Style (wswhat, how, wshow) ->
+            pp_print_string ppf "style";
+            pp_ws `Nobreak ppf wswhat;
+            ((how :> Display.values), wshow)
+        | `Chars (wswhat, how, wshow) ->
+            pp_print_string ppf "chars";
+            pp_ws `Nobreak ppf wswhat;
+            ((how :> Display.values), wshow) in
+      pp_tok ppf Coloneq;
+      pp_ws `Nobreak ppf wscoloneq;
+      pp_print_string ppf (Display.to_string how);
+      let ws, rest = Whitespace.split wshow in
       pp_ws `None ppf ws;
       rest
   | Undo { wsundo; count; wscount } ->

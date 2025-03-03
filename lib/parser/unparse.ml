@@ -11,6 +11,7 @@ open Builtins
 open Reporter
 open Printable
 open Range
+open Readback
 module StringMap = Map.Make (String)
 
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
@@ -203,11 +204,11 @@ let rec unparse :
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
   | Const c -> unlocated (Ident (Scope.name_of c, []))
   | Meta (v, _) ->
-      unlocated (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v else "?") ], []))
+      unlocated (Ident ([ (if Display.metas () == `Numbered then Meta.name v else "?") ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)
   | MetaEnv (v, _) ->
       unlocated
-        (Ident ([ (if Printconfig.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
+        (Ident ([ (if Display.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
   | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
   | UU n ->
       unparse_act vars
@@ -356,7 +357,7 @@ and unparse_spine :
               let arg = arg.unparse Interval.empty ri in
               (* We parenthesize the argument if the style dictates and it doesn't already have parentheses. *)
               let arg =
-                match Printconfig.argstyle () with
+                match Display.argstyle () with
                 | `Spaces -> arg
                 | `Parens -> parenthesize_maybe arg in
               unlocated (App { fn; arg; left_ok; right_ok })
@@ -365,7 +366,7 @@ and unparse_spine :
                 unparse_spine vars head args Interval.plus_omega_only Interval.plus_omega_only in
               let arg = arg.unparse Interval.empty Interval.plus_omega_only in
               let arg =
-                match Printconfig.argstyle () with
+                match Display.argstyle () with
                 | `Spaces -> arg
                 | `Parens -> parenthesize_maybe arg in
               let left_ok = No.le_refl No.plus_omega in
@@ -724,7 +725,7 @@ let () =
           Reporter.emit (Error_printing_error d.message);
           Printed ((fun ppf () -> Format.pp_print_string ppf "PRINTING_ERROR"), ()))
       @@ fun () ->
-      Readback.Display.run ~env:true @@ fun () ->
+      Readback.Displaying.run ~env:true @@ fun () ->
       match pr with
       | PUnit -> Printed ((fun _ () -> ()), ())
       | PInt i -> Printed (Format.pp_print_int, i)
@@ -740,20 +741,19 @@ let () =
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Names.of_ctx ctx) (Readback.readback_val ctx tm) Interval.entire
-                   Interval.entire) )
+                (unparse (Names.of_ctx ctx) (readback_val ctx tm) Interval.entire Interval.entire)
+            )
       | PNormal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
-              Term
-                (unparse (Names.of_ctx ctx) (Readback.readback_nf ctx tm) Interval.entire
-                   Interval.entire) )
+              Term (unparse (Names.of_ctx ctx) (readback_nf ctx tm) Interval.entire Interval.entire)
+            )
       | PUninst (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Names.of_ctx ctx) (Readback.readback_uninst ctx tm) Interval.entire
-                   Interval.entire) )
+                (unparse (Names.of_ctx ctx) (readback_uninst ctx tm) Interval.entire Interval.entire)
+            )
       | PConstant name ->
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)

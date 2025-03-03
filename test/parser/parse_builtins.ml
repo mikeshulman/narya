@@ -131,7 +131,7 @@ let () =
             Term (Ident [ "B" ]);
           ] ));
 
-  assert (parse "()" = Notn ("parens", []));
+  assert (parse "()" = Notn ("empty_tuple", []));
 
   assert (
     parse "(x := y)"
@@ -142,13 +142,13 @@ let () =
   assert (
     parse "(x := y , z := w)"
     = Notn
-        ( "parens",
+        ( "comma_tuple",
           [
             Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
             Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
           ] ));
 
-  assert (parse "(x , y)" = Notn ("parens", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+  assert (parse "(x , y)" = Notn ("comma_tuple", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
 
   assert (
     parse "[.x ↦ y | .z ↦ w]"
@@ -159,7 +159,7 @@ let () =
   assert (
     parse "(x := y , z := w,)"
     = Notn
-        ( "parens",
+        ( "comma_tuple",
           [
             Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
             Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
@@ -168,7 +168,35 @@ let () =
   assert (
     parse "(x := y , z := w, a ≔ b)"
     = Notn
-        ( "parens",
+        ( "comma_tuple",
+          [
+            Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "a" ]); Term (Ident [ "b" ]) ]));
+          ] ));
+
+  assert (
+    parse "( x := y | z := w)"
+    = Notn
+        ( "bar_tuple",
+          [
+            Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
+          ] ));
+
+  assert (
+    parse "(| x := y | z := w)"
+    = Notn
+        ( "bar_tuple",
+          [
+            Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
+            Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));
+          ] ));
+
+  assert (
+    parse "(x := y | z := w | a ≔ b)"
+    = Notn
+        ( "bar_tuple",
           [
             Term (Notn ("coloneq", [ Term (Ident [ "x" ]); Term (Ident [ "y" ]) ]));
             Term (Notn ("coloneq", [ Term (Ident [ "z" ]); Term (Ident [ "w" ]) ]));

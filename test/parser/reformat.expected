@@ -340,6 +340,57 @@ f
   ( fst ≔ M, snd ≔ ( foo ≔ N, bar ≔ P ),
   )
 
+(
+  | fst ≔ M 
+  | snd ≔ N 
+)
+
+f (| fst ≔ M | snd ≔ N  )
+
+(
+  | fst ≔ blah blah blah blah blah blah 
+  | snd ≔
+      blah blah blah blah blah blah
+        blah blah 
+)
+
+(
+  | fst ≔ blah blah blah blah blah blah 
+  | snd ≔ blah 
+)
+
+f
+  (
+    | fst ≔
+        blah blah blah blah blah blah 
+    | snd ≔
+        blah blah blah blah blah blah
+          blah blah 
+  )
+
+f
+  (
+    | fst ≔
+        blah blah blah blah blah blah 
+    | snd ≔ blah 
+  )
+
+(
+  | fst ≔ M 
+  | snd ≔ (| foo ≔ N | bar ≔ P  ) 
+)
+
+(
+  | fst ≔ M 
+  | snd ≔ (| foo ≔ N | bar ≔ P  ) 
+)
+
+f
+  (
+    | fst ≔ M 
+    | snd ≔ (| foo ≔ N | bar ≔ P  ) 
+  )
+
 [
   | .fst ↦
     blah blah blah blah blah
@@ -612,6 +663,49 @@ f
 f
   ( fst ≔ M,
     snd ≔ ( foo ≔ N, bar ≔ P ) )
+
+(
+  | fst ≔ M 
+  | snd ≔ N )
+
+f (| fst ≔ M | snd ≔ N )
+
+(
+  | fst ≔ blah blah blah blah blah blah 
+  | snd ≔
+      blah blah blah blah blah blah
+        blah blah )
+
+(
+  | fst ≔ blah blah blah blah blah blah 
+  | snd ≔ blah )
+
+f
+  (
+    | fst ≔
+        blah blah blah blah blah blah 
+    | snd ≔
+        blah blah blah blah blah blah
+          blah blah )
+
+f
+  (
+    | fst ≔
+        blah blah blah blah blah blah 
+    | snd ≔ blah )
+
+(
+  | fst ≔ M 
+  | snd ≔ (| foo ≔ N | bar ≔ P ) )
+
+(
+  | fst ≔ M 
+  | snd ≔ (| foo ≔ N | bar ≔ P ) )
+
+f
+  (
+    | fst ≔ M 
+    | snd ≔ (| foo ≔ N | bar ≔ P ) )
 
 [ | .fst ↦
     blah blah blah blah blah

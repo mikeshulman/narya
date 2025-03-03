@@ -17,7 +17,28 @@ module StringSet = Set.Make (String)
 
 let parens = make "parens" Outfix
 
-(* Parentheses are parsed, processed, and printed along with tuples, since their notation overlaps.  *)
+let pp_parens space ppf obs ws =
+  match obs with
+  | [ body ] ->
+      let wslparen, ws = take LParen ws in
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      pp_open_hovbox ppf 1;
+      if true then (
+        pp_tok ppf LParen;
+        pp_ws `None ppf wslparen;
+        pp_term `None ppf body;
+        pp_tok ppf RParen);
+      pp_close_box ppf ();
+      pp_ws space ppf wsrparen
+  | _ -> fatal (Anomaly "invalid notation arguments for parens")
+
+let () =
+  set_tree parens (Closed_entry (eop LParen (term RParen (Done_closed parens))));
+  set_print parens pp_parens;
+  set_print_as_case parens pp_parens
+
+(* Parentheses are processed along with tuples, since their notation overlaps: a labeled 1-tuple "(x ≔ M)" is parsed as a coloneq inside a parens. *)
 
 (* ********************
    Let-binding
@@ -315,7 +336,7 @@ let rec get_pi_args :
     | _ -> raise Invalid_telescope
   with Invalid_telescope -> Nondep { wsarrow; ty = Term doms } :: accum
 
-(* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
+(* Get all the domains and eventual codomain from a right-associated iterated function-type.  This is used for both printing and processing, so we extract the whitespace as well. *)
 let rec get_pi :
     type lt ls rt rs.
     arrow_opt ->
@@ -410,8 +431,7 @@ let rec pp_doms : formatter -> pi_dom list -> unit =
       pp_term `None ppf ty;
       pp_doms ppf doms
 
-let () =
-  set_print arrow @@ fun space ppf obs ws ->
+let pp_arrow space ppf obs ws =
   let doms, wsarrow, cod = get_pi `First obs ws in
   pp_open_box ppf 1;
   if true then (
@@ -425,6 +445,8 @@ let () =
     pp_ws `Nobreak ppf wsarrow;
     pp_term space ppf cod);
   pp_close_box ppf ()
+
+let () = set_print arrow pp_arrow
 
 (* ********************
    Abstraction
@@ -541,71 +563,15 @@ let () =
   | _ -> fatal (Anomaly (Printf.sprintf "invalid notation arguments for Type: %d" (List.length ws)))
 
 (* ********************
-   Anonymous tuples
- ******************** *)
+   Coloneq
+   ******************** *)
 
+(* Coloneq is an auxiliary notation that appears inside tuples for labeled arguments.  It's not processed on its own, only as part of a tuple, but it is parsed and printed on its own. *)
 let coloneq = make "coloneq" (Infixr No.minus_omega)
 
 let () =
   set_tree coloneq (Open_entry (eop Coloneq (done_open coloneq)));
   set_processor coloneq { process = (fun _ _ _ _ -> fatal Parse_error) }
-
-(* The notation for tuples is "( x ≔ M, y ≔ N, z ≔ P )".  The parentheses don't conflict with ordinary parentheses, since ≔ and , are not term-forming operators all by themselves.  The 0-ary tuple "()" is included, and also doesn't conflict since ordinary parentheses must contain a term.  We also allow some of the components of the tuple to be unlabeled, as in "(M, N, P)"; these are assigned to the fields that don't have a corresponding labeled component in the order they appear in the record type.  The only thing that's not allowed is an unlabeled 1-tuple "(M)" since that would conflict with ordinary parentheses.  (TODO: We could essentially allow that by making the tupling and projection of a 1-ary record type implicit coercions.) *)
-
-let rec tuple_fields () =
-  Inner
-    {
-      empty_branch with
-      ops = TokMap.singleton RParen (Done_closed parens);
-      term =
-        Some
-          (TokMap.of_list [ (Op ",", Lazy (lazy (tuple_fields ()))); (RParen, Done_closed parens) ]);
-    }
-
-let () = set_tree parens (Closed_entry (eop LParen (tuple_fields ())))
-
-let rec process_tuple :
-    type n.
-    bool ->
-    (Field.t option, n check located) Abwd.t ->
-    Field.Set.t ->
-    (string option, n) Bwv.t ->
-    observation list ->
-    Asai.Range.t option ->
-    Whitespace.alist ->
-    n check located =
- fun first flds found ctx obs loc ws ->
-  match obs with
-  | [] -> { value = Raw.Struct (Eta, flds); loc }
-  | Term { value = Notn n; loc } :: obs when equal (notn n) coloneq -> (
-      let ws = Option.fold ~none:ws ~some:snd (take_opt (Op ",") ws) in
-      match args n with
-      | [ Term { value = Ident ([ x ], _); loc = xloc }; Term tm ] ->
-          let tm = process ctx tm in
-          let fld = Field.intern x in
-          if Field.Set.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
-          else
-            process_tuple false (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
-              ws
-      | [ Term { value = Placeholder _; _ }; Term tm ] ->
-          let tm = process ctx tm in
-          process_tuple false (Abwd.add None tm flds) found ctx obs loc ws
-      | Term x :: _ -> fatal ?loc:x.loc Invalid_field_in_tuple
-      | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
-  | [ Term body ] when first && Option.is_none (take_opt (Op ",") ws) -> process ctx body
-  | Term tm :: obs ->
-      let tm = process ctx tm in
-      let ws = Option.fold ~none:ws ~some:snd (take_opt (Op ",") ws) in
-      process_tuple false (Abwd.add None tm flds) found ctx obs loc ws
-
-let () =
-  set_processor parens
-    {
-      process =
-        (fun ctx obs loc ws ->
-          let _, ws = take LParen ws in
-          process_tuple true Abwd.empty Field.Set.empty ctx obs loc ws);
-    }
 
 let pp_coloneq space ppf obs ws =
   let wscoloneq, ws = take Coloneq ws in
@@ -623,25 +589,100 @@ let pp_coloneq space ppf obs ws =
 
 let () = set_print coloneq pp_coloneq
 
-let rec pp_fields : formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
- fun ppf obs ws ->
-  match obs with
-  | [] -> ws
-  | tm :: obs -> (
-      pp_term `None ppf tm;
-      match obs with
-      | [] -> ws
-      | _ ->
-          let wscomma, ws = take (Op ",") ws in
-          pp_tok ppf (Op ",");
-          pp_ws
-            (match Display.spacing () with
-            | `Wide -> `Break
-            | `Narrow -> `Custom (("", 0, ""), ("", 0, "")))
-            ppf wscomma;
-          pp_fields ppf obs ws)
+(* ********************
+   Tuples
+   ******************** *)
 
-let pp_tuple space ppf obs ws =
+(* The notation for tuples is "( x ≔ M, y ≔ N, z ≔ P )", possibly with a trailing comma.  The parentheses don't conflict with ordinary parentheses, since ≔ and , are not term-forming operators all by themselves.  The 0-ary tuple "()" is included, and also doesn't conflict since ordinary parentheses must contain a term.  We also allow some of the components of the tuple to be unlabeled, as in "(M, N, P)"; these are assigned to the fields that don't have a corresponding labeled component in the order they appear in the record type.  The only thing that's not allowed is an unlabeled 1-tuple "(M)" since that would conflict with ordinary parentheses, but you can write (M,) since trailing commas are always allowed, as well as give an empty label (_ ≔ M).  An alternative notation is "( x ≔ M | y ≔ N | z ≔ P )".  In this version, an extra initial bar is allowed, but not a trailing one, and labels are required.  Bars and commas cannot be mixed.  The empty tuple () cannot contain a comma or a bar. *)
+
+(* We parse tuples using four notation objcts.  The first is 'parens', defined above, which includes labeled 1-tuples "(x ≔ M)" with a coloneq notation inside.  The second is empty_tuple, which is just the empty tuple "()". *)
+
+let empty_tuple = make "empty_tuple" Outfix
+let () = set_tree empty_tuple (Closed_entry (eop LParen (op RParen (Done_closed empty_tuple))))
+
+(* The third is comma_tuple, which parses tuples that are separated by commas and contain at least one comma. *)
+let comma_tuple = make "comma_tuple" Outfix
+
+(* This subtree parses the part of a comma tuple that comes *after* a comma.  Since trailing commas are allowed, it could end here, or it could parse another term followed either by a comma or by the ending parenthesis. *)
+let rec comma_tuple_fields () =
+  Inner
+    {
+      empty_branch with
+      ops = TokMap.singleton RParen (Done_closed comma_tuple);
+      term =
+        Some
+          (TokMap.of_list
+             [ (Op ",", Lazy (lazy (comma_tuple_fields ()))); (RParen, Done_closed comma_tuple) ]);
+    }
+
+let () = set_tree comma_tuple (Closed_entry (eop LParen (term (Op ",") (comma_tuple_fields ()))))
+
+(* The third is bar_tuple, which parses tuples that are separated by bars and contain at least one bar. *)
+let bar_tuple = make "bar_tuple" Outfix
+
+(* This subtree parses the part of a bar tuple that comes *after* a bar.  Since trailing bars are not allowed, it must have a term, which is followed by either another bar or the ending parenthesis. *)
+let rec bar_tuple_fields () =
+  terms [ (Op "|", Lazy (lazy (bar_tuple_fields ()))); (RParen, Done_closed bar_tuple) ]
+
+let () =
+  set_tree bar_tuple
+    (Closed_entry
+       (eop LParen
+          (Inner
+             {
+               empty_branch with
+               ops = TokMap.singleton (Op "|") (bar_tuple_fields ());
+               term = Some (TokMap.singleton (Op "|") (bar_tuple_fields ()));
+             })))
+
+let rec process_tuple :
+    type n.
+    (Field.t option, n check located) Abwd.t ->
+    Field.Set.t ->
+    (string option, n) Bwv.t ->
+    observation list ->
+    Asai.Range.t option ->
+    n check located =
+ fun flds found ctx obs loc ->
+  match obs with
+  | [] -> { value = Raw.Struct (Eta, flds); loc }
+  | Term { value = Notn n; loc } :: obs when equal (notn n) coloneq -> (
+      match args n with
+      | [ Term { value = Ident ([ x ], _); loc = xloc }; Term tm ] ->
+          let tm = process ctx tm in
+          let fld = Field.intern x in
+          if Field.Set.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
+          else process_tuple (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
+      | [ Term { value = Placeholder _; _ }; Term tm ] ->
+          let tm = process ctx tm in
+          process_tuple (Abwd.add None tm flds) found ctx obs loc
+      | Term x :: _ -> fatal ?loc:x.loc Invalid_field_in_tuple
+      | _ -> fatal (Anomaly "invalid notation arguments for tuple"))
+  | Term tm :: obs ->
+      let tm = process ctx tm in
+      process_tuple (Abwd.add None tm flds) found ctx obs loc
+
+let () =
+  set_processor parens
+    {
+      process =
+        (fun ctx obs loc _ ->
+          match obs with
+          (* If a parenthesis contains a ≔, then it's actually a labeled 1-tuple. *)
+          | [ Term { value = Notn n; _ } ] when equal (notn n) coloneq ->
+              process_tuple Abwd.empty Field.Set.empty ctx obs loc
+          (* Otherwise, there must be only one term inside, and it's an ordinary parenthesis. *)
+          | [ Term body ] -> process ctx body
+          | _ -> fatal (Anomaly "invalid notation arguments for parens"));
+    };
+  (* The other kinds of tuples are all processed identically, since their sequences of terms are all the same. *)
+  let pt =
+    { process = (fun ctx obs loc _ -> process_tuple Abwd.empty Field.Set.empty ctx obs loc) } in
+  set_processor empty_tuple pt;
+  set_processor comma_tuple pt;
+  set_processor bar_tuple pt
+
+let pp_empty_tuple space ppf obs ws =
   match obs with
   | [] ->
       let wslparen, ws = take LParen ws in
@@ -650,21 +691,90 @@ let pp_tuple space ppf obs ws =
       pp_tok ppf LParen;
       pp_ws `None ppf wslparen;
       pp_tok ppf RParen;
-      pp_ws `None ppf wsrparen
-  | [ body ] ->
-      let wslparen, ws = take LParen ws in
-      let wsrparen, ws = take RParen ws in
-      taken_last ws;
-      pp_open_hovbox ppf 1;
-      if true then (
-        pp_tok ppf LParen;
-        pp_ws `None ppf wslparen;
-        pp_term `None ppf body;
-        pp_tok ppf RParen);
-      pp_close_box ppf ();
       pp_ws space ppf wsrparen
+  | _ :: _ -> fatal (Anomaly "invalid notation arguments for empty tuple")
+
+let () =
+  set_print empty_tuple pp_empty_tuple;
+  set_print_as_case empty_tuple pp_empty_tuple
+
+let rec pp_comma_fields : formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
+ fun ppf obs ws ->
+  match obs with
+  | [] -> ws
+  | tm :: obs -> (
+      pp_term `None ppf tm;
+      match obs with
+      | [] -> ws
+      | _ :: _ ->
+          let wscomma, ws = take (Op ",") ws in
+          pp_tok ppf (Op ",");
+          pp_ws
+            (match Display.spacing () with
+            | `Wide -> `Break
+            | `Narrow -> `Custom (("", 0, ""), ("", 0, "")))
+            ppf wscomma;
+          pp_comma_fields ppf obs ws)
+
+(* TODO: Don't open a box in case state? *)
+let pp_comma_tuple space ppf obs ws =
+  let style, state, spacing = (Display.style (), Print.State.read (), Display.spacing ()) in
+  (match state with
+  | `Term ->
+      if style = `Noncompact then pp_open_box ppf 0;
+      pp_open_hvbox ppf 2
+  | `Case -> pp_open_vbox ppf 2);
+  pp_tok ppf LParen;
+  let wslparen, ws = take LParen ws in
+  pp_ws
+    (match (style, spacing) with
+    | `Compact, `Wide -> `Nobreak
+    | `Compact, `Narrow -> `None
+    | `Noncompact, _ -> `Break)
+    ppf wslparen;
+  let ws = pp_comma_fields ppf obs ws in
+  (match (obs, style, spacing, state) with
+  | [ _ ], _, _, _ -> pp_print_string ppf ","
+  | _, `Compact, `Wide, _ -> pp_print_string ppf " "
+  | _, `Compact, `Narrow, _ -> ()
+  | _, `Noncompact, _, `Term ->
+      pp_close_box ppf ();
+      pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
+  | _, `Noncompact, _, `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
+  let ws =
+    match take_opt (Op ",") ws with
+    | Some (wscomma, ws) ->
+        pp_ws `None ppf wscomma;
+        ws
+    | None -> ws in
+  pp_tok ppf RParen;
+  let wsrparen, ws = take RParen ws in
+  taken_last ws;
+  pp_ws space ppf wsrparen;
+  pp_close_box ppf ()
+
+let () =
+  set_print comma_tuple pp_comma_tuple;
+  set_print_as_case comma_tuple pp_comma_tuple
+
+let rec pp_bar_fields : formatter -> observation list -> Whitespace.alist -> Whitespace.alist =
+ fun ppf obs ws ->
+  match obs with
+  | [] -> ws
+  | tm :: obs ->
+      let wsbar, ws = take (Op "|") ws in
+      pp_print_cut ppf ();
+      pp_tok ppf (Op "|");
+      pp_ws `Nobreak ppf wsbar;
+      pp_term (`Custom (("", 1, ""), ("", 0, ""))) ppf tm;
+      pp_bar_fields ppf obs ws
+
+(* TODO: Don't open a box in case state? *)
+let pp_bar_tuple space ppf obs ws =
+  match obs with
+  | [] -> fatal (Anomaly "invalid notation arguments for bar tuple")
   | _ :: _ ->
-      let style, state, spacing = (Display.style (), Print.State.read (), Display.spacing ()) in
+      let style, state = (Display.style (), Print.State.read ()) in
       (match state with
       | `Term ->
           if style = `Noncompact then pp_open_box ppf 0;
@@ -672,26 +782,15 @@ let pp_tuple space ppf obs ws =
       | `Case -> pp_open_vbox ppf 2);
       pp_tok ppf LParen;
       let wslparen, ws = take LParen ws in
-      pp_ws
-        (match (style, spacing) with
-        | `Compact, `Wide -> `Nobreak
-        | `Compact, `Narrow -> `None
-        | `Noncompact, _ -> `Break)
-        ppf wslparen;
-      let ws = pp_fields ppf obs ws in
-      (match (style, spacing, state) with
-      | `Compact, `Wide, _ -> pp_print_string ppf " "
-      | `Compact, `Narrow, _ -> ()
-      | `Noncompact, _, `Term ->
+      pp_ws `None ppf wslparen;
+      let ws = must_start_with ~count:(List.length obs) (Op "|") ws in
+      let ws = pp_bar_fields ppf obs ws in
+      (match (style, state) with
+      | `Compact, _ -> ()
+      | `Noncompact, `Term ->
           pp_close_box ppf ();
-          pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", 0, "") ppf
-      | `Noncompact, _, `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:(",", -2, "") ppf);
-      let ws =
-        match take_opt (Op ",") ws with
-        | Some (wscomma, ws) ->
-            pp_ws `None ppf wscomma;
-            ws
-        | None -> ws in
+          pp_print_custom_break ~fits:("", 1, "") ~breaks:("", 0, "") ppf
+      | `Noncompact, `Case -> pp_print_custom_break ~fits:("", 1, "") ~breaks:("", -2, "") ppf);
       pp_tok ppf RParen;
       let wsrparen, ws = take RParen ws in
       taken_last ws;
@@ -699,8 +798,8 @@ let pp_tuple space ppf obs ws =
       pp_close_box ppf ()
 
 let () =
-  set_print parens pp_tuple;
-  set_print_as_case parens pp_tuple
+  set_print bar_tuple pp_bar_tuple;
+  set_print_as_case bar_tuple pp_bar_tuple
 
 (* ********************
    Comatches
@@ -1499,7 +1598,7 @@ let () = set_print codata pp_codata
 
 let record = make "record" Outfix
 
-let rec record_fields () =
+let rec record_comma_fields () =
   Inner
     {
       empty_branch with
@@ -1507,7 +1606,27 @@ let rec record_fields () =
       term =
         Some
           (TokMap.singleton Colon
-             (terms [ (Op ",", Lazy (lazy (record_fields ()))); (RParen, Done_closed record) ]));
+             (terms
+                [ (Op ",", Lazy (lazy (record_comma_fields ()))); (RParen, Done_closed record) ]));
+    }
+
+let rec record_bar_fields () =
+  term Colon (terms [ (Op "|", Lazy (lazy (record_bar_fields ()))); (RParen, Done_closed record) ])
+
+let record_fields () =
+  Inner
+    {
+      empty_branch with
+      ops = TokMap.of_list [ (RParen, Done_closed record); (Op "|", record_bar_fields ()) ];
+      term =
+        Some
+          (TokMap.singleton Colon
+             (terms
+                [
+                  (Op ",", Lazy (lazy (record_comma_fields ())));
+                  (Op "|", Lazy (lazy (record_bar_fields ())));
+                  (RParen, Done_closed record);
+                ]));
     }
 
 let () =
@@ -1595,26 +1714,22 @@ let () =
                   | _ -> fatal ?loc:attr.loc Unrecognized_attribute in
                 (opacity, ws, obs)
             | _ -> fatal (Anomaly "invalid notation arguments for record") in
-          match take_opt Mapsto ws with
-          | None ->
+          match (take_opt Mapsto ws, obs) with
+          | None, _ ->
               let ctx = Bwv.snoc ctx None in
               let (Any_tel tel) = process_tel ctx StringSet.empty obs in
               { value = Record ({ value = [ None ]; loc }, tel, opacity); loc }
-          | Some _ -> (
-              match obs with
-              | Term x :: obs ->
-                  with_loc x.loc @@ fun () ->
-                  let (Wrap vars) = Vec.of_list (List.map fst (process_var_list x [ (None, []) ])) in
-                  let (Bplus ac) = Fwn.bplus (Vec.length vars) in
-                  let ctx = Bwv.append ac ctx vars in
-                  let (Any_tel tel) = process_tel ctx StringSet.empty obs in
-                  Range.locate
-                    (Record (locate_opt x.loc (namevec_of_vec ac vars), tel, opacity))
-                    loc
-              | _ -> fatal (Anomaly "invalid notation arguments for record")));
+          | Some _, Term x :: obs ->
+              with_loc x.loc @@ fun () ->
+              let (Wrap vars) = Vec.of_list (List.map fst (process_var_list x [ (None, []) ])) in
+              let (Bplus ac) = Fwn.bplus (Vec.length vars) in
+              let ctx = Bwv.append ac ctx vars in
+              let (Any_tel tel) = process_tel ctx StringSet.empty obs in
+              Range.locate (Record (locate_opt x.loc (namevec_of_vec ac vars), tel, opacity)) loc
+          | _ -> fatal (Anomaly "invalid notation arguments for record"));
     }
 
-let rec pp_record_fields ppf obs ws =
+let rec pp_record_comma_fields ppf obs ws =
   match obs with
   | [] ->
       let wsrparen, ws = take RParen ws in
@@ -1634,7 +1749,28 @@ let rec pp_record_fields ppf obs ws =
       else (
         pp_tok ppf (Op ",");
         pp_ws `Break ppf wscomma);
-      pp_record_fields ppf obs ws
+      pp_record_comma_fields ppf obs ws
+  | [ _ ] -> fatal (Anomaly "invalid notation arguments for record")
+
+let rec pp_record_bar_fields ppf obs ws =
+  match obs with
+  | [] ->
+      let wsrparen, ws = take RParen ws in
+      taken_last ws;
+      wsrparen
+  | var :: body :: obs ->
+      pp_open_hvbox ppf 2;
+      let wsbar, ws = take (Op "|") ws in
+      pp_tok ppf (Op "|");
+      pp_ws `Nobreak ppf wsbar;
+      pp_term `Break ppf var;
+      let wscolon, ws = take Colon ws in
+      pp_tok ppf Colon;
+      pp_ws `Nobreak ppf wscolon;
+      pp_close_box ppf ();
+      pp_term `None ppf body;
+      pp_print_cut ppf ();
+      pp_record_bar_fields ppf obs ws
   | [ _ ] -> fatal (Anomaly "invalid notation arguments for record")
 
 let pp_record space ppf obs ws =
@@ -1642,15 +1778,46 @@ let pp_record space ppf obs ws =
   let wssig, ws = take Sig ws in
   pp_tok ppf Sig;
   pp_ws `Nobreak ppf wssig;
+  let obs, ws =
+    match (take_opt (Op "#") ws, obs) with
+    | None, _ -> (obs, ws)
+    | Some (wshash, ws), attr :: obs ->
+        pp_tok ppf (Op "#");
+        pp_ws `None ppf wshash;
+        let wslp, ws = take LParen ws in
+        pp_tok ppf LParen;
+        pp_ws `None ppf wslp;
+        pp_term `None ppf attr;
+        let wsrp, ws = take RParen ws in
+        pp_tok ppf RParen;
+        pp_ws `None ppf wsrp;
+        (obs, ws)
+    | _ -> fatal (Anomaly "invalid notation arguments for record") in
+  let obs, ws =
+    match (take_opt Mapsto ws, obs) with
+    | None, _ -> (obs, ws)
+    | Some (wsmapsto, ws), x :: obs ->
+        pp_term `Nobreak ppf x;
+        pp_tok ppf Mapsto;
+        pp_ws `Break ppf wsmapsto;
+        (obs, ws)
+    | _ -> fatal (Anomaly "invalid notation arguments for record") in
   let wslparen, ws = take LParen ws in
   pp_tok ppf LParen;
   pp_ws `Break ppf wslparen;
-  let wsrparen = pp_record_fields ppf obs ws in
+  let wsrparen =
+    match take_opt (Op "|") ws with
+    | Some _ ->
+        let ws = must_start_with (Op "|") ws in
+        pp_record_bar_fields ppf obs ws
+    | None -> pp_record_comma_fields ppf obs ws in
   pp_tok ppf RParen;
   pp_ws space ppf wsrparen;
   pp_close_box ppf ()
 
-let () = set_print record pp_record
+let () =
+  set_print record pp_record;
+  set_print_as_case record pp_record
 
 (* ********************
    Datatypes
@@ -1923,6 +2090,9 @@ let builtins =
     |> Situation.add arrow
     |> Situation.add universe
     |> Situation.add coloneq
+    |> Situation.add empty_tuple
+    |> Situation.add comma_tuple
+    |> Situation.add bar_tuple
     |> Situation.add comatch
     |> Situation.add dot
     |> Situation.add implicit_mtch

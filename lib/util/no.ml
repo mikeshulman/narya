@@ -869,3 +869,51 @@ module Map = struct
               })
   end
 end
+
+(* An "upper interval" is of the form (p,+ω] or [p,+ω] for some tightness p.  Ordinarily we would call these "open" and "closed" intervals, but due to the potential confusion with "closed" and "open" notations we call them instead "strict" and "nonstrict". *)
+
+type ('a, 's) iinterval = { strictness : 's strictness; endpoint : 'a t }
+type interval = Interval : ('s, 'a) iinterval -> interval
+
+module Interval = struct
+  let empty : (plus_omega, strict) iinterval = { strictness = Strict; endpoint = plus_omega }
+
+  let entire : (minus_omega, nonstrict) iinterval =
+    { strictness = Nonstrict; endpoint = minus_omega }
+
+  let plus_omega_only : (plus_omega, nonstrict) iinterval =
+    { strictness = Nonstrict; endpoint = plus_omega }
+
+  let to_string = function
+    | Interval { strictness = Nonstrict; endpoint } ->
+        Printf.sprintf "[%s,inf]" (to_string endpoint)
+    | Interval { strictness = Strict; endpoint } -> Printf.sprintf "(%s,inf]" (to_string endpoint)
+
+  let contains : type a s b. (a, s) iinterval -> b t -> (a, s, b) lt option =
+   fun { strictness; endpoint } x -> compare strictness endpoint x
+
+  let union : interval -> interval -> interval =
+   fun (Interval t1 as i1) (Interval t2 as i2) ->
+    match compare Strict t1.endpoint t2.endpoint with
+    | Some _ -> i1
+    | None -> (
+        match compare Strict t2.endpoint t1.endpoint with
+        | Some _ -> i2
+        | None -> (
+            match (t1.strictness, t2.strictness) with
+            | Strict, Strict -> Interval { t1 with strictness = Strict }
+            | _ -> Interval { t1 with strictness = Nonstrict }))
+
+  type (_, _, _, _) subset =
+    | Subset_strict : ('t2, strict, 't1) lt -> ('t1, 's1, 't2, 's2) subset
+    | Subset_eq : ('t, 's, 't, 's) subset
+    | Subset_nonstrict_strict : ('t, strict, 't, nonstrict) subset
+
+  let subset_contains :
+      type t1 s1 t2 s2 a. (t1, s1, t2, s2) subset -> (t1, s1, a) lt -> (t2, s2, a) lt =
+   fun sub lt1 ->
+    match sub with
+    | Subset_strict lt2 -> lt_trans Strict_any lt2 lt1
+    | Subset_eq -> lt1
+    | Subset_nonstrict_strict -> lt_to_le lt1
+end

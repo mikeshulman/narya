@@ -24,7 +24,7 @@ type data = {
   constants : ((emp, kinetic) term * definition, Code.t) Result.t Constant.Map.t;
   metas : metamap;
   (* These two data pertain to the *currently executing command*: they store information about the holes and the global metavariables it has created.  The purpose is that if and when that command completes, we notify the user about the holes and save the metavariables to the correct global state.  In particular, during a "solve" command, the global state is rewound in time, but any newly created global metavariables need to be put into the "present" global state that it was rewound from. *)
-  current_holes : (Meta.wrapped * printable * unit Asai.Range.located) Bwd.t;
+  current_holes : (Meta.wrapped * printable * Asai.Range.t) Bwd.t;
   current_metas : metamap;
   (* These are the eternal holes that exist.  We store them so that when commands creating holes are undone, those holes can be discarded. *)
   holes : Meta.WrapSet.t;
@@ -67,6 +67,8 @@ type eternity = {
     ('a, 'b) Termctx.t ->
     ('b, kinetic) term ->
     ('b, 's) status ->
+    No.interval option ->
+    No.interval option ->
     unit;
 }
 
@@ -140,7 +142,11 @@ let add_error c e =
 let add_meta m ~termctx ~ty ~tm ~energy =
   let tm = (tm :> [ `Defined of ('b, 's) term | `Axiom | `Undefined ]) in
   S.modify @@ fun d ->
-  { d with current_metas = d.current_metas |> Metamap.add m (Ok { tm; termctx; ty; energy }) }
+  {
+    d with
+    current_metas =
+      d.current_metas |> Metamap.add m (Ok { tm; termctx; ty; energy; li = None; ri = None });
+  }
 
 (* Set the definition of a Global metavariable, required to already exist but not be defined. *)
 let set_meta m ~tm =
@@ -171,14 +177,14 @@ let () =
 let with_holes env f = HolesAllowed.run ~env f
 
 (* Add a new hole.  This is an eternal metavariable, so we pass off to Eternity, and also save some information about it locally so that we can discard it if the command errors (in interactive mode this doesn't stop the program) and notify the user if the command succeeds, and also discard it if this command is later undone. *)
-let add_hole m pos ~vars ~termctx ~ty ~status =
+let add_hole m loc ~vars ~termctx ~ty ~status ~li ~ri =
   match HolesAllowed.read () with
   | Ok () ->
-      !eternity.add m vars termctx ty status;
+      !eternity.add m vars termctx ty status (Some li) (Some ri);
       S.modify @@ fun d ->
       {
         d with
-        current_holes = Snoc (d.current_holes, (Wrap m, Termctx.PHole (vars, termctx, ty), pos));
+        current_holes = Snoc (d.current_holes, (Wrap m, Termctx.PHole (vars, termctx, ty), loc));
         holes = Meta.WrapSet.add (Wrap m) d.holes;
       }
   | Error cmd -> fatal (No_holes_allowed cmd)
@@ -293,15 +299,15 @@ let do_holes make_msg =
   let d = S.get () in
   emit (make_msg (Bwd.length d.current_holes));
   Mbwd.miter
-    (fun [ (Meta.Wrap m, p, (pos : unit Asai.Range.located)) ] ->
+    (fun [ (Meta.Wrap m, p, (loc : Asai.Range.t)) ] ->
       emit (Hole (Meta.name m, p));
-      let s, e = Asai.Range.split (Option.get pos.loc) in
+      let s, e = Asai.Range.split loc in
       HolePos.modify (fun st ->
           { st with holes = Snoc (st.holes, (Meta.hole_number m, s.offset, e.offset)) }))
     [ d.current_holes ];
   d.current_metas
 
-(* At the end of a succesful normal command, notify the user of generated holes, save the newly created metavariables, and return the number of holes created to notify the user of. *)
+(* At the end of a succesful normal command, notify the user of generated holes and save the newly created metavariables. *)
 let end_command make_msg =
   let metas = do_holes make_msg in
   save_metas metas;

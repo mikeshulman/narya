@@ -80,3 +80,22 @@ module Map : sig
     val add_cut : 'b Key.t -> (('x, 'b) lower -> ('x, 'b) upper -> ('x, 'b) F.t) -> 'x t -> 'x t
   end
 end
+
+type ('a, 's) iinterval = { strictness : 's strictness; endpoint : 'a t }
+type interval = Interval : ('s, 'a) iinterval -> interval
+
+module Interval : sig
+  val empty : (plus_omega, strict) iinterval
+  val entire : (minus_omega, nonstrict) iinterval
+  val plus_omega_only : (plus_omega, nonstrict) iinterval
+  val to_string : interval -> string
+  val contains : ('a, 's) iinterval -> 'b t -> ('a, 's, 'b) lt option
+  val union : interval -> interval -> interval
+
+  type (_, _, _, _) subset =
+    | Subset_strict : ('t2, strict, 't1) lt -> ('t1, 's1, 't2, 's2) subset
+    | Subset_eq : ('t, 's, 't, 's) subset
+    | Subset_nonstrict_strict : ('t, strict, 't, nonstrict) subset
+
+  val subset_contains : ('t1, 's1, 't2, 's2) subset -> ('t1, 's1, 'a) lt -> ('t2, 's2, 'a) lt
+end

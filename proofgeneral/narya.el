@@ -32,6 +32,9 @@
 (defvar narya-pending-hole-positions nil
   "Temporary storage for hole positions when executing commands invisibly.")
 
+(defvar narya-pending-hole-parens nil
+  "Whether to parenthesize the hole-filling term.")
+
 (defun narya-create-hole-overlays (start-position relative-positions)
   "Create overlays for holes given a starting position and a list of relative positions.
 Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-OFFSET HOLE-ID)."
@@ -82,15 +85,15 @@ If called with an invisible command, store hole data in a global
 variable instead of creating overlays immediately. Otherwise,
 create overlays for new holes.
 
-This function also performs part of `proof-shell-handle-delayed-output`'s
-role, updating `proof-shell-last-output-kind` to avoid duplicated output
+This function also performs part of `proof-shell-handle-delayed-output''s
+role, updating `proof-shell-last-output-kind' to avoid duplicated output
 handling in Proof General."
   ;; Retrieve action information from `proof-action-list`.
   (let ((span (caar proof-action-list))
         (cmd (nth 1 (car proof-action-list)))
         (flags (nth 3 (car proof-action-list)))
         ;; Variables to mark positions in `string` as we parse.
-        (rstart 0) (rend 0) (gstart 0) (gend 0) (dpos 0)
+        (rstart 0) (rend 0) (gstart 0) (gend 0) (dpos 0) (parens 0)
         ;; Temporary storage for hole data.
         (parsed-hole-data nil)
         (error-found nil))
@@ -116,10 +119,14 @@ handling in Proof General."
                                       (hend-offset (string-to-number (match-string 3 string))))
                                  (setq dpos (match-end 0))
                                  (list hstart-offset hend-offset hole))))
+        ;; Now grab the reformatting info
+        (string-match "\x0C\\[reformat\\]\x0C\n\\(.*\\)" string dpos)
+        (setq parens (match-string 1 string))
         ;; Handle parsed hole data based on the visibility of the command
         (if (member 'invisible flags)
             ;; For invisible commands, store the parsed data globally
-            (setq narya-pending-hole-positions parsed-hole-data)
+            (setq narya-pending-hole-positions parsed-hole-data
+                  narya-pending-hole-parens (equal parens "parens"))
           ;; For visible commands, create overlays directly
           (when span ;; Only proceed if `span` is non-nil
             (proof-with-script-buffer
@@ -329,7 +336,7 @@ handling in Proof General."
 
 (defun narya-solve-hole ()
   "Solve the current hole with a user-provided term, using any
-pending hole data stored by `narya-handle-output`."
+pending hole data stored by `narya-handle-output'."
   (interactive)
   ;; Check for an overlay marking the current hole at point.
   (let ((hole-overlay (car (seq-filter (lambda (ovl)
@@ -356,7 +363,9 @@ pending hole data stored by `narya-handle-output`."
 	    ;; order so that if the hole is at the very end of the
 	    ;; processed region, the inserted term will end up
 	    ;; *inside* the processed region.
-            (insert "(" term ")") ;; Use parentheses to guarantee correct parsing.
+            (if narya-pending-hole-parens
+                (insert "(" term ")") ;; Use parentheses to guarantee correct parsing.
+              (insert term))
             (delete-region (point) (overlay-end hole-overlay))
             ;; Delete the overlay for the solved hole and update the hole list.
             (delete-overlay hole-overlay)
@@ -365,7 +374,7 @@ pending hole data stored by `narya-handle-output`."
           ;; Process any pending hole positions saved in `narya-handle-output`.
           (when narya-pending-hole-positions
             ;; Use the helper function to create overlays for new holes.
-            (narya-create-hole-overlays (+ byte-insert-start 1) narya-pending-hole-positions)) ;;adjust start-pos for added parenthesis
+            (narya-create-hole-overlays (+ byte-insert-start (if narya-pending-hole-parens 1 0)) narya-pending-hole-positions)) ;;adjust start-pos for added parenthesis
           ;; Clear the global pending hole data after processing.
           (setq narya-pending-hole-positions nil))))))
 

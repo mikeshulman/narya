@@ -14,6 +14,7 @@ open Reporter
 open User
 open Modifier
 module Trie = Yuujinchou.Trie
+module TermParse = Parse
 
 type def = {
   wsdef : Whitespace.t list;
@@ -604,7 +605,7 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
   | _ -> Core.Reporter.fatal (Anomaly "interactive parse doesn't start with Bof")
 
 let show_hole err = function
-  | Eternity.Find_number (m, { tm = `Undefined; termctx; ty; energy = _ }, { vars; _ }) ->
+  | Eternity.Find_number (m, { tm = `Undefined; termctx; ty; _ }, { vars; _ }) ->
       emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
   | _ -> fatal err
 
@@ -698,8 +699,8 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
               readback_at Ctx.empty etm ety
             else ctm in
           let bty = readback_at Ctx.empty ety (Syntax.universe D.zero) in
-          let utm = unparse Names.empty btm Interval.entire Interval.entire in
-          let uty = unparse Names.empty bty Interval.entire Interval.entire in
+          let utm = unparse Names.empty btm No.Interval.entire No.Interval.entire in
+          let uty = unparse Names.empty bty No.Interval.entire No.Interval.entire in
           let ppf = Format.std_formatter in
           pp_open_vbox ppf 2;
           pp_term `None ppf (Term utm);
@@ -781,19 +782,38 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
               ()
           | _ -> ())
         (Trie.to_seq (Trie.find_subtree [ "notations" ] trie))
-  | Solve { number; tm = Term tm; _ } -> (
+  | Solve data -> (
       (* Solve does NOT create a new history entry because it is NOT undoable. *)
       let (Find_number
-            (m, { tm = metatm; termctx; ty; energy = _ }, { global; scope; status; vars })) =
-        Eternity.find_number number in
+            (m, { tm = metatm; termctx; ty; energy = _; li; ri }, { global; scope; status; vars }))
+          =
+        Eternity.find_number data.number in
       match metatm with
       | `Undefined ->
           History.run_with_scope ~init_visible:scope @@ fun () ->
-          let tm = process vars tm in
+          let (Term tm) = data.tm in
+          let ptm = process vars tm in
           (* We set the hole location offset to the start of the *term*, so that ProofGeneral can create hole overlays in the right places when solving a hole and creating new holes. *)
           Global.HolePos.modify (fun st ->
-              { st with offset = (fst (Asai.Range.split (Option.get tm.loc))).offset });
-          Core.Command.execute (Solve (global, status, termctx, tm, ty, Eternity.solve m))
+              { st with offset = (fst (Asai.Range.split (Option.get ptm.loc))).offset });
+          let solve ctm =
+            Eternity.solve m ctm;
+            match (li, ri) with
+            | Some (Interval li), Some (Interval ri) ->
+                let buf = Buffer.create 20 in
+                let ppf = Format.formatter_of_buffer buf in
+                (Print.State.as_case @@ fun () -> pp_term `None ppf data.tm);
+                Format.pp_print_flush ppf ();
+                Reporter.try_with ~fatal:(fun _ ->
+                    (* data.tm <- Term (parenthesize tm) *)
+                    emit Needs_parentheses)
+                @@ fun () ->
+                let _ =
+                  TermParse.Term.parse ~li:(Interval li) ~ri:(Interval ri)
+                    (`String { content = Buffer.contents buf; title = None }) in
+                ()
+            | _ -> fatal (Anomaly "tightness missing for hole") in
+          Core.Command.execute (Solve (global, status, termctx, ptm, ty, solve))
       | `Defined _ | `Axiom ->
           (* Yes, this is an anomaly and not a user error, because find_number should only be looking at the unsolved holes. *)
           fatal (Anomaly "hole already defined"))

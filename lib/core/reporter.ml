@@ -133,6 +133,7 @@ module Code = struct
     | Locked_variable : t
     | Locked_axiom : printable -> t
     | Hole : string * printable -> t
+    | Needs_parentheses : t
     | No_open_holes : t
     | Open_holes : int -> t
     | Open_holes_remaining : Asai.Range.source -> t
@@ -255,6 +256,7 @@ module Code = struct
     | Locked_variable -> Error
     | Locked_axiom _ -> Error
     | Hole _ -> Info
+    | Needs_parentheses -> Info
     | No_open_holes -> Info
     | Open_holes _ -> Warning
     | Open_holes_remaining _ -> Error
@@ -425,7 +427,8 @@ module Code = struct
     | No_such_hole _ -> "E3001"
     | Open_holes_remaining _ -> "E3002"
     | Hole _ -> "I3003"
-    | No_open_holes -> "3004"
+    | No_open_holes -> "I3004"
+    | Needs_parentheses -> "I3005"
     (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -679,6 +682,7 @@ module Code = struct
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
     | Hole (n, ty) -> textf "@[<v 0>hole %s:@,@,%a@]" n pp_printed (print ty)
     | No_open_holes -> text "no open holes"
+    | Needs_parentheses -> text "needs parentheses"
     | Open_holes n ->
         if n = 1 then text "there is 1 open hole" else textf "there are %d open holes" n
     | Open_holes_remaining src -> (

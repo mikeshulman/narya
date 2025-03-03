@@ -49,7 +49,7 @@ let parenthesize_maybe (tm : ('lt, 'ls, 'rt, 'rs) parse located) =
 type unparser = {
   unparse :
     'lt 'ls 'rt 'rs.
-    ('lt, 'ls) Interval.tt -> ('rt, 'rs) Interval.tt -> ('lt, 'ls, 'rt, 'rs) parse located;
+    ('lt, 'ls) No.iinterval -> ('rt, 'rs) No.iinterval -> ('lt, 'ls, 'rt, 'rs) parse located;
 }
 
 (* Unparse a notation together with all its arguments. *)
@@ -57,8 +57,8 @@ let unparse_notation :
     type left tight right lt ls rt rs.
     (left, tight, right) notation ->
     unparser Bwd.t ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun notn args li ri ->
   let t = tightness notn in
@@ -67,15 +67,16 @@ let unparse_notation :
   | Open _, Open _ -> (
       match split_first args with
       | Some (first, Snoc (inner, last)) -> (
-          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
-          match (Interval.contains li t, Interval.contains ri t) with
+          let inner =
+            Bwd.map (fun tm -> Term (tm.unparse No.Interval.entire No.Interval.entire)) inner in
+          match (No.Interval.contains li t, No.Interval.contains ri t) with
           | Some left_ok, Some right_ok ->
               let first = first.unparse li (interval_left notn) in
               let last = last.unparse (interval_right notn) ri in
               unlocated (infix ~notn ~ws:[] ~first ~inner ~last ~left_ok ~right_ok)
           | _ ->
-              let first = first.unparse Interval.entire (interval_left notn) in
-              let last = last.unparse (interval_right notn) Interval.entire in
+              let first = first.unparse No.Interval.entire (interval_left notn) in
+              let last = last.unparse (interval_right notn) No.Interval.entire in
               let left_ok = No.minusomega_le t in
               let right_ok = No.minusomega_le t in
               parenthesize (unlocated (infix ~notn ~ws:[] ~first ~inner ~last ~left_ok ~right_ok)))
@@ -83,31 +84,33 @@ let unparse_notation :
   | Closed, Open _ -> (
       match args with
       | Snoc (inner, last) -> (
-          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
-          match Interval.contains ri t with
+          let inner =
+            Bwd.map (fun tm -> Term (tm.unparse No.Interval.entire No.Interval.entire)) inner in
+          match No.Interval.contains ri t with
           | Some right_ok ->
               let last = last.unparse (interval_right notn) ri in
               unlocated (prefix ~notn ~ws:[] ~inner ~last ~right_ok)
           | _ ->
-              let last = last.unparse (interval_right notn) Interval.entire in
+              let last = last.unparse (interval_right notn) No.Interval.entire in
               let right_ok = No.minusomega_le t in
               parenthesize (unlocated (prefix ~notn ~ws:[] ~inner ~last ~right_ok)))
       | _ -> fatal (Anomaly "missing argument unparsing prefix"))
   | Open _, Closed -> (
       match split_first args with
       | Some (first, inner) -> (
-          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
-          match Interval.contains li t with
+          let inner =
+            Bwd.map (fun tm -> Term (tm.unparse No.Interval.entire No.Interval.entire)) inner in
+          match No.Interval.contains li t with
           | Some left_ok ->
               let first = first.unparse li (interval_left notn) in
               unlocated (postfix ~notn ~ws:[] ~first ~inner ~left_ok)
           | _ ->
-              let first = first.unparse Interval.entire (interval_left notn) in
+              let first = first.unparse No.Interval.entire (interval_left notn) in
               let left_ok = No.minusomega_le t in
               parenthesize (unlocated (postfix ~notn ~ws:[] ~first ~inner ~left_ok)))
       | _ -> fatal (Anomaly "missing argument unparsing postfix"))
   | Closed, Closed ->
-      let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) args in
+      let inner = Bwd.map (fun tm -> Term (tm.unparse No.Interval.entire No.Interval.entire)) args in
       unlocated (outfix ~notn ~ws:[] ~inner)
 
 (* Unparse a variable name, possibly anonymous. *)
@@ -119,7 +122,7 @@ let unparse_var : type lt ls rt rs. string option -> (lt, ls, rt, rs) parse loca
 let rec unparse_abs :
     type li ls ri rs.
     string option Bwd.t ->
-    (li, ls) Interval.tt ->
+    (li, ls) No.iinterval ->
     (li, ls, No.plus_omega) No.lt ->
     (ri, rs, No.plus_omega) No.lt ->
     (li, ls, ri, rs) parse located =
@@ -196,8 +199,8 @@ let rec unparse :
     type n lt ls rt rs s.
     n Names.t ->
     (n, s) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars tm li ri ->
   match tm with
@@ -228,18 +231,18 @@ let rec unparse :
           unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser vars) args) li ri)
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
-      let tm = unparse vars tm Interval.entire Interval.entire in
+      let tm = unparse vars tm No.Interval.entire No.Interval.entire in
       (* If a let-in doesn't fit in its interval, we have to parenthesize it. *)
       let x, vars = Names.add_cube D.zero vars x in
-      match Interval.contains ri No.minus_omega with
+      match No.Interval.contains ri No.minus_omega with
       | Some right_ok ->
-          let body = unparse vars body Interval.entire ri in
+          let body = unparse vars body No.Interval.entire ri in
           unlocated
             (prefix ~notn:letin ~ws:[]
                ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
                ~last:body ~right_ok)
       | None ->
-          let body = unparse vars body Interval.entire Interval.entire in
+          let body = unparse vars body No.Interval.entire No.Interval.entire in
           let right_ok = No.le_refl No.minus_omega in
           parenthesize
             (unlocated
@@ -258,7 +261,7 @@ let rec unparse :
            ~inner:
              (Abwd.fold
                 (fun fld (tm, l) acc ->
-                  let tm = unparse vars tm Interval.entire Interval.entire in
+                  let tm = unparse vars tm No.Interval.entire No.Interval.entire in
                   Snoc
                     ( acc,
                       Term
@@ -286,7 +289,7 @@ let rec unparse :
           | Some args ->
               let inner =
                 Mbwd.mmap
-                  (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
+                  (fun [ tm ] -> Term (unparse vars tm No.Interval.entire No.Interval.entire))
                   [ args ] in
               unlocated (outfix ~notn:fwd ~ws:[] ~inner)
           | None -> (
@@ -294,7 +297,7 @@ let rec unparse :
               | Some args ->
                   let inner =
                     Mbwd.mmap
-                      (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
+                      (fun [ tm ] -> Term (unparse vars tm No.Interval.entire No.Interval.entire))
                       [ args ] in
                   unlocated (outfix ~notn:bwd ~ws:[] ~inner)
               | None ->
@@ -319,8 +322,8 @@ and unparse_spine :
     | `Degen of string
     | `Unparser of unparser ] ->
     unparser Bwd.t ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars head args li ri ->
   (* First we check whether the head is a term with an associated notation, and if so whether it is applied to enough arguments to instantiate that notation. *)
@@ -344,10 +347,10 @@ and unparse_spine :
           | `Unparser tm -> tm.unparse li ri)
       | Snoc (args, arg) -> (
           (* As before, if the application doesn't fit in its tightness interval, we have to parenthesize it. *)
-          match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
+          match (No.Interval.contains li No.plus_omega, No.Interval.contains ri No.plus_omega) with
           | Some left_ok, Some right_ok ->
-              let fn = unparse_spine vars head args li Interval.plus_omega_only in
-              let arg = arg.unparse Interval.empty ri in
+              let fn = unparse_spine vars head args li No.Interval.plus_omega_only in
+              let arg = arg.unparse No.Interval.empty ri in
               (* We parenthesize the argument if the style dictates and it doesn't already have parentheses. *)
               let arg =
                 match Display.argstyle () with
@@ -356,8 +359,9 @@ and unparse_spine :
               unlocated (App { fn; arg; left_ok; right_ok })
           | _ ->
               let fn =
-                unparse_spine vars head args Interval.plus_omega_only Interval.plus_omega_only in
-              let arg = arg.unparse Interval.empty Interval.plus_omega_only in
+                unparse_spine vars head args No.Interval.plus_omega_only No.Interval.plus_omega_only
+              in
+              let arg = arg.unparse No.Interval.empty No.Interval.plus_omega_only in
               let arg =
                 match Display.argstyle () with
                 | `Spaces -> arg
@@ -371,20 +375,20 @@ and unparse_field :
     n Names.t ->
     (n, kinetic) term ->
     Field.t ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars tm fld li ri ->
   match unparse_field_var vars tm fld with
   | Some res -> res
   | None -> (
-      match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
+      match (No.Interval.contains li No.plus_omega, No.Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
-          let fn = unparse vars tm li Interval.plus_omega_only in
+          let fn = unparse vars tm li No.Interval.plus_omega_only in
           let arg = unlocated (Field (Field.to_string fld, [])) in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
-          let fn = unparse vars tm Interval.plus_omega_only Interval.plus_omega_only in
+          let fn = unparse vars tm No.Interval.plus_omega_only No.Interval.plus_omega_only in
           let arg = unlocated (Field (Field.to_string fld, [])) in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
@@ -414,8 +418,8 @@ and unparse_lam :
     n Names.t ->
     string option Bwd.t ->
     (n, s) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
   match body with
@@ -446,8 +450,8 @@ and unparse_lam_done :
     n Names.t ->
     string option Bwd.t ->
     (n, s) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
   let notn =
@@ -455,17 +459,17 @@ and unparse_lam_done :
     | `Cube -> cubeabs
     | `Normal -> abs in
   (* Of course, if we don't fit in the tightness interval, we have to parenthesize. *)
-  match (Interval.contains li No.minus_omega, Interval.contains ri No.minus_omega) with
+  match (No.Interval.contains li No.minus_omega, No.Interval.contains ri No.minus_omega) with
   | Some left_ok, Some right_ok ->
       let li_ok = No.lt_trans Any_strict left_ok No.minusomega_lt_plusomega in
       let first = unparse_abs xs li li_ok No.minusomega_lt_plusomega in
-      let last = unparse vars body Interval.entire ri in
+      let last = unparse vars body No.Interval.entire ri in
       unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok)
   | _ ->
       let first =
-        unparse_abs xs Interval.entire (No.le_plusomega No.minus_omega) No.minusomega_lt_plusomega
-      in
-      let last = unparse vars body Interval.entire Interval.entire in
+        unparse_abs xs No.Interval.entire (No.le_plusomega No.minus_omega)
+          No.minusomega_lt_plusomega in
+      let last = unparse vars body No.Interval.entire No.Interval.entire in
       let left_ok = No.le_refl No.minus_omega in
       let right_ok = No.le_refl No.minus_omega in
       parenthesize (unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok))
@@ -475,8 +479,8 @@ and unparse_act :
     n Names.t ->
     unparser ->
     (a, b) deg ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars tm s li ri ->
   match is_id_deg s with
@@ -484,7 +488,8 @@ and unparse_act :
   | None -> (
       match name_of_deg s with
       | Some str -> unparse_spine vars (`Degen str) (Snoc (Emp, tm)) li ri
-      | None -> unlocated (Superscript (Some (tm.unparse li Interval.empty), string_of_deg s, [])))
+      | None ->
+          unlocated (Superscript (Some (tm.unparse li No.Interval.empty), string_of_deg s, [])))
 
 (* We group together all the 0-dimensional dependent pi-types in a notation, so we recursively descend through the term picking those up until we find a non-pi-type, a higher-dimensional pi-type, or a non-dependent pi-type, in which case we pass it off to unparse_pis_final. *)
 and unparse_pis :
@@ -492,8 +497,8 @@ and unparse_pis :
     n Names.t ->
     unparser Bwd.t ->
     (n, kinetic) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars accum tm li ri ->
   match tm with
@@ -509,7 +514,8 @@ and unparse_pis :
                      (fun _ _ ->
                        unparse_pi_dom
                          (Option.get (NICubeOf.find_top x))
-                         (unparse vars (CubeOf.find_top doms) (interval_right asc) Interval.entire));
+                         (unparse vars (CubeOf.find_top doms) (interval_right asc)
+                            No.Interval.entire));
                  } ))
             (CodCube.find_top cods) li ri
       | None, Eq ->
@@ -561,18 +567,18 @@ and unparse_arrow :
     type n lt ls rt rs.
     unparser ->
     unparser ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun dom cod li ri ->
-  match (Interval.contains li No.zero, Interval.contains ri No.zero) with
+  match (No.Interval.contains li No.zero, No.Interval.contains ri No.zero) with
   | Some left_ok, Some right_ok ->
       let first = dom.unparse li (interval_left arrow) in
       let last = cod.unparse (interval_right arrow) ri in
       unlocated (infix ~notn:arrow ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok)
   | _ ->
-      let first = dom.unparse Interval.entire (interval_left arrow) in
-      let last = cod.unparse (interval_right arrow) Interval.entire in
+      let first = dom.unparse No.Interval.entire (interval_left arrow) in
+      let last = cod.unparse (interval_right arrow) No.Interval.entire in
       let left_ok = No.minusomega_lt_zero in
       let right_ok = No.minusomega_lt_zero in
       parenthesize (unlocated (infix ~notn:arrow ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok))
@@ -582,8 +588,8 @@ and unparse_pis_final :
     n Names.t ->
     unparser Bwd.t ->
     unparser ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars accum tm li ri ->
   match split_first accum with
@@ -643,10 +649,11 @@ let rec unparse_ctx :
           (* We treat an invisible binding as consisting of all nameless variables, and autogenerate names for them all. *)
           let x, names = Names.add_cube_autogen (CubeOf.dim bindings) names in
           let do_binding (b : b Termctx.binding) (res : S.t) : unit * S.t =
-            let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
+            let ty = Term (unparse names b.ty No.Interval.entire No.Interval.entire) in
             let tm =
-              Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
-            in
+              Option.map
+                (fun t -> Term (unparse names t No.Interval.entire No.Interval.entire))
+                b.tm in
             ((), Snoc (res, (x, `Renamed, tm, Some ty))) in
           let _, result =
             M.miterM { it = (fun _ [ b ] res -> do_binding b res) } [ bindings ] result in
@@ -683,10 +690,11 @@ let rec unparse_ctx :
             match (hasfields, is_id_sface fab) with
             | Has_fields, Some _ -> ((), res)
             | _ ->
-                let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
+                let ty = Term (unparse names b.ty No.Interval.entire No.Interval.entire) in
                 let tm =
-                  Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
-                in
+                  Option.map
+                    (fun t -> Term (unparse names t No.Interval.entire No.Interval.entire))
+                    b.tm in
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus plusdim fab in
                 let fastr = "." ^ string_of_sface fa in
                 let add_fa =
@@ -704,7 +712,7 @@ let rec unparse_ctx :
           let _, result =
             M.miterM
               (fun [ (x, orig); (_, _, ty) ] res ->
-                let ty = Term (unparse names ty Interval.entire Interval.entire) in
+                let ty = Term (unparse names ty No.Interval.entire No.Interval.entire) in
                 let res = Snoc (res, (x, merge_orig orig, None, Some ty)) in
                 ((), res))
               [ fs; fields ] result in
@@ -729,24 +737,25 @@ let () =
       | PTerm (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
-              Term (unparse (Names.of_ctx ctx) tm Interval.entire Interval.entire) )
+              Term (unparse (Names.of_ctx ctx) tm No.Interval.entire No.Interval.entire) )
       | PVal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Names.of_ctx ctx) (readback_val ctx tm) Interval.entire Interval.entire)
-            )
+                (unparse (Names.of_ctx ctx) (readback_val ctx tm) No.Interval.entire
+                   No.Interval.entire) )
       | PNormal (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
-              Term (unparse (Names.of_ctx ctx) (readback_nf ctx tm) Interval.entire Interval.entire)
-            )
+              Term
+                (unparse (Names.of_ctx ctx) (readback_nf ctx tm) No.Interval.entire
+                   No.Interval.entire) )
       | PUninst (ctx, tm) ->
           Printed
             ( Print.pp_term `None,
               Term
-                (unparse (Names.of_ctx ctx) (readback_uninst ctx tm) Interval.entire Interval.entire)
-            )
+                (unparse (Names.of_ctx ctx) (readback_uninst ctx tm) No.Interval.entire
+                   No.Interval.entire) )
       | PConstant name ->
           Printed
             ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)
@@ -756,7 +765,7 @@ let () =
             ( (fun ppf (ctx, ty) -> Print.pp_hole ppf ctx ty),
               let vars, names = Names.uniquify_vars vars in
               let names, ctx = unparse_ctx names `Unlocked (Bwv.permute vars p) ctx in
-              let ty = unparse names ty Interval.entire Interval.entire in
+              let ty = unparse names ty No.Interval.entire No.Interval.entire in
               (ctx, Term ty) )
       | Dump.Val tm -> Printed (Dump.value, tm)
       | Dump.Uninst tm -> Printed (Dump.uninst, tm)

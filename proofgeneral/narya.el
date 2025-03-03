@@ -18,6 +18,13 @@
 
 (defvar narya-hole-overlays nil
   "List of overlays marking the locations of open holes")
+  
+(defun narya-delete-all-holes ()
+  "Delete all hole overlays and reset `narya-hole-overlays' to nil."
+  (mapc #'delete-overlay narya-hole-overlays)
+  (setq narya-hole-overlays nil))
+
+(add-hook 'proof-shell-kill-function-hooks #'narya-delete-all-holes)
 
 (defface narya-hole-face '((t . (:background "SlateGray4" :foreground "white" :weight bold)))
   "Face used for open holes in Narya")

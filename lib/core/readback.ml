@@ -11,9 +11,17 @@ open Act
 open Norm
 open Printable
 module Binding = Ctx.Binding
-module Display = Algaeff.Reader.Make (Bool)
 
-let () = Display.register_printer (function `Read -> Some "unhandled Display.read effect")
+(* Wrapping the "Displaying" module in another module called "Readback" and opening that module allows us to refer to the module as just "Displaying" here, but exports it as "Readback.Displaying" to other files even when they open this file. *)
+
+module Readback = struct
+  module Displaying = Algaeff.Reader.Make (Bool)
+end
+
+open Readback
+
+let () =
+  Displaying.register_printer (function `Read -> Some "unhandled Readback.Displaying.read effect")
 
 (* Readback of values to terms.  Closely follows equality-testing in equal.ml, so most comments are omitted.  However, unlike equality-testing and the "readback" in theoretical NbE, this readback does *not* eta-expand functions and tuples.  It is used for (1) displaying terms to the user, who will usually prefer not to see things eta-expanded, and (2) turning values into terms so that we can re-evaluate them in a new environment, for which purpose eta-expansion is irrelevant. *)
 
@@ -22,7 +30,7 @@ let rec readback_nf : type a z. (z, a) Ctx.t -> normal -> (a, kinetic) term =
 
 and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a, kinetic) term =
  fun ctx tm ty ->
-  let view = if Display.read () then view_term tm else tm in
+  let view = if Displaying.read () then view_term tm else tm in
   match (view_type ty "readback_at", view) with
   | Pi (_, doms, cods, tyargs), Lam ((Variables (m, mn, xs) as x), body) -> (
       let k = CubeOf.dim doms in
@@ -49,13 +57,13 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 tmflds in
             Some (Term.Struct (Eta, dim, fields, energy))
         (* In addition, if the record type is transparent, or if it's translucent and the term is a tuple in a case tree, and we are reading back for display (rather than for internal typechecking purposes), we do an eta-expanding readback. *)
-        | _, `Transparent l when Display.read () ->
+        | _, `Transparent l when Displaying.read () ->
             let fields =
               Abwd.mapi
                 (fun fld _ -> (readback_at ctx (field_term tm fld) (tyof_field (Ok tm) ty fld), l))
                 fields in
             Some (Struct (Eta, dim, fields, Kinetic))
-        | Uninst (Neu { value; _ }, _), `Translucent l when Display.read () -> (
+        | Uninst (Neu { value; _ }, _), `Translucent l when Displaying.read () -> (
             match force_eval value with
             | Val (Struct _) ->
                 let fields =
@@ -110,12 +118,12 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
 and readback_val : type a z. (z, a) Ctx.t -> kinetic value -> (a, kinetic) term =
  fun ctx x ->
   match x with
-  | Uninst ((Neu { value; _ } as u), ty) when Display.read () -> (
+  | Uninst ((Neu { value; _ } as u), ty) when Displaying.read () -> (
       match force_eval value with
       | Realize v -> readback_at ctx v (Lazy.force ty)
       | _ -> readback_uninst ctx u)
   | Uninst (u, _) -> readback_uninst ctx u
-  | Inst { tm = Neu { value; _ } as tm; dim = _; args; tys } when Display.read () -> (
+  | Inst { tm = Neu { value; _ } as tm; dim = _; args; tys } when Displaying.read () -> (
       match force_eval value with
       | Realize v ->
           let univs =

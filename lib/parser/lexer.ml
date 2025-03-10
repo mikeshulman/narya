@@ -191,8 +191,8 @@ let specials () =
     [
       ascii_symbol_uchars ();
       onechar_uchars ();
-      (* Carets are not allowed to mean anything except a superscript. *)
-      Array.map Uchar.of_char [| '^'; ' '; '\t'; '\n'; '\r' |];
+      (* Carets are not allowed to mean anything except a superscript.  We also have to stop when we meet a line comment started by a backquote.  We don't have to worry about block comments, since their opening brace is a onechar op and hence also stops an identifier. *)
+      Array.map Uchar.of_char [| '^'; ' '; '\t'; '\n'; '\r'; '`' |];
       (* We only include the superscript parentheses: other superscript characters without parentheses are allowed in identifiers. *)
       [| Token.super_lparen_uchar; Token.super_rparen_uchar |];
     ]

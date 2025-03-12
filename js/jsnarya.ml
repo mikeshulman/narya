@@ -18,7 +18,9 @@ let interact_js : string -> string =
   Reporter.try_with
     ~emit:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
     ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
-    (fun () -> do_command (Command.parse_single cmd));
+    (fun () ->
+      let _ : unit -> unit = do_command (Command.parse_single cmd) in
+      ());
   Out_channel.flush stdout;
   Buffer.contents buf
 

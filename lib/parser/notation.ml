@@ -131,6 +131,9 @@ and (_, _, _, _) parse =
   | Superscript :
       ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
       -> ('lt, 'ls, 'rt, 'rs) parse
+  | Hole :
+      ('lt, 'ls) No.iinterval * ('rt, 'rs) No.iinterval * Whitespace.t list
+      -> ('lt, 'ls, 'rt, 'rs) parse
 
 (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object).  The whitespace argument is often ignored, but it allows complicated notation processing functions to be shared between the processor and the printer, and sometimes the processing functions need to inspect the sequence of tokens which is stored with the whitespace. *)
 and processor = {
@@ -164,9 +167,9 @@ and ('left, 'tight, 'right) notation = {
   (* The remaining fields are mutable because they have to be able to refer to the notation object itself, so we have a circular data structure.  They aren't expected to mutate further after being set once.  Thus we store them as options, to record whether they have been set. *)
   mutable tree : ('left, 'tight) notation_entry option;
   mutable processor : processor option;
-  (* Some notations only make sense in terms, others only make sense in case trees, and some make sense in either.  Thus, a notation can supply either or both of these printing functions. *)
   mutable print : printer option;
-  mutable print_as_case : printer option;
+  (* Whether this notation can appear in a case tree.  Otherwise, encountering it terminates the case tree in a leaf. *)
+  mutable print_in_case : bool;
 }
 
 module Notation = struct
@@ -208,7 +211,7 @@ let notn :
 
 (* When parsing from left to right, we have to return a partial parse tree without knowing yet what tightness interval it will have to be in from the right.  So we return it as a callback that takes that interval as an argument and can fail, returning the name of the offending notation if it fails.  One could argue that instead the allowable tightness intervals should be returned along with the partial parse tree and used to restrict the allowable notations parsed afterwards.  But that would require indexing those pre-merged trees by *two* tightness values, so that we'd have to maintain n² such trees where n is the number of tightness values in use, and that makes me worry a bit about efficiency.  Doing it this way also makes it easier to trap it and issue a more informative error message. *)
 type ('lt, 'ls) right_wrapped_parse = {
-  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
+  get : 'rt 'rs. ('rt, 'rs) No.iinterval -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
 }
 
 (* The primary key is used to compare notations. *)
@@ -231,12 +234,12 @@ let left n = n.left
 let right n = n.right
 
 (* A notation has associated upper tightness intervals on both the left and the right, which specify what tightnesses of other notations can appear in an open subterm on that side.  Thus, both of these intervals start at the tightness of the notation, with their open- or closed-ness determined by its associativity. *)
-let interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) Interval.tt =
+let interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) No.iinterval =
  fun n ->
   let (Open strictness) = left n in
   { strictness; endpoint = tightness n }
 
-let interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.tt =
+let interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) No.iinterval =
  fun n ->
   let (Open strictness) = right n in
   { strictness; endpoint = tightness n }
@@ -261,9 +264,11 @@ let set_processor n c =
   | None -> n.processor <- Some c
 
 let print n = n.print
-let set_print n p = n.print <- Some p
-let print_as_case n = n.print_as_case
-let set_print_as_case n p = n.print_as_case <- Some p
+let print_in_case n = n.print_in_case
+
+let set_print n ?(in_case = false) p =
+  n.print <- Some p;
+  n.print_in_case <- in_case
 
 (* Create a new notation with specified name, fixity, and tightness.  Its mutable fields must be set later. *)
 let make :
@@ -282,8 +287,8 @@ let make :
     right;
     tree = None;
     print = None;
-    print_as_case = None;
     processor = None;
+    print_in_case = false;
   }
 
 let rec split_last_whitespace (ws : Whitespace.alist) : Whitespace.alist * Whitespace.t list =
@@ -330,7 +335,10 @@ let rec split_ending_whitespace :
           ({ value = Field (f, first); loc }, rest)
       | Superscript (x, s, ws) ->
           let first, rest = Whitespace.split ws in
-          ({ value = Superscript (x, s, first); loc }, rest))
+          ({ value = Superscript (x, s, first); loc }, rest)
+      | Hole (li, ri, ws) ->
+          let first, rest = Whitespace.split ws in
+          ({ value = Hole (li, ri, first); loc }, rest))
 
 (* Helper functions for constructing notation trees *)
 
@@ -363,16 +371,16 @@ let rec to_branch : type t s. (t, s) tree -> (t, s) branch option = function
   | Lazy (lazy t) -> to_branch t
 
 let rec lower_tree :
-    type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) tree -> (t1, s1) tree =
+    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) tree -> (t1, s1) tree =
  fun sub xs ->
   match xs with
   | Inner br -> Inner (lower_branch sub br)
-  | Done_open (lt, n) -> Done_open (Interval.subset_contains sub lt, n)
+  | Done_open (lt, n) -> Done_open (No.Interval.subset_contains sub lt, n)
   | Done_closed n -> Done_closed n
   | Lazy tr -> Lazy (lazy (lower_tree sub (Lazy.force tr)))
 
 and lower_branch :
-    type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) branch -> (t1, s1) branch =
+    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) branch -> (t1, s1) branch =
  fun sub { ops; field; term } ->
   {
     ops = TokMap.map (lower_tree sub) ops;
@@ -380,7 +388,8 @@ and lower_branch :
     term = Option.map (TokMap.map (lower_tree sub)) term;
   }
 
-let lower : type t1 s1 t2 s2. (t2, s2, t1, s1) Interval.subset -> (t2, s2) entry -> (t1, s1) entry =
+let lower :
+    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) entry -> (t1, s1) entry =
  fun sub map -> TokMap.map (lower_tree sub) map
 
 let rec names : type t s. (t, s) tree -> string list = function
@@ -397,7 +406,7 @@ and names_tmap : type t s. (t, s) tree TokMap.t -> string list =
 
 let rec merge_tree :
     type t1 s1 t2 s2.
-    (t2, s2, t1, s1) Interval.subset -> (t1, s1) tree -> (t2, s2) tree -> (t1, s1) tree =
+    (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) tree -> (t2, s2) tree -> (t1, s1) tree =
  fun sub xs ys ->
   let open Monad.Ops (Monad.Maybe) in
   Option.value
@@ -416,7 +425,7 @@ let rec merge_tree :
 
 and merge_tmap :
     type t1 s1 t2 s2.
-    (t2, s2, t1, s1) Interval.subset ->
+    (t2, s2, t1, s1) No.Interval.subset ->
     (t1, s1) tree TokMap.t ->
     (t2, s2) tree TokMap.t ->
     (t1, s1) tree TokMap.t =
@@ -430,7 +439,7 @@ and merge_tmap :
 
 and merge_branch :
     type t1 s1 t2 s2.
-    (t2, s2, t1, s1) Interval.subset -> (t1, s1) branch -> (t2, s2) branch -> (t1, s1) branch =
+    (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) branch -> (t2, s2) branch -> (t1, s1) branch =
  fun sub x y ->
   let ops = merge_tmap sub x.ops y.ops in
   let field = merge_opt (merge_tree sub) (lower_tree sub) x.field y.field in
@@ -439,5 +448,5 @@ and merge_branch :
 
 let merge :
     type t1 t2 s1 s2.
-    (t2, s2, t1, s1) Interval.subset -> (t1, s1) entry -> (t2, s2) entry -> (t1, s1) entry =
+    (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) entry -> (t2, s2) entry -> (t1, s1) entry =
  fun sub xs ys -> merge_tmap sub xs ys

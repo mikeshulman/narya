@@ -50,13 +50,15 @@ let () =
           let* x = Metamap.find_opt m (S.get ()).map in
           return x.def);
       add =
-        (fun m vars termctx ty status ->
+        (fun m vars termctx ty status li ri ->
           S.modify (fun { map } ->
               {
                 map =
                   Metamap.add m
                     {
-                      def = Metadef.make ~tm:`Undefined ~termctx ~ty ~energy:(Status.energy status);
+                      def =
+                        Metadef.make ~tm:`Undefined ~termctx ~ty ~energy:(Status.energy status) ~li
+                          ~ri;
                       homewhen =
                         { global = Global.get (); scope = Scope.get_visible (); status; vars };
                     }

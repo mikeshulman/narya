@@ -58,6 +58,9 @@ and (_, _, _, _) parse =
   | Superscript :
       ('lt, 'ls, No.plus_omega, No.strict) parse located option * string * Whitespace.t list
       -> ('lt, 'ls, 'rt, 'rs) parse
+  | Hole :
+      ('lt, 'ls) No.iinterval * ('rt, 'rs) No.iinterval * Whitespace.t list
+      -> ('lt, 'ls, 'rt, 'rs) parse
 
 and ('left, 'tight) notation_entry =
   | Open_entry : ('tight, No.nonstrict) entry -> ('strict opn, 'tight) notation_entry
@@ -122,23 +125,22 @@ val notn :
   ('left, 'tight, 'right, 'lt, 'ls, 'rt, 'rs) parsed_notn -> ('left, 'tight, 'right) notation
 
 type ('lt, 'ls) right_wrapped_parse = {
-  get : 'rt 'rs. ('rt, 'rs) Interval.tt -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
+  get : 'rt 'rs. ('rt, 'rs) No.iinterval -> (('lt, 'ls, 'rt, 'rs) parse located, string) Result.t;
 }
 
 val name : ('left, 'tight, 'right) notation -> string
 val tightness : ('left, 'tight, 'right) notation -> 'tight No.t
 val left : ('left, 'tight, 'right) notation -> 'left openness
 val right : ('left, 'tight, 'right) notation -> 'right openness
-val interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) Interval.tt
-val interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) Interval.tt
+val interval_left : ('s opn, 'tight, 'right) notation -> ('tight, 's) No.iinterval
+val interval_right : ('left, 'tight, 's opn) notation -> ('tight, 's) No.iinterval
 val tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry
 val set_tree : ('left, 'tight, 'right) notation -> ('left, 'tight) notation_entry -> unit
 val processor : ('left, 'tight, 'right) notation -> processor
 val set_processor : ('left, 'tight, 'right) notation -> processor -> unit
 val print : ('left, 'tight, 'right) notation -> printer option
-val set_print : ('left, 'tight, 'right) notation -> printer -> unit
-val print_as_case : ('left, 'tight, 'right) notation -> printer option
-val set_print_as_case : ('left, 'tight, 'right) notation -> printer -> unit
+val print_in_case : ('left, 'tight, 'right) notation -> bool
+val set_print : ('left, 'tight, 'right) notation -> ?in_case:bool -> printer -> unit
 val make : string -> ('left, 'tight, 'right) fixity -> ('left, 'tight, 'right) notation
 val equal : ('l1, 't1, 'r1) notation -> ('l2, 't2, 'r2) notation -> bool
 
@@ -164,7 +166,10 @@ val eops : (TokMap.key * 'a) list -> 'a TokMap.t
 val empty_entry : 'a TokMap.t
 
 (*  *)
-val lower : ('t2, 's2, 't1, 's1) Interval.subset -> ('t2, 's2) entry -> ('t1, 's1) entry
+val lower : ('t2, 's2, 't1, 's1) No.Interval.subset -> ('t2, 's2) entry -> ('t1, 's1) entry
 
 val merge :
-  ('t2, 's2, 't1, 's1) Interval.subset -> ('t1, 's1) entry -> ('t2, 's2) entry -> ('t1, 's1) entry
+  ('t2, 's2, 't1, 's1) No.Interval.subset ->
+  ('t1, 's1) entry ->
+  ('t2, 's2) entry ->
+  ('t1, 's1) entry

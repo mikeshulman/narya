@@ -27,7 +27,7 @@ type t = {
   (* For each upper tightness interval, we store a pre-merged tree of all left-closed trees along with all left-open trees whose tightness lies in that interval.  In particular, for the empty interval (+ω,+ω] this contains only the left-closed trees, and for the entire interval [-ω,+ω] it contains all notation trees. *)
   tighters : unit EntryMap.t;
   (* We store a map associating to each starting token of a left-open notation its left-hand upper tightness interval.  If there is more than one left-open notation starting with the same token, we store the loosest such interval. *)
-  left_opens : Interval.t TokMap.t;
+  left_opens : No.interval TokMap.t;
   (* For unparsing we also store backwards maps turning constants and constructors into notations.  Since the arguments of a notation can occur in a different order from those of the constant or constructor, we store lists of the argument names in the order they occur in the pattern and in the term value.  Note that these permutations are only used for printing; when parsing, the postprocessor function must ALSO incorporate the inverse permutation. *)
   unparse : User.notation PrintMap.t;
 }
@@ -95,13 +95,13 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
   let left_opens =
     match (left n, tree n) with
     | Open _, Open_entry tr ->
-        let ivl = Interval.Interval (interval_left n) in
+        let ivl = No.Interval (interval_left n) in
         TokMap.fold
           (fun tok _ map ->
             TokMap.update tok
               (function
                 | None -> Some ivl
-                | Some ivl2 -> Some (Interval.union ivl ivl2))
+                | Some ivl2 -> Some (No.Interval.union ivl ivl2))
               map)
           tr s.left_opens
     | Closed, _ -> s.left_opens in
@@ -156,14 +156,14 @@ module Current = struct
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
    fun () -> (Option.get (EntryMap.find_opt No.plus_omega (S.get ()).tighters)).strict
 
-  let tighters : type strict tight. (tight, strict) Interval.tt -> (tight, strict) entry =
+  let tighters : type strict tight. (tight, strict) No.iinterval -> (tight, strict) entry =
    fun { strictness; endpoint } ->
     let ep = Option.get (EntryMap.find_opt endpoint (S.get ()).tighters) in
     match strictness with
     | Nonstrict -> ep.nonstrict
     | Strict -> ep.strict
 
-  let left_opens : Token.t -> Interval.t option =
+  let left_opens : Token.t -> No.interval option =
    fun tok -> TokMap.find_opt tok (S.get ()).left_opens
 
   let unparse : PrintKey.t -> User.notation option = fun c -> PrintMap.find_opt c (S.get ()).unparse

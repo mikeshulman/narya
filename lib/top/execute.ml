@@ -55,6 +55,8 @@ end
 module Flags = Algaeff.Reader.Make (FlagData)
 
 let () = Flags.register_printer (function `Read -> Some "unhandled Flags.read effect")
+
+(* TODO: Perhaps these should use a customizable formatter, since we may be reformatting source files. *)
 let reformat_maybe f = if (Flags.read ()).reformat then f std_formatter else ()
 let reformat_maybe_ws f = if (Flags.read ()).reformat then f std_formatter else []
 
@@ -273,7 +275,7 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
       | _ -> Reporter.fatal_diagnostic d);
   Scope.get_export ()
 
-(* Subroutine that parses and executes all the commands in a source. *)
+(* Parse, execute (if requested by Flags), and reformat (if requested by Flags) all the commands in a source. *)
 and batch first ws p src =
   let reformat_end () =
     reformat_maybe (fun ppf ->

@@ -1,5 +1,4 @@
-open Format
-open Uuseg_string
+open PPrint
 open Print
 module Trie = Yuujinchou.Trie
 module Language = Yuujinchou.Language
@@ -43,66 +42,44 @@ let rec process_modifier = function
   | Seq { ops; _ } -> Language.seq (List.map (fun x -> process_modifier (fst x)) ops)
   | Union { ops; _ } -> Language.union (List.map (fun x -> process_modifier (fst x)) ops)
 
-let pp_path ppf = function
-  | [] -> pp_tok ppf Dot
-  | path -> pp_utf_8 ppf (String.concat "." path)
+let pp_path = function
+  | [] -> Token.pp Dot
+  | path -> separate_map (char '.') utf8string path
 
-let rec pp_modifier ppf = function
-  | All { wsall } ->
-      pp_print_string ppf "all";
-      wsall
-  | Id { wsid } ->
-      pp_print_string ppf "id";
-      wsid
-  | Only { wsonly; path; wspath } ->
-      pp_print_string ppf "only";
-      pp_ws `Break ppf wsonly;
-      pp_path ppf path;
-      wspath
+let rec pp_modifier : modifier -> document * Whitespace.t list = function
+  | All { wsall } -> (string "all", wsall)
+  | Id { wsid } -> (string "id", wsid)
+  | Only { wsonly; path; wspath } -> (string "only" ^^ pp_ws `Nobreak wsonly ^^ pp_path path, wspath)
   | In { wsin; path; wspath; op } ->
-      pp_print_string ppf "in";
-      pp_ws `Break ppf wsin;
-      pp_path ppf path;
-      pp_ws `Break ppf wspath;
-      pp_modifier ppf op
-  | MNone { wsnone } ->
-      pp_print_string ppf "none";
-      wsnone
+      let pop, wop = pp_modifier op in
+      (string "in" ^^ pp_ws `Nobreak wsin ^^ pp_path path ^^ pp_ws `Nobreak wspath ^^ pop, wop)
+  | MNone { wsnone } -> (string "none", wsnone)
   | Except { wsexcept; path; wspath } ->
-      pp_print_string ppf "except";
-      pp_ws `Break ppf wsexcept;
-      pp_path ppf path;
-      wspath
+      (string "except" ^^ pp_ws `Nobreak wsexcept ^^ pp_path path, wspath)
   | Renaming { wsrenaming; source; wssource; target; wstarget } ->
-      pp_print_string ppf "renaming";
-      pp_ws `Break ppf wsrenaming;
-      pp_path ppf source;
-      pp_ws `Break ppf wssource;
-      pp_path ppf target;
-      wstarget
-  | Seq { wsseq; wslparen; ops; wsrparen } ->
-      pp_print_string ppf "seq";
-      pp_ws `Nobreak ppf wsseq;
-      pp_print_string ppf "(";
-      pp_ws `Break ppf wslparen;
-      List.iter
-        (fun (op, ws) ->
-          pp_ws `None ppf (pp_modifier ppf op);
-          pp_print_string ppf ",";
-          pp_ws `Break ppf ws)
-        ops;
-      pp_print_string ppf ")";
-      wsrparen
+      ( string "renaming"
+        ^^ pp_ws `Nobreak wsrenaming
+        ^^ pp_path source
+        ^^ pp_ws `Nobreak wssource
+        ^^ pp_path target,
+        wstarget )
+  | Seq { wsseq; wslparen; ops; wsrparen } -> pp_modifier_list "seq" wsseq wslparen ops wsrparen
   | Union { wsunion; wslparen; ops; wsrparen } ->
-      pp_print_string ppf "union";
-      pp_ws `Nobreak ppf wsunion;
-      pp_print_string ppf "(";
-      pp_ws `Break ppf wslparen;
-      List.iter
-        (fun (op, ws) ->
-          pp_ws `None ppf (pp_modifier ppf op);
-          pp_print_string ppf ",";
-          pp_ws `Break ppf ws)
-        ops;
-      pp_print_string ppf ")";
-      wsrparen
+      pp_modifier_list "union" wsunion wslparen ops wsrparen
+
+and pp_modifier_list op wsop wslparen ops wsrparen =
+  let pops, wops =
+    List.fold_left
+      (fun (accum, prews) (op, ws) ->
+        let pop, wop = pp_modifier op in
+        ( accum ^^ optional (fun ws -> char ',' ^^ pp_ws `Break ws) prews ^^ pop ^^ pp_ws `None wop,
+          Some ws ))
+      (empty, None) ops in
+  ( string op
+    ^^ pp_ws `Nobreak wsop
+    ^^ string "("
+    ^^ pp_ws `None wslparen
+    ^^ align (group pops)
+    ^^ optional (pp_ws `None) wops
+    ^^ string ")",
+    wsrparen )

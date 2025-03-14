@@ -1,6 +1,5 @@
 open Core
 open Reporter
-open Uuseg_string
 
 type t =
   | Field of string (* Starting with . *)
@@ -197,4 +196,4 @@ let to_string = function
   | Eof -> "EOF"
 
 (* Given a token, create a constant pretty-printer that prints that token. *)
-let pp tok ppf () = pp_utf_8 ppf (to_string tok)
+let pp tok = PPrint.utf8string (to_string tok)

@@ -113,6 +113,8 @@ module Specials = struct
 
   module R = Algaeff.Reader.Make (Data)
 
+  let () = R.register_printer (function `Read -> Some "unhandled Specials read effect")
+
   let run ?(onechar_ops = Array.of_list []) ?(ascii_symbols = Array.of_list []) f =
     let onechar_ops = Array.append default_onechar_ops onechar_ops in
     let ascii_symbols = Array.append default_ascii_symbols ascii_symbols in

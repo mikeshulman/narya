@@ -46,8 +46,10 @@ let empty : t =
 let add : type left tight right. (left, tight, right) notation -> t -> t =
  fun n s ->
   (* First, if its tightness is new for this situation, we create new tighter-trees for the corresponding two interval_vars.  The strict one is a copy of the next-smallest nonstrict interval, while the nonstrict one is a copy of the next-largest strict interval. *)
+  let d = find n in
+  let left, tightness, _ = fixprops (snd n) in
   let tighters =
-    EntryMap.add_cut (tightness n)
+    EntryMap.add_cut tightness
       (fun _ up ->
         match up with
         | Upper (lt, u) ->
@@ -58,7 +60,7 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
       s.tighters in
   (* Then we merge the new notation to all the tighter-trees in which it should lie. *)
   let tighters =
-    match (left n, tree n) with
+    match (left, d.tree) with
     | Open _, Open_entry tr ->
         EntryMap.map_compare
           {
@@ -72,7 +74,7 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
             map_eq =
               (fun { strict; nonstrict } -> { nonstrict = merge Subset_eq nonstrict tr; strict });
           }
-          (tightness n) tighters
+          tightness tighters
     | Closed, Closed_entry tr ->
         EntryMap.map_compare
           {
@@ -93,7 +95,7 @@ let add : type left tight right. (left, tight, right) notation -> t -> t =
           No.plus_omega tighters in
   (* Finally, we update the map of all starting tokens of left-open notations. *)
   let left_opens =
-    match (left n, tree n) with
+    match (left, d.tree) with
     | Open _, Open_entry tr ->
         let ivl = No.Interval (interval_left n) in
         TokMap.fold
@@ -154,11 +156,12 @@ module Current = struct
     (notn, shadow)
 
   let left_closeds : unit -> (No.plus_omega, No.strict) entry =
-   fun () -> (Option.get (EntryMap.find_opt No.plus_omega (S.get ()).tighters)).strict
+   fun () ->
+    (EntryMap.find_opt No.plus_omega (S.get ()).tighters <|> Anomaly "missing left_closeds").strict
 
   let tighters : type strict tight. (tight, strict) No.iinterval -> (tight, strict) entry =
    fun { strictness; endpoint } ->
-    let ep = Option.get (EntryMap.find_opt endpoint (S.get ()).tighters) in
+    let ep = EntryMap.find_opt endpoint (S.get ()).tighters <|> Anomaly "missing tighters" in
     match strictness with
     | Nonstrict -> ep.nonstrict
     | Strict -> ep.strict

@@ -7,6 +7,8 @@ open Parser
 open React
 open Lwt
 open LTerm_text
+open Print
+open PPrint
 open Top
 
 let usage_msg = "narya [options] <file1> [<file2> ...]"
@@ -27,10 +29,9 @@ let speclist =
     ("-e", Arg.String (fun str -> inputs := Snoc (!inputs, `String str)), "");
     ("-verbose", Arg.Set verbose, "Show verbose messages (also -v)");
     ("-v", Arg.Set verbose, "");
-    ("-no-check", Arg.Clear execute, "Don't typecheck and execute code (only parse it)");
-    ("-reformat", Arg.Set reformat, "Display reformatted code on stdout");
-    ("-noncompact", Arg.Clear compact, "Reformat code noncompactly (default)");
-    ("-compact", Arg.Set compact, "Reformat code compactly");
+    ( "-no-reformat",
+      Arg.Clear reformat,
+      "Don't automatically reformat files supplied on the command line" );
     ("-unicode", Arg.Set unicode, "Display and reformat code using Unicode for built-ins (default)");
     ("-ascii", Arg.Clear unicode, "Display and reformat code using ASCII for built-ins");
     ("-arity", Arg.Set_int arity, "Arity of parametricity (default = 2)");
@@ -56,7 +57,6 @@ let speclist =
     ("-anonymous-metas", Arg.Clear number_metas, "");
     ("-parenthesize-arguments", Arg.Set parenthesize_arguments, "");
     ("-juxtapose-arguments", Arg.Clear parenthesize_arguments, "");
-    (* With -remove-spaces, you probably also want -compact *)
     ("-remove-spaces", Arg.Clear extra_spaces, "");
   ]
 
@@ -114,10 +114,9 @@ let rec repl terminal history buf =
               | _ -> ())
         @@ fun () ->
           match Command.parse_single str with
-          | _, Some cmd when (Execute.Flags.read ()).execute ->
+          | _, Some cmd ->
               Execute.execute_command cmd;
-              let n = Eternity.unsolved () in
-              if n > 0 then Reporter.emit (Open_holes n)
+              Eternity.notify_holes ()
           | _ -> () );
         LTerm_history.add history (Zed_string.of_utf8 (String.trim str));
         repl terminal history None)
@@ -159,33 +158,38 @@ let rec interact_pg () : unit =
     done;
     let cmd = Buffer.contents buf in
     let holes = ref Emp in
-    let parens = ref false in
     ( Global.HolePos.run ~init:{ holes = Emp; offset = 0 } @@ fun () ->
+      Display.modify (fun s -> { s with holes = `With_number });
       Reporter.try_with
       (* ProofGeneral sets TERM=dumb, but in fact it can display ANSI colors, so we tell Asai to override TERM and use colors unconditionally. *)
         ~emit:(fun d ->
           match d.message with
           | Hole _ -> holes := Snoc (!holes, d.message)
-          | Needs_parentheses -> parens := true
           | _ -> Reporter.display ~use_ansi:true ~output:stdout d)
         ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
         (fun () ->
           try
-            let _reformat = do_command (Command.parse_single cmd) in
-            Format.printf "\x0C[goals]\x0C\n%!";
-            Mbwd.miter
-              (fun [ h ] ->
-                Reporter.Code.default_text h Format.std_formatter;
-                Format.printf "\n\n%!")
-              [ !holes ];
-            Format.printf "\x0C[data]\x0C\n%!";
-            let st = Global.HolePos.get () in
-            Mbwd.miter
-              (fun [ (h, s, e) ] -> Format.printf "%d %d %d\n" h (s - st.offset) (e - st.offset))
-              [ st.holes ];
-            Format.printf "\x0C[reformat]\x0C\n%!";
-            (* reformat (); *)
-            if !parens then Format.printf "parens\n%!" else Format.printf "noparens\n%!"
+            match Command.parse_single cmd with
+            | _, None -> ()
+            | prews, Some cmd ->
+                Execute.execute_command cmd;
+                Eternity.notify_holes ();
+                Format.printf "\x0C[goals]\x0C\n%!";
+                Mbwd.miter
+                  (fun [ h ] ->
+                    Reporter.Code.default_text h Format.std_formatter;
+                    Format.printf "\n\n%!")
+                  [ !holes ];
+                Format.printf "\x0C[data]\x0C\n%!";
+                let st = Global.HolePos.get () in
+                Mbwd.miter
+                  (fun [ (h, s, e) ] ->
+                    Format.printf "%d %d %d\n" h (s - st.offset) (e - st.offset))
+                  [ st.holes ];
+                Format.printf "\x0C[reformat]\x0C\n%!";
+                let pcmd, wcmd = Parser.Command.pp_command cmd in
+                ToChannel.pretty 1.0 (Display.columns ()) stdout
+                  (pp_ws `None prews ^^ pcmd ^^ pp_ws `None wcmd)
           with Sys.Break -> Reporter.fatal Break) );
     interact_pg ()
   with End_of_file -> ()
@@ -198,7 +202,7 @@ let () =
       (fun [ file ] ->
         let p, src = Parser.Command.Parse.start_parse (`File file) in
         Reporter.try_with ~emit:(Reporter.display ~output:stdout)
-          ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch true [] p src))
+          ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch None p src))
       [ !fake_interacts ];
     if !interactive then Lwt_main.run (interact ())
     else if !proofgeneral then (

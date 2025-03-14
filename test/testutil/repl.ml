@@ -17,7 +17,7 @@ open Asai.Range
 
 let parse_term (tm : string) : N.zero check located =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
-  let (Term tm) = Parse.Term.final p in
+  let (Wrap tm) = Parse.Term.final p in
   Postprocess.process Emp tm
 
 let check_type (rty : N.zero check located) : (emp, kinetic) term =
@@ -30,7 +30,7 @@ let check_term (rtm : N.zero check located) (ety : kinetic value) : (emp, kineti
 let assume (name : string) (ty : string) : unit =
   let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse.Term.final p with
-  | Term { value = Ident (name, _); _ } ->
+  | Wrap { value = Ident (name, _); _ } ->
       Scope.check_name name None;
       let const = Scope.define Compunit.basic name in
       Reporter.try_with ~fatal:(fun d ->
@@ -46,7 +46,7 @@ let assume (name : string) (ty : string) : unit =
 let def (name : string) (ty : string) (tm : string) : unit =
   let p = Parse.Term.parse (`String { title = Some "constant name"; content = name }) in
   match Parse.Term.final p with
-  | Term { value = Ident (name, _); _ } ->
+  | Wrap { value = Ident (name, _); _ } ->
       Reporter.tracef "when defining %s" (String.concat "." name) @@ fun () ->
       Scope.check_name name None;
       let const = Scope.define Compunit.basic name in
@@ -102,8 +102,8 @@ let print (tm : string) : unit =
       Readback.Displaying.run ~env:true @@ fun () ->
       let btm = readback_at Ctx.empty etm ety in
       let utm = unparse Names.empty btm No.Interval.entire No.Interval.entire in
-      pp_term `None Format.std_formatter (Term utm);
-      Format.pp_print_newline Format.std_formatter ()
+      PPrint.ToChannel.pretty 1.0 (Display.columns ()) stdout (pp_complete_term (Wrap utm) `None);
+      print_newline ()
   | _ -> fatal (Nonsynthesizing "argument of print")
 
 let run f =
@@ -112,7 +112,6 @@ let run f =
   Eternity.run ~init:Eternity.empty @@ fun () ->
   Global.run ~init:Global.empty @@ fun () ->
   Builtins.run @@ fun () ->
-  Print.State.run ~env:`Term @@ fun () ->
   Display.run ~init:Display.default @@ fun () ->
   Annotate.run @@ fun () ->
   Readback.Displaying.run ~env:false @@ fun () ->

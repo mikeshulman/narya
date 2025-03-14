@@ -77,6 +77,10 @@ let unsolved () =
     }
     (S.get ()).map 0
 
+let notify_holes () =
+  let n = unsolved () in
+  if n > 0 then Reporter.emit (Open_holes n)
+
 (* Throw away holes that don't exist at the current time, according to Global. *)
 let filter_now () =
   S.modify (fun { map } ->

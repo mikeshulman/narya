@@ -97,6 +97,7 @@ val get_export : unit -> trie
 val set_visible : trie -> unit
 val start_section : string list -> unit
 val end_section : unit -> string list option
+val count_sections : unit -> int
 
 val run :
   ?export_prefix:string Bwd.t -> ?init_visible:(Param.data, Param.tag) Trie.t -> (unit -> 'a) -> 'a

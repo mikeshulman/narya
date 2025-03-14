@@ -58,15 +58,13 @@ The Narya executable accepts at least the following command-line flags.
 
 - `-interactive` or `-i`: Enter interactive mode (see below)
 - `-exec STRING` or `-e STRING`: Execute a string argument (see below)
-- `-no-check`: Don't typecheck and execute code (only parse it)
 - `-source-only`: Load all files from source, ignoring any compiled versions
 
 #### Formatting output
 
 - `-verbose` or `-v`: Show verbose messages
 - `-unicode` and `-ascii`: Display and reformat code using Unicode (default) or ASCII
-- `-noncompact` and `-compact`: Select reformatting mode
-- `-reformat`: Display reformatted code on stdout after parsing
+- `-no-reformat`: Do not automatically reformat source files (see below)
 
 #### Controlling parametricity
 
@@ -87,7 +85,7 @@ In interactive mode, commands typed by the user are executed as they are entered
 
 ### Commands
 
-In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  The available commands in a file or `-e` string are the following.
+In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but there is a built-in code reformatter (see below) that is on by default, enforcing a uniform indentation style.  The available commands in a file or `-e` string are the following.
 
 1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
@@ -161,14 +159,14 @@ In interactive mode, the following additional commands are also available.  (How
 
 1. `display SETTING`
 
-   Set one of the display settings (that are also set by command-line flags), which can be either `unicode`, `ascii`, `compact`, or `noncompact`.
+   Set one of the display settings (that are also set by command-line flags), which can currently be either `unicode` or `ascii`.
 
 
 ### ProofGeneral mode
 
 [ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
 
-Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment, or by filling a hole with `C-c C-SPC` as described below), it will automatically be retracted up to the point where you are editing.
+Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for editing inside an existing comment, or filling a hole with `C-c C-SPC` as described below), it will automatically be retracted up to the point where you are editing.
 
 In addition to the main window displaying your source file, there will be two other windows in split-screen labeled "goals" and "response".  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
 
@@ -214,6 +212,23 @@ With this customization added, the Unicode characters that have primitive meanin
 - For ⤇, type `\R|` or `\|=>`
 - For ≔, type `\:=`
 - For …, type `\...`
+
+### Code formatter
+
+Narya comes with an "opinionated code formatter" like [gofmt](https://go.dev/blog/gofmt), [ocamlformat](https://github.com/ocaml-ppx/ocamlformat), or [prettier](https://prettier.io/docs/why-prettier).  In fact, the formatter is built into Narya, using the same parser and pretty-printer as the typechecker; so they should never get out of sync as the language changes.
+
+There are currently two ways to use the formatter.  Firstly, every time you run Narya on a source file, it automatically reformats that file.  (It only reformats files supplied explictly on the command line, not other files loaded by these.)  If this resulted in any changes, it copies the original file to a backup file with a `.bak.N` extension; this is a temporary feature to ensure you can recover your code in case of bugs in the reformatter, and will probably go away once there is enough evidence that the reformatter is trustworthy.  (Please report any bugs in the reformatter, especially serious ones that change the meaning of the code, make it non-reparseable, lose comments, etc.!  Also, reformatting is supposed to be idempotent: if reformatting code twice without editing it in the middle makes any changes the second time, that is also a bug.)
+
+Secondly, every time you process a command in ProofGeneral, that command is automatically reformatted.  If you retract the command, it remains reformatted.  To undo the reformatting, you can use Emacs' undo operation (`C-/`); this will also retract the command, if it is still in the processed region.
+
+Processing an entire file in ProofGeneral does not have *exactly* the same reformatting effect as running Narya on it from the command line.  They should reformat individual commands in the same way, but the command-line reformatter also ensures that distinct commands are separated by single blank lines (suitably interpreted in the presence of comments).  ProofGeneral can't do this, as it doesn't even pass blank lines and comments between commands to the Narya subprocess.  However, most people already separate their commands by single blank lines, so this difference is not usually a serious issue.
+
+It is not currently possible to reformat code without simultaneously typechecking it.  The presence of user-definable mixfix notations that can also be imported from other files means that any reformatter must be at least partially context-aware.  It would probably be possible to implement a reformatter that resolves user-defined notations without typechecking definitions, but this is not a high priority.
+
+Currently there is only one configuration option for the code formatter: whether to print Unicode characters such as → or their ASCII equivalents such as `->`.  This can be set on the command line with the flags `-unicode` and `-ascii`, and in ProofGeneral with the state-preserving `display` command.  In accord with the goal of opinionated code formatters -- to eliminate time wasted by arguing about formatting, including formatter options -- I do not plan to add more configuration options; although I'll listen if you have a case to make for one.  Suggestions for improvements and changes to the standard formatting style are also welcome, although I can't promise to adopt them.
+
+It is possible to turn off the code formatter.  The Emacs customization variables `narya-reformat-commands` and `narya-reformat-holes` (see below) will turn off reformatting in ProofGeneral, and the command-line option `-no-format` will turn off reformatting of input files.  However, if you don't like the way Narya reformats your code, I would appreciate it if you give me feedback about this rather than (or, at least, in addition to) turning it off entirely.
+
 
 ### jsNarya
 
@@ -476,11 +491,21 @@ When Narya reaches the end of a file (or command-line `-e` string) in which any 
 
 Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The most straightforward way to fill a hole is to edit the source code to replace the `?` by a term (perhaps containing other holes) and reload the file.  In interactive mode, if you just entered a command containing a hole, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.  And in ProofGeneral mode, you can use `C-c C-u` or `C-c RET` to retract the hole-creating command (along with any commands after it) and edit it (or just start editing it and it will auto-retract), and then re-process it with `C-c C-n`.
 
-It is also possible to fill a hole *without* retracting the command or any other commands after it.  In ProofGeneral mode, if you position the cursor over a hole (perhaps using `C-c C-j` and `C-c C-k` to move between holes) and type `C-c C-SPC`, ProofGeneral will prompt you for a term with which to solve the hole.  If this term does successfully solve the hole, it will be inserted to replace the `?` in the buffer, without retracting the original command or anything after it.  This enables you to process a bunch of commands containing holes, some of which might be slow to run, and then progressively work on filling the holes in any desired order without having to retract and re-process anything.
+It is also possible to fill a hole *without* retracting the command or any other commands after it.  In ProofGeneral mode, if you position the cursor over a hole (perhaps using `C-c C-j` and `C-c C-k` to move between holes) and type `C-c C-SPC`, ProofGeneral will prompt you for a term with which to solve the hole.  If this term does successfully solve the hole, it will be inserted to replace the `?` in the buffer, without retracting the original command or anything after it.  This enables you to process a bunch of commands containing holes, some of which might be slow to run, and then progressively work on filling the holes in any desired order without having to retract and re-process anything.  Of course, the term that you fill a hole with contain other holes.
 
-Of course, the term that you fill a hole with contain other holes.  The term solving a hole is parsed and typechecked *in the context where the hole was created*.  Thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
+The term solving a hole is parsed and typechecked *in the context where the hole was created*.  Thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
 
 You can also solve a hole directly in interactive mode with the command `solve`, identifying a particular hole by its number as in `solve 0 ≔ X`.  (This is also the command issued by ProofGeneral under the hood when you use `C-c C-SPC`.)  But identifying a hole by number is too brittle to use in a file, so this command is only allowed in interactive mode.
+
+Solving a hole cannot be "undone" by Narya; it happens "outside the timestream", effectively altering a previously executed command rather than executing a new one, and does not affect the sequence of commands available to be undone.  This should be intuitive in ProofGeneral, where solving a hole does not change the processed region or insert any commands in the buffer, and a subsequent "undo" (`C-c C-u`) acts on the most recently processed command *in the buffer* whether or not that was the command containing the solved hole.
+
+Along the same lines, undoing commands in ProofGeneral does not affect the replacement of holes by the terms that solve them.  Thus, if you process a command containing a hole, solve the hole, and then undo the command, the term with which you solved the hole remains in the buffer in place of the original `?`.  Therefore, if you then re-process the command, the solving term will be used where there used to be a hole, without creating a hole at all.  For purposes of later commands, this *should* be entirely equivalent to continuing on with a filled hole, but it is not *literally* identical in Narya's internals, so bugs may exist; if you find one, please report it.
+
+On the other hand, solving a hole changes the text of the Emacs buffer, and therefore it *can* be un-done with *Emacs's* `undo` command (generally bound to `C-/`, `C-_`, and `C-x u`), removing the inserted term and replacing the original `?`.  Since the "solve" command cannot be undone by Narya, if you undo it in Emacs there is no consistent thing that Narya can do with the command containing that hole.  Thus, in this case the Narya ProofGeneral mode automatically also retracts the processed region past the command containing the hole.
+
+By default, when filling a hole interactively with ProofGeneral, the term you enter is automatically reformatted.  In particular, line breaks and indenting spaces are inserted in (what Narya thinks are) appropriate places (and removed from what it thinks are inappropriate places), and ASCII operators such as `->` and `|->` are replaced by their Unicode equivalents such as → and ↦.  Unfortunately, at present the solving term is reformatted entirely on its own without reference to the command in which it appears, so after it is inserted the overall command may still be badly formatted, especially if you inserted a case tree structure such as `match`.  Currently the only solution to this is to retract the command after solving the hole and then re-process it to reformat it.
+
+As with reformatting of commands and source files, reformatting of hole-solving terms is affected by the command-line flags `-unicode` and `-ascii` (print operators as → or `->`, respectively).  You can also turn off solve-reformatting entirely by setting the Emacs customization variable `narya-reformat-holes` to `nil`.  However, if you don't like the way Narya reformats your terms, I would appreciate it if you give me feedback about it rather than (or, at least, in addition to) turning it off.
 
 If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them in interactive mode with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.  In ProofGeneral mode the key command `C-c C-?` issues `show holes`, while `C-c C-t` issues `show hole` with the hole number inferred automatically from the cursor position (which must be over an open hole).  You can move between the existing holes with `C-c C-j` (next hole) and `C-c C-k` (previous hole).
 
@@ -793,20 +818,9 @@ Constructors check rather than synthesizing.  As usual with checking terms, one 
 Constructors must always be applied to all of their arguments.  For instance, one cannot write `cons. x : List A → List A`.  You have to η-expand it: `(xs ↦ cons. x xs) : List A → List A`.  This might be improved in future.
 
 
-### Numeral and list notations
+### Numeral notations
 
 Natural number literals such as `0`, `7`, and `23` are expanded at parse time into applications of the constructors `suc.` and `zero.`.  There is no built-in datatype with these constructors, but of course the user can define `ℕ` as above, in which case for instance `3 : ℕ` is equivalent to `suc. (suc. (suc. zero.))`.  But numerals will also typecheck at any other datatype having constructors of the same name.
-
-There is a similar syntax for lists that expands to applications of the constructors `nil.` and `cons.`: a list like `[> x, y, z >]` expands to `cons. x (cons. y (cons. z nil.))`.  Thus this typechecks at `List A`, as defined above, if `x`, `y`, and `z` belong to `A`.
-
-The arrows `>` in the notation indicate that this is a "forwards" list.  There is a dual notation `[< x, y, z <]` for backwards lists that expands to `snoc. (snoc. (snoc. emp. x) y) z`, which therefore typechecks at a type of [backwards lists](https://github.com/RedPRL/ocaml-bwd) defined as
-```
-def Bwd (A:Type) : Type ≔ data [
-| emp.
-| snoc. (xs : Bwd A) (x : A)
-]
-```
-(Since `[` and `]` are always their own tokens, it is also possible to put spaces in these notations, such as `[ > 1, 2, 3 > ]`, but this is not recommended.)  This notation for lists is tentative and may change.  Eventually, this sort of "folding" notation may also be user-definable.
 
 ### Matching
 

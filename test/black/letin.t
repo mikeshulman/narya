@@ -288,7 +288,7 @@ Synthesizing matches don't need to be annotated
    ￫ hint[E1101]
    ￭ command-line exec string
    1 | def not : bool -> bool := x |-> let n := match x [ true. |-> (false. : bool) | false. |-> true. ] in n
-     ^ match will not refine the goal or context (match in synthesizing position): 
+     ^ match will not refine the goal or context (match in synthesizing position)
   
    ￫ info[I0000]
    ￮ constant not defined
@@ -315,7 +315,7 @@ Either branch can synthesize:
    ￫ hint[E1101]
    ￭ command-line exec string
    1 | def not : bool -> bool := x |-> let n := match x [ true. |-> false. | false. |-> (true. : bool) ] in n
-     ^ match will not refine the goal or context (match in synthesizing position): 
+     ^ match will not refine the goal or context (match in synthesizing position)
   
    ￫ info[I0000]
    ￮ constant not defined
@@ -352,10 +352,7 @@ Let doesn't make a case tree unless it needs to:
    ￫ info[I0000]
    ￮ constant foo' defined
   
-  (
-    fst ≔ X ↦ X,
-    snd ≔ Type,
-  )
+  (fst ≔ X ↦ X, snd ≔ Type)
     : prod (Type → Type) Type
   
 

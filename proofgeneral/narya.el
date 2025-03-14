@@ -100,11 +100,38 @@ Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-
       (narya-skip-comments-backwards))
     parsed))
 
+(defun narya-retract-target (target)
+  "Retract the span TARGET as in `proof-retract-target', if it exists.
+This can be added to an undo list without causing an error in case the
+span has been deleted at undo time."
+  (when (and target (overlay-buffer target))
+    (proof-retract-target target nil nil)))
+
+(defun narya-add-command-undo (span)
+  "Add an undo entry causing retraction back to the supplied SPAN.
+Don't add an extra entry if there is already an entry that will do this;
+otherwise we end up undoing too much when commands are executing asynchronously."
+  (let ((undos buffer-undo-list)
+        (found nil))
+    (while (and (car undos) (not found))
+      (setq found (and (listp (car undos))
+                       (eq (caar undos) 'apply)
+                       (listp (cdar undos))
+                       (eq (cadar undos) 'narya-retract-target)
+                       (listp (cddar undos))
+                       (caddar undos)
+                       (overlay-buffer (caddar undos))
+                       (< (overlay-start (caddar undos)) (overlay-start span)))
+            undos (cdr undos)))
+    (when (not found)
+      (setq buffer-undo-list
+            (cons (list 'apply 'narya-retract-target span) buffer-undo-list)))))
+
 (defun narya-handle-output (cmd string)
   "Parse and handle Narya's output.
-If called with an invisible command, store hole data in a global
-variable instead of creating overlays immediately. Otherwise,
-create overlays for new holes.
+If called with an invisible command (such as 'solve'), store hole data
+in a global variable instead of creating overlays immediately.
+Otherwise, create overlays for new holes.
 
 This function also performs part of `proof-shell-handle-delayed-output''s
 role, updating `proof-shell-last-output-kind' to avoid duplicated output
@@ -144,26 +171,44 @@ handling in Proof General."
         ;; Now grab the reformatting info
         (string-match "\x0C\\[reformat\\]\x0C\n" string dpos)
         ;; Remove trailing newlines and trailing spaces on any line
-        (setq reformatted (replace-regexp-in-string "[ \t]+\n" "\n" (string-trim-right (substring string (match-end 0)))))
+        ;(setq reformatted (replace-regexp-in-string "[ \t]+\n" "\n" (string-trim-right (substring string (match-end 0)))))
+        (setq reformatted (substring string (match-end 0)))
         ;; Handle parsed hole data based on the visibility of the command
         (if (member 'invisible flags)
             ;; For invisible commands ("solve"), store the parsed data globally, both the holes and the reformatted term
             (setq narya-pending-hole-positions parsed-hole-data
                   narya-pending-hole-reformatted reformatted)
           ;; For visible commands, create overlays directly
-          (when span
+          (when (and span (overlay-buffer span))
             (proof-with-script-buffer
              (if (and narya-reformat-commands (not (equal reformatted "")))
                  (let ((inhibit-read-only t)
                        (start (set-marker (make-marker) (overlay-start span)))
                        (end (set-marker (make-marker) (overlay-end span))))
                    (save-excursion
+                     ;; ProofGeneral automatically excludes inter-command comments from the span, but we
+                     ;; have to move forward past spaces and newlines to get to the actual command start.
                      (goto-char start)
                      (while (looking-at "[ \t\n]")
                        (forward-char 1))
-                     (insert reformatted)
-                     (delete-region (point) end)
-                     (narya-create-marked-hole-overlays start end)))
+                     (set-marker start (point))
+                     ;; We also get rid of any indent (the Narya reformatter will insert indentation if
+                     ;; necessary, e.g. if we are in a section), and insert a blank line if we aren't at bol.
+                     ;; It would be nice to also insert an extra newline if there isn't any blank line between
+                     ;; the previous command and this one, but that would be too much work for now.
+                     (skip-syntax-backward " ")
+                     (unless (= (point) start)
+                       (delete-region (point) start))
+                     (unless (bolp)
+                       (insert "\n\n"))
+                     ;; Now we replace the old command with the new one.  But if they are the same, we do nothing,
+                     ;; so that the buffer doesn't get marked "modified".
+                     (unless (equal reformatted (buffer-substring-no-properties (point) end))
+                       (insert reformatted)
+                       (delete-region (point) end))
+                     (narya-create-marked-hole-overlays start end)
+                     ;; Add an undo item so that if the reformatting is undone, ProofGeneral will also retract the Narya command.
+                     (narya-add-command-undo span)))
                (let ((bpos (position-bytes (save-excursion
                                              (goto-char (overlay-start span))
                                              (skip-chars-forward " \t\n")
@@ -427,8 +472,7 @@ pending hole data stored by `narya-handle-output'."
                 ;; past the command containing the hole.  This is the
                 ;; only sensible course of action, since the Narya
                 ;; "solve" command can't be undone.
-                (setq buffer-undo-list
-                      (cons (list 'apply 'proof-retract-target cmd-span nil nil) buffer-undo-list))))))))))
+                (narya-add-command-undo cmd-span)))))))))
   
 (keymap-set narya-mode-map "C-c C-SPC" 'narya-solve-hole)
 

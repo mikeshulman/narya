@@ -3,8 +3,9 @@ open Util
 open Core
 open Reporter
 open Parser
+open PPrint
+open Print
 open User2
-open Format
 module Trie = Yuujinchou.Trie
 
 (* Execution of files (and strings), including marshaling and unmarshaling, and managing compilation units and imports. *)
@@ -39,15 +40,13 @@ module FlagData = struct
     marshal : Out_channel.t -> unit;
     (* Unmarshal all the command-line type theory flags from a disk file and check that they agree with the current ones, returning the unmarshaled ones if not. *)
     unmarshal : In_channel.t -> (unit, string) Result.t;
-    (* Execute commands (don't just reformat)? *)
-    execute : bool;
-    (* Load files from source only (not compiled versions)? *)
+    (* Load files from source only (not compiled versions). *)
     source_only : bool;
     (* All the filenames given explicitly on the command line. *)
     top_files : string list;
     (* The initial visible namespace, e.g. the builtin Π. *)
     init_visible : Scope.trie;
-    (* Whether to reformat. *)
+    (* Whether to reformat explicitly-loaded files *)
     reformat : bool;
   }
 end
@@ -55,10 +54,6 @@ end
 module Flags = Algaeff.Reader.Make (FlagData)
 
 let () = Flags.register_printer (function `Read -> Some "unhandled Flags.read effect")
-
-(* TODO: Perhaps these should use a customizable formatter, since we may be reformatting source files. *)
-let reformat_maybe f = if (Flags.read ()).reformat then f std_formatter else ()
-let reformat_maybe_ws f = if (Flags.read ()).reformat then f std_formatter else []
 
 module Loaded = struct
   type _ Effect.t +=
@@ -123,8 +118,12 @@ let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : Scope.tri
 let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compunit.t)
     (file : FilePath.filename) =
   let ofile = FilePath.replace_extension file "nyo" in
-  (* To load a compiled file, first of all both the compiled file and its source file must exist, and the compiled file must be newer than the source. *)
-  if FileUtil.test Is_file file && FileUtil.test (Is_newer_than file) ofile then
+  (* To load a compiled file, first of all both the compiled file and its source file must exist, and the compiled file must be not older than the source.  (If the source was reformatted at the time of compiling, they could be exactly the same age.) *)
+  if
+    FileUtil.test Is_file file
+    && FileUtil.test Is_file ofile
+    && not (FileUtil.test (Is_older_than file) ofile)
+  then
     (* Now we can start loading things. *)
     In_channel.with_open_bin ofile @@ fun chan ->
     (* We check it was compiled with the same version as us. *)
@@ -214,7 +213,7 @@ and load_file file top =
       Loading.modify (fun s -> { s with imports = Snoc (s.imports, (compunit, file)) });
       (* Then we load it, in its directory and with itself added to the list of parents. *)
       let rename i =
-        let _, c, _ = Option.get (Loaded.get_file i) in
+        let _, c, _ = Loaded.get_file i <|> Anomaly "missing file in load_file" in
         c in
       Loading.run
         ~init:
@@ -236,7 +235,38 @@ and load_file file top =
         | None ->
             (* If we are in source-only mode, or this file was specified explicitly on the command-line, or if unmarshal failed (e.g. the compiled file is outdated), we load it from source. *)
             if not top then emit (Loading_file file);
-            (execute_source compunit (`File file), `Source) in
+            (* If reformatting is enabled, and this file was explicitly specified on the command line, create a buffer to hold its reformatting. *)
+            let buf =
+              if (Flags.read ()).reformat && List.mem file flags.top_files then
+                Some (Buffer.create 100)
+              else None in
+            let renderer = Option.map (PPrint.ToBuffer.pretty 1.0 (Display.columns ())) buf in
+            (* Parse and execute the file and save its exported trie *)
+            let exported = execute_source compunit ?renderer (`File file) in
+            (match buf with
+            | None -> ()
+            | Some buf -> (
+                (* If the reformatted version didn't change, do nothing. *)
+                let infile = open_in_bin file in
+                let oldstr =
+                  Fun.protect ~finally:(fun () -> close_in infile) @@ fun () ->
+                  really_input_string infile (in_channel_length infile) in
+                if oldstr <> Buffer.contents buf then
+                  try
+                    (* Back up the original file to a new backup file name. *)
+                    let bakfile, n = (file ^ ".bak.", ref 0) in
+                    while FileUtil.test Is_file (bakfile ^ string_of_int !n) do
+                      n := !n + 1
+                    done;
+                    let bakfile = bakfile ^ string_of_int !n in
+                    FileUtil.cp [ file ] bakfile;
+                    (* Overwrite the file with its reformatted version. *)
+                    let outfile = open_out file in
+                    Fun.protect ~finally:(fun () -> close_out outfile) @@ fun () ->
+                    output_string outfile (Buffer.contents buf)
+                    (* Ignore file errors (e.g. read-only source file) *)
+                  with Sys_error _ -> ()));
+            (exported, `Source) in
       (* Then we add it to the table of loaded files and (possibly) the content of top-level files. *)
       if not top then emit (File_loaded (file, which));
       Loaded.add_to_files file trie compunit top;
@@ -254,15 +284,14 @@ and load_string ?init_visible title content =
   trie
 
 (* Given a source (file or string), parse and execute all the commands in it, in a local scope that starts with either the supplied scope or a default one. *)
-and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
+and execute_source ?(init_visible = (Flags.read ()).init_visible) ?renderer compunit
     (source : Asai.Range.source) =
-  reformat_maybe (fun ppf -> Format.pp_open_vbox ppf 0);
   History.run_with_scope ~init_visible @@ fun () ->
   let p, src = Parser.Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
     (fun () ->
-      batch true [] p src;
+      batch renderer p src;
       if Eternity.unsolved () > 0 then Reporter.fatal (Open_holes_remaining source))
     ~fatal:(fun d ->
       match d.message with
@@ -276,27 +305,29 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
   Scope.get_export ()
 
 (* Parse, execute (if requested by Flags), and reformat (if requested by Flags) all the commands in a source. *)
-and batch first ws p src =
-  let reformat_end () =
-    reformat_maybe (fun ppf ->
-        let ws = Whitespace.ensure_ending_newlines 2 ws in
-        Print.pp_ws `None ppf ws;
-        Format.pp_close_box ppf ()) in
-  let cmd = Parser.Command.Parse.final p in
-  if cmd = Eof then reformat_end ()
-  else (
-    Fun.protect
-      (fun () -> if (Flags.read ()).execute then execute_command cmd)
-      ~finally:reformat_end;
-    let ws =
-      reformat_maybe_ws @@ fun ppf ->
-      let ws = if first then ws else Whitespace.ensure_starting_newlines 2 ws in
-      Print.pp_ws `None ppf ws;
-      Parser.Command.pp_command ppf cmd in
-    let p, src = Parser.Command.Parse.restart_parse p src in
-    batch false ws p src)
+and batch renderer p src =
+  match Parser.Command.Parse.final p with
+  | Eof -> ()
+  | Bof ws ->
+      (match renderer with
+      | Some render ->
+          let ws = Whitespace.normalize_no_blanks ws in
+          render (pp_ws `None ws)
+      | None -> ());
+      let p, src = Parser.Command.Parse.restart_parse p src in
+      batch renderer p src
+  | cmd ->
+      execute_command cmd;
+      (match renderer with
+      | Some render ->
+          let pcmd, wcmd = Parser.Command.pp_command cmd in
+          let wcmd = Whitespace.normalize 2 wcmd in
+          render (pcmd ^^ pp_ws `None wcmd)
+      | None -> ());
+      let p, src = Parser.Command.Parse.restart_parse p src in
+      batch renderer p src
 
-(* Wrapper around Parser.Command.execute that passes it the correct callbacks. *)
+(* Wrapper around Parser.Command.execute that passes it the correct callbacks.  Does NOT check flags or reformat. *)
 and execute_command cmd =
   let action_taken () = Loading.modify (fun s -> { s with actions = true }) in
   let get_file file = load_file file false in

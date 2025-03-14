@@ -14,14 +14,15 @@ and parse_tree =
   | Superscript of parse_tree option * string
   | Hole
 
-let rec get_obs (obs : Notation.observation) : obs =
+let rec get_obs (obs : Notation.observation) : obs option =
   match obs with
-  | Term r -> Term (get_tree r.value)
+  | Term r -> Some (Term (get_tree r.value))
+  | Token _ -> None
 
 and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
  fun r ->
   match r with
-  | Notn n -> Notn (Notation.name (Notation.notn n), List.map get_obs (Notation.args n))
+  | Notn (n, a) -> Notn (Notation.name n, List.filter_map get_obs (Notation.args a))
   | App a -> App (get_tree a.fn.value, get_tree a.arg.value)
   | Placeholder _ -> Placeholder
   | Ident (x, _) -> Ident x
@@ -33,5 +34,5 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
 
 let parse tm =
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
-  let (Term tm) = Parse.Term.final p in
+  let (Wrap tm) = Parse.Term.final p in
   get_tree tm.value

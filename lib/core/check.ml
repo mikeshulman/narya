@@ -757,11 +757,11 @@ and check_implicit_match :
   | { value = Var ix; loc } -> (
       match Ctx.lookup ctx ix with
       | `Field (_, _, fld) ->
-          emit ?loc (Matching_wont_refine ("discriminee is record field", PField fld));
+          emit ?loc (Matching_wont_refine ("discriminee is record field", Some (PField fld)));
           let stm, varty = synth (Kinetic `Nolet) ctx tm in
           check_nondep_match status ctx stm varty brs None motive tm.loc
       | `Var (None, _, ix) ->
-          emit ?loc (Matching_wont_refine ("discriminee is let-bound", PTerm (ctx, Var ix)));
+          emit ?loc (Matching_wont_refine ("discriminee is let-bound", Some (PTerm (ctx, Var ix))));
           let stm, varty = synth (Kinetic `Nolet) ctx tm in
           check_nondep_match status ctx stm varty brs None motive tm.loc
       | `Var (Some level, { tm = _; ty = varty }, index) ->
@@ -1095,20 +1095,24 @@ and check_var_match :
             match force_eval value with
             | Unrealized ->
                 if Option.is_none (is_id_deg deg) then
-                  fatal (Matching_wont_refine ("index variable has degeneracy", PNormal (ctx, x)));
+                  fatal
+                    (Matching_wont_refine ("index variable has degeneracy", Some (PNormal (ctx, x))));
                 if Hashtbl.mem seen level then
-                  fatal (Matching_wont_refine ("duplicate variable in indices", PNormal (ctx, x)));
+                  fatal
+                    (Matching_wont_refine ("duplicate variable in indices", Some (PNormal (ctx, x))));
                 Hashtbl.add seen level ();
                 level
             | _ -> fatal (Anomaly "local variable bound to a potential term"))
-        | _ -> fatal (Matching_wont_refine ("index is not a free variable", PNormal (ctx, x))) in
+        | _ ->
+            fatal (Matching_wont_refine ("index is not a free variable", Some (PNormal (ctx, x))))
+      in
       Reporter.try_with ~fatal:(fun d ->
           match d.message with
           | Matching_wont_refine (str, x) ->
               emit (Matching_wont_refine (str, x));
               check_nondep_match status ctx (Term.Var index) varty brs None motive loc
           | No_such_level x ->
-              emit (Matching_wont_refine ("index variable occurs in parameter", x));
+              emit (Matching_wont_refine ("index variable occurs in parameter", Some x));
               check_nondep_match status ctx (Term.Var index) varty brs None motive loc
           | _ -> fatal_diagnostic d)
       @@ fun () ->
@@ -1193,7 +1197,7 @@ and check_var_match :
                     (* Now we let-bind the match variable to the constructor applied to these new variables, the "index_vars" to the index values, and the inst_vars to the boundary constructor values.  The operation Ctx.bind_some automatically substitutes these new values into the types and values of other variables in the context, and reorders it if necessary so that each variable only depends on previous ones. *)
                     match Bindsome.bind_some (Hashtbl.find_opt new_vals) newctx with
                     | None ->
-                        fatal (Matching_wont_refine ("no consistent permutation of context", PUnit))
+                        fatal (Matching_wont_refine ("no consistent permutation of context", None))
                     | Bind_some { checked_perm; oldctx; newctx } -> (
                         (* We readback the index and instantiation values into this new context and discard the result, catching No_such_level to turn it into a user Error.  This has the effect of doing an occurs-check that none of the index variables occur in any of the index values.  This is a bit less general than the CDP Solution rule, which (when applied one variable at a time) prohibits only cycles of occurrence.  Note that this exception is still caught by check_var_match, above, causing a fallback to term matching. *)
                         ( Reporter.try_with ~fatal:(fun d ->
@@ -1201,7 +1205,7 @@ and check_var_match :
                               | No_such_level x ->
                                   fatal
                                     (Matching_wont_refine
-                                       ("free index variable occurs in inferred index value", x))
+                                       ("free index variable occurs in inferred index value", Some x))
                               | _ -> fatal_diagnostic d)
                         @@ fun () ->
                           Hashtbl.iter (fun _ v -> discard (readback_nf oldctx v)) new_vals );
@@ -1363,10 +1367,11 @@ and check_empty_match_lam :
                 ~fatal:(fun d ->
                   match d.message with
                   | Invalid_refutation -> (
-                      match view_type (Option.get firstty) "is_empty" with
+                      let firstty = firstty <|> Anomaly "missing firstty in checking []" in
+                      match view_type firstty "is_empty" with
                       | Canonical (_, Data { constrs; _ }, _) ->
                           fatal (Missing_constructor_in_match (fst (Bwd_extra.head constrs)))
-                      | _ -> fatal (Matching_on_nondatatype (PVal (ctx, Option.get firstty))))
+                      | _ -> fatal (Matching_on_nondatatype (PVal (ctx, firstty))))
                   | _ -> fatal_diagnostic d)))
   | _ -> fatal Invalid_refutation
 
@@ -1775,7 +1780,7 @@ and synth :
     | Match { tm; sort = `Explicit motive; branches; refutables = _ }, Potential _ ->
         synth_dep_match status ctx tm branches motive
     | Match { tm; sort = `Implicit; branches; refutables = _ }, Potential _ ->
-        emit (Matching_wont_refine ("match in synthesizing position", PUnit));
+        emit (Matching_wont_refine ("match in synthesizing position", None));
         synth_nondep_match status ctx tm branches None
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
         synth_nondep_match status ctx tm branches (Some i)

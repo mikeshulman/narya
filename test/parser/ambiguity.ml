@@ -4,19 +4,25 @@ open Parser
 open Notation
 open Testutil
 open Showparse
+open Parseonly
 
 (* We raise an error if one notation is a prefix of another, since parsing such combinations would require too much backtracking.  Here we test the generation of that error. *)
 
-let ifthen = make "ifthen" (Prefixr No.zero)
+type (_, _, _) identity +=
+  | Ifthen : (closed, No.zero, No.nonstrict opn) identity
+  | Ifthenelse : (closed, No.zero, No.nonstrict opn) identity
+  | Ifthenelif : (closed, No.zero, No.nonstrict opn) identity
+
+let ifthen : (closed, No.zero, No.nonstrict opn) notation = (Ifthen, Prefixr No.zero)
 
 let () =
-  set_tree ifthen
+  make ifthen "ifthen"
     (Closed_entry (eop (Ident [ "if" ]) (term (Ident [ "then" ]) (Done_closed ifthen))))
 
-let ifthenelse = make "ifthenelse" (Prefixr No.zero)
+let ifthenelse : (closed, No.zero, No.nonstrict opn) notation = (Ifthenelse, Prefixr No.zero)
 
 let () =
-  set_tree ifthenelse
+  make ifthenelse "ifthenelse"
     (Closed_entry
        (eop (Ident [ "if" ])
           (term (Ident [ "then" ]) (term (Ident [ "else" ]) (Done_closed ifthenelse)))))
@@ -61,10 +67,10 @@ let () =
 
 (* However, it does work to have two distinct notations that share a common prefix, as long as both of them extend that prefix nontrivially.  (This is the whole point of merging notation trees.) *)
 
-let ifthenelif = make "ifthenelif" (Prefixr No.zero)
+let ifthenelif : (closed, No.zero, No.nonstrict opn) notation = (Ifthenelif, Prefixr No.zero)
 
 let () =
-  set_tree ifthenelif
+  make ifthenelif "ifthenelif"
     (Closed_entry
        (eop (Ident [ "if" ])
           (term (Ident [ "then" ]) (term (Ident [ "elif" ]) (Done_closed ifthenelif)))))

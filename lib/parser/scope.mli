@@ -99,6 +99,7 @@ val get_options : unit -> Options.t
 val set_visible : trie -> unit
 val start_section : string list -> unit
 val end_section : unit -> string list option
+val count_sections : unit -> int
 
 val run :
   ?export_prefix:string Bwd.t ->

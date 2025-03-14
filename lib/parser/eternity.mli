@@ -13,6 +13,7 @@ type ('a, 'b, 's) homewhen = {
 }
 
 val unsolved : unit -> int
+val notify_holes : unit -> unit
 val filter_now : unit -> unit
 val find : ('a, 'b, 's) Meta.t -> ('a, 'b, 's) Metadef.t * ('a, 'b, 's) homewhen
 

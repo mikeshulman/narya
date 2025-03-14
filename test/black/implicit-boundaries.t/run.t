@@ -133,8 +133,8 @@
    ￫ info[I0001]
    ￮ axiom b2 assumed
   
-  refl h {( a0, b0 )} {( a1, b1 )} ( a2, b2 )
-    : refl C (h ( a0, b0 )) (h ( a1, b1 ))
+  refl h {(a0, b0)} {(a1, b1)} (a2, b2)
+    : refl C (h (a0, b0)) (h (a1, b1))
   
    ￫ info[I0001]
    ￮ axiom b00 assumed
@@ -163,23 +163,23 @@
    ￫ info[I0001]
    ￮ axiom b22 assumed
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (h ( a00, b00 )) (h ( a01, b01 ))
-        (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) (h ( a10, b10 ))
-        (h ( a11, b11 )) (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (h (a00, b00)) (h (a01, b01))
+        (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) (h (a10, b10))
+        (h (a11, b11)) (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0100]
    ￮ option set type boundaries to implicit
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 ))
-        (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02))
+        (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0001]
    ￮ axiom ab10 assumed
@@ -200,10 +200,10 @@
    ￮ axiom ab22 assumed
   
   ab22
-    : A×B⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} ( a02, b02 ) ab12 ab20 ab21
+    : A×B⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} (a02, b02) ab12 ab20 ab21
   
   h⁽ᵉᵉ⁾ ab22
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) (refl h ab12)
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) (refl h ab12)
         (refl h ab20) (refl h ab21)
   
 
@@ -344,8 +344,8 @@
    ￫ info[I0001]
    ￮ axiom b2 assumed
   
-  refl h {( a0, b0 )} {( a1, b1 )} ( a2, b2 )
-    : refl C (h ( a0, b0 )) (h ( a1, b1 ))
+  refl h {(a0, b0)} {(a1, b1)} (a2, b2)
+    : refl C (h (a0, b0)) (h (a1, b1))
   
    ￫ info[I0001]
    ￮ axiom b00 assumed
@@ -374,23 +374,23 @@
    ￫ info[I0001]
    ￮ axiom b22 assumed
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (h ( a00, b00 )) (h ( a01, b01 ))
-        (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) (h ( a10, b10 ))
-        (h ( a11, b11 )) (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (h (a00, b00)) (h (a01, b01))
+        (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) (h (a10, b10))
+        (h (a11, b11)) (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0100]
    ￮ option set type boundaries to implicit
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 ))
-        (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02))
+        (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0001]
    ￮ axiom ab10 assumed
@@ -411,13 +411,13 @@
    ￮ axiom ab22 assumed
   
   ab22
-    : A×B⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} ( a02, b02 ) ab12 ab20 ab21
+    : A×B⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} (a02, b02) ab12 ab20 ab21
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {ab10} {ab11} {ab12}
-    {ab20} {ab21} ab22
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 ))
-        (refl h {ab10} {ab11} ab12) (refl h {( a00, b00 )} {ab10} ab20)
-        (refl h {( a01, b01 )} {ab11} ab21)
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {ab10} {ab11} {ab12} {ab20}
+    {ab21} ab22
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02))
+        (refl h {ab10} {ab11} ab12) (refl h {(a00, b00)} {ab10} ab20)
+        (refl h {(a01, b01)} {ab11} ab21)
   
 
   $ narya -v implicit-boundaries.ny
@@ -555,8 +555,8 @@
    ￫ info[I0001]
    ￮ axiom b2 assumed
   
-  refl h {( a0, b0 )} {( a1, b1 )} ( a2, b2 )
-    : refl C (h ( a0, b0 )) (h ( a1, b1 ))
+  refl h {(a0, b0)} {(a1, b1)} (a2, b2)
+    : refl C (h (a0, b0)) (h (a1, b1))
   
    ￫ info[I0001]
    ￮ axiom b00 assumed
@@ -585,23 +585,23 @@
    ￫ info[I0001]
    ￮ axiom b22 assumed
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (h ( a00, b00 )) (h ( a01, b01 ))
-        (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) (h ( a10, b10 ))
-        (h ( a11, b11 )) (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (h (a00, b00)) (h (a01, b01))
+        (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) (h (a10, b10))
+        (h (a11, b11)) (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0100]
    ￮ option set type boundaries to implicit
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 ))
-        (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02))
+        (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0001]
    ￮ axiom ab10 assumed
@@ -622,10 +622,10 @@
    ￮ axiom ab22 assumed
   
   ab22
-    : A×B⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} ( a02, b02 ) ab12 ab20 ab21
+    : A×B⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} (a02, b02) ab12 ab20 ab21
   
   h⁽ᵉᵉ⁾ ab22
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) (refl h ab12)
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) (refl h ab12)
         (refl h ab20) (refl h ab21)
   
 
@@ -766,8 +766,8 @@
    ￫ info[I0001]
    ￮ axiom b2 assumed
   
-  refl h {( a0, b0 )} {( a1, b1 )} ( a2, b2 )
-    : refl C (h ( a0, b0 )) (h ( a1, b1 ))
+  refl h {(a0, b0)} {(a1, b1)} (a2, b2)
+    : refl C (h (a0, b0)) (h (a1, b1))
   
    ￫ info[I0001]
    ￮ axiom b00 assumed
@@ -796,23 +796,23 @@
    ￫ info[I0001]
    ￮ axiom b22 assumed
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (h ( a00, b00 )) (h ( a01, b01 ))
-        (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) (h ( a10, b10 ))
-        (h ( a11, b11 )) (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (h (a00, b00)) (h (a01, b01))
+        (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) (h (a10, b10))
+        (h (a11, b11)) (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0100]
    ￮ option set type boundaries to implicit
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 ))
-        (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02))
+        (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0001]
    ￮ axiom ab10 assumed
@@ -833,13 +833,13 @@
    ￮ axiom ab22 assumed
   
   ab22
-    : A×B⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} ( a02, b02 ) ab12 ab20 ab21
+    : A×B⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} (a02, b02) ab12 ab20 ab21
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {ab10} {ab11} {ab12}
-    {ab20} {ab21} ab22
-    : C⁽ᵉᵉ⁾ (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 ))
-        (refl h {ab10} {ab11} ab12) (refl h {( a00, b00 )} {ab10} ab20)
-        (refl h {( a01, b01 )} {ab11} ab21)
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {ab10} {ab11} {ab12} {ab20}
+    {ab21} ab22
+    : C⁽ᵉᵉ⁾ (refl h {(a00, b00)} {(a01, b01)} (a02, b02))
+        (refl h {ab10} {ab11} ab12) (refl h {(a00, b00)} {ab10} ab20)
+        (refl h {(a01, b01)} {ab11} ab21)
   
 
   $ narya -v -show-type-boundaries -fake-interact=implicit-boundaries.ny
@@ -977,8 +977,8 @@
    ￫ info[I0001]
    ￮ axiom b2 assumed
   
-  refl h {( a0, b0 )} {( a1, b1 )} ( a2, b2 )
-    : refl C (h ( a0, b0 )) (h ( a1, b1 ))
+  refl h {(a0, b0)} {(a1, b1)} (a2, b2)
+    : refl C (h (a0, b0)) (h (a1, b1))
   
    ￫ info[I0001]
    ￮ axiom b00 assumed
@@ -1007,24 +1007,24 @@
    ￫ info[I0001]
    ￮ axiom b22 assumed
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ (h ( a00, b00 )) (h ( a01, b01 ))
-        (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) (h ( a10, b10 ))
-        (h ( a11, b11 )) (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ (h (a00, b00)) (h (a01, b01))
+        (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) (h (a10, b10))
+        (h (a11, b11)) (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0100]
    ￮ option set type boundaries to implicit
   
-  h⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} {( a02, b02 )} {( a10, b10 )}
-    {( a11, b11 )} {( a12, b12 )} {( a20, b20 )} {( a21, b21 )} ( a22, b22 )
-    : C⁽ᵉᵉ⁾ {h ( a00, b00 )} {h ( a01, b01 )}
-        (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) {h ( a10, b10 )}
-        {h ( a11, b11 )} (refl h {( a10, b10 )} {( a11, b11 )} ( a12, b12 ))
-        (refl h {( a00, b00 )} {( a10, b10 )} ( a20, b20 ))
-        (refl h {( a01, b01 )} {( a11, b11 )} ( a21, b21 ))
+  h⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} {(a02, b02)} {(a10, b10)} {(a11, b11)}
+    {(a12, b12)} {(a20, b20)} {(a21, b21)} (a22, b22)
+    : C⁽ᵉᵉ⁾ {h (a00, b00)} {h (a01, b01)}
+        (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) {h (a10, b10)}
+        {h (a11, b11)} (refl h {(a10, b10)} {(a11, b11)} (a12, b12))
+        (refl h {(a00, b00)} {(a10, b10)} (a20, b20))
+        (refl h {(a01, b01)} {(a11, b11)} (a21, b21))
   
    ￫ info[I0001]
    ￮ axiom ab10 assumed
@@ -1045,11 +1045,10 @@
    ￮ axiom ab22 assumed
   
   ab22
-    : A×B⁽ᵉᵉ⁾ {( a00, b00 )} {( a01, b01 )} ( a02, b02 ) {ab10} {ab11} ab12
-        ab20 ab21
+    : A×B⁽ᵉᵉ⁾ {(a00, b00)} {(a01, b01)} (a02, b02) {ab10} {ab11} ab12 ab20 ab21
   
   h⁽ᵉᵉ⁾ ab22
-    : C⁽ᵉᵉ⁾ {h ( a00, b00 )} {h ( a01, b01 )}
-        (refl h {( a00, b00 )} {( a01, b01 )} ( a02, b02 )) {h ab10} {h ab11}
+    : C⁽ᵉᵉ⁾ {h (a00, b00)} {h (a01, b01)}
+        (refl h {(a00, b00)} {(a01, b01)} (a02, b02)) {h ab10} {h ab11}
         (refl h ab12) (refl h ab20) (refl h ab21)
   

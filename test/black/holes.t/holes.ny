@@ -2,11 +2,21 @@ axiom A : Type
 
 axiom B : Type
 
+echo B
+
 def id : Type → Type ≔ X ↦ X
 
-def f : A → B ≔ ?
+axiom b : B
 
-def f' : A → B ≔ x ↦ ?
+axiom g : (A → B) → A → B
+
+def f : A → B ≔ g ?
+
+axiom a_very_long_variable : A
+
+axiom a_very_long_function : A → A → A → A → A → A → A → B
+
+def f' : A → B ≔ ?
 
 def ℕ : Type ≔ data [
 | zero. : ℕ

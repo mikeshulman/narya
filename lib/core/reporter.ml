@@ -20,19 +20,18 @@ type printable +=
 
 (* The function that actually does the work of printing a "printable" will be defined in Parser.Unparse.  But we need to be able to "call" that function in this file to define "default_text" that converts structured messages to text.  Thus, in this file we define a mutable global variable to contain that function, starting with a dummy function, and call its value to print "printable"s; then in Parser.Unparse we will set the value of that variable after defining the function it should contain. *)
 
-(* Secondly, in Asai messages are emitted by performing an effect or raising an exception that carries with it the data of a function of type "formatter -> unit", which is then called by the handler Reporter.run to format the message text as part of a larger display formatting.  This causes problems if we define our printing functions naively, since it means that any effects performed by the formatting function (such as looking up names in a Yuujinchou Scope) will take place in the context of the handler, not that where the message was invoked, and hence in the wrong scope.  To deal with this, we introduce another wrapper "printed" that stores an existential type, a value of that type, and a function that can format a value of that type. *)
+(* In addition, in Asai messages are emitted by performing an effect or raising an exception that carries with it the data of a function of type "formatter -> unit", which is then called by the handler Reporter.run to format the message text as part of a larger display formatting.  This causes problems if we define our printing functions naively, since it means that any effects performed by the formatting function (such as looking up names in a Yuujinchou Scope) will take place in the context of the handler, not that where the message was invoked, and hence in the wrong scope.  To deal with this, we ensure that the printable values are converted to PPrint documents directly in "default_text", before they are passed to Asai. *)
 
-type printed = Printed : (formatter -> 'a -> unit) * 'a -> printed
-
-(* Obviously the only thing that can be done with a value of type "printed" is to apply the function to the argument and a formatter.  But the virtue of wrapping it up this way is that the argument is evaluated when the "printed" value is computed, not when the function is called, and hence takes place in the correct scope.  The function to be defined in Parser.Unparse will thus have type "printable -> printed", and here is where we store it. *)
-
-let printer : (printable -> printed) ref =
+let printer : (printable -> PPrint.document) ref =
   ref (fun _ -> raise (Failure "print not set (hint: Parser.Unparse must be loaded)"))
 
-(* Finally, here are some convenience functions. *)
-
-let pp_printed ppf (Printed (pp, x)) = pp ppf x
 let print pr = !printer pr
+
+(* Now the function that Asai carries around is basically just PPrint.ToFormatter.pretty.  It's important to know exactly what this does, although it's not described precisely in the PPrint documentation: it converts all newlines to pp_force_newline and all spaces to pp_print_space.  Note that the latter is a break hint, allowing Format to break the line!  This is not what we want; the spaces in PPrint's output are supposed to be spaces, and only the newlines in PPrint's output should be newlines.  I think the only solution, short of modifying PPrint, is to surround it in a Format hbox, which causes all break hints to never split the line.  It does still respect force_newline, of course, so this should do what we want.  *)
+let pp_printed ppf x =
+  pp_open_hbox ppf ();
+  PPrint.ToFormatter.pretty 1.0 (pp_get_margin ppf ()) ppf x;
+  pp_close_box ppf ()
 
 let string_of_dim0 dim =
   let str = string_of_dim dim in
@@ -100,7 +99,7 @@ module Code = struct
     | Duplicate_constructor_in_match : Constr.t -> t
     | Duplicate_constructor_in_data : Constr.t -> t
     | Matching_on_nondatatype : printable -> t
-    | Matching_wont_refine : string * printable -> t
+    | Matching_wont_refine : string * printable option -> t
     | Dimension_mismatch : string * 'a D.t * 'b D.t -> t
     | Invalid_variable_face : 'a D.t * ('n, 'm) sface -> t
     | Unsupported_numeral : Q.t -> t
@@ -430,7 +429,7 @@ module Code = struct
     | No_such_hole _ -> "E3001"
     | Open_holes_remaining _ -> "E3002"
     | Hole _ -> "I3003"
-    | No_open_holes -> "3004"
+    | No_open_holes -> "I3004"
     (* Command progress and success *)
     | Constant_defined _ -> "I0000"
     | Constant_assumed _ -> "I0001"
@@ -546,7 +545,7 @@ module Code = struct
         let pp_got =
           match got with
           | `Nonconstr tm -> print tm
-          | `Constr c -> Printed (pp_print_string, Constr.to_string c) in
+          | `Constr c -> print (PConstr c) in
         fun ppf ->
           fprintf ppf
             "@[<hv 0>instantiation arguments of datatype must be matching constructors:@ expected@;<1 2>%s@ but got@;<1 2>"
@@ -612,8 +611,10 @@ module Code = struct
     | Matching_on_nondatatype ty ->
         textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
           (print ty)
-    | Matching_wont_refine (msg, d) ->
-        textf "match will not refine the goal or context (%s): %a" msg pp_printed (print d)
+    | Matching_wont_refine (msg, Some d) ->
+        textf "@[<hv 0>match will not refine the goal or context (%s):@;<1 2>%a@]" msg pp_printed
+          (print d)
+    | Matching_wont_refine (msg, None) -> textf "match will not refine the goal or context (%s)" msg
     | Dimension_mismatch (op, a, b) ->
         textf "dimension mismatch in %s (%s ≠ %s)" op (string_of_dim0 a) (string_of_dim0 b)
     | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
@@ -689,7 +690,7 @@ module Code = struct
         textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
     | Locked_variable -> text "variable locked behind external degeneracy"
     | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
-    | Hole (n, ty) -> textf "@[<v 0>hole %s:@,@,%a@]" n pp_printed (print ty)
+    | Hole (n, ty) -> textf "@[<v 0>hole %s:@,%a@]" n pp_printed (print ty)
     | No_open_holes -> text "no open holes"
     | Open_holes n ->
         if n = 1 then text "there is 1 open hole" else textf "there are %d open holes" n

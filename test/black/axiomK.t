@@ -12,7 +12,7 @@ Using the Martin-Löf "Jdentity type" as an indexed datatype, we can try to prov
    ￫ hint[E1101]
    ￭ command-line exec string
    1 | def USIP (A:Type) (a:A) (e:Jd A a a) : Jd (Jd A a a) e rfl. := match e [ rfl. |-> rfl. ]
-     ^ match will not refine the goal or context (no consistent permutation of context): 
+     ^ match will not refine the goal or context (no consistent permutation of context)
   
    ￫ error[E1003]
    ￭ command-line exec string
@@ -32,7 +32,7 @@ Using the Martin-Löf "Jdentity type" as an indexed datatype, we can try to prov
    ￫ hint[E1101]
    ￭ command-line exec string
    1 | def K (A:Type) (a:A) (P : Jd A a a -> Type) (p : P rfl.) (e : Jd A a a) : P e := match e [ rfl. |-> p ]
-     ^ match will not refine the goal or context (no consistent permutation of context): 
+     ^ match will not refine the goal or context (no consistent permutation of context)
   
    ￫ error[E0401]
    ￭ command-line exec string
@@ -50,7 +50,8 @@ This "weak K" is mentioned in the "Pattern-matching without K" paper as justifyi
    ￫ hint[E1101]
    ￭ command-line exec string
    1 | def weakK (A:Type) (a:A) (P : Jd (Jd A a a) rfl. rfl. -> Type) (p : P rfl.) (e : Jd (Jd A a a) rfl. rfl.) : P e := match e [ rfl. |-> p ]
-     ^ match will not refine the goal or context (index is not a free variable): rfl.
+     ^ match will not refine the goal or context (index is not a free variable):
+         rfl.
   
    ￫ error[E0401]
    ￭ command-line exec string
@@ -83,7 +84,8 @@ The following indexed datatype appears in Agda bug #1025.
    ￫ hint[E1101]
    ￭ command-line exec string
    1 | def test (e : Jd A a a) (f : Foo e) (i : Jd (Foo e) f f) : Jd (Jd (Foo e) f f) i rfl. ≔ match f [ foo. ↦ match i [ rfl. ↦ rfl. ]]
-     ^ match will not refine the goal or context (index is not a free variable): foo.
+     ^ match will not refine the goal or context (index is not a free variable):
+         foo.
   
    ￫ error[E1003]
    ￭ command-line exec string

@@ -1,5 +1,11 @@
 (* Extra functions acting on lists. *)
 
+(* Find the last element of a nonempty list *)
+let rec last = function
+  | [] -> raise (Invalid_argument "List_extra.last")
+  | [ x ] -> x
+  | _ :: xs -> last xs
+
 (* Split off the last element of a list, if it is nonempty. *)
 let rec split_last = function
   | [] -> None

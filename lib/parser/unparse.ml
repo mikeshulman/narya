@@ -1,4 +1,5 @@
 open Bwd
+open Bwd.Infix
 open Util
 open Tbwd
 open Bwd_extra
@@ -16,7 +17,7 @@ module StringMap = Map.Make (String)
 (* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
 let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
-  let* { key = _; notn; pat_vars; val_vars } =
+  let* { key = _; notn; pat_vars; val_vars; inner_symbols } =
     match head with
     | `Term (Const c) -> Situation.Current.unparse (`Constant c)
     | `Constr c -> Situation.Current.unparse (`Constr (c, Bwd.length args))
@@ -29,85 +30,110 @@ let get_notation head args =
     | _ :: _, [] -> None
     | k :: labels, x :: elts -> take_labeled labels elts (acc |> StringMap.add k x) in
   let* first, rest = take_labeled val_vars (Bwd.to_list args) StringMap.empty in
-  let first = List.fold_left (fun acc k -> Snoc (acc, StringMap.find k first)) Emp pat_vars in
+  let first = List.map (fun k -> StringMap.find k first) pat_vars in
   (* Constructors don't belong to a function-type, so their notation can't be applied to "more arguments" as a function.  Thus, if there are more arguments leftover, it means that the constructor is being used at a different datatype that takes a different number of arguments, and so the notation shouldn't be applied at all (just as if there were too few arguments). *)
   match (head, rest) with
   | `Constr _, _ :: _ -> None
-  | _ -> return (notn, first, Bwd.of_list rest)
+  | _ -> return (notn, first, inner_symbols, Bwd.of_list rest)
 
 (* Put parentheses around a term. *)
-let parenthesize tm = unlocated (outfix ~notn:parens ~ws:[] ~inner:(Snoc (Emp, Term tm)))
+let parenthesize tm =
+  unlocated
+    (outfix ~notn:parens ~inner:(Multiple ((LParen, []), Snoc (Emp, Term tm), (RParen, []))))
 
 (* Put them only if they aren't there already *)
 let parenthesize_maybe (tm : ('lt, 'ls, 'rt, 'rs) parse located) =
   match tm.value with
-  | Notn n when equal (notn n) parens -> tm
+  | Notn ((Parens, _), _) -> tm
   | _ -> parenthesize tm
 
 (* A "delayed" result of unparsing that needs only to know the tightness intervals to produce a result. *)
 type unparser = {
   unparse :
     'lt 'ls 'rt 'rs.
-    ('lt, 'ls) Interval.tt -> ('rt, 'rs) Interval.tt -> ('lt, 'ls, 'rt, 'rs) parse located;
+    ('lt, 'ls) No.iinterval -> ('rt, 'rs) No.iinterval -> ('lt, 'ls, 'rt, 'rs) parse located;
 }
+
+let observations_of_symbols :
+    unparser list ->
+    [ `Single of Token.t | `Multiple of Token.t * Token.t option list * Token.t ] ->
+    observations =
+ fun args inner_symbols ->
+  match inner_symbols with
+  | `Single tok -> Single (tok, [])
+  | `Multiple (first, inner, last) ->
+      Multiple
+        ( (first, []),
+          fst
+            (List.fold_left
+               (fun (acc, args) symbol ->
+                 match (symbol, args) with
+                 | Some tok, _ -> (Snoc (acc, Token (tok, [])), args)
+                 | None, tm :: args ->
+                     (Snoc (acc, Term (tm.unparse No.Interval.entire No.Interval.entire)), args)
+                 | None, [] -> fatal (Anomaly "missing argument in observations_of_symbols"))
+               (Emp, args) inner),
+          (last, []) )
 
 (* Unparse a notation together with all its arguments. *)
 let unparse_notation :
     type left tight right lt ls rt rs.
     (left, tight, right) notation ->
-    unparser Bwd.t ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    unparser list ->
+    [ `Single of Token.t | `Multiple of Token.t * Token.t option list * Token.t ] ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
- fun notn args li ri ->
+ fun notn args inner_symbols li ri ->
   let t = tightness notn in
   (* Based on the fixity of the notation, we have to extract the first and/or last argument to treat differently.  In each case except for outfix, we also have to test whether the notation fits in the given tightness interval, and if not, parenthesize it. *)
+  (* TODO: I think we need to store the Pattern or something like it so that we can put the tokens in the unparsed inner. *)
   match (left notn, right notn) with
   | Open _, Open _ -> (
-      match split_first args with
-      | Some (first, Snoc (inner, last)) -> (
-          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
-          match (Interval.contains li t, Interval.contains ri t) with
+      match List_extra.split_last args with
+      | Some (first :: inner, last) -> (
+          let inner = observations_of_symbols inner inner_symbols in
+          match (No.Interval.contains li t, No.Interval.contains ri t) with
           | Some left_ok, Some right_ok ->
               let first = first.unparse li (interval_left notn) in
               let last = last.unparse (interval_right notn) ri in
-              unlocated (infix ~notn ~ws:[] ~first ~inner ~last ~left_ok ~right_ok)
+              unlocated (infix ~notn ~first ~inner ~last ~left_ok ~right_ok)
           | _ ->
-              let first = first.unparse Interval.entire (interval_left notn) in
-              let last = last.unparse (interval_right notn) Interval.entire in
+              let first = first.unparse No.Interval.entire (interval_left notn) in
+              let last = last.unparse (interval_right notn) No.Interval.entire in
               let left_ok = No.minusomega_le t in
               let right_ok = No.minusomega_le t in
-              parenthesize (unlocated (infix ~notn ~ws:[] ~first ~inner ~last ~left_ok ~right_ok)))
+              parenthesize (unlocated (infix ~notn ~first ~inner ~last ~left_ok ~right_ok)))
       | _ -> fatal (Anomaly "missing arguments unparsing infix"))
   | Closed, Open _ -> (
-      match args with
-      | Snoc (inner, last) -> (
-          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
-          match Interval.contains ri t with
+      match List_extra.split_last args with
+      | Some (inner, last) -> (
+          let inner = observations_of_symbols inner inner_symbols in
+          match No.Interval.contains ri t with
           | Some right_ok ->
               let last = last.unparse (interval_right notn) ri in
-              unlocated (prefix ~notn ~ws:[] ~inner ~last ~right_ok)
+              unlocated (prefix ~notn ~inner ~last ~right_ok)
           | _ ->
-              let last = last.unparse (interval_right notn) Interval.entire in
+              let last = last.unparse (interval_right notn) No.Interval.entire in
               let right_ok = No.minusomega_le t in
-              parenthesize (unlocated (prefix ~notn ~ws:[] ~inner ~last ~right_ok)))
+              parenthesize (unlocated (prefix ~notn ~inner ~last ~right_ok)))
       | _ -> fatal (Anomaly "missing argument unparsing prefix"))
   | Open _, Closed -> (
-      match split_first args with
-      | Some (first, inner) -> (
-          let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) inner in
-          match Interval.contains li t with
+      match args with
+      | first :: inner -> (
+          let inner = observations_of_symbols inner inner_symbols in
+          match No.Interval.contains li t with
           | Some left_ok ->
               let first = first.unparse li (interval_left notn) in
-              unlocated (postfix ~notn ~ws:[] ~first ~inner ~left_ok)
+              unlocated (postfix ~notn ~first ~inner ~left_ok)
           | _ ->
-              let first = first.unparse Interval.entire (interval_left notn) in
+              let first = first.unparse No.Interval.entire (interval_left notn) in
               let left_ok = No.minusomega_le t in
-              parenthesize (unlocated (postfix ~notn ~ws:[] ~first ~inner ~left_ok)))
+              parenthesize (unlocated (postfix ~notn ~first ~inner ~left_ok)))
       | _ -> fatal (Anomaly "missing argument unparsing postfix"))
   | Closed, Closed ->
-      let inner = Bwd.map (fun tm -> Term (tm.unparse Interval.entire Interval.entire)) args in
-      unlocated (outfix ~notn ~ws:[] ~inner)
+      let inner = observations_of_symbols args inner_symbols in
+      unlocated (outfix ~notn ~inner)
 
 (* Unparse a variable name, possibly anonymous. *)
 let unparse_var : type lt ls rt rs. string option -> (lt, ls, rt, rs) parse located = function
@@ -118,7 +144,7 @@ let unparse_var : type lt ls rt rs. string option -> (lt, ls, rt, rs) parse loca
 let rec unparse_abs :
     type li ls ri rs.
     string option Bwd.t ->
-    (li, ls) Interval.tt ->
+    (li, ls) No.iinterval ->
     (li, ls, No.plus_omega) No.lt ->
     (ri, rs, No.plus_omega) No.lt ->
     (li, ls, ri, rs) parse located =
@@ -226,8 +252,8 @@ let rec unparse :
     type n lt ls rt rs s.
     n Names.t ->
     (n, s) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars tm li ri ->
   match tm with
@@ -243,7 +269,10 @@ let rec unparse :
       unparse_spine vars (`Field (tm, Field.to_string fld, ints_of_ins ins)) Emp li ri
   | UU n ->
       unparse_act vars
-        { unparse = (fun _ _ -> unlocated (outfix ~notn:universe ~ws:[] ~inner:Emp)) }
+        {
+          unparse =
+            (fun _ _ -> unlocated (outfix ~notn:universe ~inner:(Single (Ident [ "Type" ], []))));
+        }
         (deg_zero n) li ri
   | Inst (ty, tyargs) ->
       (* We unparse instantiations like application spines, since that is how they are represented in user syntax.
@@ -280,23 +309,31 @@ let rec unparse :
             li ri)
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
-      let tm = unparse vars tm Interval.entire Interval.entire in
+      let tm = unparse vars tm No.Interval.entire No.Interval.entire in
       (* If a let-in doesn't fit in its interval, we have to parenthesize it. *)
       let x, vars = Names.add_cube D.zero vars x in
-      match Interval.contains ri No.minus_omega with
+      match No.Interval.contains ri No.minus_omega with
       | Some right_ok ->
-          let body = unparse vars body Interval.entire ri in
+          let body = unparse vars body No.Interval.entire ri in
           unlocated
-            (prefix ~notn:letin ~ws:[]
-               ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
+            (prefix ~notn:letin
+               ~inner:
+                 (Multiple
+                    ( (Let, []),
+                      Emp <: Term (unparse_var x) <: Token (Coloneq, []) <: Term tm,
+                      (In, []) ))
                ~last:body ~right_ok)
       | None ->
-          let body = unparse vars body Interval.entire Interval.entire in
+          let body = unparse vars body No.Interval.entire No.Interval.entire in
           let right_ok = No.le_refl No.minus_omega in
           parenthesize
             (unlocated
-               (prefix ~notn:letin ~ws:[]
-                  ~inner:(Snoc (Snoc (Emp, Term (unparse_var x)), Term tm))
+               (prefix ~notn:letin
+                  ~inner:
+                    (Multiple
+                       ( (Let, []),
+                         Emp <: Term (unparse_var x) <: Token (Coloneq, []) <: Term tm,
+                         (In, []) ))
                   ~last:body ~right_ok)))
   | Lam (Variables (m, _, _), _) ->
       let cube =
@@ -307,56 +344,47 @@ let rec unparse :
   | Struct (type m et)
       ((Eta, _, fields, _) : (s, et) eta * m D.t * (m * n * s * et) StructfieldAbwd.t * s energy) ->
       unlocated
-        (outfix ~notn:parens ~ws:[]
+        (outfix ~notn:parens
            ~inner:
-             (Bwd.fold_left
-                (fun acc
-                     (Term.StructfieldAbwd.Entry (type i)
-                       ((fld, structfield) : i Field.t * (i, m * n * s * et) Structfield.t)) ->
-                  match structfield with
-                  | Lower (fldtm, lbl) ->
-                      let fldtm = unparse vars fldtm Interval.entire Interval.entire in
-                      Snoc
-                        ( acc,
-                          Term
-                            (match lbl with
-                            | `Labeled ->
-                                unlocated
-                                  (infix ~notn:coloneq ~ws:[]
-                                     ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
-                                     ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
-                                     ~right_ok:(No.le_refl No.minus_omega))
-                            (* An unlabeled 1-tuple is currently unparsed as (_ := M). *)
-                            | `Unlabeled when Bwd.length fields = 1 ->
-                                unlocated
-                                  (infix ~notn:coloneq ~ws:[] ~first:(unlocated (Placeholder []))
-                                     ~inner:Emp ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
-                                     ~right_ok:(No.le_refl No.minus_omega))
-                            | `Unlabeled -> fldtm) ))
-                Emp fields))
+             (Multiple
+                ( (LParen, []),
+                  Bwd_extra.intersperse
+                    (Token (Op ",", []))
+                    (Bwd.fold_left
+                       (fun acc
+                            (Term.StructfieldAbwd.Entry (type i)
+                              ((fld, structfield) : i Field.t * (i, m * n * s * et) Structfield.t)) ->
+                         match structfield with
+                         | Lower (fldtm, lbl) ->
+                             let fldtm = unparse vars fldtm No.Interval.entire No.Interval.entire in
+                             Snoc
+                               ( acc,
+                                 Term
+                                   (match lbl with
+                                   | `Labeled ->
+                                       unlocated
+                                         (infix ~notn:coloneq
+                                            ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
+                                            ~inner:(Single (Coloneq, []))
+                                            ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                            ~right_ok:(No.le_refl No.minus_omega))
+                                   (* An unlabeled 1-tuple is currently unparsed as (_ := M). *)
+                                   | `Unlabeled when Bwd.length fields = 1 ->
+                                       unlocated
+                                         (infix ~notn:coloneq ~first:(unlocated (Placeholder []))
+                                            ~inner:(Single (Coloneq, []))
+                                            ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                            ~right_ok:(No.le_refl No.minus_omega))
+                                   | `Unlabeled -> fldtm) ))
+                       Emp fields),
+                  (RParen, []) )))
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
       match unparse_numeral tm with
       | Some tm -> unlocated tm
-      | None -> (
-          match get_list tm Emp with
-          | Some args ->
-              let inner =
-                Mbwd.mmap
-                  (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
-                  [ args ] in
-              unlocated (outfix ~notn:fwd ~ws:[] ~inner)
-          | None -> (
-              match get_bwd tm [] with
-              | Some args ->
-                  let inner =
-                    Mbwd.mmap
-                      (fun [ tm ] -> Term (unparse vars tm Interval.entire Interval.entire))
-                      [ args ] in
-                  unlocated (outfix ~notn:bwd ~ws:[] ~inner)
-              | None ->
-                  let args = of_list_map (fun x -> make_unparser vars (CubeOf.find_top x)) args in
-                  unparse_spine vars (`Constr c) args li ri)))
+      | None ->
+          let args = of_list_map (fun x -> make_unparser vars (CubeOf.find_top x)) args in
+          unparse_spine vars (`Constr c) args li ri)
   | Realize tm -> unparse vars tm li ri
   | Canonical _ -> fatal (Unimplemented "unparsing canonical types")
   | Struct (Noeta, _, _, _) -> fatal (Unimplemented "unparsing comatches")
@@ -376,8 +404,10 @@ and make_unparser_implicit :
       {
         unparse =
           (fun _ _ ->
-            let tm = unparse vars tm Interval.entire Interval.entire in
-            unlocated (outfix ~notn:Postprocess.braces ~ws:[] ~inner:(Snoc (Emp, Term tm))));
+            let tm = unparse vars tm No.Interval.entire No.Interval.entire in
+            unlocated
+              (outfix ~notn:Postprocess.braces
+                 ~inner:(Multiple ((LBrace, []), Snoc (Emp, Term tm), (RBrace, [])))));
       }
 
 (* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
@@ -390,18 +420,18 @@ and unparse_spine :
     | `Degen of string
     | `Unparser of unparser ] ->
     unparser Bwd.t ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars head args li ri ->
   (* First we check whether the head is a term with an associated notation, and if so whether it is applied to enough arguments to instantiate that notation. *)
   match get_notation head args with
   (* If it's applied to exactly the right number of arguments, we unparse it as that notation. *)
-  | Some (Wrap notn, args, Emp) -> unparse_notation notn args li ri
+  | Some (Wrap notn, args, inner_symbols, Emp) -> unparse_notation notn args inner_symbols li ri
   (* Otherwise, the unparsed notation has to be applied to the rest of the arguments as a spine. *)
-  | Some (Wrap notn, args, (Snoc _ as rest)) ->
+  | Some (Wrap notn, args, inner_symbols, (Snoc _ as rest)) ->
       unparse_spine vars
-        (`Unparser { unparse = (fun li ri -> unparse_notation notn args li ri) })
+        (`Unparser { unparse = (fun li ri -> unparse_notation notn args inner_symbols li ri) })
         rest li ri
   (* If not, we proceed to unparse it as an application spine, recursively. *)
   | None -> (
@@ -415,10 +445,10 @@ and unparse_spine :
           | `Unparser tm -> tm.unparse li ri)
       | Snoc (args, arg) -> (
           (* As before, if the application doesn't fit in its tightness interval, we have to parenthesize it. *)
-          match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
+          match (No.Interval.contains li No.plus_omega, No.Interval.contains ri No.plus_omega) with
           | Some left_ok, Some right_ok ->
-              let fn = unparse_spine vars head args li Interval.plus_omega_only in
-              let arg = arg.unparse Interval.empty ri in
+              let fn = unparse_spine vars head args li No.Interval.plus_omega_only in
+              let arg = arg.unparse No.Interval.empty ri in
               (* We parenthesize the argument if the style dictates and it doesn't already have parentheses. *)
               let arg =
                 match Display.argstyle () with
@@ -427,8 +457,9 @@ and unparse_spine :
               unlocated (App { fn; arg; left_ok; right_ok })
           | _ ->
               let fn =
-                unparse_spine vars head args Interval.plus_omega_only Interval.plus_omega_only in
-              let arg = arg.unparse Interval.empty Interval.plus_omega_only in
+                unparse_spine vars head args No.Interval.plus_omega_only No.Interval.plus_omega_only
+              in
+              let arg = arg.unparse No.Interval.empty No.Interval.plus_omega_only in
               let arg =
                 match Display.argstyle () with
                 | `Spaces -> arg
@@ -443,20 +474,20 @@ and unparse_field :
     (n, kinetic) term ->
     string ->
     int list ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars tm fld ins li ri ->
   match unparse_field_var vars tm fld with
   | Some res -> res
   | None -> (
-      match (Interval.contains li No.plus_omega, Interval.contains ri No.plus_omega) with
+      match (No.Interval.contains li No.plus_omega, No.Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
-          let fn = unparse vars tm li Interval.plus_omega_only in
+          let fn = unparse vars tm li No.Interval.plus_omega_only in
           let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
-          let fn = unparse vars tm Interval.plus_omega_only Interval.plus_omega_only in
+          let fn = unparse vars tm No.Interval.plus_omega_only No.Interval.plus_omega_only in
           let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
@@ -486,8 +517,8 @@ and unparse_lam :
     n Names.t ->
     string option Bwd.t ->
     (n, s) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
   match body with
@@ -518,37 +549,38 @@ and unparse_lam_done :
     n Names.t ->
     string option Bwd.t ->
     (n, s) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun cube vars xs body li ri ->
-  let notn =
+  let notn, mapsto =
     match cube with
-    | `Cube -> cubeabs
-    | `Normal -> abs in
+    | `Cube -> (cubeabs, Token.DblMapsto)
+    | `Normal -> (abs, Mapsto) in
   (* Of course, if we don't fit in the tightness interval, we have to parenthesize. *)
-  match (Interval.contains li No.minus_omega, Interval.contains ri No.minus_omega) with
+  match (No.Interval.contains li No.minus_omega, No.Interval.contains ri No.minus_omega) with
   | Some left_ok, Some right_ok ->
       let li_ok = No.lt_trans Any_strict left_ok No.minusomega_lt_plusomega in
       let first = unparse_abs xs li li_ok No.minusomega_lt_plusomega in
-      let last = unparse vars body Interval.entire ri in
-      unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok)
+      let last = unparse vars body No.Interval.entire ri in
+      unlocated (infix ~notn ~first ~inner:(Single (mapsto, [])) ~last ~left_ok ~right_ok)
   | _ ->
       let first =
-        unparse_abs xs Interval.entire (No.le_plusomega No.minus_omega) No.minusomega_lt_plusomega
-      in
-      let last = unparse vars body Interval.entire Interval.entire in
+        unparse_abs xs No.Interval.entire (No.le_plusomega No.minus_omega)
+          No.minusomega_lt_plusomega in
+      let last = unparse vars body No.Interval.entire No.Interval.entire in
       let left_ok = No.le_refl No.minus_omega in
       let right_ok = No.le_refl No.minus_omega in
-      parenthesize (unlocated (infix ~notn ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok))
+      parenthesize
+        (unlocated (infix ~notn ~first ~inner:(Single (mapsto, [])) ~last ~left_ok ~right_ok))
 
 and unparse_act :
     type n lt ls rt rs a b.
     n Names.t ->
     unparser ->
     (a, b) deg ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars tm s li ri ->
   match is_id_deg s with
@@ -556,7 +588,8 @@ and unparse_act :
   | None -> (
       match name_of_deg s with
       | Some str -> unparse_spine vars (`Degen str) (Snoc (Emp, tm)) li ri
-      | None -> unlocated (Superscript (Some (tm.unparse li Interval.empty), string_of_deg s, [])))
+      | None ->
+          unlocated (Superscript (Some (tm.unparse li No.Interval.empty), string_of_deg s, [])))
 
 (* We group together all the 0-dimensional dependent pi-types in a notation, so we recursively descend through the term picking those up until we find a non-pi-type, a higher-dimensional pi-type, or a non-dependent pi-type, in which case we pass it off to unparse_pis_final. *)
 and unparse_pis :
@@ -564,8 +597,8 @@ and unparse_pis :
     n Names.t ->
     unparser Bwd.t ->
     (n, kinetic) term ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars accum tm li ri ->
   match tm with
@@ -580,8 +613,9 @@ and unparse_pis :
                    unparse =
                      (fun _ _ ->
                        unparse_pi_dom
-                         (Option.get (NICubeOf.find_top x))
-                         (unparse vars (CubeOf.find_top doms) (interval_right asc) Interval.entire));
+                         (NICubeOf.find_top x <|> Anomaly "missing top in unparse_pis")
+                         (unparse vars (CubeOf.find_top doms) (interval_right asc)
+                            No.Interval.entire));
                  } ))
             (CodCube.find_top cods) li ri
       | None, Eq ->
@@ -653,29 +687,30 @@ and unparse_arrow :
     type n lt ls rt rs.
     unparser ->
     unparser ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun dom cod li ri ->
-  match (Interval.contains li No.zero, Interval.contains ri No.zero) with
+  match (No.Interval.contains li No.zero, No.Interval.contains ri No.zero) with
   | Some left_ok, Some right_ok ->
       let first = dom.unparse li (interval_left arrow) in
       let last = cod.unparse (interval_right arrow) ri in
-      unlocated (infix ~notn:arrow ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok)
+      unlocated (infix ~notn:arrow ~first ~inner:(Single (Arrow, [])) ~last ~left_ok ~right_ok)
   | _ ->
-      let first = dom.unparse Interval.entire (interval_left arrow) in
-      let last = cod.unparse (interval_right arrow) Interval.entire in
+      let first = dom.unparse No.Interval.entire (interval_left arrow) in
+      let last = cod.unparse (interval_right arrow) No.Interval.entire in
       let left_ok = No.minusomega_lt_zero in
       let right_ok = No.minusomega_lt_zero in
-      parenthesize (unlocated (infix ~notn:arrow ~ws:[] ~first ~inner:Emp ~last ~left_ok ~right_ok))
+      parenthesize
+        (unlocated (infix ~notn:arrow ~first ~inner:(Single (Arrow, [])) ~last ~left_ok ~right_ok))
 
 and unparse_pis_final :
     type n lt ls rt rs.
     n Names.t ->
     unparser Bwd.t ->
     unparser ->
-    (lt, ls) Interval.tt ->
-    (rt, rs) Interval.tt ->
+    (lt, ls) No.iinterval ->
+    (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
  fun vars accum tm li ri ->
   match split_first accum with
@@ -693,16 +728,20 @@ and unparse_pi_dom :
     (lt, ls, rt, rs) parse located =
  fun x dom ->
   unlocated
-    (outfix ~notn:parens ~ws:[]
+    (outfix ~notn:parens
        ~inner:
-         (Snoc
-            ( Emp,
-              Term
-                (unlocated
-                   (infix ~notn:asc ~ws:[]
-                      ~first:(unlocated (Ident ([ x ], [])))
-                      ~inner:Emp ~last:dom ~left_ok:(No.le_refl No.minus_omega)
-                      ~right_ok:(No.le_refl No.minus_omega))) )))
+         (Multiple
+            ( (LParen, []),
+              Snoc
+                ( Emp,
+                  Term
+                    (unlocated
+                       (infix ~notn:asc
+                          ~first:(unlocated (Ident ([ x ], [])))
+                          ~inner:(Single (Colon, []))
+                          ~last:dom ~left_ok:(No.le_refl No.minus_omega)
+                          ~right_ok:(No.le_refl No.minus_omega))) ),
+              (RParen, []) )))
 
 (* Unparse a term context, given a vector of variable names obtained by pre-uniquifying a variable list, and a list of names for by the empty context that nevertheless remembers the variables in that vector, as produced by Names.uniquify_vars.  Yields not only the list of unparsed terms/types, but a corresponding list of names that can be used to unparse further objects in that context. *)
 let rec unparse_ctx :
@@ -712,8 +751,7 @@ let rec unparse_ctx :
     (string * [ `Original | `Renamed ], a) Bwv.t ->
     (a, b) ordered_termctx ->
     b Names.t
-    * (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
-    =
+    * (string * [ `Original | `Renamed | `Locked ] * wrapped_parse option * wrapped_parse) Bwd.t =
  fun names lock vars ctx ->
   let merge_orig =
     match lock with
@@ -721,7 +759,7 @@ let rec unparse_ctx :
     | `Unlocked -> fun o -> (o :> [ `Original | `Renamed | `Locked ]) in
   let module S = struct
     type t =
-      (string * [ `Original | `Renamed | `Locked ] * observation option * observation option) Bwd.t
+      (string * [ `Original | `Renamed | `Locked ] * wrapped_parse option * wrapped_parse) Bwd.t
   end in
   let module M = CubeOf.Monadic (Monad.State (S)) in
   match ctx with
@@ -735,11 +773,12 @@ let rec unparse_ctx :
           (* We treat an invisible binding as consisting of all nameless variables, and autogenerate names for them all. *)
           let x, names = Names.add_cube_autogen (CubeOf.dim bindings) names in
           let do_binding (b : b binding) (res : S.t) : unit * S.t =
-            let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
+            let ty = Wrap (unparse names b.ty No.Interval.entire No.Interval.entire) in
             let tm =
-              Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
-            in
-            ((), Snoc (res, (x, `Renamed, tm, Some ty))) in
+              Option.map
+                (fun t -> Wrap (unparse names t No.Interval.entire No.Interval.entire))
+                b.tm in
+            ((), Snoc (res, (x, `Renamed, tm, ty))) in
           let _, result =
             M.miterM { it = (fun _ [ b ] res -> do_binding b res) } [ bindings ] result in
           (names, result)
@@ -776,10 +815,11 @@ let rec unparse_ctx :
             match (hasfields, is_id_sface fab) with
             | Has_fields, Some _ -> ((), res)
             | _ ->
-                let ty = Term (unparse names b.ty Interval.entire Interval.entire) in
+                let ty = Wrap (unparse names b.ty No.Interval.entire No.Interval.entire) in
                 let tm =
-                  Option.map (fun t -> Term (unparse names t Interval.entire Interval.entire)) b.tm
-                in
+                  Option.map
+                    (fun t -> Wrap (unparse names t No.Interval.entire No.Interval.entire))
+                    b.tm in
                 let (SFace_of_plus (_, fa, fb)) = sface_of_plus plusdim fab in
                 let fastr = "." ^ string_of_sface fa in
                 let add_fa =
@@ -788,7 +828,7 @@ let rec unparse_ctx :
                   | Neq -> fun y -> y ^ fastr in
                 let x, orig = NICubeOf.find vardata fb in
                 let x = add_fa x in
-                let res = Snoc (res, (x, merge_orig orig, tm, Some ty)) in
+                let res = Snoc (res, (x, merge_orig orig, tm, ty)) in
                 ((), res) in
           let _, result =
             M.miterM { it = (fun fab [ b ] res -> do_binding fab b res) } [ bindings ] result in
@@ -797,68 +837,67 @@ let rec unparse_ctx :
           let _, result =
             M.miterM
               (fun [ (x, orig); (_, _, ty) ] res ->
-                let ty = Term (unparse names ty Interval.entire Interval.entire) in
-                let res = Snoc (res, (x, merge_orig orig, None, Some ty)) in
+                let ty = Wrap (unparse names ty No.Interval.entire No.Interval.entire) in
+                let res = Snoc (res, (x, merge_orig orig, None, ty)) in
                 ((), res))
               [ fs; fields ] result in
           (names, result))
 
 (* See the explanation of this function in Core.Reporter. *)
 let () =
+  let open PPrint in
+  let open Print in
   Reporter.printer :=
     fun pr ->
       Reporter.try_with ~fatal:(fun d ->
           Reporter.emit (Error_printing_error d.message);
-          Printed ((fun ppf () -> Format.pp_print_string ppf "PRINTING_ERROR"), ()))
+          string "PRINTING_ERROR")
       @@ fun () ->
       Readback.Displaying.run ~env:true @@ fun () ->
       match pr with
-      | PUnit -> Printed ((fun _ () -> ()), ())
-      | PInt i -> Printed (Format.pp_print_int, i)
-      | PString str -> Printed (Uuseg_string.pp_utf_8, str)
-      | PField f -> Printed (Uuseg_string.pp_utf_8, Field.to_string f)
-      | PConstr c -> Printed (Uuseg_string.pp_utf_8, Constr.to_string c)
-      | PLevel i -> Printed ((fun ppf i -> Format.fprintf ppf "(%d,%d)" (fst i) (snd i)), i)
+      | PUnit -> empty
+      | PInt i -> string (string_of_int i)
+      | PString str -> utf8string str
+      | PField f -> utf8string (Field.to_string f)
+      | PConstr c -> utf8string (Constr.to_string c)
+      | PLevel i -> string (Printf.sprintf "(%d,%d)" (fst i) (snd i))
       | PTerm (ctx, tm) ->
-          Printed
-            ( Print.pp_term `None,
-              Term (unparse (Names.of_ctx ctx) tm Interval.entire Interval.entire) )
+          pp_complete_term
+            (Wrap (unparse (Names.of_ctx ctx) tm No.Interval.entire No.Interval.entire))
+            `None
       | PVal (ctx, tm) ->
-          Printed
-            ( Print.pp_term `None,
-              Term
-                (unparse (Names.of_ctx ctx) (readback_val ctx tm) Interval.entire Interval.entire)
-            )
+          pp_complete_term
+            (Wrap
+               (unparse (Names.of_ctx ctx) (readback_val ctx tm) No.Interval.entire
+                  No.Interval.entire))
+            `None
       | PNormal (ctx, tm) ->
-          Printed
-            ( Print.pp_term `None,
-              Term (unparse (Names.of_ctx ctx) (readback_nf ctx tm) Interval.entire Interval.entire)
-            )
+          pp_complete_term
+            (Wrap
+               (unparse (Names.of_ctx ctx) (readback_nf ctx tm) No.Interval.entire
+                  No.Interval.entire))
+            `None
       | PUninst (ctx, tm) ->
-          Printed
-            ( Print.pp_term `None,
-              Term
-                (unparse (Names.of_ctx ctx) (readback_uninst ctx tm) Interval.entire Interval.entire)
-            )
-      | PConstant name ->
-          Printed
-            ((fun ppf x -> Uuseg_string.pp_utf_8 ppf (String.concat "." x)), Scope.name_of name)
-      | PMeta v -> Printed (Uuseg_string.pp_utf_8, Meta.name v)
+          pp_complete_term
+            (Wrap
+               (unparse (Names.of_ctx ctx) (readback_uninst ctx tm) No.Interval.entire
+                  No.Interval.entire))
+            `None
+      | PConstant name -> utf8string (String.concat "." (Scope.name_of name))
+      | PMeta v -> utf8string (Meta.name v)
       | PHole (vars, Permute (p, ctx), ty) ->
-          Printed
-            ( (fun ppf (ctx, ty) -> Print.pp_hole ppf ctx ty),
-              let vars, names = Names.uniquify_vars vars in
-              let names, ctx = unparse_ctx names `Unlocked (Bwv.permute vars p) ctx in
-              let ty = unparse names ty Interval.entire Interval.entire in
-              (ctx, Term ty) )
-      | Dump.Val tm -> Printed (Dump.value, tm)
-      | Dump.DeepVal (tm, n) -> Printed (Dump.dvalue n, tm)
-      | Dump.Uninst tm -> Printed (Dump.uninst, tm)
-      | Dump.Head h -> Printed (Dump.head, h)
-      | Dump.Binder b -> Printed (Dump.binder, b)
-      | Dump.Term tm -> Printed (Dump.term, tm)
-      | Dump.Env e -> Printed (Dump.env, e)
-      | Dump.Check e -> Printed (Dump.check, e)
+          let vars, names = Names.uniquify_vars vars in
+          let names, ctx = unparse_ctx names `Unlocked (Bwv.permute vars p) ctx in
+          let ty = unparse names ty No.Interval.entire No.Interval.entire in
+          pp_hole ctx (Wrap ty)
+      | Dump.Val tm -> Dump.value tm
+      | Dump.DeepVal (tm, n) -> Dump.dvalue n tm
+      | Dump.Uninst tm -> Dump.uninst tm
+      | Dump.Head h -> Dump.head h
+      | Dump.Binder b -> Dump.binder b
+      | Dump.Term tm -> Dump.term tm
+      | Dump.Env e -> Dump.env e
+      | Dump.Check e -> Dump.check e
       | _ -> fatal (Anomaly "unknown printable")
 
 (* Hack to ensure the above code is executed. *)

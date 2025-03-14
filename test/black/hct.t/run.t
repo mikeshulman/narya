@@ -240,10 +240,9 @@
    ￮ hole ?2:
      
      ----------------------------------------------------------------------
-     ID⁽ᵉᵉ⁾ A A (refl A) A A (refl A) (refl A) (refl A) A⁽ᵉᵉ⁾
-       (refl u00 .root.1) (refl u01 .root.1) (u02⁽ᵉ¹⁾ .root.1)
-       (refl u10 .root.1) (refl u11 .root.1) (u12⁽ᵉ¹⁾ .root.1)
-       (u20⁽ᵉ¹⁾ .root.1) (u21⁽ᵉ¹⁾ .root.1)
+     ID⁽ᵉᵉ⁾ A A (refl A) A A (refl A) (refl A) (refl A) A⁽ᵉᵉ⁾ (refl u00 .root.1)
+       (refl u01 .root.1) (u02⁽ᵉ¹⁾ .root.1) (refl u10 .root.1) (refl u11 .root.1)
+       (u12⁽ᵉ¹⁾ .root.1) (u20⁽ᵉ¹⁾ .root.1) (u21⁽ᵉ¹⁾ .root.1)
   
    ￫ info[I3003]
    ￮ hole ?3:

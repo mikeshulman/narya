@@ -10,14 +10,14 @@ let const = Constant.make Compunit.basic
 
 let install trie =
   let ctx = Ctx.empty in
-  let (Term pty) =
+  let (Wrap pty) =
     Parse.Term.final
       (Parse.Term.parse (`String { content = "(A : Type) (B : A -> Type) -> Type"; title = None }))
   in
   let rty = process Emp pty in
   let cty = check (Kinetic `Nolet) ctx rty (universe D.zero) in
   let ety = eval_term (Ctx.env ctx) cty in
-  let (Term ptm) =
+  let (Wrap ptm) =
     Parse.Term.final
       (Parse.Term.parse (`String { content = "A B |-> (x : A) -> B x"; title = None })) in
   let rtm = process Emp ptm in

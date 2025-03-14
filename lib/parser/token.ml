@@ -1,6 +1,5 @@
 open Core
 open Reporter
-open Uuseg_string
 
 type t =
   (* A Field is an identifier starting with a period, broken into a list of components by internal periods, and with the first component stored separately.  The later components are only used to indicate the partial bijection identifying an instance of a "higher" field of a higher codatatype.  Thus for a record or ordinary codatatype the list is empty.  *)
@@ -203,4 +202,4 @@ let to_string = function
   | Eof -> "EOF"
 
 (* Given a token, create a constant pretty-printer that prints that token. *)
-let pp tok ppf () = pp_utf_8 ppf (to_string tok)
+let pp tok = PPrint.utf8string (to_string tok)

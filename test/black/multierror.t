@@ -456,7 +456,7 @@ Even trivial dependency blocks going on, as long as there is the potential for d
    ￫ hint[E1101]
    ￭ $TESTCASE_ROOT/multierr.ny
    4 | def foo (x:color) ≔ match x [ red. ↦ (a,a a) | green. ↦ a | blue. ↦ A ]
-     ^ match will not refine the goal or context (match in synthesizing position): 
+     ^ match will not refine the goal or context (match in synthesizing position)
   
    ￫ error[E0401]
    ￭ $TESTCASE_ROOT/multierr.ny

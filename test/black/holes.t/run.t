@@ -5,8 +5,17 @@
    ￫ info[I0001]
    ￮ axiom B assumed
   
+  B
+    : Type
+  
    ￫ info[I0000]
    ￮ constant id defined
+  
+   ￫ info[I0001]
+   ￮ axiom b assumed
+  
+   ￫ info[I0001]
+   ￮ axiom g assumed
   
    ￫ info[I0000]
    ￮ constant f defined, containing 1 hole
@@ -17,15 +26,20 @@
      ----------------------------------------------------------------------
      A → B
   
+   ￫ info[I0001]
+   ￮ axiom a_very_long_variable assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a_very_long_function assumed
+  
    ￫ info[I0000]
    ￮ constant f' defined, containing 1 hole
   
    ￫ info[I3003]
    ￮ hole ?1:
      
-     x : A
      ----------------------------------------------------------------------
-     B
+     A → B
   
    ￫ info[I0000]
    ￮ constant ℕ defined

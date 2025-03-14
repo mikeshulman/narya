@@ -3,19 +3,17 @@
 open Bwd
 open Util
 open Core
+open Reporter
 open Readback
 open Parser
-open Print
 module Execute = Execute
 
 (* Global flags, as set for instance by command-line arguments. *)
 let inputs : [ `String of string | `File of string | `Stdin ] Bwd.t ref = ref Emp
 let anon_arg filename = inputs := Snoc (!inputs, `File filename)
-let reformat = ref false
 let verbose = ref false
-let compact = ref false
+let reformat = ref true
 let unicode = ref true
-let execute = ref true
 let arity = ref 2
 let refl_char = ref 'e'
 let refl_names = ref [ "refl"; "Id" ]
@@ -62,19 +60,6 @@ let set_refls str =
       refl_char := c.[0];
       refl_names := names
 
-(* Given a command and preceeding whitespace, execute the command (if we are executing commands), alert about open holes, and print the reformatted command if requested. *)
-let do_command = function
-  | ws, None -> Execute.reformat_maybe @@ fun ppf -> pp_ws `None ppf ws
-  | ws, Some cmd ->
-      if !execute then Execute.execute_command cmd;
-      let n = Eternity.unsolved () in
-      if n > 0 then Reporter.emit (Open_holes n);
-      Execute.reformat_maybe @@ fun ppf ->
-      pp_ws `None ppf ws;
-      let last = Parser.Command.pp_command ppf cmd in
-      pp_ws `None ppf last;
-      Format.pp_print_newline ppf ()
-
 (* This exception is raised when a fatal error occurs in loading the non-interactive inputs.  The caller should catch it and perform an appropriate kind of "exit".  *)
 exception Exit
 
@@ -88,17 +73,16 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   (* By default, we ignore the hole positions. *)
   Global.HolePos.try_with ~get:(fun () -> { holes = Emp; offset = 0 }) ~set:(fun _ -> ())
   @@ fun () ->
-  Print.State.run ~env:`Case @@ fun () ->
   Display.run
     ~init:
       {
-        style = (if !compact then `Compact else `Noncompact);
         chars = (if !unicode then `Unicode else `ASCII);
         metas = (if !number_metas then `Numbered else `Anonymous);
         argstyle = (if !parenthesize_arguments then `Parens else `Spaces);
         spacing = (if !extra_spaces then `Wide else `Narrow);
         function_boundaries = (if !show_function_boundaries then `Show else `Hide);
         type_boundaries = (if !show_type_boundaries then `Show else `Hide);
+        holes = `Without_number;
       }
   @@ fun () ->
   Annotate.run @@ fun () ->
@@ -131,7 +115,6 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
       {
         marshal = marshal_flags;
         unmarshal = unmarshal_flags;
-        execute = !execute;
         source_only = !source_only;
         init_visible = Parser.Pi.install Scope.Trie.empty;
         top_files;
@@ -210,5 +193,6 @@ module Pauseable (R : Signatures.Type) = struct
       () { effc }
 
   (* After startup, the caller calls "next" with a callback to be executed inside the run_top handlers and return a value. *)
-  let next (f : unit -> R.t) : R.t = continue (Option.get !cont) f
+  let next (f : unit -> R.t) : R.t =
+    continue (!cont <|> Anomaly "missing continuation in Pauseable.next") f
 end

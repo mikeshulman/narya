@@ -50,13 +50,15 @@ let () =
           let* x = Metamap.find_opt m (S.get ()).map in
           return x.def);
       add =
-        (fun m vars termctx ty status ->
+        (fun m vars termctx ty status li ri ->
           S.modify (fun { map } ->
               {
                 map =
                   Metamap.add m
                     {
-                      def = Metadef.make ~tm:`Undefined ~termctx ~ty ~energy:(Status.energy status);
+                      def =
+                        Metadef.make ~tm:`Undefined ~termctx ~ty ~energy:(Status.energy status) ~li
+                          ~ri;
                       homewhen =
                         {
                           global = Global.get ();
@@ -80,6 +82,10 @@ let unsolved () =
           | _ -> count);
     }
     (S.get ()).map 0
+
+let notify_holes () =
+  let n = unsolved () in
+  if n > 0 then Reporter.emit (Open_holes n)
 
 (* Throw away holes that don't exist at the current time, according to Global. *)
 let filter_now () =

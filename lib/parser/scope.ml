@@ -195,6 +195,8 @@ let start_section prefix =
         } in
       { outer = Snoc (s.outer, s.inner); inner = new_scope })
 
+let count_sections () = M.exclusively @@ fun () -> Bwd.length (S.get ()).outer
+
 (* Wrap up a section, integrating its exported names into the previous section's namespace with the prefix attached.  Returns the prefix that was used. *)
 let end_section () =
   M.exclusively @@ fun () ->

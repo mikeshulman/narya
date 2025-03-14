@@ -15,10 +15,15 @@ let interact_js : string -> string =
   (* A buffer to catch stdout, so we can return the output to JavaScript. *)
   let buf = Buffer.create 70 in
   Sys_js.set_channel_flusher stdout (fun str -> Buffer.add_string buf str);
-  Reporter.try_with
-    ~emit:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
-    ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
-    (fun () -> do_command (Command.parse_single cmd));
+  ( Reporter.try_with
+      ~emit:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
+      ~fatal:(fun d -> Reporter.display ~use_ansi:true ~output:stdout d)
+  @@ fun () ->
+    match Command.parse_single cmd with
+    | _, None -> ()
+    | _, Some cmd ->
+        Execute.execute_command cmd;
+        Eternity.notify_holes () );
   Out_channel.flush stdout;
   Buffer.contents buf
 

@@ -79,3 +79,9 @@ let modify_last xs f =
   match xs with
   | Emp -> raise (Failure "Bwd_extra.replace_last")
   | Snoc (xs, x) -> Snoc (xs, f x)
+
+let rec intersperse sep xs =
+  match xs with
+  | Emp -> Emp
+  | Snoc (Emp, x) -> Snoc (Emp, x)
+  | Snoc (Snoc (xs, x1), x2) -> Snoc (Snoc (Snoc (intersperse sep xs, x1), sep), x2)

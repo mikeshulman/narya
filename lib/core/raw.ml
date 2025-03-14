@@ -145,8 +145,15 @@ module Make (I : Indices) = struct
     | Record : ('a, 'c, 'ac) Namevec.t located * ('ac, 'd, 'acd) tel * opacity -> 'a check
     (* Empty match against the first one of the arguments belonging to an empty type. *)
     | Refute : 'a synth located list * [ `Explicit | `Implicit ] -> 'a check
-    (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data.  A hole also stores its source location so that proofgeneral can create an overlay at that place. *)
-    | Hole : 'a I.scope * unit located -> 'a check
+    (* A hole must store the entire "state" from when it was entered, so that the user can later go back and fill it with a term that would have been valid in its original position.  This includes the variables in lexical scope, which are available only during parsing, so we store them here at that point.  During typechecking, when the actual metavariable is created, we save the lexical scope along with its other context and type data.  A hole also stores its source location so that proofgeneral can create an overlay at that place, and the notation tightnesses of the hole location. *)
+    | Hole : {
+        scope : 'a I.scope;
+        loc : Asai.Range.t;
+        li : No.interval;
+        ri : No.interval;
+        num : int ref;
+      }
+        -> 'a check
     (* Force a leaf of the case tree *)
     | Realize : 'a check -> 'a check
     (* Pass the type being checked against as the implicit first argument of a function. *)
@@ -301,7 +308,7 @@ module Resolve (R : Resolver) = struct
           let fields2, _ = tel ctx2 fields ad in
           Record (locate_opt xs.loc xs2, fields2, opaq)
       | Refute (args, sort) -> Refute (List.map (synth ctx) args, sort)
-      | Hole (scope, loc) -> Hole (R.rescope ctx scope, loc)
+      | Hole { scope; loc; li; ri; num } -> Hole { scope = R.rescope ctx scope; loc; li; ri; num }
       | Realize x -> Realize (check ctx (locate_opt tm.loc x)).value
       | ImplicitApp (fn, args) ->
           ImplicitApp (synth ctx fn, List.map (fun (l, x) -> (l, check ctx x)) args)

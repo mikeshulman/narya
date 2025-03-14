@@ -494,7 +494,11 @@ pending hole data stored by `narya-handle-output'."
     "display style ≔ compact"
     "display style ≔ noncompact"
     "display chars ≔ unicode"
-    "display chars ≔ ascii"))
+    "display chars ≔ ascii"
+    "display function boundaries ≔ on"
+    "display function boundaries ≔ off"
+    "display type boundaries ≔ on"
+    "display type boundaries ≔ off"))
 
 (defun narya-minibuffer-cmd (cmd)
   "Wrapper around `proof-minibuffer-cmd' with completion for Narya commands."

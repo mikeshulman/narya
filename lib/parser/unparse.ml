@@ -191,21 +191,51 @@ let rec get_bwd :
       get_bwd (CubeOf.find_top rdc) (CubeOf.find_top rac :: elts)
   | _ -> None
 
+let synths : type n. (n, kinetic) term -> bool = function
+  | Var _ | Const _
+  | Meta (_, _)
+  | MetaEnv (_, _)
+  | Field (_, _)
+  | UU _
+  | Inst (_, _)
+  | Pi (_, _, _)
+  | App (_, _)
+  | Act (_, _)
+  | Let (_, _, _) -> true
+  | Constr (_, _, _) | Lam (_, _) | Struct (_, _, _, _) -> false
+
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
 let rec get_spine :
     type b n.
     (n, kinetic) term ->
-    [ `App of (n, kinetic) term * (n, kinetic) term Bwd.t
-    | `Field of (n, kinetic) term * Field.t * (n, kinetic) term Bwd.t ] =
+    [ `App of (n, kinetic) term * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
+    | `Field of (n, kinetic) term * Field.t * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
+    ] =
  fun tm ->
   match tm with
   | App (fn, arg) -> (
       let module M = CubeOf.Monadic (Monad.State (struct
-        type t = (n, kinetic) term Bwd.t
+        type t = ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
       end)) in
       (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
       let append_bwd args =
-        snd (M.miterM { it = (fun _ [ x ] s -> ((), Snoc (s, x))) } [ arg ] args) in
+        let all_args = not (synths (CubeOf.find_top arg)) in
+        snd
+          (M.miterM
+             {
+               it =
+                 (fun fa [ x ] s ->
+                   match
+                     ( Implicitboundaries.functions (),
+                       Display.function_boundaries (),
+                       is_id_sface fa,
+                       all_args )
+                   with
+                   | `Implicit, `Hide, None, false -> ((), s)
+                   | `Implicit, _, None, _ -> ((), Snoc (s, (x, `Implicit)))
+                   | _ -> ((), Snoc (s, (x, `Explicit))));
+             }
+             [ arg ] args) in
       match get_spine fn with
       | `App (head, args) -> `App (head, append_bwd args)
       | `Field (head, fld, args) -> `Field (head, fld, append_bwd args))
@@ -246,15 +276,34 @@ let rec unparse :
   | Inst (ty, tyargs) ->
       (* We unparse instantiations like application spines, since that is how they are represented in user syntax.
          TODO: How can we allow special notations for some instantiations, like x=y for Id A x y? *)
-      unparse_spine vars (`Term ty)
-        (Bwd.map (make_unparser vars) (TubeOf.append_bwd Emp tyargs))
-        li ri
+      let module M = TubeOf.Monadic (Monad.State (struct
+        type t = unparser Bwd.t
+      end)) in
+      (* To append the entries in a cube to a Bwd, we iterate through it with a Bwd state. *)
+      let (), args =
+        M.miterM
+          {
+            it =
+              (fun fa [ x ] s ->
+                let (Tface_of fa1) = codim1_envelope fa in
+                let all_args = not (synths (TubeOf.find tyargs fa1)) in
+                match
+                  (Implicitboundaries.types (), Display.type_boundaries (), is_codim1 fa, all_args)
+                with
+                | `Implicit, `Hide, None, false -> ((), s)
+                | `Implicit, _, None, _ -> ((), Snoc (s, make_unparser_implicit vars (x, `Implicit)))
+                | _ -> ((), Snoc (s, make_unparser_implicit vars (x, `Explicit))));
+          }
+          [ tyargs ] Emp in
+      unparse_spine vars (`Term ty) args li ri
   | Pi _ -> unparse_pis vars Emp tm li ri
   | App _ -> (
       match get_spine tm with
-      | `App (fn, args) -> unparse_spine vars (`Term fn) (Bwd.map (make_unparser vars) args) li ri
+      | `App (fn, args) ->
+          unparse_spine vars (`Term fn) (Bwd.map (make_unparser_implicit vars) args) li ri
       | `Field (head, fld, args) ->
-          unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser vars) args) li ri)
+          unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser_implicit vars) args) li ri
+      )
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
       let tm = unparse vars tm No.Interval.entire No.Interval.entire in
@@ -334,6 +383,22 @@ let rec unparse :
 (* The master unparsing function can easily be delayed. *)
 and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
+
+(* A version that wraps implicit arguments in braces. *)
+and make_unparser_implicit :
+    type n. n Names.t -> (n, kinetic) term * [ `Implicit | `Explicit ] -> unparser =
+ fun vars (tm, i) ->
+  match i with
+  | `Explicit -> { unparse = (fun li ri -> unparse vars tm li ri) }
+  | `Implicit ->
+      {
+        unparse =
+          (fun _ _ ->
+            let tm = unparse vars tm No.Interval.entire No.Interval.entire in
+            unlocated
+              (outfix ~notn:Postprocess.braces
+                 ~inner:(Multiple ((LBrace, []), Snoc (Emp, Term tm), (RBrace, [])))));
+      }
 
 (* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
 and unparse_spine :
@@ -559,9 +624,24 @@ and unparse_pis :
             type t = unparser Bwd.t
           end) in
           let module MOf = CubeOf.Monadic (S) in
+          let all_args = not (synths (CubeOf.find_top doms)) in
           let (), args =
             MOf.miterM
-              { it = (fun _ [ dom ] args -> ((), Snoc (args, make_unparser vars dom))) }
+              {
+                it =
+                  (fun fa [ dom ] args ->
+                    let newdoms =
+                      match
+                        ( Implicitboundaries.functions (),
+                          Display.function_boundaries (),
+                          is_id_sface fa,
+                          all_args )
+                      with
+                      | `Implicit, `Hide, None, false -> []
+                      | `Implicit, _, None, _ -> [ (dom, `Implicit) ]
+                      | _ -> [ (dom, `Explicit) ] in
+                    ((), Bwd.append args (List.map (make_unparser_implicit vars) newdoms)));
+              }
               [ doms ] Emp in
           let module MCod = CodCube.Monadic (S) in
           let (), args =
@@ -569,10 +649,15 @@ and unparse_pis :
               {
                 it =
                   (fun fa [ cod ] args ->
+                    let impl =
+                      match (Implicitboundaries.functions (), is_id_sface fa) with
+                      | `Implicit, None -> `Implicit
+                      | _ -> `Explicit in
                     ( (),
                       Snoc
-                        (args, make_unparser vars (Lam (singleton_variables (dom_sface fa) x, cod)))
-                    ));
+                        ( args,
+                          make_unparser_implicit vars
+                            (Lam (singleton_variables (dom_sface fa) x, cod), impl) ) ));
               }
               [ cods ] args in
           unparse_pis_final vars accum

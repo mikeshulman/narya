@@ -4,10 +4,16 @@ open Dim
 open Core
 open Raw
 open Reporter
-open Notation
 open Asai.Range
+open Notation
 open Monad.Ops (Monad.Maybe)
 module StringMap = Map.Make (String)
+
+(* We define this here so we can refer to it in parsing implicit applications. *)
+
+type (_, _, _) identity += Braces : (closed, No.plus_omega, closed) identity
+
+let braces : (closed, No.plus_omega, closed) notation = (Braces, Outfix)
 
 (* Require the argument to be either a valid local variable name (to be bound, so faces of cubical variables are not allowed) or an underscore, and return a corresponding 'string option'. *)
 let get_var : type lt ls rt rs. (lt, ls, rt, rs) parse located -> string option =
@@ -168,12 +174,22 @@ and process_apply :
     n synth located ->
     (wrapped_parse * Asai.Range.t option) list ->
     n check located =
- fun ctx fn args ->
-  match args with
+ fun ctx fn fnargs ->
+  match fnargs with
   | [] -> { value = Synth fn.value; loc = fn.loc }
   | (Wrap { value = Field (fld, _); _ }, loc) :: args ->
       process_apply ctx { value = Field (fn, Field.intern_ori fld); loc } args
-  | (Wrap arg, loc) :: args -> process_apply ctx { value = Raw.App (fn, process ctx arg); loc } args
+  | (Wrap { value = Notn ((Braces, _), n); loc = braceloc }, loc) :: rest -> (
+      match args n with
+      | [ Token (LBrace, _); Term arg; Token (RBrace, _) ] ->
+          process_apply ctx
+            { value = Raw.App (fn, process ctx arg, locate_opt braceloc `Implicit); loc }
+            rest
+      | _ -> fatal (Anomaly "invalid notation arguments for braces"))
+  | (Wrap arg, loc) :: args ->
+      process_apply ctx
+        { value = Raw.App (fn, process ctx arg, locate_opt arg.loc `Explicit); loc }
+        args
 
 and process_synth :
     type n lt ls rt rs.

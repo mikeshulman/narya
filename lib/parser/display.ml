@@ -4,15 +4,26 @@ type chars = [ `Unicode | `ASCII ]
 type metas = [ `Anonymous | `Numbered ]
 type argstyle = [ `Spaces | `Parens ]
 type spacing = [ `Wide | `Narrow ]
+type show = [ `Show | `Hide ]
 type holes = [ `With_number | `Without_number ]
-type values = [ `Unicode | `ASCII ]
+type values = [ `Unicode | `ASCII | `Show | `Hide ]
 
 let to_string : values -> string = function
   | `Unicode -> "unicode"
   | `ASCII -> "ASCII"
+  | `Show -> "on"
+  | `Hide -> "off"
 
 module Config = struct
-  type t = { chars : chars; metas : metas; argstyle : argstyle; spacing : spacing; holes : holes }
+  type t = {
+    chars : chars;
+    metas : metas;
+    argstyle : argstyle;
+    spacing : spacing;
+    holes : holes;
+    function_boundaries : show;
+    type_boundaries : show;
+  }
 end
 
 let default : Config.t =
@@ -22,6 +33,8 @@ let default : Config.t =
     argstyle = `Spaces;
     spacing = `Wide;
     holes = `Without_number;
+    function_boundaries = `Hide;
+    type_boundaries = `Hide;
   }
 
 module State = Util.State.Make (Config)
@@ -36,6 +49,8 @@ let chars () = (State.get ()).chars
 let metas () = (State.get ()).metas
 let argstyle () = (State.get ()).argstyle
 let spacing () = (State.get ()).spacing
+let function_boundaries () = (State.get ()).function_boundaries
+let type_boundaries () = (State.get ()).type_boundaries
 let holes () = (State.get ()).holes
 
 let alt_char uni asc =

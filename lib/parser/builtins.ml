@@ -24,6 +24,35 @@ type (_, _, _) identity += Parens : (closed, No.plus_omega, closed) identity
 let parens : (closed, No.plus_omega, closed) notation = (Parens, Outfix)
 
 (* ********************
+   Braces
+ ******************** *)
+
+(* Braces were defined in Postprocess; here we say how to parse and print them, and how *not* to process them on their own. *)
+
+let () =
+  make Postprocess.braces
+    {
+      name = "braces";
+      tree = Closed_entry (eop LBrace (term RBrace (Done_closed Postprocess.braces)));
+      processor = (fun _ _ _ -> fatal Parse_error);
+      print_term =
+        Some
+          (fun obs ->
+            match obs with
+            | [ Token (LBrace, wslbrace); Term body; Token (RBrace, wsrbrace) ] ->
+                let ptm, wtm = pp_term body in
+                ( Token.pp LBrace
+                  ^^ pp_ws `None wslbrace
+                  ^^ ptm
+                  ^^ pp_ws `None wtm
+                  ^^ Token.pp RBrace,
+                  wsrbrace )
+            | _ -> invalid "braces");
+      print_case = None;
+      is_case = (fun _ -> false);
+    }
+
+(* ********************
    The universe
  ******************** *)
 
@@ -2092,6 +2121,7 @@ let builtins =
   ref
     (Situation.empty
     |> Situation.add parens
+    |> Situation.add Postprocess.braces
     |> Situation.add letin
     |> Situation.add letrec
     |> Situation.add asc

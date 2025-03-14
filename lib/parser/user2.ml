@@ -58,7 +58,11 @@ let make_user : User.prenotation -> User.notation =
             | `Constant c ->
                 let spine =
                   List.fold_left
-                    (fun acc k -> Raw.App ({ value = acc; loc }, StringMap.find k args))
+                    (fun acc k ->
+                      Raw.App
+                        ( { value = acc; loc },
+                          StringMap.find k args,
+                          Asai.Range.locate_opt None `Explicit ))
                     (Const c) val_vars in
                 Raw.Synth spine
             | `Constr (c, _) ->

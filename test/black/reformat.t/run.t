@@ -656,6 +656,7 @@ The supplied files are symlinked into the directory where the test is run, and u
            renaming squab squish,
            renaming squish squab)
   
+  {` long parameter lists `}
   def eq (A : Type) (a : A) : A → Type ≔ data [ rfl. : eq A a a ]
   
   def cat (A : Type) (x y z : A) (u : eq A x y) (v : eq A y z) : eq A x z
@@ -667,4 +668,8 @@ The supplied files are symlinked into the directory where the test is run, and u
     : eq A x w
     ≔ match q, r [
   | rfl., rfl. ↦ p]
+  
+  {` empty match `}
+  
+  def abort (A : Type) (e : ⊥) : A ≔ match e []
   

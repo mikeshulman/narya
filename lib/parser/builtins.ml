@@ -1344,8 +1344,7 @@ let rec pp_patterns accum obs =
 
 let rec pp_branches first accum prews obs : document * Whitespace.t list =
   match obs with
-  (* "| ]" can't happen normally, but it appears in an empty match since we do a must_start_with (Op "|") in calling this function. *)
-  | [ Token (RBracket, wsrbrack) ] | [ Token (Op "|", _); Token (RBracket, wsrbrack) ] ->
+  | [ Token (RBracket, wsrbrack) ] ->
       ( accum
         ^^ ifflat (optional (pp_ws `Nobreak) prews) (optional (pp_ws `None) prews)
         ^^ Token.pp RBracket,
@@ -1400,7 +1399,7 @@ let rec pp_discriminees accum prews obs : document * Whitespace.t list * observa
 
 (* Print an implicit match, explicit match, matching lambda, or comatch, with possible multiple discriminees and possible 'return'.  We can combine comatches with matches because a "field" is just a term that can be printed like a pattern. *)
 let pp_match = function
-  | Token (Match, wsmatch) :: obs ->
+  | Token (Match, wsmatch) :: obs -> (
       let pdisc, wdisc, obs = pp_discriminees (Token.pp Match) wsmatch obs in
       let pret, wret, obs =
         match obs with
@@ -1418,11 +1417,19 @@ let pp_match = function
         | Token (LBracket, wslbrack) :: obs ->
             (pp_ws `Nobreak wdisc ^^ Token.pp LBracket, wslbrack, obs)
         | _ -> invalid "(co)match 5" in
-      let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
-      ( align (group (hang 2 pdisc) ^^ pret),
-        Nontrivial (fun doc -> pp_ws `Break wret ^^ doc),
-        pbranches,
-        wbranches )
+      match obs with
+      | [ Token (RBracket, wsrbrack) ] ->
+          (* The empty match fits all on one line *)
+          ( align (group (hang 2 pdisc) ^^ pret ^^ pp_ws `None wret ^^ Token.pp RBracket),
+            Nontrivial (fun x -> x),
+            empty,
+            wsrbrack )
+      | _ ->
+          let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
+          ( align (group (hang 2 pdisc) ^^ pret),
+            Nontrivial (fun doc -> pp_ws `Break wret ^^ doc),
+            pbranches,
+            wbranches ))
   | Token (LBracket, wslbrack) :: obs ->
       let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
       (* TODO: It might be nice to treat this as trivial and omit the opening bar.  But I don't see an easy way to do that with the current design, since the presence of the opening bar is baked into pp_branches and it's placed deep inside ifflat, group, and nest. *)

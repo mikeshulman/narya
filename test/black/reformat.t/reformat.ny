@@ -617,6 +617,7 @@ import "importable"
          renaming squab squish,
          renaming squish squab)
 
+{` long parameter lists `}
 def eq (A : Type) (a : A) : A → Type ≔ data [ rfl. : eq A a a ]
 
 def cat (A : Type) (x y z : A) (u : eq A x y) (v : eq A y z) : eq A x z
@@ -628,4 +629,8 @@ def cat3 (A : Type) (x y z w : A) (p : eq A x y) (q : eq A y z)
   : eq A x w
   ≔ match q, r [
 | rfl., rfl. ↦ p]
+
+{` empty match `}
+
+def abort (A : Type) (e : ⊥) : A ≔ match e []
 

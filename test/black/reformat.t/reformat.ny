@@ -344,12 +344,13 @@ def longfun5 : Type
 def wrap (A : Type) : Type ≔ codata [ x .unwrap : A ]
 
 axiom object
-  : A → A → A
+  : A → A → A → A → A → A → A
     → wrap
         (A → A → A → A → A → wrap (A → A → A → A → A → A → wrap (A → A → B)))
 
 def objectb : B
-  ≔ object a_long_thing a_long_thing a_long_thing
+  ≔ object a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing
       .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing
       .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
@@ -545,7 +546,7 @@ def ssz2 : stream (stream ℕ) ≔ [
   | .head ↦ 0
   | .tail ↦
       fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
-        a_long_thing a_long_thing ssz2
+          a_long_thing a_long_thing ssz2
         .head]
 | .tail ↦ ssz]
 

@@ -383,12 +383,13 @@ The supplied files are symlinked into the directory where the test is run, and u
   def wrap (A : Type) : Type ≔ codata [ x .unwrap : A ]
   
   axiom object
-    : A → A → A
+    : A → A → A → A → A → A → A
       → wrap
           (A → A → A → A → A → wrap (A → A → A → A → A → A → wrap (A → A → B)))
   
   def objectb : B
-    ≔ object a_long_thing a_long_thing a_long_thing
+    ≔ object a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+          a_long_thing a_long_thing
         .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
           a_long_thing
         .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
@@ -584,7 +585,7 @@ The supplied files are symlinked into the directory where the test is run, and u
     | .head ↦ 0
     | .tail ↦
         fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
-          a_long_thing a_long_thing ssz2
+            a_long_thing a_long_thing ssz2
           .head]
   | .tail ↦ ssz]
   

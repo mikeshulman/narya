@@ -75,12 +75,14 @@ let pp_ws (space : space) (ws : Whitespace.t list) : document =
 
 (* We print an application spine, possibly containing field/method calls, with possible linebreaks as
      f a b c
-       .meth1 d e f
-         g h
-       .meth2 i j
-         k l m
+         d e
+       .meth1 f g h
+         i j k
+       .meth2 l m n
+         o p q
+   Except that if there are *no* method calls, the first spine of applications is only indented by 2.
    Accordingly, this function returns a list of lists, broken at field applications.  For the above example it would return
-   [ [f; a; b; c]; [.meth1; d; e; f; g; h]; [.meth2; i; j; k; l; m] ]. *)
+   [ [f; a; b; c; d; e]; [.meth1; f; g; h; i; j; k]; [.meth2; l; m; n; o; p; q] ]. *)
 let get_spine :
     type lt ls rt rs. (lt, ls, rt, rs) parse Asai.Range.located -> wrapped_parse list list =
  fun tm ->
@@ -118,9 +120,10 @@ let rec pp_term :
         | `Wide -> `Break
         | `Narrow -> `None in
       (* We allow the entire spine to appear on one line, but if it doesn't fit, we insist on breaking it before *every* method call, by concatenating all the method calls rather than 'flow'ing them, in a single group.  We separate them by the last whitespace in each line, returning the whitespace that ends the final one. *)
-      let doc, ws =
+      let spine = get_spine tm in
+      let doc, ws, _ =
         List.fold_left
-          (fun (outer, prews) xs ->
+          (fun (outer, prews, first) xs ->
             let line, postws =
               (* In each sublist of get_spine (that is, each method call), we combine the arguments as in PPrint.flow, except with the "separators" being the variable whitespace (or 'sep' space). *)
               List.fold_left
@@ -128,8 +131,11 @@ let rec pp_term :
                   let px, wx = pp_term x in
                   (inner ^^ group (optional (pp_ws sep) prews ^^ px), Some wx))
                 (empty, None) xs in
-            (outer ^^ optional (pp_ws `Break) prews ^^ hang 2 (group line), postws))
-          (empty, None) (get_spine tm) in
+            ( outer ^^ optional (pp_ws `Break) prews ^^ hang (if first then 4 else 2) (group line),
+              postws,
+              false ))
+          (empty, None, List.length spine > 1)
+          spine in
       (group doc, ws <|> Anomaly "missing ws in pp_term")
   | Placeholder w -> (Token.pp Underscore, w)
   | Ident (x, w) -> (separate_map (char '.') utf8string x, w)

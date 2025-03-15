@@ -340,12 +340,8 @@ The supplied files are symlinked into the directory where the test is run, and u
   def ⊥ : Type ≔ data []
   
   def ℕeq : ℕ → ℕ → Type ≔ m n ↦ match m [
-  | zero. ↦ match n [
-    | zero. ↦ ⊤
-    | suc. _ ↦ ⊥]
-  | suc. m ↦ match n [
-    | zero. ↦ ⊥
-    | suc. n ↦ ℕeq m n]]
+  | zero. ↦ match n [ zero. ↦ ⊤ | suc. _ ↦ ⊥ ]
+  | suc. m ↦ match n [ zero. ↦ ⊥ | suc. n ↦ ℕeq m n ]]
   
   def longfun : Type
     ≔ (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A)
@@ -559,9 +555,7 @@ The supplied files are symlinked into the directory where the test is run, and u
   | .tail ↦ zeros]
   
   def dup : ℕ → stream ℕ ≔ n ↦ [
-  | .head ↦ match n [
-    | zero. ↦ 0
-    | suc. _ ↦ 0]
+  | .head ↦ match n [ zero. ↦ 0 | suc. _ ↦ 0 ]
   | .tail ↦ dup n]
   
   def fs : stream ℕ ≔ [
@@ -571,9 +565,7 @@ The supplied files are symlinked into the directory where the test is run, and u
   | .tail ↦ zeros]
   
   def ssz : stream (stream ℕ) ≔ [
-  | .head ↦ [
-    | .head ↦ 0
-    | .tail ↦ ssz .head]
+  | .head ↦ [ .head ↦ 0 | .tail ↦ ssz .head ]
   | .tail ↦ ssz]
   
   axiom fsn
@@ -591,9 +583,7 @@ The supplied files are symlinked into the directory where the test is run, and u
   
   def mss : ℕ → stream (stream (prod ℕ ℕ)) ≔ n ↦ [
   | .head ↦ [
-    | .head ↦ match n [
-      | zero. ↦ (0, 0)
-      | suc. n ↦ (0, n)]
+    | .head ↦ match n [ zero. ↦ (0, 0) | suc. n ↦ (0, n) ]
     | .tail ↦ mss 0 .head]
   | .tail ↦ mss 0]
   
@@ -677,14 +667,12 @@ The supplied files are symlinked into the directory where the test is run, and u
   def eq (A : Type) (a : A) : A → Type ≔ data [ rfl. : eq A a a ]
   
   def cat (A : Type) (x y z : A) (u : eq A x y) (v : eq A y z) : eq A x z
-    ≔ match v [
-  | rfl. ↦ u]
+    ≔ match v [ rfl. ↦ u ]
   
   def cat3 (A : Type) (x y z w : A) (p : eq A x y) (q : eq A y z)
     (r : eq A z w)
     : eq A x w
-    ≔ match q, r [
-  | rfl., rfl. ↦ p]
+    ≔ match q, r [ rfl., rfl. ↦ p ]
   
   {` empty match `}
   

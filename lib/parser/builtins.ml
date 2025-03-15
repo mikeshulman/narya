@@ -1417,11 +1417,11 @@ let pp_match _triv = function
             wsrbrack )
       | _ ->
           let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
-          (align (group (hang 2 pdisc) ^^ pret), pp_ws `Break wret ^^ pbranches, wbranches))
+          (align (group (hang 2 pdisc) ^^ pret), group (pp_ws `Break wret ^^ pbranches), wbranches))
   | Token (LBracket, wslbrack) :: obs ->
       let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
       (* TODO: It might be nice to treat this as trivial and omit the opening bar.  But I don't see an easy way to do that with the current design, since the presence of the opening bar is baked into pp_branches and it's placed deep inside ifflat, group, and nest. *)
-      (Token.pp LBracket, pp_ws `Break wslbrack ^^ pbranches, wbranches)
+      (Token.pp LBracket, group (pp_ws `Break wslbrack ^^ pbranches), wbranches)
   | _ -> invalid "(co)match 6"
 
 let () =

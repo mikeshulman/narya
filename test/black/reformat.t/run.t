@@ -291,6 +291,12 @@ The supplied files are symlinked into the directory where the test is run, and u
       f a a a a a a a a a a a a a a a a a a a a a,
       f a a a a a a a a a a a a a a a a a a a a a))
   
+  ` This is the purpose of the 'trivial' intros data
+  def triple5 : prod ℕ (prod ℕ ℕ) ≔ (
+    f a a a a a a a a a a a a a a a a a a a a a,
+    (f a a a a a a a a a a a a a a a a a a a a a,
+     f a a a a a a a a a a a a a a a a a a a a a))
+  
   def abstriple : ℕ → prod ℕ (prod ℕ ℕ) ≔ x ↦ (
     fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
     snd ≔ (

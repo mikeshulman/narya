@@ -114,8 +114,7 @@ def triple : prod ℕ (prod ℕ ℕ) ≔ (0, (0, 0))
 
 def triple2 : prod ℕ (prod ℕ ℕ) ≔ (
   0, `comment
-  (0,
-   0))
+  (0, 0))
 
 def triple3 : prod ℕ (prod ℕ ℕ) ≔ (
   0, `comment
@@ -253,6 +252,12 @@ def triple4 : prod ℕ (prod ℕ ℕ) ≔ (
     f a a a a a a a a a a a a a a a a a a a a a,
     f a a a a a a a a a a a a a a a a a a a a a))
 
+` This is the purpose of the 'trivial' intros data
+def triple5 : prod ℕ (prod ℕ ℕ) ≔ (
+  f a a a a a a a a a a a a a a a a a a a a a,
+  (f a a a a a a a a a a a a a a a a a a a a a,
+   f a a a a a a a a a a a a a a a a a a a a a))
+
 def abstriple : ℕ → prod ℕ (prod ℕ ℕ) ≔ x ↦ (
   fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
   snd ≔ (
@@ -367,8 +372,7 @@ def tlet1 : ℕ ≔
 
 def tlet2 : prod ℕ ℕ ≔
   let a_long_variable : ℕ ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
-  (a_long_variable,
-   a_long_variable)
+  (a_long_variable, a_long_variable)
 
 def dlet : ℕ ≔ let a_long_variable : ℕ ≔ 0 in let y : ℕ ≔ 0 in y
 
@@ -408,21 +412,11 @@ def mtup2 : ℕ → prod ℕ ℕ ≔ [
 | zero. ↦ (
     0, `line comment
     0)
-| suc. n ↦ (
-    fst ≔ n,
-    snd ≔ n)]
+| suc. n ↦ (fst ≔ n, snd ≔ n)]
 
 def mtm : ℕ → ℕ → prod ℕ ℕ ≔ m ↦ [
-| zero. ↦ (
-    match m [
-    | zero. ↦ 0
-    | suc. m ↦ 0],
-    0)
-| suc. n ↦ (
-    fst ≔ n,
-    snd ≔ match m [
-    | zero. ↦ 0
-    | suc. m ↦ 0])]
+| zero. ↦ (match m [ zero. ↦ 0 | suc. m ↦ 0 ], 0)
+| suc. n ↦ (fst ≔ n, snd ≔ match m [ zero. ↦ 0 | suc. m ↦ 0 ])]
 
 axiom blahblah : A → A → A → A
 
@@ -542,12 +536,8 @@ def ssz2 : stream (stream ℕ) ≔ [
 def mss : ℕ → stream (stream (prod ℕ ℕ)) ≔ n ↦ [
 | .head ↦ [
   | .head ↦ match n [
-    | zero. ↦ (
-        0,
-        0)
-    | suc. n ↦ (
-        0,
-        n)]
+    | zero. ↦ (0, 0)
+    | suc. n ↦ (0, n)]
   | .tail ↦ mss 0 .head]
 | .tail ↦ mss 0]
 
@@ -634,5 +624,8 @@ def cat (A : Type) (x y z : A) (u : eq A x y) (v : eq A y z) : eq A x z
 | rfl. ↦ u]
 
 def cat3 (A : Type) (x y z w : A) (p : eq A x y) (q : eq A y z)
-  (r : eq A z w) : eq A x w ≔ match q, r [
+  (r : eq A z w)
+  : eq A x w
+  ≔ match q, r [
 | rfl., rfl. ↦ p]
+

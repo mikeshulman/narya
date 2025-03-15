@@ -109,8 +109,8 @@ let rec pp_term :
       | Some printer -> printer (args d)
       | None ->
           (* If a notation can only be printed as a case tree, we have to start a new "potential as kinetic" case tree that is aligned to the current column and grouped.  We do that here because while in case state, case trees do not align; indentations increase only a bit at a time from the left margin per nesting, and in general the whole case tree has breaks or not at all (with possible exceptions).  Moreover, the intendation increase is set outside each case-tree notation, i.e. each notation sets the increased indentation for its children. *)
-          let intro, triv, doc, ws = (print_case n <|> Anomaly "missing print_case") (args d) in
-          (align (intro ^^ triv_act triv doc), ws))
+          let intro, doc, ws = (print_case n <|> Anomaly "missing print_case") `Trivial (args d) in
+          (align (intro ^^ doc), ws))
   | App _ ->
       (* Narrow spacing removes the default spaces before function arguments, but not before field projections. *)
       let sep =
@@ -155,22 +155,23 @@ and pp_superscript str =
 (* Print a parse tree as a case tree.  Return the "intro" separately so that it can be grouped with any introductory code from a "def" or "let" so that the primary linebreaks are the case tree ones.  Deals with whitespace like pp_term; the whitespace that ends the intro goes into the main doc (including an allowed break).  The intro doesn't need to start with a break. *)
 let pp_case :
     type lt ls rt rs.
+    [ `Trivial | `Nontrivial ] ->
     (lt, ls, rt, rs) parse Asai.Range.located ->
-    PPrint.document * triviality * document * Whitespace.t list =
- fun tm ->
+    PPrint.document * document * Whitespace.t list =
+ fun triv tm ->
   match tm.value with
   | Notn (n, d) -> (
       (* If a notation can be printed as a case tree, do that. *)
       match print_case n with
-      | Some printer -> printer (args d)
+      | Some printer -> printer triv (args d)
       | None ->
           (* If a notation can only be printed as a term, do that instead, and there is no intro.  An additional "group" shouldn't be necessary here, the term printer should put groups around its result. *)
           let doc, ws = (print_term n <|> Anomaly ("missing print_term for " ^ name n)) (args d) in
           (* TODO *)
-          (empty, Nontrivial (fun x -> x), hang 2 doc, ws))
+          (empty, hang 2 doc, ws))
   | _ ->
       let doc, ws = pp_term tm in
-      (empty, Nontrivial (fun x -> x), hang 2 doc, ws)
+      (empty, hang 2 doc, ws)
 
 let pp_complete_term : wrapped_parse -> space -> document =
  fun (Wrap tm) space ->

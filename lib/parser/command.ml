@@ -995,14 +995,14 @@ let rec pp_defs :
       let coloneq = Token.pp Coloneq ^^ pp_ws `Nobreak wscoloneq in
       if is_case tm then
         (* If the term is a case tree, we display it in case mode.  In this case, the principal breaking points are those in the term's case tree, and we group its "intro" with the def and type. *)
-        let itm, ttm, ptm, wtm = pp_case tm in
+        let itm, ptm, wtm = pp_case `Nontrivial tm in
         pp_defs And (Some wtm) defs
           (accum_prews
           ^^ group
                (group
                   (params_and_ty
                   ^^ nest 2 (pp_ws `Break wty ^^ group (coloneq ^^ group (hang 2 itm))))
-               ^^ triv_act (nontrivial ttm) ptm))
+               ^^ ptm))
       else
         (* If the term is not a case tree, then we display it in term mode, and the principal breaking points are before the colon (if any), before the coloneq, and before the "in" (though that will be rare, since "in" is so short). *)
         let ptm, wtm = pp_term tm in

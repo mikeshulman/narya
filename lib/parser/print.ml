@@ -80,7 +80,7 @@ let pp_ws (space : space) (ws : Whitespace.t list) : document =
          i j k
        .meth2 l m n
          o p q
-   Except that if there are *no* method calls, the first spine of applications is only indented by 2.
+   Except that, if there are no method calls, the first spine of applications is only indented by 2 (this is implemented by pp_term below), and others listed below as we implement them.
    Accordingly, this function returns a list of lists, broken at field applications.  For the above example it would return
    [ [f; a; b; c; d; e]; [.meth1; f; g; h; i; j; k]; [.meth2; l; m; n; o; p; q] ]. *)
 let get_spine :
@@ -98,7 +98,13 @@ let get_spine :
         go fn [] ((Wrap arg :: nonfields) :: spines)
     | App { fn; arg; _ } -> go fn (Wrap arg :: nonfields) spines
     | _ -> (Wrap tm :: nonfields) :: spines in
-  go tm [] []
+  match go tm [] [] with
+  (* If there is only one method call and it is either not preceded by any arguments or does not have any arguments of its own, it goes on the same line flowed with the arguments. *)
+  | [ [ fn ]; meth1 ] -> [ fn :: meth1 ]
+  | [ fnargs; [ meth1 ] ] -> [ fnargs @ [ meth1 ] ]
+  (* If there are only method calls, they all go on the same line flowed together. *)
+  | meths when List.for_all (fun l -> List.length l = 1) meths -> [ List.concat meths ]
+  | other -> other
 
 (* Print a parse tree as a term.  Return the whitespace at the end instead of printing it, so the caller can exclude it from any surrounding groups and decide whether to add an additional break. *)
 let rec pp_term :

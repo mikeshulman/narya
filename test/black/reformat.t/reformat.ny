@@ -353,6 +353,43 @@ def objectb : B
         a_long_thing a_long_thing
       .unwrap a_long_thing a_long_thing
 
+axiom bareobj : wrap (A → A → A → A → A → B)
+
+def bareb : B
+  ≔ bareobj .unwrap a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing
+
+axiom toobj : A → A → A → A → A → A → A → A → wrap B
+
+def tob : B
+  ≔ toobj a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+      a_long_thing a_long_thing a_long_thing .unwrap
+
+axiom wraps
+  : wrap
+      (wrap
+         (wrap
+            (wrap
+               (wrap
+                  (wrap
+                     (wrap
+                        (wrap
+                           (wrap
+                              (wrap
+                                 (wrap
+                                    (wrap
+                                       (wrap
+                                          (wrap
+                                             (wrap
+                                                (wrap
+                                                   (wrap
+                                                      (wrap (wrap (wrap B)))))))))))))))))))
+
+def wrapb : B
+  ≔ wraps .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap
+      .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap .unwrap
+      .unwrap .unwrap .unwrap
+
 def bigabs
   : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
     A
@@ -536,8 +573,7 @@ def ssz2 : stream (stream ℕ) ≔ [
   | .head ↦ 0
   | .tail ↦
       fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
-          a_long_thing a_long_thing ssz2
-        .head]
+        a_long_thing a_long_thing ssz2 .head]
 | .tail ↦ ssz]
 
 def mss : ℕ → stream (stream (prod ℕ ℕ)) ≔ n ↦ [

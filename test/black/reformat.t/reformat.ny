@@ -495,16 +495,14 @@ def ml : ℕ → ℕ ≔ let x : ℕ ≔ 0 in [ zero. ↦ 0 | suc. _ ↦ 0 ]
 
 def ml2 : ℕ → ℕ ≔
   let x : ℕ ≔ 0 in
-  [
-  | zero. ` line comment
+  [ zero. ` line comment
     ↦
     0
   | suc. _ ↦ 0]
 
 def ml3 : ℕ → ℕ ≔
   let x : ℕ ≔ 0 in
-  [
-  | zero. ↦ 0 ` line comment
+  [ zero. ↦ 0 ` line comment
   | suc. _ ↦ 0]
 
 def stream (A : Type) : Type ≔ codata [ x .head : A | x .tail : stream A ]

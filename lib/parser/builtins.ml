@@ -1334,7 +1334,7 @@ let rec pp_patterns accum obs =
       (accum ^^ ppat, wpat, obs)
   | _ -> invalid "(co)match 1"
 
-let rec pp_branches first accum prews obs : document * Whitespace.t list =
+let rec pp_branches first triv accum prews obs : document * Whitespace.t list =
   match obs with
   | [ Token (RBracket, wsrbrack) ] ->
       ( accum
@@ -1346,7 +1346,7 @@ let rec pp_branches first accum prews obs : document * Whitespace.t list =
       match obs with
       | Token (Mapsto, wsmapsto) :: Term body :: obs ->
           let ibody, pbody, wbody = pp_case `Nontrivial body in
-          pp_branches false
+          pp_branches false triv
             (accum
             ^^ optional (pp_ws `Break) prews
                (* Don't print the starting bar if we're in flat mode. *)
@@ -1362,7 +1362,8 @@ let rec pp_branches first accum prews obs : document * Whitespace.t list =
                        ^^ ibody)))
                  (group
                     (nest 2
-                       ((Token.pp (Op "|") ^^ pp_ws `Nobreak wsbar)
+                       ((if first && triv = `Trivial then pp_ws `None wsbar
+                         else Token.pp (Op "|") ^^ pp_ws `Nobreak wsbar)
                        ^^ group (align ppats)
                        ^^ pp_ws `Nobreak wpats
                        ^^ Token.pp Mapsto
@@ -1391,7 +1392,7 @@ let rec pp_discriminees accum prews obs : document * Whitespace.t list * observa
   | _ -> invalid "(co)match 4"
 
 (* Print an implicit match, explicit match, matching lambda, or comatch, with possible multiple discriminees and possible 'return'.  We can combine comatches with matches because a "field" is just a term that can be printed like a pattern.  Always nontrivial. *)
-let pp_match _triv = function
+let pp_match triv = function
   | Token (Match, wsmatch) :: obs -> (
       let pdisc, wdisc, obs = pp_discriminees (Token.pp Match) wsmatch obs in
       let pret, wret, obs =
@@ -1417,12 +1418,14 @@ let pp_match _triv = function
             empty,
             wsrbrack )
       | _ ->
-          let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
+          let pbranches, wbranches =
+            pp_branches true `Nontrivial empty None (must_start_with (Op "|") obs) in
           (align (group (hang 2 pdisc) ^^ pret), group (pp_ws `Break wret ^^ pbranches), wbranches))
   | Token (LBracket, wslbrack) :: obs ->
-      let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
-      (* TODO: It might be nice to treat this as trivial and omit the opening bar.  But I don't see an easy way to do that with the current design, since the presence of the opening bar is baked into pp_branches and it's placed deep inside ifflat, group, and nest. *)
-      (Token.pp LBracket, group (pp_ws `Break wslbrack ^^ pbranches), wbranches)
+      let pbranches, wbranches = pp_branches true triv empty None (must_start_with (Op "|") obs) in
+      ( Token.pp LBracket,
+        group (pp_ws (if triv = `Trivial then `Nobreak else `Break) wslbrack ^^ pbranches),
+        wbranches )
   | _ -> invalid "(co)match 6"
 
 let () =

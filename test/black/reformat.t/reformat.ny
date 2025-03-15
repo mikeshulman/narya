@@ -634,3 +634,8 @@ def cat3 (A : Type) (x y z w : A) (p : eq A x y) (q : eq A y z)
 
 def abort (A : Type) (e : ⊥) : A ≔ match e []
 
+{` fractional tightness notations `}
+axiom binop : A → A → A
+
+notation 1.5 binop : x "*+*" y ≔ binop x y
+

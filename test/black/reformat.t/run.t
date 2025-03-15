@@ -673,3 +673,8 @@ The supplied files are symlinked into the directory where the test is run, and u
   
   def abort (A : Type) (e : ⊥) : A ≔ match e []
   
+  {` fractional tightness notations `}
+  axiom binop : A → A → A
+  
+  notation 1.5 binop : x "*+*" y ≔ binop x y
+  

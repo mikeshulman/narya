@@ -159,19 +159,21 @@ let pp_case :
     (lt, ls, rt, rs) parse Asai.Range.located ->
     PPrint.document * document * Whitespace.t list =
  fun triv tm ->
-  match tm.value with
-  | Notn (n, d) -> (
-      (* If a notation can be printed as a case tree, do that. *)
-      match print_case n with
-      | Some printer -> printer triv (args d)
-      | None ->
-          (* If a notation can only be printed as a term, do that instead, and there is no intro.  An additional "group" shouldn't be necessary here, the term printer should put groups around its result. *)
-          let doc, ws = (print_term n <|> Anomaly ("missing print_term for " ^ name n)) (args d) in
-          (* TODO *)
-          (empty, hang 2 doc, ws))
-  | _ ->
-      let doc, ws = pp_term tm in
-      (empty, hang 2 doc, ws)
+  match
+    match tm.value with
+    | Notn (n, d) -> (
+        (* If a notation can be printed as a case tree, do that. *)
+        match print_case n with
+        | Some printer -> Either.Left (printer triv (args d))
+        | None ->
+            Either.Right ((print_term n <|> Anomaly ("missing print_term for " ^ name n)) (args d)))
+    | _ -> Either.Right (pp_term tm)
+  with
+  | Left result -> result
+  | Right (doc, ws) -> (
+      match triv with
+      | `Trivial -> (empty, hang 2 doc, ws)
+      | `Nontrivial -> (empty, group (nest 2 (break 0 ^^ hang 2 doc)), ws))
 
 let pp_complete_term : wrapped_parse -> space -> document =
  fun (Wrap tm) space ->

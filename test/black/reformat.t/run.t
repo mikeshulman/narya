@@ -285,6 +285,20 @@ The supplied files are symlinked into the directory where the test is run, and u
     fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
     snd ≔ f a a a a a a a a a a a a a a a a a a a a a)
   
+  def lpair2 : prod ℕ ℕ ≔ (
+    fst ≔
+      f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing,
+    snd ≔
+      f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing)
+  
   def triple4 : prod ℕ (prod ℕ ℕ) ≔ (
     fst ≔ f a a a a a a a a a a a a a a a a a a a a a,
     snd ≔ (
@@ -550,8 +564,9 @@ The supplied files are symlinked into the directory where the test is run, and u
   | .tail ↦ dup n]
   
   def fs : stream ℕ ≔ [
-  | .head ↦ f a_long_thing a_long_thing a_long_thing a a a a a a a a a a a a a
-              a a a a_long_thing a_long_thing
+  | .head ↦
+      f a_long_thing a_long_thing a_long_thing a a a a a a a a a a a a a a a a
+        a_long_thing a_long_thing
   | .tail ↦ zeros]
   
   def ssz : stream (stream ℕ) ≔ [
@@ -567,9 +582,10 @@ The supplied files are symlinked into the directory where the test is run, and u
   def ssz2 : stream (stream ℕ) ≔ [
   | .head ↦ [
     | .head ↦ 0
-    | .tail ↦ fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
-                a_long_thing a_long_thing ssz2
-                .head]
+    | .tail ↦
+        fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
+          a_long_thing a_long_thing ssz2
+          .head]
   | .tail ↦ ssz]
   
   def mss : ℕ → stream (stream (prod ℕ ℕ)) ≔ n ↦ [

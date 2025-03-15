@@ -123,8 +123,8 @@ def triple3 : prod ℕ (prod ℕ ℕ) ≔ (
    0))
 
 axiom f
-  : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
-    A → A → A → A
+  : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
+    A → A
     → ℕ
 
 axiom f2
@@ -147,8 +147,7 @@ axiom f4
 axiom f5
   : (x : A) → B `second arg
     →
-    C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C →
-    C → C
+    C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C → C
     → C
 
 axiom a : A
@@ -196,8 +195,8 @@ def flong2 : ℕ
     : ℕ
 
 def ftype
-  : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
-    A → A → A
+  : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
+    A
     → Type
   ≔ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ↦ ℕ
 
@@ -207,41 +206,38 @@ def flong3 : ℕ
       a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
       a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
       a_long_thing
-    : ftype a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
+    : ftype a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
 
 axiom a_very_long_type_to_wrap_the_line : Type
 
-axiom a_very_long_term_to_wrap_the_line
-  : a_very_long_type_to_wrap_the_line
+axiom a_very_long_term_to_wrap_the_line : a_very_long_type_to_wrap_the_line
 
-def a_very_long_thing_to_wrap_the_line
-  : a_very_long_type_to_wrap_the_line
+def a_very_long_thing_to_wrap_the_line : a_very_long_type_to_wrap_the_line
   ≔ a_very_long_term_to_wrap_the_line
 
 axiom Q : ℕ → Type
 
 {`
 def qq
-  : Q
-      (f a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing)
-    → Q
-        (f a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing a_long_thing a_long_thing a_long_thing
-           a_long_thing)
-  ≔ x ↦ ?
- `}
+: Q
+(f a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing)
+→ Q
+(f a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing a_long_thing a_long_thing a_long_thing
+a_long_thing)
+≔ x ↦ ?
+`}
 
 def pair : prod ℕ ℕ ≔ (
   f a a a a a a a a a a a a a a a a a a a a a,
@@ -294,25 +290,23 @@ def ℕeq : ℕ → ℕ → Type ≔ m n ↦ match m [
   | suc. n ↦ ℕeq m n]]
 
 def longfun : Type
-  ≔ (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A)
-    (x : A) (x : A)
+  ≔ (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A) (x : A)
+    (x : A)
     → C
 
 def longfun1 : Type
-  ≔ (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) →
-    (x : A) → (x : A)
+  ≔ (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) → (x : A) →
+    (x : A)
     → C
 
 def longfun2 : Type ≔ A → A → A → A → A → A → A → A → A → A → B
 
 def longfun3 : Type
-  ≔ A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
-    A → A
+  ≔ A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A
     → B
 
 def longfun4 : Type
-  ≔ (x : A) (x : A) (x : A) → A → (x : A) (_ : A) (x : A) (x : A) →
-    (x : A)
+  ≔ (x : A) (x : A) (x : A) → A → (x : A) (_ : A) (x : A) (x : A) → (x : A)
     → C
 
 axiom P : ℕ → Type
@@ -321,11 +315,10 @@ axiom P : ℕ → Type
 def longfun5 : Type
   ≔ A → A → A →
     P
-      (f a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
-         a_long_thing a_long_thing a_long_thing a_long_thing
+      (f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+         a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
          a_long_thing) → A → A
     → B
 
@@ -334,8 +327,7 @@ def wrap (A : Type) : Type ≔ codata [ x .unwrap : A ]
 axiom object
   : A → A → A
     → wrap
-        (A → A → A → A → A
-         → wrap (A → A → A → A → A → A → wrap (A → A → B)))
+        (A → A → A → A → A → wrap (A → A → A → A → A → A → wrap (A → A → B)))
 
 def objectb : B
   ≔ object a_long_thing a_long_thing a_long_thing
@@ -346,17 +338,15 @@ def objectb : B
       .unwrap a_long_thing a_long_thing
 
 def bigabs
-  : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
-    A → A → A
+  : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
+    A
     → A
-  ≔ longvar longvar longvar longvar longvar longvar longvar longvar
-      longvar longvar longvar longvar longvar longvar longvar longvar
-      longvar longvar longvar longvar ↦
+  ≔ longvar longvar longvar longvar longvar longvar longvar longvar longvar
+      longvar longvar longvar longvar longvar longvar longvar longvar longvar
+      longvar longvar ↦
     longvar
 
-def plus : ℕ → ℕ → ℕ ≔ [
-| zero. ↦ n ↦ n
-| suc. m ↦ n ↦ suc. (plus m n)]
+def plus : ℕ → ℕ → ℕ ≔ [ zero. ↦ n ↦ n | suc. m ↦ n ↦ suc. (plus m n) ]
 
 def tlet0 : ℕ ≔ let a_long_variable : ℕ ≔ 0 in a_long_variable
 
@@ -365,8 +355,7 @@ def tlet00 : ℕ ≔
   an_even_longer_variable_name
 
 def tlet : ℕ ≔
-  let a_long_variable : ℕ
-    ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
+  let a_long_variable : ℕ ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
   a_long_variable
 
 def tlet1 : ℕ ≔
@@ -377,8 +366,7 @@ def tlet1 : ℕ ≔
   a_long_variable a a a a a a a a a a a a a a
 
 def tlet2 : prod ℕ ℕ ≔
-  let a_long_variable : ℕ
-    ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
+  let a_long_variable : ℕ ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
   (a_long_variable,
    a_long_variable)
 
@@ -406,8 +394,7 @@ def dlet4 : A → A → A → A → ℕ ≔ x ↦
   w ↦ another_long_variable
 
 def mlet : ℕ → ℕ → ℕ ≔
-  let a_long_variable : ℕ
-    ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
+  let a_long_variable : ℕ ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
   match a_long_variable [
   | zero. ↦
       let another_long_variable : ℕ
@@ -464,8 +451,8 @@ def blahblah7 : A → A
       (blahblah blahblah3 blahblah3 blahblah3)
 
 def blahblah8 : A → A → A → A → A → A → A → A → A → A → A → A → A
-  ≔ blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh
-      blehbleh blehbleh blehbleh blehbleh blehbleh ↦
+  ≔ blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh blehbleh
+      blehbleh blehbleh blehbleh blehbleh ↦
     blahblah ` line comment
       (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
       (blahblah blahblah3 blahblah3 blahblah3)
@@ -486,17 +473,13 @@ def unpaired : A ≔ unpair (a, a)
 
 def unpaired2 : A
   ≔ unpair
-      (blahblah (blahblah2 blahblah3)
-         (blahblah2 (blahblah2 blahblah3))
+      (blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
          (blahblah blahblah3 blahblah3 blahblah3),
-       blahblah (blahblah2 blahblah3)
-         (blahblah2 (blahblah2 blahblah3))
+       blahblah (blahblah2 blahblah3) (blahblah2 (blahblah2 blahblah3))
          (blahblah blahblah3 blahblah3 blahblah3))
 
 def unpaired3 : A
-  ≔ unpair
-      (blahblah2 (blahblah2 blahblah3),
-       blahblah2 (blahblah2 blahblah3))
+  ≔ unpair (blahblah2 (blahblah2 blahblah3), blahblah2 (blahblah2 blahblah3))
 
 def unpaired4 : A
   ≔ unpair
@@ -519,9 +502,7 @@ def ml3 : ℕ → ℕ ≔
   | zero. ↦ 0 ` line comment
   | suc. _ ↦ 0]
 
-def stream (A : Type) : Type ≔ codata [
-| x .head : A
-| x .tail : stream A ]
+def stream (A : Type) : Type ≔ codata [ x .head : A | x .tail : stream A ]
 
 def zeros : stream ℕ ≔ [ .head ↦ 0 | .tail ↦ zeros ]
 
@@ -536,8 +517,8 @@ def dup : ℕ → stream ℕ ≔ n ↦ [
 | .tail ↦ dup n]
 
 def fs : stream ℕ ≔ [
-| .head ↦ f a_long_thing a_long_thing a_long_thing a a a a a a a a a a
-            a a a a a a a_long_thing a_long_thing
+| .head ↦ f a_long_thing a_long_thing a_long_thing a a a a a a a a a a a a a
+            a a a a_long_thing a_long_thing
 | .tail ↦ zeros]
 
 def ssz : stream (stream ℕ) ≔ [
@@ -553,8 +534,8 @@ axiom fsn
 def ssz2 : stream (stream ℕ) ≔ [
 | .head ↦ [
   | .head ↦ 0
-  | .tail ↦ fsn a_long_thing a a_long_thing a a_long_thing a
-              a_long_thing a a_long_thing a_long_thing ssz2
+  | .tail ↦ fsn a_long_thing a a_long_thing a a_long_thing a a_long_thing a
+              a_long_thing a_long_thing ssz2
               .head]
 | .tail ↦ ssz]
 
@@ -583,27 +564,23 @@ notation 3 prod₂
 
 echo ℕ
 
-echo f a_long_thing a_long_thing a_long_thing a_long_thing
-       a_long_thing
+echo f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
 
-echo f a_long_thing a_long_thing a_long_thing a_long_thing
-       a_long_thing a_long_thing a_long_thing a_long_thing
-       a_long_thing a_long_thing
+echo f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+       a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
 
-synth f a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing
+synth f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
 
 section foo ≔
 
   def x : ℕ ≔ 3
 
   def fooflong : ℕ
-    ≔ f a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
-        a_long_thing a_long_thing a_long_thing a_long_thing
+    ≔ f a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+        a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
         a_long_thing
 
   section bar ≔
@@ -649,3 +626,4 @@ import "importable"
          renaming squish squab,
          renaming squab squish,
          renaming squish squab)
+

@@ -1349,6 +1349,7 @@ let rec pp_branches first accum prews obs : document * Whitespace.t list =
           pp_branches false
             (accum
             ^^ optional (pp_ws `Break) prews
+               (* Don't print the starting bar if we're in flat mode. *)
             ^^ ifflat
                  (group
                     (nest 2
@@ -1412,7 +1413,7 @@ let pp_match _triv = function
       match obs with
       | [ Token (RBracket, wsrbrack) ] ->
           (* The empty match fits all on one line *)
-          ( align (group (hang 2 pdisc) ^^ pret ^^ pp_ws `None wret ^^ Token.pp RBracket),
+          ( align (group (hang 2 pdisc) ^^ pret ^^ pp_ws `Nobreak wret ^^ Token.pp RBracket),
             empty,
             wsrbrack )
       | _ ->
@@ -2056,6 +2057,7 @@ let rec pp_data_constrs first prews accum obs =
       pp_data_constrs false (Some wconstr)
         (accum
         ^^ optional (pp_ws `Break) prews
+        (* Don't print the starting bar if we're in flat mode *)
         ^^ ifflat
              (group
                 (nest 2

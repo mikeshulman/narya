@@ -676,7 +676,7 @@ The supplied files are symlinked into the directory where the test is run, and u
   
   {` empty match `}
   
-  def abort (A : Type) (e : ⊥) : A ≔ match e []
+  def abort (A : Type) (e : ⊥) : A ≔ match e [ ]
   
   {` fractional tightness notations `}
   axiom binop : A → A → A

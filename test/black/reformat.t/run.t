@@ -153,8 +153,7 @@ The supplied files are symlinked into the directory where the test is run, and u
   
   def triple2 : prod ℕ (prod ℕ ℕ) ≔ (
     0, `comment
-    (0,
-     0))
+    (0, 0))
   
   def triple3 : prod ℕ (prod ℕ ℕ) ≔ (
     0, `comment
@@ -406,8 +405,7 @@ The supplied files are symlinked into the directory where the test is run, and u
   
   def tlet2 : prod ℕ ℕ ≔
     let a_long_variable : ℕ ≔ (plus (plus 0 (plus 0 0)) (plus 0 (plus 0 0))) in
-    (a_long_variable,
-     a_long_variable)
+    (a_long_variable, a_long_variable)
   
   def dlet : ℕ ≔ let a_long_variable : ℕ ≔ 0 in let y : ℕ ≔ 0 in y
   
@@ -447,21 +445,11 @@ The supplied files are symlinked into the directory where the test is run, and u
   | zero. ↦ (
       0, `line comment
       0)
-  | suc. n ↦ (
-      fst ≔ n,
-      snd ≔ n)]
+  | suc. n ↦ (fst ≔ n, snd ≔ n)]
   
   def mtm : ℕ → ℕ → prod ℕ ℕ ≔ m ↦ [
-  | zero. ↦ (
-      match m [
-      | zero. ↦ 0
-      | suc. m ↦ 0],
-      0)
-  | suc. n ↦ (
-      fst ≔ n,
-      snd ≔ match m [
-      | zero. ↦ 0
-      | suc. m ↦ 0])]
+  | zero. ↦ (match m [ zero. ↦ 0 | suc. m ↦ 0 ], 0)
+  | suc. n ↦ (fst ≔ n, snd ≔ match m [ zero. ↦ 0 | suc. m ↦ 0 ])]
   
   axiom blahblah : A → A → A → A
   
@@ -581,12 +569,8 @@ The supplied files are symlinked into the directory where the test is run, and u
   def mss : ℕ → stream (stream (prod ℕ ℕ)) ≔ n ↦ [
   | .head ↦ [
     | .head ↦ match n [
-      | zero. ↦ (
-          0,
-          0)
-      | suc. n ↦ (
-          0,
-          n)]
+      | zero. ↦ (0, 0)
+      | suc. n ↦ (0, n)]
     | .tail ↦ mss 0 .head]
   | .tail ↦ mss 0]
   

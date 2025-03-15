@@ -887,8 +887,8 @@ let pp_tuple_case obs =
           ( Token.pp LParen,
             Trivial
               {
-                trivial = (fun doc -> align (pp_ws `None wslparen ^^ doc));
-                nontrivial = (fun doc -> nest 2 (pp_ws `Cut wslparen ^^ doc));
+                trivial = (fun doc -> group (align (pp_ws `None wslparen ^^ doc)));
+                nontrivial = (fun doc -> group (nest 2 (pp_ws `Cut wslparen ^^ doc)));
               },
             doc,
             ws ))

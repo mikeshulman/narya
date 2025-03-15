@@ -10,10 +10,16 @@
 
 (defconst narya-core-font-lock-keywords
   `(
-    (,narya-commands
-     . 'font-lock-keyword-face)
-    ("\\<\\(Type\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\>"
-     . 'font-lock-constant-face)
+    (,narya-commands . font-lock-keyword-face)
+    ("\\<\\(Type\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\>" . font-lock-builtin-face)
+    ("\\(axiom\\|def\\) +\\(\\w+\\)" 2 font-lock-function-name-face)
+    ("\\(let\\|let rec\\|and\\) +\\(\\w+\\)" 2 font-lock-variable-name-face)
+    ("\\(\\(\\w \\)+\\)↦" 1 font-lock-variable-name-face)
+    ("[][(){}]" . font-lock-bracket-face)
+    ("[→↦⤇≔~!@#$%&*/=+\|,<>:;-?]" . font-lock-operator-face)
+    ("\\<\\(\\w+\\.\\)+\\.\\>" . font-lock-constant-face)
+    ("\\<\\.\\(\\w+\\.\\)+\\>" . font-lock-property-name-face)
+    ("[0-9]+" . font-lock-number-face)
     )
   "Narya core language font-lock keywords")
 

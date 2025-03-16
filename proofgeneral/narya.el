@@ -69,7 +69,7 @@ Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-
 (defun narya-create-marked-hole-overlays (start end)
   "Create hole overlays from markers of the form ¿0? from START to END."
   (goto-char start)
-  (while (re-search-forward "¿\\([[:digit:]]\\)+\\?" end 'limit)
+  (while (re-search-forward "¿\\([[:digit:]]+\\)\\?" end 'limit)
     (narya-create-hole-overlay (match-beginning 0) (match-end 0) (string-to-number (match-string 1)))
     (replace-match "?")))
 

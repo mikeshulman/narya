@@ -26,19 +26,20 @@ Does not handle sequences of abstraction variables broken across lines."
   `(
     (,narya-commands . 'font-lock-keyword-face)
     ("\\<\\(Type\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\>" . 'font-lock-builtin-face)
-    ("\\<\\(all\\|id\\|none\\|only\\|except\\|renaming\\|seq\\|union\\)\\>" . 'font-lock-builtin-face)
+
+    ;; Constants being defined
     ("\\(axiom\\|def\\) +\\(\\w+\\)" 2 'font-lock-function-name-face)
 
-    ;; Constructors
-    ("\\<[[:word:]]+\\." . 'font-lock-constant-face) ; . is not a word-constituent, so this can't end with a \>
-    ("\\<[[:digit:]]+\\>" . 'font-lock-number-face) ; these are really like constructors
-
     ;; Fields/methods
-    ("\\.[[:word:][:digit:].]+\\>" . 'font-lock-property-name-face) ; . is not a word-constituent, so this can't begin with a \<
+    ("[^[:word:][:digit:].]\\(\\.[[:word:][:digit:].]+\\)\\>" 1 'font-lock-property-name-face) ; . is not a word-constituent, so this can't begin with a \<
     ;; Field names in sig definitions.
     ("\\(sig[[:space:]\n]*(\\|,\\)[[:space:]\n]*\\([[:word:]]+\\)[[:space:]]*:" 2 'font-lock-property-name-face)
     ;; Field names in tuples.
     ("[(,][[:space:]\n]*\\([[:word:]]+\\)[[:space:]]*\\(≔\\|:=\\)" 1 'font-lock-property-name-face)
+
+    ;; Constructors
+    ("\\<\\([[:word:]]+\\.\\)[^[:word:][:digit:].]" . 'font-lock-constant-face) ; . is not a word-constituent, so this can't end with a \>, instead we notice a non-word non-dot character.
+    ("[^\\.]\\<\\([[:digit:]]+\\)\\>" 1 'font-lock-number-face) ; these are really like constructors.  If they're preceded by a dot, they would be part of a cube variable or a higher field.
 
     ;; Variables bound by let-bindings
     ("\\(let[[:space:]\n]+rec\\|let\\|and\\) +\\(\\w+\\)" 2 'font-lock-variable-name-face)
@@ -52,6 +53,9 @@ Does not handle sequences of abstraction variables broken across lines."
     ;; Symbols
     ("[][(){}]" . 'font-lock-bracket-face)
     ("[→↦⤇≔~!@#$%&*/=+\\|,<>:;?-]" . 'font-lock-operator-face)
+
+    ;; "keywords" used only in import statements.  We put them last so they don't prevent other things.
+    ("\\<\\(all\\|id\\|none\\|only\\|except\\|renaming\\|seq\\|union\\)\\>" . 'font-lock-builtin-face)
     )
   "Narya core language font-lock keywords")
 

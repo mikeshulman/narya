@@ -359,7 +359,8 @@ handling in Proof General."
   (set (make-local-variable 'block-comment-end) " `}")
   (set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
   (set (make-local-variable 'comment-region-function) 'narya-comment-region)
-  (add-hook 'proof-state-change-hook 'narya-delete-undone-holes))
+  (add-hook 'proof-state-change-hook 'narya-delete-undone-holes)
+  (setq font-lock-multiline t))
 
 (add-hook 'narya-mode-hook 'narya-mode-extra-config)
 

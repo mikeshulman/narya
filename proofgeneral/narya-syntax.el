@@ -8,18 +8,50 @@
 (defun narya-state-preserving-p (cmd)
   (string-match "^echo\\|synth\\|show\\|display" cmd))
 
+(defun narya-highlight-abstractions (limit)
+  "Font-lock search function to find abstractions.
+Only finds abstractions with a sequence of variables separated by
+whitespace (no comments).  Finds the arguments of a simple match pattern
+like \"constr. x y z ↦\", but not variables deeper inside nested or
+multiple match patterns.  Unfortunately, also highlights underscores.
+Does not handle sequences of abstraction variables broken across lines."
+  (when (re-search-forward "[^[:word:][:space:]][[:space:]]*\\([[:word:][:space:]]+\\)\\(↦\\||->\\|⤇\\||=>\\)" limit 'move)
+    ;; Move back across the ↦, so it can be the non-word-non-space character that predelimits another abstraction afterwards.
+    (backward-char 1)
+    t))
+
+;; Yes, the face names here actually have to be *quoted*, even though the entire list is *also* quoted.  I think font lock expects an expression there that it *evaluates*, and while some of the faces are also variables whose value is the face of the same name, some aren't.  So we ought to quote them all.
+;; Many of these regexps are simplistic and will get confused if there are comments interspersed.  They also depend on font-lock-multiline being set to t.
 (defconst narya-core-font-lock-keywords
   `(
-    (,narya-commands . font-lock-keyword-face)
-    ("\\<\\(Type\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\>" . font-lock-builtin-face)
-    ("\\(axiom\\|def\\) +\\(\\w+\\)" 2 font-lock-function-name-face)
-    ("\\(let\\|let rec\\|and\\) +\\(\\w+\\)" 2 font-lock-variable-name-face)
-    ("\\(\\(\\w \\)+\\)↦" 1 font-lock-variable-name-face)
-    ("[][(){}]" . font-lock-bracket-face)
-    ("[→↦⤇≔~!@#$%&*/=+\|,<>:;-?]" . font-lock-operator-face)
-    ("\\<\\(\\w+\\.\\)+\\.\\>" . font-lock-constant-face)
-    ("\\<\\.\\(\\w+\\.\\)+\\>" . font-lock-property-name-face)
-    ("[0-9]+" . font-lock-number-face)
+    (,narya-commands . 'font-lock-keyword-face)
+    ("\\<\\(Type\\|let\\|rec\\|in\\|and\\|match\\|return\\|sig\\|data\\|codata\\|Id\\|refl\\|sym\\)\\>" . 'font-lock-builtin-face)
+    ("\\<\\(all\\|id\\|none\\|only\\|except\\|renaming\\|seq\\|union\\)\\>" . 'font-lock-builtin-face)
+    ("\\(axiom\\|def\\) +\\(\\w+\\)" 2 'font-lock-function-name-face)
+
+    ;; Constructors
+    ("\\<[[:word:]]+\\." . 'font-lock-constant-face) ; . is not a word-constituent, so this can't end with a \>
+    ("\\<[[:digit:]]+\\>" . 'font-lock-number-face) ; these are really like constructors
+
+    ;; Fields/methods
+    ("\\.[[:word:][:digit:].]+\\>" . 'font-lock-property-name-face) ; . is not a word-constituent, so this can't begin with a \<
+    ;; Field names in sig definitions.
+    ("\\(sig[[:space:]\n]*(\\|,\\)[[:space:]\n]*\\([[:word:]]+\\)[[:space:]]*:" 2 'font-lock-property-name-face)
+    ;; Field names in tuples.
+    ("[(,][[:space:]\n]*\\([[:word:]]+\\)[[:space:]]*\\(≔\\|:=\\)" 1 'font-lock-property-name-face)
+
+    ;; Variables bound by let-bindings
+    ("\\(let[[:space:]\n]+rec\\|let\\|and\\) +\\(\\w+\\)" 2 'font-lock-variable-name-face)
+    ;; Variables bound by abstractions
+    (narya-highlight-abstractions 1 'font-lock-variable-name-face)
+    ;; Self variables in codata declarations.
+    ("[[|][[:space:]\n]*\\(\\w+\\)[[:space:]\n]*\\(↦\\||->\\)" 1 'font-lock-variable-name-face)
+    ;; Variables bound in telescopes (parameters or dependent-function arguments)
+    ("([[:space:]\n]*\\([[:word:][:space:]\n]+\\):" 1 'font-lock-variable-name-face)
+
+    ;; Symbols
+    ("[][(){}]" . 'font-lock-bracket-face)
+    ("[→↦⤇≔~!@#$%&*/=+\\|,<>:;?-]" . 'font-lock-operator-face)
     )
   "Narya core language font-lock keywords")
 
@@ -31,7 +63,7 @@
           '(?\n "> b")
           '(?\{ "(}1nb")
           '(?\} "){4nb")
-          '(?. "w")
+          '(?. "_")                     ; symbol constituent
           '(?_ "w")
           '(?' "w")
           `((128 . ,(max-char)) "w")

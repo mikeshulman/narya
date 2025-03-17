@@ -31,7 +31,9 @@ let get_notation head args =
     | _ :: _, [] -> None
     | k :: labels, x :: elts -> take_labeled labels elts (acc |> StringMap.add k x) in
   let* first, rest = take_labeled val_vars (Bwd.to_list args) StringMap.empty in
-  let first = List.map (fun k -> StringMap.find k first) pat_vars in
+  let first =
+    List.map (fun k -> StringMap.find_opt k first <|> Anomaly "not found in get_notation") pat_vars
+  in
   (* Constructors don't belong to a function-type, so their notation can't be applied to "more arguments" as a function.  Thus, if there are more arguments leftover, it means that the constructor is being used at a different datatype that takes a different number of arguments, and so the notation shouldn't be applied at all (just as if there were too few arguments). *)
   match (head, rest) with
   | `Constr _, _ :: _ -> None

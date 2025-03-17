@@ -10,7 +10,7 @@ module Trie = Yuujinchou.Trie
 
 (* Execution of files (and strings), including marshaling and unmarshaling, and managing compilation units and imports. *)
 
-let __COMPILE_VERSION__ = 3
+let __COMPILE_VERSION__ = 4
 
 (* This state module is for data that gets restarted when loading a new file. *)
 module Loadstate = struct
@@ -154,19 +154,22 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
             let table = Hashtbl.create 20 in
             Mbwd.miter (fun [ (i, ifile) ] -> Hashtbl.add table i (lookup ifile)) [ old_imports ];
             Hashtbl.add table old_compunit compunit;
+            let find_in_table n x =
+              Hashtbl.find_opt table x
+              <|> Anomaly ("missing compunit while loading compiled file: part " ^ n) in
             (* Now we load the definitions from the compiled file, replacing all the old compunits by the new ones. *)
-            Global.from_channel_unit (Hashtbl.find table) chan compunit;
+            Global.from_channel_unit (find_in_table "1") chan compunit;
             let trie =
               Trie.map
                 (fun _ (data, tag) ->
                   match data with
                   | `Constant c, loc ->
-                      ((`Constant (Constant.remake (Hashtbl.find table) c), loc), tag)
+                      ((`Constant (Constant.remake (find_in_table "2") c), loc), tag)
                   | `Notation (User.User u), loc ->
                       (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
                       let key =
                         match u.key with
-                        | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
+                        | `Constant c -> `Constant (Constant.remake (find_in_table "3") c)
                         | `Constr (c, i) -> `Constr (c, i) in
                       let u = User.User { u with key } in
                       ((`Notation (u, make_user u), loc), tag))

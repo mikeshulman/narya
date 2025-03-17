@@ -140,8 +140,8 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
               (fun (_, ifile) ->
                 let oifile = FilePath.replace_extension file "nyo" in
                 FileUtil.test Is_file oifile
-                && FileUtil.test (Is_newer_than ifile) oifile
-                && FileUtil.test (Is_older_than ofile) ifile)
+                && (not (FileUtil.test (Is_older_than ifile) oifile))
+                && not (FileUtil.test (Is_newer_than ofile) ifile))
               old_imports
           then (
             (* If so, we load all those files right away.  We don't need their returned namespaces, since we aren't typechecking our compiled file. *)

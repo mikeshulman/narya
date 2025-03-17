@@ -19,7 +19,7 @@ module Loadstate = struct
     cwd : FilePath.filename;
     (* All files whose loading is currently in progress, i.e. the path of imports that led us to the current file.  Used to check for circular imports. *)
     parents : FilePath.filename Bwd.t;
-    (* All the files imported so far by the current file.  Stored in compiled files to ensure they are recompiled whenever any dependencies change. *)
+    (* All the files imported so far by the current file, *transitively* (that is, files it imports, and files *they* import, etc.).  Stored in compiled files to ensure they are recompiled whenever any dependencies change, and for linking purposes. *)
     imports : (Compunit.t * FilePath.filename) Bwd.t;
     (* Whether the current file has performed any effectual actions like 'echo'.  Stored in compiled files to produce a warning. *)
     actions : bool;
@@ -133,7 +133,7 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
       match (Flags.read ()).unmarshal chan with
       | Ok () ->
           let old_compunit = (Marshal.from_channel chan : Compunit.t) in
-          (* Now we make sure none of the files *it* imports have been modified more recently than the compilation, and that they have all been compiled. *)
+          (* Now we make sure none of the files *it* imports (transitively) have been modified more recently than the compilation, and that they have all been compiled. *)
           let old_imports = (Marshal.from_channel chan : (Compunit.t * FilePath.filename) Bwd.t) in
           if
             Bwd.for_all
@@ -215,64 +215,68 @@ and load_file file top =
       let rename i =
         let _, c, _ = Loaded.get_file i <|> Anomaly "missing file in load_file" in
         c in
-      Loading.run
-        ~init:
-          {
-            cwd = FilePath.dirname file;
-            parents = Snoc ((Loading.get ()).parents, file);
-            imports = Emp;
-            actions = false;
-          }
-      @@ fun () ->
-      (* If there's a compiled version, and we aren't in source-only mode, and this file wasn't specified explicitly on the command-line, we try loading the compiled version. *)
-      let trie, which =
-        let flags = Flags.read () in
-        match
-          if flags.source_only || List.mem file flags.top_files then None
-          else unmarshal compunit rename file
-        with
-        | Some trie -> (trie, `Compiled)
-        | None ->
-            (* If we are in source-only mode, or this file was specified explicitly on the command-line, or if unmarshal failed (e.g. the compiled file is outdated), we load it from source. *)
-            if not top then emit (Loading_file file);
-            (* If reformatting is enabled, and this file was explicitly specified on the command line, create a buffer to hold its reformatting. *)
-            let buf =
-              if (Flags.read ()).reformat && List.mem file flags.top_files then
-                Some (Buffer.create 100)
-              else None in
-            let renderer = Option.map (PPrint.ToBuffer.pretty 1.0 (Display.columns ())) buf in
-            (* Parse and execute the file and save its exported trie *)
-            let exported = execute_source compunit ?renderer (`File file) in
-            (match buf with
-            | None -> ()
-            | Some buf -> (
-                (* If the reformatted version didn't change, do nothing. *)
-                let infile = open_in_bin file in
-                let oldstr =
-                  Fun.protect ~finally:(fun () -> close_in infile) @@ fun () ->
-                  really_input_string infile (in_channel_length infile) in
-                if oldstr <> Buffer.contents buf then
-                  try
-                    (* Back up the original file to a new backup file name. *)
-                    let bakfile, n = (file ^ ".bak.", ref 0) in
-                    while FileUtil.test Is_file (bakfile ^ string_of_int !n) do
-                      n := !n + 1
-                    done;
-                    let bakfile = bakfile ^ string_of_int !n in
-                    FileUtil.cp [ file ] bakfile;
-                    (* Overwrite the file with its reformatted version. *)
-                    let outfile = open_out file in
-                    Fun.protect ~finally:(fun () -> close_out outfile) @@ fun () ->
-                    output_string outfile (Buffer.contents buf)
-                    (* Ignore file errors (e.g. read-only source file) *)
-                  with Sys_error _ -> ()));
-            (exported, `Source) in
-      (* Then we add it to the table of loaded files and (possibly) the content of top-level files. *)
-      if not top then emit (File_loaded (file, which));
-      Loaded.add_to_files file trie compunit top;
-      if top then Loaded.add_to_scope trie;
-      (* We save the compiled version *)
-      marshal compunit file trie;
+      let trie, imports =
+        Loading.run
+          ~init:
+            {
+              cwd = FilePath.dirname file;
+              parents = Snoc ((Loading.get ()).parents, file);
+              imports = Emp;
+              actions = false;
+            }
+        @@ fun () ->
+        (* If there's a compiled version, and we aren't in source-only mode, and this file wasn't specified explicitly on the command-line, we try loading the compiled version. *)
+        let trie, which =
+          let flags = Flags.read () in
+          match
+            if flags.source_only || List.mem file flags.top_files then None
+            else unmarshal compunit rename file
+          with
+          | Some trie -> (trie, `Compiled)
+          | None ->
+              (* If we are in source-only mode, or this file was specified explicitly on the command-line, or if unmarshal failed (e.g. the compiled file is outdated), we load it from source. *)
+              if not top then emit (Loading_file file);
+              (* If reformatting is enabled, and this file was explicitly specified on the command line, create a buffer to hold its reformatting. *)
+              let buf =
+                if (Flags.read ()).reformat && List.mem file flags.top_files then
+                  Some (Buffer.create 100)
+                else None in
+              let renderer = Option.map (PPrint.ToBuffer.pretty 1.0 (Display.columns ())) buf in
+              (* Parse and execute the file and save its exported trie *)
+              let exported = execute_source compunit ?renderer (`File file) in
+              (match buf with
+              | None -> ()
+              | Some buf -> (
+                  (* If the reformatted version didn't change, do nothing. *)
+                  let infile = open_in_bin file in
+                  let oldstr =
+                    Fun.protect ~finally:(fun () -> close_in infile) @@ fun () ->
+                    really_input_string infile (in_channel_length infile) in
+                  if oldstr <> Buffer.contents buf then
+                    try
+                      (* Back up the original file to a new backup file name. *)
+                      let bakfile, n = (file ^ ".bak.", ref 0) in
+                      while FileUtil.test Is_file (bakfile ^ string_of_int !n) do
+                        n := !n + 1
+                      done;
+                      let bakfile = bakfile ^ string_of_int !n in
+                      FileUtil.cp [ file ] bakfile;
+                      (* Overwrite the file with its reformatted version. *)
+                      let outfile = open_out file in
+                      Fun.protect ~finally:(fun () -> close_out outfile) @@ fun () ->
+                      output_string outfile (Buffer.contents buf)
+                      (* Ignore file errors (e.g. read-only source file) *)
+                    with Sys_error _ -> ()));
+              (exported, `Source) in
+        (* Then we add it to the table of loaded files and (possibly) the content of top-level files. *)
+        if not top then emit (File_loaded (file, which));
+        Loaded.add_to_files file trie compunit top;
+        if top then Loaded.add_to_scope trie;
+        (* We save the compiled version *)
+        marshal compunit file trie;
+        (trie, (Loading.get ()).imports) in
+      (* We add the files that it imports to those of the current file, since the imports list is supposed to be transitive. *)
+      Loading.modify (fun s -> { s with imports = Bwd_extra.append s.imports imports });
       trie
 
 (* Load an -e string or stdin. *)

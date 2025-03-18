@@ -53,7 +53,18 @@ module Code = struct
     | Not_enough_arguments_to_instantiation : t
     | Type_not_fully_instantiated : string * 'n D.t -> t
     | Instantiating_zero_dimensional_type : printable -> t
-    | Unequal_synthesized_type : printable * printable -> t
+    | Unequal_synthesized_type : {
+        expected : printable;
+        got : printable;
+        which : string option;
+      }
+        -> t
+    | Unequal_synthesized_boundary : {
+        face : ('a, 'b) sface;
+        got : printable;
+        expected : printable;
+      }
+        -> t
     | Checking_tuple_at_degenerated_record : printable -> t
     | Missing_field_in_tuple : Field.t -> t
     | Missing_method_in_comatch : Field.t -> t
@@ -91,6 +102,7 @@ module Code = struct
     | Missing_argument_of_degeneracy : string -> t
     | Applying_nonfunction_nontype : printable * printable -> t
     | Unexpected_implicitness : [ `Implicit | `Explicit ] * string -> t
+    | Insufficient_dimension : { needed : 'a D.t; got : 'b D.t; which : string } -> t
     | Unimplemented : string -> t
     | Matching_datatype_has_degeneracy : printable -> t
     | Wrong_number_of_arguments_to_pattern : Constr.t * int -> t
@@ -183,6 +195,7 @@ module Code = struct
     | Not_enough_lambdas _ -> Error
     | Type_not_fully_instantiated _ -> Error
     | Unequal_synthesized_type _ -> Error
+    | Unequal_synthesized_boundary _ -> Error
     | Checking_tuple_at_degenerated_record _ -> Error
     | Missing_field_in_tuple _ -> Error
     | Missing_method_in_comatch _ -> Error
@@ -216,6 +229,7 @@ module Code = struct
     | Not_enough_arguments_to_instantiation -> Error
     | Applying_nonfunction_nontype _ -> Error
     | Unexpected_implicitness _ -> Error
+    | Insufficient_dimension _ -> Error
     | Wrong_number_of_arguments_to_constructor _ -> Error
     | Unimplemented _ -> Error
     | Matching_datatype_has_degeneracy _ -> Error
@@ -345,6 +359,8 @@ module Code = struct
     | Checking_lambda_at_nonfunction _ -> "E0700"
     | Applying_nonfunction_nontype _ -> "E0701"
     | Unexpected_implicitness _ -> "E0702"
+    | Insufficient_dimension _ -> "E0703"
+    | Unequal_synthesized_boundary _ -> "E0704"
     (* Record fields *)
     | No_such_field _ -> "E0800"
     (* Tuples *)
@@ -479,9 +495,18 @@ module Code = struct
     | Instantiating_zero_dimensional_type ty ->
         textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
           (print ty)
-    | Unequal_synthesized_type (sty, cty) ->
-        textf "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
-          pp_printed (print sty) pp_printed (print cty)
+    | Unequal_synthesized_type { got; expected; which } ->
+        textf
+          "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a%a@]"
+          pp_printed (print got) pp_printed (print expected)
+          (pp_print_option
+             ~none:(fun _ () -> ())
+             (fun ppf which -> fprintf ppf "@ (hint: %s boundaries are explicit)" which))
+          which
+    | Unequal_synthesized_boundary { face; got; expected } ->
+        textf
+          "@[<hv 0>the %s-boundary synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
+          (string_of_sface face) pp_printed (print got) pp_printed (print expected)
     | Checking_tuple_at_degenerated_record r ->
         textf "can't check a tuple against a record %a with a nonidentity degeneracy applied"
           pp_printed (print r)
@@ -590,6 +615,10 @@ module Code = struct
           | `Implicit -> "implicit"
           | `Explicit -> "explicit")
           str
+    | Insufficient_dimension { needed; got; which } ->
+        textf
+          "@[<hv 0>insufficient dimension of primary argument for higher-dimensional application:@ %s does not factor through %s@ (hint: %s boundaries are implicit)"
+          (string_of_dim0 got) (string_of_dim0 needed) which
     | Unimplemented str -> textf "%s not yet implemented" str
     | Matching_datatype_has_degeneracy ty ->
         textf "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"

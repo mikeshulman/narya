@@ -194,7 +194,7 @@ module Code = struct
     | Display_set : string * string -> t
     | Option_set : string * string -> t
     | Break : t
-    | Accumulated : t Asai.Diagnostic.t Bwd.t -> t
+    | Accumulated : string * t Asai.Diagnostic.t Bwd.t -> t
     | No_holes_allowed : string -> t
 
   (** The default severity of messages with a particular message code. *)
@@ -859,15 +859,15 @@ module Terminal = Asai.Tty.Make (Code)
 
 let rec display ?use_ansi ?output ?(empty_ok = false) (d : Code.t Asai.Diagnostic.t) =
   match d.message with
-  | Accumulated Emp when not empty_ok ->
+  | Accumulated (_, Emp) when not empty_ok ->
       Terminal.display ?use_ansi ?output
         { d with message = Anomaly "unexpected empty error accumulation" }
-  | Accumulated msgs ->
+  | Accumulated (_name, msgs) ->
       Mbwd.miter (fun [ e ] -> display ?use_ansi ?output ~empty_ok:true e) [ msgs ]
   | _ -> Terminal.display ?use_ansi ?output d
 
 (* We also may need to extract an accumulated singleton, for testing purposes. *)
 let rec unaccumulate (c : Code.t) : Code.t =
   match c with
-  | Accumulated (Snoc (Emp, c)) -> unaccumulate c.message
+  | Accumulated (_, Snoc (Emp, c)) -> unaccumulate c.message
   | c -> c

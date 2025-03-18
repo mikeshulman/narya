@@ -150,14 +150,14 @@ let run_with_definition :
   (* In the case of an error, we bind the head to the error "Accumulated Emp".  That has the effect that accesses to it fail, but aren't displayed to the user as anything, since what's really going on is that we refuse to even try to typecheck later parts of a term that depend on previous parts that already failed, and this "error" is just detecting that dependence. *)
   (* We ignore the substituted dimension of the head, since this is really setting the *global* definition, which is not substituted. *)
   | Constant (c, _), Emp -> Global.with_definition c (Global.Defined tm) f
-  | Constant (c, _), Snoc _ -> Global.without_definition c (Accumulated Emp) f
+  | Constant (c, _), Snoc _ -> Global.without_definition c (Accumulated ("dependence", Emp)) f
   | Meta (m, _), Emp -> Global.with_meta_definition m tm f
-  | Meta (m, _), Snoc _ -> Global.without_meta_definition m (Accumulated Emp) f
+  | Meta (m, _), Snoc _ -> Global.without_meta_definition m (Accumulated ("dependence", Emp)) f
 
 let unless_error (v : 'a) (err : 'b Bwd.t) : ('a, Code.t) Result.t =
   match err with
   | Emp -> Ok v
-  | Snoc _ -> Error (Accumulated Emp)
+  | Snoc _ -> Error (Accumulated ("dependence", Emp))
 
 (* A "checkable branch" stores all the information about a branch in a match, both that coming from what the user wrote in the match and what is stored as properties of the datatype.  *)
 type (_, _, _) checkable_branch =
@@ -519,7 +519,8 @@ and check_of_synth :
   | Asc (ctm, aty) ->
       (* If the term is synthesizing because it is ascribed, then we can accumulate errors: if the ascription fails to check, or if it fails to equal the checking type, we can proceed to check the ascribed term against the supplied type instead.  This will rarely happen in normal use, since there is no need to ascribe a term that's in checking position, but it can occur with some alternative frontends. *)
       Reporter.try_with ~fatal:(fun d1 ->
-          Reporter.try_with ~fatal:(fun d2 -> fatal (Accumulated (Snoc (Snoc (Emp, d1), d2))))
+          Reporter.try_with ~fatal:(fun d2 ->
+              fatal (Accumulated ("check_of_synth", Snoc (Snoc (Emp, d1), d2))))
           @@ fun () ->
           let _ = check status ctx ctm ty in
           fatal_diagnostic d1)
@@ -858,7 +859,7 @@ and check_nondep_match :
                 else fatal (Missing_constructor_in_match constr))
           (Constr.Map.empty, Emp) user_branches in
       match errs with
-      | Snoc _ -> fatal (Accumulated errs)
+      | Snoc _ -> fatal (Accumulated ("check_nondep_match", errs))
       | Emp -> Match { tm; dim; branches })
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
@@ -971,7 +972,7 @@ and synth_nondep_match :
                 else fatal (Missing_constructor_in_match constr))
           (branches, errs) check_branches in
       match (errs, motive) with
-      | Snoc _, _ -> fatal (Accumulated errs)
+      | Snoc _, _ -> fatal (Accumulated ("synth_nondep_match", errs))
       | Emp, None -> fatal (Anomaly "no synthesized type of match but no errors")
       | Emp, Some motive -> (Match { tm; dim; branches }, motive))
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
@@ -1053,7 +1054,7 @@ and synth_dep_match :
                 else fatal (Missing_constructor_in_match constr))
           (Constr.Map.empty, Emp) user_branches in
       match errs with
-      | Snoc _ -> fatal (Accumulated errs)
+      | Snoc _ -> fatal (Accumulated ("synth_dep_match", errs))
       | Emp ->
           (* Now we compute the output type by evaluating the dependent motive at the match term's indices, boundary, and itself. *)
           let result =
@@ -1279,7 +1280,7 @@ and check_var_match :
             | _ -> fatal (Anomaly "created datatype is not canonical?"))
           (Constr.Map.empty, Emp) user_branches in
       match errs with
-      | Snoc _ -> fatal (Accumulated errs)
+      | Snoc _ -> fatal (Accumulated ("check_var_match", errs))
       | Emp -> Match { tm = Term.Var index; dim; branches })
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
@@ -1428,7 +1429,7 @@ and check_data :
   match (raw_constrs, status) with
   | [], Potential _ -> (
       match errs with
-      | Snoc _ -> fatal (Accumulated errs)
+      | Snoc _ -> fatal (Accumulated ("check_data", errs))
       | Emp ->
           (* If we get to this point and discreteness is still a possibility, we mark it as "Maybe" discrete.  Later, after all the types in a mutual block are checked, if they're all discrete we go through and change the "Maybe"s to "Yes"es.  *)
           let discrete = Option.fold ~none:`No ~some:(fun _ -> `Maybe) discrete in
@@ -1566,8 +1567,10 @@ and with_codata_so_far :
           let newctx = Ctx.cube_vis ctx None (domvars ()) in
           Option.map (fun () -> readback_ctx newctx) has_higher_fields in
         (domvars (), termctx ())
-    | Snoc _ -> (CubeOf.build dim { build = (fun _ -> Ctx.Binding.error (Accumulated Emp)) }, None)
-  in
+    | Snoc _ ->
+        ( CubeOf.build dim
+            { build = (fun _ -> Ctx.Binding.error (Accumulated ("codata dependent", Emp))) },
+          None ) in
   let codataterm = Term.Canonical (Codata { eta; opacity; dim; fields = checked_fields; termctx }) in
   run_with_definition h (hyp codataterm) errs @@ fun () -> cont domvars codataterm
 
@@ -1590,7 +1593,7 @@ and check_codata :
           with_codata_so_far status Noeta ctx `Opaque dim tyargs checked_fields ~has_higher_fields
             errs
           @@ fun _ codataterm -> codataterm
-      | Snoc _ -> fatal (Accumulated errs))
+      | Snoc _ -> fatal (Accumulated ("check_codata", errs)))
   | (Wrap fld, Codatafield (x, rty)) :: raw_fields -> (
       with_codata_so_far status Noeta ctx `Opaque dim tyargs checked_fields ~has_higher_fields errs
       @@ fun domvars _ ->
@@ -1632,7 +1635,7 @@ and check_record :
   match raw_fields with
   | Emp -> (
       match errs with
-      | Snoc _ -> fatal (Accumulated errs)
+      | Snoc _ -> fatal (Accumulated ("check_record", errs))
       | Emp ->
           Term.Canonical
             (Codata { eta = Eta; opacity; dim; fields = checked_fields; termctx = None }))
@@ -1642,16 +1645,14 @@ and check_record :
         errs
       @@ fun domvars _ ->
       let fld = Field.intern name D.zero in
-      Reporter.try_with ~fatal:(fun e ->
-          let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
-          check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af)
-            checked_fields raw_fields
-            (Snoc (errs, e)))
-      @@ fun () ->
-      let newctx = Ctx.vis_fields ctx vars domvars ctx_fields fplus af in
-      let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
-      let checked_fields = Snoc (checked_fields, Entry (fld, Lower cty)) in
-      let ctx_fields = Bwv.Snoc (ctx_fields, (fld, name)) in
+      let checked_fields, ctx_fields, errs =
+        Reporter.try_with ~fatal:(fun e ->
+            (checked_fields, Bwv.Snoc (ctx_fields, (fld, name)), Snoc (errs, e)))
+        @@ fun () ->
+        let newctx = Ctx.vis_fields ctx vars domvars ctx_fields fplus af in
+        let cty = check (Kinetic `Nolet) newctx rty (universe D.zero) in
+        (Snoc (checked_fields, Entry (fld, Lower cty)), Bwv.Snoc (ctx_fields, (fld, name)), errs)
+      in
       check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
         raw_fields errs
 
@@ -1726,7 +1727,7 @@ and check_fields :
       (* If there are no more fields to check, we return.  We have accumulated a Bwd of errors as we progress through the fields, allowing later fields to typecheck (and, more importantly, produce their own meaningful error messages) even if earlier fields already failed.  Then at the end, if there are any such errors, we raise them all together.  *)
       match errs with
       | Emp -> (tms, ctms)
-      | Snoc _ -> fatal (Accumulated errs))
+      | Snoc _ -> fatal (Accumulated ("check_struct", errs)))
   | Entry (fld, cdf) :: fields, Potential (name, args, hyp) ->
       (* Temporarily bind the current constant to the up-until-now value (or an error, if any have occurred yet), for (co)recursive purposes.  Note that this means as soon as one field fails, no other fields can be typechecked if they depend *at all* on earlier ones, even ones that didn't fail.  This could be improved in the future. *)
       run_with_definition name (hyp (Term.Struct (eta, m, ctms, energy status))) errs @@ fun () ->
@@ -2071,7 +2072,7 @@ and synth :
               match tm.value with
               | Synth stm ->
                   Reporter.try_with ~fatal:(fun d2 ->
-                      fatal (Accumulated (Snoc (Snoc (Emp, d1), d2))))
+                      fatal (Accumulated ("ascribing synth", Snoc (Snoc (Emp, d1), d2))))
                   @@ fun () ->
                   let _ = synth status ctx (locate_opt tm.loc stm) in
                   fatal_diagnostic d1

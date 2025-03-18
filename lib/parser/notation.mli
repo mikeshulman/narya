@@ -92,16 +92,6 @@ and ('left, 'tight) notation_entry =
 and ('left, 'tight, 'right) notation =
   ('left, 'tight, 'right) identity * ('left, 'tight, 'right) fixity
 
-type triviality =
-  | Trivial of {
-      trivial : PPrint.document -> PPrint.document;
-      nontrivial : PPrint.document -> PPrint.document;
-    }
-  | Nontrivial of (PPrint.document -> PPrint.document)
-
-val triv_act : triviality -> PPrint.document -> PPrint.document
-val nontrivial : triviality -> triviality
-
 type ('left, 'tight, 'right) data = {
   name : string;
   tree : ('left, 'tight) notation_entry;
@@ -109,7 +99,10 @@ type ('left, 'tight, 'right) data = {
     'n. (string option, 'n) Bwv.t -> observation list -> Asai.Range.t option -> 'n check located;
   print_term : (observation list -> PPrint.document * Whitespace.t list) option;
   print_case :
-    (observation list -> PPrint.document * triviality * PPrint.document * Whitespace.t list) option;
+    ([ `Trivial | `Nontrivial ] ->
+    observation list ->
+    PPrint.document * PPrint.document * Whitespace.t list)
+    option;
   is_case : observation list -> bool;
 }
 
@@ -179,7 +172,10 @@ val print_term :
 
 val print_case :
   ('left, 'tight, 'right) notation ->
-  (observation list -> PPrint.document * triviality * PPrint.document * Whitespace.t list) option
+  ([ `Trivial | `Nontrivial ] ->
+  observation list ->
+  PPrint.document * PPrint.document * Whitespace.t list)
+  option
 
 val processor :
   ('left, 'tight, 'right) notation ->

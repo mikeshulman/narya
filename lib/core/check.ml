@@ -492,7 +492,8 @@ let rec check :
                     let stm, sty = synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args in
                     (* Then we have to check that the resulting type of the whole application agrees with the one we're checking against. *)
                     equal_val (Ctx.length ctx) sty ty
-                    <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
+                    <|> Unequal_synthesized_type
+                          { got = PVal (ctx, sty); expected = PVal (ctx, ty); which = None };
                     realize status stm
                 | _ ->
                     fatal ?loc:fn.loc
@@ -526,13 +527,15 @@ and check_of_synth :
       let cty = check (Kinetic `Nolet) ctx aty (universe D.zero) in
       let ety = eval_term (Ctx.env ctx) cty in
       equal_val (Ctx.length ctx) ety ty
-      <|> Unequal_synthesized_type (PVal (ctx, ety), PVal (ctx, ty));
+      <|> Unequal_synthesized_type
+            { got = PVal (ctx, ety); expected = PVal (ctx, ty); which = None };
       let ctm = check status ctx ctm ety in
       ctm
   | _ ->
       let sval, sty = synth status ctx { value = stm; loc } in
       equal_val (Ctx.length ctx) sty ty
-      <|> Unequal_synthesized_type (PVal (ctx, sty), PVal (ctx, ty));
+      <|> Unequal_synthesized_type
+            { got = PVal (ctx, sty); expected = PVal (ctx, ty); which = None };
       sval
 
 (* Deal with checking a potential term in kinetic position *)
@@ -2148,7 +2151,7 @@ and synth_apps :
 (* This is a common subroutine for synth_app and synth_inst that picks up a whole cube of arguments and checks their types.  Since in one case we need a cube of values and the other case a cube of normals, we let the caller choose. *)
 and synth_arg_cube :
     type a b n c.
-    err:Reporter.Code.t ->
+    not_enough:Reporter.Code.t ->
     implicit:[ `Implicit | `Explicit ] ->
     which:string ->
     (a, b) Ctx.t ->
@@ -2161,14 +2164,14 @@ and synth_arg_cube :
     * (Asai.Range.t option
       * a synth located
       * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list) =
- fun ~err ~implicit ~which ctx choose doms (sfnloc, fn, args) ->
+ fun ~not_enough ~implicit ~which ctx choose doms (sfnloc, fn, args) ->
   (* Based on the global implicit-function-boundaries setting, the dimension of the application, and whether the first argument is implicit, decide whether we are taking a whole cube of arguments or only one argument with the boundary synthesized from it. *)
   let module TakenArgs = struct
     type t = Take | Given : (n, 'k, 'nk) D.plus * (D.zero, 'nk, 'nk, normal) TubeOf.t -> t
   end in
   let taken_args : TakenArgs.t =
     match (args, implicit, D.compare_zero (CubeOf.dim doms)) with
-    | [], _, _ -> fatal err
+    | [], _, _ -> fatal not_enough
     (* If the application if zero-dimensional, or if the global setting is explicit, or if the global setting is implicit and the first argument is implicit, take a whole cube. *)
     | _, _, Zero | _, `Explicit, Pos _ | (_, _, { value = `Implicit; _ }) :: _, `Implicit, Pos _ ->
         Take
@@ -2182,8 +2185,8 @@ and synth_arg_cube :
         | Some (Factor nk) -> Given (nk, argtyargs)
         | None ->
             fatal ~severity:Asai.Diagnostic.Error ?loc
-              (Dimension_mismatch
-                 ("primary " ^ which ^ " argument", TubeOf.inst argtyargs, CubeOf.dim doms)))
+              (Insufficient_dimension
+                 { needed = CubeOf.dim doms; got = TubeOf.inst argtyargs; which }))
     | (_, _, { value = `Explicit; _ }) :: _, `Implicit, Pos _ ->
         fatal (Nonsynthesizing ("primary argument with implicit " ^ which ^ " boundaries")) in
   let module M = Monad.State (struct
@@ -2197,6 +2200,7 @@ and synth_arg_cube :
   let [ cargs; eargs ], (newloc, newfn, rest) =
     let open CubeOf.Monadic (M) in
     let open CubeOf.Infix in
+    let first = ref true in
     pmapM
       {
         map =
@@ -2216,19 +2220,19 @@ and synth_arg_cube :
             let* ctm, tm =
               match (pface_of_sface fa, taken_args) with
               (* If we are synthesizing the implicit boundary and this is a proper face, we look up the corresponding normal value, check that it has the correct type, and read it back to get the required checked term. *)
-              | `Proper fa, Given (nk, argtyargs) ->
+              | `Proper pfa, Given (nk, argtyargs) ->
                   let (Plus ml) = D.plus (D.plus_right nk) in
-                  let { tm = etm; ty = ety } = TubeOf.find argtyargs (pface_plus fa nk ml) in
+                  let { tm = etm; ty = ety } = TubeOf.find argtyargs (pface_plus pfa nk ml) in
                   equal_val (Ctx.length ctx) ety ty
-                  (* TODO: The location of this error is problematic, since the implicit argument isn't there to locate it on. *)
-                  <|> Unequal_synthesized_type (PVal (ctx, ety), PVal (ctx, ty));
+                  <|> Unequal_synthesized_boundary
+                        { face = fa; got = PVal (ctx, ety); expected = PVal (ctx, ty) };
                   let ctm = readback_at ctx etm ety in
                   return (ctm, etm)
               (* Otherwise, we pull an argument of the appropriate implicitness, check it against the correct type. *)
               | _ ->
                   let* tm =
                     match ts with
-                    | [] -> with_loc loc @@ fun () -> fatal err
+                    | [] -> with_loc loc @@ fun () -> fatal not_enough
                     | (l, t, ({ value = i; loc } as impl)) :: ts ->
                         (match (is_id_sface fa, i, implicit) with
                         | Some _, `Implicit, _ ->
@@ -2246,12 +2250,34 @@ and synth_arg_cube :
                         | _ -> ());
                         let* () = M.put (l, locate_opt l (App (f, t, impl)), ts) in
                         return t in
-                  let ctm = check (Kinetic `Nolet) ctx tm ty in
+                  (* If the application is explicit AND we are checking the first argument AND the argument synthesizes something of a high enough dimension to be the primary argument in an implicit application AND it fails to check against the needed type, we hint to the user that arguments are explicit, since they may be expecting them to be implicit. *)
+                  let ctm =
+                    if !first && implicit = `Explicit then
+                      Reporter.try_with ~fatal:(fun d ->
+                          match d.message with
+                          | Unequal_synthesized_type
+                              { got = PVal (_, gotty) as got; expected; which = _ } -> (
+                              match
+                                Reporter.try_with ~fatal:(fun _ -> None) @@ fun () ->
+                                Some (get_tyargs gotty "primary argument")
+                              with
+                              | None -> fatal_diagnostic d
+                              | Some (Full_tube argtyargs) -> (
+                                  match factor (TubeOf.inst argtyargs) (CubeOf.dim doms) with
+                                  | Some (Factor _) ->
+                                      fatal ?loc:d.explanation.loc
+                                        (Unequal_synthesized_type
+                                           { got; expected; which = Some which })
+                                  | None -> fatal_diagnostic d))
+                          | _ -> fatal_diagnostic d)
+                      @@ fun () -> check (Kinetic `Nolet) ctx tm ty
+                    else check (Kinetic `Nolet) ctx tm ty in
                   let etm = eval_term (Ctx.env ctx) ctm in
                   return (ctm, etm) in
             (* In both cases, we store the resulting value term as a normal in the hashtable of previous values, to use in instantiating later types. *)
             let ntm = { tm; ty } in
             Hashtbl.add eargtbl (SFace_of fa) ntm;
+            first := false;
             return (ctm @: [ choose tm ntm ]));
       }
       [ doms ] (Cons (Cons Nil)) (sfnloc, fn, args) in
@@ -2273,7 +2299,7 @@ and synth_app :
  fun ctx sfn doms cods tyargs fn args ->
   let implicit = Implicitboundaries.functions () in
   let (cargs, eargs), (newloc, newfn, rest) =
-    synth_arg_cube ~err:Not_enough_arguments_to_function ~implicit ~which:"function" ctx
+    synth_arg_cube ~not_enough:Not_enough_arguments_to_function ~implicit ~which:"function" ctx
       (fun tm _ -> tm)
       doms (sfn.loc, fn, args) in
   (* Evaluate cod at these evaluated arguments and instantiate it at the appropriate values of tyargs. *)
@@ -2314,8 +2340,8 @@ and synth_inst :
       let open Bwv.Monadic (M) in
       let (cargs, nargs), (newloc, newfn, rest) =
         mapM1_2
-          (synth_arg_cube ~err:Not_enough_arguments_to_instantiation ~implicit ~which:"type" ctx
-             (fun _ ntm -> ntm))
+          (synth_arg_cube ~not_enough:Not_enough_arguments_to_instantiation ~implicit ~which:"type"
+             ctx (fun _ ntm -> ntm))
           doms (sfn.loc, fn, args) in
       (* The synthesized type *of* the instantiation is itself a full instantiation of a universe, at the instantiations of the type arguments at the evaluated term arguments.  This is computed by tyof_inst. *)
       let cargs = TubeOf.of_cube_bwv m k msuc l cargs in

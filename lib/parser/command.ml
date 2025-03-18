@@ -949,20 +949,20 @@ let rec pp_parameters : Whitespace.t list -> Parameter.t list -> document * Whit
       let pnames, wnames =
         List.fold_left
           (fun (accum, prews) (name, wsname) ->
-            (accum ^^ optional (pp_ws `Break) prews ^^ pp_var name, Some wsname))
+            (accum ^^ group (optional (pp_ws `Break) prews ^^ pp_var name), Some wsname))
           (empty, None) names in
       let pparams, wparams = pp_parameters wsrparen params in
       ( group
           (pp_ws `Break prews
-          ^^ Token.pp LParen
-          ^^ align
-               (pp_ws `None wslparen
+          ^^ group
+               (Token.pp LParen
+               ^^ pp_ws `None wslparen
                ^^ group pnames
-               ^^ optional (pp_ws `Break) wnames
-               ^^ Token.pp Colon
-               ^^ pp_ws `Nobreak wscolon
-               ^^ pp_complete_term ty `None
-               ^^ Token.pp RParen))
+               ^^ optional (pp_ws `Break) wnames)
+          ^^ Token.pp Colon
+          ^^ pp_ws `Nobreak wscolon
+          ^^ pp_complete_term ty `None
+          ^^ Token.pp RParen)
         ^^ pparams,
         wparams )
 
@@ -983,7 +983,7 @@ let rec pp_defs :
         match ty with
         | Some (wscolon, Wrap ty) ->
             let pty, wty = pp_term ty in
-            (group (pp_ws `Break wparams ^^ Token.pp Colon ^^ pp_ws `Nobreak wscolon ^^ pty), wty)
+            (pp_ws `Break wparams ^^ Token.pp Colon ^^ pp_ws `Nobreak wscolon ^^ group pty, wty)
         | None -> (empty, wparams) in
       let params_and_ty =
         group
@@ -991,23 +991,25 @@ let rec pp_defs :
              (Token.pp tok
              ^^ pp_ws `Nobreak wsdef
              ^^ utf8string (String.concat "." name)
-             ^^ pparams
+             ^^ group pparams
              ^^ gty)) in
-      let coloneq = pp_ws `Break wty ^^ Token.pp Coloneq ^^ pp_ws `Nobreak wscoloneq in
+      let coloneq = Token.pp Coloneq ^^ pp_ws `Nobreak wscoloneq in
       if is_case tm then
         (* If the term is a case tree, we display it in case mode.  In this case, the principal breaking points are those in the term's case tree, and we group its "intro" with the def and type. *)
-        let itm, ttm, ptm, wtm = pp_case tm in
+        let itm, ptm, wtm = pp_case `Nontrivial tm in
         pp_defs And (Some wtm) defs
           (accum_prews
           ^^ group
-               (params_and_ty
-               ^^ group (nest 2 (coloneq ^^ group (hang 2 itm)))
-               ^^ triv_act (nontrivial ttm) ptm))
+               (group
+                  (params_and_ty
+                  ^^ nest 2 (pp_ws `Break wty ^^ group (coloneq ^^ group (hang 2 itm))))
+               ^^ ptm))
       else
         (* If the term is not a case tree, then we display it in term mode, and the principal breaking points are before the colon (if any), before the coloneq, and before the "in" (though that will be rare, since "in" is so short). *)
         let ptm, wtm = pp_term tm in
         pp_defs And (Some wtm) defs
-          (accum_prews ^^ group (params_and_ty ^^ nest 2 (coloneq ^^ group (hang 2 ptm))))
+          (accum_prews
+          ^^ group (params_and_ty ^^ nest 2 (pp_ws `Break wty ^^ coloneq ^^ group (hang 2 ptm))))
 
 (* We only print commands that can appear in source files or for which ProofGeneral may need reformatting info (e.g. solve). *)
 let pp_command : t -> document * Whitespace.t list =

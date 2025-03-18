@@ -83,12 +83,14 @@ let pp_ws (space : space) (ws : Whitespace.t list) : document =
 
 (* We print an application spine, possibly containing field/method calls, with possible linebreaks as
      f a b c
-       .meth1 d e f
-         g h
-       .meth2 i j
-         k l m
+         d e
+       .meth1 f g h
+         i j k
+       .meth2 l m n
+         o p q
+   Except that, if there are no method calls, the first spine of applications is only indented by 2 (this is implemented by pp_term below), and others listed below as we implement them.
    Accordingly, this function returns a list of lists, broken at field applications.  For the above example it would return
-   [ [f; a; b; c]; [.meth1; d; e; f; g; h]; [.meth2; i; j; k; l; m] ]. *)
+   [ [f; a; b; c; d; e]; [.meth1; f; g; h; i; j; k]; [.meth2; l; m; n; o; p; q] ]. *)
 let get_spine :
     type lt ls rt rs. (lt, ls, rt, rs) parse Asai.Range.located -> wrapped_parse list list =
  fun tm ->
@@ -104,7 +106,13 @@ let get_spine :
         go fn [] ((Wrap arg :: nonfields) :: spines)
     | App { fn; arg; _ } -> go fn (Wrap arg :: nonfields) spines
     | _ -> (Wrap tm :: nonfields) :: spines in
-  go tm [] []
+  match go tm [] [] with
+  (* If there is only one method call and it is either not preceded by any arguments or does not have any arguments of its own, it goes on the same line flowed with the arguments. *)
+  | [ [ fn ]; meth1 ] -> [ fn :: meth1 ]
+  | [ fnargs; [ meth1 ] ] -> [ fnargs @ [ meth1 ] ]
+  (* If there are only method calls, they all go on the same line flowed together. *)
+  | meths when List.for_all (fun l -> List.length l = 1) meths -> [ List.concat meths ]
+  | other -> other
 
 (* Print a parse tree as a term.  Return the whitespace at the end instead of printing it, so the caller can exclude it from any surrounding groups and decide whether to add an additional break. *)
 let rec pp_term :
@@ -117,8 +125,8 @@ let rec pp_term :
       | Some printer -> printer (args d)
       | None ->
           (* If a notation can only be printed as a case tree, we have to start a new "potential as kinetic" case tree that is aligned to the current column and grouped.  We do that here because while in case state, case trees do not align; indentations increase only a bit at a time from the left margin per nesting, and in general the whole case tree has breaks or not at all (with possible exceptions).  Moreover, the intendation increase is set outside each case-tree notation, i.e. each notation sets the increased indentation for its children. *)
-          let intro, triv, doc, ws = (print_case n <|> Anomaly "missing print_case") (args d) in
-          (align (intro ^^ triv_act triv doc), ws))
+          let intro, doc, ws = (print_case n <|> Anomaly "missing print_case") `Trivial (args d) in
+          (align (intro ^^ doc), ws))
   | App _ ->
       (* Narrow spacing removes the default spaces before function arguments, but not before field projections. *)
       let sep =
@@ -126,9 +134,10 @@ let rec pp_term :
         | `Wide -> `Break
         | `Narrow -> `None in
       (* We allow the entire spine to appear on one line, but if it doesn't fit, we insist on breaking it before *every* method call, by concatenating all the method calls rather than 'flow'ing them, in a single group.  We separate them by the last whitespace in each line, returning the whitespace that ends the final one. *)
-      let doc, ws =
+      let spine = get_spine tm in
+      let doc, ws, _ =
         List.fold_left
-          (fun (outer, prews) xs ->
+          (fun (outer, prews, first) xs ->
             let line, postws =
               (* In each sublist of get_spine (that is, each method call), we combine the arguments as in PPrint.flow, except with the "separators" being the variable whitespace (or 'sep' space). *)
               List.fold_left
@@ -136,8 +145,11 @@ let rec pp_term :
                   let px, wx = pp_term x in
                   (inner ^^ group (optional (pp_ws sep) prews ^^ px), Some wx))
                 (empty, None) xs in
-            (outer ^^ optional (pp_ws `Break) prews ^^ hang 2 (group line), postws))
-          (empty, None) (get_spine tm) in
+            ( outer ^^ optional (pp_ws `Break) prews ^^ hang (if first then 4 else 2) (group line),
+              postws,
+              false ))
+          (empty, None, List.length spine > 1)
+          spine in
       (group doc, ws <|> Anomaly "missing ws in pp_term")
   | Placeholder w -> (Token.pp Underscore, w)
   | Ident (x, w) -> (separate_map (char '.') utf8string x, w)
@@ -163,22 +175,25 @@ and pp_superscript str =
 (* Print a parse tree as a case tree.  Return the "intro" separately so that it can be grouped with any introductory code from a "def" or "let" so that the primary linebreaks are the case tree ones.  Deals with whitespace like pp_term; the whitespace that ends the intro goes into the main doc (including an allowed break).  The intro doesn't need to start with a break. *)
 let pp_case :
     type lt ls rt rs.
+    [ `Trivial | `Nontrivial ] ->
     (lt, ls, rt, rs) parse Asai.Range.located ->
-    PPrint.document * triviality * document * Whitespace.t list =
- fun tm ->
-  match tm.value with
-  | Notn (n, d) -> (
-      (* If a notation can be printed as a case tree, do that. *)
-      match print_case n with
-      | Some printer -> printer (args d)
-      | None ->
-          (* If a notation can only be printed as a term, do that instead, and there is no intro.  An additional "group" shouldn't be necessary here, the term printer should put groups around its result. *)
-          let doc, ws = (print_term n <|> Anomaly ("missing print_term for " ^ name n)) (args d) in
-          (* TODO *)
-          (empty, Nontrivial (fun x -> x), hang 2 doc, ws))
-  | _ ->
-      let doc, ws = pp_term tm in
-      (empty, Nontrivial (fun x -> x), hang 2 doc, ws)
+    PPrint.document * document * Whitespace.t list =
+ fun triv tm ->
+  match
+    match tm.value with
+    | Notn (n, d) -> (
+        (* If a notation can be printed as a case tree, do that. *)
+        match print_case n with
+        | Some printer -> Either.Left (printer triv (args d))
+        | None ->
+            Either.Right ((print_term n <|> Anomaly ("missing print_term for " ^ name n)) (args d)))
+    | _ -> Either.Right (pp_term tm)
+  with
+  | Left result -> result
+  | Right (doc, ws) -> (
+      match triv with
+      | `Trivial -> (empty, hang 2 doc, ws)
+      | `Nontrivial -> (empty, group (nest 2 (break 0 ^^ hang 2 doc)), ws))
 
 let pp_complete_term : wrapped_parse -> space -> document =
  fun (Wrap tm) space ->

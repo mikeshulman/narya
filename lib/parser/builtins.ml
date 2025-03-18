@@ -377,14 +377,11 @@ let pp_abslets obs :
             let head, wsin =
               if is_case tm then
                 (* If the term is a case tree, we display it in case mode.  In this case, the principal breaking points are those in the term's case tree, and we group its "intro" with the let and type. *)
-                let itm, ttm, ptm, wtm = pp_case tm in
+                let itm, ptm, wtm = pp_case `Nontrivial tm in
                 let gin, wsin = get_in wtm in
                 ( optional (pp_ws `Break) prews
                   ^^ group
-                       (var_and_ty
-                       ^^ group (nest 2 (coloneq ^^ group (hang 2 itm)))
-                       ^^ triv_act (nontrivial ttm) ptm
-                       ^^ gin),
+                       (var_and_ty ^^ group (nest 2 (coloneq ^^ group (hang 2 itm))) ^^ ptm ^^ gin),
                   wsin )
               else
                 (* If the term is not a case tree, then we display it in term mode, and the principal breaking points are before the colon (if any), before the coloneq, and before the "in" (though that will be rare, since "in" is so short). *)
@@ -438,52 +435,62 @@ let pp_abslet_term obs =
        : type
        ≔ term in
 *)
-let pp_abslet_case obs =
+let pp_abslet_case triv obs =
   let introabs, abslets, trailabs, ws, Wrap body = pp_abslets obs in
-  let ibody, tbody, pbody, wsbody = pp_case body in
-  let newbody =
-    nest 2
-      (concat abslets
-      ^^
-      match trailabs with
-      | [] -> optional (pp_ws `Break) ws ^^ ibody ^^ triv_act tbody pbody
-      | (absws, abs) :: trailabs ->
-          optional (pp_ws `Break) absws
+  match trailabs with
+  | [] -> (
+      match abslets with
+      | [] ->
+          let ibody, pbody, wsbody = pp_case `Nontrivial body in
+          ( group
+              (concat_map (fun (w, x) -> optional (pp_ws `Break) w ^^ x) introabs
+              ^^ optional (pp_ws `Break) ws
+              ^^ ibody),
+            pbody,
+            wsbody )
+      | _ :: _ -> (
+          let ibody, pbody, wsbody = pp_case `Trivial body in
+          let newbody = nest 2 (concat abslets ^^ optional (pp_ws `Break) ws ^^ ibody ^^ pbody) in
+          match (introabs, triv) with
+          | [], `Trivial -> (empty, newbody, wsbody)
+          | [], `Nontrivial ->
+              let doc = ifflat empty (hardline ^^ blank 2) ^^ newbody in
+              (empty, (if List.is_empty abslets then group doc else doc), wsbody)
+          | _ :: _, _ ->
+              ( group (concat_map (fun (w, x) -> optional (pp_ws `Break) w ^^ x) introabs),
+                newbody,
+                wsbody )))
+  | (absws, abs) :: trailabs -> (
+      let ibody, pbody, wsbody = pp_case `Nontrivial body in
+      let newbody =
+        nest 2
+          (concat abslets
+          ^^ optional (pp_ws `Break) absws
           ^^ group
                (abs
                ^^ concat_map (fun (w, x) -> optional (pp_ws `Break) w ^^ x) trailabs
                ^^ optional (pp_ws `Break) ws
                ^^ ibody)
-          ^^ triv_act (nontrivial tbody) pbody) in
-  match introabs with
-  | [] ->
-      ( empty,
-        Trivial
-          {
-            trivial = (fun x -> x);
-            nontrivial =
-              (fun x ->
-                let doc = ifflat empty (hardline ^^ blank 2) ^^ x in
-                if List.is_empty abslets then group doc else doc);
-          },
-        newbody,
-        wsbody )
-  | (absws, abs) :: introabs -> (
-      match abslets with
-      | [] ->
-          ( group
-              (abs
-              ^^ concat_map (fun (w, x) -> optional (pp_ws `Break) w ^^ x) introabs
-              ^^ optional (pp_ws `Break) ws
-              ^^ ibody),
-            Nontrivial (fun x -> optional (pp_ws `Break) absws ^^ x),
-            triv_act (nontrivial tbody) pbody,
-            wsbody )
-      | _ :: _ ->
-          ( group (abs ^^ concat_map (fun (w, x) -> optional (pp_ws `Break) w ^^ x) introabs),
-            Nontrivial (fun x -> optional (pp_ws `Break) absws ^^ x),
-            newbody,
-            wsbody ))
+          ^^ pbody) in
+      match (introabs, triv) with
+      | [], `Trivial -> (empty, newbody, wsbody)
+      | [], `Nontrivial ->
+          let doc = ifflat empty (hardline ^^ blank 2) ^^ newbody in
+          (empty, (if List.is_empty abslets then group doc else doc), wsbody)
+      | (absws, abs) :: introabs, _ -> (
+          match abslets with
+          | [] ->
+              ( group
+                  (abs
+                  ^^ concat_map (fun (w, x) -> optional (pp_ws `Break) w ^^ x) introabs
+                  ^^ optional (pp_ws `Break) ws
+                  ^^ ibody),
+                optional (pp_ws `Break) absws ^^ pbody,
+                wsbody )
+          | _ :: _ ->
+              ( group (abs ^^ concat_map (fun (w, x) -> optional (pp_ws `Break) w ^^ x) introabs),
+                optional (pp_ws `Break) absws ^^ newbody,
+                wsbody )))
 
 (* An abstraction should be printed as a case tree if its body is. *)
 let abs_is_case = function
@@ -750,14 +757,14 @@ let () =
       (* This is used when printing labeled fields of a tuple in case mode. *)
       print_case =
         Some
-          (fun obs ->
+          (* Always nontrivial *)
+          (fun _triv obs ->
             match obs with
             | [ Term x; Token (Coloneq, wscoloneq); Term body ] ->
                 let px, wx = pp_term x in
-                let ibody, tbody, pbody, wbody = pp_case body in
+                let ibody, pbody, wbody = pp_case `Nontrivial body in
                 ( group
                     (px ^^ pp_ws `Break wx ^^ Token.pp Coloneq ^^ pp_ws `Nobreak wscoloneq ^^ ibody),
-                  nontrivial tbody,
                   pbody,
                   wbody )
             | _ -> invalid "tuple");
@@ -838,39 +845,33 @@ let rec pp_tuple_fields first prews accum obs : document * Whitespace.t list =
       (accum ^^ optional (pp_ws `Break) prews ^^ Token.pp RParen, wsrparen)
   (* Last term, without a trailing comma.  Don't add one. *)
   | [ Term tm; Token (RParen, wsrparen) ] ->
-      let itm, ttm, ptm, wtm = pp_case tm in
-      let doc = itm ^^ triv_act ttm ptm ^^ pp_ws `None wtm ^^ Token.pp RParen in
+      let itm, ptm, wtm = pp_case `Trivial tm in
+      let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ Token.pp RParen in
       (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
   (* Last term, with an unnecessary trailing comma (that is, not a 1-tuple or the entry is labeled).  Remove it, but keep its whitespace. *)
   | [ Term tm; Token (Op ",", wscomma); Token (RParen, wsrparen) ] when not first ->
-      let itm, ttm, ptm, wtm = pp_case tm in
-      let doc =
-        itm ^^ triv_act ttm ptm ^^ pp_ws `None wtm ^^ pp_ws `None wscomma ^^ Token.pp RParen in
+      let itm, ptm, wtm = pp_case `Trivial tm in
+      let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ pp_ws `None wscomma ^^ Token.pp RParen in
       (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
   | [
    Term ({ value = Notn ((Coloneq, _), _); _ } as tm);
    Token (Op ",", wscomma);
    Token (RParen, wsrparen);
   ] ->
-      let itm, ttm, ptm, wtm = pp_case tm in
-      let doc =
-        itm ^^ triv_act ttm ptm ^^ pp_ws `None wtm ^^ pp_ws `None wscomma ^^ Token.pp RParen in
+      let itm, ptm, wtm = pp_case `Trivial tm in
+      let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ pp_ws `None wscomma ^^ Token.pp RParen in
       (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
   (* Last term, with a necessary trailing comma.  Keep it. *)
   | [ Term tm; Token (Op ",", wscomma); Token (RParen, wsrparen) ] ->
-      let itm, ttm, ptm, wtm = pp_case tm in
+      let itm, ptm, wtm = pp_case `Trivial tm in
       let doc =
-        itm
-        ^^ triv_act ttm ptm
-        ^^ pp_ws `None wtm
-        ^^ Token.pp (Op ",")
-        ^^ pp_ws `None wscomma
-        ^^ Token.pp RParen in
+        itm ^^ ptm ^^ pp_ws `None wtm ^^ Token.pp (Op ",") ^^ pp_ws `None wscomma ^^ Token.pp RParen
+      in
       (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
   (* Non-last term, with a comma after it.  Keep the comma, of course. *)
   | Term tm :: Token (Op ",", wscomma) :: obs ->
-      let itm, ttm, ptm, wtm = pp_case tm in
-      let doc = itm ^^ triv_act ttm ptm ^^ pp_ws `None wtm ^^ Token.pp (Op ",") in
+      let itm, ptm, wtm = pp_case `Trivial tm in
+      let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ Token.pp (Op ",") in
       pp_tuple_fields false (Some wscomma) (accum ^^ optional (pp_ws `Break) prews ^^ doc) obs
   | _ -> invalid "tuple"
 
@@ -886,30 +887,21 @@ let pp_tuple_term obs =
           ^^ align (pp_ws `None wslparen ^^ pbody ^^ pp_ws `None wbody ^^ Token.pp RParen)),
         wsrparen )
 
-let pp_tuple_case obs =
+let pp_tuple_case triv obs =
   match parens_case obs with
   | `Tuple (wslparen, obs) -> (
       match obs with
       (* For an empty tuple, we put everything in the intro. *)
       | [ Token (RParen, wsrparen) ] ->
-          ( Token.pp LParen ^^ pp_ws `None wslparen ^^ Token.pp RParen,
-            Nontrivial (fun x -> x),
-            empty,
-            wsrparen )
-      | _ ->
+          (Token.pp LParen ^^ pp_ws `None wslparen ^^ Token.pp RParen, empty, wsrparen)
+      | _ -> (
           let doc, ws = pp_tuple_fields true None empty obs in
-          ( Token.pp LParen,
-            Trivial
-              {
-                trivial = (fun doc -> align (pp_ws `None wslparen ^^ doc));
-                nontrivial = (fun doc -> nest 2 (pp_ws `Cut wslparen ^^ doc));
-              },
-            doc,
-            ws ))
+          match triv with
+          | `Trivial -> (Token.pp LParen, group (align (pp_ws `None wslparen ^^ doc)), ws)
+          | `Nontrivial -> (Token.pp LParen, group (nest 2 (pp_ws `Cut wslparen ^^ doc)), ws)))
   | `Parens (wslparen, Wrap body, wsrparen) ->
-      let ibody, tbody, pbody, wbody = pp_case body in
+      let ibody, pbody, wbody = pp_case `Nontrivial body in
       ( Token.pp LParen ^^ pp_ws `None wslparen ^^ ibody,
-        nontrivial tbody,
         pbody ^^ pp_ws `None wbody ^^ Token.pp RParen,
         wsrparen )
 
@@ -1356,10 +1348,9 @@ let rec pp_patterns accum obs =
       (accum ^^ ppat, wpat, obs)
   | _ -> invalid "(co)match 1"
 
-let rec pp_branches first accum prews obs : document * Whitespace.t list =
+let rec pp_branches first triv accum prews obs : document * Whitespace.t list =
   match obs with
-  (* "| ]" can't happen normally, but it appears in an empty match since we do a must_start_with (Op "|") in calling this function. *)
-  | [ Token (RBracket, wsrbrack) ] | [ Token (Op "|", _); Token (RBracket, wsrbrack) ] ->
+  | [ Token (RBracket, wsrbrack) ] ->
       ( accum
         ^^ ifflat (optional (pp_ws `Nobreak) prews) (optional (pp_ws `None) prews)
         ^^ Token.pp RBracket,
@@ -1368,10 +1359,11 @@ let rec pp_branches first accum prews obs : document * Whitespace.t list =
       let ppats, wpats, obs = pp_patterns empty obs in
       match obs with
       | Token (Mapsto, wsmapsto) :: Term body :: obs ->
-          let ibody, tbody, pbody, wbody = pp_case body in
-          pp_branches false
+          let ibody, pbody, wbody = pp_case `Nontrivial body in
+          pp_branches false triv
             (accum
             ^^ optional (pp_ws `Break) prews
+               (* Don't print the starting bar if we're in flat mode. *)
             ^^ ifflat
                  (group
                     (nest 2
@@ -1384,13 +1376,14 @@ let rec pp_branches first accum prews obs : document * Whitespace.t list =
                        ^^ ibody)))
                  (group
                     (nest 2
-                       ((Token.pp (Op "|") ^^ pp_ws `Nobreak wsbar)
+                       ((if first && triv = `Trivial then pp_ws `None wsbar
+                         else Token.pp (Op "|") ^^ pp_ws `Nobreak wsbar)
                        ^^ group (align ppats)
                        ^^ pp_ws `Nobreak wpats
                        ^^ Token.pp Mapsto
                        ^^ pp_ws `Break wsmapsto
                        ^^ ibody)))
-            ^^ nest 2 (triv_act (nontrivial tbody) pbody))
+            ^^ nest 2 pbody)
             (Some wbody) obs
       | _ -> invalid "(co)match 2")
   | _ -> invalid "(co)match 3"
@@ -1412,9 +1405,9 @@ let rec pp_discriminees accum prews obs : document * Whitespace.t list * observa
       (accum ^^ pp_ws `Break prews ^^ px, wx, obs)
   | _ -> invalid "(co)match 4"
 
-(* Print an implicit match, explicit match, matching lambda, or comatch, with possible multiple discriminees and possible 'return'.  We can combine comatches with matches because a "field" is just a term that can be printed like a pattern. *)
-let pp_match = function
-  | Token (Match, wsmatch) :: obs ->
+(* Print an implicit match, explicit match, matching lambda, or comatch, with possible multiple discriminees and possible 'return'.  We can combine comatches with matches because a "field" is just a term that can be printed like a pattern.  Always nontrivial. *)
+let pp_match triv = function
+  | Token (Match, wsmatch) :: obs -> (
       let pdisc, wdisc, obs = pp_discriminees (Token.pp Match) wsmatch obs in
       let pret, wret, obs =
         match obs with
@@ -1432,15 +1425,21 @@ let pp_match = function
         | Token (LBracket, wslbrack) :: obs ->
             (pp_ws `Nobreak wdisc ^^ Token.pp LBracket, wslbrack, obs)
         | _ -> invalid "(co)match 5" in
-      let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
-      ( align (group (hang 2 pdisc) ^^ pret),
-        Nontrivial (fun doc -> pp_ws `Break wret ^^ doc),
-        pbranches,
-        wbranches )
+      match obs with
+      | [ Token (RBracket, wsrbrack) ] ->
+          (* The empty match fits all on one line *)
+          ( align (group (hang 2 pdisc) ^^ pret ^^ pp_ws `Nobreak wret ^^ Token.pp RBracket),
+            empty,
+            wsrbrack )
+      | _ ->
+          let pbranches, wbranches =
+            pp_branches true `Nontrivial empty None (must_start_with (Op "|") obs) in
+          (align (group (hang 2 pdisc) ^^ pret), group (pp_ws `Break wret ^^ pbranches), wbranches))
   | Token (LBracket, wslbrack) :: obs ->
-      let pbranches, wbranches = pp_branches true empty None (must_start_with (Op "|") obs) in
-      (* TODO: It might be nice to treat this as trivial and omit the opening bar.  But I don't see an easy way to do that with the current design, since the presence of the opening bar is baked into pp_branches and it's placed deep inside ifflat, group, and nest. *)
-      (Token.pp LBracket, Nontrivial (fun doc -> pp_ws `Break wslbrack ^^ doc), pbranches, wbranches)
+      let pbranches, wbranches = pp_branches true triv empty None (must_start_with (Op "|") obs) in
+      ( Token.pp LBracket,
+        group (pp_ws (if triv = `Trivial then `Nobreak else `Break) wslbrack ^^ pbranches),
+        wbranches )
   | _ -> invalid "(co)match 6"
 
 let () =
@@ -1631,13 +1630,12 @@ let () =
       print_term = None;
       print_case =
         Some
-          (function
-          | [ Token (LBracket, wslbracket); Token (RBracket, wsrbracket) ] ->
-              ( Token.pp LBracket ^^ pp_ws `Nobreak wslbracket ^^ Token.pp RBracket,
-                Nontrivial (fun x -> x),
-                empty,
-                wsrbracket )
-          | _ -> invalid "empty_co_match");
+          (fun _triv -> function
+            | [ Token (LBracket, wslbracket); Token (RBracket, wsrbracket) ] ->
+                ( Token.pp LBracket ^^ pp_ws `Nobreak wslbracket ^^ Token.pp RBracket,
+                  empty,
+                  wsrbracket )
+            | _ -> invalid "empty_co_match");
       is_case = (fun _ -> true);
     }
 
@@ -1738,7 +1736,7 @@ let rec pp_codata_fields first prews accum obs : document * Whitespace.t list =
         obs
   | _ -> invalid "codata"
 
-let pp_codata = function
+let pp_codata _triv = function
   (* The empty codatatype fits all on one line *)
   | [ Token (Codata, wscodata); Token (LBracket, wslbrack); Token (RBracket, wsrbrack) ] ->
       ( Token.pp Codata
@@ -1746,14 +1744,12 @@ let pp_codata = function
         ^^ Token.pp LBracket
         ^^ pp_ws `Nobreak wslbrack
         ^^ Token.pp RBracket,
-        Nontrivial (fun x -> x),
         empty,
         wsrbrack )
   | Token (Codata, wscodata) :: Token (LBracket, wslbrack) :: obs ->
       let fields, ws = pp_codata_fields true None empty (must_start_with (Op "|") obs) in
       ( Token.pp Codata ^^ pp_ws `Nobreak wscodata ^^ Token.pp LBracket,
-        Nontrivial (fun doc -> pp_ws `Break wslbrack ^^ doc),
-        fields,
+        pp_ws `Break wslbrack ^^ fields,
         ws )
   | _ -> invalid "codata"
 
@@ -1901,7 +1897,7 @@ let rec pp_record_fields prews accum obs =
         obs
   | _ -> invalid "record"
 
-let pp_record obs =
+let pp_record _triv obs =
   let withattr, wsattr, obs =
     match obs with
     | Token (Sig, wssig)
@@ -1945,13 +1941,10 @@ let pp_record obs =
   match obs with
   | [ Token (RParen, wsrparen) ] ->
       (* The empty record type fits all on one line *)
-      ( withlparen ^^ pp_ws `None wslparen ^^ Token.pp RParen,
-        Nontrivial (fun x -> x),
-        empty,
-        wsrparen )
+      (withlparen ^^ pp_ws `None wslparen ^^ Token.pp RParen, empty, wsrparen)
   | _ ->
       let doc, ws = pp_record_fields None empty obs in
-      (withlparen, Nontrivial (fun doc -> pp_ws `Break wslparen ^^ doc), doc, ws)
+      (withlparen, pp_ws `Break wslparen ^^ doc, ws)
 
 let () =
   make record
@@ -2097,6 +2090,7 @@ let rec pp_data_constrs first prews accum obs =
       pp_data_constrs false (Some wconstr)
         (accum
         ^^ optional (pp_ws `Break) prews
+        (* Don't print the starting bar if we're in flat mode *)
         ^^ ifflat
              (group
                 (nest 2
@@ -2106,7 +2100,7 @@ let rec pp_data_constrs first prews accum obs =
         obs
   | _ -> invalid "data"
 
-let pp_data = function
+let pp_data _triv = function
   (* The empty datatype fits all on one line *)
   | [ Token (Data, wsdata); Token (LBracket, wslbrack); Token (RBracket, wsrbrack) ] ->
       ( Token.pp Data
@@ -2114,15 +2108,11 @@ let pp_data = function
         ^^ Token.pp LBracket
         ^^ pp_ws `None wslbrack
         ^^ Token.pp RBracket,
-        Nontrivial (fun x -> x),
         empty,
         wsrbrack )
   | Token (Data, wsdata) :: Token (LBracket, wslbrack) :: obs ->
       let doc, ws = pp_data_constrs true None empty (must_start_with (Op "|") obs) in
-      ( Token.pp Data ^^ pp_ws `Nobreak wsdata ^^ Token.pp LBracket,
-        Nontrivial (fun doc -> pp_ws `Break wslbrack ^^ doc),
-        doc,
-        ws )
+      (Token.pp Data ^^ pp_ws `Nobreak wsdata ^^ Token.pp LBracket, pp_ws `Break wslbrack ^^ doc, ws)
   | _ -> invalid "data"
 
 let () =

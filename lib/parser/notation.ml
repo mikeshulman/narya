@@ -162,24 +162,9 @@ and ('left, 'tight) notation_entry =
 and ('left, 'tight, 'right) notation =
   ('left, 'tight, 'right) identity * ('left, 'tight, 'right) fixity
 
-(* A global intrinsically well-typed map that stores the definitions of each notations, identified as above with identity and fixity. *)
-
 type wrapped_identity = Wrap : ('left, 'tight, 'right) identity -> wrapped_identity
 
-type triviality =
-  | Trivial of {
-      trivial : PPrint.document -> PPrint.document;
-      nontrivial : PPrint.document -> PPrint.document;
-    }
-  | Nontrivial of (PPrint.document -> PPrint.document)
-
-let triv_act : triviality -> PPrint.document -> PPrint.document = function
-  | Trivial t -> t.trivial
-  | Nontrivial t -> t
-
-let nontrivial : triviality -> triviality = function
-  | Trivial { nontrivial; _ } -> Nontrivial nontrivial
-  | Nontrivial t -> Nontrivial t
+(* The definition of a notation *)
 
 type ('left, 'tight, 'right) data = {
   name : string;
@@ -187,13 +172,21 @@ type ('left, 'tight, 'right) data = {
   (* A postproccesing function has to be polymorphic over the length of the context so as to produce intrinsically well-scoped terms.  Thus, we have to wrap it as a field of a record (or object).  The whitespace argument is often ignored, but it allows complicated notation processing functions to be shared between the processor and the printer, and sometimes the processing functions need to inspect the sequence of tokens which is stored with the whitespace. *)
   processor :
     'n. (string option, 'n) Bwv.t -> observation list -> Asai.Range.t option -> 'n check located;
-  (* A printing function for a notation is told the list of arguments of the notation, and the list of whitespaces attached after all the operator parts of the notation. *)
+  (* A printing function for a notation is told the list of arguments of the notation.  It returns the printed document along with its trailing whitespace/comments (so that the caller can place that whitespace outside its group). *)
   print_term : (observation list -> PPrint.document * Whitespace.t list) option;
+  (* When printing case tree notations, we split the output into an "introduction" and a "body".  The introduction, such as "match n [", tries to go on the same line as whatever form introduced the case tree (and with a hanging indent under it), such as "def x : A ≔" or "let x : A ≔" or part of an outer case tree construct such as ".field ↦".  The body goes on the same line too if it fits, otherwise it breaks into multiple lines and indents back to the next level below the enclosing case tree construct if any (NOT hanging under the introductory line).  Thus, a case-tree printing function returns two printed documents.
+
+     In addition, we distinguish between "trivial" and "nontrivial" introductions.  A trivial introduction is a 0- or 1-character one, like the opening parenthesis of a tuple.  A trivial introduction is treated specially IF the form introducing the case tree is empty, so that there would literally be only 0 or 1 characters on the introduction line; in that case, there should be no linebreak after the introduction even when the body is being linebreaked.  Thus, the function to print a notation as a case tree must be told whether it is in a trivial context or not (which it may choose to ignore, if it is adding nontrivial introductions). *)
   print_case :
-    (observation list -> PPrint.document * triviality * PPrint.document * Whitespace.t list) option;
+    ([ `Trivial | `Nontrivial ] ->
+    observation list ->
+    PPrint.document * PPrint.document * Whitespace.t list)
+    option;
   (* Whether this notation, with its current arguments, should be printed as a case tree if it's the value of a def or a let. *)
   is_case : observation list -> bool;
 }
+
+(* We create a global intrinsically well-typed map that stores the definitions of each notations, identified as above with identity and fixity. *)
 
 module Data = struct
   type (_, _) t =

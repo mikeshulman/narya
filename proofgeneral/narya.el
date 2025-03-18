@@ -69,7 +69,7 @@ Each entry in RELATIVE-POSITIONS should be a list of the form (START-OFFSET END-
 (defun narya-create-marked-hole-overlays (start end)
   "Create hole overlays from markers of the form ¿0? from START to END."
   (goto-char start)
-  (while (re-search-forward "¿\\([[:digit:]]\\)+\\?" end 'limit)
+  (while (re-search-forward "¿\\([[:digit:]]+\\)\\?" end 'limit)
     (narya-create-hole-overlay (match-beginning 0) (match-end 0) (string-to-number (match-string 1)))
     (replace-match "?")))
 
@@ -192,13 +192,12 @@ handling in Proof General."
                      (while (looking-at "[ \t\n]")
                        (forward-char 1))
                      (set-marker start (point))
-                     ;; We also get rid of any indent (the Narya reformatter will insert indentation if
-                     ;; necessary, e.g. if we are in a section), and insert a blank line if we aren't at bol.
+                     ;; We also skip backwards across any indent to include it in the command being replaced, 
+                     ;; since the Narya reformatter will insert indentation if necessary (e.g. if we are in a section).
+                     ;; And we insert a blank line if we aren't at the beginning of a line.
                      ;; It would be nice to also insert an extra newline if there isn't any blank line between
                      ;; the previous command and this one, but that would be too much work for now.
                      (skip-syntax-backward " ")
-                     (unless (= (point) start)
-                       (delete-region (point) start))
                      (unless (bolp)
                        (insert "\n\n"))
                      ;; Now we replace the old command with the new one.  But if they are the same, we do nothing,
@@ -360,7 +359,8 @@ handling in Proof General."
   (set (make-local-variable 'block-comment-end) " `}")
   (set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
   (set (make-local-variable 'comment-region-function) 'narya-comment-region)
-  (add-hook 'proof-state-change-hook 'narya-delete-undone-holes))
+  (add-hook 'proof-state-change-hook 'narya-delete-undone-holes)
+  (setq font-lock-multiline t))
 
 (add-hook 'narya-mode-hook 'narya-mode-extra-config)
 

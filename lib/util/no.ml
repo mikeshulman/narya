@@ -342,7 +342,9 @@ let of_rat (x : Q.t) : wrapped option =
 let to_string : type a. a t -> string = function
   | Plus_omega -> "+ω"
   | Minus_omega -> "-ω"
-  | Fin _ as x -> Q.to_string (to_rat x)
+  | Fin _ as x ->
+      let x = to_rat x in
+      if Z.equal (Q.den x) Z.one then Z.to_string (Q.num x) else string_of_float (Q.to_float x)
 
 (* Our sign-sequences above are morally *forwards* lists of signs, even though OCaml's type-former notation forces us to write them postfix.  That is, the type "zero minus plus plus" actually represents the sign-sequence "++-", meaning 1.5.  But it is also sometimes useful to have "backwards" lists of signs, so that for instance "then_zero then_minus then_plus then_plus" represents "-++".  *)
 

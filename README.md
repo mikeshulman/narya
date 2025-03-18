@@ -208,6 +208,21 @@ As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (s
 - `C-c C-SPC` : Fill the hole under point with a specified term, without retracting any code.
 
 
+### Syntax highlighting
+
+Narya's ProofGeneral mode uses Emacs' font-lock system for syntax highlighting.  This is only approximately correct as it uses simple regexps, but it's fairly good and can highlight code that hasn't been processed yet and wouldn't even parse.  It uses the following "faces" which you may want to customize (some of them are not configured by default to have any noticable color):
+
+- `font-lock-keyword-face`: commands such as `def` and `axiom`.
+- `font-lock-builtin-face`: keywords such as `let` and `match`.
+- `font-lock-function-name-face`: names of constants currently being defined or assumed.
+- `font-lock-constant-face`: constructor names.
+- `font-lock-number-face`: numerals.  I suggest making this face inherit from `font-lock-constant-face`, since numerals are just a shorthand for constructor sequences.
+- `font-lock-property-name-face`: field and method names.
+- `font-lock-variable-name-face`: variables currently being bound by abstractions, let-bindings, as parameters, in the domains of dependent function-types, etc.
+- `font-lock-bracket-face`: parentheses, brackets, and braces.  Note that this inherits by default from `font-lock-punctuation-face`.
+- `font-lock-operator-face`: single-character operators like → and ASCII operators such as `->`.
+
+
 ### Entering Unicode characters
 
 When editing Narya files in Emacs, you will probably also want an input-mode for entering Unicode characters.  Narya does not have its own such mode.  I use the one that ships with Agda, customized by adding the following to `agda-input-user-translations`:

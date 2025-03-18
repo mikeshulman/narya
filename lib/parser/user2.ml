@@ -61,7 +61,7 @@ let make_user : User.prenotation -> User.notation =
                     (fun acc k ->
                       Raw.App
                         ( { value = acc; loc },
-                          StringMap.find k args,
+                          StringMap.find_opt k args <|> Anomaly "not found processing user",
                           Asai.Range.locate_opt None `Explicit ))
                     (Const c) val_vars in
                 Raw.Synth spine

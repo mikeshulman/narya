@@ -2171,7 +2171,9 @@ and synth_arg_cube :
  fun ~not_enough ~implicit ~which ctx choose doms (sfnloc, fn, args) ->
   (* Based on the global implicit-function-boundaries setting, the dimension of the application, and whether the first argument is implicit, decide whether we are taking a whole cube of arguments or only one argument with the boundary synthesized from it. *)
   let module TakenArgs = struct
-    type t = Take | Given : (n, 'k, 'nk) D.plus * (D.zero, 'nk, 'nk, normal) TubeOf.t -> t
+    type t =
+      | Take
+      | Given : Asai.Range.t option * (n, 'k, 'nk) D.plus * (D.zero, 'nk, 'nk, normal) TubeOf.t -> t
   end in
   let taken_args : TakenArgs.t =
     match (args, implicit, D.compare_zero (CubeOf.dim doms)) with
@@ -2186,7 +2188,7 @@ and synth_arg_cube :
         let (Full_tube argtyargs) = get_tyargs argty "primary argument" in
         (* A function of one dimension can be applied to a primary argument of a *higher* dimension, since a cube is also a square.  So we require only that the dimension of argtyargs factors through the application dimension. *)
         match factor (TubeOf.inst argtyargs) (CubeOf.dim doms) with
-        | Some (Factor nk) -> Given (nk, argtyargs)
+        | Some (Factor nk) -> Given (loc, nk, argtyargs)
         | None ->
             fatal ~severity:Asai.Diagnostic.Error ?loc
               (Insufficient_dimension
@@ -2224,12 +2226,13 @@ and synth_arg_cube :
             let* ctm, tm =
               match (pface_of_sface fa, taken_args) with
               (* If we are synthesizing the implicit boundary and this is a proper face, we look up the corresponding normal value, check that it has the correct type, and read it back to get the required checked term. *)
-              | `Proper pfa, Given (nk, argtyargs) ->
+              | `Proper pfa, Given (toploc, nk, argtyargs) ->
                   let (Plus ml) = D.plus (D.plus_right nk) in
                   let { tm = etm; ty = ety } = TubeOf.find argtyargs (pface_plus pfa nk ml) in
-                  equal_val (Ctx.length ctx) ety ty
-                  <|> Unequal_synthesized_boundary
-                        { face = fa; got = PVal (ctx, ety); expected = PVal (ctx, ty) };
+                  with_loc toploc (fun () ->
+                      equal_val (Ctx.length ctx) ety ty
+                      <|> Unequal_synthesized_boundary
+                            { face = fa; got = PVal (ctx, ety); expected = PVal (ctx, ty) });
                   let ctm = readback_at ctx etm ety in
                   return (ctm, etm)
               (* Otherwise, we pull an argument of the appropriate implicitness, check it against the correct type. *)

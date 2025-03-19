@@ -9,7 +9,12 @@ type metamap
 val find : Constant.t -> (emp, kinetic) term * definition
 val find_meta : ('a, 'b, 's) Meta.t -> ('a, 'b, 's) Metadef.t
 val to_channel_unit : Out_channel.t -> Compunit.t -> Marshal.extern_flags list -> unit
-val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit
+
+type unit_entry
+
+val find_unit : Compunit.t -> unit_entry
+val add_unit : Compunit.t -> unit_entry -> unit
+val from_channel_unit : (Compunit.t -> Compunit.t) -> In_channel.t -> Compunit.t -> unit_entry
 val add : Constant.t -> (emp, kinetic) term -> definition -> unit
 val set : Constant.t -> definition -> unit
 val add_error : Constant.t -> Reporter.Code.t -> unit

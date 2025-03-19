@@ -107,16 +107,31 @@ let link_definition f df =
   | Axiom p -> Axiom p
   | Defined tm -> Defined (Link.term f tm)
 
+type unit_entry =
+  ((emp, kinetic) term * definition, Code.t) Result.t Constant.Map.unit_entry
+  * unit Metamap.unit_entry
+
+let find_unit i =
+  let d = S.get () in
+  (Constant.Map.find_unit i d.constants, Metamap.find_unit i d.metas)
+
+let add_unit i (c, m) =
+  let d = S.get () in
+  let constants = Constant.Map.add_unit i c d.constants in
+  let metas = Metamap.add_unit i m d.metas in
+  S.set { d with constants; metas }
+
 let from_channel_unit f chan i =
   let d = S.get () in
-  let constants =
+  let constants, new_constants =
     Constant.Map.from_channel_unit chan
       (Result.map (fun (tm, df) -> (Link.term f tm, link_definition f df)))
       i d.constants in
-  let metas =
+  let metas, new_metas =
     Metamap.from_channel_unit chan { map = (fun _ df -> Result.map (Link.metadef f) df) } i d.metas
   in
-  S.set { d with constants; metas }
+  S.set { d with constants; metas };
+  (new_constants, new_metas)
 
 (* Add a new constant. *)
 let add c ty df =

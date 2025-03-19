@@ -1568,9 +1568,12 @@ and with_codata_so_far :
           Option.map (fun () -> readback_ctx newctx) has_higher_fields in
         (domvars (), termctx ())
     | Snoc _ ->
-        ( CubeOf.build dim
-            { build = (fun _ -> Ctx.Binding.error (Accumulated ("codata dependent", Emp))) },
-          None ) in
+        let msg =
+          match eta with
+          | Eta -> "record dependent"
+          | Noeta -> "codata dependent" in
+        (CubeOf.build dim { build = (fun _ -> Ctx.Binding.error (Accumulated (msg, Emp))) }, None)
+  in
   let codataterm = Term.Canonical (Codata { eta; opacity; dim; fields = checked_fields; termctx }) in
   run_with_definition h (hyp codataterm) errs @@ fun () -> cont domvars codataterm
 

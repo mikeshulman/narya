@@ -852,8 +852,8 @@ let () =
   Reporter.printer :=
     fun pr ->
       Reporter.try_with ~fatal:(fun d ->
-          Reporter.emit (Error_printing_error d.message);
-          string "PRINTING_ERROR")
+          Reporter.Code.PrintingError.set (Some d.message);
+          string "_UNPRINTABLE")
       @@ fun () ->
       Readback.Displaying.run ~env:true @@ fun () ->
       match pr with

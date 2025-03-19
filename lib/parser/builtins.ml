@@ -719,7 +719,10 @@ let () =
             let pcod, wcod = pp_term cod in
             ( group
                 (align
-                   (pdom ^^ pp_ws `Break wdom ^^ Token.pp Arrow ^^ pp_ws `Nobreak wsarrow ^^ pcod)),
+                   (pdom
+                   ^^ pp_ws `Break wdom
+                   ^^ Token.pp Arrow
+                   ^^ hang 2 (pp_ws `Nobreak wsarrow ^^ pcod))),
               wcod ));
       (* Function-types are never part of case trees. *)
       print_case = None;

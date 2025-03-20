@@ -173,7 +173,7 @@ module Map = struct
 
     type 'x filterer = { filter : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> bool }
 
-    let filter : type x a b s. x filterer -> x t -> x t =
+    let filter : type x. x filterer -> x t -> x t =
      fun f m ->
       Compunit.Map.map
         (fun m -> IdMap.filter (fun _ (Entry (key, value)) -> f.filter key value) m)

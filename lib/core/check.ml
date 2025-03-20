@@ -138,7 +138,7 @@ let spine : type a.
   spine tm []
 
 (* Temporarily define a given head (constant or meta) to be a given value, in executing a callback.  However, if an error has occurred earlier in typechecking other parts of it, then instead bind that head to an error value that doesn't allow it to be used. *)
-let run_with_definition : type a s c.
+let run_with_definition : type a c.
     a potential_head -> (a, potential) term -> Code.t Asai.Diagnostic.t Bwd.t -> (unit -> c) -> c =
  fun head tm errs f ->
   match (head, errs) with
@@ -670,7 +670,7 @@ and check_letrec_bindings : type a xc b ac bc.
     (ac check located, xc) Vec.t ->
     unit =
  fun octx oac ometas ovtys vs ->
-  let rec go : type x ax bx c d.
+  let rec go : type x ax bx c.
       (a, x, ax) Fwn.bplus ->
       (x, c, xc) Fwn.plus ->
       (b, x, D.zero, bx) Tbwd.snocs ->
@@ -754,7 +754,7 @@ and ext_metas : type a b c ac bc d cd acd bcd.
       ext_metas (Ctx.ext_let ctx x { tm; ty }) acd metas vtys ac cd bc
 
 (* Check a match statement without an explicit motive supplied by the user.  This means if the discriminee is a well-behaved variable, it can be a variable match; otherwise it reverts back to a non-dependent match. *)
-and check_implicit_match : type a b t.
+and check_implicit_match : type a b.
     (b, potential) status ->
     (a, b) Ctx.t ->
     a synth located ->
@@ -786,7 +786,7 @@ and check_implicit_match : type a b t.
       check_nondep_match status ctx stm varty brs None motive tm.loc
 
 (* Check a non-dependent match against a specified type. *)
-and check_nondep_match : type a b p.
+and check_nondep_match : type a b.
     (b, potential) status ->
     (a, b) Ctx.t ->
     (b, kinetic) term ->
@@ -850,7 +850,7 @@ and check_nondep_match : type a b p.
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
 (* Try to synthesize a type from all the branches.  If any succeed, check the remaining branches against that synthesized type. *)
-and synth_nondep_match : type a b p.
+and synth_nondep_match : type a b.
     (b, potential) status ->
     (a, b) Ctx.t ->
     a synth located ->
@@ -1402,7 +1402,7 @@ and any_empty : type n. (n, Binding.t) CubeOf.t list -> bool =
       snd (CM.miterM { it = (fun _ [ x ] s -> ((), s || is_empty (Binding.value x).ty)) } [ nfs ] s))
     false nfss
 
-and check_data : type a b i bi.
+and check_data : type a b i.
     discrete:unit Constant.Map.t option ->
     (b, potential) status ->
     (a, b) Ctx.t ->
@@ -1728,7 +1728,7 @@ and check_fields : type a b c d s m n mn et.
       check_field status eta ctx ty m mn codata_args fields tyargs fld cdf prev_etm tms ctms etms
         errs
 
-and check_field : type a b c d s m n mn i r et.
+and check_field : type a b c d s m n mn i et.
     (b, s) status ->
     (s, et) eta ->
     (a, b) Ctx.t ->
@@ -1793,7 +1793,7 @@ and check_field : type a b c d s m n mn i r et.
       fatal (Anomaly "missing termctx in codatatype with higher fields")
   | Higher _, Kinetic _, _, _ -> .
 
-and check_higher_field : type a b c d m i r ic0.
+and check_higher_field : type a b c d m i ic0.
     (b, potential) status ->
     (a, b) Ctx.t ->
     (* Type being checked against and its data *)

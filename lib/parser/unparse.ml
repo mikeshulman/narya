@@ -170,7 +170,7 @@ let unparse_numeral : type n li ls ri rs. (n, kinetic) term -> (li, ls, ri, rs) 
     | _ -> None in
   getsucs tm 0
 
-let rec get_list : type n li ls ri rs.
+let rec get_list : type n.
     (n, kinetic) term -> (n, kinetic) term Bwd.t -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
@@ -179,7 +179,7 @@ let rec get_list : type n li ls ri rs.
       get_list (CubeOf.find_top cdr) (Snoc (elts, CubeOf.find_top car))
   | _ -> None
 
-let rec get_bwd : type n li ls ri rs.
+let rec get_bwd : type n.
     (n, kinetic) term -> (n, kinetic) term list -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
@@ -202,7 +202,7 @@ let synths : type n. (n, kinetic) term -> bool = function
   | Constr (_, _, _) | Lam (_, _) | Struct (_, _, _, _) -> false
 
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
-let rec get_spine : type b n.
+let rec get_spine : type n.
     (n, kinetic) term ->
     [ `App of (n, kinetic) term * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
     | `Field of
@@ -466,7 +466,7 @@ and unparse_spine : type n lt ls rt rs.
               let right_ok = No.le_refl No.plus_omega in
               parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))))
 
-and unparse_field : type n lt ls rt rs i.
+and unparse_field : type n lt ls rt rs.
     n Names.t ->
     (n, kinetic) term ->
     string ->
@@ -674,7 +674,7 @@ and unparse_pis : type n lt ls rt rs.
   | _ -> unparse_pis_final vars accum (make_unparser vars tm) li ri
 
 (* The arrow in both kinds of pi-type is (un)parsed as a binary operator.  In the dependent case, its left-hand argument looks like an "application spine" of ascribed variables.  Of course, it may have to be parenthesized. *)
-and unparse_arrow : type n lt ls rt rs.
+and unparse_arrow : type lt ls rt rs.
     unparser ->
     unparser ->
     (lt, ls) No.iinterval ->

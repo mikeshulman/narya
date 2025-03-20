@@ -16,7 +16,7 @@ type _ potential_head =
   | Constant : Constant.t * 'n D.t -> emp potential_head
   | Meta : ('x, 'a, potential) Meta.t * ('n, 'a) env -> 'a potential_head
 
-let head_of_potential : type a s. a potential_head -> Value.head = function
+let head_of_potential : type a. a potential_head -> Value.head = function
   | Constant (name, n) -> Const { name; ins = ins_zero n }
   | Meta (meta, env) -> Meta { meta; env; ins = ins_zero (dim_env env) }
 

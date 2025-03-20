@@ -618,8 +618,7 @@ let get_pi_args : type lt ls rt rs.
   | None -> Nondep { wsarrow; ty = Wrap doms } :: accum
 
 (* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
-let rec get_pi : type lt ls rt rs.
-    arrow_opt -> observation list -> pi_dom list * Whitespace.t list * wrapped_parse =
+let rec get_pi : arrow_opt -> observation list -> pi_dom list * Whitespace.t list * wrapped_parse =
  fun prev_arr obs ->
   match obs with
   | [ Term doms; Token (Arrow, wsarrow); Term cod ] ->
@@ -1318,7 +1317,7 @@ let rec get_branches : type a n. a Matchscope.t -> n Fwn.t -> observation list -
   | _ -> invalid "match"
 
 (* A version of get_patterns that doesn't require a specific number of patterns in advance. *)
-let rec get_any_patterns : type n. observation list -> pattern Vec.wrapped * observation list =
+let rec get_any_patterns : observation list -> pattern Vec.wrapped * observation list =
  fun obs ->
   match obs with
   | Term tm :: Token (Mapsto, _) :: obs -> (Wrap [ get_pattern tm ], obs)

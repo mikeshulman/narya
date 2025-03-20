@@ -418,8 +418,7 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Any c) = eval_canonical env c in
       Canonical c
 
-and eval_with_boundary : type m n mn a.
-    (m, a) env -> (a, kinetic) term -> (m, kinetic value) CubeOf.t =
+and eval_with_boundary : type m a. (m, a) env -> (a, kinetic) term -> (m, kinetic value) CubeOf.t =
  fun env tm ->
   CubeOf.build (dim_env env) { build = (fun fa -> eval_term (act_env env (op_of_sface fa)) tm) }
 
@@ -618,7 +617,7 @@ and tyof_codatafield : type m n mn a k r s i et.
       tyof_higher_codatafield tm fldname env tyargs fldins ic0 fldty ~shuf
 
 (* We dispatch to separate helper functions for lower fields and higher fields that assume all the dimensions are correct.  These helper functions can be called directly by a caller who knows that all the dimensions are correct, such as check_field where the field is obtained by iterating directly through the codatatype. *)
-and tyof_lower_codatafield : type i m n mn a k r.
+and tyof_lower_codatafield : type m n mn a.
     (kinetic value, Code.t) Result.t ->
     D.zero Field.t ->
     ((a, n) snoc, kinetic) term ->
@@ -647,7 +646,7 @@ and tyof_lower_codatafield : type i m n mn a k r.
   inst insttm instargs
 
 (* This function is also called directly from check_higher_field.  In that case, the field is determined by a partial bijection that may *not* be just an insertion, and we have to frobnicate the environment in which we evaluate the type.  Some of that frobnication involves an eval-readback cycle, which requires a callback from here since readback isn't defined yet. *)
-and tyof_higher_codatafield : type c n h s sh r r_sh i ic.
+and tyof_higher_codatafield : type c n h s r i ic.
     (kinetic value, Code.t) Result.t ->
     i Field.t ->
     (* The codatatype is in context of length c.  It has been evaluated at dimension n, in an (n, c) env. *)

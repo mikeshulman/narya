@@ -465,7 +465,7 @@ module Pbijmap (F : Fam2) = struct
       | [] -> []
       | Zero v :: ms -> v :: zeros ms
 
-    let rec left : type e i r vs irvs. (e, i D.suc, r, vs) hgt -> (e, i, r D.suc, vs) hgt = function
+    let rec left : type e i r vs. (e, i D.suc, r, vs) hgt -> (e, i, r D.suc, vs) hgt = function
       | [] -> []
       | Suc { left = l; _ } :: ms -> l :: left ms
 

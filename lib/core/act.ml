@@ -375,7 +375,7 @@ module Act = struct
     | Struct _ -> fatal (Anomaly "a struct cannot be a type to act on")
     | Constr _ -> fatal (Anomaly "a constructor cannot be a type to act on")
 
-  and act_ty : type a b p.
+  and act_ty : type a b.
       ?err:Code.t -> kinetic value -> kinetic value -> (a, b) deg -> kinetic value =
    fun ?err tm tmty s -> gact_ty ?err (Some tm) tmty s
 

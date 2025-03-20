@@ -222,7 +222,7 @@ module Tbwd = struct
         ('ps, 'p) flatten * ('m, 'n, 'p) Fwn.bplus
         -> ('m, 'n, 'ps) bplus_flatten_append
 
-  let rec bplus_flatten_append : type ms ns ps m n p.
+  let rec bplus_flatten_append : type ms ns ps m n.
       (ms, m) flatten ->
       (ns, n) Tlist.flatten ->
       (ms, ns, ps) append ->

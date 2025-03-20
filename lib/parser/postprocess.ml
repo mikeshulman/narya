@@ -209,7 +209,7 @@ let rec process_tel : type n. (string option, n) Bwv.t -> Parameter.t list -> n 
   | [] -> Processed_tel (Emp, ctx, [])
   | { names; ty; _ } :: parameters -> process_vars ctx names ty parameters
 
-and process_vars : type n b.
+and process_vars : type n.
     (string option, n) Bwv.t ->
     (string option * Whitespace.t list) list ->
     wrapped_parse ->

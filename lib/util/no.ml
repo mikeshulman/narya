@@ -565,7 +565,7 @@ module Map = struct
           let pmap = fin_map f pmap in
           Node (Some (ab, fz), mmap, pmap)
 
-    let map : type x a. x mapper -> x t -> x t =
+    let map : type x. x mapper -> x t -> x t =
      fun f { fin; minus_omega; plus_omega } ->
       let minus_omega = Option.map (f.map Minus_omega) minus_omega in
       let fin = fin_map f fin in
@@ -574,7 +574,7 @@ module Map = struct
 
     type 'a iterator = { it : 'g. 'g Key.t -> ('a, 'g) F.t -> unit }
 
-    let rec fin_iter : type x a b. x iterator -> (x, a) fin_t -> unit =
+    let rec fin_iter : type x a. x iterator -> (x, a) fin_t -> unit =
      fun f m ->
       match m with
       | Emp -> ()
@@ -586,7 +586,7 @@ module Map = struct
           f.it (Fin (prepend_fin Zero ab)) z;
           fin_iter f pmap
 
-    let iter : type x a. x iterator -> x t -> unit =
+    let iter : type x. x iterator -> x t -> unit =
      fun f { fin; minus_omega; plus_omega } ->
       Option.iter (f.it Minus_omega) minus_omega;
       fin_iter f fin;
@@ -602,7 +602,7 @@ module Map = struct
 
     (* "fin_map_lt" applies map_lt to all elements of a fin_t, assuming that that is valid given its parameter, and dually for "fin_map_gt". *)
 
-    let rec fin_map_lt : type a b c x.
+    let rec fin_map_lt : type a c x.
         (x, c) map_compare -> (a, c) then_lt -> (x, a) fin_t -> (x, a) fin_t =
      fun f x map ->
       match map with
@@ -615,7 +615,7 @@ module Map = struct
               fin_map_lt f (then_minus_lt x) mmap,
               fin_map_lt f (then_plus_lt x) pmap )
 
-    let rec fin_map_gt : type x a b c.
+    let rec fin_map_gt : type x a c.
         (x, c) map_compare -> (a, c) then_gt -> (x, a) fin_t -> (x, a) fin_t =
      fun f x map ->
       match map with

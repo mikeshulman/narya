@@ -35,7 +35,7 @@ module Ordered = struct
         ('i, 'j, 'ij) Fwn.bplus * ('i, 'b) Ctx.Ordered.t * ('j, 'ff, 'c) tel
         -> ('ij, 'b, 'c) split_tel
 
-  let rec split_tel_step : type i j ij i b j ff c x.
+  let rec split_tel_step : type i j ij b ff c x.
       (i, j, ij) Fwn.bplus ->
       (i, (b, x) snoc) Ctx.Ordered.t ->
       (j, ff, c) tel ->
@@ -63,7 +63,7 @@ module Ordered = struct
         (N.zero, 'j, 'i) Fwn.bplus * (emp, 'c, 'b) Tbwd.append * ('j, 'ff, 'c) tel
         -> ('i, 'b) to_tel
 
-  let rec bplus_emp : type i j ij ff c.
+  let rec bplus_emp : type i j ij.
       (i, j, ij) Fwn.bplus -> (i, emp) Ctx.Ordered.t -> (N.zero, j, ij) Fwn.bplus =
    fun ij ctx ->
     match ctx with

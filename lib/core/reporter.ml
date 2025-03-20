@@ -858,7 +858,7 @@ let struct_at_degenerated_type : type s et. (s, et) eta -> printable -> Code.t =
   | Eta -> Checking_tuple_at_degenerated_record name
   | Noeta -> Comatching_at_degenerated_codata name
 
-let extra_field_in_struct : type s et i. (s, et) eta -> string * string list -> Code.t =
+let extra_field_in_struct : type s et. (s, et) eta -> string * string list -> Code.t =
  fun eta fld ->
   match eta with
   | Eta -> Extra_field_in_tuple (Some (fst fld))
@@ -877,7 +877,7 @@ let struct_at_nonrecord : type s et. (s, et) eta -> printable -> Code.t =
   | Eta -> Checking_tuple_at_nonrecord p
   | Noeta -> Comatching_at_noncodata p
 
-let ( <|> ) : type a b. a option -> Code.t -> a =
+let ( <|> ) : type a. a option -> Code.t -> a =
  fun x e ->
   match x with
   | Some x -> x

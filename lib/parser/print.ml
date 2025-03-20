@@ -53,7 +53,7 @@ let unindented_lines str =
   go 0
 
 (* Print the comments and newlines following a token, except if there is exactly one newline in which case do not print it.  (Single newlines entered by the user are not respected, but are reformatted.)  If this would not resulting in printing anything, instead print the supplied space.  Moreover, if there *is* whitespace printed and the supplied space would allow a linebreak, ensure that what is printed also at least allows a linebreak. *)
-let pp_ws (space : space) (ws : Whitespace.t list) : document =
+let pp_ws ?(space_before_starting_comment = 1) (space : space) (ws : Whitespace.t list) : document =
   let rec pp (ws : Whitespace.t list) (any_hardlines : bool) : document =
     match ws with
     | [] -> empty
@@ -79,7 +79,7 @@ let pp_ws (space : space) (ws : Whitespace.t list) : document =
   | [] -> pp_space space
   | [ `Newlines n ] when n < 2 -> pp_space space
   | `Newlines n :: ws -> repeat n hardline ^^ pp ws true
-  | _ -> blank 1 ^^ pp ws false
+  | _ -> blank space_before_starting_comment ^^ pp ws false
 
 (* We print an application spine, possibly containing field/method calls, with possible linebreaks as
      f a b c

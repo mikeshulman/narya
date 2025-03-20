@@ -15,7 +15,7 @@ let rec condense (desired : int) (seen : int) (ws : t list) : t list * bool =
       let ws, ok = condense desired (seen + n) ws in
       (`Newlines (min n (2 - seen)) :: ws, ok || seen + n >= desired)
 
-(* Ensure that blank lines never come in groups of more than one, and that there is a block of at least DESIRED (which should be 0, 1 or 2) newlines (if not, add more newlines to the front after any comments). *)
+(* Ensure that blank lines never come in groups of more than one, and that there is a block of at least DESIRED (which should be 0, 1 or 2) newlines (if not, add more newlines to the front after any comments).  Note that single newlines are not printed by pp_ws, so we need to also add a `Cut when printing when we expect those. *)
 let normalize (desired : int) (ws : t list) : t list =
   let rec prepend (ws : t list) : t list =
     match ws with

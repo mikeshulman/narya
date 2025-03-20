@@ -305,7 +305,7 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) ?renderer comp
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
     (fun () ->
-      batch renderer p src;
+      batch renderer p src `None [];
       if Eternity.unsolved () > 0 then Reporter.fatal (Open_holes_remaining source))
     ~fatal:(fun d ->
       match d.message with
@@ -319,27 +319,33 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) ?renderer comp
   Scope.get_export ()
 
 (* Parse, execute (if requested by Flags), and reformat (if requested by Flags) all the commands in a source. *)
-and batch renderer p src =
+and batch renderer p src cdns ws =
   match Parser.Command.Parse.final p with
-  | Eof -> ()
+  | Eof -> (
+      match renderer with
+      | Some render -> render (pp_ws `Cut ws)
+      | None -> ())
   | Bof ws ->
-      (match renderer with
-      | Some render ->
-          let ws = Whitespace.normalize_no_blanks ws in
-          render (pp_ws `None ws)
-      | None -> ());
       let p, src = Parser.Command.Parse.restart_parse p src in
-      batch renderer p src
+      batch renderer p src `Bof ws
   | cmd ->
+      let new_cdns = Parser.Command.condense cmd in
       execute_command cmd;
-      (match renderer with
-      | Some render ->
-          let pcmd, wcmd = Parser.Command.pp_command cmd in
-          let wcmd = Whitespace.normalize 2 wcmd in
-          render (pcmd ^^ pp_ws `None wcmd)
-      | None -> ());
+      let ws =
+        match renderer with
+        | Some render ->
+            let ws =
+              if cdns = `Bof || (cdns <> `None && cdns = new_cdns) then
+                Whitespace.normalize_no_blanks ws
+              else Whitespace.normalize 2 ws in
+            let space_before_starting_comment = if cdns = `Bof then Some 0 else None in
+            let pcmd, wcmd = Parser.Command.pp_command cmd in
+            render
+              (pp_ws ?space_before_starting_comment (if cdns = `Bof then `None else `Cut) ws ^^ pcmd);
+            wcmd
+        | None -> [] in
       let p, src = Parser.Command.Parse.restart_parse p src in
-      batch renderer p src
+      batch renderer p src new_cdns ws
 
 (* Wrapper around Parser.Command.execute that passes it the correct callbacks.  Does NOT check flags or reformat. *)
 and execute_command cmd =

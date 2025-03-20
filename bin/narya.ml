@@ -214,7 +214,7 @@ let () =
       (fun [ file ] ->
         let p, src = Parser.Command.Parse.start_parse (`File file) in
         Reporter.try_with ~emit:(Reporter.display ~output:stdout)
-          ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch None p src))
+          ~fatal:(Reporter.display ~output:stdout) (fun () -> Execute.batch None p src `None []))
       [ !fake_interacts ];
     if !interactive then Lwt_main.run (interact ())
     else if !proofgeneral then (

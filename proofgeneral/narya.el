@@ -360,6 +360,7 @@ handling in Proof General."
   (set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
   (set (make-local-variable 'comment-region-function) 'narya-comment-region)
   (add-hook 'proof-state-change-hook 'narya-delete-undone-holes)
+  (modify-syntax-entry ? " ")           ; Why is this necessary?
   (setq font-lock-multiline t))
 
 (add-hook 'narya-mode-hook 'narya-mode-extra-config)

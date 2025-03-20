@@ -9,6 +9,13 @@ type 'i t = 'i field
 
 let intern (str : string) (i : 'i D.t) : 'i t = (str, i)
 let to_string (x : 'i t) : string = fst x
+
+let strings_to_string (f : string) (p : string list) =
+  f
+  ^
+  if List.exists (fun x -> String.length x > 1) p then ".." ^ String.concat "." p
+  else "." ^ String.concat "" p
+
 let dim (x : 'i t) : 'i D.t = snd x
 
 let equal : type i j. i t -> j t -> bool =

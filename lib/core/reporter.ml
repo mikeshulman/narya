@@ -555,14 +555,13 @@ module Code = struct
             | Some f -> textf "field '%s' in tuple doesn't occur in record type" f
             | None -> text "too many un-labeled fields in tuple")
         | Extra_method_in_comatch (f, p) ->
-            textf "method '%s' in comatch doesn't occur in codata type" (String.concat "." (f :: p))
+            textf "method '%s' in comatch doesn't occur in codata type"
+              (Field.strings_to_string f p)
         | Invalid_field_in_tuple -> text "invalid field in tuple"
         | Invalid_method_in_comatch -> text "invalid method in comatch"
         | Duplicate_field_in_tuple f -> textf "record field '%s' appears more than once in tuple" f
         | Duplicate_method_in_comatch (f, p) ->
-            textf "method '%s%s' appears more than once in comatch" f
-              (if List.exists (fun x -> String.length x > 1) p then ".." ^ String.concat "." p
-               else "." ^ String.concat "" p)
+            textf "method '%s' appears more than once in comatch" (Field.strings_to_string f p)
         | Missing_constructor_in_match c ->
             textf "missing match clause for constructor %s" (Constr.to_string c)
         | Unnamed_variable_in_match -> text "unnamed match variable"

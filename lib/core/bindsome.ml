@@ -3,7 +3,6 @@ open Tbwd
 open Tlist
 open Dim
 open Reporter
-open Syntax
 open Value
 open Norm
 open Readback
@@ -79,9 +78,7 @@ module Ordered = struct
     let (Split_tel (ij, newctx, tel)) = split_tel ctx bc in
     To_tel (bplus_emp ij newctx, bc, tel)
 
-  (* Now we begin the suite of helper functions for bind_some.  This is an operation that happens during typechecking a pattern match, when the match variable along with all its indices have to be replaced by values determined by the constructor of each branch.  This requires the context to be re-sorted at the same time to maintain a consistent dependency structure, with each type and value depending only on the variables to its left.
-
-     It also requires "substitution into values", which we do by reading back values into the old context and then evaluating them in the new context.  However, readback and evaluation are defined in other files, and readback depends on this file since readback happens *in* a context.  So we define these operations to take a "readback-then-eval" callback function as an argument.  It has to be wrapped up in a record so as to be polymorphic, and we include two different versions of it acting on normals and values.  In addition, these callbacks return an option indicating whether readback succeeded, where failure means that not all the level variables in the input value appear in the readback context.  For normal readback such a failure is a fatal error, but in this case it just means we need to permute some other variables past the present one, so we require the caller to capture that error and return None instead.  Here's the record. *)
+  (* Now we begin the suite of helper functions for bind_some.  This is an operation that happens during typechecking a pattern match, when the match variable along with all its indices have to be replaced by values determined by the constructor of each branch.  This requires the context to be re-sorted at the same time to maintain a consistent dependency structure, with each type and value depending only on the variables to its left.  It also requires "substitution into values", which we do by reading back values into the old context and then evaluating them in the new context. *)
 
   let eval_readback_nf :
       type a b.

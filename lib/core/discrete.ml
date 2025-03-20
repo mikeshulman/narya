@@ -1,4 +1,3 @@
-open Syntax
 open Term
 
 (* Whether the -discreteness flag is on globally *)

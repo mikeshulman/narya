@@ -9,7 +9,6 @@ open Unparse
 open Print
 open Norm
 open Check
-open Syntax
 open Term
 open Value
 open Raw
@@ -61,7 +60,7 @@ let def (name : string) (ty : string) (tm : string) : unit =
       let ety = eval_term (Emp D.zero) cty in
       Reporter.trace "when checking case tree" @@ fun () ->
       Global.add const cty (Axiom `Parametric);
-      let tree = check (Potential (Constant const, Emp, fun x -> x)) Ctx.empty rtm ety in
+      let tree = check (Potential (Constant (const, D.zero), Emp, fun x -> x)) Ctx.empty rtm ety in
       Global.add const cty (Defined tree)
   | _ -> fatal (Invalid_constant_name name)
 

@@ -107,7 +107,7 @@ let rec process :
       fatal Parse_error
   | Superscript (Some x, str, _) -> (
       match deg_of_string str with
-      | Some (Any s) ->
+      | Some (Any_deg s) ->
           let body = process ctx x in
           { value = Synth (Act (str, s, body)); loc }
       | None -> fatal (Invalid_degeneracy str))
@@ -135,7 +135,7 @@ and process_apps :
     n check located =
  fun ctx tm args ->
   match process_head ctx tm with
-  | `Deg (str, Any s) -> (
+  | `Deg (str, Any_deg s) -> (
       match args with
       | (Wrap arg, loc) :: args ->
           process_apply ctx
@@ -177,8 +177,13 @@ and process_apply :
  fun ctx fn fnargs ->
   match fnargs with
   | [] -> { value = Synth fn.value; loc = fn.loc }
-  | (Wrap { value = Field (fld, _); _ }, loc) :: args ->
-      process_apply ctx { value = Field (fn, Field.intern_ori fld); loc } args
+  | (Wrap { value = Field (fld, pbij, _); _ }, loc) :: args -> (
+      try
+        let fld =
+          try `Int (int_of_string fld) with Failure _ -> `Name (fld, List.map int_of_string pbij)
+        in
+        process_apply ctx { value = Field (fn, fld); loc } args
+      with Failure _ -> fatal (Invalid_field (String.concat "." ("" :: fld :: pbij))))
   | (Wrap { value = Notn ((Braces, _), n); loc = braceloc }, loc) :: rest -> (
       match args n with
       | [ Token (LBrace, _); Term arg; Token (RBrace, _) ] ->

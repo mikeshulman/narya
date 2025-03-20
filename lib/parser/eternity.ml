@@ -3,7 +3,6 @@
 open Util
 open Core
 open Status
-open Syntax
 open Term
 open Reporter
 

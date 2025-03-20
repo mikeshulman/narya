@@ -91,6 +91,8 @@ let mmap : type x xs y. ((x, xs) cons Hlist.t -> y) -> (x, xs) cons Heter.ht -> 
   let open Monadic (Monad.Identity) in
   mmapM f xs
 
+let map : type x y. (x -> y) -> x Bwd.t -> y Bwd.t = fun f xs -> mmap (fun [ x ] -> f x) [ xs ]
+
 let fwd_nth_opt : type a. a Bwd.t -> int -> a option =
  fun xs i ->
   let rec go xs i =

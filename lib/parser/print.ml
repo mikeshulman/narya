@@ -16,7 +16,15 @@ let pp_var : string option -> document = function
 
 (* Print constructors and fields *)
 let pp_constr (c : string) : document = utf8string c ^^ char '.'
-let pp_field (c : string) : document = char '.' ^^ utf8string c
+
+let pp_field (c : string) (p : string list) : document =
+  char '.'
+  ^^ utf8string c
+  ^^
+  if List.is_empty p then empty
+  else if List.fold_right (fun s m -> max (String.length s) m) p 0 > 1 then
+    char '.' ^^ concat_map (fun p -> char '.' ^^ utf8string p) p
+  else char '.' ^^ concat_map utf8string p
 
 let pp_space (space : space) : document =
   match space with
@@ -146,7 +154,7 @@ let rec pp_term :
   | Placeholder w -> (Token.pp Underscore, w)
   | Ident (x, w) -> (separate_map (char '.') utf8string x, w)
   | Constr (c, w) -> (pp_constr c, w)
-  | Field (f, w) -> (pp_field f, w)
+  | Field (f, p, w) -> (pp_field f p, w)
   | Superscript (Some x, s, w) ->
       let px, wx = pp_term x in
       (px ^^ pp_ws `None wx ^^ pp_superscript s, w)

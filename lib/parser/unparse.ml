@@ -5,7 +5,6 @@ open Tbwd
 open Bwd_extra
 open Dim
 open Core
-open Syntax
 open Term
 open Notation
 open Builtins
@@ -197,7 +196,7 @@ let synths : type n. (n, kinetic) term -> bool = function
   | Var _ | Const _
   | Meta (_, _)
   | MetaEnv (_, _)
-  | Field (_, _)
+  | Field (_, _, _)
   | UU _
   | Inst (_, _)
   | Pi (_, _, _)
@@ -211,7 +210,8 @@ let rec get_spine :
     type b n.
     (n, kinetic) term ->
     [ `App of (n, kinetic) term * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
-    | `Field of (n, kinetic) term * Field.t * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
+    | `Field of
+      (n, kinetic) term * string * int list * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
     ] =
  fun tm ->
   match tm with
@@ -240,8 +240,8 @@ let rec get_spine :
              [ arg ] args) in
       match get_spine fn with
       | `App (head, args) -> `App (head, append_bwd args)
-      | `Field (head, fld, args) -> `Field (head, fld, append_bwd args))
-  | Field (head, fld) -> `Field (head, fld, Emp)
+      | `Field (head, fld, ins, args) -> `Field (head, fld, ins, append_bwd args))
+  | Field (head, fld, ins) -> `Field (head, Field.to_string fld, ints_of_ins ins, Emp)
   (* We have to look through identity degeneracies here. *)
   | Act (body, s) -> (
       match is_id_deg s with
@@ -267,7 +267,8 @@ let rec unparse :
   | MetaEnv (v, _) ->
       unlocated
         (Ident ([ (if Display.metas () == `Numbered then Meta.name v ^ "{…}" else "?") ], []))
-  | Field (tm, fld) -> unparse_spine vars (`Field (tm, fld)) Emp li ri
+  | Field (tm, fld, ins) ->
+      unparse_spine vars (`Field (tm, Field.to_string fld, ints_of_ins ins)) Emp li ri
   | UU n ->
       unparse_act vars
         {
@@ -303,9 +304,11 @@ let rec unparse :
       match get_spine tm with
       | `App (fn, args) ->
           unparse_spine vars (`Term fn) (Bwd.map (make_unparser_implicit vars) args) li ri
-      | `Field (head, fld, args) ->
-          unparse_spine vars (`Field (head, fld)) (Bwd.map (make_unparser_implicit vars) args) li ri
-      )
+      | `Field (head, fld, ins, args) ->
+          unparse_spine vars
+            (`Field (head, fld, ins))
+            (Bwd.map (make_unparser_implicit vars) args)
+            li ri)
   | Act (tm, s) -> unparse_act vars { unparse = (fun li ri -> unparse vars tm li ri) } s li ri
   | Let (x, tm, body) -> (
       let tm = unparse vars tm No.Interval.entire No.Interval.entire in
@@ -340,7 +343,8 @@ let rec unparse :
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (Eta, _, fields, _) ->
+  | Struct (type m et)
+      ((Eta, _, fields, _) : (s, et) eta * m D.t * (m * n * s * et) StructfieldAbwd.t * s energy) ->
       unlocated
         (outfix ~notn:parens
            ~inner:
@@ -348,27 +352,33 @@ let rec unparse :
                 ( (LParen, []),
                   Bwd_extra.intersperse
                     (Token (Op ",", []))
-                    (Bwd.map
-                       (fun (fld, (tm, l)) ->
-                         let tm = unparse vars tm No.Interval.entire No.Interval.entire in
-                         Term
-                           (match l with
-                           | `Labeled ->
-                               unlocated
-                                 (infix ~notn:coloneq
-                                    ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
-                                    ~inner:(Single (Coloneq, []))
-                                    ~last:tm ~left_ok:(No.le_refl No.minus_omega)
-                                    ~right_ok:(No.le_refl No.minus_omega))
-                           (* We unparse unlabeled 1-tuples as (_ := M) (although we could also do (M,)). *)
-                           | `Unlabeled when Bwd.length fields = 1 ->
-                               unlocated
-                                 (infix ~notn:coloneq ~first:(unlocated (Placeholder []))
-                                    ~inner:(Single (Coloneq, []))
-                                    ~last:tm ~left_ok:(No.le_refl No.minus_omega)
-                                    ~right_ok:(No.le_refl No.minus_omega))
-                           | `Unlabeled -> tm))
-                       fields),
+                    (Bwd.fold_left
+                       (fun acc
+                            (Term.StructfieldAbwd.Entry (type i)
+                              ((fld, structfield) : i Field.t * (i, m * n * s * et) Structfield.t)) ->
+                         match structfield with
+                         | Lower (fldtm, lbl) ->
+                             let fldtm = unparse vars fldtm No.Interval.entire No.Interval.entire in
+                             Snoc
+                               ( acc,
+                                 Term
+                                   (match lbl with
+                                   | `Labeled ->
+                                       unlocated
+                                         (infix ~notn:coloneq
+                                            ~first:(unlocated (Ident ([ Field.to_string fld ], [])))
+                                            ~inner:(Single (Coloneq, []))
+                                            ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                            ~right_ok:(No.le_refl No.minus_omega))
+                                   (* An unlabeled 1-tuple is currently unparsed as (_ := M). *)
+                                   | `Unlabeled when Bwd.length fields = 1 ->
+                                       unlocated
+                                         (infix ~notn:coloneq ~first:(unlocated (Placeholder []))
+                                            ~inner:(Single (Coloneq, []))
+                                            ~last:fldtm ~left_ok:(No.le_refl No.minus_omega)
+                                            ~right_ok:(No.le_refl No.minus_omega))
+                                   | `Unlabeled -> fldtm) ))
+                       Emp fields),
                   (RParen, []) )))
   | Constr (c, _, args) -> (
       (* TODO: This doesn't print the dimension.  This is correct since constructors don't have to (and in fact *can't* be) written with their dimension, but it could also be somewhat confusing, e.g. printing "refl (0:N)" yields just "0", and similarly "refl (nil. : List N)" yields "nil.". *)
@@ -408,7 +418,7 @@ and unparse_spine :
     n Names.t ->
     [ `Term of (n, kinetic) term
     | `Constr of Constr.t
-    | `Field of (n, kinetic) term * Field.t
+    | `Field of (n, kinetic) term * string * int list
     | `Degen of string
     | `Unparser of unparser ] ->
     unparser Bwd.t ->
@@ -432,7 +442,7 @@ and unparse_spine :
           match head with
           | `Term tm -> unparse vars tm li ri
           | `Constr c -> unlocated (Constr (Constr.to_string c, []))
-          | `Field (tm, fld) -> unparse_field vars tm fld li ri
+          | `Field (tm, fld, ins) -> unparse_field vars tm fld ins li ri
           | `Degen s -> unlocated (Ident ([ s ], []))
           | `Unparser tm -> tm.unparse li ri)
       | Snoc (args, arg) -> (
@@ -461,32 +471,33 @@ and unparse_spine :
               parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))))
 
 and unparse_field :
-    type n lt ls rt rs.
+    type n lt ls rt rs i.
     n Names.t ->
     (n, kinetic) term ->
-    Field.t ->
+    string ->
+    int list ->
     (lt, ls) No.iinterval ->
     (rt, rs) No.iinterval ->
     (lt, ls, rt, rs) parse located =
- fun vars tm fld li ri ->
+ fun vars tm fld ins li ri ->
   match unparse_field_var vars tm fld with
   | Some res -> res
   | None -> (
       match (No.Interval.contains li No.plus_omega, No.Interval.contains ri No.plus_omega) with
       | Some left_ok, Some right_ok ->
           let fn = unparse vars tm li No.Interval.plus_omega_only in
-          let arg = unlocated (Field (Field.to_string fld, [])) in
+          let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
           unlocated (App { fn; arg; left_ok; right_ok })
       | _ ->
           let fn = unparse vars tm No.Interval.plus_omega_only No.Interval.plus_omega_only in
-          let arg = unlocated (Field (Field.to_string fld, [])) in
+          let arg = unlocated (Field (fld, List.map string_of_int ins, [])) in
           let left_ok = No.le_refl No.plus_omega in
           let right_ok = No.le_refl No.plus_omega in
           parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))
 
 and unparse_field_var :
     type n lt ls rt rs.
-    n Names.t -> (n, kinetic) term -> Field.t -> (lt, ls, rt, rs) parse located option =
+    n Names.t -> (n, kinetic) term -> string -> (lt, ls, rt, rs) parse located option =
  fun vars tm fld ->
   match tm with
   | Var x -> (
@@ -740,7 +751,7 @@ let rec unparse_ctx :
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
     (string * [ `Original | `Renamed ], a) Bwv.t ->
-    (a, b) Termctx.Ordered.t ->
+    (a, b) ordered_termctx ->
     b Names.t
     * (string * [ `Original | `Renamed | `Locked ] * wrapped_parse option * wrapped_parse) Bwd.t =
  fun names lock vars ctx ->
@@ -756,14 +767,14 @@ let rec unparse_ctx :
   match ctx with
   | Emp -> (names, Emp)
   | Lock ctx -> unparse_ctx names `Locked vars ctx
-  | Snoc (ctx, entry, af) -> (
+  | Ext (ctx, entry, af) -> (
       let vars, xs = Bwv.unappend af vars in
       let names, result = unparse_ctx names lock vars ctx in
       match entry with
       | Invis bindings ->
           (* We treat an invisible binding as consisting of all nameless variables, and autogenerate names for them all. *)
           let x, names = Names.add_cube_autogen (CubeOf.dim bindings) names in
-          let do_binding (b : b Termctx.binding) (res : S.t) : unit * S.t =
+          let do_binding (b : b binding) (res : S.t) : unit * S.t =
             let ty = Wrap (unparse names b.ty No.Interval.entire No.Interval.entire) in
             let tm =
               Option.map
@@ -798,10 +809,11 @@ let rec unparse_ctx :
            fun _ (NFamOf (x, _)) -> NFamOf (Some x) in
           let xs = NICubeOf.map { map = projector } vardata in
           (* With the variables projected out, we add them to the Names.t.  We use Names.unsafe_add because at this point the variables have already been uniquified by Names.uniquify_vars. *)
-          let fnames = Bwv.mmap (fun [ (x, _); (f, _, _) ] -> (f, x)) [ fs; fields ] in
+          let fnames =
+            Bwv.mmap (fun [ (x, _); (f, _, _) ] -> (Field.to_string f, x)) [ fs; fields ] in
           let names = Names.unsafe_add names (Variables (dim, plusdim, xs)) (Bwv.to_bwd fnames) in
           (* Then we iterate forwards through the bindings, unparsing them with these names and adding them to the result. *)
-          let do_binding fab (b : b Termctx.binding) (res : S.t) : unit * S.t =
+          let do_binding fab (b : b binding) (res : S.t) : unit * S.t =
             match (hasfields, is_id_sface fab) with
             | Has_fields, Some _ -> ((), res)
             | _ ->
@@ -840,8 +852,8 @@ let () =
   Reporter.printer :=
     fun pr ->
       Reporter.try_with ~fatal:(fun d ->
-          Reporter.emit (Error_printing_error d.message);
-          string "PRINTING_ERROR")
+          Reporter.Code.PrintingError.set (Some d.message);
+          string "_UNPRINTABLE")
       @@ fun () ->
       Readback.Displaying.run ~env:true @@ fun () ->
       match pr with
@@ -875,12 +887,13 @@ let () =
             `None
       | PConstant name -> utf8string (String.concat "." (Scope.name_of name))
       | PMeta v -> utf8string (Meta.name v)
-      | Termctx.PHole (vars, Permute (p, ctx), ty) ->
+      | PHole (vars, Permute (p, ctx), ty) ->
           let vars, names = Names.uniquify_vars vars in
           let names, ctx = unparse_ctx names `Unlocked (Bwv.permute vars p) ctx in
           let ty = unparse names ty No.Interval.entire No.Interval.entire in
           pp_hole ctx (Wrap ty)
       | Dump.Val tm -> Dump.value tm
+      | Dump.DeepVal (tm, n) -> Dump.dvalue n tm
       | Dump.Uninst tm -> Dump.uninst tm
       | Dump.Head h -> Dump.head h
       | Dump.Binder b -> Dump.binder b

@@ -249,6 +249,14 @@ The supplied files are symlinked into the directory where the test is run, and u
           a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
           a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
   
+  axiom ftoftype
+    : A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A → A →
+      A → A
+      → ftype a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+          a_long_thing a_long_thing a_long_thing a_long_thing a_long_thing
+  
   axiom a_very_long_type_to_wrap_the_line : Type
   
   axiom a_very_long_term_to_wrap_the_line : a_very_long_type_to_wrap_the_line

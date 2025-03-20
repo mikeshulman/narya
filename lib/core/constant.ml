@@ -64,8 +64,19 @@ module Map = struct
   let to_channel_unit chan i (m : 'a t) flags =
     Marshal.to_channel chan (Compunit.Map.find_opt i m : 'a IntMap.t option) flags
 
+  type 'a unit_entry = 'a IntMap.t option
+
+  let find_unit i m = Compunit.Map.find_opt i m
+
+  let add_unit i x m =
+    match x with
+    | Some x -> Compunit.Map.add i x m
+    | None -> m
+
   let from_channel_unit chan f i (m : 'a t) =
     match (Marshal.from_channel chan : 'a IntMap.t option) with
-    | Some x -> Compunit.Map.add i (IntMap.map f x) m
-    | None -> m
+    | Some x ->
+        let fx = IntMap.map f x in
+        (Compunit.Map.add i fx m, Some fx)
+    | None -> (m, None)
 end

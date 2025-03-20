@@ -10,7 +10,7 @@ and parse_tree =
   | Placeholder
   | Ident of string list
   | Constr of string
-  | Field of string
+  | Field of string * string list
   | Superscript of parse_tree option * string
   | Hole
 
@@ -27,7 +27,7 @@ and get_tree : type lt ls rt rs. (lt, ls, rt, rs) Notation.parse -> parse_tree =
   | Placeholder _ -> Placeholder
   | Ident (x, _) -> Ident x
   | Constr (x, _) -> Constr x
-  | Field (x, _) -> Field x
+  | Field (x, b, _) -> Field (x, b)
   | Superscript (None, s, _) -> Superscript (None, s)
   | Superscript (Some x, s, _) -> Superscript (Some (get_tree x.value), s)
   | Hole _ -> Hole

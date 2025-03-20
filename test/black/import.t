@@ -339,3 +339,23 @@ Definitions are linked
    ￫ info[I0000]
    ￮ constant foo defined
   
+
+Undoing and redoing an import
+
+  $ cat >undoimport.ny <<EOF
+  > import "one"
+  > undo 1
+  > import "one"
+  > axiom a:A
+  > EOF
+
+  $ narya -fake-interact undoimport.ny
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (compiled)
+  
+   ￫ info[I0006]
+   ￮ 1 command undone
+  
+   ￫ info[I0001]
+   ￮ axiom a assumed
+  

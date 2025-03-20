@@ -2,7 +2,6 @@ open Util
 open Tbwd
 open Dim
 open Core
-open Syntax
 open Term
 module StringMap = Map.Make (String)
 
@@ -15,7 +14,7 @@ let __ANONYMOUS_VARIABLE__ = "_H"
 (* We store a parametrized list like a context, and also a map that counts how many like-named variables already exist, so that we can create a new one with an unused number. *)
 type 'b ctx =
   | Emp : emp ctx
-  | Snoc : 'b ctx * 'n variables * (Field.t, string) Abwd.t -> ('b, 'n) snoc ctx
+  | Snoc : 'b ctx * 'n variables * (string, string) Abwd.t -> ('b, 'n) snoc ctx
 
 type 'b t = { ctx : 'b ctx; used : int StringMap.t }
 
@@ -41,7 +40,7 @@ let lookup : type n. n t -> n index -> string list =
   lookup ctx x
 
 (* Look up an index variable together with a field, to find a name for the combination, if there is one. *)
-let lookup_field : type n. n t -> n index -> Field.t -> string list option =
+let lookup_field : type n. n t -> n index -> string -> string list option =
  fun { ctx; used = _ } x f ->
   let rec lookup : type n. n ctx -> n index -> string list option =
    fun ctx x ->
@@ -135,7 +134,7 @@ let rec of_ordered_ctx : type a b. (a, b) Ctx.Ordered.t -> b t = function
         M.mmapM
           (fun [ (f, x) ] used ->
             let x, _, used = uniquify x used in
-            ((f, x), used))
+            ((Field.to_string f, x), used))
           [ Bwv.to_bwd fields ]
           used in
       { ctx = Snoc (ctx, Variables (dim, plusdim, vars), fields); used }
@@ -146,7 +145,7 @@ let of_ctx : type a b. (a, b) Ctx.t -> b t = function
   | Permute (_, _, ctx) -> of_ordered_ctx ctx
 
 (* Add a cube of variables WITHOUT replacing them by fresh versions.  Should only be used when the variables have already been so replaced, as in the output of uniquify_vars below. *)
-let unsafe_add : 'b t -> 'n variables -> (Field.t, string) Abwd.t -> ('b, 'n) snoc t =
+let unsafe_add : 'b t -> 'n variables -> (string, string) Abwd.t -> ('b, 'n) snoc t =
  fun { ctx; used } vars fields -> { ctx = Snoc (ctx, vars, fields); used }
 
 (* Given a Bwv of variables, proceed through from the *right* to mark them as visible or shadowed, accumulating a list of the visible names in a map.  Replaces unnamed variables by a default name. *)

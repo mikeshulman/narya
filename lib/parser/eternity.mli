@@ -1,7 +1,6 @@
 open Util
 open Core
 open Status
-open Syntax
 open Term
 
 type ('a, 'b, 's) homewhen = {

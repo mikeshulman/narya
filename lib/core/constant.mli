@@ -21,5 +21,10 @@ module Map : sig
   val iter : (Constant.t -> 'a -> unit) -> 'a t -> unit
   val cardinal : 'a t -> int
   val to_channel_unit : Out_channel.t -> Compunit.t -> 'a t -> Marshal.extern_flags list -> unit
-  val from_channel_unit : In_channel.t -> ('a -> 'a) -> Compunit.t -> 'a t -> 'a t
+
+  type 'a unit_entry
+
+  val find_unit : Compunit.t -> 'a t -> 'a unit_entry
+  val add_unit : Compunit.t -> 'a unit_entry -> 'a t -> 'a t
+  val from_channel_unit : In_channel.t -> ('a -> 'a) -> Compunit.t -> 'a t -> 'a t * 'a unit_entry
 end

@@ -185,13 +185,22 @@ module Map = struct
         type x. Out_channel.t -> Compunit.t -> x t -> Marshal.extern_flags list -> unit =
      fun chan i m flags -> Marshal.to_channel chan (Compunit.Map.find_opt i m) flags
 
-    let from_channel_unit : type x. In_channel.t -> x mapper -> Compunit.t -> x t -> x t =
+    type 'x unit_entry = 'x entry IdMap.t option
+
+    let find_unit i m = Compunit.Map.find_opt i m
+
+    let add_unit i x m =
+      match x with
+      | Some x -> Compunit.Map.add i x m
+      | None -> m
+
+    let from_channel_unit :
+        type x. In_channel.t -> x mapper -> Compunit.t -> x t -> x t * x unit_entry =
      fun chan f compunit m ->
       match (Marshal.from_channel chan : x entry IdMap.t option) with
       | Some n ->
-          Compunit.Map.add compunit
-            (IdMap.map (fun (Entry (key, value)) -> Entry (key, f.map key value)) n)
-            m
-      | None -> m
+          let fn = IdMap.map (fun (Entry (key, value)) -> Entry (key, f.map key value)) n in
+          (Compunit.Map.add compunit fn m, Some fn)
+      | None -> (m, None)
   end
 end

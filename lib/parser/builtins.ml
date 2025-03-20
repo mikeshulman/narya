@@ -1,5 +1,6 @@
 open Bwd
 open Util
+open Dim
 open Postprocess
 open Print
 open PPrint
@@ -10,6 +11,12 @@ open Notation
 open Monad.Ops (Monad.Maybe)
 open Range
 module StringSet = Set.Make (String)
+
+module StringsSet = Set.Make (struct
+  type t = string * string list
+
+  let compare = compare
+end)
 
 let invalid str = fatal (Anomaly ("invalid notation arguments for " ^ str))
 
@@ -535,37 +542,38 @@ let () =
 
 (* These functions inspect and process multiple-variable type declarations like "x y z : A", such as appear (in paretheses) in the domain of a Π-type. *)
 
-exception Invalid_telescope
-
 (* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument 'vars'. *)
 let rec process_var_list :
     type lt ls rt rs.
     (lt, ls, rt, rs) parse located ->
     (string option * Whitespace.t list) list ->
-    (string option * Whitespace.t list) list =
+    (string option * Whitespace.t list) list option =
  fun { value; loc } vars ->
   match value with
-  | Ident ([ x ], w) -> (Some x, w) :: vars
-  | Placeholder w -> (None, w) :: vars
+  | Ident ([ x ], w) -> Some ((Some x, w) :: vars)
+  | Placeholder w -> Some ((None, w) :: vars)
   | App { fn; arg = { value = Ident ([ x ], w); _ }; _ } -> process_var_list fn ((Some x, w) :: vars)
   | App { fn; arg = { value = Placeholder w; _ }; _ } -> process_var_list fn ((None, w) :: vars)
   (* There's a choice here: an invalid variable name could still be a valid term, so we could allow for instance (x.y : A) → B to be parsed as a non-dependent function type.  But that seems a recipe for confusion. *)
   | Ident (name, _) -> fatal ?loc (Invalid_variable name)
   | App { arg = { value = Ident (xs, _); loc }; _ } -> fatal ?loc (Invalid_variable xs)
-  | _ -> raise Invalid_telescope
+  | _ -> None
 
-(* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables, the type, and the whitespace of the colon. *)
+(* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables, the type, and the whitespace of the colon.  Return None if it is not of that form, causing callers to fall back to alternative interpretations.*)
 let process_typed_vars :
     type lt ls rt rs.
     (lt, ls, rt, rs) parse ->
-    (string option * Whitespace.t list) list * Whitespace.t list * wrapped_parse =
+    ((string option * Whitespace.t list) list * Whitespace.t list * wrapped_parse) option =
  fun arg ->
+  let open Monad.Ops (Monad.Maybe) in
   match arg with
   | Notn ((Asc, _), n) -> (
       match args n with
-      | [ Term xs; Token (Colon, wscolon); Term ty ] -> (process_var_list xs [], wscolon, Wrap ty)
-      | _ -> invalid "telescope")
-  | _ -> raise Invalid_telescope
+      | [ Term xs; Token (Colon, wscolon); Term ty ] ->
+          let* vars = process_var_list xs [] in
+          return (vars, wscolon, Wrap ty)
+      | _ -> None)
+  | _ -> None
 
 (* ****************************************
    Function types (dependent and non)
@@ -588,30 +596,33 @@ type pi_dom =
     }
   | Nondep of { wsarrow : arrow_opt; ty : wrapped_parse }
 
-(* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of lists-of-variables with types, with the first one having an arrow attached (before it front) if 'wsarrow' is given.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type. *)
-let rec get_pi_args : type lt ls rt rs. arrow_opt -> (lt, ls, rt, rs) parse located -> pi_dom Bwd.t
-    =
- fun wsarrow doms ->
-  try
+(* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of variables with types, prepending that list onto the front of the given accumulation list, with the first one having an arrow attached (before it front) if 'wsarrow' is given.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type and cons it onto the list. *)
+let get_pi_args :
+    type lt ls rt rs. arrow_opt -> (lt, ls, rt, rs) parse located -> pi_dom list -> pi_dom list =
+ fun wsarrow doms accum ->
+  let open Monad.Ops (Monad.Maybe) in
+  let rec go : type lt ls rt rs. (lt, ls, rt, rs) parse located -> pi_dom list -> pi_dom list option
+      =
+   fun doms accum ->
     match doms.value with
     | Notn ((Parens, _), n) -> (
         match args n with
         | [ Token (LParen, wslparen); Term body; Token (RParen, wsrparen) ] ->
-            let vars, wscolon, ty = process_typed_vars body.value in
-            Snoc (Emp, Dep { wsarrow; vars; ty; wslparen; wscolon; wsrparen })
-        | _ -> invalid "arrow")
+            let* vars, wscolon, ty = process_typed_vars body.value in
+            return (Dep { wsarrow; vars; ty; wslparen; wscolon; wsrparen } :: accum)
+        | _ -> None)
     | App { fn; arg = { value = Notn ((Parens, _), n); _ }; _ } -> (
         match args n with
         | [ Token (LParen, wslparen); Term body; Token (RParen, wsrparen) ] ->
-            let vars, wscolon, ty = process_typed_vars body.value in
-            Snoc
-              ( get_pi_args wsarrow fn,
-                Dep { wsarrow = `Noarrow; vars; ty; wslparen; wscolon; wsrparen } )
-        | _ -> invalid "arrow")
-    | _ -> raise Invalid_telescope
-  with Invalid_telescope -> Snoc (Emp, Nondep { wsarrow; ty = Wrap doms })
+            let* vars, wscolon, ty = process_typed_vars body.value in
+            go fn (Dep { wsarrow = `Noarrow; vars; ty; wslparen; wscolon; wsrparen } :: accum)
+        | _ -> None)
+    | _ -> None in
+  match go doms accum with
+  | Some result -> result
+  | None -> Nondep { wsarrow; ty = Wrap doms } :: accum
 
-(* Get all the domains and eventual codomain from a right-associated iterated function-type, recording on the first one the possible whitespace from a preceding arrow. *)
+(* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
 let rec get_pi :
     type lt ls rt rs.
     arrow_opt -> observation list -> pi_dom list * Whitespace.t list * wrapped_parse =
@@ -622,7 +633,7 @@ let rec get_pi :
         match cod.value with
         | Notn ((Arrow, _), n) -> get_pi (`Arrow wsarrow) (args n)
         | _ -> ([], wsarrow, Wrap cod) in
-      (Bwd.prepend (get_pi_args prev_arr doms) vars, ws, cod)
+      (get_pi_args prev_arr doms vars, ws, cod)
   | _ -> invalid "arrow"
 
 (* Given the variables with domains and the codomain of a pi-type, process it into a raw term. *)
@@ -708,7 +719,10 @@ let () =
             let pcod, wcod = pp_term cod in
             ( group
                 (align
-                   (pdom ^^ pp_ws `Break wdom ^^ Token.pp Arrow ^^ pp_ws `Nobreak wsarrow ^^ pcod)),
+                   (pdom
+                   ^^ pp_ws `Break wdom
+                   ^^ Token.pp Arrow
+                   ^^ hang 2 (pp_ws `Nobreak wsarrow ^^ pcod))),
               wcod ));
       (* Function-types are never part of case trees. *)
       print_case = None;
@@ -793,8 +807,8 @@ let parens_case :
 
 let rec process_tuple :
     type n.
-    (Field.t option, n check located) Abwd.t ->
-    Field.Set.t ->
+    ((string * string list) option, n check located) Abwd.t ->
+    StringSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -808,11 +822,14 @@ let rec process_tuple :
   (* Labeled field *)
   | Term { value = Notn ((Coloneq, _), n); loc } :: obs -> (
       match args n with
-      | [ Term { value = Ident ([ x ], _); loc = xloc }; Token (Coloneq, _); Term tm ] ->
+      | [ Term { value = Ident ([ fld ], _); loc = xloc }; Token (Coloneq, _); Term tm ] ->
           let tm = process ctx tm in
-          let fld = Field.intern x in
-          if Field.Set.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
-          else process_tuple (Abwd.add (Some fld) tm flds) (Field.Set.add fld found) ctx obs loc
+          if StringSet.mem fld found then fatal ?loc:xloc (Duplicate_field_in_tuple fld)
+          else
+            process_tuple
+              (* Tuples have no higher fields, so the bwd of strings labeling a dimension is always empty. *)
+              (Abwd.add (Some (fld, [])) tm flds)
+              (StringSet.add fld found) ctx obs loc
       | [ Term { value = Placeholder _; _ }; Token (Coloneq, _); Term tm ] ->
           let tm = process ctx tm in
           process_tuple (Abwd.add None tm flds) found ctx obs loc
@@ -899,7 +916,7 @@ let () =
       processor =
         (fun ctx obs loc ->
           match parens_case obs with
-          | `Tuple (_, obs) -> process_tuple Abwd.empty Field.Set.empty ctx obs loc
+          | `Tuple (_, obs) -> process_tuple Abwd.empty StringSet.empty ctx obs loc
           | `Parens (_, Wrap body, _) -> process ctx body);
       print_term = Some pp_tuple_term;
       print_case = Some pp_tuple_case;
@@ -1543,7 +1560,7 @@ let rec comatch_fields () =
 
 let rec process_comatch :
     type n.
-    (Field.t option, n check located) Abwd.t * Field.Set.t ->
+    ((string * string list) option, n check located) Abwd.t * StringsSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -1551,13 +1568,19 @@ let rec process_comatch :
  fun (flds, found) ctx obs loc ->
   match obs with
   | [ Token (RBracket, _) ] -> { value = Raw.Struct (Noeta, flds); loc }
-  | Token (Op "|", _) :: Term { value = Field (x, _); loc } :: Token (Mapsto, _) :: Term tm :: obs
-    ->
+  | Token (Op "|", _)
+    :: Term { value = Field (fld, pbij, _); loc = fldloc }
+    :: Token (Mapsto, _)
+    :: Term tm
+    :: obs ->
       let tm = process ctx tm in
-      let fld = Field.intern x in
-      if Field.Set.mem fld found then fatal ?loc (Duplicate_method_in_comatch fld)
+      if StringsSet.mem (fld, pbij) found then
         (* Comatches can't have unlabeled fields *)
-      else process_comatch (Abwd.add (Some fld) tm flds, Field.Set.add fld found) ctx obs loc
+        fatal ?loc:fldloc (Duplicate_method_in_comatch (fld, pbij))
+      else
+        process_comatch
+          (Abwd.add (Some (fld, pbij)) tm flds, StringsSet.add (fld, pbij) found)
+          ctx obs loc
   | _ -> invalid "comatch"
 
 let () =
@@ -1586,7 +1609,7 @@ let () =
           (* We strip off the starting bracket and make sure there is an initial bar, so that process_comatch can treat each clause uniformly. *)
           | Token (LBracket, _) :: obs ->
               let obs = must_start_with (Op "|") obs in
-              process_comatch (Abwd.empty, Field.Set.empty) ctx obs loc
+              process_comatch (Abwd.empty, StringsSet.empty) ctx obs loc
           | _ -> invalid "comatch");
       print_term = None;
       print_case = Some pp_match;
@@ -1644,7 +1667,7 @@ let rec codata_fields bar_ok =
 
 let rec process_codata :
     type n.
-    (Field.t, string option * n N.suc check located) Abwd.t ->
+    (Field.wrapped, n Raw.codatafield) Abwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
     Asai.Range.t option ->
@@ -1657,7 +1680,11 @@ let rec process_codata :
          {
            value =
              App
-               { fn = { value = x; loc = xloc }; arg = { value = Field (fld, _); loc = fldloc }; _ };
+               {
+                 fn = { value = x; loc = xloc };
+                 arg = { value = Field (fstr, fdstr, _); loc = fldloc };
+                 _;
+               };
            loc;
          }
     :: Token (Colon, _)
@@ -1670,12 +1697,15 @@ let rec process_codata :
         | Placeholder _ -> None
         | Ident (x, _) -> fatal ?loc:xloc (Invalid_variable x)
         | _ -> fatal ?loc:xloc Parse_error in
-      let fld = Field.intern fld in
-      match Abwd.find_opt fld flds with
-      | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
-      | None ->
-          let ty = process (Bwv.snoc ctx x) ty in
-          process_codata (Abwd.add fld (x, ty) flds) ctx obs loc)
+      match dim_of_string (String.concat "" fdstr) with
+      | Some (Any fdim) -> (
+          let fld = Field.intern fstr fdim in
+          match Abwd.find_opt (Field.Wrap fld) flds with
+          | Some _ -> fatal ?loc:fldloc (Duplicate_method_in_codata fld)
+          | None ->
+              let ty = process (Bwv.snoc ctx x) ty in
+              process_codata (Abwd.add (Field.Wrap fld) (Raw.Codatafield (x, ty)) flds) ctx obs loc)
+      | None -> fatal (Invalid_field (String.concat "." ("" :: fstr :: fdstr))))
   | _ -> invalid "codata"
 
 let rec pp_codata_fields first prews accum obs : document * Whitespace.t list =
@@ -1770,7 +1800,8 @@ let rec process_tel :
   | [ Token (RParen, _) ] -> Any_tel Emp
   | Token (Op ",", _) :: obs -> process_tel ctx seen obs
   | Term { value = Ident ([ name ], _); loc } :: Token (Colon, _) :: Term ty :: obs ->
-      if StringSet.mem name seen then fatal ?loc (Duplicate_field_in_record (Field.intern name));
+      if StringSet.mem name seen then
+        fatal ?loc (Duplicate_field_in_record (Field.intern name D.zero));
       let ty = process ctx ty in
       let ctx = Bwv.snoc ctx (Some name) in
       let (Any_tel tel) = process_tel ctx (StringSet.add name seen) obs in
@@ -1822,7 +1853,8 @@ let process_record ctx obs loc =
   match obs with
   | Term x :: Token (Mapsto, _) :: Token (LParen, _) :: obs ->
       with_loc x.loc @@ fun () ->
-      let (Wrap vars) = Vec.of_list (List.map fst (process_var_list x [ (None, []) ])) in
+      let vars = process_var_list x [ (None, []) ] <|> Parse_error in
+      let (Wrap vars) = Vec.of_list (List.map fst vars) in
       let (Bplus ac) = Fwn.bplus (Vec.length vars) in
       let ctx = Bwv.append ac ctx vars in
       let (Any_tel tel) = process_tel ctx StringSet.empty obs in
@@ -1985,9 +2017,10 @@ let rec constr_tel :
   (* Each argument set is given with its type in parentheses. *)
   | Term { value = App { fn; arg = { value = Notn ((Parens, _), n); loc = _ }; _ }; loc = _ } -> (
       match args n with
-      | [ Token (LParen, _); Term arg; Token (RParen, _) ] ->
-          let vars, _, ty = process_typed_vars arg.value in
-          constr_tel (Term fn) ((List.map fst vars, ty) :: accum)
+      | [ Token (LParen, _); Term arg; Token (RParen, _) ] -> (
+          match process_typed_vars arg.value with
+          | Some (vars, _, ty) -> constr_tel (Term fn) ((List.map fst vars, ty) :: accum)
+          | None -> fatal Parse_error)
       | _ -> invalid "tel")
   | _ -> fatal Parse_error
 

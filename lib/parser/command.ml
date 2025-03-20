@@ -12,6 +12,7 @@ open PPrint
 open Reporter
 open User
 open Modifier
+open Printable
 module Trie = Yuujinchou.Trie
 module TermParse = Parse
 
@@ -400,7 +401,7 @@ module Parse = struct
     | `Seq wsseq ->
         let* wslparen = token LParen in
         let* ops =
-          zero_or_more_fold_left Emp
+          zero_or_more_fold_left Bwd.Emp
             (fun x y -> return (Snoc (x, y)))
             (backtrack
                (let* op = modifier () in
@@ -418,7 +419,7 @@ module Parse = struct
     | `Union wsunion ->
         let* wslparen = token LParen in
         let* ops =
-          zero_or_more_fold_left Emp
+          zero_or_more_fold_left Bwd.Emp
             (fun x y -> return (Snoc (x, y)))
             (backtrack
                (let* op = modifier () in
@@ -673,7 +674,7 @@ let parse_single (content : string) : Whitespace.t list * Command.t option =
 
 let show_hole err = function
   | Eternity.Find_number (m, { tm = `Undefined; termctx; ty; _ }, { vars; _ }) ->
-      emit (Hole (Meta.name m, Termctx.PHole (vars, termctx, ty)))
+      emit (Hole (Meta.name m, PHole (vars, termctx, ty)))
   | _ -> fatal err
 
 let to_string : Command.t -> string = function
@@ -766,7 +767,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
               let etm = Norm.eval_term (Emp D.zero) ctm in
               readback_at Ctx.empty etm ety
             else ctm in
-          let bty = readback_at Ctx.empty ety (Syntax.universe D.zero) in
+          let bty = readback_at Ctx.empty ety (Value.universe D.zero) in
           let utm = unparse Names.empty btm No.Interval.entire No.Interval.entire in
           let uty = unparse Names.empty bty No.Interval.entire No.Interval.entire in
           ToChannel.pretty 1.0 (Display.columns ()) stdout

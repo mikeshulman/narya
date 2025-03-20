@@ -166,7 +166,11 @@ Let affects typechecking:
    ￫ error[E0401]
    ￭ command-line exec string
    1 | def untest : B a0 ≔ ((x ↦ f x b) : A → B a0) a0
-     ^ term synthesized type B a0 but is being checked against type B x
+     ^ term synthesized type
+         B a0
+       but is being checked against type
+         B x
+       (hint: function boundaries are explicit)
   
   [1]
 

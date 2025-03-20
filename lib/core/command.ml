@@ -2,9 +2,9 @@ open Bwd
 open Util
 open Tbwd
 open Dim
-open Syntax
 open Raw
 open Term
+open Value
 open Norm
 open Check
 open Readback
@@ -16,6 +16,8 @@ module ModeState = struct
 end
 
 module Mode = Algaeff.Reader.Make (ModeState)
+
+let () = Mode.register_printer (function `Read -> Some "unhandled Command.Mode.read effect")
 
 (* A mutual "def" command can contain multiple constant definitions, each one checking or synthesizing.  *)
 type defconst =
@@ -33,7 +35,7 @@ type t =
   | Solve :
       Global.data
       * ('b, 's) status
-      * ('a, 'b) Termctx.t
+      * ('a, 'b) termctx
       * 'a check located
       * ('b, kinetic) term
       * (('b, 's) term -> unit)
@@ -67,12 +69,15 @@ let check_term (def : defined_const) (discrete : unit Constant.Map.t option) :
       let ety = eval_term (Ctx.env ctx) ty in
       let tm =
         Ctx.lam ctx
-          (check ?discrete (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm ety) in
+          (check ?discrete
+             (Potential (Constant (const, D.zero), Ctx.apps ctx, Ctx.lam ctx))
+             ctx tm ety) in
       Global.set const (Defined tm);
       (const, tm)
   | Defined_synth { const; params; tm } ->
       let Checked_tel (cparams, ctx), _ = check_tel Ctx.empty params in
-      let ctm, ety = synth (Potential (Constant const, Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
+      let ctm, ety =
+        synth (Potential (Constant (const, D.zero), Ctx.apps ctx, Ctx.lam ctx)) ctx tm in
       let cty = readback_val ctx ety in
       let ty = Telescope.pis cparams cty in
       let tm = Ctx.lam ctx ctm in

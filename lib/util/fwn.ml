@@ -57,6 +57,14 @@ let rec suc_bplus_eq_suc : type a b ab. (a, b, ab) bplus -> (a N.suc, b, ab N.su
 let bplus_suc_eq_suc : type a b ab. (a, b, ab) bplus -> (a, b suc, ab N.suc) bplus =
  fun ab -> Suc (suc_bplus_eq_suc ab)
 
+let rec insert_bplus :
+    type a asuc b ab asucb.
+    (a, asuc) N.insert -> (a, b, ab) bplus -> (asuc, b, asucb) bplus -> (ab, asucb) N.insert =
+ fun i ab asucb ->
+  match (ab, asucb) with
+  | Zero, Zero -> i
+  | Suc ab, Suc asucb -> insert_bplus (Later i) ab asucb
+
 (* We can also get a forwards one as the result.  This is the length-level analogue of prepending a backwards list on the front of a forwards one.  *)
 type (_, _, _) fplus =
   | Zero : (N.zero, 'a, 'a) fplus

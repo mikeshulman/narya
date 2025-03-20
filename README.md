@@ -1854,7 +1854,7 @@ echo x .root
 
  ￫ error[E0801]
  1 | x .root
-   ^ field root of type √ℕ has intrinsic dimension e, can't be used at 0
+   ^ codata type √A has no field named root
 ```
 The syntax for using a higher field is different from the syntax for defining it, however.  In the simplest case, when projecting from a 1-dimensional element, we replace the suffix `e` by `1`:
 ```
@@ -1920,7 +1920,7 @@ All five methods are 1-dimensional, so their types are defined in a higher-dimen
    x.1 : isFibrant A.1
    x.2 : refl isFibrant A.0 A.1 A.2 x.0 x.1
 ```
-In other words, the behavior of fibrancy only becomes visible once we have not just one fibrant type, but an equality between fibrant types (including their witnesses of fibrancy).  Given this, the fields `trr` and `trl` say that we can transport elements back and forth across such an equality, while the fields `liftr` and `liftl` give "path lifting" operations that "equate" each point to its transported version, heterogeneously along the family `A`.  Finally, the last field `id` says corecursively that the (heterogeneous) identity types of a fibrant type are again fibrant.  Taken together, this suffices to construct all the higher groupoid structure in homotopy type theory.  Some examples can be found in `test/black/hct.t/isfibrant.ny`.
+In other words, the behavior of fibrancy only becomes visible once we have not just one fibrant type, but an equality between fibrant types (including their witnesses of fibrancy).  Given this, the fields `trr` and `trl` say that we can transport elements back and forth across such an equality, while the fields `liftr` and `liftl` give "path lifting" operations that "equate" each point to its transported version, heterogeneously along the family `A`.  Finally, the last field `id` says corecursively that the (heterogeneous) identity types of a fibrant type are again fibrant.  Taken together, this suffices to construct all the higher groupoid structure in homotopy type theory.  Some examples can be found in `test/black/hott.t`, including the proof that standard types inherit fibrancy, and that univalence holds.
 
 When comatching against a higher coinductive type, the context is also degenerated when defining values for the higher fields.  For instance:
 ```

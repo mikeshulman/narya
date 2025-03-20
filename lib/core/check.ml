@@ -20,8 +20,8 @@ include Status
 let discard : type a. a -> unit = fun _ -> ()
 
 (* Check that a given value is a zero-dimensional type family (something where an indexed datatype could live) and return the length of its domain telescope (the number of indices).  Unfortunately I don't see an easy way to do this without essentially going through all the same steps of extending the context that we would do to check something at that type family.  Also check whether all of its domain types are either discrete or belong to the given set of constants. *)
-let rec typefam :
-    type a b. ?discrete:unit Constant.Map.t -> (a, b) Ctx.t -> kinetic value -> int * bool =
+let rec typefam : type a b.
+    ?discrete:unit Constant.Map.t -> (a, b) Ctx.t -> kinetic value -> int * bool =
  fun ?discrete ctx ty ->
   match view_type ~severity:Asai.Diagnostic.Error ty "typefam" with
   | UU tyargs -> (
@@ -44,8 +44,8 @@ let rec typefam :
       | Neq -> fatal (Dimension_mismatch ("typefam", TubeOf.inst tyargs, CubeOf.dim doms)))
   | _ -> fatal (Checking_canonical_at_nonuniverse ("datatype", PVal (ctx, ty)))
 
-let rec motive_of_family :
-    type a b. (a, b) Ctx.t -> kinetic value -> kinetic value -> (b, kinetic) term =
+let rec motive_of_family : type a b.
+    (a, b) Ctx.t -> kinetic value -> kinetic value -> (b, kinetic) term =
  fun ctx tm ty ->
   let module F = struct
     type (_, _, _, _) t =
@@ -60,12 +60,10 @@ let rec motive_of_family :
   end in
   let module MC = FCube.Traverse (C) in
   let module MT = FCube.Traverse (T) in
-  let folder :
-      type left m any right.
+  let folder : type left m any right.
       (left, m, any, right) F.t -> right T.t -> left T.t * (left, m, any, right) F.t =
    fun (Rbtm dom) cod -> (Pi (None, CubeOf.singleton dom, CodCube.singleton cod), Rbtm dom) in
-  let builder :
-      type left n m.
+  let builder : type left n m.
       string option ->
       (n, Binding.t) CubeOf.t ->
       (m, n) sface ->
@@ -105,8 +103,7 @@ type (_, _, _) vars_of_names =
       ('a, 'b, 'abc) N.plus * (N.zero, 'n, string option, 'b) NICubeOf.t
       -> ('a, 'abc, 'n) vars_of_names
 
-let vars_of_names :
-    type a c abc n.
+let vars_of_names : type a c abc n.
     Asai.Range.t option -> n D.t -> (a, c, abc) Namevec.t -> (a, abc, n) vars_of_names =
  fun loc dim xs ->
   let module S = struct
@@ -129,8 +126,7 @@ let vars_of_names :
   | Wrap (_, Missing j) -> fatal ?loc (Wrong_boundary_of_record j)
 
 (* Slurp up an entire application spine.  Returns the function, and all the arguments, where each argument is paired with the location of its application.  So spine "f x y" would return "f" (located) along with [(location of "f x", "x" (located)); (location of "f x y", "y" (located))]. *)
-let spine :
-    type a.
+let spine : type a.
     a synth located ->
     a synth located
     * (Asai.Range.t option * a check located * [ `Implicit | `Explicit ] located) list =
@@ -142,8 +138,7 @@ let spine :
   spine tm []
 
 (* Temporarily define a given head (constant or meta) to be a given value, in executing a callback.  However, if an error has occurred earlier in typechecking other parts of it, then instead bind that head to an error value that doesn't allow it to be used. *)
-let run_with_definition :
-    type a s c.
+let run_with_definition : type a s c.
     a potential_head -> (a, potential) term -> Code.t Asai.Diagnostic.t Bwd.t -> (unit -> c) -> c =
  fun head tm errs f ->
   match (head, errs) with
@@ -228,8 +223,7 @@ type (_, _, _) meta_tel =
       -> ('b, 'c Fwn.suc, 'bc) meta_tel
 
 (* Check a term or case tree (depending on the energy: terms are kinetic, case trees are potential).  The ?discrete parameter is supplied if the term we are currently checking might be a discrete datatype, in which case it is a set of all the currently-being-defined mutual constants.  Most term-formers are nondiscrete, so they can just ignore this argument and make their recursive calls without it. *)
-let rec check :
-    type a b s.
+let rec check : type a b s.
     ?discrete:unit Constant.Map.t ->
     (b, s) status ->
     (a, b) Ctx.t ->
@@ -510,8 +504,7 @@ let rec check :
   result
 
 (* Deal with a synthesizing term in checking position. *)
-and check_of_synth :
-    type a b s.
+and check_of_synth : type a b s.
     (b, s) status -> (a, b) Ctx.t -> a synth -> Asai.Range.t option -> kinetic value -> (b, s) term
     =
  fun status ctx stm loc ty ->
@@ -540,8 +533,7 @@ and check_of_synth :
       sval
 
 (* Deal with checking a potential term in kinetic position *)
-and kinetic_of_potential :
-    type a b.
+and kinetic_of_potential : type a b.
     [ `Let | `Nolet ] ->
     (a, b) Ctx.t ->
     a check located ->
@@ -566,8 +558,7 @@ and kinetic_of_potential :
       (* Finally, we return the metavariable. *)
       Term.Meta (meta, Kinetic)
 
-and synth_or_check_let :
-    type a b s p.
+and synth_or_check_let : type a b s p.
     (b, s) status ->
     (a, b) Ctx.t ->
     string option ->
@@ -636,8 +627,7 @@ and synth_or_check_let :
       (Term.Let (name, v, sbody), Not_none sbodyty)
   | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
 
-and synth_or_check_letrec :
-    type a b c ac s p.
+and synth_or_check_letrec : type a b c ac s p.
     (b, s) status ->
     (a, b) Ctx.t ->
     (a, c, ac) Raw.tel ->
@@ -672,8 +662,7 @@ and synth_or_check_letrec :
       (let_metas metas sbody, Not_none sbodyty)
   | None, _ -> fatal (Nonsynthesizing "let-expression without synthesizing body")
 
-and check_letrec_bindings :
-    type a xc b ac bc.
+and check_letrec_bindings : type a xc b ac bc.
     (a, b) Ctx.t ->
     (a, xc, ac) Fwn.bplus ->
     (b, xc, bc) meta_tel ->
@@ -681,12 +670,11 @@ and check_letrec_bindings :
     (ac check located, xc) Vec.t ->
     unit =
  fun octx oac ometas ovtys vs ->
-  let rec go :
-      type x ax bx c d.
+  let rec go : type x ax bx c d.
       (a, x, ax) Fwn.bplus ->
       (x, c, xc) Fwn.plus ->
       (b, x, D.zero, bx) Tbwd.snocs ->
-      (*  *)
+      (* *)
       (ax, c, ac) Fwn.bplus ->
       (bx, c, bc) meta_tel ->
       (bx, c, bc) Telescope.t ->
@@ -734,8 +722,7 @@ and let_metas : type b c bc s. (b, c, bc) meta_tel -> (bc, s) term -> (b, s) ter
   | Ext (x, m, metas) -> Let (x, Meta (m, Kinetic), let_metas metas tm)
 
 (* Extend a context by evaluated metavariables.  We return both the fully extended context and a partially extended one. *)
-and ext_metas :
-    type a b c ac bc d cd acd bcd.
+and ext_metas : type a b c ac bc d cd acd bcd.
     (a, b) Ctx.t ->
     (a, cd, acd) Fwn.bplus ->
     (b, cd, bcd) meta_tel ->
@@ -746,8 +733,7 @@ and ext_metas :
     (ac, bc) Ctx.t * (acd, bcd) Ctx.t =
  fun ctx acd metas vtys ac cd bc ->
   (* First we define a helper function that returns only the fully extended context. *)
-  let rec ext_metas' :
-      type a b cd acd bcd.
+  let rec ext_metas' : type a b cd acd bcd.
       (a, b) Ctx.t ->
       (a, cd, acd) Fwn.bplus ->
       (b, cd, bcd) meta_tel ->
@@ -768,8 +754,7 @@ and ext_metas :
       ext_metas (Ctx.ext_let ctx x { tm; ty }) acd metas vtys ac cd bc
 
 (* Check a match statement without an explicit motive supplied by the user.  This means if the discriminee is a well-behaved variable, it can be a variable match; otherwise it reverts back to a non-dependent match. *)
-and check_implicit_match :
-    type a b t.
+and check_implicit_match : type a b t.
     (b, potential) status ->
     (a, b) Ctx.t ->
     a synth located ->
@@ -801,8 +786,7 @@ and check_implicit_match :
       check_nondep_match status ctx stm varty brs None motive tm.loc
 
 (* Check a non-dependent match against a specified type. *)
-and check_nondep_match :
-    type a b p.
+and check_nondep_match : type a b p.
     (b, potential) status ->
     (a, b) Ctx.t ->
     (b, kinetic) term ->
@@ -815,9 +799,11 @@ and check_nondep_match :
  fun status ctx tm varty brs i motive loc ->
   (* We look up the type of the discriminee, which must be a datatype, without any degeneracy applied outside, and at the same dimension as its instantiation. *)
   match view_type varty "check_nondep_match" with
-  | Canonical (type m)
+  | Canonical
+      (type m)
       (( name,
-         Data (type j ij)
+         Data
+           (type j ij)
            ({ dim; indices = Filled indices; constrs = data_constrs; discrete = _; tyfam = _ } :
              (_, j, ij) data_args),
          _ ) :
@@ -864,8 +850,7 @@ and check_nondep_match :
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
 (* Try to synthesize a type from all the branches.  If any succeed, check the remaining branches against that synthesized type. *)
-and synth_nondep_match :
-    type a b p.
+and synth_nondep_match : type a b p.
     (b, potential) status ->
     (a, b) Ctx.t ->
     a synth located ->
@@ -877,9 +862,11 @@ and synth_nondep_match :
   let (tm, varty), loc = (synth (Kinetic `Nolet) ctx tm, tm.loc) in
   (* The preprocessing is the same as in check_nondep_match; see there for comments. *)
   match view_type varty "synth_nondep_match" with
-  | Canonical (type m)
+  | Canonical
+      (type m)
       (( name,
-         Data (type j ij)
+         Data
+           (type j ij)
            ({ dim; indices = Filled indices; constrs = data_constrs; discrete = _; tyfam = _ } :
              (_, j, ij) data_args),
          _ ) :
@@ -978,8 +965,7 @@ and synth_nondep_match :
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
 (* Check a dependently typed match, with motive supplied by the user.  (Thus we have to typecheck the motive as well.) *)
-and synth_dep_match :
-    type a b.
+and synth_dep_match : type a b.
     (b, potential) status ->
     (a, b) Ctx.t ->
     a synth located ->
@@ -995,9 +981,11 @@ and synth_dep_match :
   (* We look up the type of the discriminee, which must be a datatype, without any degeneracy applied outside, and at the same dimension as its instantiation. *)
   let ctm, varty = synth (Kinetic `Nolet) ctx tm in
   match view_type varty "synth_dep_match" with
-  | Canonical (type m)
+  | Canonical
+      (type m)
       (( name,
-         Data (type j ij)
+         Data
+           (type j ij)
            ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _; tyfam } :
              (_, j, ij) data_args),
          inst_args ) :
@@ -1076,8 +1064,7 @@ and synth_dep_match :
   | _ -> fatal ?loc:tm.loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
 (* Check a match against a well-behaved variable, which can only appear in a case tree and refines not only the goal but the context (possibly with permutation). *)
-and check_var_match :
-    type a b.
+and check_var_match : type a b.
     (b, potential) status ->
     (a, b) Ctx.t ->
     level ->
@@ -1091,9 +1078,11 @@ and check_var_match :
  fun status ctx level index varty brs refutables motive loc ->
   (* We look up the type of the discriminee, which must be a datatype, without any degeneracy applied outside, and at the same dimension as its instantiation. *)
   match view_type varty "check_var_match" with
-  | Canonical (type m)
+  | Canonical
+      (type m)
       (( name,
-         Data (type j ij)
+         Data
+           (type j ij)
            ({ dim; indices = Filled var_indices; constrs = data_constrs; discrete = _; tyfam } :
              (_, j, ij) data_args),
          inst_args ) :
@@ -1263,7 +1252,8 @@ and check_var_match :
                             (* First we check whether any of the new pattern variables created by this match belong to an empty datatype. *)
                             if
                               any_empty newnfs
-                              || (* Otherwise, we check the stored "refutables", which include all the previous and succeeding pattern variables. *)
+                              ||
+                              (* Otherwise, we check the stored "refutables", which include all the previous and succeeding pattern variables. *)
                               List.fold_left
                                 (fun s x ->
                                   if s then true
@@ -1284,8 +1274,7 @@ and check_var_match :
       | Emp -> Match { tm = Term.Var index; dim; branches })
   | _ -> fatal ?loc (Matching_on_nondatatype (PVal (ctx, varty)))
 
-and make_match_status :
-    type a b ab c n.
+and make_match_status : type a b ab c n.
     (a, potential) status ->
     (a, kinetic) term ->
     n D.t ->
@@ -1315,8 +1304,7 @@ and make_match_status :
       Potential (c, args, hyp)
 
 (* Try matching against all the supplied terms with zero branches, producing an empty match if any succeeds and raising an error if none succeed. *)
-and check_refute :
-    type a b.
+and check_refute : type a b.
     (b, potential) status ->
     (a, b) Ctx.t ->
     a synth located list ->
@@ -1354,8 +1342,8 @@ and check_refute :
           | _ -> fatal_diagnostic d)
 
 (* Try empty-matching against each successive domain in an iterated pi-type. *)
-and check_empty_match_lam :
-    type a b. (a, b) Ctx.t -> kinetic value -> [ `First | `Notfirst ] -> (b, potential) term =
+and check_empty_match_lam : type a b.
+    (a, b) Ctx.t -> kinetic value -> [ `First | `Notfirst ] -> (b, potential) term =
  fun ctx ty first ->
   match view_type ty "check_empty_match_lam" with
   | Pi (type k) ((_, doms, cods, tyargs) : _ * (k, kinetic value) CubeOf.t * _ * _) -> (
@@ -1414,8 +1402,7 @@ and any_empty : type n. (n, Binding.t) CubeOf.t list -> bool =
       snd (CM.miterM { it = (fun _ [ x ] s -> ((), s || is_empty (Binding.value x).ty)) } [ nfs ] s))
     false nfss
 
-and check_data :
-    type a b i bi.
+and check_data : type a b i bi.
     discrete:unit Constant.Map.t option ->
     (b, potential) status ->
     (a, b) Ctx.t ->
@@ -1492,8 +1479,7 @@ and check_data :
                 status ctx ty Fwn.zero checked_constrs raw_constrs errs
           | Suc _ -> fatal (Missing_constructor_type c)))
 
-and get_indices :
-    type a b.
+and get_indices : type a b.
     (a, b) Ctx.t ->
     Constr.t ->
     app list ->
@@ -1522,8 +1508,7 @@ and get_indices :
   | _ -> fatal (Invalid_constructor_type c)
 
 (* The common prefix of checking a codatatype or record type, which returns a (cube of) variables belonging to the up-until-now type so that later fields can refer to earlier ones.  It also dynamically binds the current constant or metavariable, if possible, to that value for recursive purposes.  Since this binding has to scope over the rest of the functions that are specific to codata or records, it uses CPS. *)
-and with_codata_so_far :
-    type a b n c et.
+and with_codata_so_far : type a b n c et.
     (b, potential) status ->
     (potential, et) eta ->
     (a, b) Ctx.t ->
@@ -1577,8 +1562,7 @@ and with_codata_so_far :
   let codataterm = Term.Canonical (Codata { eta; opacity; dim; fields = checked_fields; termctx }) in
   run_with_definition h (hyp codataterm) errs @@ fun () -> cont domvars codataterm
 
-and check_codata :
-    type a b n.
+and check_codata : type a b n.
     (b, potential) status ->
     (a, b) Ctx.t ->
     (D.zero, n, n, normal) TubeOf.t ->
@@ -1619,8 +1603,7 @@ and check_codata :
           check_codata status ctx tyargs checked_fields raw_fields errs ~has_higher_fields
       | Pos _, Pos _ -> fatal (Unimplemented "higher fields in higher-dimensional codatatypes"))
 
-and check_record :
-    type a f1 f2 f af d acd b n.
+and check_record : type a f1 f2 f af d acd b n.
     (b, potential) status ->
     n D.t ->
     (a, b) Ctx.t ->
@@ -1659,8 +1642,7 @@ and check_record :
       check_record status dim ctx opacity tyargs vars ctx_fields (Suc fplus) (Suc af) checked_fields
         raw_fields errs
 
-and check_struct :
-    type a b c d s m n mn et.
+and check_struct : type a b c d s m n mn et.
     (b, s) status ->
     (s, et) eta ->
     (a, b) Ctx.t ->
@@ -1699,8 +1681,7 @@ and check_struct :
       Emp tms in
   Term.Struct (eta, m, fields, energy status)
 
-and check_fields :
-    type a b c d s m n mn et.
+and check_fields : type a b c d s m n mn et.
     (b, s) status ->
     (s, et) eta ->
     (a, b) Ctx.t ->
@@ -1747,8 +1728,7 @@ and check_fields :
       check_field status eta ctx ty m mn codata_args fields tyargs fld cdf prev_etm tms ctms etms
         errs
 
-and check_field :
-    type a b c d s m n mn i r et.
+and check_field : type a b c d s m n mn i r et.
     (b, s) status ->
     (s, et) eta ->
     (a, b) Ctx.t ->
@@ -1813,8 +1793,7 @@ and check_field :
       fatal (Anomaly "missing termctx in codatatype with higher fields")
   | Higher _, Kinetic _, _, _ -> .
 
-and check_higher_field :
-    type a b c d m i r ic0.
+and check_higher_field : type a b c d m i r ic0.
     (b, potential) status ->
     (a, b) Ctx.t ->
     (* Type being checked against and its data *)
@@ -1851,19 +1830,22 @@ and check_higher_field :
   (* We recurse through all the partial bijections that could be associated to this field name. *)
   match Seq.uncons pbijs with
   | Some
-      ( Pbij_between (type r)
+      ( Pbij_between
+          (type r)
           (Pbij (type s h) ((fldins, fldshuf) : (m, s, h) insertion * (r, h, i) shuffle) as pbij :
             (m, i, r) pbij),
         pbijs ) ->
       (* Degenerate the context by the number of remaining dimensions for this partial bijection *)
       let r = remaining pbij in
-      let (Degctx (type rb)
-            ((plusmap, degctx, degenv) : (r, b, rb) Plusmap.t * (a, rb) Ctx.t * (r, b) env)) =
+      let (Degctx
+             (type rb)
+             ((plusmap, degctx, degenv) : (r, b, rb) Plusmap.t * (a, rb) Ctx.t * (r, b) env)) =
         degctx ctx r in
       (* To make a new status, the arguments need to be eval-readbacked into degctx, and for that to make sense the head needs to be higher-dimensional also. *)
       let newstatus : (rb, potential) status =
         match status with
-        | Potential (type aa)
+        | Potential
+            (type aa)
             ((head, args, hyp) :
               aa potential_head * app Bwd.t * ((b, potential) term -> (aa, potential) term)) ->
             (* We increase the dimension of the potential_head, and also compute a value for the head.  This value is in the *old* context (not the degenerated one)! *)
@@ -2019,8 +2001,8 @@ and check_higher_field :
       check_fields status Noeta ctx ty m (D.plus_zero m) codata_args fields tyargs tms ctms etms
         errs
 
-and synth :
-    type a b s. (b, s) status -> (a, b) Ctx.t -> a synth located -> (b, s) term * kinetic value =
+and synth : type a b s.
+    (b, s) status -> (a, b) Ctx.t -> a synth located -> (b, s) term * kinetic value =
  fun status ctx tm ->
   let go () =
     match (tm.value, status) with
@@ -2121,8 +2103,7 @@ and synth :
   (restm, resty)
 
 (* Given something that can be applied, its type, and a list of arguments, check the arguments in appropriately-sized groups. *)
-and synth_apps :
-    type a b.
+and synth_apps : type a b.
     (b, kinetic) status ->
     (a, b) Ctx.t ->
     (b, kinetic) term located ->
@@ -2153,8 +2134,7 @@ and synth_apps :
       synth_apps status ctx asfn aty afn aargs
 
 (* This is a common subroutine for synth_app and synth_inst that picks up a whole cube of arguments and checks their types.  Since in one case we need a cube of values and the other case a cube of normals, we let the caller choose. *)
-and synth_arg_cube :
-    type a b n c.
+and synth_arg_cube : type a b n c.
     not_enough:Reporter.Code.t ->
     implicit:[ `Implicit | `Explicit ] ->
     which:string ->
@@ -2290,8 +2270,7 @@ and synth_arg_cube :
       [ doms ] (Cons (Cons Nil)) (sfnloc, fn, args) in
   ((cargs, eargs), (newloc, newfn, rest))
 
-and synth_app :
-    type a b n.
+and synth_app : type a b n.
     (a, b) Ctx.t ->
     (b, kinetic) term located ->
     (n, kinetic value) CubeOf.t ->
@@ -2313,8 +2292,7 @@ and synth_app :
   let output = tyof_app cods tyargs eargs in
   ({ value = Term.App (sfn.value, cargs); loc = newloc }, output, newfn, rest)
 
-and synth_inst :
-    type a b n.
+and synth_inst : type a b n.
     (a, b) Ctx.t ->
     (b, kinetic) term located ->
     (D.zero, n, n, normal) TubeOf.t ->
@@ -2356,8 +2334,7 @@ and synth_inst :
       ({ value = Term.Inst (sfn.value, cargs); loc = newloc }, tyof_inst tyargs nargs, newfn, rest)
 
 (* Check a list of terms against the types specified in a telescope, evaluating the latter in a supplied environment and in the context of the previously checked terms, and instantiating them at values given in a tube.  See description in context of the call to it above during typechecking of a constructor. *)
-and check_at_tel :
-    type n a b c bc e.
+and check_at_tel : type n a b c bc e.
     Constr.t ->
     (a, e) Ctx.t ->
     (n, b) env ->
@@ -2419,8 +2396,7 @@ and check_at_tel :
            (c, List.length tms - Fwn.to_int (Telescope.length tys)))
 
 (* Given a context and a raw telescope, we can check it to produce a checked telescope, a new context extended by that telescope, and a function for extending other contexts by that telescope.  The returned boolean indicates whether this could be the telescope of arguments of a constructor of a *discrete* datatype.  This requires knowing the collection of currently-being-defined mutual constants, since discrete types can appear recursively in the arguments of their constructors. *)
-and check_tel :
-    type a b c ac.
+and check_tel : type a b c ac.
     ?discrete:unit Constant.Map.t ->
     (a, b) Ctx.t ->
     (a, c, ac) Raw.tel ->

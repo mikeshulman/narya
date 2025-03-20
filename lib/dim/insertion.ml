@@ -42,8 +42,8 @@ let rec cod_right_ins : type a b c. (a, b, c) insertion -> c D.t = function
   | Zero _ -> D.zero
   | Suc (ins, _) -> D.suc (cod_right_ins ins)
 
-let rec equal_ins :
-    type a1 b1 c1 a2 b2 c2. (a1, b1, c1) insertion -> (a2, b2, c2) insertion -> unit option =
+let rec equal_ins : type a1 b1 c1 a2 b2 c2.
+    (a1, b1, c1) insertion -> (a2, b2, c2) insertion -> unit option =
  fun i1 i2 ->
   match (i1, i2) with
   | Zero a1, Zero a2 -> (
@@ -56,8 +56,7 @@ let rec equal_ins :
       equal_ins i1 i2
   | _ -> None
 
-let rec plus_ins :
-    type a b c d ab ac.
+let rec plus_ins : type a b c d ab ac.
     a D.t -> (a, b, ab) D.plus -> (a, c, ac) D.plus -> (b, c, d) insertion -> (ab, ac, d) insertion
     =
  fun a ab ac ins ->
@@ -161,8 +160,8 @@ let rec deg_lift_ins : type n k nk m. (m, n) deg -> (nk, n, k) insertion -> (m, 
 type (_, _, _) sface_lift_ins =
   | Sface_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) sface -> ('m, 'k, 'nk) sface_lift_ins
 
-let rec sface_lift_ins :
-    type n k nk m. (m, n) sface -> (nk, n, k) insertion -> (m, k, nk) sface_lift_ins =
+let rec sface_lift_ins : type n k nk m.
+    (m, n) sface -> (nk, n, k) insertion -> (m, k, nk) sface_lift_ins =
  fun fa0 ins0 ->
   match ins0 with
   | Zero _ -> Sface_lift_ins (Zero (dom_sface fa0), fa0)
@@ -176,8 +175,8 @@ let rec sface_lift_ins :
 type (_, _, _) pface_lift_ins =
   | Pface_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) pface -> ('m, 'k, 'nk) pface_lift_ins
 
-let rec pface_lift_ins :
-    type n k nk m. (m, n) pface -> (nk, n, k) insertion -> (m, k, nk) pface_lift_ins =
+let rec pface_lift_ins : type n k nk m.
+    (m, n) pface -> (nk, n, k) insertion -> (m, k, nk) pface_lift_ins =
  fun fa0 ins0 ->
   match ins0 with
   | Zero _ -> Pface_lift_ins (Zero (dom_tface fa0), fa0)
@@ -281,8 +280,7 @@ module Insmap (F : Fam) = struct
 
   type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
 
-  let rec find :
-      type evaluation intrinsic shared v.
+  let rec find : type evaluation intrinsic shared v.
       (evaluation, shared, intrinsic) insertion -> (evaluation, intrinsic, v) t -> v F.t =
    fun p m ->
     match (p, m) with
@@ -291,8 +289,7 @@ module Insmap (F : Fam) = struct
         let (Wrap m) = Tup.find i m in
         find ins m
 
-  let rec set :
-      type evaluation intrinsic shared v.
+  let rec set : type evaluation intrinsic shared v.
       (evaluation, shared, intrinsic) insertion ->
       v F.t ->
       (evaluation, intrinsic, v) t ->
@@ -311,8 +308,7 @@ module Insmap (F : Fam) = struct
     build : 'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'v F.t;
   }
 
-  let rec build :
-      type evaluation intrinsic v.
+  let rec build : type evaluation intrinsic v.
       evaluation D.t ->
       intrinsic D.t ->
       (evaluation, intrinsic, v) builder ->
@@ -355,8 +351,7 @@ module Insmap (F : Fam) = struct
       | [] -> []
       | v :: vs -> Zero v :: zero vs
 
-    let rec suc :
-        type e i vs irvs.
+    let rec suc : type e i vs irvs.
         (i, vs, irvs) MapTimes.t -> (e, Fwn.zero, irvs) Tup.Heter.hgt -> (e, i D.suc, vs) ht =
      fun irvs rs ->
       match (irvs, rs) with
@@ -367,23 +362,22 @@ module Insmap (F : Fam) = struct
       | [] -> []
       | Zero v :: ms -> v :: zeros ms
 
-    let rec right :
-        type e i vs irvs.
+    let rec right : type e i vs irvs.
         (e, i D.suc, vs) ht -> (i, vs, irvs) MapTimes.t -> (e, Fwn.zero, irvs) Tup.Heter.hgt =
      fun ms irvs ->
       match (ms, irvs) with
       | [], [] -> []
       | Suc r :: ms, Times :: irvs -> r :: right ms irvs
 
-    let rec wrap :
-        type e i vs irvs. (e, i, vs) ht -> (i, vs, irvs) MapTimes.t -> (e, irvs) Tup.Heter.hft =
+    let rec wrap : type e i vs irvs.
+        (e, i, vs) ht -> (i, vs, irvs) MapTimes.t -> (e, irvs) Tup.Heter.hft =
      fun ms irvs ->
       match (ms, irvs) with
       | [], [] -> []
       | m :: ms, Times :: irvs -> Wrap m :: wrap ms irvs
 
-    let rec unwrap :
-        type e i vs irvs. (e, irvs) Tup.Heter.hft -> (i, vs, irvs) MapTimes.t -> (e, i, vs) ht =
+    let rec unwrap : type e i vs irvs.
+        (e, irvs) Tup.Heter.hft -> (i, vs, irvs) MapTimes.t -> (e, i, vs) ht =
      fun ms irvs ->
       match (ms, irvs) with
       | [], [] -> []
@@ -409,8 +403,7 @@ module Insmap (F : Fam) = struct
         'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'vs Heter.hft -> 'ws Heter.hft M.t;
     }
 
-    let rec pmapM :
-        type evaluation intrinsic v vs ws.
+    let rec pmapM : type evaluation intrinsic v vs ws.
         evaluation D.t ->
         (evaluation, intrinsic, (v, vs) cons, ws) pmapperM ->
         (evaluation, intrinsic, (v, vs) cons) Heter.ht ->

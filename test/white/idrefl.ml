@@ -31,7 +31,7 @@ let () =
   unsynth "refl ((x ↦ x) : (X → X)) x0 x0 x0";
   equal refl_idmap_x2 x2;
 
-  (*  *)
+  (* *)
   let yy = assume "Y" uu in
   let zz = assume "Z" uu in
   let xtoy, _ = synth "X → Y" in

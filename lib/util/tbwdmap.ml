@@ -53,8 +53,7 @@ module Make (F : TFun) = struct
   type (_, _, _, _) map_insert =
     | Map_insert : ('zs, 'fx, 'ws) Tbwd.insert * ('p, 'ys, 'ws) t -> ('p, 'fx, 'ys, 'zs) map_insert
 
-  let rec insert :
-      type p xs x z ys zs.
+  let rec insert : type p xs x z ys zs.
       (p, x, z) F.t -> (xs, x, ys) Tbwd.insert -> (p, xs, zs) t -> (p, z, ys, zs) map_insert =
    fun z i fxs ->
     match i with
@@ -69,8 +68,8 @@ module Make (F : TFun) = struct
         ('p, 'x, 'z) F.t * ('xs, 'x, 'ys) Tbwd.insert * ('p, 'xs, 'zs) t
         -> ('p, 'z, 'ys, 'zs) unmap_insert
 
-  let rec unmap_insert :
-      type p ys z zs ws. (zs, z, ws) Tbwd.insert -> (p, ys, ws) t -> (p, z, ys, zs) unmap_insert =
+  let rec unmap_insert : type p ys z zs ws.
+      (zs, z, ws) Tbwd.insert -> (p, ys, ws) t -> (p, z, ys, zs) unmap_insert =
    fun i fxs ->
     match i with
     | Now ->
@@ -84,8 +83,8 @@ module Make (F : TFun) = struct
   type (_, _, _) map_permute =
     | Map_permute : ('p, 'zs, 'ws) t * ('ys, 'ws) Tbwd.permute -> ('p, 'zs, 'ys) map_permute
 
-  let rec permute :
-      type p xs ys zs. (p, xs, ys) t -> (xs, zs) Tbwd.permute -> (p, zs, ys) map_permute =
+  let rec permute : type p xs ys zs.
+      (p, xs, ys) t -> (xs, zs) Tbwd.permute -> (p, zs, ys) map_permute =
    fun fxs pp ->
     match pp with
     | Id -> Map_permute (fxs, Id)

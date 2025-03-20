@@ -78,8 +78,7 @@ let observations_of_symbols :
           (last, []) )
 
 (* Unparse a notation together with all its arguments. *)
-let unparse_notation :
-    type left tight right lt ls rt rs.
+let unparse_notation : type left tight right lt ls rt rs.
     (left, tight, right) notation ->
     unparser list ->
     [ `Single of Token.t | `Multiple of Token.t * Token.t option list * Token.t ] ->
@@ -143,8 +142,7 @@ let unparse_var : type lt ls rt rs. string option -> (lt, ls, rt, rs) parse loca
   | None -> unlocated (Placeholder [])
 
 (* Unparse a Bwd of variables to occur in an iterated abstraction.  If there is more than one variable, the result is an "application spine".  Can occur in any tightness interval that contains +ω. *)
-let rec unparse_abs :
-    type li ls ri rs.
+let rec unparse_abs : type li ls ri rs.
     string option Bwd.t ->
     (li, ls) No.iinterval ->
     (li, ls, No.plus_omega) No.lt ->
@@ -172,8 +170,7 @@ let unparse_numeral : type n li ls ri rs. (n, kinetic) term -> (li, ls, ri, rs) 
     | _ -> None in
   getsucs tm 0
 
-let rec get_list :
-    type n li ls ri rs.
+let rec get_list : type n li ls ri rs.
     (n, kinetic) term -> (n, kinetic) term Bwd.t -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
@@ -182,8 +179,7 @@ let rec get_list :
       get_list (CubeOf.find_top cdr) (Snoc (elts, CubeOf.find_top car))
   | _ -> None
 
-let rec get_bwd :
-    type n li ls ri rs.
+let rec get_bwd : type n li ls ri rs.
     (n, kinetic) term -> (n, kinetic) term list -> (n, kinetic) term Bwd.t option =
  fun tm elts ->
   match tm with
@@ -206,8 +202,7 @@ let synths : type n. (n, kinetic) term -> bool = function
   | Constr (_, _, _) | Lam (_, _) | Struct (_, _, _, _) -> false
 
 (* Given a term, extract its head and arguments as an application spine.  If the spine contains a field projection, stop there and return only the arguments after it, noting the field name and what it is applied to (which itself be another spine). *)
-let rec get_spine :
-    type b n.
+let rec get_spine : type b n.
     (n, kinetic) term ->
     [ `App of (n, kinetic) term * ((n, kinetic) term * [ `Implicit | `Explicit ]) Bwd.t
     | `Field of
@@ -250,8 +245,7 @@ let rec get_spine :
   | tm -> `App (tm, Emp)
 
 (* The primary unparsing function.  Given the variable names, unparse a term into given tightness intervals. *)
-let rec unparse :
-    type n lt ls rt rs s.
+let rec unparse : type n lt ls rt rs s.
     n Names.t ->
     (n, s) term ->
     (lt, ls) No.iinterval ->
@@ -343,7 +337,8 @@ let rec unparse :
         | Eq -> `Normal
         | Neq -> `Cube in
       unparse_lam cube vars Emp tm li ri
-  | Struct (type m et)
+  | Struct
+      (type m et)
       ((Eta, _, fields, _) : (s, et) eta * m D.t * (m * n * s * et) StructfieldAbwd.t * s energy) ->
       unlocated
         (outfix ~notn:parens
@@ -354,8 +349,10 @@ let rec unparse :
                     (Token (Op ",", []))
                     (Bwd.fold_left
                        (fun acc
-                            (Term.StructfieldAbwd.Entry (type i)
-                              ((fld, structfield) : i Field.t * (i, m * n * s * et) Structfield.t)) ->
+                            (Term.StructfieldAbwd.Entry
+                               (type i)
+                               ((fld, structfield) : i Field.t * (i, m * n * s * et) Structfield.t))
+                          ->
                          match structfield with
                          | Lower (fldtm, lbl) ->
                              let fldtm = unparse vars fldtm No.Interval.entire No.Interval.entire in
@@ -397,8 +394,8 @@ and make_unparser : type n. n Names.t -> (n, kinetic) term -> unparser =
  fun vars tm -> { unparse = (fun li ri -> unparse vars tm li ri) }
 
 (* A version that wraps implicit arguments in braces. *)
-and make_unparser_implicit :
-    type n. n Names.t -> (n, kinetic) term * [ `Implicit | `Explicit ] -> unparser =
+and make_unparser_implicit : type n.
+    n Names.t -> (n, kinetic) term * [ `Implicit | `Explicit ] -> unparser =
  fun vars (tm, i) ->
   match i with
   | `Explicit -> { unparse = (fun li ri -> unparse vars tm li ri) }
@@ -413,8 +410,7 @@ and make_unparser_implicit :
       }
 
 (* Unparse a spine with its arguments whose head could be many things: an as-yet-not-unparsed term, a constructor, a field projection, a degeneracy, or a general delayed unparsing. *)
-and unparse_spine :
-    type n lt ls rt rs.
+and unparse_spine : type n lt ls rt rs.
     n Names.t ->
     [ `Term of (n, kinetic) term
     | `Constr of Constr.t
@@ -470,8 +466,7 @@ and unparse_spine :
               let right_ok = No.le_refl No.plus_omega in
               parenthesize (unlocated (App { fn; arg; left_ok; right_ok }))))
 
-and unparse_field :
-    type n lt ls rt rs i.
+and unparse_field : type n lt ls rt rs i.
     n Names.t ->
     (n, kinetic) term ->
     string ->
@@ -495,8 +490,7 @@ and unparse_field :
           let right_ok = No.le_refl No.plus_omega in
           parenthesize (unlocated (App { fn; arg; left_ok; right_ok })))
 
-and unparse_field_var :
-    type n lt ls rt rs.
+and unparse_field_var : type n lt ls rt rs.
     n Names.t -> (n, kinetic) term -> string -> (lt, ls, rt, rs) parse located option =
  fun vars tm fld ->
   match tm with
@@ -513,8 +507,7 @@ and unparse_field_var :
   | _ -> None
 
 (* For unparsing an iterated abstraction, we group together the fully-normal variables and at-least-partially-cube variables, since they have different notations.  There is no notation for partially-cube variables, so we make them fully cube.  We recursively descend through the structure of the term, storing in 'cube' which kind of variable we are picking up and continuing until we find either a non-abstraction or an abstraction of the wrong type.  *)
-and unparse_lam :
-    type n lt ls rt rs s.
+and unparse_lam : type n lt ls rt rs s.
     [ `Cube | `Normal ] ->
     n Names.t ->
     string option Bwd.t ->
@@ -532,8 +525,7 @@ and unparse_lam :
             type 'acc t = string option Bwd.t
           end) in
           (* Apparently we need to define the folding function explicitly with a type to make it come out sufficiently polymorphic. *)
-          let folder :
-              type m left right.
+          let folder : type m left right.
               string option Bwd.t ->
               (left, m, string option, right) NFamOf.t ->
               (left, m, unit, right) NFamOf.t * string option Bwd.t =
@@ -545,8 +537,7 @@ and unparse_lam :
   | _ -> unparse_lam_done cube vars xs body li ri
 
 (* Once we hit either a non-abstraction or a different kind of abstraction, we pick the appropriate notation to use for the abstraction, depending on the kind of variables.  Note that both are (un)parsed as binary operators whose left-hand argument is an "application spine" of variables, produced here by unparse_abs. *)
-and unparse_lam_done :
-    type n lt ls rt rs s.
+and unparse_lam_done : type n lt ls rt rs s.
     [ `Cube | `Normal ] ->
     n Names.t ->
     string option Bwd.t ->
@@ -576,8 +567,7 @@ and unparse_lam_done :
       parenthesize
         (unlocated (infix ~notn ~first ~inner:(Single (mapsto, [])) ~last ~left_ok ~right_ok))
 
-and unparse_act :
-    type n lt ls rt rs a b.
+and unparse_act : type n lt ls rt rs a b.
     n Names.t ->
     unparser ->
     (a, b) deg ->
@@ -594,8 +584,7 @@ and unparse_act :
           unlocated (Superscript (Some (tm.unparse li No.Interval.empty), string_of_deg s, [])))
 
 (* We group together all the 0-dimensional dependent pi-types in a notation, so we recursively descend through the term picking those up until we find a non-pi-type, a higher-dimensional pi-type, or a non-dependent pi-type, in which case we pass it off to unparse_pis_final. *)
-and unparse_pis :
-    type n lt ls rt rs.
+and unparse_pis : type n lt ls rt rs.
     n Names.t ->
     unparser Bwd.t ->
     (n, kinetic) term ->
@@ -685,8 +674,7 @@ and unparse_pis :
   | _ -> unparse_pis_final vars accum (make_unparser vars tm) li ri
 
 (* The arrow in both kinds of pi-type is (un)parsed as a binary operator.  In the dependent case, its left-hand argument looks like an "application spine" of ascribed variables.  Of course, it may have to be parenthesized. *)
-and unparse_arrow :
-    type n lt ls rt rs.
+and unparse_arrow : type n lt ls rt rs.
     unparser ->
     unparser ->
     (lt, ls) No.iinterval ->
@@ -706,8 +694,7 @@ and unparse_arrow :
       parenthesize
         (unlocated (infix ~notn:arrow ~first ~inner:(Single (Arrow, [])) ~last ~left_ok ~right_ok))
 
-and unparse_pis_final :
-    type n lt ls rt rs.
+and unparse_pis_final : type n lt ls rt rs.
     n Names.t ->
     unparser Bwd.t ->
     unparser ->
@@ -723,8 +710,7 @@ and unparse_pis_final :
         tm li ri
 
 (* Unparse a single domain of a dependent pi-type. *)
-and unparse_pi_dom :
-    type lt ls rt rs.
+and unparse_pi_dom : type lt ls rt rs.
     string ->
     (No.minus_omega, No.strict, No.minus_omega, No.nonstrict) parse located ->
     (lt, ls, rt, rs) parse located =
@@ -746,8 +732,7 @@ and unparse_pi_dom :
               (RParen, []) )))
 
 (* Unparse a term context, given a vector of variable names obtained by pre-uniquifying a variable list, and a list of names for by the empty context that nevertheless remembers the variables in that vector, as produced by Names.uniquify_vars.  Yields not only the list of unparsed terms/types, but a corresponding list of names that can be used to unparse further objects in that context. *)
-let rec unparse_ctx :
-    type a b.
+let rec unparse_ctx : type a b.
     emp Names.t ->
     [ `Locked | `Unlocked ] ->
     (string * [ `Original | `Renamed ], a) Bwv.t ->
@@ -792,8 +777,7 @@ let rec unparse_ctx :
             type 'n t = (string * [ `Original | `Renamed ], 'n) Bwv.t
           end in
           let module Fold = NICubeOf.Traverse (T) in
-          let do_var :
-              type left right m n.
+          let do_var : type left right m n.
               (m, n) sface ->
               (left, m, string option, right) NFamOf.t ->
               right T.t ->
@@ -801,8 +785,7 @@ let rec unparse_ctx :
            fun _ (NFamOf _) (Snoc (xs, x)) -> (xs, NFamOf x) in
           let _, vardata = Fold.fold_map_right { foldmap = do_var } vars xs in
           (* Then we project out the variable names alone.  TODO: Can we do this as part of the same iteration?  It would require a two-output version of the traversal.  *)
-          let projector :
-              type left right m n.
+          let projector : type left right m n.
               (m, n) sface ->
               (left, m, string * [ `Original | `Renamed ], right) NFamOf.t ->
               (left, m, string option, right) NFamOf.t =

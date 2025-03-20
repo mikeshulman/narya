@@ -27,8 +27,8 @@ let pbij_of_ins : type a b c. (a, b, c) insertion -> (a, c, D.zero) pbij =
 type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic, 'remaining) pbij -> 'evaluation pbij_of
 
 (* A partial bijection from a given 'evaluation dimension can be represented by a list of integers and direction strings.  The length of the list is the codomain 'intrinsic.  The integers in the list represent 'shared and the strings represent 'remaining, with their positions in the list giving the shuffle, and the values of the integers specifying where to insert them (into some dimension 'result) to produce 'evaluation. *)
-let rec pbij_of_int_strings :
-    type e. e D.t -> [ `Int of int | `Str of string ] list -> e pbij_of option =
+let rec pbij_of_int_strings : type e.
+    e D.t -> [ `Int of int | `Str of string ] list -> e pbij_of option =
  fun e strs ->
   match strs with
   | [] -> Some (Pbij_of (Pbij (ins_zero e, Zero)))
@@ -105,8 +105,7 @@ type (_, _) pbij_between =
       -> ('evaluation, 'intrinsic) pbij_between
 
 (* Enumerate all the partial bijections from a given 'evaluation to a given 'intrinsic. *)
-let all_pbij_between :
-    type evaluation intrinsic.
+let all_pbij_between : type evaluation intrinsic.
     evaluation D.t -> intrinsic D.t -> (evaluation, intrinsic) pbij_between Seq.t =
  fun evaluation intrinsic ->
   let open Monad.Ops (Monad.Seq) in
@@ -123,8 +122,8 @@ type (_, _, _) deg_comp_ins =
       * ('old_result, 'result) deg
       -> ('evaluation, 'old_result, 'intrinsic) deg_comp_ins
 
-let rec deg_comp_ins :
-    type m n i res. (m, n) deg -> (m, res, i) insertion -> (n, res, i) deg_comp_ins =
+let rec deg_comp_ins : type m n i res.
+    (m, n) deg -> (m, res, i) insertion -> (n, res, i) deg_comp_ins =
  fun deg ins ->
   match ins with
   | Zero _ -> Deg_comp_ins (Zero (cod_deg deg), Zero, deg)
@@ -147,8 +146,7 @@ type (_, _, _, _) deg_comp_pbij =
       * (('remaining, D.zero) Eq.t -> ('r, D.zero) Eq.t)
       -> ('evaluation, 'old_result, 'intrinsic, 'r) deg_comp_pbij
 
-let rec deg_comp_pbij :
-    type m n i res rem sh.
+let rec deg_comp_pbij : type m n i res rem sh.
     (m, n) deg -> (m, res, sh) insertion -> (rem, sh, i) shuffle -> (n, res, i, rem) deg_comp_pbij =
  fun deg ins shuf ->
   match shuf with
@@ -189,8 +187,8 @@ type (_, _, _, _) unplus_ins =
       * ('tn, 'olds, 'h) insertion
       -> ('m, 'n, 'olds, 'i) unplus_ins
 
-let rec unplus_ins :
-    type m n mn s i. m D.t -> (m, n, mn) D.plus -> (mn, s, i) insertion -> (m, n, s, i) unplus_ins =
+let rec unplus_ins : type m n mn s i.
+    m D.t -> (m, n, mn) D.plus -> (mn, s, i) insertion -> (m, n, s, i) unplus_ins =
  fun m mn ins ->
   match ins with
   | Zero _ ->
@@ -218,8 +216,7 @@ type (_, _, _, _, _, _) unplus_pbij =
       * ('tn, 'olds, 'newh) insertion
       -> ('m, 'n, 'olds, 'oldr, 'h, 'i) unplus_pbij
 
-let unplus_pbij :
-    type m n mn s i r h.
+let unplus_pbij : type m n mn s i r h.
     m D.t ->
     (m, n, mn) D.plus ->
     (mn, s, h) insertion ->
@@ -231,8 +228,7 @@ let unplus_pbij :
   Unplus_pbij (nsh, rhi, rr, mtr, tn, tnsh)
 
 (* Convert a pbij to an insertion by increasing the evaluation dimension on the left to include the remaining dimension. *)
-let rec ins_plus_of_pbij :
-    type n s h r i rn.
+let rec ins_plus_of_pbij : type n s h r i rn.
     (n, s, h) insertion -> (r, h, i) shuffle -> (r, n, rn) D.plus -> (rn, s, i) insertion =
  fun ins shuf rn ->
   match shuf with
@@ -303,8 +299,8 @@ module Pbijmap (F : Fam2) = struct
   include Internal_Pbijmap (F)
 
   (* The intrinsic dimension is automatically a dimension. *)
-  let rec gintrinsic :
-      type evaluation intrinsic r v. (evaluation, intrinsic, r, v) gt -> intrinsic D.t = function
+  let rec gintrinsic : type evaluation intrinsic r v.
+      (evaluation, intrinsic, r, v) gt -> intrinsic D.t = function
     | Zero _ -> D.zero
     | Suc { left; _ } -> D.suc (gintrinsic left)
 
@@ -313,8 +309,7 @@ module Pbijmap (F : Fam2) = struct
 
   type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
 
-  let rec gfind :
-      type evaluation intrinsic r1 r2 r v.
+  let rec gfind : type evaluation intrinsic r1 r2 r v.
       (evaluation, intrinsic, r2) pbij ->
       (evaluation, intrinsic, r1, v) gt ->
       (r1, r2, r) D.plus ->
@@ -329,14 +324,12 @@ module Pbijmap (F : Fam2) = struct
         let (Wrap m) = Tup.find i m.right in
         gfind (Pbij (ins, shuf)) m r12
 
-  let find :
-      type evaluation intrinsic remaining v.
+  let find : type evaluation intrinsic remaining v.
       (evaluation, intrinsic, remaining) pbij -> (evaluation, intrinsic, v) t -> (remaining, v) F.t
       =
    fun p (m, _) -> gfind p m (D.zero_plus (remaining p))
 
-  let rec gset :
-      type evaluation intrinsic r1 r2 r v.
+  let rec gset : type evaluation intrinsic r1 r2 r v.
       (evaluation, intrinsic, r2) pbij ->
       (r, v) F.t ->
       (evaluation, intrinsic, r1, v) gt ->
@@ -356,16 +349,15 @@ module Pbijmap (F : Fam2) = struct
             right = Tup.update i (fun (Wrap m) -> Wrap (gset (Pbij (ins, shuf)) v m r12)) m.right;
           }
 
-  let set :
-      type evaluation intrinsic remaining v.
+  let set : type evaluation intrinsic remaining v.
       (evaluation, intrinsic, remaining) pbij ->
       (remaining, v) F.t ->
       (evaluation, intrinsic, v) t ->
       (evaluation, intrinsic, v) t =
    fun p v (m, e) -> (gset p v m (D.zero_plus (remaining p)), e)
 
-  let find_singleton :
-      type evaluation intrinsic v. (evaluation, intrinsic, v) t -> (D.zero, v) F.t option = function
+  let find_singleton : type evaluation intrinsic v.
+      (evaluation, intrinsic, v) t -> (D.zero, v) F.t option = function
     | Zero v, _ -> Some v
     | Suc _, _ -> None
 
@@ -374,8 +366,7 @@ module Pbijmap (F : Fam2) = struct
     build : 'r2 'r. ('evaluation, 'intrinsic, 'r2) pbij -> ('r1, 'r2, 'r) D.plus -> ('r, 'v) F.t;
   }
 
-  let rec gbuild :
-      type evaluation intrinsic remaining v.
+  let rec gbuild : type evaluation intrinsic remaining v.
       evaluation D.t ->
       intrinsic D.t ->
       (evaluation, intrinsic, remaining, v) gbuilder ->
@@ -413,8 +404,7 @@ module Pbijmap (F : Fam2) = struct
     build : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'v) F.t;
   }
 
-  let gbuilder_of_builder :
-      type evaluation intrinsic v r2 r.
+  let gbuilder_of_builder : type evaluation intrinsic v r2 r.
       (evaluation, intrinsic, v) builder ->
       (evaluation, intrinsic, r2) pbij ->
       (D.zero, r2, r) D.plus ->
@@ -423,8 +413,7 @@ module Pbijmap (F : Fam2) = struct
     let Eq = D.plus_uniq r12 (D.zero_plus (remaining p)) in
     f.build p
 
-  let build :
-      type evaluation intrinsic v.
+  let build : type evaluation intrinsic v.
       evaluation D.t ->
       intrinsic D.t ->
       (evaluation, intrinsic, v) builder ->
@@ -462,8 +451,7 @@ module Pbijmap (F : Fam2) = struct
       | [] -> []
       | v :: vs -> Zero v :: zero vs
 
-    let rec suc :
-        type e i r vs irvs.
+    let rec suc : type e i r vs irvs.
         (e, i, r D.suc, vs) hgt ->
         (i * r, vs, irvs) MapTimes.t ->
         (e, Fwn.zero, irvs) Tup.Heter.hgt ->
@@ -481,8 +469,7 @@ module Pbijmap (F : Fam2) = struct
       | [] -> []
       | Suc { left = l; _ } :: ms -> l :: left ms
 
-    let rec right :
-        type e i r vs irvs.
+    let rec right : type e i r vs irvs.
         (e, i D.suc, r, vs) hgt -> (i * r, vs, irvs) MapTimes.t -> (e, Fwn.zero, irvs) Tup.Heter.hgt
         =
      fun ms irvs ->
@@ -490,16 +477,14 @@ module Pbijmap (F : Fam2) = struct
       | [], [] -> []
       | Suc { right = r; _ } :: ms, Times :: irvs -> r :: right ms irvs
 
-    let rec wrap :
-        type e i r vs irvs.
+    let rec wrap : type e i r vs irvs.
         (e, i, r, vs) hgt -> (i * r, vs, irvs) MapTimes.t -> (e, irvs) Tup.Heter.hft =
      fun ms irvs ->
       match (ms, irvs) with
       | [], [] -> []
       | m :: ms, Times :: irvs -> Wrap m :: wrap ms irvs
 
-    let rec unwrap :
-        type e i r vs irvs.
+    let rec unwrap : type e i r vs irvs.
         (e, irvs) Tup.Heter.hft -> (i * r, vs, irvs) MapTimes.t -> (e, i, r, vs) hgt =
      fun ms irvs ->
       match (ms, irvs) with
@@ -547,8 +532,7 @@ module Pbijmap (F : Fam2) = struct
         ('r, 'ws) Heter.hft M.t;
     }
 
-    let rec gpmapM :
-        type evaluation intrinsic remaining v vs ws.
+    let rec gpmapM : type evaluation intrinsic remaining v vs ws.
         evaluation D.t ->
         (evaluation, intrinsic, remaining, (v, vs) cons, ws) gpmapperM ->
         (evaluation, intrinsic, remaining, (v, vs) cons) Heter.hgt ->
@@ -596,8 +580,7 @@ module Pbijmap (F : Fam2) = struct
       map : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'vs) Heter.hft -> ('r, 'ws) Heter.hft M.t;
     }
 
-    let gpmapper_of_pmapper :
-        type evaluation intrinsic vs ws r2 r.
+    let gpmapper_of_pmapper : type evaluation intrinsic vs ws r2 r.
         (evaluation, intrinsic, vs, ws) pmapperM ->
         (evaluation, intrinsic, r2) pbij ->
         (D.zero, r2, r) D.plus ->
@@ -607,8 +590,7 @@ module Pbijmap (F : Fam2) = struct
       let Eq = D.plus_uniq r12 (D.zero_plus (remaining p)) in
       f.map p
 
-    let pmapM :
-        type evaluation intrinsic v vs ws.
+    let pmapM : type evaluation intrinsic v vs ws.
         (evaluation, intrinsic, (v, vs) cons, ws) pmapperM ->
         (evaluation, intrinsic, (v, vs) cons) Heter.ht ->
         ws Tlist.t ->

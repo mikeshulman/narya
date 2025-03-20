@@ -43,9 +43,11 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
           let output = tyof_app cods tyargs args in
           let body = readback_at newctx (apply_term tm args) output in
           Term.Lam (x, body))
-  | ( Canonical (type mn)
+  | ( Canonical
+        (type mn)
         (( _,
-           Codata (type m n c a et)
+           Codata
+             (type m n c a et)
              ({ eta; opacity; fields; env = _; ins; termctx = _ } :
                (mn, m, n, c, a, et) codata_args),
            _ ) :
@@ -62,7 +64,7 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 let fields =
                   Mbwd.map
                     (* We don't need to consider the Higher case since we are kinetic. *)
-                      (fun (Value.StructfieldAbwd.Entry (fld, Value.Structfield.Lower (fldtm, l))) ->
+                    (fun (Value.StructfieldAbwd.Entry (fld, Value.Structfield.Lower (fldtm, l))) ->
                       Term.StructfieldAbwd.Entry
                         ( fld,
                           Term.Structfield.Lower
@@ -75,8 +77,9 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
             | _, `Transparent l when Displaying.read () ->
                 let fields =
                   Mbwd.map
-                    (fun (CodatafieldAbwd.Entry (type i)
-                           ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t)) ->
+                    (fun (CodatafieldAbwd.Entry
+                            (type i)
+                            ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t)) ->
                       Term.StructfieldAbwd.Entry
                         ( fld,
                           Term.Structfield.Lower
@@ -90,8 +93,10 @@ and readback_at : type a z. (z, a) Ctx.t -> kinetic value -> kinetic value -> (a
                 | Val (Struct _) ->
                     let fields =
                       Mbwd.map
-                        (fun (CodatafieldAbwd.Entry (type i)
-                               ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t)) ->
+                        (fun (CodatafieldAbwd.Entry
+                                (type i)
+                                ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t))
+                           ->
                           Term.StructfieldAbwd.Entry
                             ( fld,
                               Term.Structfield.Lower
@@ -217,8 +222,7 @@ and readback_head : type c z. (z, c) Ctx.t -> head -> (c, kinetic) term =
       let (To perm) = deg_of_ins ins in
       Act (MetaEnv (meta, readback_env ctx env (Global.find_meta meta).termctx), perm)
 
-and readback_at_tel :
-    type n c a b ab z.
+and readback_at_tel : type n c a b ab z.
     (z, c) Ctx.t ->
     (n, a) env ->
     kinetic value list ->
@@ -269,13 +273,12 @@ and readback_at_tel :
   | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
 (* To readback an environment, since readback is type-directed we need the types of *all* the terms in it, which is to say its codomain context.  We store this as a Termctx since we need to evaluate and instantiate the types at the previous terms in the environment as we go. *)
-and readback_env :
-    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) termctx -> (b, n, d) Term.env =
+and readback_env : type n a b c d.
+    (a, b) Ctx.t -> (n, d) Value.env -> (c, d) termctx -> (b, n, d) Term.env =
  fun ctx env (Permute (_, envctx)) -> readback_ordered_env ctx env envctx
 
-and readback_ordered_env :
-    type n a b c d. (a, b) Ctx.t -> (n, d) Value.env -> (c, d) ordered_termctx -> (b, n, d) Term.env
-    =
+and readback_ordered_env : type n a b c d.
+    (a, b) Ctx.t -> (n, d) Value.env -> (c, d) ordered_termctx -> (b, n, d) Term.env =
  fun ctx env envctx ->
   match envctx with
   | Emp -> Emp (dim_env env)
@@ -315,8 +318,7 @@ and readback_ordered_env :
 
 (* Read back a context of values into a context of terms. *)
 
-let readback_bindings :
-    type a b n.
+let readback_bindings : type a b n.
     (a, (b, n) snoc) Ctx.t -> (n, Binding.t) CubeOf.t -> (n, (b, n) snoc binding) CubeOf.t =
  fun ctx vbs ->
   CubeOf.mmap

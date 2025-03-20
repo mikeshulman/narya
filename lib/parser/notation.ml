@@ -37,8 +37,7 @@ type (_, _, _) fixity =
 type wrapped_fixity = Fixity : ('left, 'tight, 'right) fixity -> wrapped_fixity
 
 (* This is where we enforce that an infix notation can't be associative on both sides. *)
-let fixprops :
-    type left tight right.
+let fixprops : type left tight right.
     (left, tight, right) fixity -> left openness * tight No.t * right openness = function
   | Infix t -> (Open Strict, t, Open Strict)
   | Infixl t -> (Open Nonstrict, t, Open Strict)
@@ -375,8 +374,7 @@ let prefix ~notn ~inner ~last ~right_ok = Notn (notn, Prefix { inner; last; righ
 let postfix ~notn ~first ~inner ~left_ok = Notn (notn, Postfix { first; inner; left_ok })
 let outfix ~notn ~inner = Notn (notn, Outfix { inner })
 
-let args :
-    type left tight right lt ls rt rs.
+let args : type left tight right lt ls rt rs.
     (left, tight, right, lt, ls, rt, rs) parsed_notn -> observation list = function
   | Infix { first; inner; last; _ } -> Term first :: Observations.prepend inner [ Term last ]
   | Prefix { inner; last; _ } -> Observations.prepend inner [ Term last ]
@@ -437,8 +435,7 @@ let split_last_whitespace (obs : observations) : observations * Whitespace.t lis
       let first, rest = Whitespace.split ws2 in
       (Multiple (tok1, obs, (tok2, first)), rest)
 
-let rec split_ending_whitespace :
-    type lt ls rt rs.
+let rec split_ending_whitespace : type lt ls rt rs.
     (lt, ls, rt, rs) parse located -> (lt, ls, rt, rs) parse located * Whitespace.t list = function
   | { value; loc } -> (
       match value with
@@ -509,8 +506,8 @@ let rec to_branch : type t s. (t, s) tree -> (t, s) branch option = function
   | Done_open _ | Done_closed _ -> None
   | Lazy (lazy t) -> to_branch t
 
-let rec lower_tree :
-    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) tree -> (t1, s1) tree =
+let rec lower_tree : type t1 s1 t2 s2.
+    (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) tree -> (t1, s1) tree =
  fun sub xs ->
   match xs with
   | Inner br -> Inner (lower_branch sub br)
@@ -518,8 +515,8 @@ let rec lower_tree :
   | Done_closed n -> Done_closed n
   | Lazy tr -> Lazy (lazy (lower_tree sub (Lazy.force tr)))
 
-and lower_branch :
-    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) branch -> (t1, s1) branch =
+and lower_branch : type t1 s1 t2 s2.
+    (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) branch -> (t1, s1) branch =
  fun sub { ops; field; term } ->
   {
     ops = TokMap.map (lower_tree sub) ops;
@@ -527,8 +524,8 @@ and lower_branch :
     term = Option.map (TokMap.map (lower_tree sub)) term;
   }
 
-let lower :
-    type t1 s1 t2 s2. (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) entry -> (t1, s1) entry =
+let lower : type t1 s1 t2 s2.
+    (t2, s2, t1, s1) No.Interval.subset -> (t2, s2) entry -> (t1, s1) entry =
  fun sub map -> TokMap.map (lower_tree sub) map
 
 let rec names : type t s. (t, s) tree -> string list = function
@@ -543,8 +540,7 @@ let rec names : type t s. (t, s) tree -> string list = function
 and names_tmap : type t s. (t, s) tree TokMap.t -> string list =
  fun trees -> TokMap.fold (fun _ t xs -> names t @ xs) trees []
 
-let rec merge_tree :
-    type t1 s1 t2 s2.
+let rec merge_tree : type t1 s1 t2 s2.
     (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) tree -> (t2, s2) tree -> (t1, s1) tree =
  fun sub xs ys ->
   let open Monad.Ops (Monad.Maybe) in
@@ -562,8 +558,7 @@ let rec merge_tree :
                     (String.concat "; " (names xs))
                     (String.concat "; " (names ys)))))))
 
-and merge_tmap :
-    type t1 s1 t2 s2.
+and merge_tmap : type t1 s1 t2 s2.
     (t2, s2, t1, s1) No.Interval.subset ->
     (t1, s1) tree TokMap.t ->
     (t2, s2) tree TokMap.t ->
@@ -576,8 +571,7 @@ and merge_tmap :
         | Some xb -> Some (merge_tree sub xb yb)))
     y x
 
-and merge_branch :
-    type t1 s1 t2 s2.
+and merge_branch : type t1 s1 t2 s2.
     (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) branch -> (t2, s2) branch -> (t1, s1) branch =
  fun sub x y ->
   let ops = merge_tmap sub x.ops y.ops in
@@ -585,7 +579,6 @@ and merge_branch :
   let term = merge_opt (merge_tmap sub) (TokMap.map (lower_tree sub)) x.term y.term in
   { ops; field; term }
 
-let merge :
-    type t1 t2 s1 s2.
+let merge : type t1 t2 s1 s2.
     (t2, s2, t1, s1) No.Interval.subset -> (t1, s1) entry -> (t2, s2) entry -> (t1, s1) entry =
  fun sub xs ys -> merge_tmap sub xs ys

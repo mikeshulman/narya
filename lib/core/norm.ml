@@ -22,8 +22,7 @@ type _ looked_up_cube =
 type _ full_tube = Full_tube : (D.zero, 'n, 'n, 'a) TubeOf.t -> 'a full_tube
 
 (* Require that the supplied list contains exactly b (which is a Fwn) arguments, and add all of the cubes to the given environment. *)
-let rec take_args :
-    type m n mn a b ab.
+let rec take_args : type m n mn a b ab.
     (m, a) env ->
     (m, n, mn) D.plus ->
     (mn, kinetic value) CubeOf.t list ->
@@ -419,14 +418,13 @@ and eval : type m b s. (m, b) env -> (b, s) term -> s evaluation =
       let (Any c) = eval_canonical env c in
       Canonical c
 
-and eval_with_boundary :
-    type m n mn a. (m, a) env -> (a, kinetic) term -> (m, kinetic value) CubeOf.t =
+and eval_with_boundary : type m n mn a.
+    (m, a) env -> (a, kinetic) term -> (m, kinetic value) CubeOf.t =
  fun env tm ->
   CubeOf.build (dim_env env) { build = (fun fa -> eval_term (act_env env (op_of_sface fa)) tm) }
 
 (* Evaluate a cube of arguments for an application. *)
-and eval_args :
-    type m n mn a.
+and eval_args : type m n mn a.
     (m, a) env ->
     (m, n, mn) D.plus ->
     mn D.t ->
@@ -503,8 +501,7 @@ and apply : type n s. s value -> (n, kinetic value) CubeOf.t -> s evaluation =
   | _ -> fatal (Anomaly "invalid application of non-function")
 
 (* Compute the output type of a function application, given the codomains and instantiation arguments of the pi-type (the latter being the functions acting on the boundary) and the arguments it is applied to. *)
-and tyof_app :
-    type k.
+and tyof_app : type k.
     (k, unit) BindCube.t ->
     (D.zero, k, k, normal) TubeOf.t ->
     (k, kinetic value) CubeOf.t ->
@@ -599,8 +596,7 @@ and field_term : type n k nk. kinetic value -> k Field.t -> (nk, n, k) insertion
 
 (* Given a term and its record type, compute the type of a field projection, and the substitution dimension it was evaluated at.  There are two versions of this function, one for when we already know the insertion associated to the field, and one for when we are synthesizing it from the user's integer sequence.  First we define the shared part of both, where we have already found the codatafield from the codata type.  We allow the term to be an error, in case typechecking failed earlier but we are continuing on; this can nevertheless succeed (or fail in more interesting ways) if the type doesn't actually depend on that value. *)
 
-and tyof_codatafield :
-    type m n mn a k r s i et.
+and tyof_codatafield : type m n mn a k r s i et.
     (kinetic value, Code.t) Result.t ->
     i Field.t ->
     (i, a * n * et) Codatafield.t ->
@@ -622,8 +618,7 @@ and tyof_codatafield :
       tyof_higher_codatafield tm fldname env tyargs fldins ic0 fldty ~shuf
 
 (* We dispatch to separate helper functions for lower fields and higher fields that assume all the dimensions are correct.  These helper functions can be called directly by a caller who knows that all the dimensions are correct, such as check_field where the field is obtained by iterating directly through the codatatype. *)
-and tyof_lower_codatafield :
-    type i m n mn a k r.
+and tyof_lower_codatafield : type i m n mn a k r.
     (kinetic value, Code.t) Result.t ->
     D.zero Field.t ->
     ((a, n) snoc, kinetic) term ->
@@ -652,8 +647,7 @@ and tyof_lower_codatafield :
   inst insttm instargs
 
 (* This function is also called directly from check_higher_field.  In that case, the field is determined by a partial bijection that may *not* be just an insertion, and we have to frobnicate the environment in which we evaluate the type.  Some of that frobnication involves an eval-readback cycle, which requires a callback from here since readback isn't defined yet. *)
-and tyof_higher_codatafield :
-    type c n h s sh r r_sh i ic.
+and tyof_higher_codatafield : type c n h s sh r r_sh i ic.
     (kinetic value, Code.t) Result.t ->
     i Field.t ->
     (* The codatatype is in context of length c.  It has been evaluated at dimension n, in an (n, c) env. *)
@@ -674,7 +668,9 @@ and tyof_higher_codatafield :
   Reporter.trace "tyof_higher_codatafield" @@ fun () ->
   let n = dom_ins fldins in
   let s = cod_left_ins fldins in
-  let h = cod_right_ins fldins (* = right_shuffle fldshuf *) in
+  let h =
+    cod_right_ins fldins
+    (* = right_shuffle fldshuf *) in
   let (Plus rh) = D.plus h in
   let (Plus rs) = D.plus s in
   let (Plus sh) = D.plus h in
@@ -738,8 +734,7 @@ and tyof_higher_codatafield :
   inst insttm instargs
 
 (* This version is when we already know the insertion.  In this case, it's a bug if the field name or dimension don't match. *)
-and tyof_field :
-    type m h s r i c.
+and tyof_field : type m h s r i c.
     (kinetic value, Code.t) Result.t ->
     kinetic value ->
     i Field.t ->
@@ -755,9 +750,11 @@ and tyof_field :
   Reporter.trace "tyof_field" @@ fun () ->
   let severity = Asai.Diagnostic.Bug in
   match view_type ty "tyof_field" with
-  | Canonical (type mn)
+  | Canonical
+      (type mn)
       (( head,
-         Codata (type m' n d a et)
+         Codata
+           (type m' n d a et)
            ({ env; ins = codatains; fields; opacity = _; eta; termctx = _ } :
              (mn, m', n, d, a, et) codata_args),
          tyargs ) :
@@ -791,8 +788,7 @@ and tyof_field :
   | _ -> fatal ~severity (No_such_field (`Other, errfld))
 
 (* This version is for when we are synthesizing the insertion, so we return the resulting insertion along with the type.  The field might also be given positionally in this case, so we also return the field name when we find it.  In this case, mismatches in field names or dimensions are user errors. *)
-and tyof_field_withname :
-    type a b.
+and tyof_field_withname : type a b.
     (a, b) Ctx.t ->
     (kinetic value, Code.t) Result.t ->
     kinetic value ->
@@ -836,8 +832,7 @@ and tyof_field_withname :
               with Failure _ -> fatal (No_such_field (`Record (eta, phead head), errfld)))))
   | _ -> fatal (No_such_field (`Other, errfld))
 
-and eval_structfield :
-    type m n mn a status i et.
+and eval_structfield : type m n mn a status i et.
     (m, a) env ->
     m D.t ->
     n D.t ->
@@ -862,13 +857,14 @@ and eval_structfield :
               {
                 build =
                   (fun (type olds) (ins : (mn, olds, i) insertion) ->
-                    let (Unplus_ins (type news newh t tn r)
-                          ((newins, newshuf, mtr, _tn, tnsh) :
-                            (n, news, newh) insertion
-                            * (r, newh, i) shuffle
-                            * (m, t, r) insertion
-                            * (t, n, tn) D.plus
-                            * (tn, olds, newh) insertion)) =
+                    let (Unplus_ins
+                           (type news newh t tn r)
+                           ((newins, newshuf, mtr, _tn, tnsh) :
+                             (n, news, newh) insertion
+                             * (r, newh, i) shuffle
+                             * (m, t, r) insertion
+                             * (t, n, tn) D.plus
+                             * (tn, olds, newh) insertion)) =
                       unplus_ins m m_n ins in
                     let newpbij = Pbij (newins, newshuf) in
                     match PlusPbijmap.find newpbij terms with
@@ -883,8 +879,7 @@ and eval_structfield :
               };
         }
 
-and eval_binder :
-    type m n mn b s.
+and eval_binder : type m n mn b s.
     (m, b) env -> (m, n, mn) D.plus -> ((b, n) snoc, s) term -> (mn, s) Value.binder =
  fun env mn body ->
   let m = dim_env env in
@@ -932,8 +927,8 @@ and eval_term : type m b. (m, b) env -> (b, kinetic) term -> kinetic value =
   let (Val v) = eval env tm in
   v
 
-and eval_env :
-    type a m n mn b. (m, a) env -> (m, n, mn) D.plus -> (a, n, b) Term.env -> (mn, b) Value.env =
+and eval_env : type a m n mn b.
+    (m, a) env -> (m, n, mn) D.plus -> (a, n, b) Term.env -> (mn, b) Value.env =
  fun env m_n tmenv ->
   let mn = D.plus_out (dim_env env) m_n in
   match tmenv with
@@ -1015,8 +1010,7 @@ and app_eval : type s. s evaluation -> app -> s evaluation =
   | Canonical _, _ -> fatal (Anomaly "app on canonical type")
 
 (* Look up a cube of values in an environment by variable index, accumulating operator actions and shifts as we go.  Eventually we will usually use the operator to select a value from the cubes and act on it, but we can't do that until we've defined acting on a value by a degeneracy (unless we do open recursive trickery). *)
-and lookup_cube :
-    type m n a b k mk.
+and lookup_cube : type m n a b k mk.
     (n, b) env -> (m, k, mk) D.plus -> (a, k, b) Tbwd.insert -> (m, n) op -> mk looked_up_cube =
  fun env mk v op ->
   match (env, v) with
@@ -1101,8 +1095,7 @@ and inst : type m n mn. kinetic value -> (m, n, mn, normal) TubeOf.t -> kinetic 
       | Struct _ -> fatal (Anomaly "can't instantiate struct")
       | Constr _ -> fatal (Anomaly "can't instantiate constructor"))
 
-and inst_args :
-    type m n mn.
+and inst_args : type m n mn.
     (m, n, mn, normal) TubeOf.t ->
     (D.zero, m, m, kinetic value) TubeOf.t ->
     (D.zero, m, m, kinetic value) TubeOf.t =
@@ -1145,8 +1138,7 @@ and inst_tys : kinetic value -> kinetic value full_tube = function
 
 (* Given two families of values, the second intended to be the types of the other, annotate the former by instantiations of the latter to make them into normals.  Since we have to instantiate the types at the *normal* version of the terms, which is what we are computing, we also add the results to a hashtable as we create them so we can access them randomly later.  And since we have to do this sometimes with cubes and sometimes with tubes, we first define the content of the operation as a helper function. *)
 
-and norm_of_val :
-    type m n.
+and norm_of_val : type m n.
     (n sface_of, normal) Hashtbl.t -> (m, n) sface -> kinetic value -> kinetic value -> normal =
  fun new_tm_tbl fab tm ty ->
   let args =
@@ -1160,14 +1152,13 @@ and norm_of_val :
   Hashtbl.add new_tm_tbl (SFace_of fab) newtm;
   newtm
 
-and norm_of_vals_cube :
-    type k. (k, kinetic value) CubeOf.t -> (k, kinetic value) CubeOf.t -> (k, normal) CubeOf.t =
+and norm_of_vals_cube : type k.
+    (k, kinetic value) CubeOf.t -> (k, kinetic value) CubeOf.t -> (k, normal) CubeOf.t =
  fun tms tys ->
   let new_tm_tbl = Hashtbl.create 10 in
   CubeOf.mmap { map = (fun fab [ tm; ty ] -> norm_of_val new_tm_tbl fab tm ty) } [ tms; tys ]
 
-and norm_of_vals_tube :
-    type n k nk.
+and norm_of_vals_tube : type n k nk.
     (n, k, nk, kinetic value) TubeOf.t ->
     (n, k, nk, kinetic value) TubeOf.t ->
     (n, k, nk, normal) TubeOf.t =
@@ -1187,8 +1178,7 @@ let apply_singletons : type n. kinetic value -> (n, kinetic value) CubeOf.t -> k
 
 (* Evaluate a term context to produce a value context. *)
 
-let eval_bindings :
-    type a b n.
+let eval_bindings : type a b n.
     (a, b) Ctx.Ordered.t -> (n, (b, n) snoc binding) CubeOf.t -> (n, Ctx.Binding.t) CubeOf.t =
  fun ctx cbs ->
   let i = Ctx.Ordered.length ctx in
@@ -1237,8 +1227,7 @@ let eval_ctx : type a b. (a, b) termctx -> (a, b) Ctx.t = function
       Permute (p, Ctx.Ordered.env ctx, ctx)
 
 (* Evaluate a telescope (forwards context of terms) and append the result to a context. *)
-let rec eval_append :
-    type a b c ac bc.
+let rec eval_append : type a b c ac bc.
     (a, b) Ctx.t -> (a, c, ac) Fwn.bplus -> (b, c, bc) Telescope.t -> (ac, bc) Ctx.t =
  fun ctx ac tel ->
   match (ac, tel) with
@@ -1248,8 +1237,8 @@ let rec eval_append :
       eval_append (Ctx.ext ctx x ty) ac tel
 
 (* Given a type belonging to the m+n dimensional universe instantiated at tyargs, compute the instantiation of the m-dimensional universe that its instantiation belongs to. *)
-let rec tyof_inst :
-    type m n mn. (D.zero, mn, mn, normal) TubeOf.t -> (m, n, mn, normal) TubeOf.t -> kinetic value =
+let rec tyof_inst : type m n mn.
+    (D.zero, mn, mn, normal) TubeOf.t -> (m, n, mn, normal) TubeOf.t -> kinetic value =
  fun tyargs eargs ->
   let m = TubeOf.uninst eargs in
   let n = TubeOf.inst eargs in

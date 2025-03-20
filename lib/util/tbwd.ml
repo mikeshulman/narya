@@ -13,8 +13,8 @@ module Tbwd = struct
     | Zero : ('a, Fwn.zero, 'n, 'a) snocs
     | Suc : (('a, 'n) snoc, 'b, 'n, 'ab) snocs -> ('a, 'b Fwn.suc, 'n, 'ab) snocs
 
-  let rec snoc_snocs_eq_snoc :
-      type a b c n. (a, b, n, c) snocs -> ((a, n) snoc, b, n, (c, n) snoc) snocs = function
+  let rec snoc_snocs_eq_snoc : type a b c n.
+      (a, b, n, c) snocs -> ((a, n) snoc, b, n, (c, n) snoc) snocs = function
     | Zero -> Zero
     | Suc ab -> Suc (snoc_snocs_eq_snoc ab)
 
@@ -48,8 +48,8 @@ module Tbwd = struct
   type (_, _, _, _) comp_insert =
     | Comp_insert : ('a, 'k, 'd) insert * ('d, 'n, 'c) insert -> ('a, 'n, 'k, 'c) comp_insert
 
-  let rec comp_insert :
-      type a n k b c. (a, n, b) insert -> (b, k, c) insert -> (a, n, k, c) comp_insert =
+  let rec comp_insert : type a n k b c.
+      (a, n, b) insert -> (b, k, c) insert -> (a, n, k, c) comp_insert =
    fun ab bc ->
     match (ab, bc) with
     | Now, Now -> Comp_insert (Now, Later Now)
@@ -77,8 +77,8 @@ module Tbwd = struct
   type (_, _, _) permute_insert =
     | Permute_insert : ('d, 'n, 'c) insert * ('a, 'd) permute -> ('a, 'n, 'c) permute_insert
 
-  let rec permute_insert :
-      type a n b c. (a, n, b) insert -> (b, c) permute -> (a, n, c) permute_insert =
+  let rec permute_insert : type a n b c.
+      (a, n, b) insert -> (b, c) permute -> (a, n, c) permute_insert =
    fun ab bc ->
     match bc with
     | Id -> Permute_insert (ab, Id)
@@ -132,17 +132,16 @@ module Tbwd = struct
   (* Extend an insertion by the identity *)
   type (_, _) insert_into = Insert_into : ('a, 'n, 'b) insert -> ('n, 'b) insert_into
 
-  let rec insert_append :
-      type a n b c bc. (a, n, b) insert -> (b, c, bc) append -> (n, bc) insert_into =
+  let rec insert_append : type a n b c bc.
+      (a, n, b) insert -> (b, c, bc) append -> (n, bc) insert_into =
    fun ins bc ->
     match bc with
     | Append_nil -> Insert_into ins
     | Append_cons bc -> insert_append (Later ins) bc
 
   (* Extend a permutation by the identity *)
-  let rec permute_append :
-      type a b c ac bc. (a, b) permute -> (a, c, ac) append -> (b, c, bc) append -> (ac, bc) permute
-      =
+  let rec permute_append : type a b c ac bc.
+      (a, b) permute -> (a, c, ac) append -> (b, c, bc) append -> (ac, bc) permute =
    fun ab ac bc ->
     match (ac, bc) with
     | Append_nil, Append_nil -> ab
@@ -162,8 +161,7 @@ module Tbwd = struct
     go c Nil Append_nil
 
   (* When appending a forwards type-list to a backwards one, if we insert the same type on the left and on the right, the results are permuted. *)
-  let rec ins_ins_permute :
-      type a b n c d ad bc.
+  let rec ins_ins_permute : type a b n c d ad bc.
       (a, n, b) insert ->
       (c, n, d) Tlist.insert ->
       (b, c, bc) append ->
@@ -190,8 +188,8 @@ module Tbwd = struct
     | Ap_insert (ins, b) -> Tlist.inserted ins (append_permute_right b)
 
   (* If we append and also append_permute, the two results are related by a permutation. *)
-  let rec append_append_permute :
-      type a b c d. (a, b, d) append_permute -> (a, b, c) append -> (d, c) permute =
+  let rec append_append_permute : type a b c d.
+      (a, b, d) append_permute -> (a, b, c) append -> (d, c) permute =
    fun d c ->
     match d with
     | Ap_nil ->
@@ -224,8 +222,7 @@ module Tbwd = struct
         ('ps, 'p) flatten * ('m, 'n, 'p) Fwn.bplus
         -> ('m, 'n, 'ps) bplus_flatten_append
 
-  let rec bplus_flatten_append :
-      type ms ns ps m n p.
+  let rec bplus_flatten_append : type ms ns ps m n p.
       (ms, m) flatten ->
       (ns, n) Tlist.flatten ->
       (ms, ns, ps) append ->
@@ -245,8 +242,8 @@ module Tbwd = struct
   type (_, _, _) flatten_uninsert =
     | Flatten_uninsert : ('bs, 'b) flatten * ('b, 'n, 'c) N.plus -> ('bs, 'n, 'c) flatten_uninsert
 
-  let rec flatten_uninsert :
-      type bs cs n c. (bs, n, cs) insert -> (cs, c) flatten -> (bs, n, c) flatten_uninsert =
+  let rec flatten_uninsert : type bs cs n c.
+      (bs, n, cs) insert -> (cs, c) flatten -> (bs, n, c) flatten_uninsert =
    fun ins cs ->
     match (ins, cs) with
     | Now, Flat_snoc (cs, c) -> Flatten_uninsert (cs, c)
@@ -260,8 +257,8 @@ module Tbwd = struct
         Flatten_uninsert (Flat_snoc (bs, x_z), xz_y)
 
   (* An insertion determines an index for inserting into the flattened version of the list inserted into. *)
-  let rec index_of_flattened_insert :
-      type xs n ys x. (xs, n, ys) insert -> (xs, x) flatten -> x N.suc N.index =
+  let rec index_of_flattened_insert : type xs n ys x.
+      (xs, n, ys) insert -> (xs, x) flatten -> x N.suc N.index =
    fun i xs ->
     match i with
     | Now -> Top
@@ -270,8 +267,8 @@ module Tbwd = struct
         N.index_plus (index_of_flattened_insert i xs) (N.suc_plus_eq_suc x)
 
   (* A permutation of lists of nats inducse a ("block") permutation on flattenings. *)
-  let rec permute_flatten :
-      type ms m ns n. (ms, m) flatten -> (ns, n) flatten -> (ms, ns) permute -> (m, n) N.perm =
+  let rec permute_flatten : type ms m ns n.
+      (ms, m) flatten -> (ns, n) flatten -> (ms, ns) permute -> (m, n) N.perm =
    fun ms ns p ->
     match p with
     | Id ->

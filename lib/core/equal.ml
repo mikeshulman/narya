@@ -38,7 +38,8 @@ module Equal = struct
         (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
         equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output
     (* Codatatypes (without eta) don't need to be dealt with here, even though structs can't be compared synthesizingly, since codatatypes aren't actually inhabited by (kinetic) structs, only neutral terms that are equal to potential structs.  In the case of record types with eta, if there is a nonidentity insertion outside, then the type isn't actually a record type, *but* it still has an eta-rule since it is *isomorphic* to a record type!  Thus, instead of checking whether the insertion is the identity, we apply its inverse permutation to the terms being compared.  And because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the other data here. *)
-    | Canonical (type mn)
+    | Canonical
+        (type mn)
         (( _,
            Codata (type m n c a et) ({ eta; fields; ins; _ } : (mn, m, n, c, a, et) codata_args),
            _ ) :
@@ -52,7 +53,8 @@ module Equal = struct
             let fldins = ins_zero (cod_left_ins ins) in
             BwdM.miterM
               (fun [
-                     CodatafieldAbwd.Entry (type i)
+                     CodatafieldAbwd.Entry
+                       (type i)
                        ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t);
                    ] ->
                 equal_at ctx (field_term x fld fldins) (field_term y fld fldins)
@@ -231,8 +233,7 @@ module Equal = struct
         guard (Field.equal f1 f2)
     | _, _ -> fail
 
-  and equal_at_tel :
-      type n a b ab.
+  and equal_at_tel : type n a b ab.
       int ->
       (n, a) env ->
       kinetic value list ->
@@ -285,8 +286,8 @@ module Equal = struct
   and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) termctx -> unit option =
    fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
 
-  and equal_ordered_env :
-      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) ordered_termctx -> unit option =
+  and equal_ordered_env : type a b n.
+      int -> (n, b) env -> (n, b) env -> (a, b) ordered_termctx -> unit option =
    fun lvl env1 env2 envctx ->
     (* Copied from readback_ordered_env *)
     match envctx with

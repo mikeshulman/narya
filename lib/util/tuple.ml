@@ -90,8 +90,7 @@ end = struct
 
   let empty : type b p. (N.zero, b, p) gt = Emp
 
-  let rec gfind :
-      type a asuc b ab p.
+  let rec gfind : type a asuc b ab p.
       (a, asuc) N.insert -> (asuc, b, p) gt -> (a, b, ab) Fwn.bplus -> (ab, p) F.t =
    fun i m ab ->
     match i with
@@ -106,8 +105,7 @@ end = struct
   let find : type a asuc p. (a, asuc) N.insert -> (asuc, p) t -> (a, p) F.t =
    fun i m -> gfind i m Zero
 
-  let rec gset :
-      type a asuc b ab p.
+  let rec gset : type a asuc b ab p.
       (a, asuc) N.insert ->
       (ab, p) F.t ->
       (asuc, b, p) gt ->
@@ -126,8 +124,7 @@ end = struct
   let set : type a asuc p. (a, asuc) N.insert -> (a, p) F.t -> (asuc, p) t -> (asuc, p) t =
    fun i v m -> gset i v m Zero
 
-  let rec gupdate :
-      type a asuc b ab p.
+  let rec gupdate : type a asuc b ab p.
       (a, asuc) N.insert ->
       ((ab, p) F.t -> (ab, p) F.t) ->
       (asuc, b, p) gt ->
@@ -143,9 +140,8 @@ end = struct
         let (Map { later; now }) = m in
         Map { later = gupdate i f later (Suc ab); now }
 
-  let update :
-      type a asuc p. (a, asuc) N.insert -> ((a, p) F.t -> (a, p) F.t) -> (asuc, p) t -> (asuc, p) t
-      =
+  let update : type a asuc p.
+      (a, asuc) N.insert -> ((a, p) F.t -> (a, p) F.t) -> (asuc, p) t -> (asuc, p) t =
    fun i f m -> gupdate i f m Zero
 
   type ('asuc, 'p) builder = { build : 'a. ('a, 'asuc) N.insert -> ('a, 'p) F.t }
@@ -179,8 +175,7 @@ end = struct
       | Nil -> []
       | Cons ps -> Emp :: emp ps
 
-    let rec map :
-        type a b ab ps.
+    let rec map : type a b ab ps.
         (a, b, ab) Fwn.bplus -> (ab, ps) hft -> (a, b Fwn.suc, ps) hgt -> (a N.suc, b, ps) hgt =
      fun ab nows laters ->
       match (nows, laters) with
@@ -217,8 +212,7 @@ end = struct
       map : 'a. ('a, 'asuc) N.insert -> ('a, 'ps) Heter.hft -> ('a, 'qs) Heter.hft M.t;
     }
 
-    let rec gpmapM :
-        type a b ab p ps qs.
+    let rec gpmapM : type a b ab p ps qs.
         (a, b, ab) Fwn.bplus ->
         (ab, (p, ps) cons, qs) pmapperM ->
         (a, b, (p, ps) cons) Heter.hgt ->
@@ -232,8 +226,7 @@ end = struct
           and+ flater = gpmapM (Suc ab) f (later :: Heter.later mss) qs in
           Heter.map ab' fnow flater
 
-    let pmapM :
-        type a p ps qs.
+    let pmapM : type a p ps qs.
         (a, (p, ps) cons, qs) pmapperM ->
         (a, Fwn.zero, (p, ps) cons) Heter.hgt ->
         qs Tlist.t ->
@@ -244,8 +237,7 @@ end = struct
       map : 'a. ('a, 'asuc) N.insert -> ('a, 'ps) Heter.hft -> ('a, 'q) F.t M.t;
     }
 
-    let mmapM :
-        type a p ps q.
+    let mmapM : type a p ps q.
         (a, (p, ps) cons, q) mmapperM ->
         (a, Fwn.zero, (p, ps) cons) Heter.hgt ->
         (a, Fwn.zero, q) gt M.t =
@@ -265,8 +257,7 @@ end = struct
       it : 'a. ('a, 'asuc) N.insert -> ('a, 'ps) Heter.hft -> unit M.t;
     }
 
-    let miterM :
-        type a p ps.
+    let miterM : type a p ps.
         (a, (p, ps) cons) miteratorM -> (a, Fwn.zero, (p, ps) cons) Heter.hgt -> unit M.t =
      fun f xs ->
       let+ [] =

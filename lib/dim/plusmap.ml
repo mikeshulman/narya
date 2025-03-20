@@ -21,8 +21,7 @@ end
 
 include Tbwdmap.Make (Anyplus)
 
-let rec assocl :
-    type a b ab cs bcs abcs.
+let rec assocl : type a b ab cs bcs abcs.
     (a, b, ab) D.plus -> (b, cs, bcs) t -> (a, bcs, abcs) t -> (ab, cs, abcs) t =
  fun ab bcs abcs ->
   match (bcs, abcs) with

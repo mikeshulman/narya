@@ -35,8 +35,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
 
   let locate (loc : Asai.Range.t) (value : 'a) : 'a Asai.Range.located = { value; loc = Some loc }
 
-  let rec tree :
-      type tight strict.
+  let rec tree : type tight strict.
       (tight, strict) tree ->
       Observations.partial ->
       (Observations.partial * (tight, strict) notation_in_interval) t =
@@ -56,8 +55,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | Lazy (lazy t) -> tree t obs
 
   (* Parse an inner branch of a tree except for the possibility of a term. *)
-  and inner_nonterm :
-      type tight strict.
+  and inner_nonterm : type tight strict.
       (tight, strict) branch ->
       Observations.partial ->
       (Observations.partial * (tight, strict) notation_in_interval) t =
@@ -76,8 +74,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     | `Token (tok, w) -> tree br (Observations.snoc_tok obs (tok, w))
     | `Term x -> tree br (Observations.snoc_term obs (locate loc x))
 
-  and tree_op :
-      type tight strict.
+  and tree_op : type tight strict.
       (tight, strict) tree TokMap.t ->
       Observations.partial ->
       (Observations.partial * (tight, strict) notation_in_interval) t =
@@ -89,16 +86,14 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
           | None -> None) in
     tree optree (Observations.snoc_tok obs (tok, w))
 
-  and entry :
-      type tight strict.
+  and entry : type tight strict.
       (tight, strict) tree TokMap.t -> (observations * (tight, strict) notation_in_interval) t =
    fun ops ->
     let* obs, op = tree_op ops (Single None) in
     return (Observations.of_partial obs, op)
 
   (* "lclosed" is passed an upper tightness interval and an additional set of ending ops (stored as a map, since that's how they occur naturally, but here we ignore the values and look only at the keys).  It parses an arbitrary left-closed tree (pre-merged).  The interior terms are calls to "lclosed" with the next ops passed as the ending ones. *)
-  and lclosed :
-      type lt ls rt rs.
+  and lclosed : type lt ls rt rs.
       (lt, ls) No.iinterval -> (rt, rs) tree TokMap.t -> (lt, ls) right_wrapped_parse t =
    fun tight stop ->
     let* res =
@@ -172,8 +167,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
        | Error e -> fail e)
 
   (* Given a parsed term and a possibly-empty list of superscripts, tack them all onto the term sequentially. *)
-  and superify :
-      type lt ls.
+  and superify : type lt ls.
       (lt, ls) right_wrapped_parse ->
       (Asai.Range.t * string * Whitespace.t list) list ->
       (lt, ls) right_wrapped_parse =
@@ -203,8 +197,7 @@ module Combinators (Final : Fmlib_std.Interfaces.ANY) = struct
     return (superify arg sups)
 
   (* "lopen" is passed an upper tightness interval and a set of ending ops, plus a parsed result for the left open argument and the tightness of the outermost notation in that argument if it is right-open. *)
-  and lopen :
-      type lt ls rt rs.
+  and lopen : type lt ls rt rs.
       (lt, ls) No.iinterval ->
       (rt, rs) tree TokMap.t ->
       (lt, ls) right_wrapped_parse ->

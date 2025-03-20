@@ -64,8 +64,7 @@ and canonical : type a. (Compunit.t -> Compunit.t) -> a canonical -> a canonical
               fields;
         }
 
-and structfield :
-    type n a s i et.
+and structfield : type n a s i et.
     (Compunit.t -> Compunit.t) ->
     (i, n * a * s * et) Term.Structfield.t ->
     (i, n * a * s * et) Term.Structfield.t =
@@ -84,8 +83,7 @@ and structfield :
            }
            [ m ])
 
-and codatafield :
-    type a n i et.
+and codatafield : type a n i et.
     (Compunit.t -> Compunit.t) -> (i, a * n * et) Codatafield.t -> (i, a * n * et) Codatafield.t =
  fun f fld ->
   match fld with
@@ -132,8 +130,8 @@ and entry : type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) entry -> (b, f
           [ bindings ] in
       Invis bindings
 
-and termctx_ordered :
-    type a b. (Compunit.t -> Compunit.t) -> (a, b) ordered_termctx -> (a, b) ordered_termctx =
+and termctx_ordered : type a b.
+    (Compunit.t -> Compunit.t) -> (a, b) ordered_termctx -> (a, b) ordered_termctx =
  fun f ctx ->
   match ctx with
   | Emp -> Emp

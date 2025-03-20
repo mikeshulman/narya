@@ -24,8 +24,8 @@ let make_user : User.prenotation -> User.notation =
       (* Convert a user notation pattern to a notation tree.  Note that our highly structured definition of the type of patterns, that enforces invariants statically, means that this function CANNOT FAIL. *)
       tree =
         (* We have to handle the beginning specially, since the start and end of a notation tree are different depending on whether it is left-open or left-closed.  So we have an internal recursive function that handles everything except the first operator symbol. *)
-        (let rec go :
-             type left l tight. (l, r) Pattern.t -> (tight, left) tree -> (tight, left) tree =
+        (let rec go : type left l tight.
+             (l, r) Pattern.t -> (tight, left) tree -> (tight, left) tree =
           fun pat n ->
            match pat with
            | Op_nil (tok, _) -> op tok n
@@ -73,8 +73,7 @@ let make_user : User.prenotation -> User.notation =
       print_term =
         Some
           (fun obs ->
-            let rec go :
-                type l r.
+            let rec go : type l r.
                 bool -> (l, r) Pattern.t -> observation list -> document * Whitespace.t list =
              fun first pat obs ->
               match (pat, obs) with

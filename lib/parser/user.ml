@@ -25,8 +25,7 @@ module Pattern = struct
     | Op (_, pat) -> vars pat
     | Var ((x, _, _), pat) -> x :: vars pat
 
-  let inner_symbols :
-      type left right.
+  let inner_symbols : type left right.
       (left, right) t ->
       [ `Single of Token.t | `Multiple of Token.t * Token.t option list * Token.t ] =
    fun pat ->
@@ -49,8 +48,8 @@ module Pattern = struct
   type _ right_t = Right : ('left, 'right) t -> 'right right_t
 
   (* Cons a variable on the left of any pattern, raising an error if that would put two variables next to each other. *)
-  let var :
-      type left right s. string * space * Whitespace.t list -> (left, right) t -> (s opn, right) t =
+  let var : type left right s.
+      string * space * Whitespace.t list -> (left, right) t -> (s opn, right) t =
    fun v pat ->
     match pat with
     | Op_nil _ as pat -> Var (v, pat)
@@ -62,8 +61,7 @@ end
 (* Print a *pattern* the way the user would enter it in a "notation" command, with quotes around the operator symbols. *)
 let pp_pattern : type left right. (left, right) Pattern.t -> document * Whitespace.t list =
  fun pattern ->
-  let rec go :
-      type left right.
+  let rec go : type left right.
       (left, right) Pattern.t -> Whitespace.t list option -> document * Whitespace.t list =
    fun pattern prews ->
     match pattern with

@@ -909,9 +909,9 @@ module Plusmap : sig
   val zerol : 'bs OfDom.t -> (D.zero, 'bs, 'bs) t
   end
 
-(*  *)
+(* *)
 val deg_of_name : string -> any_deg option
 val name_of_deg : ('a, 'b) deg -> string option
 
-(*  *)
+(* *)
 val locking : ('a, 'b) deg -> bool

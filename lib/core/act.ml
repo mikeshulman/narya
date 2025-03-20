@@ -102,12 +102,14 @@ module Act = struct
     | Lam (x, body) ->
         let (Of fa) = deg_plus_to s (dim_binder body) ~on:"lambda" in
         Lam (act_variables x fa, act_binder body fa)
-    | Struct (type p k pk et)
+    | Struct
+        (type p k pk et)
         ((fields, ins, energy) :
           (p * status * et) Value.StructfieldAbwd.t * (pk, p, k) insertion * status energy) ->
-        let (Insfact_comp (type q l ql j z)
-              ((deg0, new_ins, _, _) :
-                (q, p) deg * (ql, q, l) insertion * (k, j, l) D.plus * (m, z, ql) D.plus)) =
+        let (Insfact_comp
+               (type q l ql j z)
+               ((deg0, new_ins, _, _) :
+                 (q, p) deg * (ql, q, l) insertion * (k, j, l) D.plus * (m, z, ql) D.plus)) =
           insfact_comp ins s in
         let fields =
           Mbwd.mmap
@@ -122,14 +124,14 @@ module Act = struct
             dom_deg fa,
             List.map (fun tm -> act_cube { act = (fun x s -> act_value x s) } tm fa) args )
 
-  and act_structfield :
-      type p q i status et.
+  and act_structfield : type p q i status et.
       (q, p) deg -> (i, p * status * et) Structfield.t -> (i, q * status * et) Structfield.t =
    fun deg0 sfld ->
     match sfld with
     (* For a lower structfield, we just act in a straightforward way on each (lazy) value. *)
     | Lower (v, l) -> Lower (act_lazy_eval v deg0, l)
-    | Higher (type m n mn a)
+    | Higher
+        (type m n mn a)
         (* Higher structfields are trickier. *)
         ({ vals; intrinsic; plusdim; env; deg = deg1; terms } :
           (m, n, mn, p, i, a) Structfield.higher_data) ->
@@ -149,9 +151,10 @@ module Act = struct
               build =
                 (fun (type s) (ins : (q, s, i) insertion) ->
                   (* First we unfactor this q-insertion through deg0 to get a partial bijection from p to i. *)
-                  let (Deg_comp_ins (type s2 r2 h2)
-                        ((ins2, shuf2, deg2) :
-                          (p, s2, h2) insertion * (r2, h2, i) shuffle * (s, s2) deg)) =
+                  let (Deg_comp_ins
+                         (type s2 r2 h2)
+                         ((ins2, shuf2, deg2) :
+                           (p, s2, h2) insertion * (r2, h2, i) shuffle * (s, s2) deg)) =
                     deg_comp_ins deg0 ins in
                   let r2 = left_shuffle shuf2 in
                   (* If this partial bijection is itself just an insertion, then we can simply use it as an index into the old vals and act in a simple way, as we did for lower structfields. *)
@@ -162,23 +165,26 @@ module Act = struct
                       Option.map (fun v -> act_lazy_eval v deg2) (InsmapOf.find ins2 vals)
                   | Pos _s -> (
                       (* Otherwise, we have to look into the 'terms' to find something to evaluate.  We start by further unfactoring through 'deg1' (combining it with deg0 first, to simplify the results) and 'plusdim' to get down to the original record dimension 'n and evaluation dimension 'm.  *)
-                      let (Deg_comp_ins (type s3 r3 h3)
-                            ((ins3, shuf3, deg3) :
-                              (mn, s3, h3) insertion * (r3, h3, i) shuffle * (s, s3) deg)) =
+                      let (Deg_comp_ins
+                             (type s3 r3 h3)
+                             ((ins3, shuf3, deg3) :
+                               (mn, s3, h3) insertion * (r3, h3, i) shuffle * (s, s3) deg)) =
                         deg_comp_ins (comp_deg deg1 deg0) ins in
                       (* The dimensions that disappear in this degeneracy, and hence will have to be added back in, are those added by the degeneracy deg3 (s - s3) and those in the remaining dimensions r3. *)
-                      let (Unplus_pbij (type s4 h4 r4 r34 t tn)
-                            ((ins4, shuf4, rr, mtr, _tn, tnsh) :
-                              (n, s4, h4) insertion
-                              * (r34, h4, i) shuffle
-                              * (r3, r4, r34) shuffle
-                              * (m, t, r4) insertion
-                              * (t, n, tn) D.plus
-                              * (tn, s3, h4) insertion)) =
+                      let (Unplus_pbij
+                             (type s4 h4 r4 r34 t tn)
+                             ((ins4, shuf4, rr, mtr, _tn, tnsh) :
+                               (n, s4, h4) insertion
+                               * (r34, h4, i) shuffle
+                               * (r3, r4, r34) shuffle
+                               * (m, t, r4) insertion
+                               * (t, n, tn) D.plus
+                               * (tn, s3, h4) insertion)) =
                         unplus_pbij (dim_env env) plusdim ins3 shuf3 in
                       match PlusPbijmap.find (Pbij (ins4, shuf4)) terms with
                       | PlusFam None -> None
-                      | PlusFam (type ra)
+                      | PlusFam
+                          (type ra)
                           (Some (ra, tm) : ((r34, a, ra) Plusmap.t * (ra, potential) term) option)
                         ->
                           (* Now the game is to build a degeneracy that we can apply to the environment 'env' so that we can shift it by 'ra' and evaluate the term 'tm'.  That means we need to get an environment whose dimension is something+r34.  We start by adding r3.
@@ -291,9 +297,8 @@ module Act = struct
         Pi (x, doms', cods')
 
   (* act_closure and act_binder assume that the degeneracy has exactly the correct codomain.  So if it doesn't, the caller should call deg_plus_to first. *)
-  and act_closure :
-      type mn m n a kn. (m, a) env -> (mn, m, n) insertion -> (kn, mn) deg -> (a, kn, n) act_closure
-      =
+  and act_closure : type mn m n a kn.
+      (m, a) env -> (mn, m, n) insertion -> (kn, mn) deg -> (a, kn, n) act_closure =
    fun env ins fa ->
     let (Plus mn) = D.plus (cod_right_ins ins) in
     let (Insfact (fc, ins)) = insfact (comp_deg (deg_of_ins_plus ins mn) fa) mn in
@@ -308,9 +313,8 @@ module Act = struct
    fun { tm; ty } s -> { tm = act_value tm s; ty = act_ty tm ty s }
 
   (* When acting on a neutral or normal, we also need to specify the type of the output.  This *isn't* act_value on the original type; instead the type is required to be fully instantiated and the operator acts on the *instantiated* dimensions, in contrast to how act_value on an instantiation acts on the *uninstantiated* dimensions (as well as the instantiated term).  This function computes this "type of acted terms".  In general, it has to be passed the term as well as the type because the instantiation of the result may involve that term, e.g. if x : A then refl x : Id A x x; but we allow that term to be omitted in case the degeneracy is a pure symmetry in which case this doesn't happen. *)
-  and gact_ty :
-      type a b. ?err:Code.t -> kinetic value option -> kinetic value -> (a, b) deg -> kinetic value
-      =
+  and gact_ty : type a b.
+      ?err:Code.t -> kinetic value option -> kinetic value -> (a, b) deg -> kinetic value =
    fun ?err tm tmty s ->
     match !forward_view_term tmty with
     | Inst { tm = ty; dim; args; tys = _ } -> (
@@ -371,8 +375,8 @@ module Act = struct
     | Struct _ -> fatal (Anomaly "a struct cannot be a type to act on")
     | Constr _ -> fatal (Anomaly "a constructor cannot be a type to act on")
 
-  and act_ty :
-      type a b p. ?err:Code.t -> kinetic value -> kinetic value -> (a, b) deg -> kinetic value =
+  and act_ty : type a b p.
+      ?err:Code.t -> kinetic value -> kinetic value -> (a, b) deg -> kinetic value =
    fun ?err tm tmty s -> gact_ty ?err (Some tm) tmty s
 
   (* Action on a head *)
@@ -440,8 +444,8 @@ let act_ty ?err tm ty s = short_circuit s ty (Act.act_ty ?err tm ty)
 let act_evaluation ev s = short_circuit s ev (Act.act_evaluation ev)
 let act_lazy_eval v s = short_circuit s v (Act.act_lazy_eval v)
 
-let act_value_cube :
-    type a s m n. (a -> s value) -> (n, a) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =
+let act_value_cube : type a s m n.
+    (a -> s value) -> (n, a) CubeOf.t -> (m, n) deg -> (m, s value) CubeOf.t =
  fun force xs s -> act_cube { act = (fun x s -> act_value (force x) s) } xs s
 
 (* Like apply_lazy for fields.  Was deferred to here since it requires pushing the insertion through with act. *)

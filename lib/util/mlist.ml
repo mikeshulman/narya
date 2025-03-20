@@ -40,8 +40,7 @@ end
 module Applicatic (M : Applicative.Plain) = struct
   open Applicative.Ops (M)
 
-  let rec pmapM :
-      type x xs ys.
+  let rec pmapM : type x xs ys.
       ((x, xs) cons hlist -> ys hlist M.t) -> (x, xs) cons Heter.ht -> ys Tlist.t -> ys Heter.ht M.t
       =
    fun f xss ys ->
@@ -80,8 +79,7 @@ module Monadic (M : Monad.Plain) = struct
 end
 
 (* The non-monadic versions just specialize to the identity. *)
-let pmap :
-    type x xs ys.
+let pmap : type x xs ys.
     ((x, xs) cons hlist -> ys hlist) -> (x, xs) cons Heter.ht -> ys Tlist.t -> ys Heter.ht =
  fun f xss ys ->
   let open Monadic (Monad.Identity) in
@@ -124,8 +122,8 @@ module Examples = struct
 
   (* The same is true for the monadic versions.  Moreover, the monadic iteration also incorporates left and right folds, by instantiating to a state monad for left folds, and a reverse state applicative functor (or a continuation monad) for right folds.  Again, in practice this is unnecessary; the user can just instantiate to the appropriate monad directly. *)
 
-  let mfold_left :
-      type x xs acc. (acc -> (x, xs) cons hlist -> acc) -> acc -> (x, xs) cons Heter.ht -> acc =
+  let mfold_left : type x xs acc.
+      (acc -> (x, xs) cons hlist -> acc) -> acc -> (x, xs) cons Heter.ht -> acc =
    fun f acc xss ->
     let open Monadic (Monad.State (struct
       type t = acc
@@ -138,16 +136,16 @@ module Examples = struct
   let fold_left2 : type x y acc. (acc -> x -> y -> acc) -> acc -> x list -> y list -> acc =
    fun f acc xs ys -> mfold_left (fun acc [ x; y ] -> f acc x y) acc [ xs; ys ]
 
-  let mfold_right :
-      type x xs acc. ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
+  let mfold_right : type x xs acc.
+      ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
    fun f xss acc ->
     let open Applicatic (Applicative.RevState (struct
       type t = acc
     end)) in
     snd (miterM (fun xs s -> ((), f xs s)) xss acc)
 
-  let mfold_right' :
-      type x xs acc. ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
+  let mfold_right' : type x xs acc.
+      ((x, xs) cons hlist -> acc -> acc) -> (x, xs) cons Heter.ht -> acc -> acc =
    fun f xss acc ->
     let open Monadic (Monad.Cont (struct
       type t = acc

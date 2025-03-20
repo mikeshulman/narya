@@ -48,8 +48,8 @@ let rec perm_of_deg : type m n. (m, n) deg -> (m, n) perm option = function
 type (_, _, _) perm_residual =
   | Residual : ('m, 'n) perm * ('m, 'msuc) D.insert -> ('msuc, 'n, 'n D.suc) perm_residual
 
-let rec perm_residual :
-    type m n npred. (m, n) perm -> (npred, n) D.insert -> (m, npred, n) perm_residual =
+let rec perm_residual : type m n npred.
+    (m, n) perm -> (npred, n) D.insert -> (m, npred, n) perm_residual =
  fun s k ->
   match (k, s) with
   | Now, Suc (s, i) -> Residual (s, i)
@@ -68,15 +68,14 @@ let rec comp_perm : type a b c. (b, c) perm -> (a, b) perm -> (a, c) perm =
       let (Residual (t, i)) = perm_residual b k in
       Suc (comp_perm s t, i)
 
-let rec perm_plus :
-    type m n k mk nk. (m, n) perm -> (n, k, nk) D.plus -> (m, k, mk) D.plus -> (mk, nk) perm =
+let rec perm_plus : type m n k mk nk.
+    (m, n) perm -> (n, k, nk) D.plus -> (m, k, mk) D.plus -> (mk, nk) perm =
  fun s nk mk ->
   match (nk, mk) with
   | Zero, Zero -> s
   | Suc nk, Suc mk -> Suc (perm_plus s nk mk, Now)
 
-let rec perm_plus_perm :
-    type m n mn k l kl.
+let rec perm_plus_perm : type m n mn k l kl.
     (k, m) perm -> (m, n, mn) D.plus -> (k, l, kl) D.plus -> (l, n) perm -> (kl, mn) perm =
  fun skm mn kl sln ->
   match sln with
@@ -106,8 +105,8 @@ type (_, _, _) deg_perm_of_plus =
       -> ('ml, 'n, 'k) deg_perm_of_plus
   | None_deg_perm_of_plus : ('mk, 'n, 'k) deg_perm_of_plus
 
-let rec deg_perm_of_plus :
-    type mk n k nk. (n, k, nk) D.plus -> (mk, nk) deg -> (mk, n, k) deg_perm_of_plus =
+let rec deg_perm_of_plus : type mk n k nk.
+    (n, k, nk) D.plus -> (mk, nk) deg -> (mk, n, k) deg_perm_of_plus =
  fun nk s ->
   match nk with
   | Zero -> Deg_perm_of_plus (Zero, s, id_perm D.zero)

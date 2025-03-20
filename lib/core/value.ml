@@ -384,8 +384,8 @@ let var : level -> kinetic value -> kinetic value =
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =
  fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
-let val_of_norm_tube :
-    type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
+let val_of_norm_tube : type n k nk.
+    (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
 (* Remove an entry from an environment *)

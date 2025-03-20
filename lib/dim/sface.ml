@@ -72,8 +72,7 @@ let rec insert_sface : type m n nsuc. (m, n) sface -> (n, nsuc) D.insert -> (m, 
           Insert_sface (Later i, Mid f))
 
 (* Concatenate two strict faces left-to-right. *)
-let rec sface_plus_sface :
-    type m n mn k p kp.
+let rec sface_plus_sface : type m n mn k p kp.
     (k, m) sface -> (m, n, mn) D.plus -> (k, p, kp) D.plus -> (p, n) sface -> (kp, mn) sface =
  fun fkm mn kp fpn ->
   match (fpn, mn, kp) with
@@ -83,12 +82,11 @@ let rec sface_plus_sface :
 
 (* In particular, we can extend by identities on the right or left. *)
 
-let sface_plus :
-    type m n mn k kn. (k, m) sface -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) sface =
+let sface_plus : type m n mn k kn.
+    (k, m) sface -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) sface =
  fun f mn kn -> sface_plus_sface f mn kn (id_sface (Nat mn))
 
-let plus_sface :
-    type m n nm k nk.
+let plus_sface : type m n nm k nk.
     n D.t -> (n, m, nm) D.plus -> (n, k, nk) D.plus -> (k, m) sface -> (nk, nm) sface =
  fun n nm nk f -> sface_plus_sface (id_sface n) nm nk f
 
@@ -99,8 +97,8 @@ type (_, _, _) sface_of_plus =
       ('m, 'l, 'ml) D.plus * ('m, 'n) sface * ('l, 'k) sface
       -> ('ml, 'n, 'k) sface_of_plus
 
-let rec sface_of_plus :
-    type ml n k nk. (n, k, nk) D.plus -> (ml, nk) sface -> (ml, n, k) sface_of_plus =
+let rec sface_of_plus : type ml n k nk.
+    (n, k, nk) D.plus -> (ml, nk) sface -> (ml, n, k) sface_of_plus =
  fun nk f ->
   match nk with
   | Zero -> SFace_of_plus (D.Zero, f, Zero)

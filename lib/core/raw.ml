@@ -164,7 +164,7 @@ module Make (I : Indices) = struct
   (* The location of the namevec is that of the whole pattern. *)
   and _ branch = Branch : ('a, 'b, 'ab) Namevec.t located * 'ab check located -> 'a branch
 
-  (*  *)
+  (* *)
   and _ dataconstr = Dataconstr : ('a, 'b, 'ab) tel * 'ab check located option -> 'a dataconstr
 
   (* A field of a codatatype has a self variable and a type.  At the raw level we don't need any more information about higher fields. *)
@@ -220,8 +220,7 @@ module Resolve (R : Resolver) = struct
   module T1 = R.T1
   module T2 = R.T2
 
-  let rec append :
-      type a1 a2 b ab1 ab2.
+  let rec append : type a1 a2 b ab1 ab2.
       (a1, a2) R.scope -> (a1, b, ab1) T1.Namevec.t -> (a2, b, ab2) T2.bplus -> (ab1, ab2) R.scope =
    fun ctx xs ab2 ->
     match xs with
@@ -232,8 +231,7 @@ module Resolve (R : Resolver) = struct
         let ab2 = T2.bplus_suc ab2 in
         append (R.snoc ctx x) xs ab2
 
-  let rec renames :
-      type a1 a2 b ab1 ab2.
+  let rec renames : type a1 a2 b ab1 ab2.
       (a1, a2) R.scope ->
       (a1, b, ab1) T1.Namevec.t ->
       (a2, b, ab2) T2.bplus ->
@@ -342,8 +340,7 @@ module Resolve (R : Resolver) = struct
       List.map (synth ctx2) (refutables ab1) in
     { refutables }
 
-  and tel :
-      type b a1 ab1 a2 ab2.
+  and tel : type b a1 ab1 a2 ab2.
       (a1, a2) R.scope ->
       (a1, b, ab1) T1.tel ->
       (a2, b, ab2) T2.bplus ->
@@ -365,8 +362,8 @@ include Indexed
 
 (* Some utility functions specialized to the Indexed case. *)
 
-let rec namevec_of_vec :
-    type a b ab. (a, b, ab) Fwn.bplus -> (string option, b) Vec.t -> (a, b, ab) Namevec.t =
+let rec namevec_of_vec : type a b ab.
+    (a, b, ab) Fwn.bplus -> (string option, b) Vec.t -> (a, b, ab) Namevec.t =
  fun ab xs ->
   match (ab, xs) with
   | Zero, [] -> []
@@ -382,8 +379,7 @@ let rec dataconstr_of_pi : type a. a check located -> a dataconstr =
       Dataconstr (Ext (x, dom, tel), out)
   | _ -> Dataconstr (Emp, Some ty)
 
-let rec lams :
-    type a b ab.
+let rec lams : type a b ab.
     (a, b, ab) Indexed.bplus ->
     (string option located, b) Vec.t ->
     ab check located ->

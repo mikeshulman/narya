@@ -117,8 +117,7 @@ let le_right : type a b s. (a, s, b) lt -> b t = function
   | Minus_minus (_, b, _) -> Fin (Minus b)
 *)
 
-let rec lt_trans :
-    type a b c s1 s2 s3.
+let rec lt_trans : type a b c s1 s2 s3.
     (s1, s2, s3) strict_trans -> (a, s1, b) lt -> (b, s2, c) lt -> (a, s3, c) lt =
  fun tr ab bc ->
   match (ab, bc, tr) with
@@ -394,8 +393,7 @@ let then_minus_gt : type a b. (a, b) then_gt -> (a then_minus, b) then_gt =
 
 (* Inequalities b<c and b≤c are preserved by prepending any a onto both b and c. *)
 
-let rec prepend_lt :
-    type a b c ab ac s.
+let rec prepend_lt : type a b c ab ac s.
     b fin -> c fin -> (b, s, c) lt -> (a, b, ab) prepend -> (a, c, ac) prepend -> (ab, s, ac) lt =
  fun b c lt ab ac ->
   match (ab, ac) with
@@ -477,8 +475,8 @@ module Map = struct
 
     (* 'add' adds an entry to the map, replacing any existing entry for that number. *)
 
-    let rec fin_add :
-        type x a b c. (x, a) fin_t -> b fin -> (a, b, c) prepend -> (x, c) F.t -> (x, a) fin_t =
+    let rec fin_add : type x a b c.
+        (x, a) fin_t -> b fin -> (a, b, c) prepend -> (x, c) F.t -> (x, a) fin_t =
      fun map x ab y ->
       match (x, map) with
       | Zero, Emp -> Node (Some (ab, y), Emp, Emp)
@@ -516,8 +514,7 @@ module Map = struct
 
     (* 'update' updates an entry in the map. *)
 
-    let rec fin_update :
-        type x a b c.
+    let rec fin_update : type x a b c.
         (x, a) fin_t ->
         b fin ->
         (a, b, c) prepend ->
@@ -605,8 +602,8 @@ module Map = struct
 
     (* "fin_map_lt" applies map_lt to all elements of a fin_t, assuming that that is valid given its parameter, and dually for "fin_map_gt". *)
 
-    let rec fin_map_lt :
-        type a b c x. (x, c) map_compare -> (a, c) then_lt -> (x, a) fin_t -> (x, a) fin_t =
+    let rec fin_map_lt : type a b c x.
+        (x, c) map_compare -> (a, c) then_lt -> (x, a) fin_t -> (x, a) fin_t =
      fun f x map ->
       match map with
       | Emp -> Emp
@@ -618,8 +615,8 @@ module Map = struct
               fin_map_lt f (then_minus_lt x) mmap,
               fin_map_lt f (then_plus_lt x) pmap )
 
-    let rec fin_map_gt :
-        type x a b c. (x, c) map_compare -> (a, c) then_gt -> (x, a) fin_t -> (x, a) fin_t =
+    let rec fin_map_gt : type x a b c.
+        (x, c) map_compare -> (a, c) then_gt -> (x, a) fin_t -> (x, a) fin_t =
      fun f x map ->
       match map with
       | Emp -> Emp
@@ -633,8 +630,8 @@ module Map = struct
 
     (* Similarly, "fin_map_plusomega" applies a function to all elements of a fin_t, because +ω is greater than them, and dually. *)
 
-    let rec fin_map_plusomega :
-        type x a. (x, plus_omega) map_compare -> (x, a) fin_t -> (x, a) fin_t =
+    let rec fin_map_plusomega : type x a.
+        (x, plus_omega) map_compare -> (x, a) fin_t -> (x, a) fin_t =
      fun f map ->
       match map with
       | Emp -> Emp
@@ -646,8 +643,8 @@ module Map = struct
               fin_map_plusomega f mmap,
               fin_map_plusomega f pmap )
 
-    let rec fin_map_minusomega :
-        type x a. (x, minus_omega) map_compare -> (x, a) fin_t -> (x, a) fin_t =
+    let rec fin_map_minusomega : type x a.
+        (x, minus_omega) map_compare -> (x, a) fin_t -> (x, a) fin_t =
      fun f map ->
       match map with
       | Emp -> Emp
@@ -659,8 +656,7 @@ module Map = struct
               fin_map_minusomega f mmap,
               fin_map_minusomega f pmap )
 
-    let rec fin_map_compare :
-        type x a b c.
+    let rec fin_map_compare : type x a b c.
         (x, c) map_compare -> b fin -> (a, b, c) prepend -> (x, a) fin_t -> (x, a) fin_t =
      fun f x ab map ->
       match map with
@@ -766,8 +762,7 @@ module Map = struct
       | Lower : ('b, strict, 'a) lt * ('x, 'b) F.t -> ('x, 'a) lower
       | No_lower : ('x, 'a) lower
 
-    let rec add_cut_fin :
-        type a b c x.
+    let rec add_cut_fin : type a b c x.
         (a, b, c) prepend ->
         b fin ->
         ((x, c) lower -> (x, c) upper -> (x, c) F.t) ->
@@ -911,8 +906,8 @@ module Interval = struct
     | Subset_eq : ('t, 's, 't, 's) subset
     | Subset_nonstrict_strict : ('t, strict, 't, nonstrict) subset
 
-  let subset_contains :
-      type t1 s1 t2 s2 a. (t1, s1, t2, s2) subset -> (t1, s1, a) lt -> (t2, s2, a) lt =
+  let subset_contains : type t1 s1 t2 s2 a.
+      (t1, s1, t2, s2) subset -> (t1, s1, a) lt -> (t2, s2, a) lt =
    fun sub lt1 ->
     match sub with
     | Subset_strict lt2 -> lt_trans Strict_any lt2 lt1

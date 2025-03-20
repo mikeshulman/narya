@@ -59,8 +59,8 @@ type (_, _) deg_coresidual =
   | Coresidual_zero : ('m, 'n) deg -> ('m, 'n) deg_coresidual
   | Coresidual_suc : ('m, 'n) deg * ('n, 'nsuc) D.insert -> ('m, 'nsuc) deg_coresidual
 
-let rec deg_coresidual :
-    type mpred m n. (m, n) deg -> (mpred, m) D.insert -> (mpred, n) deg_coresidual =
+let rec deg_coresidual : type mpred m n.
+    (m, n) deg -> (mpred, m) D.insert -> (mpred, n) deg_coresidual =
  fun s k ->
   match s with
   | Zero m -> Coresidual_zero (Zero (D.insert_in m k))
@@ -73,8 +73,8 @@ let rec deg_coresidual :
           | Coresidual_suc (s', i) -> Coresidual_suc (Suc (s', j'), Later i)))
 
 (* Extend a degeneracy by the identity on the right. *)
-let rec deg_plus :
-    type m n k mk nk. (m, n) deg -> (n, k, nk) D.plus -> (m, k, mk) D.plus -> (mk, nk) deg =
+let rec deg_plus : type m n k mk nk.
+    (m, n) deg -> (n, k, nk) D.plus -> (m, k, mk) D.plus -> (mk, nk) deg =
  fun s nk mk ->
   match (nk, mk) with
   | Zero, Zero -> s
@@ -90,8 +90,7 @@ let rec deg_plus_dom : type m n k mk. (m, n) deg -> (m, k, mk) D.plus -> (mk, n)
       Suc (deg_plus_dom s mk', j)
 
 (* Add together two degeneracies. *)
-let rec deg_plus_deg :
-    type m n mn k l kl.
+let rec deg_plus_deg : type m n mn k l kl.
     (k, m) deg -> (m, n, mn) D.plus -> (k, l, kl) D.plus -> (l, n) deg -> (kl, mn) deg =
  fun skm mn kl sln ->
   match (mn, sln) with
@@ -101,9 +100,8 @@ let rec deg_plus_deg :
       Suc (deg_plus_deg skm mn' kl' sln', D.plus_insert kl' kl i)
 
 (* Extend a degeneracy by the identity on the left. *)
-let plus_deg :
-    type m n mn l ml. m D.t -> (m, n, mn) D.plus -> (m, l, ml) D.plus -> (l, n) deg -> (ml, mn) deg
-    =
+let plus_deg : type m n mn l ml.
+    m D.t -> (m, n, mn) D.plus -> (m, l, ml) D.plus -> (l, n) deg -> (ml, mn) deg =
  fun m mn ml s -> deg_plus_deg (id_deg m) mn ml s
 
 (* Insert an element into the codomain of a degeneracy, inserting an element into its domain at the same De Bruijn index. *)
@@ -161,8 +159,8 @@ let deg_equal : type m n k l. (m, n) deg -> (k, l) deg -> unit option =
   | _ -> None
 
 (* Is one degeneracy, with greater codomain, an identity extension of another? *)
-let rec deg_is_idext :
-    type n l nl m k. (n, l, nl) D.plus -> (m, n) deg -> (k, nl) deg -> unit option =
+let rec deg_is_idext : type n l nl m k.
+    (n, l, nl) D.plus -> (m, n) deg -> (k, nl) deg -> unit option =
  fun nl s1 s2 ->
   match (nl, s2) with
   | Zero, _ -> deg_equal s1 s2
@@ -222,8 +220,8 @@ let string_of_deg : type a b. (a, b) deg -> string =
 type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
 
 (* The list of the Bwv is the length of the domain.  *)
-let rec deg_of_strings :
-    type n. ([ `Int of int | `Str of string ], n) Bwv.t -> int -> n deg_to option =
+let rec deg_of_strings : type n.
+    ([ `Int of int | `Str of string ], n) Bwv.t -> int -> n deg_to option =
  fun xs i ->
   let open Monad.Ops (Monad.Maybe) in
   let finished () =

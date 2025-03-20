@@ -78,8 +78,7 @@ let rec detect_spaceless_fields ctx loc (bwd_parts : string Bwd.t) fields found 
 
 (* Now the master postprocessing function.  Note that this function calls the "process" functions registered for individual notations, but those functions will be defined to call *this* function on their constituents, so we have some "open recursion" going on. *)
 
-let rec process :
-    type n lt ls rt rs.
+let rec process : type n lt ls rt rs.
     (string option, n) Bwv.t -> (lt, ls, rt, rs) parse located -> n check located =
  fun ctx res ->
   let loc = res.loc in
@@ -116,8 +115,7 @@ let rec process :
       let hloc = loc <|> Anomaly "missing location in Hole" in
       { value = Hole { scope = ctx; loc = hloc; li = Interval li; ri = Interval ri; num }; loc }
 
-and process_spine :
-    type n lt ls rt rs.
+and process_spine : type n lt ls rt rs.
     (string option, n) Bwv.t ->
     (lt, ls, rt, rs) parse located ->
     (wrapped_parse * Asai.Range.t option) list ->
@@ -127,8 +125,7 @@ and process_spine :
   | App { fn; arg; _ } -> process_spine ctx fn ((Wrap arg, tm.loc) :: args)
   | _ -> process_apps ctx tm args
 
-and process_apps :
-    type n lt ls rt rs.
+and process_apps : type n lt ls rt rs.
     (string option, n) Bwv.t ->
     (lt, ls, rt, rs) parse located ->
     (wrapped_parse * Asai.Range.t option) list ->
@@ -154,8 +151,7 @@ and process_apps :
       { value = Raw.Constr (c, args); loc = !loc }
   | `Fn fn -> process_apply ctx fn args
 
-and process_head :
-    type n lt ls rt rs.
+and process_head : type n lt ls rt rs.
     (string option, n) Bwv.t ->
     (lt, ls, rt, rs) parse located ->
     [ `Deg of string * any_deg | `Constr of Constr.t | `Fn of n synth located ] =
@@ -168,8 +164,7 @@ and process_head :
       | None -> `Fn (process_synth ctx tm "function"))
   | _ -> `Fn (process_synth ctx tm "function")
 
-and process_apply :
-    type n.
+and process_apply : type n.
     (string option, n) Bwv.t ->
     n synth located ->
     (wrapped_parse * Asai.Range.t option) list ->
@@ -196,8 +191,7 @@ and process_apply :
         { value = Raw.App (fn, process ctx arg, locate_opt arg.loc `Explicit); loc }
         args
 
-and process_synth :
-    type n lt ls rt rs.
+and process_synth : type n lt ls rt rs.
     (string option, n) Bwv.t -> (lt, ls, rt, rs) parse located -> string -> n synth located =
  fun ctx x str ->
   match process ctx x with
@@ -215,8 +209,7 @@ let rec process_tel : type n. (string option, n) Bwv.t -> Parameter.t list -> n 
   | [] -> Processed_tel (Emp, ctx, [])
   | { names; ty; _ } :: parameters -> process_vars ctx names ty parameters
 
-and process_vars :
-    type n b.
+and process_vars : type n b.
     (string option, n) Bwv.t ->
     (string option * Whitespace.t list) list ->
     wrapped_parse ->

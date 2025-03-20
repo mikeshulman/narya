@@ -229,8 +229,7 @@ module Parse = struct
         -> fixity_and_pattern
 
   let fixity_of_pattern pat tight =
-    let rec go :
-        type left right.
+    let rec go : type left right.
         [ `Var of string * space * Whitespace.t list
         | `Op of Token.t * space * Whitespace.t list
         | `Ellipsis of Whitespace.t list ]
@@ -792,8 +791,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
             | Some c -> `Constant c
             | None -> fatal (Invalid_notation_head (String.concat "." c))) in
       (* Find the "unbound" variables, if any, in the notation definition. *)
-      let rec unbounds :
-          type left right.
+      let rec unbounds : type left right.
           (string * Whitespace.t list) list ->
           string list ->
           (left, right) User.Pattern.t ->
@@ -853,9 +851,9 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
   | Solve data -> (
       (* Solve does NOT create a new history entry because it is NOT undoable. *)
       let (Find_number
-            ( m,
-              { tm = metatm; termctx; ty; energy = _; li; ri },
-              { global; scope; status; vars; options } )) =
+             ( m,
+               { tm = metatm; termctx; ty; energy = _; li; ri },
+               { global; scope; status; vars; options } )) =
         Eternity.find_number data.number in
       match metatm with
       | `Undefined ->

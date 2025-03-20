@@ -46,8 +46,7 @@ module Icube (F : Fam4) = struct
         ('m, 'n) sface -> ('left, 'm, 'b, 'right) F.t -> ('left, 'm, 'c, 'right) F.t M.t;
     }
 
-    let rec gmapM :
-        type k m km n b c l left right.
+    let rec gmapM : type k m km n b c l left right.
         (k, m, km) D.plus ->
         (l, m, n) D.plus ->
         (k, l) bwsface ->
@@ -66,8 +65,7 @@ module Icube (F : Fam4) = struct
           and+ newmid = gmapM (D.suc_plus km) (D.suc_plus lm) (Mid d) g mid in
           Branch (l, newends, newmid)
 
-    and gmapM_branches :
-        type k m km n b c l len len' left right.
+    and gmapM_branches : type k m km n b c l len len' left right.
         (k, m, km) D.plus ->
         (l N.suc, m, n) D.plus ->
         (k, l) bwsface ->
@@ -83,8 +81,7 @@ module Icube (F : Fam4) = struct
           and+ newbr = gmapM km lm (End (e, d)) g br in
           Snoc (newbrs, newbr)
 
-    let mapM :
-        type n b c left right.
+    let mapM : type n b c left right.
         (n, b, c) mapperM -> (left, n, b, right) t -> (left, n, c, right) t M.t =
      fun g x ->
       let n = dim x in
@@ -93,9 +90,8 @@ module Icube (F : Fam4) = struct
 
   module IdM = Applicatic (Applicative.OfMonad (Monad.Identity))
 
-  let map :
-      type n b c left right. (n, b, c) IdM.mapperM -> (left, n, b, right) t -> (left, n, c, right) t
-      =
+  let map : type n b c left right.
+      (n, b, c) IdM.mapperM -> (left, n, b, right) t -> (left, n, c, right) t =
    fun g x -> IdM.mapM g x
 
   (* ********** Traversals with indexed state ********** *)
@@ -112,8 +108,7 @@ module Icube (F : Fam4) = struct
         ('left, 'm, 'c, 'right) F.t * 'right Acc.t;
     }
 
-    let rec gfold_map_left :
-        type k m km n b c l left right.
+    let rec gfold_map_left : type k m km n b c l left right.
         (k, m, km) D.plus ->
         (l, m, n) D.plus ->
         (k, l) bwsface ->
@@ -134,8 +129,7 @@ module Icube (F : Fam4) = struct
           let mid, acc = gfold_map_left (D.suc_plus km) (D.suc_plus lm) (Mid d) g acc mid in
           (Branch (l, ends, mid), acc)
 
-    and gfold_left_map_branches :
-        type k m km n b c l len len' left right.
+    and gfold_left_map_branches : type k m km n b c l len len' left right.
         (k, m, km) D.plus ->
         (l N.suc, m, n) D.plus ->
         (k, l) bwsface ->
@@ -152,8 +146,7 @@ module Icube (F : Fam4) = struct
           let br, acc = gfold_map_left km lm (End (e, d)) g acc br in
           (Snoc (brs, br), acc)
 
-    let fold_map_left :
-        type n b c left right.
+    let fold_map_left : type n b c left right.
         (n, b, c) left_folder ->
         left Acc.t ->
         (left, n, n, b, right) gt ->
@@ -173,8 +166,7 @@ module Icube (F : Fam4) = struct
         'left Acc.t * ('left, 'm, 'c, 'right) F.t;
     }
 
-    let rec gfold_map_right :
-        type k m km n b c l left right.
+    let rec gfold_map_right : type k m km n b c l left right.
         (k, m, km) D.plus ->
         (l, m, n) D.plus ->
         (k, l) bwsface ->
@@ -195,8 +187,7 @@ module Icube (F : Fam4) = struct
             gfold_right_map_branches km' (D.suc_plus lm) d g (Endpoints.indices l) ends acc in
           (acc, Branch (l, ends, mid))
 
-    and gfold_right_map_branches :
-        type k m km n b c l len len' left right.
+    and gfold_right_map_branches : type k m km n b c l len len' left right.
         (k, m, km) D.plus ->
         (l N.suc, m, n) D.plus ->
         (k, l) bwsface ->
@@ -213,8 +204,7 @@ module Icube (F : Fam4) = struct
           let acc, brs = gfold_right_map_branches km lm d g ixs brs acc in
           (acc, Snoc (brs, br))
 
-    let fold_map_right :
-        type n b c left right.
+    let fold_map_right : type n b c left right.
         (n, b, c) right_folder ->
         (left, n, b, right) t ->
         right Acc.t ->
@@ -242,8 +232,7 @@ module Icube (F : Fam4) = struct
       build : 'left 'm. ('m, 'n) sface -> 'left Acc.t -> ('left, 'm, 'b) fwrap_left;
     }
 
-    let rec gbuild_left :
-        type k m mk l ml b left.
+    let rec gbuild_left : type k m mk l ml b left.
         m D.t ->
         (m, k, mk) D.plus ->
         (m, l, ml) D.plus ->
@@ -267,8 +256,7 @@ module Icube (F : Fam4) = struct
             gbuild_left (Nat m) (D.plus_suc mk) (D.plus_suc ml) (Mid d) g acc in
           Wrap (Branch (l, ends, mid), acc)
 
-    and gbuild_left_branches :
-        type k m mk l ml b left len len'.
+    and gbuild_left_branches : type k m mk l ml b left len len'.
         m D.t ->
         (m, k, mk) D.plus ->
         (m, l N.suc, ml) D.plus ->
@@ -285,8 +273,8 @@ module Icube (F : Fam4) = struct
           let (Wrap (newbr, acc)) = gbuild_left m mk ml (End (e, d)) g acc in
           Wrap_branches (Snoc (newbrs, newbr), acc)
 
-    let build_left :
-        type n b left. n D.t -> (n, b) builder_leftM -> left Acc.t -> (left, n, b) wrap_left =
+    let build_left : type n b left.
+        n D.t -> (n, b) builder_leftM -> left Acc.t -> (left, n, b) wrap_left =
      fun n g acc -> gbuild_left n (D.plus_zero n) (D.plus_zero n) Zero g acc
 
     type (_, _, _) fwrap_right =
@@ -306,8 +294,7 @@ module Icube (F : Fam4) = struct
       build : 'right 'm. ('m, 'n) sface -> 'right Acc.t -> ('m, 'b, 'right) fwrap_right;
     }
 
-    let rec gbuild_right :
-        type k m mk l ml b right.
+    let rec gbuild_right : type k m mk l ml b right.
         m D.t ->
         (m, k, mk) D.plus ->
         (m, l, ml) D.plus ->
@@ -331,8 +318,7 @@ module Icube (F : Fam4) = struct
             gbuild_right_branches (Nat m) mk' (D.plus_suc ml) d g (Endpoints.indices l) acc in
           Wrap (acc, Branch (l, ends, mid))
 
-    and gbuild_right_branches :
-        type k m mk l ml b right len len'.
+    and gbuild_right_branches : type k m mk l ml b right len len'.
         m D.t ->
         (m, k, mk) D.plus ->
         (m, l N.suc, ml) D.plus ->
@@ -349,8 +335,8 @@ module Icube (F : Fam4) = struct
           let (Wrap_branches (acc, newbrs)) = gbuild_right_branches m mk ml d g ixs acc in
           Wrap_branches (acc, Snoc (newbrs, newbr))
 
-    let build_right :
-        type n b right. n D.t -> (n, b) builder_rightM -> right Acc.t -> (n, b, right) wrap_right =
+    let build_right : type n b right.
+        n D.t -> (n, b) builder_rightM -> right Acc.t -> (n, b, right) wrap_right =
      fun n g acc -> gbuild_right n (D.plus_zero n) (D.plus_zero n) Zero g acc
   end
 
@@ -358,8 +344,7 @@ module Icube (F : Fam4) = struct
 
   type (_, _) fbiwrap = Fbiwrap : ('left, 'n, 'b, 'right) F.t -> ('n, 'b) fbiwrap
 
-  let rec gfind :
-      type m n k km nm b left right.
+  let rec gfind : type m n k km nm b left right.
       (left, km, nm, b, right) gt ->
       (k, m, km) D.plus ->
       (n, m, nm) D.plus ->
@@ -381,8 +366,7 @@ module Icube (F : Fam4) = struct
         let (Suc km) = N.plus_suc km in
         gfind br km nm d
 
-  and gfind_branches :
-      type m n k km nm b left right l.
+  and gfind_branches : type m n k km nm b left right l.
       (left, l, km, nm, b, right) branches ->
       (k, m, km) D.plus ->
       (n, m, nm) D.plus ->
@@ -421,8 +405,7 @@ module NICubeOf = struct
 
   module NFold = Traverse (N)
 
-  let nfold :
-      type left m n b right.
+  let nfold : type left m n b right.
       (m, n) sface ->
       left N.t ->
       (left, m, b, right) NFamOf.t ->

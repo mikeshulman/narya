@@ -12,7 +12,7 @@ val refl_string : unit -> string
 val refl_names : unit -> string list
 val internal : unit -> bool
 
-(*  *)
+(* *)
 val uniq : 'l1 len -> 'l2 len -> ('l1, 'l2) Eq.t
 val len : 'l len -> 'l N.t
 val indices : 'l len -> ('l t, 'l) Bwv.t

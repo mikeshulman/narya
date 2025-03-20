@@ -63,8 +63,8 @@ module F = struct
 
   and value : type s. formatter -> s value -> unit = fun ppf v -> dvalue 2 ppf v
 
-  and fields :
-      type s n et. int -> n D.t -> formatter -> (n * s * et) Value.StructfieldAbwd.t -> unit =
+  and fields : type s n et.
+      int -> n D.t -> formatter -> (n * s * et) Value.StructfieldAbwd.t -> unit =
    fun depth n ppf -> function
     | Emp -> fprintf ppf "Emp"
     | Snoc (flds, Entry (f, Lower (v, l))) ->
@@ -82,8 +82,7 @@ module F = struct
           }
           [ vals ]
 
-  and lazy_eval :
-      type s i.
+  and lazy_eval : type s i.
       int -> formatter -> i Field.t -> string -> s lazy_eval -> [ `Labeled | `Unlabeled ] -> unit =
    fun depth ppf f p v l ->
     let l =

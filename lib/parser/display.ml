@@ -44,7 +44,7 @@ let () =
     | `Get -> Some "unhandled Display get effect"
     | `Set _ -> Some "unhandled Display set effect")
 
-(*  *)
+(* *)
 let chars () = (State.get ()).chars
 let metas () = (State.get ()).metas
 let argstyle () = (State.get ()).argstyle

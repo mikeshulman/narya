@@ -80,8 +80,7 @@ type (_, _, _, _) comp_shuffle_right =
       ('a, 'b, 'ab) shuffle * ('ab, 'c, 'abc) shuffle
       -> ('a, 'b, 'c, 'abc) comp_shuffle_right
 
-let rec comp_shuffle_right :
-    type a b c bc abc.
+let rec comp_shuffle_right : type a b c bc abc.
     (b, c, bc) shuffle -> (a, bc, abc) shuffle -> (a, b, c, abc) comp_shuffle_right =
  fun bc abc ->
   match (bc, abc) with

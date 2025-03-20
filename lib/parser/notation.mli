@@ -197,7 +197,7 @@ type (_, _) notation_in_interval =
 val split_ending_whitespace :
   ('lt, 'ls, 'rt, 'rs) parse located -> ('lt, 'ls, 'rt, 'rs) parse located * Whitespace.t list
 
-(*  *)
+(* *)
 val op : TokMap.key -> ('t, 's) tree -> ('t, 's) tree
 val ops : (TokMap.key * ('t, 's) tree) list -> ('t, 's) tree
 val term : TokMap.key -> ('t, 's) tree -> ('t, 's) tree
@@ -209,7 +209,7 @@ val eop : TokMap.key -> 'a -> 'a TokMap.t
 val eops : (TokMap.key * 'a) list -> 'a TokMap.t
 val empty_entry : 'a TokMap.t
 
-(*  *)
+(* *)
 val lower : ('t2, 's2, 't1, 's1) No.Interval.subset -> ('t2, 's2) entry -> ('t1, 's1) entry
 
 val merge :

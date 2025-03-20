@@ -27,8 +27,7 @@ type ty_handler = printable located -> unit
 
 let trivial_ctx_handler : ctx_handler = { handle = (fun _ _ _ -> ()) }
 
-let handler :
-    type b a.
+let handler : type b a.
     ctx:ctx_handler ->
     tm:tm_handler ->
     ty:ty_handler ->

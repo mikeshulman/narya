@@ -91,11 +91,10 @@ let pp_ws (space : space) (ws : Whitespace.t list) : document =
    Except that, if there are no method calls, the first spine of applications is only indented by 2 (this is implemented by pp_term below), and others listed below as we implement them.
    Accordingly, this function returns a list of lists, broken at field applications.  For the above example it would return
    [ [f; a; b; c; d; e]; [.meth1; f; g; h; i; j; k]; [.meth2; l; m; n; o; p; q] ]. *)
-let get_spine :
-    type lt ls rt rs. (lt, ls, rt, rs) parse Asai.Range.located -> wrapped_parse list list =
+let get_spine : type lt ls rt rs.
+    (lt, ls, rt, rs) parse Asai.Range.located -> wrapped_parse list list =
  fun tm ->
-  let rec go :
-      type lt ls rt rs.
+  let rec go : type lt ls rt rs.
       (lt, ls, rt, rs) parse Asai.Range.located ->
       wrapped_parse list ->
       wrapped_parse list list ->
@@ -115,8 +114,8 @@ let get_spine :
   | other -> other
 
 (* Print a parse tree as a term.  Return the whitespace at the end instead of printing it, so the caller can exclude it from any surrounding groups and decide whether to add an additional break. *)
-let rec pp_term :
-    type lt ls rt rs. (lt, ls, rt, rs) parse Asai.Range.located -> document * Whitespace.t list =
+let rec pp_term : type lt ls rt rs.
+    (lt, ls, rt, rs) parse Asai.Range.located -> document * Whitespace.t list =
  fun tm ->
   match tm.value with
   | Notn (n, d) -> (
@@ -173,8 +172,7 @@ and pp_superscript str =
   | `ASCII -> utf8string ("^(" ^ str ^ ")")
 
 (* Print a parse tree as a case tree.  Return the "intro" separately so that it can be grouped with any introductory code from a "def" or "let" so that the primary linebreaks are the case tree ones.  Deals with whitespace like pp_term; the whitespace that ends the intro goes into the main doc (including an allowed break).  The intro doesn't need to start with a break. *)
-let pp_case :
-    type lt ls rt rs.
+let pp_case : type lt ls rt rs.
     [ `Trivial | `Nontrivial ] ->
     (lt, ls, rt, rs) parse Asai.Range.located ->
     PPrint.document * document * Whitespace.t list =

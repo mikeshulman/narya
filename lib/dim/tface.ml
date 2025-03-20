@@ -41,12 +41,11 @@ let rec codr_tface : type m n k nk. (m, n, k, nk) tface -> k D.t = function
 let cod_tface : type m n k nk. (m, n, k, nk) tface -> nk D.t =
  fun d -> D.plus_out (codl_tface d) (cod_plus_of_tface d)
 
-let tface_end :
-    type l m n k nk. (m, n, k, nk) tface -> l Endpoints.t -> (m, n, k D.suc, nk D.suc) tface =
+let tface_end : type l m n k nk.
+    (m, n, k, nk) tface -> l Endpoints.t -> (m, n, k D.suc, nk D.suc) tface =
  fun d e -> End (sface_of_tface d, cod_plus_of_tface d, e)
 
-let rec tface_plus :
-    type m n k nk l ml kl nkl.
+let rec tface_plus : type m n k nk l ml kl nkl.
     (m, n, k, nk) tface ->
     (k, l, kl) D.plus ->
     (nk, l, nkl) D.plus ->
@@ -89,14 +88,13 @@ let rec insert_pface : type m n nsuc. (m, n) pface -> (n, nsuc) D.insert -> (m, 
           let (Insert_pface (i, f)) = insert_pface f i in
           Insert_pface (Later i, Mid f))
 
-let pface_plus :
-    type m n mn k kn. (k, m) pface -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) pface =
+let pface_plus : type m n mn k kn.
+    (k, m) pface -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) pface =
  fun d mn kn -> tface_plus d mn mn kn
 
 (* Any strict face can be added to a tube face on the left to get another tube face. *)
 
-let rec sface_plus_tface :
-    type m n mn l nl mnl k p kp.
+let rec sface_plus_tface : type m n mn l nl mnl k p kp.
     (k, m) sface ->
     (m, n, mn) D.plus ->
     (m, nl, mnl) D.plus ->
@@ -110,8 +108,7 @@ let rec sface_plus_tface :
       End (sface_plus_sface fkm m_nl kp fpn, mn_l, e)
   | Mid fpn, Suc m_nl, Suc kp -> Mid (sface_plus_tface fkm mn m_nl kp fpn)
 
-let sface_plus_pface :
-    type m n mn k p kp.
+let sface_plus_pface : type m n mn k p kp.
     (k, m) sface -> (m, n, mn) D.plus -> (k, p, kp) D.plus -> (p, n) pface -> (kp, m, n, mn) tface =
  fun fkm mn kp fpn -> sface_plus_tface fkm Zero mn kp fpn
 
@@ -122,8 +119,8 @@ type (_, _, _, _) tface_of_plus =
       ('p, 'q, 'pq) D.plus * ('p, 'n) sface * ('q, 'k, 'l, 'kl) tface
       -> ('pq, 'n, 'k, 'l) tface_of_plus
 
-let rec tface_of_plus :
-    type m n k nk l nkl. (n, k, nk) D.plus -> (m, nk, l, nkl) tface -> (m, n, k, l) tface_of_plus =
+let rec tface_of_plus : type m n k nk l nkl.
+    (n, k, nk) D.plus -> (m, nk, l, nkl) tface -> (m, n, k, l) tface_of_plus =
  fun nk d ->
   match d with
   | End (d, nk_l, e) ->
@@ -150,8 +147,7 @@ let pface_of_plus : type m n k nk. (m, n, k, nk) tface -> (m, n, k) pface_of_plu
 
 (* A tube face with exactly one instantiated dimension can be decomposed into an endpoint and a strict face. *)
 
-let singleton_tface :
-    type m n k nk l.
+let singleton_tface : type m n k nk l.
     (m, n, k, nk) tface -> k is_singleton -> l Endpoints.len -> (m, n) sface * l N.index =
  fun d k l ->
   let One = k in

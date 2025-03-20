@@ -369,8 +369,7 @@ let rec ordered_dbwd : type a b. (a, b) ordered_termctx -> b Dbwd.t = function
 
 let dbwd (Permute (_, ctx)) = ordered_dbwd ctx
 
-let ordered_ext_let :
-    type a b.
+let ordered_ext_let : type a b.
     (a, b) ordered_termctx ->
     string option ->
     (b, D.zero) snoc binding ->

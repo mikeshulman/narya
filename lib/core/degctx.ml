@@ -13,8 +13,7 @@ open Norm
 module Ordered = struct
   open Ctx.Ordered
 
-  let degenerate_binding :
-      type k n kn ax b.
+  let degenerate_binding : type k n kn ax b.
       int ->
       k D.t ->
       (k, n, kn) D.plus ->

@@ -145,8 +145,7 @@ type _ extended_ctx =
       ('n, 'm, 'nm) N.plus * (Asai.Range.t option, 'm) Bwv.t * (string option, 'nm) Bwv.t
       -> 'n extended_ctx
 
-let rec get_vars :
-    type n lt1 ls1 rt1 rs1.
+let rec get_vars : type n lt1 ls1 rt1 rs1.
     (string option, n) Bwv.t -> (lt1, ls1, rt1, rs1) parse located -> n extended_ctx =
  fun ctx vars ->
   match vars.value with
@@ -162,8 +161,7 @@ let rec get_vars :
       Extctx (Suc ab, Snoc (locs, vars.loc), Bwv.snoc ctx None)
   | _ -> fatal ?loc:vars.loc Parse_error
 
-let rec raw_lam :
-    type a b ab.
+let rec raw_lam : type a b ab.
     (string option, ab) Bwv.t ->
     [ `Cube | `Normal ] ->
     (a, b, ab) N.plus ->
@@ -201,8 +199,8 @@ type (_, _, _) identity +=
 
 let letin : (closed, No.minus_omega, No.nonstrict opn) notation = (Let, Prefixr No.minus_omega)
 
-let process_let :
-    type n. (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
+let process_let : type n.
+    (string option, n) Bwv.t -> observation list -> Asai.Range.t option -> n check located =
  fun ctx obs loc ->
   match obs with
   | [
@@ -252,8 +250,7 @@ type (_, _) letrec_terms =
       -> ('c, 'a) letrec_terms
 
 (* We pre-process the observation list by replacing the initial "let rec" by another "and", so that this recursive function can treat all cases equally. *)
-let rec process_letrec_terms :
-    type c a.
+let rec process_letrec_terms : type c a.
     (string option, a) Bwv.t ->
     observation list ->
     (wrapped_parse, c) Bwv.t ->
@@ -543,8 +540,7 @@ let () =
 (* These functions inspect and process multiple-variable type declarations like "x y z : A", such as appear (in paretheses) in the domain of a Π-type. *)
 
 (* Inspect 'xs', expecting it to be a spine of valid bindable local variables or underscores, and produce a list of those variables, consing it onto the accumulator argument 'vars'. *)
-let rec process_var_list :
-    type lt ls rt rs.
+let rec process_var_list : type lt ls rt rs.
     (lt, ls, rt, rs) parse located ->
     (string option * Whitespace.t list) list ->
     (string option * Whitespace.t list) list option =
@@ -560,8 +556,7 @@ let rec process_var_list :
   | _ -> None
 
 (* Inspect 'arg', expecting it to be of the form 'x y z : A', and return the list of variables, the type, and the whitespace of the colon.  Return None if it is not of that form, causing callers to fall back to alternative interpretations.*)
-let process_typed_vars :
-    type lt ls rt rs.
+let process_typed_vars : type lt ls rt rs.
     (lt, ls, rt, rs) parse ->
     ((string option * Whitespace.t list) list * Whitespace.t list * wrapped_parse) option =
  fun arg ->
@@ -597,8 +592,8 @@ type pi_dom =
   | Nondep of { wsarrow : arrow_opt; ty : wrapped_parse }
 
 (* Inspect 'doms', expecting it to be of the form (x:A)(y:B) etc, and produce a list of variables with types, prepending that list onto the front of the given accumulation list, with the first one having an arrow attached (before it front) if 'wsarrow' is given.  If it isn't of that form, interpret it as the single domain type of a non-dependent function-type and cons it onto the list. *)
-let get_pi_args :
-    type lt ls rt rs. arrow_opt -> (lt, ls, rt, rs) parse located -> pi_dom list -> pi_dom list =
+let get_pi_args : type lt ls rt rs.
+    arrow_opt -> (lt, ls, rt, rs) parse located -> pi_dom list -> pi_dom list =
  fun wsarrow doms accum ->
   let open Monad.Ops (Monad.Maybe) in
   let rec go : type lt ls rt rs. (lt, ls, rt, rs) parse located -> pi_dom list -> pi_dom list option
@@ -623,8 +618,7 @@ let get_pi_args :
   | None -> Nondep { wsarrow; ty = Wrap doms } :: accum
 
 (* Get all the domains and eventual codomain from a right-associated iterated function-type. *)
-let rec get_pi :
-    type lt ls rt rs.
+let rec get_pi : type lt ls rt rs.
     arrow_opt -> observation list -> pi_dom list * Whitespace.t list * wrapped_parse =
  fun prev_arr obs ->
   match obs with
@@ -637,8 +631,7 @@ let rec get_pi :
   | _ -> invalid "arrow"
 
 (* Given the variables with domains and the codomain of a pi-type, process it into a raw term. *)
-let rec process_pi :
-    type n lt ls rt rs.
+let rec process_pi : type n lt ls rt rs.
     (string option, n) Bwv.t -> pi_dom list -> (lt, ls, rt, rs) parse located -> n check located =
  fun ctx doms cod ->
   match doms with
@@ -805,8 +798,7 @@ let parens_case :
   | Token (LParen, wslparen) :: obs -> `Tuple (wslparen, obs)
   | _ -> invalid "tuple"
 
-let rec process_tuple :
-    type n.
+let rec process_tuple : type n.
     ((string * string list) option, n check located) Abwd.t ->
     StringSet.t ->
     (string option, n) Bwv.t ->
@@ -1010,8 +1002,7 @@ type pattern = Pattern.t
 
 let get_pattern : type lt1 ls1 rt1 rs1. (lt1, ls1, rt1, rs1) parse located -> pattern =
  fun pat ->
-  let rec go :
-      type n lt1 ls1 rt1 rs1.
+  let rec go : type n lt1 ls1 rt1 rs1.
       (lt1, ls1, rt1, rs1) parse located -> (pattern, n) Vec.t located -> pattern =
    fun pat pats ->
     match pat.value with
@@ -1136,8 +1127,7 @@ let process_obs_or_ix : type a. a Matchscope.t -> (wrapped_parse, int) Either.t 
       | None -> fatal (Anomaly "invalid parse-level in processing match"))
 
 (* Given a scope of 'a variables, a vector of 'n not-yet-processed discriminees or previous match variables, and a list of branches with 'n patterns each, compile them into a nested match.  The scope given as an argument to this function is used only for the discriminees; it is the original scope extended by unnamed variables (since the discriminees can't actually depend on the pattern variables).  The scopes used for the branches, which also include pattern variables, are stored in the branch data structures. *)
-let rec process_branches :
-    type a n.
+let rec process_branches : type a n.
     a Matchscope.t ->
     ((wrapped_parse, int) Either.t, n) Vec.t ->
     int Bwd.t ->
@@ -1558,8 +1548,7 @@ let rec comatch_fields () =
     (op Mapsto
        (terms [ (Op "|", Lazy (lazy (comatch_fields ()))); (RBracket, Done_closed comatch) ]))
 
-let rec process_comatch :
-    type n.
+let rec process_comatch : type n.
     ((string * string list) option, n check located) Abwd.t * StringsSet.t ->
     (string option, n) Bwv.t ->
     observation list ->
@@ -1665,8 +1654,7 @@ let rec codata_fields bar_ok =
              (terms [ (Op "|", Lazy (lazy (codata_fields false))); (RBracket, Done_closed codata) ]));
     }
 
-let rec process_codata :
-    type n.
+let rec process_codata : type n.
     (Field.wrapped, n Raw.codatafield) Abwd.t ->
     (string option, n) Bwv.t ->
     observation list ->
@@ -1793,8 +1781,8 @@ let rec record_fields () =
 
 type _ any_tel = Any_tel : ('a, 'c, 'ac) Raw.tel -> 'a any_tel
 
-let rec process_tel :
-    type a. (string option, a) Bwv.t -> StringSet.t -> observation list -> a any_tel =
+let rec process_tel : type a.
+    (string option, a) Bwv.t -> StringSet.t -> observation list -> a any_tel =
  fun ctx seen obs ->
   match obs with
   | [ Token (RParen, _) ] -> Any_tel Emp
@@ -2024,8 +2012,7 @@ let rec constr_tel :
       | _ -> invalid "tel")
   | _ -> fatal Parse_error
 
-let rec process_dataconstr :
-    type n.
+let rec process_dataconstr : type n.
     (string option, n) Bwv.t ->
     (string option list * wrapped_parse) list ->
     wrapped_parse option ->
@@ -2036,8 +2023,7 @@ let rec process_dataconstr :
   | [], Some (Wrap ty) -> dataconstr_of_pi (process ctx ty)
   | [], None -> Dataconstr (Emp, None)
 
-and process_dataconstr_vars :
-    type n.
+and process_dataconstr_vars : type n.
     (string option, n) Bwv.t ->
     string option list ->
     wrapped_parse ->
@@ -2053,8 +2039,7 @@ and process_dataconstr_vars :
       let arg = process ctx argty in
       Dataconstr (Ext (x, arg, args), body)
 
-let rec process_data :
-    type n.
+let rec process_data : type n.
     (Constr.t, n Raw.dataconstr located) Abwd.t ->
     (string option, n) Bwv.t ->
     observation list ->

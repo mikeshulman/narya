@@ -863,6 +863,12 @@ let extra_field_in_struct : type s et. (s, et) eta -> string * string list -> Co
   | Eta -> Extra_field_in_tuple (Some (fst fld))
   | Noeta -> Extra_method_in_comatch fld
 
+let duplicate_field_in_struct : type s et. (s, et) eta -> string * string list -> Code.t =
+ fun eta fld ->
+  match eta with
+  | Eta -> Duplicate_field_in_tuple (fst fld)
+  | Noeta -> Duplicate_method_in_comatch (fst fld, snd fld)
+
 let missing_field_in_struct : type s et i n r.
     (s, et) eta -> ?pbij:(n, i, r) pbij -> i Field.t -> Code.t =
  fun eta ?pbij fld ->

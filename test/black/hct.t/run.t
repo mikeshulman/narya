@@ -510,3 +510,30 @@
    ￫ info[I0000]
    ￮ constant gf defined
   
+  $ cat >sqrterr.ny <<EOF
+  > axiom A : Type
+  > def √A : Type ≔ codata [ x .root.e : A ]
+  > axiom B : Type
+  > axiom f (y0 y1 : B) (y2 : Id B y0 y1) : A
+  > def √f2 (b : B) : √A ≔ [ .root.e ↦ f b.0 b.1 b.2 | .root.ee ↦ f ]
+  > EOF
+
+  $ narya -v sqrterr.ny
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0000]
+   ￮ constant √A defined
+  
+   ￫ info[I0001]
+   ￮ axiom B assumed
+  
+   ￫ info[I0001]
+   ￮ axiom f assumed
+  
+   ￫ error[E1403]
+   ￭ $TESTCASE_ROOT/sqrterr.ny
+   5 | def √f2 (b : B) : √A ≔ [ .root.e ↦ f b.0 b.1 b.2 | .root.ee ↦ f ]
+     ^ method 'root.ee' in comatch doesn't occur in codata type
+  
+  [1]

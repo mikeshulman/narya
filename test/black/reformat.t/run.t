@@ -696,9 +696,7 @@ The supplied files are symlinked into the directory where the test is run, and u
     x
   
   import "importable"
-  
   import "importable" | all
-  
   import "importable"
     | seq (renaming squab squish,
            renaming squish squab,

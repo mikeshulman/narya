@@ -127,6 +127,44 @@ otherwise we end up undoing too much when commands are executing asynchronously.
       (setq buffer-undo-list
             (cons (list 'apply 'narya-retract-target span) buffer-undo-list)))))
 
+(defun narya-find-threeb-frames ()
+  "Return a list of frames displaying both response and goals buffers.
+Copied from Coq"
+  (let* ((wins-resp (get-buffer-window-list proof-response-buffer nil t))
+         (wins-gls (get-buffer-window-list proof-goals-buffer nil t))
+         (frame-resp (mapcar #'window-frame wins-resp))
+         (frame-gls (mapcar #'window-frame wins-gls)))
+    (filtered-frame-list (lambda (x) (and (member x frame-resp) (member x frame-gls))))))
+
+(defun narya-optimise-resp-windows ()
+  "Resize response buffer to optimal size.
+Only when three-buffer-mode is enabled.
+Copied from Coq."
+  (unless (memq 'no-response-display proof-shell-delayed-output-flags)
+    ;; If there is no frame with goal+response then do nothing
+    (when proof-three-window-enable
+      (let ((threeb-frames (narya-find-threeb-frames)))
+        (when threeb-frames
+          (let ((pg-frame (car threeb-frames))) ; selecting one adequate frame
+            (with-selected-frame pg-frame
+              (let ((response-window (get-buffer-window proof-response-buffer t))
+                    (goals-window (get-buffer-window proof-goals-buffer t)))
+                (when (and response-window
+                           (> (frame-height) 10))
+                  (with-selected-window response-window
+                    (with-current-buffer proof-response-buffer
+                      (let* ((response-height (window-text-height response-window))
+                             (goals-height (window-text-height goals-window))
+                             (maxhgth (- (+ response-height goals-height)
+                                         window-min-height))
+                             (nline-resp ; number of lines we want for response buffer
+                              (min maxhgth (max window-min-height ; + 1 for comfort
+                                                (+ 1 (count-lines (point-max) (point-min)))))))
+                        (unless (<= (- (frame-height) (window-height)) 2)
+                          (shrink-window (- response-height nline-resp)))
+                        (goto-char (point-min))
+                        (recenter)))))))))))))
+
 (defun narya-handle-output (cmd string)
   "Parse and handle Narya's output.
 If called with an invisible command (such as 'solve'), store hole data
@@ -223,7 +261,8 @@ handling in Proof General."
       (setq proof-shell-last-output-kind 'goals))
     ;; Optionally handle proof tree output
     (when proof-tree-external-display
-      (proof-tree-handle-delayed-output old-proof-marker cmd flags span))))
+      (proof-tree-handle-delayed-output old-proof-marker cmd flags span))
+    (run-hooks 'proof-shell-handle-delayed-output-hook)))
 
 (defun narya-delete-undone-holes ()
   "Delete overlays for holes that are (now) outside the processed region."
@@ -360,6 +399,7 @@ handling in Proof General."
   (set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
   (set (make-local-variable 'comment-region-function) 'narya-comment-region)
   (add-hook 'proof-state-change-hook 'narya-delete-undone-holes)
+  (add-hook 'proof-shell-handle-delayed-output-hook 'narya-optimise-resp-windows)
   (modify-syntax-entry ? " ")           ; Why is this necessary?
   (setq font-lock-multiline t))
 

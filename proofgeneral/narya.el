@@ -165,6 +165,19 @@ Copied from Coq."
                         (goto-char (point-min))
                         (recenter)))))))))))))
 
+(defun narya-show-goal ()
+  "Scroll the goal buffer to the end.
+Some code copied from Coq."
+  (unless (memq 'no-goals-display proof-shell-delayed-output-flags)
+    (let ((pg-frame (car (narya-find-threeb-frames))))
+      (with-selected-frame (or pg-frame (window-frame (selected-window)))
+        (let ((goal-win (or (get-buffer-window proof-goals-buffer)
+                            (get-buffer-window proof-goals-buffer t))))
+          (if goal-win
+              (with-selected-window goal-win
+                (goto-char (point-max))
+                (recenter (- 1)))))))))
+
 (defun narya-handle-output (cmd string)
   "Parse and handle Narya's output.
 If called with an invisible command (such as 'solve'), store hole data
@@ -399,6 +412,8 @@ handling in Proof General."
   (set (make-local-variable 'comment-insert-comment-function) 'narya-insert-comment)
   (set (make-local-variable 'comment-region-function) 'narya-comment-region)
   (add-hook 'proof-state-change-hook 'narya-delete-undone-holes)
+  ;; These have to go in this order, or optimizing the windows will recenter the goal window
+  (add-hook 'proof-shell-handle-delayed-output-hook 'narya-show-goal)
   (add-hook 'proof-shell-handle-delayed-output-hook 'narya-optimise-resp-windows)
   (modify-syntax-entry ? " ")           ; Why is this necessary?
   (setq font-lock-multiline t))

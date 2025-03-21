@@ -253,12 +253,17 @@ handling in Proof General."
                        (insert "\n\n"))
                      ;; Now we replace the old command with the new one.  But if they are the same, we do nothing,
                      ;; so that the buffer doesn't get marked "modified".
-                     (unless (equal reformatted (buffer-substring-no-properties (point) end))
-                       (insert reformatted)
-                       (delete-region (point) end))
-                     (narya-create-marked-hole-overlays start end)
-                     ;; Add an undo item so that if the reformatting is undone, ProofGeneral will also retract the Narya command.
-                     (narya-add-command-undo span)))
+                     (let ((pos (count-screen-lines (window-start) end)))
+                       (unless (equal reformatted (buffer-substring-no-properties (point) end))
+                         (insert reformatted)
+                         (delete-region (point) end))
+                       (narya-create-marked-hole-overlays start end)
+                       ;; Add an undo item so that if the reformatting is undone, ProofGeneral will also retract the Narya command.
+                       (narya-add-command-undo span)
+                       (if (>= pos (window-height))
+                           (recenter)
+                         ;; Apparently count-screen-lines is 1-based, but recenter is 0-based.
+                         (recenter (- pos 1))))))
                (let ((bpos (position-bytes (save-excursion
                                              (goto-char (overlay-start span))
                                              (skip-chars-forward " \t\n")

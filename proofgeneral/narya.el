@@ -692,8 +692,8 @@ With a negative prefix argument,set display of type boundaries off."
 ;; C-c C-t show goal type
 ;; C-c C-w why in scope
 
-(keymap-set narya-mode-map "C-c C-t" 'narya-show-hole)
 (keymap-set narya-mode-map "C-c C-SPC" 'narya-solve-hole)
+(keymap-set narya-mode-map "C-c C-," 'narya-show-hole)
 (keymap-set narya-mode-map "C-c C-?" 'narya-show-all-holes)
 (keymap-set narya-mode-map "C-c C-j" 'narya-next-hole)
 (keymap-set narya-mode-map "C-c C-k" 'narya-previous-hole)

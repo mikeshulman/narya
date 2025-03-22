@@ -180,15 +180,19 @@ In interactive mode, the following additional commands are also available.  (How
 
 ### ProofGeneral mode
 
-[ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
+[ProofGeneral](https://proofgeneral.github.io/) is a generic development environment designed for proof assistants that runs inside the text editor Emacs.  Proof General is perhaps best known for its use with [Rocq](https://rocq-prover.org/).  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
 
-Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for editing inside an existing comment, or filling a hole with `C-c C-SPC` as described below), it will automatically be retracted up to the point where you are editing.
+#### Basic usage
 
-In addition to the main window displaying your source file, there will be two other windows in split-screen labeled "goals" and "response".  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
+Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for editing inside an existing comment, or filling a hole with `C-c C-SPC` as described below), it will automatically be retracted (using Narya's `undo` command) up to the point where you are editing.
 
-The most useful ProofGeneral key commands for Narya are the following.  (As usual in Emacs, `C-a` means hold down the Control key and press `a`, then release both.  Similarly, `C-M-a` means hold down both Control and Meta (usually the same as "Alt") and press `a`, then release them all.)
+In addition to the main window displaying your source file, there will normally be two other windows in split-screen labeled "goals" and "response" (although this can be customized with the Emacs variable `proof-three-window-enable`).  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
 
-- `C-c C-n` : Process the next unprocessed command.  Since Narya has no command-terminating string, the "next command" is interpreted as continuing until the following command keyword or until the end of the buffer.
+#### Key commands
+
+The most useful ProofGeneral key commands for Narya are the following.  As usual in Emacs, `C-a` means hold down the Control key and press `a`, then release both.  Similarly, `C-M-a` means hold down both Control and Meta (usually the same as "Alt") and press `a`, then release them all.
+
+- `C-c C-n` : Process the next unprocessed command.  Since Narya has no command-terminating string, the "next command" is interpreted as continuing until the following command keyword or until the end of the buffer.  This means that if you've written a complete command but there is garbage following it, in order to process the command you'll need to either comment out the garbage or insert at least the beginning of another command in between (such as `quit`) so that ProofGeneral can find the end of the command you want to process.
 - `C-c C-u` : Retract the last processed command.
 - `C-c RET` : Move the processed/unprocessed boundary to (approximately) the current cursor location, processing or retracting as necessary.
 - `C-c C-b` : Process the entire buffer.
@@ -200,36 +204,48 @@ The most useful ProofGeneral key commands for Narya are the following.  (As usua
 - `C-c C-c` : Interrupt Narya if a command is taking too long.  Narya attempts to recover, but its state may be unreliable afterwards.
 - `M-;` : Insert a comment, remove a comment, or comment out a region.  This is a standard Emacs command, but is customized to use line comments on code lines and block comments elsewhere.
 
-As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (see below).  Whenever a hole is created by processing a command, the location of the hole is highlighted in `narya-hole-face` (which you can customize).  These highlights are removed when hole-creating commands are retracted.  Narya's ProofGeneral mode also defines the following additional key commands.
+As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (see below).  Whenever a hole is created by processing a command, the location of the hole is highlighted in `narya-hole-face` (which you can customize).  These highlights are removed when hole-creating commands are retracted.
+
+Narya's ProofGeneral mode also defines the following additional key commands.
 
 - `C-c ;` : Read a term from the minibuffer and normalize it (like `C-c C-v` with `echo`).
 - `C-c :` : Read a term from the minibuffer and synthesize its type (like `C-c C-v` with `synth`).
 - `C-c C-?` : Show the contexts and types of all open holes (like `C-c C-v` with `show holes`).
-- `C-c C-t` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
-- `C-c C-j` : Move the cursor to the position of the next open hole.  This is the analogue of Agda's `C-c C-f`.
-- `C-c C-k` : Move the cursor to the position of the previous open hole.  This is the analogue of Agda's `C-c C-b`, which unfortunately has the very different meaning in ProofGeneral of "process the entire buffer".
+- `C-c C-,` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
+- `C-c C-j` : Move the cursor to the position of the next open hole.
+- `C-c C-k` : Move the cursor to the position of the previous open hole.
 - `C-c C-SPC` : Fill the hole under point with a specified term, without retracting any code.
 - `C-c C-d C-u`: Toggle display of unicode characters.
 - `C-c C-d C-f`: Toggle display of function boundaries.
 - `C-c C-d C-t`: Toggle display of type boundaries.
 
+Agda users should beware: while a few of Narya's key commands are chosen to match those of Agda (like `C-c C-?` and `C-c C-SPC` and `C-c C-,`), many of Agda's key bindings have already been defined in ProofGeneral to mean something else (notable examples are `C-c C-n` and `C-c C-b` and `C-c C-.`), leading Narya to choose different ones (such as `C-c C-k` in place of `C-c C-b`).  If there is significant demand, we could implement a configuration option that instead preferentially chooses Agda's key bindings, moving the conflicting ProofGeneral bindings to other key sequences.
 
-### Syntax highlighting
 
-Narya's ProofGeneral mode uses Emacs' font-lock system for syntax highlighting.  This is only approximately correct as it uses simple regexps, but it's fairly good and can highlight code that hasn't been processed yet and wouldn't even parse.  It uses the following "faces" which you may want to customize (some of them are not configured by default to have any noticable color):
+#### Syntax highlighting
+
+Narya's ProofGeneral mode uses Emacs' font-lock system for syntax highlighting.  This is only approximately correct as it uses simple regexps, but it's fairly good, and can highlight code that hasn't been processed yet and wouldn't even parse.  It uses the following Emacs "faces", which you may want to customize, particularly because some of them are not configured by default to have any noticable color.
 
 - `font-lock-keyword-face`: commands such as `def` and `axiom`.
 - `font-lock-builtin-face`: keywords such as `let` and `match`.
 - `font-lock-function-name-face`: names of constants currently being defined or assumed.
 - `font-lock-constant-face`: constructor names.
-- `font-lock-number-face`: numerals.  I suggest making this face inherit from `font-lock-constant-face`, since numerals are just a shorthand for constructor sequences.
+- `font-lock-number-face`: numerals.  I suggest making this face look the same as `font-lock-constant-face`, since numerals are just a shorthand for constructor sequences.
 - `font-lock-property-name-face`: field and method names.
 - `font-lock-variable-name-face`: variables currently being bound by abstractions, let-bindings, as parameters, in the domains of dependent function-types, etc.
 - `font-lock-bracket-face`: parentheses, brackets, and braces.  Note that this inherits by default from `font-lock-punctuation-face`.
 - `font-lock-operator-face`: single-character operators like → and ASCII operators such as `->`.
 
+ProofGeneral also uses some of its own faces that you may want to customize, such as the following.
 
-### Entering Unicode characters
+- `proof-locked-face`: the background highlight of the processed region.
+
+And Narya defines some of its own faces as well.
+
+- `narya-hole-face`: the background highlight of open holes.
+
+
+#### Entering Unicode characters
 
 When editing Narya files in Emacs, you will probably also want an input-mode for entering Unicode characters.  Narya does not have its own such mode.  I use the one that ships with Agda, customized by adding the following to `agda-input-user-translations`:
 ```
@@ -247,6 +263,20 @@ With this customization added, the Unicode characters that have primitive meanin
 - For ≔, type `\:=`
 - For …, type `\...`
 
+(These particular characters will be automatically converted from their ASCII versions to their Unicode equivalents by Narya's reformatter (assuming `display chars` is set to `unicode`), so it is not necessary to enter them manually.  But you will probably want to enter other Unicode characters at some point as well.)
+
+
+#### Other customization
+
+Some other ProofGeneral customization options you may want to consider are:
+
+- `proof-output-tooltips`: I recommend turning this off, as the "output" that it displays in tooltips is not very readable or helpful.
+
+- `proof-shrink-windows-tofit`: Note that this only affects windows that take up the full width of the frame, and in particular has no effect in the default three-window mode.  However, Narya's ProofGeneral mode includes some custom code (copied from the Rocq mode) that resizes the response window in three-window mode as well.
+
+- `narya-prog-args`: If you want to pass command-line options to alter the behavior of Narya, such as the options like `-dtt` that modify the type theory, at present the only way to do this is to change this variable.  You can do that globally, or locally in particular `ny` files with Emacs file-local variables.  If you do change this variable, make sure to keep the argument `-proofgeneral` in it, which is necessary to put Narya into the correct mode for interacting with ProofGeneral.
+
+
 ### Code formatter
 
 Narya comes with an "opinionated code formatter" like [gofmt](https://go.dev/blog/gofmt), [ocamlformat](https://github.com/ocaml-ppx/ocamlformat), or [prettier](https://prettier.io/docs/why-prettier).  In fact, the formatter is built into Narya, using the same parser and pretty-printer as the typechecker; so they should never get out of sync as the language changes.
@@ -255,7 +285,7 @@ There are currently two ways to use the formatter.  Firstly, every time you run 
 
 Secondly, every time you process a command in ProofGeneral, that command is automatically reformatted.  If you retract the command, it remains reformatted.  To undo the reformatting, you can use Emacs' undo operation (`C-/`); this will also retract the command, if it is still in the processed region.
 
-Processing an entire file in ProofGeneral does not have *exactly* the same reformatting effect as running Narya on it from the command line.  They should reformat individual commands in the same way, but the command-line reformatter also ensures that distinct commands are separated by single blank lines (suitably interpreted in the presence of comments).  ProofGeneral can't do this, as it doesn't even pass blank lines and comments between commands to the Narya subprocess.  However, most people already separate their commands by single blank lines, so this difference is not usually a serious issue.
+Processing an entire file in ProofGeneral does not have *exactly* the same reformatting effect as running Narya on it from the command line.  They should reformat individual commands in the same way, but the command-line reformatter also ensures that distinct commands are separated by single blank lines (suitably interpreted in the presence of comments).  ProofGeneral can't do this, as it doesn't even pass blank lines and comments between commands to the Narya subprocess.  However, most people already separate their commands by single blank lines, so this difference is not usually a serious issue.  If a file has been formatted by the command-line reformatter, processing it in Proof General should not *change* that formatting (if it does, please report a bug).
 
 It is not currently possible to reformat code without simultaneously typechecking it.  The presence of user-definable mixfix notations that can also be imported from other files means that any reformatter must be at least partially context-aware.  It would probably be possible to implement a reformatter that resolves user-defined notations without typechecking definitions, but this is not a high priority.
 
@@ -410,7 +440,7 @@ The `notations` namespace is not otherwise special: you can put constants in it 
 
 For example, you can avoid making any imported notations available by using the modifier `except notations`, or you can import only the notations and no definitions with `only notations`.  Or you can import only a few particular notations with a modifier like `in notations union (only plus; only times)`.  In particular, if you import an entire file qualified such as `import "arith" | renaming . arith`, then a notation such as `notations.plus` in `"arith.ny"` will be renamed to `arith.notations.plus`, which is not in the `notations` namespace and thus will not be available to the parser.  To import all the constants qualified but make all the notations available, write `import "arith" | seq (renaming . arith; renaming arith.notations notations)`.  (This is probably a good candidate to have an abbreviated version.)
 
-The `notations` namespace can also contain sub-namespaces: if you write `notation 1 nat.plus` then it will go in the namespace as `notations.nat.plus`.  Then by importing with `in notations only nat` you can get all the notations in that namespace such as `notations.nat.plus` and `notations.nat.times`, but no other notations from the imported file.  Thus, notation namespaces act somewhat like Coq's [notation scopes](https://coq.inria.fr/doc/V8.18.0/refman/user-extensions/syntax-extensions.html#notation-scopes), although they can only be opened globally and not locally to part of a term.
+The `notations` namespace can also contain sub-namespaces: if you write `notation 1 nat.plus` then it will go in the namespace as `notations.nat.plus`.  Then by importing with `in notations only nat` you can get all the notations in that namespace such as `notations.nat.plus` and `notations.nat.times`, but no other notations from the imported file.  Thus, notation namespaces act somewhat like Rocq's [notation scopes](https://coq.inria.fr/doc/V8.18.0/refman/user-extensions/syntax-extensions.html#notation-scopes), although they can only be opened globally and not locally to part of a term.
 
 
 ### Compilation

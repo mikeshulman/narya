@@ -7,6 +7,7 @@ type spacing = [ `Wide | `Narrow ]
 type show = [ `Show | `Hide ]
 type holes = [ `With_number | `Without_number ]
 type values = [ `Unicode | `ASCII | `Show | `Hide ]
+type 'a toggle = [ `Set of 'a | `Toggle ]
 
 let to_string : values -> string = function
   | `Unicode -> "unicode"
@@ -60,6 +61,36 @@ let alt_char uni asc =
 
 let run = State.run
 let modify = State.modify
+
+let modify_chars chars =
+  let s = State.get () in
+  let chars =
+    match (chars, s.chars) with
+    | `Set x, _ -> x
+    | `Toggle, `Unicode -> `ASCII
+    | `Toggle, `ASCII -> `Unicode in
+  State.set { s with chars };
+  chars
+
+let modify_function_boundaries fb =
+  let s = State.get () in
+  let function_boundaries =
+    match (fb, s.function_boundaries) with
+    | `Set x, _ -> x
+    | `Toggle, `Show -> `Hide
+    | `Toggle, `Hide -> `Show in
+  State.set { s with function_boundaries };
+  function_boundaries
+
+let modify_type_boundaries fb =
+  let s = State.get () in
+  let type_boundaries =
+    match (fb, s.type_boundaries) with
+    | `Set x, _ -> x
+    | `Toggle, `Show -> `Hide
+    | `Toggle, `Hide -> `Show in
+  State.set { s with type_boundaries };
+  type_boundaries
 
 (* For now, we hardcode this. *)
 let columns () = 77

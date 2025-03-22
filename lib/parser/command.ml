@@ -83,11 +83,12 @@ module Command = struct
         wsdisplay : Whitespace.t list;
         wscoloneq : Whitespace.t list;
         what :
-          [ `Chars of Whitespace.t list * Display.chars * Whitespace.t list
+          [ `Chars of Whitespace.t list * Display.chars Display.toggle * Whitespace.t list
           | `Function_boundaries of
-            Whitespace.t list * Whitespace.t list * Display.show * Whitespace.t list
+            Whitespace.t list * Whitespace.t list * Display.show Display.toggle * Whitespace.t list
           | `Type_boundaries of
-            Whitespace.t list * Whitespace.t list * Display.show * Whitespace.t list ];
+            Whitespace.t list * Whitespace.t list * Display.show Display.toggle * Whitespace.t list
+          ];
       }
     | Option of {
         wsoption : Whitespace.t list;
@@ -486,14 +487,16 @@ module Parse = struct
       | `Holes ws -> return (`Holes, ws) in
     return (Show { wsshow; what; wswhat })
 
-  let chars_of_token : Token.t -> Display.chars option = function
-    | Ident [ "unicode" ] -> Some `Unicode
-    | Ident [ "ascii" ] -> Some `ASCII
+  let chars_of_token : Token.t -> Display.chars Display.toggle option = function
+    | Ident [ "unicode" ] -> Some (`Set `Unicode)
+    | Ident [ "ascii" ] -> Some (`Set `ASCII)
+    | Ident [ "toggle" ] -> Some `Toggle
     | _ -> None
 
-  let show_of_token : Token.t -> Display.show option = function
-    | Ident [ "on" ] -> Some `Show
-    | Ident [ "off" ] -> Some `Hide
+  let show_of_token : Token.t -> Display.show Display.toggle option = function
+    | Ident [ "on" ] -> Some (`Set `Show)
+    | Ident [ "off" ] -> Some (`Set `Hide)
+    | Ident [ "toggle" ] -> Some `Toggle
     | _ -> None
 
   let display =
@@ -896,18 +899,14 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
   | Display { what; _ } -> (
       match what with
       | `Chars (_, chars, _) ->
-          Display.modify (fun s -> { s with chars });
+          let chars = Display.modify_chars chars in
           emit (Display_set ("chars", Display.to_string (chars :> Display.values)))
-      | `Function_boundaries (_, _, function_boundaries, _) ->
-          Display.modify (fun s -> { s with function_boundaries });
-          emit
-            (Display_set
-               ("function boundaries", Display.to_string (function_boundaries :> Display.values)))
-      | `Type_boundaries (_, _, type_boundaries, _) ->
-          Display.modify (fun s -> { s with type_boundaries });
-          emit
-            (Display_set ("type boundaries", Display.to_string (type_boundaries :> Display.values)))
-      )
+      | `Function_boundaries (_, _, fb, _) ->
+          let fb = Display.modify_function_boundaries fb in
+          emit (Display_set ("function boundaries", Display.to_string (fb :> Display.values)))
+      | `Type_boundaries (_, _, tb, _) ->
+          let tb = Display.modify_type_boundaries tb in
+          emit (Display_set ("type boundaries", Display.to_string (tb :> Display.values))))
   | Option { what; _ } -> (
       History.do_command @@ fun () ->
       match what with

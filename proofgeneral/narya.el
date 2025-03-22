@@ -535,7 +535,6 @@ pending hole data stored by `narya-handle-output'."
                 ;; "solve" command can't be undone.
                 (narya-add-command-undo cmd-span)))))))))
   
-(keymap-set narya-mode-map "C-c C-SPC" 'narya-solve-hole)
 
 (defun narya-echo (term)
   "Normalize and display the value and type of a term."
@@ -546,6 +545,45 @@ pending hole data stored by `narya-handle-output'."
   "Display the type of a term."
   (interactive "sTerm to synthesize: ")
   (proof-shell-invisible-command (concat "synth " term)))
+
+(defun narya-display-chars (arg)
+  "Set, unset, or toggle display of unicode characters.
+With no prefix argument, toggle display of unicode and ASCII.
+With a positive prefix argument, set display to unicode.
+With a negative prefix argument, set display to ASCII."
+  (interactive "P")
+  (proof-shell-invisible-command
+   (if arg
+       (if (> (prefix-numeric-value arg) 0)
+           "display chars := unicode"
+         "display chars := ascii")
+     "display chars := toggle")))
+
+(defun narya-display-function-boundaries (arg)
+  "Set, unset, or toggle display of function boundaries.
+With no prefix argument, toggle display of function boundaries.
+With a positive prefix argument, set display of function boundaries on.
+With a negative prefix argument,set display of function boundaries off."
+  (interactive "P")
+  (proof-shell-invisible-command
+   (if arg
+       (if (> (prefix-numeric-value arg) 0)
+           "display function boundaries := on"
+         "display function boundaries := off")
+     "display function boundaries := toggle")))
+
+(defun narya-display-type-boundaries (arg)
+  "Set, unset, or toggle display of type boundaries.
+With no prefix argument, toggle display of type boundaries.
+With a positive prefix argument, set display of type boundaries on.
+With a negative prefix argument,set display of type boundaries off."
+  (interactive "P")
+  (proof-shell-invisible-command
+   (if arg
+       (if (> (prefix-numeric-value arg) 0)
+           "display type boundaries := on"
+         "display type boundaries := off")
+     "display type boundaries := toggle")))
 
 (defvar narya-minibuffer-commands
   '("echo"
@@ -655,12 +693,16 @@ pending hole data stored by `narya-handle-output'."
 ;; C-c C-w why in scope
 
 (keymap-set narya-mode-map "C-c C-t" 'narya-show-hole)
+(keymap-set narya-mode-map "C-c C-SPC" 'narya-solve-hole)
 (keymap-set narya-mode-map "C-c C-?" 'narya-show-all-holes)
 (keymap-set narya-mode-map "C-c C-j" 'narya-next-hole)
 (keymap-set narya-mode-map "C-c C-k" 'narya-previous-hole)
 (keymap-set narya-mode-map "C-c ;" 'narya-echo)
 (keymap-set narya-mode-map "C-c :" 'narya-synth)
 (keymap-set narya-mode-map "C-c C-v" 'narya-minibuffer-cmd)
+(keymap-set narya-mode-map "C-c C-d C-u" 'narya-display-chars)
+(keymap-set narya-mode-map "C-c C-d C-f" 'narya-display-function-boundaries)
+(keymap-set narya-mode-map "C-c C-d C-t" 'narya-display-type-boundaries)
 
 (provide 'narya)
 

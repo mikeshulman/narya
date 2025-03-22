@@ -41,7 +41,7 @@ The recommended mode of use of Narya is with its [ProofGeneral](https://proofgen
 
 1. Restart Emacs.
 
-You will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them), whenever ProofGeneral is updated, and whenever Emacs is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
+You will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them, in which case restarting Emacs will suffice); whenever ProofGeneral is updated; and whenever Emacs is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Rocq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
 
 ### In-browser version
 
@@ -168,10 +168,13 @@ In interactive mode, the following additional commands are also available.  (How
    ```
    display chars ≔ unicode
    display chars ≔ ascii
+   display chars ≔ toggle
    display function boundaries ≔ on
    display function boundaries ≔ off
+   display function boundaries ≔ toggle
    display type boundaries ≔ on
    display type boundaries ≔ off
+   display type boundaries ≔ toggle
    ```
 
 
@@ -206,6 +209,9 @@ As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (s
 - `C-c C-j` : Move the cursor to the position of the next open hole.  This is the analogue of Agda's `C-c C-f`.
 - `C-c C-k` : Move the cursor to the position of the previous open hole.  This is the analogue of Agda's `C-c C-b`, which unfortunately has the very different meaning in ProofGeneral of "process the entire buffer".
 - `C-c C-SPC` : Fill the hole under point with a specified term, without retracting any code.
+- `C-c C-d C-u`: Toggle display of unicode characters.
+- `C-c C-d C-f`: Toggle display of function boundaries.
+- `C-c C-d C-t`: Toggle display of type boundaries.
 
 
 ### Syntax highlighting

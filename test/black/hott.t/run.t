@@ -356,34 +356,19 @@
    ￮ constant iscontr_idto defined
   
    ￫ info[I0000]
-   ￮ constant qinv defined
-  
-   ￫ info[I0000]
-   ￮ constant qinv_id defined
-  
-   ￫ info[I0000]
-   ￮ constant sym_qinv defined
-  
-   ￫ info[I0000]
-   ￮ constant qinv2 defined
-  
-   ￫ info[I0000]
-   ￮ constant qinv2_qinv defined
-  
-   ￫ info[I0000]
    ￮ constant is11 defined
-  
-   ￫ info[I0000]
-   ￮ constant is11_qinv2 defined
-  
-   ￫ info[I0000]
-   ￮ constant is11_qinv defined
   
    ￫ info[I0000]
    ￮ constant is11_Id defined
   
    ￫ info[I0000]
-   ￮ constant is11_eqv defined
+   ￮ constant isBisim defined
+  
+   ￫ info[I0000]
+   ￮ constant bisim_of_11 defined
+  
+   ￫ info[I0000]
+   ￮ constant isbisim_eqv defined
   
    ￫ info[I0004]
    ￮ file loaded: $TESTCASE_ROOT/homotopy.ny (source)
@@ -396,6 +381,9 @@
   
    ￫ info[I0000]
    ￮ constant pre_univalence defined
+  
+   ￫ info[I0000]
+   ￮ constant univalence_bisim defined
   
    ￫ info[I0000]
    ￮ constant univalence_11 defined

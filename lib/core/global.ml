@@ -183,13 +183,11 @@ let save_metas metas =
 
 (* Since holes are not allowed inside all commands, we need to keep track of whether we're in a command that allows holes and check for it. *)
 module HolesAllowed = Algaeff.Reader.Make (struct
-  type t = (unit, string) Result.t
+  type t = (unit, [ `Command of string | `File of string ]) Result.t
 end)
 
 let () =
   HolesAllowed.register_printer (function `Read -> Some "unhandled HolesAllowed.read effect")
-
-let with_holes env f = HolesAllowed.run ~env f
 
 (* Add a new hole.  This is an eternal metavariable, so we pass off to Eternity, and also save some information about it locally so that we can discard it if the command errors (in interactive mode this doesn't stop the program) and notify the user if the command succeeds, and also discard it if this command is later undone. *)
 let add_hole m loc ~vars ~termctx ~ty ~status ~li ~ri =
@@ -202,7 +200,7 @@ let add_hole m loc ~vars ~termctx ~ty ~status ~li ~ri =
         current_holes = Snoc (d.current_holes, (Wrap m, PHole (vars, termctx, ty), loc));
         holes = Meta.WrapSet.add (Wrap m) d.holes;
       }
-  | Error cmd -> fatal (No_holes_allowed cmd)
+  | Error msg -> fatal (No_holes_allowed msg)
 
 (* Check whether a hole exists in the current time. *)
 let hole_exists : type a b s. (a, b, s) Meta.t -> bool =

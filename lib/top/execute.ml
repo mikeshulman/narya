@@ -304,9 +304,7 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) ?renderer comp
   let p, src = Parser.Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
-    (fun () ->
-      batch renderer p src `None [];
-      if Eternity.unsolved () > 0 then Reporter.fatal (Open_holes_remaining source))
+    (fun () -> batch renderer p src `None [])
     ~fatal:(fun d ->
       match d.message with
       | Quit _ ->

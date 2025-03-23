@@ -702,9 +702,13 @@ let needs_interactive : Command.t -> bool = function
   | Solve _ | Show _ | Undo _ -> true
   | _ -> false
 
-let allows_holes : Command.t -> (unit, string) Result.t = function
-  | Axiom _ | Def _ | Solve _ -> Ok ()
-  | cmd -> Error (to_string cmd)
+(* Forbid holes in imported files and in most commands.  In commands that allow holes, don't change the current setting (e.g. if we are in an imported file, we still don't want any holes). *)
+let maybe_forbid_holes : Command.t -> (unit -> 'a) -> 'a =
+ fun cmd f ->
+  match cmd with
+  | Axiom _ | Def _ | Solve _ -> f ()
+  | Import { origin = `File file; _ } -> Global.HolesAllowed.run ~env:(Error (`File file)) f
+  | _ -> Global.HolesAllowed.run ~env:(Error (`Command (to_string cmd))) f
 
 let condense : Command.t -> [ `Import | `Option | `None | `Bof ] = function
   | Import _ -> `Import
@@ -716,7 +720,7 @@ let execute : action_taken:(unit -> unit) -> get_file:(string -> Scope.trie) -> 
  fun ~action_taken ~get_file cmd ->
   if needs_interactive cmd && not (Core.Command.Mode.read ()).interactive then
     fatal (Forbidden_interactive_command (to_string cmd));
-  Global.with_holes (allows_holes cmd) @@ fun () ->
+  maybe_forbid_holes cmd @@ fun () ->
   match cmd with
   | Axiom { name; loc; parameters; ty = Wrap ty; _ } ->
       History.do_command @@ fun () ->

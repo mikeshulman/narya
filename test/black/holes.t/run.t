@@ -307,7 +307,7 @@
    ￮ constant idafam defined
   
    ￫ error[E3002]
-   ￮ file $TESTCASE_ROOT/holes.ny contains open holes
+   ￮ file holes.ny contains open holes
   
   [1]
 
@@ -335,3 +335,14 @@ No holes in echo:
   
   [1]
 
+No holes in imported file
+
+  $ echo 'def A : Type := ?' >to_import.ny
+
+  $ narya -e 'import "to_import"'
+   ￫ error[E2002]
+   ￭ $TESTCASE_ROOT/to_import.ny
+   1 | def A : Type := ?
+     ^ imported file 'to_import' cannot contain holes
+  
+  [1]

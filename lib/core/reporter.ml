@@ -164,7 +164,7 @@ module Code = struct
     | Hole : string * printable -> t
     | No_open_holes : t
     | Open_holes : int -> t
-    | Open_holes_remaining : Asai.Range.source -> t
+    | Open_holes_remaining : [ `File of string | `String | `Stdin ] -> t
     | Quit : string option -> t
     | Synthesizing_recursion : printable -> t
     | Invalid_synthesized_type : string * printable -> t
@@ -196,7 +196,7 @@ module Code = struct
     | Option_set : string * string -> t
     | Break : t
     | Accumulated : string * t Asai.Diagnostic.t Bwd.t -> t
-    | No_holes_allowed : string -> t
+    | No_holes_allowed : [ `Command of string | `File of string ] -> t
 
   (* If an error is encountered during printing a term, we perform this effect and print it as "_UNPRINTABLE".  Usually this is a bug, but sometimes it can happen normally, particularly when accumulating errors: a term involved in a later error might be unprintable due to a previous error.  *)
   module PrintingError = State.Make (struct
@@ -782,8 +782,8 @@ module Code = struct
         | Open_holes_remaining src -> (
             match src with
             | `File name -> textf "file %s contains open holes" name
-            | `String { title = Some title; _ } -> textf "%s contains open holes" title
-            | `String { title = None; _ } -> text "load string contains open holes")
+            | `Stdin -> textf "stdin contains open holes"
+            | `String -> textf "command-line exec string contains open holes")
         | Quit (Some src) -> textf "execution of %s terminated by quit" src
         | Quit None -> text "execution terminated by quit"
         | Synthesizing_recursion c ->
@@ -838,7 +838,10 @@ module Code = struct
         | Option_set (setting, str) -> textf "option set %s to %s" setting str
         | No_such_section -> text "no section here to end"
         | Break -> text "user interrupt"
-        | No_holes_allowed cmd -> textf "command '%s' cannot contain holes" cmd in
+        | No_holes_allowed str -> (
+            match str with
+            | `Command cmd -> textf "command '%s' cannot contain holes" cmd
+            | `File file -> textf "imported file '%s' cannot contain holes" file) in
       (msg, PrintingError.get ()) in
     match printing_error with
     | None -> msg

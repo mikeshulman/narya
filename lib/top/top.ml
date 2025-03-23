@@ -70,6 +70,8 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   Parser.Scope.Mod.run @@ fun () ->
   History.run_empty @@ fun () ->
   Eternity.run ~init:Eternity.empty @@ fun () ->
+  (* Holes are allowed in command-line files, strings, and interactive modes, although we will raise an error *after* completing any command-line files or strings that contain holes. *)
+  Global.HolesAllowed.run ~env:(Ok ()) @@ fun () ->
   (* By default, we ignore the hole positions. *)
   Global.HolePos.try_with ~get:(fun () -> { holes = Emp; offset = 0 }) ~set:(fun _ -> ())
   @@ fun () ->
@@ -127,20 +129,22 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   ( Core.Command.Mode.run ~env:{ interactive = false } @@ fun () ->
     Mbwd.miter
       (fun [ input ] ->
-        match input with
-        | `File filename ->
-            let _ = Execute.load_file filename true in
-            ()
-        | `Stdin ->
-            let content = In_channel.input_all stdin in
-            let _ = Execute.load_string (Some "stdin") content in
-            ()
-        (* Command-line strings have all the previous units loaded without needing to import them. *)
-        | `String content ->
-            let _ =
-              Execute.load_string ~init_visible:(Execute.Loaded.get_scope ())
-                (Some "command-line exec string") content in
-            ())
+        let source =
+          match input with
+          | `File filename ->
+              let _ = Execute.load_file filename true in
+              `File filename
+          | `Stdin ->
+              let content = In_channel.input_all stdin in
+              let _ = Execute.load_string (Some "stdin") content in
+              `Stdin
+          (* Command-line strings have all the previous units loaded without needing to import them. *)
+          | `String content ->
+              let _ =
+                Execute.load_string ~init_visible:(Execute.Loaded.get_scope ())
+                  (Some "command-line exec string") content in
+              `String in
+        if Eternity.unsolved () > 0 then Reporter.fatal (Open_holes_remaining source))
       [ !inputs ] );
   (* Interactive mode also has all the other units loaded. *)
   History.set_visible (Execute.Loaded.get_scope ());

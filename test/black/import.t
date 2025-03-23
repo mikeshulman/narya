@@ -359,3 +359,39 @@ Undoing and redoing an import
    ￫ info[I0001]
    ￮ axiom a assumed
   
+Importing after creating a hole
+
+  $ rm one.nyo
+
+  $ cat >importhole.ny <<EOF
+  > def Z : Type := ?
+  > import "one"
+  > def W : Type := Z
+  > EOF
+
+  $ narya -v importhole.ny
+   ￫ info[I0000]
+   ￮ constant Z defined, containing 1 hole
+  
+   ￫ info[I3003]
+   ￮ hole ?0:
+     
+     ----------------------------------------------------------------------
+     Type
+  
+   ￫ info[I0003]
+   ￮ loading file: $TESTCASE_ROOT/one.ny
+  
+   ￫ info[I0001]
+   ￮ axiom A assumed
+  
+   ￫ info[I0004]
+   ￮ file loaded: $TESTCASE_ROOT/one.ny (source)
+  
+   ￫ info[I0000]
+   ￮ constant W defined
+  
+   ￫ error[E3002]
+   ￮ file importhole.ny contains open holes
+  
+  [1]

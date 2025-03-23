@@ -257,7 +257,7 @@
      refl ID A A (refl A) (u02 .root.1) (u12 .root.1)
   
    ￫ error[E3002]
-   ￮ file $TESTCASE_ROOT/sqrt.ny contains open holes
+   ￮ file sqrt.ny contains open holes
   
   [1]
 

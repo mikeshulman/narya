@@ -29,7 +29,10 @@ val add_meta :
 
 val set_meta : ('a, 'b, 's) Meta.t -> tm:('b, 's) term -> unit
 val save_metas : metamap -> unit
-val with_holes : (unit, string) Result.t -> (unit -> 'a) -> 'a
+
+module HolesAllowed : module type of Algaeff.Reader.Make (struct
+  type t = (unit, [ `Command of string | `File of string ]) Result.t
+end)
 
 val add_hole :
   ('a, 'b, 's) Meta.t ->

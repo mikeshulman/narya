@@ -313,6 +313,7 @@ let do_holes make_msg =
   emit (make_msg (Bwd.length d.current_holes));
   Mbwd.miter
     (fun [ (Meta.Wrap m, p, (loc : Asai.Range.t)) ] ->
+      (* We intentionally do not "locate" this emission, since we want to display only the hole context and type, not its location in the source. *)
       emit (Hole (Meta.name m, p));
       let s, e = Asai.Range.split loc in
       HolePos.modify (fun st ->

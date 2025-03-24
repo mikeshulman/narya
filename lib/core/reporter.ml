@@ -113,6 +113,7 @@ module Code = struct
         -> t
     | Unequal_indices : printable * printable -> t
     | Unbound_variable : string * (string list * string list) list -> t
+    | Ill_scoped_connection : t
     | Undefined_constant : printable -> t
     | Undefined_metavariable : printable -> t
     | Nonsynthesizing : string -> t
@@ -197,6 +198,7 @@ module Code = struct
     | Break : t
     | Accumulated : string * t Asai.Diagnostic.t Bwd.t -> t
     | No_holes_allowed : [ `Command of string | `File of string ] -> t
+    | Cyclic_term : t
 
   (* If an error is encountered during printing a term, we perform this effect and print it as "_UNPRINTABLE".  Usually this is a bug, but sometimes it can happen normally, particularly when accumulating errors: a term involved in a later error might be unprintable due to a previous error.  *)
   module PrintingError = State.Make (struct
@@ -244,6 +246,7 @@ module Code = struct
     | Missing_instantiation_constructor _ -> Error
     | Unequal_indices _ -> Error
     | Unbound_variable _ -> Error
+    | Ill_scoped_connection -> Error
     | Undefined_constant _ -> Bug
     | Undefined_metavariable _ -> Bug
     | No_such_field _ -> Error
@@ -335,6 +338,7 @@ module Code = struct
     | No_holes_allowed _ -> Error
     | Wrong_dimension_of_field _ -> Error
     | Invalid_field_suffix _ -> Error
+    | Cyclic_term -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -357,11 +361,13 @@ module Code = struct
     | No_relative_precedence _ -> "E0207"
     | Unrecognized_attribute -> "E0208"
     | Comment_end_in_string -> "E0250"
+    | Cyclic_term -> "E0280"
     | Encoding_error -> "E0299"
     (* Scope errors *)
     | Unbound_variable _ -> "E0300"
     | Undefined_constant _ -> "E0301"
     | Undefined_metavariable _ -> "E0302"
+    | Ill_scoped_connection -> "E0303"
     | Locked_variable -> "E0310"
     | Locked_axiom _ -> "E0311"
     (* Bidirectional typechecking and case trees *)
@@ -841,7 +847,9 @@ module Code = struct
         | No_holes_allowed str -> (
             match str with
             | `Command cmd -> textf "command '%s' cannot contain holes" cmd
-            | `File file -> textf "imported file '%s' cannot contain holes" file) in
+            | `File file -> textf "imported file '%s' cannot contain holes" file)
+        | Ill_scoped_connection -> text "ill-scoped connection"
+        | Cyclic_term -> text "cycle in graphical term" in
       (msg, PrintingError.get ()) in
     match printing_error with
     | None -> msg

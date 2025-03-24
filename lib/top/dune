@@ -1,3 +1,4 @@
 (library
   (name top)
+  (public_name narya.top)
   (libraries core parser))

@@ -6,7 +6,6 @@
       (>= 5.2.0))
     dune
     zarith
-    uuseg
     bwd
     algaeff
     asai

@@ -1,4 +1,4 @@
 (executable
-	(libraries core parser top react lwt lambda-term)
+  (libraries core parser top react lwt lambda-term)
   (name narya)
   (public_name narya))

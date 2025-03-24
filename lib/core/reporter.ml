@@ -3,7 +3,6 @@ open Util
 open Dim
 open Asai.Diagnostic
 open Format
-open Uuseg_string
 open Energy
 
 (* In order to display terms and suchlike in Asai messages, we utilize a double indirection.  Firstly, displaying a term requires "unparsing" it to a parse tree and then printing the parse tree, but parse trees and unparsing aren't defined until the Parser library, which is loaded after Core.  (Displaying a value additionally requires reading it back into a term, which is defined later in Core.)  For this reason, we introduce a wrapper type "printable" that can contain a term, value, etc.  Since terms and values haven't been defined yet in this file, we make "printable" an extensible variant, so they can be added later (in the module Printable) after they are defined.  (They also have to be bundled with their context.) *)
@@ -712,8 +711,10 @@ module Code = struct
         | Anomaly str -> textf "anomaly: %s" str
         | No_such_level i ->
             textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
-        | Name_already_defined name -> textf "name already defined: %a" pp_utf_8 name
-        | Invalid_constant_name name -> textf "invalid constant name: %a" pp_utf_8 name
+        | Name_already_defined name ->
+            textf "name already defined: %a" pp_printed (print (PString name))
+        | Invalid_constant_name name ->
+            textf "invalid constant name: %a" pp_printed (print (PString name))
         | Too_many_commands -> text "too many commands: enter one at a time"
         | Fixity_mismatch ->
             text

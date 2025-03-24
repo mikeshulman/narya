@@ -1,4 +1,4 @@
 (library
   (name dim)
   (libraries util)
-	(instrumentation (backend landmarks --auto)))
+  (instrumentation (backend landmarks --auto)))

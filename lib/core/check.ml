@@ -495,7 +495,42 @@ let rec check : type a b s.
             | Neq -> fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitApp", CubeOf.dim doms, D.zero))
             )
         | _ -> fatal ?loc:fn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn), PVal (ctx, sty))))
-  in
+    | First alts, _ ->
+        let rec go errs = function
+          | [] -> fatal (Choice_mismatch (PVal (ctx, ty)))
+          | (test, alt, passthru) :: alts -> (
+              match (view_type ty "check_first", test) with
+              | Canonical (_, Data { constrs = data_constrs; _ }, _), `Data constrs ->
+                  if
+                    List.for_all
+                      (fun constr ->
+                        Bwd.exists (fun (data_constr, _) -> constr = data_constr) data_constrs)
+                      constrs
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> check ?discrete status ctx (locate_opt tm.loc alt) ty
+                  else go errs alts
+              | Canonical (_, Codata { fields = codata_fields; _ }, _), `Codata fields ->
+                  if
+                    List.for_all
+                      (fun field ->
+                        Bwd.exists
+                          (fun (CodatafieldAbwd.Entry (codata_field, _)) ->
+                            field = Field.to_string codata_field)
+                          codata_fields)
+                      fields
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> check ?discrete status ctx (locate_opt tm.loc alt) ty
+                  else go errs alts
+              | _, `Any ->
+                  Reporter.try_with ~fatal:(fun d ->
+                      if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                  @@ fun () -> check ?discrete status ctx (locate_opt tm.loc alt) ty
+              | _ -> go errs alts) in
+        go Emp alts in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx tm;
   Annotate.ty ctx ty;
@@ -2104,7 +2139,77 @@ and synth : type a b s.
         synth_nondep_match status ctx tm branches None
     | Match { tm; sort = `Nondep i; branches; refutables = _ }, Potential _ ->
         synth_nondep_match status ctx tm branches (Some i)
-    | Fail e, _ -> fatal e in
+    | Fail e, _ -> fatal e
+    (* If we're using the synthesized type of an argument as an implicit first argument: *)
+    | ImplicitSApp (fn, apploc, arg), _ -> (
+        (* We synthesize both function and argument *)
+        let sfn, sfnty = synth (Kinetic `Nolet) ctx fn in
+        let _, sargty = synth (Kinetic `Nolet) ctx arg in
+        (* We read back the synthesized type, so we can put it as the first argument in the generated term. *)
+        let cargty = readback_val ctx sargty in
+        match view_type sfnty "ImplicitSApp" with
+        | Pi (_, doms, cods, tyargs) -> (
+            (* Only 0-dimensional applications are allowed, and the first argument must be a type. *)
+            match
+              ( D.compare (CubeOf.dim doms) D.zero,
+                view_type (CubeOf.find_top doms) "ImplicitSApp argument" )
+            with
+            | Eq, UU _ ->
+                (* We build the implicit application term and its type. *)
+                let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cargty)) in
+                let new_sty = tyof_app cods tyargs (CubeOf.singleton sargty) in
+                (* And then apply to the argument. *)
+                let stm, sty =
+                  synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn
+                    [ (apploc, locate_opt arg.loc (Synth arg.value), locate_opt None `Explicit) ]
+                in
+                (realize status stm, sty)
+            | Eq, _ ->
+                fatal ?loc:fn.loc (Anomaly "first argument of an ImplicitSMap is not of type Type")
+            | Neq, _ ->
+                fatal ?loc:fn.loc (Dimension_mismatch ("ImplicitSApp", CubeOf.dim doms, D.zero)))
+        | _ ->
+            fatal ?loc:fn.loc (Applying_nonfunction_nontype (PTerm (ctx, sfn), PVal (ctx, sfnty))))
+    | SFirst (alts, arg), _ ->
+        let _, sty = synth status ctx (locate_opt tm.loc arg) in
+        let vsty = view_type sty "synth_first" in
+        let rec go errs = function
+          | [] ->
+              if Bwd.is_empty errs then fatal (Choice_mismatch (PVal (ctx, sty)))
+              else fatal (Accumulated ("SFirst", errs))
+          | (test, alt, passthru) :: alts -> (
+              match (vsty, test) with
+              | Canonical (_, Data { constrs = data_constrs; _ }, _), `Data constrs ->
+                  if
+                    List.for_all
+                      (fun constr ->
+                        Bwd.exists (fun (data_constr, _) -> constr = data_constr) data_constrs)
+                      constrs
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> synth status ctx (locate_opt tm.loc alt)
+                  else go errs alts
+              | Canonical (_, Codata { fields = codata_fields; _ }, _), `Codata fields ->
+                  if
+                    List.for_all
+                      (fun field ->
+                        Bwd.exists
+                          (fun (CodatafieldAbwd.Entry (codata_field, _)) ->
+                            field = Field.to_string codata_field)
+                          codata_fields)
+                      fields
+                  then
+                    Reporter.try_with ~fatal:(fun d ->
+                        if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                    @@ fun () -> synth status ctx (locate_opt tm.loc alt)
+                  else go errs alts
+              | _, `Any ->
+                  Reporter.try_with ~fatal:(fun d ->
+                      if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
+                  @@ fun () -> synth status ctx (locate_opt tm.loc alt)
+              | _ -> go errs alts) in
+        go Emp alts in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx (locate_opt tm.loc (Synth tm.value));
   let restm, resty = go () in

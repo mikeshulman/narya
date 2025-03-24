@@ -128,6 +128,13 @@ module Make (I : Indices) = struct
       }
         -> 'a synth
     | Fail : Reporter.Code.t -> 'a synth
+    (* Pass the synthesized type of an argument as an implicit first argument of a function. *)
+    | ImplicitSApp : 'a synth located * Asai.Range.t option * 'a synth located -> 'a synth
+    (* Try several terms, testing for each whether the synthesized type of the specified term has certain constructors or fields. *)
+    | SFirst :
+        ([ `Data of Constr.t list | `Codata of string list | `Any ] * 'a synth * bool) list
+        * 'a synth
+        -> 'a synth
 
   (* Checkable raw terms *)
   and _ check =
@@ -160,6 +167,10 @@ module Make (I : Indices) = struct
     | ImplicitApp : 'a synth located * (Asai.Range.t option * 'a check located) list -> 'a check
     (* Embed an arbitrary object *)
     | Embed : 'a I.embed -> 'a check
+    (* Try several terms, testing for each whether the goal type has certain constructors or fields. *)
+    | First :
+        ([ `Data of Constr.t list | `Codata of string list | `Any ] * 'a check * bool) list
+        -> 'a check
 
   (* The location of the namevec is that of the whole pattern. *)
   and _ branch = Branch : ('a, 'b, 'ab) Namevec.t located * 'ab check located -> 'a branch
@@ -277,7 +288,12 @@ module Resolve (R : Resolver) = struct
           let branches = Abwd.map (branch ctx) branches in
           let refutables = Option.map (refutables ctx) r in
           Match { tm; sort; branches; refutables }
-      | Fail e -> Fail e in
+      | Fail e -> Fail e
+      | ImplicitSApp (fn, apploc, arg) -> ImplicitSApp (synth ctx fn, apploc, synth ctx arg)
+      | SFirst (tms, arg) ->
+          SFirst
+            ( List.map (fun (t, x, b) -> (t, (synth ctx (locate_opt tm.loc x)).value, b)) tms,
+              (synth ctx (locate_opt tm.loc arg)).value ) in
     R.visit ctx (locate_opt tm.loc (T2.Synth newtm));
     locate_opt tm.loc newtm
 
@@ -313,7 +329,10 @@ module Resolve (R : Resolver) = struct
       | Embed e -> (
           match R.embed ctx e with
           | Left x -> (check ctx (locate_opt tm.loc x)).value
-          | Right x -> x) in
+          | Right x -> x)
+      | First tms ->
+          First (List.map (fun (t, x, b) -> (t, (check ctx (locate_opt tm.loc x)).value, b)) tms)
+    in
     let newtm = locate_opt tm.loc newtm in
     R.visit ctx newtm;
     newtm

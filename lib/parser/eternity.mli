@@ -1,17 +1,18 @@
 open Util
 open Core
 open Status
-open Syntax
 open Term
 
 type ('a, 'b, 's) homewhen = {
   global : Global.data;
   scope : Scope.trie;
+  options : Options.t;
   status : ('b, 's) status;
   vars : (string option, 'a) Bwv.t;
 }
 
 val unsolved : unit -> int
+val notify_holes : unit -> unit
 val filter_now : unit -> unit
 val find : ('a, 'b, 's) Meta.t -> ('a, 'b, 's) Metadef.t * ('a, 'b, 's) homewhen
 

@@ -3,17 +3,17 @@
 open Bwd
 open Util
 open Core
+open Reporter
+open Readback
 open Parser
 module Execute = Execute
 
 (* Global flags, as set for instance by command-line arguments. *)
 let inputs : [ `String of string | `File of string | `Stdin ] Bwd.t ref = ref Emp
 let anon_arg filename = inputs := Snoc (!inputs, `File filename)
-let reformat = ref false
 let verbose = ref false
-let compact = ref false
+let reformat = ref true
 let unicode = ref true
-let execute = ref true
 let arity = ref 2
 let refl_char = ref 'e'
 let refl_names = ref [ "refl"; "Id" ]
@@ -23,6 +23,8 @@ let source_only = ref false
 let number_metas = ref true
 let parenthesize_arguments = ref false
 let extra_spaces = ref true
+let show_function_boundaries = ref false
+let show_type_boundaries = ref false
 
 (* Marshal the current flags to a file. *)
 let marshal_flags chan =
@@ -58,19 +60,6 @@ let set_refls str =
       refl_char := c.[0];
       refl_names := names
 
-(* Given a command and preceeding whitespace, execute the command (if we are executing commands), alert about open holes, and print the reformatted command if requested. *)
-let do_command = function
-  | ws, None -> Execute.reformat_maybe @@ fun ppf -> Print.pp_ws `None ppf ws
-  | ws, Some cmd ->
-      if !execute then Execute.execute_command cmd;
-      let n = Eternity.unsolved () in
-      if n > 0 then Reporter.emit (Open_holes n);
-      Execute.reformat_maybe @@ fun ppf ->
-      Print.pp_ws `None ppf ws;
-      let last = Parser.Command.pp_command ppf cmd in
-      Print.pp_ws `None ppf last;
-      Format.pp_print_newline ppf ()
-
 (* This exception is raised when a fatal error occurs in loading the non-interactive inputs.  The caller should catch it and perform an appropriate kind of "exit".  *)
 exception Exit
 
@@ -81,23 +70,31 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   Parser.Scope.Mod.run @@ fun () ->
   History.run_empty @@ fun () ->
   Eternity.run ~init:Eternity.empty @@ fun () ->
+  (* Holes are allowed in command-line files, strings, and interactive modes, although we will raise an error *after* completing any command-line files or strings that contain holes. *)
+  Global.HolesAllowed.run ~env:(Ok ()) @@ fun () ->
   (* By default, we ignore the hole positions. *)
   Global.HolePos.try_with ~get:(fun () -> { holes = Emp; offset = 0 }) ~set:(fun _ -> ())
   @@ fun () ->
-  Printconfig.run
-    ~env:
+  Display.run
+    ~init:
       {
-        style = (if !compact then `Compact else `Noncompact);
-        state = `Case;
         chars = (if !unicode then `Unicode else `ASCII);
         metas = (if !number_metas then `Numbered else `Anonymous);
         argstyle = (if !parenthesize_arguments then `Parens else `Spaces);
         spacing = (if !extra_spaces then `Wide else `Narrow);
+        function_boundaries = (if !show_function_boundaries then `Show else `Hide);
+        type_boundaries = (if !show_type_boundaries then `Show else `Hide);
+        holes = `Without_number;
       }
   @@ fun () ->
   Annotate.run @@ fun () ->
-  Readback.Display.run ~env:false @@ fun () ->
+  Readback.Displaying.run ~env:false @@ fun () ->
   Core.Discrete.run ~env:!discreteness @@ fun () ->
+  if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
+  if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
+  Dim.Endpoints.run ~arity:!arity ~refl_char:!refl_char ~refl_names:!refl_names ~internal:!internal
+  @@ fun () ->
+  (* We have to put Reporter.run inside Endpoints.run, so we can display dimensions *)
   Reporter.run
     ~emit:(fun d ->
       if !verbose || d.severity = Error || d.severity = Warning then
@@ -105,10 +102,6 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
     ~fatal:(fun d ->
       Reporter.display ?use_ansi ~output:stderr d;
       raise Exit)
-  @@ fun () ->
-  if !arity < 1 || !arity > 9 then Reporter.fatal (Unimplemented "arities outside [1,9]");
-  if !discreteness && !arity > 1 then Reporter.fatal (Unimplemented "discreteness with arity > 1");
-  Dim.Endpoints.run ~arity:!arity ~refl_char:!refl_char ~refl_names:!refl_names ~internal:!internal
   @@ fun () ->
   (* The initial namespace for all compilation units. *)
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
@@ -124,7 +117,6 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
       {
         marshal = marshal_flags;
         unmarshal = unmarshal_flags;
-        execute = !execute;
         source_only = !source_only;
         init_visible = Parser.Pi.install Scope.Trie.empty;
         top_files;
@@ -137,20 +129,22 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
   ( Core.Command.Mode.run ~env:{ interactive = false } @@ fun () ->
     Mbwd.miter
       (fun [ input ] ->
-        match input with
-        | `File filename ->
-            let _ = Execute.load_file filename true in
-            ()
-        | `Stdin ->
-            let content = In_channel.input_all stdin in
-            let _ = Execute.load_string (Some "stdin") content in
-            ()
-        (* Command-line strings have all the previous units loaded without needing to import them. *)
-        | `String content ->
-            let _ =
-              Execute.load_string ~init_visible:(Execute.Loaded.get_scope ())
-                (Some "command-line exec string") content in
-            ())
+        let source =
+          match input with
+          | `File filename ->
+              let _ = Execute.load_file filename true in
+              `File filename
+          | `Stdin ->
+              let content = In_channel.input_all stdin in
+              let _ = Execute.load_string (Some "stdin") content in
+              `Stdin
+          (* Command-line strings have all the previous units loaded without needing to import them. *)
+          | `String content ->
+              let _ =
+                Execute.load_string ~init_visible:(Execute.Loaded.get_scope ())
+                  (Some "command-line exec string") content in
+              `String in
+        if Eternity.unsolved () > 0 then Reporter.fatal (Open_holes_remaining source))
       [ !inputs ] );
   (* Interactive mode also has all the other units loaded. *)
   History.set_visible (Execute.Loaded.get_scope ());
@@ -203,5 +197,6 @@ module Pauseable (R : Signatures.Type) = struct
       () { effc }
 
   (* After startup, the caller calls "next" with a callback to be executed inside the run_top handlers and return a value. *)
-  let next (f : unit -> R.t) : R.t = continue (Option.get !cont) f
+  let next (f : unit -> R.t) : R.t =
+    continue (!cont <|> Anomaly "missing continuation in Pauseable.next") f
 end

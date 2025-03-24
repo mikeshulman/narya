@@ -3,7 +3,6 @@ open Tbwd
 open Tlist
 open Dim
 open Reporter
-open Syntax
 open Value
 open Norm
 open Readback
@@ -36,8 +35,7 @@ module Ordered = struct
         ('i, 'j, 'ij) Fwn.bplus * ('i, 'b) Ctx.Ordered.t * ('j, 'ff, 'c) tel
         -> ('ij, 'b, 'c) split_tel
 
-  let rec split_tel_step :
-      type i j ij i b j ff c x.
+  let rec split_tel_step : type i j ij b ff c x.
       (i, j, ij) Fwn.bplus ->
       (i, (b, x) snoc) Ctx.Ordered.t ->
       (j, ff, c) tel ->
@@ -50,8 +48,8 @@ module Ordered = struct
         Split_tel (i_jk, newctx, Cons (x, newtel, jk))
     | Lock newctx -> split_tel_step ij_k newctx (Lock newtel)
 
-  let rec split_tel :
-      type ij b c bc. (ij, bc) Ctx.Ordered.t -> (b, c, bc) Tbwd.append -> (ij, b, c) split_tel =
+  let rec split_tel : type ij b c bc.
+      (ij, bc) Ctx.Ordered.t -> (b, c, bc) Tbwd.append -> (ij, b, c) split_tel =
    fun ctx b ->
     match b with
     | Append_nil -> Split_tel (Zero, ctx, Nil)
@@ -65,9 +63,8 @@ module Ordered = struct
         (N.zero, 'j, 'i) Fwn.bplus * (emp, 'c, 'b) Tbwd.append * ('j, 'ff, 'c) tel
         -> ('i, 'b) to_tel
 
-  let rec bplus_emp :
-      type i j ij ff c. (i, j, ij) Fwn.bplus -> (i, emp) Ctx.Ordered.t -> (N.zero, j, ij) Fwn.bplus
-      =
+  let rec bplus_emp : type i j ij.
+      (i, j, ij) Fwn.bplus -> (i, emp) Ctx.Ordered.t -> (N.zero, j, ij) Fwn.bplus =
    fun ij ctx ->
     match ctx with
     | Emp -> ij
@@ -79,12 +76,9 @@ module Ordered = struct
     let (Split_tel (ij, newctx, tel)) = split_tel ctx bc in
     To_tel (bplus_emp ij newctx, bc, tel)
 
-  (* Now we begin the suite of helper functions for bind_some.  This is an operation that happens during typechecking a pattern match, when the match variable along with all its indices have to be replaced by values determined by the constructor of each branch.  This requires the context to be re-sorted at the same time to maintain a consistent dependency structure, with each type and value depending only on the variables to its left.
+  (* Now we begin the suite of helper functions for bind_some.  This is an operation that happens during typechecking a pattern match, when the match variable along with all its indices have to be replaced by values determined by the constructor of each branch.  This requires the context to be re-sorted at the same time to maintain a consistent dependency structure, with each type and value depending only on the variables to its left.  It also requires "substitution into values", which we do by reading back values into the old context and then evaluating them in the new context. *)
 
-     It also requires "substitution into values", which we do by reading back values into the old context and then evaluating them in the new context.  However, readback and evaluation are defined in other files, and readback depends on this file since readback happens *in* a context.  So we define these operations to take a "readback-then-eval" callback function as an argument.  It has to be wrapped up in a record so as to be polymorphic, and we include two different versions of it acting on normals and values.  In addition, these callbacks return an option indicating whether readback succeeded, where failure means that not all the level variables in the input value appear in the readback context.  For normal readback such a failure is a fatal error, but in this case it just means we need to permute some other variables past the present one, so we require the caller to capture that error and return None instead.  Here's the record. *)
-
-  let eval_readback_nf :
-      type a b.
+  let eval_readback_nf : type a b.
       oldctx:(a, b) Ctx.Ordered.t -> newctx:(a, b) Ctx.Ordered.t -> normal -> normal option =
    fun ~oldctx ~newctx nf ->
     Reporter.try_with ~fatal:(fun d ->
@@ -98,8 +92,7 @@ module Ordered = struct
         ty = eval_term (Ctx.Ordered.env newctx) (readback_val (Ctx.of_ordered oldctx) nf.ty);
       }
 
-  let eval_readback_val :
-      type a b.
+  let eval_readback_val : type a b.
       oldctx:(a, b) Ctx.Ordered.t ->
       newctx:(a, b) Ctx.Ordered.t ->
       kinetic value ->
@@ -125,8 +118,7 @@ module Ordered = struct
 
      6. go_go_bind_some acts on each entry with bind_some_entry, whose real work is done by bind_some_normal_cube that acts on a cube of variables with the binder callback and readback-eval.  Since that function is the one we define first, we now proceed to comment its definition directly. *)
 
-  let bind_some_normal_cube :
-      type i a n.
+  let bind_some_normal_cube : type i a n.
       int ->
       (level -> normal option) ->
       [ `Bindable | `Nonbindable ] ->
@@ -188,8 +180,7 @@ module Ordered = struct
         [ in_entry; oldentry; newentry ] in
     return newentry
 
-  let bind_some_entry :
-      type f i a n.
+  let bind_some_entry : type f i a n.
       int ->
       (level -> normal option) ->
       oldctx:(i, a) Ctx.Ordered.t ->
@@ -228,8 +219,7 @@ module Ordered = struct
     | Nil : (nil, nil) go_go_bind_some
     | None : ('c, 'cf) go_go_bind_some
 
-  let rec go_go_bind_some :
-      type i j a c cf.
+  let rec go_go_bind_some : type i j a c cf.
       (level -> normal option) ->
       oldctx:(i, a) Ctx.Ordered.t ->
       newctx:(i, a) Ctx.Ordered.t ->
@@ -267,8 +257,7 @@ module Ordered = struct
         -> ('i, 'j, 'a, 'af, 'b, 'bf) go_bind_some
     | None : ('i, 'j, 'a, 'af, 'b, 'bf) go_bind_some
 
-  let rec go_bind_some :
-      type i j a af b bf.
+  let rec go_bind_some : type i j a af b bf.
       (level -> normal option) ->
       oldctx:(i, a) Ctx.Ordered.t ->
       newctx:(i, a) Ctx.Ordered.t ->

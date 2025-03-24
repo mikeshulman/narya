@@ -3,13 +3,14 @@ open Util
 open Core
 open Reporter
 open Parser
+open PPrint
+open Print
 open User2
-open Format
 module Trie = Yuujinchou.Trie
 
 (* Execution of files (and strings), including marshaling and unmarshaling, and managing compilation units and imports. *)
 
-let __COMPILE_VERSION__ = 3
+let __COMPILE_VERSION__ = 4
 
 (* This state module is for data that gets restarted when loading a new file. *)
 module Loadstate = struct
@@ -18,7 +19,7 @@ module Loadstate = struct
     cwd : FilePath.filename;
     (* All files whose loading is currently in progress, i.e. the path of imports that led us to the current file.  Used to check for circular imports. *)
     parents : FilePath.filename Bwd.t;
-    (* All the files imported so far by the current file.  Stored in compiled files to ensure they are recompiled whenever any dependencies change. *)
+    (* All the files imported so far by the current file, *transitively* (that is, files it imports, and files *they* import, etc.).  Stored in compiled files to ensure they are recompiled whenever any dependencies change, and for linking purposes. *)
     imports : (Compunit.t * FilePath.filename) Bwd.t;
     (* Whether the current file has performed any effectual actions like 'echo'.  Stored in compiled files to produce a warning. *)
     actions : bool;
@@ -39,15 +40,13 @@ module FlagData = struct
     marshal : Out_channel.t -> unit;
     (* Unmarshal all the command-line type theory flags from a disk file and check that they agree with the current ones, returning the unmarshaled ones if not. *)
     unmarshal : In_channel.t -> (unit, string) Result.t;
-    (* Execute commands (don't just reformat)? *)
-    execute : bool;
-    (* Load files from source only (not compiled versions)? *)
+    (* Load files from source only (not compiled versions). *)
     source_only : bool;
     (* All the filenames given explicitly on the command line. *)
     top_files : string list;
     (* The initial visible namespace, e.g. the builtin Π. *)
     init_visible : Scope.trie;
-    (* Whether to reformat. *)
+    (* Whether to reformat explicitly-loaded files *)
     reformat : bool;
   }
 end
@@ -55,13 +54,15 @@ end
 module Flags = Algaeff.Reader.Make (FlagData)
 
 let () = Flags.register_printer (function `Read -> Some "unhandled Flags.read effect")
-let reformat_maybe f = if (Flags.read ()).reformat then f std_formatter else ()
-let reformat_maybe_ws f = if (Flags.read ()).reformat then f std_formatter else []
 
 module Loaded = struct
   type _ Effect.t +=
-    | Add_to_files : FilePath.filename * Scope.trie * Compunit.t * bool -> unit Effect.t
-    | Get_file : FilePath.filename -> (Scope.trie * Compunit.t * bool) option Effect.t
+    | Add_to_files :
+        FilePath.filename * Scope.trie * Global.unit_entry * Compunit.t * bool
+        -> unit Effect.t
+    | Get_file :
+        FilePath.filename
+        -> (Scope.trie * Global.unit_entry * Compunit.t * bool) option Effect.t
     | Add_to_scope : Scope.trie -> unit Effect.t
     | Get_scope : Scope.trie Effect.t
 
@@ -69,15 +70,16 @@ module Loaded = struct
 
   let run f =
     (* All the files that have been loaded so far in this run of the program, along with their export namespaces, compilation unit identifiers, and whether they were explicitly invoked on the command line. *)
-    let loaded_files : (FilePath.filename, Scope.trie * Compunit.t * bool) Hashtbl.t =
+    let loaded_files :
+        (FilePath.filename, Scope.trie * Global.unit_entry * Compunit.t * bool) Hashtbl.t =
       Hashtbl.create 20 in
     (* The complete merged namespace of all the files explicitly given on the command line so far.  Imported into -e and -i.  We compute it lazily because if there is no -e or -i we don't need it.  (And also so that we won't try to read the flags before they're set.) *)
     let loaded_contents : Scope.trie Lazy.t ref = ref (lazy (Flags.read ()).init_visible) in
     let effc : type b a. b Effect.t -> ((b, a) continuation -> a) option = function
-      | Add_to_files (file, trie, compunit, explicit) ->
+      | Add_to_files (file, trie, globals, compunit, explicit) ->
           Some
             (fun k ->
-              Hashtbl.add loaded_files file (trie, compunit, explicit);
+              Hashtbl.add loaded_files file (trie, globals, compunit, explicit);
               continue k ())
       | Get_file file -> Some (fun k -> continue k (Hashtbl.find_opt loaded_files file))
       | Add_to_scope trie ->
@@ -95,8 +97,8 @@ module Loaded = struct
   let get_scope () = Effect.perform Get_scope
   let get_file file = Effect.perform (Get_file file)
 
-  let add_to_files file trie compunit explicit =
-    Effect.perform (Add_to_files (file, trie, compunit, explicit))
+  let add_to_files file trie globals compunit explicit =
+    Effect.perform (Add_to_files (file, trie, globals, compunit, explicit))
 end
 
 (* Save all the definitions from a given loaded compilation unit to a compiled disk file, along with other data such as the command-line type theory flags, the imported files, and the (supplied) export namespace. *)
@@ -121,8 +123,12 @@ let marshal (compunit : Compunit.t) (file : FilePath.filename) (trie : Scope.tri
 let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compunit.t)
     (file : FilePath.filename) =
   let ofile = FilePath.replace_extension file "nyo" in
-  (* To load a compiled file, first of all both the compiled file and its source file must exist, and the compiled file must be newer than the source. *)
-  if FileUtil.test Is_file file && FileUtil.test (Is_newer_than file) ofile then
+  (* To load a compiled file, first of all both the compiled file and its source file must exist, and the compiled file must be not older than the source.  (If the source was reformatted at the time of compiling, they could be exactly the same age.) *)
+  if
+    FileUtil.test Is_file file
+    && FileUtil.test Is_file ofile
+    && not (FileUtil.test (Is_older_than file) ofile)
+  then
     (* Now we can start loading things. *)
     In_channel.with_open_bin ofile @@ fun chan ->
     (* We check it was compiled with the same version as us. *)
@@ -132,15 +138,15 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
       match (Flags.read ()).unmarshal chan with
       | Ok () ->
           let old_compunit = (Marshal.from_channel chan : Compunit.t) in
-          (* Now we make sure none of the files *it* imports have been modified more recently than the compilation, and that they have all been compiled. *)
+          (* Now we make sure none of the files *it* imports (transitively) have been modified more recently than the compilation, and that they have all been compiled. *)
           let old_imports = (Marshal.from_channel chan : (Compunit.t * FilePath.filename) Bwd.t) in
           if
             Bwd.for_all
               (fun (_, ifile) ->
                 let oifile = FilePath.replace_extension file "nyo" in
                 FileUtil.test Is_file oifile
-                && FileUtil.test (Is_newer_than ifile) oifile
-                && FileUtil.test (Is_older_than ofile) ifile)
+                && (not (FileUtil.test (Is_older_than ifile) oifile))
+                && not (FileUtil.test (Is_newer_than ofile) ifile))
               old_imports
           then (
             (* If so, we load all those files right away.  We don't need their returned namespaces, since we aren't typechecking our compiled file. *)
@@ -153,19 +159,23 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
             let table = Hashtbl.create 20 in
             Mbwd.miter (fun [ (i, ifile) ] -> Hashtbl.add table i (lookup ifile)) [ old_imports ];
             Hashtbl.add table old_compunit compunit;
+            let find_in_table x =
+              if x = Compunit.basic then Compunit.basic
+              else
+                Hashtbl.find_opt table x
+                <|> Anomaly "missing compunit while unmarshaling compiled file" in
             (* Now we load the definitions from the compiled file, replacing all the old compunits by the new ones. *)
-            Global.from_channel_unit (Hashtbl.find table) chan compunit;
+            let unit_entry = Global.from_channel_unit find_in_table chan compunit in
             let trie =
               Trie.map
                 (fun _ (data, tag) ->
                   match data with
-                  | `Constant c, loc ->
-                      ((`Constant (Constant.remake (Hashtbl.find table) c), loc), tag)
+                  | `Constant c, loc -> ((`Constant (Constant.remake find_in_table c), loc), tag)
                   | `Notation (User.User u), loc ->
                       (* We also have to re-make the notation objects since they contain constant names (print keys) and their own autonumbers (but those are only used for comparison locally so don't need to be walked elsewhere). *)
                       let key =
                         match u.key with
-                        | `Constant c -> `Constant (Constant.remake (Hashtbl.find table) c)
+                        | `Constant c -> `Constant (Constant.remake find_in_table c)
                         | `Constr (c, i) -> `Constr (c, i) in
                       let u = User.User { u with key } in
                       ((`Notation (u, make_user u), loc), tag))
@@ -176,7 +186,7 @@ let rec unmarshal (compunit : Compunit.t) (lookup : FilePath.filename -> Compuni
                     Trie.t) in
             (* We check whether the compiled file had any actions, and issue a warning if so *)
             if (Marshal.from_channel chan : bool) then emit (Actions_in_compiled_file ofile);
-            Some trie)
+            Some (trie, unit_entry))
           else None
       | Error flags ->
           emit (Incompatible_flags (file, flags));
@@ -193,13 +203,14 @@ and load_file file top =
   in
   let file = FilePath.reduce file in
   match Loaded.get_file file with
-  | Some (trie, compunit, top') ->
-      (* If we already loaded that file, we just return its saved export namespace, but we may need to add it to the 'all' namespace if it wasn't already there. *)
+  | Some (trie, globals, compunit, top') ->
+      (* If we already loaded that file, we just add it back into Global and return its saved export namespace.  We may need to add it to the 'all' namespace if it wasn't already there. *)
       if top && not top' then (
         Loaded.add_to_scope trie;
-        Loaded.add_to_files file trie compunit true);
+        Loaded.add_to_files file trie globals compunit true);
       (* We also add it to the list of things imported by the current ambient file.  TODO: Should that go in execute_command Import? *)
       Loading.modify (fun s -> { s with imports = Snoc (s.imports, (compunit, file)) });
+      Global.add_unit compunit globals;
       trie
   | None ->
       (* Otherwise, we have to load it.  First we check for circular dependencies. *)
@@ -212,35 +223,70 @@ and load_file file top =
       Loading.modify (fun s -> { s with imports = Snoc (s.imports, (compunit, file)) });
       (* Then we load it, in its directory and with itself added to the list of parents. *)
       let rename i =
-        let _, c, _ = Option.get (Loaded.get_file i) in
+        let _, _, c, _ = Loaded.get_file i <|> Anomaly "missing file in load_file" in
         c in
-      Loading.run
-        ~init:
-          {
-            cwd = FilePath.dirname file;
-            parents = Snoc ((Loading.get ()).parents, file);
-            imports = Emp;
-            actions = false;
-          }
-      @@ fun () ->
-      (* If there's a compiled version, and we aren't in source-only mode, and this file wasn't specified explicitly on the command-line, we try loading the compiled version. *)
-      let trie, which =
-        let flags = Flags.read () in
-        match
-          if flags.source_only || List.mem file flags.top_files then None
-          else unmarshal compunit rename file
-        with
-        | Some trie -> (trie, `Compiled)
-        | None ->
-            (* If we are in source-only mode, or this file was specified explicitly on the command-line, or if unmarshal failed (e.g. the compiled file is outdated), we load it from source. *)
-            if not top then emit (Loading_file file);
-            (execute_source compunit (`File file), `Source) in
-      (* Then we add it to the table of loaded files and (possibly) the content of top-level files. *)
-      if not top then emit (File_loaded (file, which));
-      Loaded.add_to_files file trie compunit top;
-      if top then Loaded.add_to_scope trie;
-      (* We save the compiled version *)
-      marshal compunit file trie;
+      let trie, imports =
+        Loading.run
+          ~init:
+            {
+              cwd = FilePath.dirname file;
+              parents = Snoc ((Loading.get ()).parents, file);
+              imports = Emp;
+              actions = false;
+            }
+        @@ fun () ->
+        (* If there's a compiled version, and we aren't in source-only mode, and this file wasn't specified explicitly on the command-line, we try loading the compiled version. *)
+        let trie, globals, which =
+          let flags = Flags.read () in
+          match
+            if flags.source_only || List.mem file flags.top_files then None
+            else unmarshal compunit rename file
+          with
+          | Some (trie, globals) -> (trie, globals, `Compiled)
+          | None ->
+              (* If we are in source-only mode, or this file was specified explicitly on the command-line, or if unmarshal failed (e.g. the compiled file is outdated), we load it from source. *)
+              if not top then emit (Loading_file file);
+              (* If reformatting is enabled, and this file was explicitly specified on the command line, create a buffer to hold its reformatting. *)
+              let buf =
+                if (Flags.read ()).reformat && List.mem file flags.top_files then
+                  Some (Buffer.create 100)
+                else None in
+              let renderer = Option.map (PPrint.ToBuffer.pretty 1.0 (Display.columns ())) buf in
+              (* Parse and execute the file and save its exported trie and global definitions *)
+              let exported = execute_source compunit ?renderer (`File file) in
+              (match buf with
+              | None -> ()
+              | Some buf -> (
+                  (* If the reformatted version didn't change, do nothing. *)
+                  let infile = open_in_bin file in
+                  let oldstr =
+                    Fun.protect ~finally:(fun () -> close_in infile) @@ fun () ->
+                    really_input_string infile (in_channel_length infile) in
+                  if oldstr <> Buffer.contents buf then
+                    try
+                      (* Back up the original file to a new backup file name. *)
+                      let bakfile, n = (file ^ ".bak.", ref 0) in
+                      while FileUtil.test Is_file (bakfile ^ string_of_int !n) do
+                        n := !n + 1
+                      done;
+                      let bakfile = bakfile ^ string_of_int !n in
+                      FileUtil.cp [ file ] bakfile;
+                      (* Overwrite the file with its reformatted version. *)
+                      let outfile = open_out file in
+                      Fun.protect ~finally:(fun () -> close_out outfile) @@ fun () ->
+                      output_string outfile (Buffer.contents buf)
+                      (* Ignore file errors (e.g. read-only source file) *)
+                    with Sys_error _ -> ()));
+              (exported, Global.find_unit compunit, `Source) in
+        (* Then we add it to the table of loaded files and (possibly) the content of top-level files. *)
+        if not top then emit (File_loaded (file, which));
+        Loaded.add_to_files file trie globals compunit top;
+        if top then Loaded.add_to_scope trie;
+        (* We save the compiled version *)
+        marshal compunit file trie;
+        (trie, (Loading.get ()).imports) in
+      (* We add the files that it imports to those of the current file, since the imports list is supposed to be transitive. *)
+      Loading.modify (fun s -> { s with imports = Bwd_extra.append s.imports imports });
       trie
 
 (* Load an -e string or stdin. *)
@@ -252,16 +298,13 @@ and load_string ?init_visible title content =
   trie
 
 (* Given a source (file or string), parse and execute all the commands in it, in a local scope that starts with either the supplied scope or a default one. *)
-and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
+and execute_source ?(init_visible = (Flags.read ()).init_visible) ?renderer compunit
     (source : Asai.Range.source) =
-  reformat_maybe (fun ppf -> Format.pp_open_vbox ppf 0);
   History.run_with_scope ~init_visible @@ fun () ->
   let p, src = Parser.Command.Parse.start_parse source in
   Compunit.Current.run ~env:compunit @@ fun () ->
   Reporter.try_with
-    (fun () ->
-      batch true [] p src;
-      if Eternity.unsolved () > 0 then Reporter.fatal (Open_holes_remaining source))
+    (fun () -> batch renderer p src `None [])
     ~fatal:(fun d ->
       match d.message with
       | Quit _ ->
@@ -273,28 +316,36 @@ and execute_source ?(init_visible = (Flags.read ()).init_visible) compunit
       | _ -> Reporter.fatal_diagnostic d);
   Scope.get_export ()
 
-(* Subroutine that parses and executes all the commands in a source. *)
-and batch first ws p src =
-  let reformat_end () =
-    reformat_maybe (fun ppf ->
-        let ws = Whitespace.ensure_ending_newlines 2 ws in
-        Print.pp_ws `None ppf ws;
-        Format.pp_close_box ppf ()) in
-  let cmd = Parser.Command.Parse.final p in
-  if cmd = Eof then reformat_end ()
-  else (
-    Fun.protect
-      (fun () -> if (Flags.read ()).execute then execute_command cmd)
-      ~finally:reformat_end;
-    let ws =
-      reformat_maybe_ws @@ fun ppf ->
-      let ws = if first then ws else Whitespace.ensure_starting_newlines 2 ws in
-      Print.pp_ws `None ppf ws;
-      Parser.Command.pp_command ppf cmd in
-    let p, src = Parser.Command.Parse.restart_parse p src in
-    batch false ws p src)
+(* Parse, execute (if requested by Flags), and reformat (if requested by Flags) all the commands in a source. *)
+and batch renderer p src cdns ws =
+  match Parser.Command.Parse.final p with
+  | Eof -> (
+      match renderer with
+      | Some render -> render (pp_ws `Cut ws)
+      | None -> ())
+  | Bof ws ->
+      let p, src = Parser.Command.Parse.restart_parse p src in
+      batch renderer p src `Bof ws
+  | cmd ->
+      let new_cdns = Parser.Command.condense cmd in
+      execute_command cmd;
+      let ws =
+        match renderer with
+        | Some render ->
+            let ws =
+              if cdns = `Bof || (cdns <> `None && cdns = new_cdns) then
+                Whitespace.normalize_no_blanks ws
+              else Whitespace.normalize 2 ws in
+            let space_before_starting_comment = if cdns = `Bof then Some 0 else None in
+            let pcmd, wcmd = Parser.Command.pp_command cmd in
+            render
+              (pp_ws ?space_before_starting_comment (if cdns = `Bof then `None else `Cut) ws ^^ pcmd);
+            wcmd
+        | None -> [] in
+      let p, src = Parser.Command.Parse.restart_parse p src in
+      batch renderer p src new_cdns ws
 
-(* Wrapper around Parser.Command.execute that passes it the correct callbacks. *)
+(* Wrapper around Parser.Command.execute that passes it the correct callbacks.  Does NOT check flags or reformat. *)
 and execute_command cmd =
   let action_taken () = Loading.modify (fun s -> { s with actions = true }) in
   let get_file file = load_file file false in

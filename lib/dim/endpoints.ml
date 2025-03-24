@@ -12,6 +12,8 @@ end
 
 module Config = Algaeff.Reader.Make (Data)
 
+let () = Config.register_printer (function `Read -> Some "unhandled Endpoints.Config.read effect")
+
 let run ~arity ~refl_char ~refl_names ~internal f =
   let (Plus_something arity) = N.plus_of_int arity in
   let refl_string = String.make 1 refl_char in

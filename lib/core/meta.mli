@@ -64,6 +64,11 @@ module Map : sig
     val filter : 'x filterer -> 'x t -> 'x t
     val fold : ('x, 'acc) folder -> 'x t -> 'acc -> 'acc
     val to_channel_unit : Out_channel.t -> Compunit.t -> 'x t -> Marshal.extern_flags list -> unit
-    val from_channel_unit : In_channel.t -> 'x mapper -> Compunit.t -> 'x t -> 'x t
+
+    type 'x unit_entry
+
+    val find_unit : Compunit.t -> 'x t -> 'x unit_entry
+    val add_unit : Compunit.t -> 'a unit_entry -> 'a t -> 'a t
+    val from_channel_unit : In_channel.t -> 'x mapper -> Compunit.t -> 'x t -> 'x t * 'x unit_entry
   end
 end

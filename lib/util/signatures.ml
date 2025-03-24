@@ -38,7 +38,7 @@ module type MAP = sig
 
   val map : 'a mapper -> 'a t -> 'a t
 
-  (* Iterating is simpler, but we supply the key as well. *)
+  (* Iterating is similar. *)
 
   type 'a iterator = { it : 'g. 'g Key.t -> ('a, 'g) F.t -> unit }
 

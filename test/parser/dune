@@ -1,5 +1,5 @@
 (tests
-  (names lexer parse_arith parse_builtins parse_mcp ambiguity prefixes reformat unparse format_comments permute_args)
+  (names lexer parse_arith parse_mcp ambiguity prefixes permute_args)
 	(libraries parser testutil)
 	(instrumentation (backend landmarks --auto)))
 (cram

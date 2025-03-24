@@ -13,8 +13,8 @@ type (_, _) sface_residual =
   | End : ('m, 'n) sface * 'l Endpoints.t -> ('m, 'n) sface_residual
   | Mid : ('m, 'n) sface * ('m, 'msuc) D.insert -> ('msuc, 'n) sface_residual
 
-let rec sface_residual :
-    type m n npred. (m, n) sface -> (npred, n) D.insert -> (m, npred) sface_residual =
+let rec sface_residual : type m n npred.
+    (m, n) sface -> (npred, n) D.insert -> (m, npred) sface_residual =
  fun f k ->
   match (k, f) with
   | Now, End (f', e) -> End (f', e)

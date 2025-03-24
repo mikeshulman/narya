@@ -3,6 +3,12 @@ open Testutil
 open Showparse
 open Parser
 open Notation
+open Parseonly
+
+type (_, _, _) identity +=
+  | At : (closed, No.plus_omega, No.strict opn) identity
+  | Bang : (No.strict opn, No.plus_omega, closed) identity
+  | Query : (No.nonstrict opn, No.plus_omega, closed) identity
 
 let unparse str =
   Core.Reporter.run ~emit:(fun _ -> ()) ~fatal:(fun _ -> ()) @@ fun () ->
@@ -10,14 +16,14 @@ let unparse str =
   raise (Failure "Unexpected parse success")
 
 (* We define a nonassociative prefix notation @ of tightness +∞, the same tightness as function application. *)
-let att = make "at" (Prefix No.plus_omega)
-let () = set_tree att (Closed_entry (eop (Op "@") (Done_closed att)))
+let att : (closed, No.plus_omega, No.strict opn) notation = (At, Prefix No.plus_omega)
+let () = make att "at" (Closed_entry (eop (Op "@") (Done_closed att)))
 
 (* And also postfix notations ! and !! of tightness +∞, one left-associative and one not. *)
-let bang = make "bang" (Postfix No.plus_omega)
-let () = set_tree bang (Open_entry (eop (Op "!") (done_open bang)))
-let query = make "query" (Postfixl No.plus_omega)
-let () = set_tree query (Open_entry (eop (Op "!!") (done_open query)))
+let bang : (No.strict opn, No.plus_omega, closed) notation = (Bang, Postfix No.plus_omega)
+let () = make bang "bang" (Open_entry (eop (Op "!") (done_open bang)))
+let query : (No.nonstrict opn, No.plus_omega, closed) notation = (Query, Postfixl No.plus_omega)
+let () = make query "query" (Open_entry (eop (Op "!!") (done_open query)))
 
 let () =
   Parser.Lexer.Specials.run @@ fun () ->
@@ -45,13 +51,13 @@ let () =
 
   assert (
     parse "@ (f x)"
-    = Notn ("at", [ Term (Notn ("parens", [ Term (App (Ident [ "f" ], Ident [ "x" ])) ])) ]))
+    = Notn ("at", [ Term (Notn ("parens/tuple", [ Term (App (Ident [ "f" ], Ident [ "x" ])) ])) ]))
   (* And again, since @ is a prefix notation, it can appear anyhere on the right, including inside itself. *);
 
   assert (parse "@ @ x" = Notn ("at", [ Term (Notn ("at", [ Term (Ident [ "x" ]) ])) ]))
   (* Same for field projections, which are literally parsed as applications (and compiled later to something else) *);
 
-  assert (parse "@ f .x" = App (Notn ("at", [ Term (Ident [ "f" ]) ]), Field "x"))
+  assert (parse "@ f .x" = App (Notn ("at", [ Term (Ident [ "f" ]) ]), Field ("x", [])))
   (* But we can't apply @ *to* a field projection, since that's not a valid term on its own. *);
 
   unparse "f @ .x" (* Now we experiment with the postfix ones *);
@@ -74,12 +80,18 @@ let () =
     = Notn ("query", [ Term (App (Notn ("query", [ Term (Ident [ "f" ]) ]), Ident [ "x" ])) ]))
 
 (* We define nonassociative prefix, infix, and postfix operators of the same tightness. *)
-let twiddle = make "twiddle" (Prefix No.zero)
-let () = set_tree twiddle (Closed_entry (eop (Op "~") (Done_closed twiddle)))
-let star = make "star" (Postfix No.zero)
-let () = set_tree star (Open_entry (eop (Op "*") (done_open star)))
-let perc = make "perc" (Infix No.zero)
-let () = set_tree perc (Open_entry (eop (Op "%") (done_open perc)))
+
+type (_, _, _) identity +=
+  | Twiddle : (closed, No.zero, No.strict opn) identity
+  | Star : (No.strict opn, No.zero, closed) identity
+  | Perc : (No.strict opn, No.zero, No.strict opn) identity
+
+let twiddle : (closed, No.zero, No.strict opn) notation = (Twiddle, Prefix No.zero)
+let () = make twiddle "twiddle" (Closed_entry (eop (Op "~") (Done_closed twiddle)))
+let star : (No.strict opn, No.zero, closed) notation = (Star, Postfix No.zero)
+let () = make star "star" (Open_entry (eop (Op "*") (done_open star)))
+let perc : (No.strict opn, No.zero, No.strict opn) notation = (Perc, Infix No.zero)
+let () = make perc "perc" (Open_entry (eop (Op "%") (done_open perc)))
 
 let () =
   Parser.Lexer.Specials.run @@ fun () ->
@@ -107,8 +119,10 @@ let () =
           ] ))
 
 (* A right-associative infix operator of tightness -ω can have an abstraction on its right. *)
-let atat = make "atat" (Infixr No.minus_omega)
-let () = set_tree atat (Open_entry (eop (Op "@@") (done_open atat)))
+type (_, _, _) identity += Atat : (No.strict opn, No.minus_omega, No.nonstrict opn) identity
+
+let atat : (No.strict opn, No.minus_omega, No.nonstrict opn) notation = (Atat, Infixr No.minus_omega)
+let () = make atat "atat" (Open_entry (eop (Op "@@") (done_open atat)))
 
 let () =
   Parser.Lexer.Specials.run @@ fun () ->

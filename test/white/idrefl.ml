@@ -31,7 +31,7 @@ let () =
   unsynth "refl ((x ↦ x) : (X → X)) x0 x0 x0";
   equal refl_idmap_x2 x2;
 
-  (*  *)
+  (* *)
   let yy = assume "Y" uu in
   let zz = assume "Z" uu in
   let xtoy, _ = synth "X → Y" in
@@ -98,12 +98,12 @@ let () =
 
   (* The two degenerate squares associated to an identification have unequal types, although each has a standard degeneracy notation. *)
   let r1x2, r1x2ty = synth "refl x2" in
-  let r1x2', r1x2ty' = synth "x2⁽ᵉ¹⁾" in
+  let r1x2', r1x2ty' = synth "x2⁽¹ᵉ⁾" in
   let () = equal r1x2ty r1x2ty' in
   let () = equal r1x2 r1x2' in
 
   let r2x2, r2x2ty = synth "refl ((x ↦ refl x) : (x:X) → Id X x x) x0 x1 x2" in
-  let r2x2', r2x2ty' = synth "x2⁽¹ᵉ⁾" in
+  let r2x2', r2x2ty' = synth "x2⁽ᵉ¹⁾" in
   let () = equal r2x2ty r2x2ty' in
   let () = equal r2x2 r2x2' in
 

@@ -55,8 +55,7 @@ let name : type a b s. (a, b, s) t -> string =
   | `Def (number, sort, Some name) -> Printf.sprintf "_%s.%d.%s" sort number name
 
 (* Compare two metavariables for equality, returning equality of their lengths and energies. *)
-let compare :
-    type a1 b1 s1 a2 b2 s2.
+let compare : type a1 b1 s1 a2 b2 s2.
     (a1, b1, s1) t -> (a2, b2, s2) t -> (a1 * b1 * s1, a2 * b2 * s2) Eq.compare =
  fun x y ->
   match
@@ -117,8 +116,7 @@ module Map = struct
       | Some m -> IdMap.find_opt (`Hole i) m
       | None -> None
 
-    let update :
-        type x a b s.
+    let update : type x a b s.
         (a, b, s) key -> ((x, a, b, s) F.t option -> (x, a, b, s) F.t option) -> x t -> x t =
      fun key f m ->
       Compunit.Map.update key.compunit
@@ -175,23 +173,32 @@ module Map = struct
 
     type 'x filterer = { filter : 'a 'b 's. ('a, 'b, 's) key -> ('x, 'a, 'b, 's) F.t -> bool }
 
-    let filter : type x a b s. x filterer -> x t -> x t =
+    let filter : type x. x filterer -> x t -> x t =
      fun f m ->
       Compunit.Map.map
         (fun m -> IdMap.filter (fun _ (Entry (key, value)) -> f.filter key value) m)
         m
 
-    let to_channel_unit :
-        type x. Out_channel.t -> Compunit.t -> x t -> Marshal.extern_flags list -> unit =
+    let to_channel_unit : type x.
+        Out_channel.t -> Compunit.t -> x t -> Marshal.extern_flags list -> unit =
      fun chan i m flags -> Marshal.to_channel chan (Compunit.Map.find_opt i m) flags
 
-    let from_channel_unit : type x. In_channel.t -> x mapper -> Compunit.t -> x t -> x t =
+    type 'x unit_entry = 'x entry IdMap.t option
+
+    let find_unit i m = Compunit.Map.find_opt i m
+
+    let add_unit i x m =
+      match x with
+      | Some x -> Compunit.Map.add i x m
+      | None -> m
+
+    let from_channel_unit : type x.
+        In_channel.t -> x mapper -> Compunit.t -> x t -> x t * x unit_entry =
      fun chan f compunit m ->
       match (Marshal.from_channel chan : x entry IdMap.t option) with
       | Some n ->
-          Compunit.Map.add compunit
-            (IdMap.map (fun (Entry (key, value)) -> Entry (key, f.map key value)) n)
-            m
-      | None -> m
+          let fn = IdMap.map (fun (Entry (key, value)) -> Entry (key, f.map key value)) n in
+          (Compunit.Map.add compunit fn m, Some fn)
+      | None -> (m, None)
   end
 end

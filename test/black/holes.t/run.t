@@ -5,8 +5,17 @@
    ￫ info[I0001]
    ￮ axiom B assumed
   
+  B
+    : Type
+  
    ￫ info[I0000]
    ￮ constant id defined
+  
+   ￫ info[I0001]
+   ￮ axiom b assumed
+  
+   ￫ info[I0001]
+   ￮ axiom g assumed
   
    ￫ info[I0000]
    ￮ constant f defined, containing 1 hole
@@ -17,15 +26,20 @@
      ----------------------------------------------------------------------
      A → B
   
+   ￫ info[I0001]
+   ￮ axiom a_very_long_variable assumed
+  
+   ￫ info[I0001]
+   ￮ axiom a_very_long_function assumed
+  
    ￫ info[I0000]
    ￮ constant f' defined, containing 1 hole
   
    ￫ info[I3003]
    ￮ hole ?1:
      
-     x : A
      ----------------------------------------------------------------------
-     B
+     A → B
   
    ￫ info[I0000]
    ￮ constant ℕ defined
@@ -293,7 +307,7 @@
    ￮ constant idafam defined
   
    ￫ error[E3002]
-   ￮ file $TESTCASE_ROOT/holes.ny contains open holes
+   ￮ file holes.ny contains open holes
   
   [1]
 
@@ -321,3 +335,14 @@ No holes in echo:
   
   [1]
 
+No holes in imported file
+
+  $ echo 'def A : Type := ?' >to_import.ny
+
+  $ narya -e 'import "to_import"'
+   ￫ error[E2002]
+   ￭ $TESTCASE_ROOT/to_import.ny
+   1 | def A : Type := ?
+     ^ imported file 'to_import' cannot contain holes
+  
+  [1]

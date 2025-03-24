@@ -26,8 +26,7 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
       | Suc mn, Empty -> Entry (None, add mn x Empty)
       | Suc mn, Entry (y, xs) -> Entry (y, add mn x xs)
 
-    let rec update :
-        type b m n mn.
+    let rec update : type b m n mn.
         (m, n, mn) Fwn.bplus ->
         ((b, mn) F.t option -> (b, mn) F.t option) ->
         (b, m) map ->
@@ -67,24 +66,23 @@ module Make (F : Fam2) : MAP with module Key := N and module F := F = struct
           iter f (N.suc m) xs
   end
 
-  let find_opt : type b m n. n N.t -> (b, N.zero) map -> (b, n) F.t option =
+  let find_opt : type b n. n N.t -> (b, N.zero) map -> (b, n) F.t option =
    fun n map ->
     let (Of_bwn (_, mn)) = Fwn.of_bwn n in
     Internal.find_opt mn map
 
-  let add : type b m n. n N.t -> (b, n) F.t -> (b, N.zero) map -> (b, N.zero) map =
+  let add : type b n. n N.t -> (b, n) F.t -> (b, N.zero) map -> (b, N.zero) map =
    fun n x map ->
     let (Of_bwn (_, mn)) = Fwn.of_bwn n in
     Internal.add mn x map
 
-  let update :
-      type b m n.
+  let update : type b n.
       n N.t -> ((b, n) F.t option -> (b, n) F.t option) -> (b, N.zero) map -> (b, N.zero) map =
    fun n f map ->
     let (Of_bwn (_, mn)) = Fwn.of_bwn n in
     Internal.update mn f map
 
-  let remove : type b m n. n N.t -> (b, N.zero) map -> (b, N.zero) map =
+  let remove : type b n. n N.t -> (b, N.zero) map -> (b, N.zero) map =
    fun n map ->
     let (Of_bwn (_, mn)) = Fwn.of_bwn n in
     Internal.remove mn map

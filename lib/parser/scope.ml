@@ -42,14 +42,18 @@ module M = Algaeff.Mutex.Make ()
 
 exception Locked = M.Locked
 
-(* Scope state: a visible namespace, an export namespace, and an export prefix. *)
+(* Scope state: a visible namespace, an export namespace, an export prefix, and a set of configuration options. *)
 type trie = (Param.data, Param.tag) Trie.t
-type scope = { visible : trie; export : trie; prefix : Trie.bwd_path }
+type scope = { visible : trie; export : trie; prefix : Trie.bwd_path; options : Options.t }
 
 (* A Scope.t has an inner scope and also maintains a stack of outer scopes. *)
 type t = { outer : scope Bwd.t; inner : scope }
 
-let empty : t = { outer = Emp; inner = { visible = Trie.empty; export = Trie.empty; prefix = Emp } }
+let empty : t =
+  {
+    outer = Emp;
+    inner = { visible = Trie.empty; export = Trie.empty; prefix = Emp; options = Options.default };
+  }
 
 module S = State.Make (struct
   type nonrec t = t
@@ -74,6 +78,10 @@ let modify_visible ?context_visible m =
     inner =
       { s.inner with visible = Mod.modify ?context:context_visible ~prefix:Emp m s.inner.visible };
   }
+
+let modify_options f =
+  M.exclusively @@ fun () ->
+  S.modify @@ fun s -> { s with inner = { s.inner with options = f s.inner.options } }
 
 let modify_export ?context_export m =
   M.exclusively @@ fun () ->
@@ -164,6 +172,11 @@ let import_subtree ?context_modifier ?context_visible ?(modifier = Yuujinchou.La
 
 let get_visible () = M.exclusively @@ fun () -> (S.get ()).inner.visible
 let get_export () = M.exclusively @@ fun () -> (S.get ()).inner.export
+let get_options () = M.exclusively @@ fun () -> (S.get ()).inner.options
+
+let () =
+  (Implicitboundaries.forward_functions := fun () -> (get_options ()).function_boundaries);
+  Implicitboundaries.forward_types := fun () -> (get_options ()).type_boundaries
 
 (* Set the visible namespace, e.g. before going into interactive mode. *)
 let set_visible visible =
@@ -174,8 +187,15 @@ let start_section prefix =
   M.exclusively @@ fun () ->
   S.modify (fun s ->
       let new_scope : scope =
-        { visible = s.inner.visible; export = Trie.empty; prefix = Bwd.of_list prefix } in
+        {
+          visible = s.inner.visible;
+          export = Trie.empty;
+          prefix = Bwd.of_list prefix;
+          options = s.inner.options;
+        } in
       { outer = Snoc (s.outer, s.inner); inner = new_scope })
+
+let count_sections () = M.exclusively @@ fun () -> Bwd.length (S.get ()).outer
 
 (* Wrap up a section, integrating its exported names into the previous section's namespace with the prefix attached.  Returns the prefix that was used. *)
 let end_section () =
@@ -191,10 +211,12 @@ let end_section () =
   with Failure _ -> None
 
 (* We remove the Mod.run from Scope.run and let the caller control it separately. *)
-let run ?(export_prefix = Emp) ?(init_visible = Trie.empty) f =
+let run ?(export_prefix = Emp) ?(init_visible = Trie.empty) ?(options = Options.default) f =
   let init =
-    { outer = Emp; inner = { visible = init_visible; export = Trie.empty; prefix = export_prefix } }
-  in
+    {
+      outer = Emp;
+      inner = { visible = init_visible; export = Trie.empty; prefix = export_prefix; options };
+    } in
   M.run @@ fun () -> S.run ~init f
 
 (* Like 'run', but override the handlers for the scope state effects instead of running a state module; hence no init_visible is given.  Unlike most RedPRL try_with functions, this one isn't designed for calling *inside* of an outer "run" to override some things locally, instead it is for *replacing* "run" by passing out the state effects to our History module.  Hence why it starts a new Mutex as well, and why we call it "run_with" instead of "try_with". *)

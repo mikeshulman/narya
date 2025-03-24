@@ -46,16 +46,14 @@ let is_id_op : type m n. (m, n) op -> (m, n) Eq.t option =
 let op_of_deg : type m n. (m, n) deg -> (m, n) op = fun s -> Op (id_sface (cod_deg s), s)
 let op_of_sface : type m n. (m, n) sface -> (m, n) op = fun f -> Op (f, id_deg (dom_sface f))
 
-let op_plus_op :
-    type m n mn k l kl.
+let op_plus_op : type m n mn k l kl.
     (k, m) op -> (m, n, mn) D.plus -> (k, l, kl) D.plus -> (l, n) op -> (kl, mn) op =
  fun (Op (d1, s1)) mn kl (Op (d2, s2)) ->
   let (Plus middle) = D.plus (dom_sface d2) in
   Op (sface_plus_sface d1 mn middle d2, deg_plus_deg s1 middle kl s2)
 
-let plus_op :
-    type m n mn m l ml. m D.t -> (m, n, mn) D.plus -> (m, l, ml) D.plus -> (l, n) op -> (ml, mn) op
-    =
+let plus_op : type m n mn l ml.
+    m D.t -> (m, n, mn) D.plus -> (m, l, ml) D.plus -> (l, n) op -> (ml, mn) op =
  fun m mn ml op -> op_plus_op (id_op m) mn ml op
 
 let op_plus : type m n mn k kn. (k, m) op -> (m, n, mn) D.plus -> (k, n, kn) D.plus -> (kn, mn) op =

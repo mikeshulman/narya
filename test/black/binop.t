@@ -112,20 +112,18 @@
   + n
   + n
   + n
-  
     : ℕ
   
   n
   + n * n
-  + n * n * n 
-  + n * n * n * n 
+  + n * n * n
+  + n * n * n * n
   + n
-  + n * n * n * n * n * n * n 
+  + n * n * n * n * n * n * n
   + n * n
-  + n * n * n 
-  + n * n * n * n 
+  + n * n * n
+  + n * n * n * n
   + n
-  + n * n * n * n * n * n * n 
-  
+  + n * n * n * n * n * n * n
     : ℕ
   

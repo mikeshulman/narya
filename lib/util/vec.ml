@@ -91,7 +91,7 @@ module Heter = struct
   let car' = car
   let cdr' = cdr
 
-  (* Extract the car and cdr of each of an hlist of vectors, returting another hlist.*)
+  (* Extract the car and cdr of each of an hlist of vectors, returning another hlist.*)
   let rec car : type xs n. (xs, n Fwn.suc) ht -> xs hlist = function
     | [] -> []
     | x :: xs -> car' x :: car xs
@@ -106,8 +106,7 @@ end
 module Applicatic (M : Applicative.Plain) = struct
   open Applicative.Ops (M)
 
-  let rec pmapM :
-      type x xs ys n.
+  let rec pmapM : type x xs ys n.
       ((x, xs) cons hlist -> ys hlist M.t) ->
       ((x, xs) cons, n) Heter.ht ->
       ys Tlist.t ->
@@ -121,8 +120,8 @@ module Applicatic (M : Applicative.Plain) = struct
 
   (* With specializations to simple arity possibly-monadic maps and iterators.  *)
 
-  let miterM :
-      type x xs n. ((x, xs) cons hlist -> unit M.t) -> ((x, xs) cons, n) Heter.ht -> unit M.t =
+  let miterM : type x xs n.
+      ((x, xs) cons hlist -> unit M.t) -> ((x, xs) cons, n) Heter.ht -> unit M.t =
    fun f xss ->
     let+ [] =
       pmapM
@@ -132,8 +131,8 @@ module Applicatic (M : Applicative.Plain) = struct
         xss Nil in
     ()
 
-  let mmapM :
-      type x xs y n. ((x, xs) cons hlist -> y M.t) -> ((x, xs) cons, n) Heter.ht -> (y, n) t M.t =
+  let mmapM : type x xs y n.
+      ((x, xs) cons hlist -> y M.t) -> ((x, xs) cons, n) Heter.ht -> (y, n) t M.t =
    fun f xss ->
     let+ [ ys ] =
       pmapM
@@ -161,8 +160,7 @@ module Monadic (M : Monad.Plain) = struct
   include Applicatic (A)
 end
 
-let pmap :
-    type x xs ys n.
+let pmap : type x xs ys n.
     ((x, xs) cons hlist -> ys hlist) -> ((x, xs) cons, n) Heter.ht -> ys Tlist.t -> (ys, n) Heter.ht
     =
  fun f xss ys ->

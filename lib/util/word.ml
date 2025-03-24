@@ -95,8 +95,7 @@ module Make (G : Gen) = struct
 
   (* Associativity *)
 
-  let rec plus_assocl :
-      type m n mn p np mnp.
+  let rec plus_assocl : type m n mn p np mnp.
       (m, n, mn) plus -> (n, p, np) plus -> (m, np, mnp) plus -> (mn, p, mnp) plus =
    fun mn np m_np ->
     match np with
@@ -108,8 +107,7 @@ module Make (G : Gen) = struct
         let mn_p = plus_assocl mn np m_np in
         Suc (mn_p, g)
 
-  let rec plus_assocr :
-      type m n mn p np mnp.
+  let rec plus_assocr : type m n mn p np mnp.
       (m, n, mn) plus -> (n, p, np) plus -> (mn, p, mnp) plus -> (m, np, mnp) plus =
    fun mn np mn_p ->
     match np with
@@ -137,8 +135,8 @@ module Make (G : Gen) = struct
   type (_, _, _, _) plus_insert =
     | Plus_index : ('m, 'p, 'mp) plus * ('mp, 'g, 'mn) Tbwd.insert -> ('m, 'p, 'mn, 'g) plus_insert
 
-  let rec plus_insert :
-      type m n mn p g. (m, n, mn) plus -> (p, g, n) Tbwd.insert -> (m, p, mn, g) plus_insert =
+  let rec plus_insert : type m n mn p g.
+      (m, n, mn) plus -> (p, g, n) Tbwd.insert -> (m, p, mn, g) plus_insert =
    fun mn i ->
     match i with
     | Now ->
@@ -152,8 +150,8 @@ module Make (G : Gen) = struct
   type (_, _, _, _) insert_plus =
     | Index_plus : ('p, 'n, 'pn) plus * ('pn, 'g, 'mn) Tbwd.insert -> ('p, 'n, 'mn, 'g) insert_plus
 
-  let rec insert_plus :
-      type m n mn g p. (p, g, m) Tbwd.insert -> (m, n, mn) plus -> (p, n, mn, g) insert_plus =
+  let rec insert_plus : type m n mn g p.
+      (p, g, m) Tbwd.insert -> (m, n, mn) plus -> (p, n, mn, g) insert_plus =
    fun i mn ->
     match mn with
     | Zero -> Index_plus (Zero, i)
@@ -166,8 +164,8 @@ module Make (G : Gen) = struct
         ('q, 'l, 'm) Tbwd.insert * ('p, 'k, 'q) Tbwd.insert
         -> ('m, 'k, 'l, 'p) swap_inserts
 
-  let rec swap_inserts :
-      type m n p k l. (n, k, m) Tbwd.insert -> (p, l, n) Tbwd.insert -> (m, k, l, p) swap_inserts =
+  let rec swap_inserts : type m n p k l.
+      (n, k, m) Tbwd.insert -> (p, l, n) Tbwd.insert -> (m, k, l, p) swap_inserts =
    fun k l ->
     match k with
     | Now -> (
@@ -181,8 +179,8 @@ module Make (G : Gen) = struct
             let (Swap_indices (l'', k'')) = swap_inserts k' l' in
             Swap_indices (Later l'', Later k''))
 
-  let rec insert_equiv :
-      type m n g p q. (p, g, m) Tbwd.insert -> (q, g, n) Tbwd.insert -> unit option =
+  let rec insert_equiv : type m n g p q.
+      (p, g, m) Tbwd.insert -> (q, g, n) Tbwd.insert -> unit option =
    fun k l ->
     match (k, l) with
     | Now, Now -> Some ()
@@ -215,6 +213,46 @@ module Make (G : Gen) = struct
         let (Suc_plus_eq_suc (y, i)) = suc_plus_eq_suc x in
         Suc_plus_eq_suc (Suc (y, g), Later i)
 
+  (* ********** More about insertion ********** *)
+
+  let rec insert : type a n b. (a, n, b) Tbwd.insert -> a t -> n G.t -> b t =
+   fun i (Word a) n ->
+    match i with
+    | Now -> Word (Suc (a, n))
+    | Later i ->
+        let (Suc (a, k)) = a in
+        let (Word ins) = insert i (Word a) n in
+        Word (Suc (ins, k))
+
+  let rec uninsert : type a n b. (a, n, b) Tbwd.insert -> b t -> a t =
+   fun i b ->
+    match i with
+    | Now ->
+        let (Word (Suc (b, _))) = b in
+        Word b
+    | Later i ->
+        let (Word (Suc (b, n))) = b in
+        let (Word ins) = uninsert i (Word b) in
+        Word (Suc (ins, n))
+
+  let rec inserted : type a n b. (a, n, b) Tbwd.insert -> b t -> n G.t =
+   fun i b ->
+    match i with
+    | Now ->
+        let (Word (Suc (_, n))) = b in
+        n
+    | Later i ->
+        let (Word (Suc (b, _))) = b in
+        inserted i (Word b)
+
+  let rec permute : type a b. (a, b) Tbwd.permute -> b t -> a t =
+   fun p b ->
+    match p with
+    | Id -> b
+    | Insert (p, i) ->
+        let (Word permuted) = permute p (uninsert i b) in
+        Word (Suc (permuted, inserted i b))
+
   (* ********** Subtraction ********** *)
 
   let rec minus : type m n mn. mn t -> (m, n, mn) plus -> m t =
@@ -239,8 +277,8 @@ module Make (G : Gen) = struct
     let (Suc (_, h)) = y in
     plus_suc_neq h y
 
-  let rec minus_uniq' :
-      type m n1 n2 mn. m t -> (m, n1, mn) plus -> (m, n2, mn) plus -> (n1, n2) Eq.t =
+  let rec minus_uniq' : type m n1 n2 mn.
+      m t -> (m, n1, mn) plus -> (m, n2, mn) plus -> (n1, n2) Eq.t =
    fun m n1 n2 ->
     match (n1, n2) with
     | Zero, Zero -> Eq
@@ -351,8 +389,7 @@ module MakeExp (G : GenExp) = struct
         let Eq = G.endpoints_uniq e e' in
         N.times_uniq aba ab'a
 
-  let rec exp_plus :
-      type b c exp_b exp_c b_plus_c exp__b_plus_c.
+  let rec exp_plus : type b c exp_b exp_c b_plus_c exp__b_plus_c.
       (b, exp_b) exp ->
       (c, exp_c) exp ->
       (b, c, b_plus_c) plus ->
@@ -405,8 +442,8 @@ module Internal (G : Gen) (GM : MAP_MAKER with module Key = G) (F : Fam2) = stru
   module W = Make (G)
   module Map = Def (G) (GM) (F)
 
-  let rec find_opt :
-      type a b c bc. (b, c, bc) Tbwd.append -> c W.fwd -> (a, b) Map.map -> (a, bc) F.t option =
+  let rec find_opt : type a b c bc.
+      (b, c, bc) Tbwd.append -> c W.fwd -> (a, b) Map.map -> (a, bc) F.t option =
    fun bc c map ->
     let open Monad.Ops (Monad.Maybe) in
     match map with
@@ -418,8 +455,7 @@ module Internal (G : Gen) (GM : MAP_MAKER with module Key = G) (F : Fam2) = stru
             let* (Wrapmap xs) = Map.DM.find_opt n xs in
             find_opt bc c xs)
 
-  let rec add :
-      type a b c bc.
+  let rec add : type a b c bc.
       (b, c, bc) Tbwd.append -> c W.fwd -> (a, bc) F.t -> (a, b) Map.map -> (a, b) Map.map =
    fun bc c x map ->
     match (bc, c, map) with
@@ -437,8 +473,7 @@ module Internal (G : Gen) (GM : MAP_MAKER with module Key = G) (F : Fam2) = stru
                 | None -> Some (Map.M.Wrapmap (add bc c x Empty)))
               xs )
 
-  let rec update :
-      type a b c bc.
+  let rec update : type a b c bc.
       (b, c, bc) Tbwd.append ->
       c W.fwd ->
       ((a, bc) F.t option -> (a, bc) F.t option) ->
@@ -460,8 +495,8 @@ module Internal (G : Gen) (GM : MAP_MAKER with module Key = G) (F : Fam2) = stru
                 | None -> Some (Map.M.Wrapmap (update bc c f Empty)))
               xs )
 
-  let rec remove :
-      type a b c bc. (b, c, bc) Tbwd.append -> c W.fwd -> (a, b) Map.map -> (a, b) Map.map =
+  let rec remove : type a b c bc.
+      (b, c, bc) Tbwd.append -> c W.fwd -> (a, b) Map.map -> (a, b) Map.map =
    fun bc c map ->
     match (bc, c, map) with
     | _, _, Empty -> Empty
@@ -518,8 +553,7 @@ struct
       let (To_fwd (c, bc)) = W.to_fwd b in
       add bc c x map
 
-    let update :
-        type a b.
+    let update : type a b.
         b W.t -> ((a, b) F.t option -> (a, b) F.t option) -> (a, emp) Map.map -> (a, emp) Map.map =
      fun b f map ->
       let (To_fwd (c, bc)) = W.to_fwd b in

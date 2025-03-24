@@ -1,6 +1,5 @@
 open Util
 open Dim
-open Syntax
 open Term
 
 (* When "linking" a pre-compiled file with the current run, we need to walk the unmarshaled terms and replace the old autonumbers of compilation units, from when the file was compiled, with the current ones. *)
@@ -12,7 +11,7 @@ let rec term : type a s. (Compunit.t -> Compunit.t) -> (a, s) term -> (a, s) ter
   | Const c -> Const (Constant.remake f c)
   | Meta (m, s) -> Meta (Meta.remake f m, s)
   | MetaEnv (m, e) -> MetaEnv (Meta.remake f m, env f e)
-  | Field (tm, fld) -> Field (term f tm, fld)
+  | Field (tm, fld, fldins) -> Field (term f tm, fld, fldins)
   | UU n -> UU n
   | Inst (tm, args) -> Inst (term f tm, TubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ args ])
   | Pi (x, doms, cods) ->
@@ -28,7 +27,14 @@ let rec term : type a s. (Compunit.t -> Compunit.t) -> (a, s) term -> (a, s) ter
   | Let (x, v, body) -> Let (x, term f v, term f body)
   | Lam (x, body) -> Lam (x, term f body)
   | Struct (eta, dim, flds, energy) ->
-      Struct (eta, dim, Abwd.map (fun (x, l) -> (term f x, l)) flds, energy)
+      Struct
+        ( eta,
+          dim,
+          Mbwd.map
+            (fun (Term.StructfieldAbwd.Entry (fld, x)) ->
+              Term.StructfieldAbwd.Entry (fld, structfield f x))
+            flds,
+          energy )
   | Match { tm; dim; branches } ->
       Match { tm = term f tm; dim; branches = Constr.Map.map (branch f) branches }
   | Realize tm -> Realize (term f tm)
@@ -45,8 +51,44 @@ and canonical : type a. (Compunit.t -> Compunit.t) -> a canonical -> a canonical
   match can with
   | Data { indices; constrs; discrete } ->
       Data { indices; constrs = Abwd.map (dataconstr f) constrs; discrete }
-  | Codata { eta; opacity; dim; fields } ->
-      Codata { eta; opacity; dim; fields = Abwd.map (term f) fields }
+  | Codata { eta; opacity; dim; termctx = tc; fields } ->
+      Codata
+        {
+          eta;
+          opacity;
+          dim;
+          termctx = Option.map (termctx f) tc;
+          fields =
+            Mbwd.map
+              (fun (CodatafieldAbwd.Entry (fld, x)) -> CodatafieldAbwd.Entry (fld, codatafield f x))
+              fields;
+        }
+
+and structfield : type n a s i et.
+    (Compunit.t -> Compunit.t) ->
+    (i, n * a * s * et) Term.Structfield.t ->
+    (i, n * a * s * et) Term.Structfield.t =
+ fun f fld ->
+  match fld with
+  | Lower (x, l) -> Lower (term f x, l)
+  | Higher m ->
+      Higher
+        (PlusPbijmap.mmap
+           {
+             map =
+               (fun _ [ x ] ->
+                 match x with
+                 | PlusFam (Some (rb, x)) -> PlusFam (Some (rb, term f x))
+                 | PlusFam None -> PlusFam None);
+           }
+           [ m ])
+
+and codatafield : type a n i et.
+    (Compunit.t -> Compunit.t) -> (i, a * n * et) Codatafield.t -> (i, a * n * et) Codatafield.t =
+ fun f fld ->
+  match fld with
+  | Lower tm -> Lower (term f tm)
+  | Higher (ka, tm) -> Higher (ka, term f tm)
 
 and dataconstr : type p i. (Compunit.t -> Compunit.t) -> (p, i) dataconstr -> (p, i) dataconstr =
  fun f (Dataconstr { args; indices }) ->
@@ -64,9 +106,7 @@ and env : type a n b. (Compunit.t -> Compunit.t) -> (a, n, b) env -> (a, n, b) e
   | Emp n -> Emp n
   | Ext (e, nk, xs) -> Ext (env f e, nk, CubeOf.mmap { map = (fun _ [ x ] -> term f x) } [ xs ])
 
-let entry :
-    type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) Termctx.entry -> (b, f, mn) Termctx.entry
-    =
+and entry : type b f mn. (Compunit.t -> Compunit.t) -> (b, f, mn) entry -> (b, f, mn) entry =
  fun f e ->
   match e with
   | Vis v ->
@@ -74,7 +114,7 @@ let entry :
         CubeOf.mmap
           {
             map =
-              (fun _ [ (b : (b, mn) Tbwd.snoc Termctx.binding) ] : (b, mn) Tbwd.snoc Termctx.binding ->
+              (fun _ [ (b : (b, mn) Tbwd.snoc binding) ] : (b, mn) Tbwd.snoc binding ->
                 { ty = term f b.ty; tm = Option.map (term f) b.tm });
           }
           [ v.bindings ] in
@@ -84,21 +124,21 @@ let entry :
         CubeOf.mmap
           {
             map =
-              (fun _ [ (b : (b, mn) Tbwd.snoc Termctx.binding) ] : (b, mn) Tbwd.snoc Termctx.binding ->
+              (fun _ [ (b : (b, mn) Tbwd.snoc binding) ] : (b, mn) Tbwd.snoc binding ->
                 { ty = term f b.ty; tm = Option.map (term f) b.tm });
           }
           [ bindings ] in
       Invis bindings
 
-let rec termctx_ordered :
-    type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.Ordered.t -> (a, b) Termctx.Ordered.t =
+and termctx_ordered : type a b.
+    (Compunit.t -> Compunit.t) -> (a, b) ordered_termctx -> (a, b) ordered_termctx =
  fun f ctx ->
   match ctx with
   | Emp -> Emp
-  | Snoc (ctx, e, ax) -> Snoc (termctx_ordered f ctx, entry f e, ax)
+  | Ext (ctx, e, ax) -> Ext (termctx_ordered f ctx, entry f e, ax)
   | Lock ctx -> Lock (termctx_ordered f ctx)
 
-let termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) Termctx.t -> (a, b) Termctx.t =
+and termctx : type a b. (Compunit.t -> Compunit.t) -> (a, b) termctx -> (a, b) termctx =
  fun f (Permute (p, ctx)) -> Permute (p, termctx_ordered f ctx)
 
 let metadef : type x y z. (Compunit.t -> Compunit.t) -> (x, y, z) Metadef.t -> (x, y, z) Metadef.t =

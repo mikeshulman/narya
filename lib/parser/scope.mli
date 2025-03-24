@@ -53,6 +53,7 @@ val empty : t
 val resolve : Trie.path -> (Param.data * Param.tag) option
 val modify_visible : ?context_visible:Param.context -> Param.hook Yuujinchou.Language.t -> unit
 val modify_export : ?context_export:Param.context -> Param.hook Yuujinchou.Language.t -> unit
+val modify_options : (Options.t -> Options.t) -> unit
 
 val export_visible :
   ?context_modifier:Param.context ->
@@ -94,12 +95,18 @@ val import_subtree :
 
 val get_visible : unit -> trie
 val get_export : unit -> trie
+val get_options : unit -> Options.t
 val set_visible : trie -> unit
 val start_section : string list -> unit
 val end_section : unit -> string list option
+val count_sections : unit -> int
 
 val run :
-  ?export_prefix:string Bwd.t -> ?init_visible:(Param.data, Param.tag) Trie.t -> (unit -> 'a) -> 'a
+  ?export_prefix:string Bwd.t ->
+  ?init_visible:(Param.data, Param.tag) Trie.t ->
+  ?options:Options.t ->
+  (unit -> 'a) ->
+  'a
 
 val run_with : ?get:(unit -> t) -> ?set:(t -> unit) -> (unit -> 'a) -> 'a
 val lookup : Trie.path -> Constant.t option

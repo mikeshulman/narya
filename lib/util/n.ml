@@ -88,8 +88,7 @@ let rec plus_uniq : type m n mn mn'. (m, n, mn) plus -> (m, n, mn') plus -> (mn,
 
 (* Addition is associative. *)
 
-let rec plus_assocl :
-    type m n mn p np mnp.
+let rec plus_assocl : type m n mn p np mnp.
     (m, n, mn) plus -> (n, p, np) plus -> (m, np, mnp) plus -> (mn, p, mnp) plus =
  fun mn np m_np ->
   match np with
@@ -101,8 +100,7 @@ let rec plus_assocl :
       let mn_p = plus_assocl mn np m_np in
       Suc mn_p
 
-let rec plus_assocr :
-    type m n mn p np mnp.
+let rec plus_assocr : type m n mn p np mnp.
     (m, n, mn) plus -> (n, p, np) plus -> (mn, p, mnp) plus -> (m, np, mnp) plus =
  fun mn np mn_p ->
   match np with
@@ -250,8 +248,8 @@ let rec insert_in : type a b. b t -> (a, b) insert -> a t =
       let (Nat (Suc b)) = b in
       suc (insert_in (Nat b) i)
 
-let rec plus_insert :
-    type a b c ab ac. (a, b, ab) plus -> (a, c, ac) plus -> (b, c) insert -> (ab, ac) insert =
+let rec plus_insert : type a b c ab ac.
+    (a, b, ab) plus -> (a, c, ac) plus -> (b, c) insert -> (ab, ac) insert =
  fun ab ac i ->
   match i with
   | Now ->
@@ -292,6 +290,7 @@ let rec index_of_insert : type b bsuc. (b, bsuc) insert -> bsuc index = function
       | Now -> Pop (index_of_insert i)
       | Later _ -> Pop (index_of_insert i))
 
+(* Like swap_indices, but now tracking the types. *)
 type (_, _) swap_inserts =
   | Swap_inserts : ('b, 'c) insert * ('a, 'b) insert -> ('a, 'c) swap_inserts
 
@@ -309,12 +308,71 @@ let rec swap_inserts : type a b c. (b, c) insert -> (a, b) insert -> (a, c) swap
           let (Swap_inserts (l'', k'')) = swap_inserts k' l' in
           Swap_inserts (Later l'', Later k''))
 
+(* Lift an insert to a context extended on the right by one element, keeping the same numerical De Bruijn index.  *)
+let rec suc_insert : type a b. (a, b) insert -> (a suc, b suc) insert = function
+  | Now -> Now
+  | Later i -> Later (suc_insert i)
+
+type _ insert_to = Insert_to : ('a, 'b) insert -> 'a insert_to
+
+(* Lift one insert to a larger domain obtained by inserting something else.  Specifically, the result has the same numerical De Bruijn index as the "lift" argument.  Computationally this is a no-op. *)
+let rec lift_insert : type a b c. lift:(a, b) insert -> over:(a, c) insert -> c insert_to =
+ fun ~lift ~over ->
+  match over with
+  | Now -> Insert_to (suc_insert lift)
+  | Later over -> (
+      match lift with
+      | Now -> Insert_to Now
+      | Later lift ->
+          let (Insert_to res) = lift_insert ~lift ~over in
+          Insert_to (Later res))
+
+(* Similarly, commute two insertions past each other, maintaining the same numerical De Bruijn index for both.  Another computational no-op. *)
+type (_, _) commute_insert =
+  | Commute_insert : ('b, 'd) insert * ('c, 'd) insert -> ('b, 'c) commute_insert
+
+let rec commute_insert : type a b c.
+    lift:(a, b) insert -> over:(a, c) insert -> (b, c) commute_insert =
+ fun ~lift ~over ->
+  match over with
+  | Now -> Commute_insert (Now, suc_insert lift)
+  | Later over -> (
+      match lift with
+      | Now -> Commute_insert (Later (suc_insert over), Now)
+      | Later lift ->
+          let (Commute_insert (s, t)) = commute_insert ~lift ~over in
+          Commute_insert (Later s, Later t))
+
+(* Check whether two insertions with the same output are equal.  If so, identify their inputs.  If not, commute them. *)
+type (_, _) compare_inserts =
+  | Eq_inserts : ('m, 'm) compare_inserts
+  | Neq_inserts : ('r, 'm) insert * ('r, 'n) insert -> ('m, 'n) compare_inserts
+
+let rec compare_inserts : type m n p. (m, p) insert -> (n, p) insert -> (m, n) compare_inserts =
+ fun m n ->
+  match (m, n) with
+  | Now, Now -> Eq_inserts
+  | Now, Later m -> Neq_inserts (m, Now)
+  | Later n, Now -> Neq_inserts (Now, n)
+  | Later m, Later n -> (
+      match compare_inserts m n with
+      | Eq_inserts -> Eq_inserts
+      | Neq_inserts (m', n') -> Neq_inserts (Later m', Later n'))
+
+(* Like index_equiv, but for inserts. *)
+let rec insert_equiv : type m msuc n nsuc. (m, msuc) insert -> (n, nsuc) insert -> unit option =
+ fun k l ->
+  match (k, l) with
+  | Now, Now -> Some ()
+  | Later k, Later l -> insert_equiv k l
+  | _, _ -> None
+
 type (_, _, _) insert_in_plus =
   | Left : ('pred_m, 'm) insert * ('pred_m, 'n, 'pred_mn) plus -> ('m, 'n, 'pred_mn) insert_in_plus
   | Right : ('pred_n, 'n) insert * ('m, 'pred_n, 'pred_mn) plus -> ('m, 'n, 'pred_mn) insert_in_plus
 
-let rec insert_in_plus :
-    type m n pred_mn mn. (m, n, mn) plus -> (pred_mn, mn) insert -> (m, n, pred_mn) insert_in_plus =
+let rec insert_in_plus : type m n pred_mn mn.
+    (m, n, mn) plus -> (pred_mn, mn) insert -> (m, n, pred_mn) insert_in_plus =
  fun mn i ->
   match mn with
   | Zero -> Left (i, Zero)
@@ -330,8 +388,8 @@ type (_, _, _) insert_into_plus =
   | Left : ('m, 'msuc) insert * ('msuc, 'n, 'mn_suc) plus -> ('m, 'n, 'mn_suc) insert_into_plus
   | Right : ('n, 'nsuc) insert * ('m, 'nsuc, 'mn_suc) plus -> ('m, 'n, 'mn_suc) insert_into_plus
 
-let rec insert_into_plus :
-    type m n mn mn_suc. (m, n, mn) plus -> (mn, mn_suc) insert -> (m, n, mn_suc) insert_into_plus =
+let rec insert_into_plus : type m n mn mn_suc.
+    (m, n, mn) plus -> (mn, mn_suc) insert -> (m, n, mn_suc) insert_into_plus =
  fun mn i ->
   match i with
   | Now -> Right (Now, Suc mn)
@@ -342,6 +400,14 @@ let rec insert_into_plus :
           match insert_into_plus mn i with
           | Left (j, mn_suc) -> Left (j, Suc mn_suc)
           | Right (k, mn_suc) -> Right (Later k, Suc mn_suc)))
+
+type _ insert_into = Into : ('m, 'msuc) insert -> 'msuc insert_into
+
+(* Iterate through all the insertions into a given nat. *)
+let rec all_inserts : type n. n t -> n insert_into Seq.t = function
+  | Nat Zero -> Seq.empty
+  | Nat (Suc n) ->
+      Seq.cons (Into Now) (Seq.map (fun (Into k) -> Into (Later k)) (all_inserts (Nat n)))
 
 (* ********** Comparison ********** *)
 
@@ -379,9 +445,8 @@ type (_, _, _, _) plus_compare =
   | Lt : ('n1, 'n2, 'mn1, 'mn2) plus_compare
   | Gt : ('n1, 'n2, 'mn1, 'mn2) plus_compare
 
-let rec plus_compare :
-    type m n1 n2 mn1 mn2. (m, n1, mn1) plus -> (m, n2, mn2) plus -> (n1, n2, mn1, mn2) plus_compare
-    =
+let rec plus_compare : type m n1 n2 mn1 mn2.
+    (m, n1, mn1) plus -> (m, n2, mn2) plus -> (n1, n2, mn1, mn2) plus_compare =
  fun n1 n2 ->
   match (n1, n2) with
   | Zero, Zero -> Eq
@@ -489,8 +554,7 @@ let rec times_uniq : type a b ab ab'. (a, b, ab) times -> (a, b, ab') times -> (
       let Eq = times_uniq ab ab' in
       plus_uniq aba ab'a
 
-let rec distrib_left :
-    type a b c a_times_b a_times_c b_plus_c a_times__b_plus_c.
+let rec distrib_left : type a b c a_times_b a_times_c b_plus_c a_times__b_plus_c.
     (a, b, a_times_b) times ->
     (a, c, a_times_c) times ->
     (b, c, b_plus_c) plus ->
@@ -515,8 +579,7 @@ let rec distrib_left :
         (distrib_left a_times_b a_times_c' b_plus_c' a_times__b_plus_c')
         a_times_c'__plus_a a_times__b_plus_c'___plus_a
 
-let distrib_left' :
-    type a b c a_times_b a_times_c b_plus_c a_times__b_plus_c.
+let distrib_left' : type a b c a_times_b a_times_c b_plus_c a_times__b_plus_c.
     (a, b, a_times_b) times ->
     (a, c, a_times_c) times ->
     (b, c, b_plus_c) plus ->
@@ -529,8 +592,7 @@ let distrib_left' :
   let Eq = plus_uniq a_times_b__plus__a_times_c y in
   x
 
-let rec times_assocl :
-    type a b c ab bc abc.
+let rec times_assocl : type a b c ab bc abc.
     a t -> (a, b, ab) times -> (b, c, bc) times -> (a, bc, abc) times -> (ab, c, abc) times =
  fun a a_times_b b_times_c a_times__b_times_c ->
   match b_times_c with
@@ -546,8 +608,7 @@ let rec times_assocl :
         distrib_left a_times__b_times_c' a_times_b b_times_c'__plus_b a_times__b_times_c in
       Suc (a_times_b__times_c', a_times_b__times_c'___plus__a_times_b)
 
-let rec times_assocr :
-    type a b c ab bc abc.
+let rec times_assocr : type a b c ab bc abc.
     a t -> (a, b, ab) times -> (b, c, bc) times -> (ab, c, abc) times -> (a, bc, abc) times =
  fun a a_times_b b_times_c a_times_b__times_c ->
   (* We could take a lazy approach to this too, but we don't. *)
@@ -601,8 +662,7 @@ let rec pow_uniq : type a b ab ab'. (a, b, ab) pow -> (a, b, ab') pow -> (ab, ab
       let Eq = pow_uniq ab ab' in
       times_uniq aba ab'a
 
-let rec pow_plus :
-    type a b c a_to_b a_to_c b_plus_c a_to__b_plus_c.
+let rec pow_plus : type a b c a_to_b a_to_c b_plus_c a_to__b_plus_c.
     a t ->
     (a, b, a_to_b) pow ->
     (a, c, a_to_c) pow ->
@@ -705,8 +765,7 @@ let insert : type a b. (a, b) perm -> b suc index -> (a suc, b suc) perm =
   | _ -> Insert (p, i)
 
 (* Insert a sequence of 'c' elements into a permutation at the same position, in order. *)
-let rec insert_many :
-    type a b c ac bc.
+let rec insert_many : type a b c ac bc.
     (a, b) perm -> b suc index -> (a, c, ac) plus -> (b, c, bc) plus -> (ac, bc) perm =
  fun p i ac bc ->
   match (ac, bc) with
@@ -722,8 +781,8 @@ let rec perm_apply : type a b. (a, b) perm -> a index -> b index =
   | Insert (p, j), Pop i -> fst (swap_indices j (perm_apply p i))
 
 (* A permutation can be extended by the identity on the right. *)
-let rec perm_plus :
-    type a b c ac bc. (a, b) perm -> (a, c, ac) plus -> (b, c, bc) plus -> (ac, bc) perm =
+let rec perm_plus : type a b c ac bc.
+    (a, b) perm -> (a, c, ac) plus -> (b, c, bc) plus -> (ac, bc) perm =
  fun p ac bc ->
   match (ac, bc) with
   | Zero, Zero -> p

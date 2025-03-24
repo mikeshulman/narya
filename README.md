@@ -9,10 +9,10 @@ Narya is very much a work in progress.  Expect breaking changes, including even 
 
 ### From source
 
-There is no distribution yet, so you have to compile Narya yourself.  This requires OCaml version 5.2.1 (or later) and various libraries.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
+There is no distribution yet, so you have to compile Narya yourself.  This requires a recent version of OCaml and various libraries.  Currently Narya is developed with OCaml 5.3.0; as far as I know, it also compiles with any version after 5.2.1, but this is not regularly verified.  After installing any version of OCaml and its package manager Opam, you can install Narya with its dependencies as follows:
 
 ```
-opam switch create 5.2.1
+opam switch create 5.3.0
 opam install dune
 
 cd narya
@@ -23,13 +23,25 @@ dune runtest
 dune install
 ```
 
-This will make the executable `narya` available in a directory such as `~/.opam/5.2.1/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
+This will make the executable `narya` available in a directory such as `~/.opam/5.3.0/bin`, which should be in your `PATH`.  Alternatively, instead of `dune install` you can also run the executable directly from the `narya/` directory with `dune exec narya`.  In this case, to pass flags to the executable, put them after a `--`.  For instance, `dune exec narya -- test.ny -i` loads the file `test.ny` and then enters interactive mode.
 
 ### ProofGeneral (Emacs) mode
 
-The recommended mode of use of Narya is with its [ProofGeneral](https://proofgeneral.github.io/) Emacs mode (for further description of this, see below).  To install Narya's ProofGeneral mode, first install Emacs and ProofGeneral and find the ProofGeneral installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.  In this directory, create a subdirectory called `narya` and copy (or, better, symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.  Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny")` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.  Then restart Emacs.
+The recommended mode of use of Narya is with its [ProofGeneral](https://proofgeneral.github.io/) Emacs mode (for further description of this, see below).  Unfortunately, ProofGeneral is not well-designed for users adding new proof assistant modes.  The steps to install Narya's ProofGeneral mode are:
 
-Note that you will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them) and also whenever ProofGeneral is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Coq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
+1. Install Emacs and ProofGeneral.  The recommended way to install ProofGeneral is from [MELPA](https://melpa.org/) using Emacs' package manager, as described at the [ProofGeneral page](https://proofgeneral.github.io/).
+
+1. Find the ProofGeneral installation directory, which may be something like `$HOME/.emacs.d/elpa/proof-general-XXXXXXXX-XXXX`.
+
+1. In this directory, create a subdirectory called `narya` and copy (or, better, symlink) the files in the [proofgeneral](proofgeneral/) directory of the Narya repository into that subdirectory.
+
+1. Then edit the file `proof-site.el` in the subdirectory `generic` of the ProofGeneral installation directory and add a line containing `(narya "Narya" "ny" nil (".nyo"))` to the list of proof assistants in the definition of the variable `proof-assistant-table-default`.
+
+1. If there is a byte-compiled Emacs Lisp file `proof-site.elc` in the `generic` directory, either delete it, or re-create it from your edited `proof-site.el` using `M-x byte-compile-file`.
+
+1. Restart Emacs.
+
+You will have to repeat these steps whenever the Narya ProofGeneral mode is updated (unless you symlinked the files instead of copying them, in which case restarting Emacs will suffice); whenever ProofGeneral is updated; and whenever Emacs is updated.  Note also that you can only use ProofGeneral with one proof assistant per Emacs session: if you want to switch between (say) Narya and Rocq, you need to restart Emacs or open a new instance of it.  These appear to be fundamental restrictions of ProofGeneral (if you know how to get around them, please let me know); although once Narya and its ProofGeneral mode are more stable we can probably petition to be added to the main ProofGeneral distribution.
 
 ### In-browser version
 
@@ -46,15 +58,17 @@ The Narya executable accepts at least the following command-line flags.
 
 - `-interactive` or `-i`: Enter interactive mode (see below)
 - `-exec STRING` or `-e STRING`: Execute a string argument (see below)
-- `-no-check`: Don't typecheck and execute code (only parse it)
 - `-source-only`: Load all files from source, ignoring any compiled versions
 
 #### Formatting output
 
 - `-verbose` or `-v`: Show verbose messages
 - `-unicode` and `-ascii`: Display and reformat code using Unicode (default) or ASCII
-- `-noncompact` and `-compact`: Select reformatting mode
-- `-reformat`: Display reformatted code on stdout after parsing
+- `-no-reformat`: Do not automatically reformat source files (see below)
+- `-show-function-boundaries`: Display boundaries of functions, when implicit
+- `-hide-function-boundaries`: Hide boundaries of functions, when implicit
+- `-show-type-boundaries`: Display boundaries of functions, when implicit
+- `-hide-type-boundaries`: Hide boundaries of functions, when implicit
 
 #### Controlling parametricity
 
@@ -75,7 +89,7 @@ In interactive mode, commands typed by the user are executed as they are entered
 
 ### Commands
 
-In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but a standard reformatter (like `ocamlformat`) is planned so that the default will be to enforce a uniform indentation style.  (Experimental output of this reformatter-in-progress is available with the `-reformat` command-line option.)  The available commands in a file or `-e` string are the following.
+In a file, conventionally each command begins on a new line, but this is not technically necessary since each command begins with a keyword that has no other meaning.  (Similarly, a command-line `-e` string may contain multiple commands as long as whitespace separates them.)  Indentation is not significant, but there is a built-in code reformatter (see below) that is on by default, enforcing a uniform indentation style.  The available commands in a file or `-e` string are the following.
 
 1. `def NAME [PARAMS] [: TYPE] ≔ TERM [and ...]`
 
@@ -92,14 +106,6 @@ In a file, conventionally each command begins on a new line, but this is not tec
 1. `synth TERM`
 
    Like `echo`, but does not normalize the term, only computes its type.
-
-1.
-   ```
-   show hole HOLE
-   show holes
-   ```
-
-   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
 
 1. `notation [TIGHTNESS] NAME : […] PATTERN […] ≔ HEAD ARGUMENTS`
 
@@ -139,6 +145,14 @@ In a file, conventionally each command begins on a new line, but this is not tec
 
 In interactive mode, the following additional commands are also available.  (However, they are mostly intended for use in the ProofGeneral backend, see below.)
 
+1.
+   ```
+   show hole HOLE
+   show holes
+   ```
+
+   Display the context and type of a specific open hole number `HOLE`, or of all the open holes (see below).
+
 1. `solve HOLE ≔ TERM`
 
    Fill hole number `HOLE` with the term `TERM` (see below).
@@ -147,18 +161,38 @@ In interactive mode, the following additional commands are also available.  (How
 
    Undo the last `N` commands that modify the global state, rewinding to a previous situation.  This includes all commands except `echo`, `synth`, `show`, and `solve`: those commands are skipped over when undoing.  (Of course `solve` does modify the global state, but it is not undoable because it doesn't affect the "processed position" in ProofGeneral.)  The command `undo` itself is also not "undoable" and there is no "redo": after a command is undone, it is lost permanently from Narya's memory (although you can press Up-arrow or Meta+P to find it in the interactive history and re-execute it).  Following an `undo` with another `undo` will just undo additional commands: `undo 1` followed by `undo 1` is the same as `undo 2`.
 
+1. `display SETTING`
+
+   Set one of the display settings (that are also set by command-line flags).  Possible display settings are
+   
+   ```
+   display chars ≔ unicode
+   display chars ≔ ascii
+   display chars ≔ toggle
+   display function boundaries ≔ on
+   display function boundaries ≔ off
+   display function boundaries ≔ toggle
+   display type boundaries ≔ on
+   display type boundaries ≔ off
+   display type boundaries ≔ toggle
+   ```
+
 
 ### ProofGeneral mode
 
-[ProofGeneral](https://proofgeneral.github.io/) is a generic Emacs interface for proof assistants, perhaps best known for its use with Coq.  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
+[ProofGeneral](https://proofgeneral.github.io/) is a generic development environment designed for proof assistants that runs inside the text editor Emacs.  Proof General is perhaps best known for its use with [Rocq](https://rocq-prover.org/).  Narya comes with a basic ProofGeneral mode.  Narya does not yet have a true interactive *proof* mode, which ProofGeneral is designed for, but it is still useful for progressive processing of commands in a file.  In addition, the Narya ProofGeneral mode is enhanced with commands for creating, inspecting, and filling holes, similar to Agda's Emacs mode.
 
-Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for a comment, or by filling a hole with `C-c C-SPC` as described below), it will automatically be retracted up to the point where you are editing.
+#### Basic usage
 
-In addition to the main window displaying your source file, there will be two other windows in split-screen labeled "goals" and "response".  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
+Once Narya's ProofGeneral mode is installed as described above, it should start automatically when you open a file with the `.ny` extension.  When ProofGeneral mode is active, there is some initial segment of the buffer (which starts out empty) that has been processed (sent to Narya) and is highlighted with a background color (usually blue).  The unprocessed part of the buffer can be freely edited, and as you complete new commands you can process them as well one by one.  You can also undo or "retract" processed commands, removing them from the processed region.  If you edit any part of the processed region (except for editing inside an existing comment, or filling a hole with `C-c C-SPC` as described below), it will automatically be retracted (using Narya's `undo` command) up to the point where you are editing.
 
-The most useful ProofGeneral key commands for Narya are the following.  (As usual in Emacs, `C-a` means hold down the Control key and press `a`, then release both.  Similarly, `C-M-a` means hold down both Control and Meta (usually the same as "Alt") and press `a`, then release them all.)
+In addition to the main window displaying your source file, there will normally be two other windows in split-screen labeled "goals" and "response" (although this can be customized with the Emacs variable `proof-three-window-enable`).  The "response" window displays Narya's informational and error messages.  The "goals" window displays the contexts and types of holes whenever relevant.
 
-- `C-c C-n` : Process the next unprocessed command.  Since Narya has no command-terminating string, the "next command" is interpreted as continuing until the following command keyword or until the end of the buffer.
+#### Key commands
+
+The most useful ProofGeneral key commands for Narya are the following.  As usual in Emacs, `C-a` means hold down the Control key and press `a`, then release both.  Similarly, `C-M-a` means hold down both Control and Meta (usually the same as "Alt") and press `a`, then release them all.
+
+- `C-c C-n` : Process the next unprocessed command.  Since Narya has no command-terminating string, the "next command" is interpreted as continuing until the following command keyword or until the end of the buffer.  This means that if you've written a complete command but there is garbage following it, in order to process the command you'll need to either comment out the garbage or insert at least the beginning of another command in between (such as `quit`) so that ProofGeneral can find the end of the command you want to process.
 - `C-c C-u` : Retract the last processed command.
 - `C-c RET` : Move the processed/unprocessed boundary to (approximately) the current cursor location, processing or retracting as necessary.
 - `C-c C-b` : Process the entire buffer.
@@ -166,22 +200,52 @@ The most useful ProofGeneral key commands for Narya are the following.  (As usua
 - `C-c C-.` : Move the cursor to the end of the processed region.
 - `C-M-a` : Move the cursor to the beginning of the command it is inside.
 - `C-M-e` : Move the cursor to the end of the command it is inside.
-- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo`, `synth`, and `show`.
+- `C-c C-v` : Read a "state-preserving" command from the minibuffer and execute it, displaying its output in the result buffer.  Currently the only state-preserving commands are `echo`, `synth`, `show`, and `display`.
 - `C-c C-c` : Interrupt Narya if a command is taking too long.  Narya attempts to recover, but its state may be unreliable afterwards.
 - `M-;` : Insert a comment, remove a comment, or comment out a region.  This is a standard Emacs command, but is customized to use line comments on code lines and block comments elsewhere.
 
-As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (see below).  Whenever a hole is created by processing a command, the location of the hole is highlighted in `narya-hole-face` (which you can customize).  These highlights are removed when hole-creating commands are retracted.  Narya's ProofGeneral mode also defines the following additional key commands.
+As noted above, Narya's ProofGeneral mode is enhanced to deal with open holes (see below).  Whenever a hole is created by processing a command, the location of the hole is highlighted in `narya-hole-face` (which you can customize).  These highlights are removed when hole-creating commands are retracted.
+
+Narya's ProofGeneral mode also defines the following additional key commands.
 
 - `C-c ;` : Read a term from the minibuffer and normalize it (like `C-c C-v` with `echo`).
 - `C-c :` : Read a term from the minibuffer and synthesize its type (like `C-c C-v` with `synth`).
 - `C-c C-?` : Show the contexts and types of all open holes (like `C-c C-v` with `show holes`).
-- `C-c C-t` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
-- `C-c C-j` : Move the cursor to the position of the next open hole.  This is the analogue of Agda's `C-c C-f`.
-- `C-c C-k` : Move the cursor to the position of the previous open hole.  This is the analogue of Agda's `C-c C-b`, which unfortunately has the very different meaning in ProofGeneral of "process the entire buffer".
+- `C-c C-,` : Show the context and type of the hole under point (like `C-c C-v` with `show hole`, except that you don't need to know the hole number).
+- `C-c C-j` : Move the cursor to the position of the next open hole.
+- `C-c C-k` : Move the cursor to the position of the previous open hole.
 - `C-c C-SPC` : Fill the hole under point with a specified term, without retracting any code.
+- `C-c C-d C-u`: Toggle display of unicode characters.
+- `C-c C-d C-f`: Toggle display of function boundaries.
+- `C-c C-d C-t`: Toggle display of type boundaries.
+
+Agda users should beware: while a few of Narya's key commands are chosen to match those of Agda (like `C-c C-?` and `C-c C-SPC` and `C-c C-,`), many of Agda's key bindings have already been defined in ProofGeneral to mean something else (notable examples are `C-c C-n` and `C-c C-b` and `C-c C-.`), leading Narya to choose different ones (such as `C-c C-k` in place of `C-c C-b`).  If there is significant demand, we could implement a configuration option that instead preferentially chooses Agda's key bindings, moving the conflicting ProofGeneral bindings to other key sequences.
 
 
-### Entering Unicode characters
+#### Syntax highlighting
+
+Narya's ProofGeneral mode uses Emacs' font-lock system for syntax highlighting.  This is only approximately correct as it uses simple regexps, but it's fairly good, and can highlight code that hasn't been processed yet and wouldn't even parse.  It uses the following Emacs "faces", which you may want to customize, particularly because some of them are not configured by default to have any noticable color.
+
+- `font-lock-keyword-face`: commands such as `def` and `axiom`.
+- `font-lock-builtin-face`: keywords such as `let` and `match`.
+- `font-lock-function-name-face`: names of constants currently being defined or assumed.
+- `font-lock-constant-face`: constructor names.
+- `font-lock-number-face`: numerals.  I suggest making this face look the same as `font-lock-constant-face`, since numerals are just a shorthand for constructor sequences.
+- `font-lock-property-name-face`: field and method names.
+- `font-lock-variable-name-face`: variables currently being bound by abstractions, let-bindings, as parameters, in the domains of dependent function-types, etc.
+- `font-lock-bracket-face`: parentheses, brackets, and braces.  Note that this inherits by default from `font-lock-punctuation-face`.
+- `font-lock-operator-face`: single-character operators like → and ASCII operators such as `->`.
+
+ProofGeneral also uses some of its own faces that you may want to customize, such as the following.
+
+- `proof-locked-face`: the background highlight of the processed region.
+
+And Narya defines some of its own faces as well.
+
+- `narya-hole-face`: the background highlight of open holes.
+
+
+#### Entering Unicode characters
 
 When editing Narya files in Emacs, you will probably also want an input-mode for entering Unicode characters.  Narya does not have its own such mode.  I use the one that ships with Agda, customized by adding the following to `agda-input-user-translations`:
 ```
@@ -198,6 +262,37 @@ With this customization added, the Unicode characters that have primitive meanin
 - For ⤇, type `\R|` or `\|=>`
 - For ≔, type `\:=`
 - For …, type `\...`
+
+(These particular characters will be automatically converted from their ASCII versions to their Unicode equivalents by Narya's reformatter (assuming `display chars` is set to `unicode`), so it is not necessary to enter them manually.  But you will probably want to enter other Unicode characters at some point as well.)
+
+
+#### Other customization
+
+Some other ProofGeneral customization options you may want to consider are:
+
+- `proof-output-tooltips`: I recommend turning this off, as the "output" that it displays in tooltips is not very readable or helpful.
+
+- `proof-shrink-windows-tofit`: Note that this only affects windows that take up the full width of the frame, and in particular has no effect in the default three-window mode.  However, Narya's ProofGeneral mode includes some custom code (copied from the Rocq mode) that resizes the response window in three-window mode as well.
+
+- `narya-prog-args`: If you want to pass command-line options to alter the behavior of Narya, such as the options like `-dtt` that modify the type theory, at present the only way to do this is to change this variable.  You can do that globally, or locally in particular `ny` files with Emacs file-local variables.  If you do change this variable, make sure to keep the argument `-proofgeneral` in it, which is necessary to put Narya into the correct mode for interacting with ProofGeneral.
+
+
+### Code formatter
+
+Narya comes with an "opinionated code formatter" like [gofmt](https://go.dev/blog/gofmt), [ocamlformat](https://github.com/ocaml-ppx/ocamlformat), or [prettier](https://prettier.io/docs/why-prettier).  In fact, the formatter is built into Narya, using the same parser and pretty-printer as the typechecker; so they should never get out of sync as the language changes.
+
+There are currently two ways to use the formatter.  Firstly, every time you run Narya on a source file, it automatically reformats that file.  (It only reformats files supplied explictly on the command line, not other files loaded by these.)  If this resulted in any changes, it copies the original file to a backup file with a `.bak.N` extension; this is a temporary feature to ensure you can recover your code in case of bugs in the reformatter, and will probably go away once there is enough evidence that the reformatter is trustworthy.  (Please report any bugs in the reformatter, especially serious ones that change the meaning of the code, make it non-reparseable, lose comments, etc.!  Also, reformatting is supposed to be idempotent: if reformatting code twice without editing it in the middle makes any changes the second time, that is also a bug.)
+
+Secondly, every time you process a command in ProofGeneral, that command is automatically reformatted.  If you retract the command, it remains reformatted.  To undo the reformatting, you can use Emacs' undo operation (`C-/`); this will also retract the command, if it is still in the processed region.
+
+Processing an entire file in ProofGeneral does not have *exactly* the same reformatting effect as running Narya on it from the command line.  They should reformat individual commands in the same way, but the command-line reformatter also ensures that distinct commands are separated by single blank lines (suitably interpreted in the presence of comments).  ProofGeneral can't do this, as it doesn't even pass blank lines and comments between commands to the Narya subprocess.  However, most people already separate their commands by single blank lines, so this difference is not usually a serious issue.  If a file has been formatted by the command-line reformatter, processing it in Proof General should not *change* that formatting (if it does, please report a bug).
+
+It is not currently possible to reformat code without simultaneously typechecking it.  The presence of user-definable mixfix notations that can also be imported from other files means that any reformatter must be at least partially context-aware.  It would probably be possible to implement a reformatter that resolves user-defined notations without typechecking definitions, but this is not a high priority.
+
+Currently there is only one configuration option for the code formatter: whether to print Unicode characters such as → or their ASCII equivalents such as `->`.  This can be set on the command line with the flags `-unicode` and `-ascii`, and in ProofGeneral with the state-preserving `display` command.  In accord with the goal of opinionated code formatters -- to eliminate time wasted by arguing about formatting, including formatter options -- I do not plan to add more configuration options; although I'll listen if you have a case to make for one.  Suggestions for improvements and changes to the standard formatting style are also welcome, although I can't promise to adopt them.
+
+It is possible to turn off the code formatter.  The Emacs customization variables `narya-reformat-commands` and `narya-reformat-holes` (see below) will turn off reformatting in ProofGeneral, and the command-line option `-no-format` will turn off reformatting of input files.  However, if you don't like the way Narya reformats your code, I would appreciate it if you give me feedback about this rather than (or, at least, in addition to) turning it off entirely.
+
 
 ### jsNarya
 
@@ -242,7 +337,7 @@ A notation which starts and ends with a variable is called "infix"; one that sta
 
 As noted above, the meaning of a notation is defined by a `HEAD`, which is either a defined constant or a datatype constructor (see below), and `ARGUMENTS` that are a permutation of the pattern variables.  When the notation is encountered during parsing, it will be interpreted as a corresponding application of this head to the appropriate permutation of the terms appearing in the notation.  Conversely, this notation is also associated to the constant or constructor and will also be used for *printing* it in output.  A constant can be associated to only one notation for printing it; if additional notations are declared later, they will all remain usable for parsing, but only the most recently declared one will be used for printing.  A constructor can be associated to one printing notation for each number of arguments it could be applied to, since the same constructor name could be used at different datatypes with different numbers of arguments (see below).
 
-We have already mentioned the right-associative function-type notation `A → B`; this has tightness 0.  Function abstraction `x ↦ M` is also right-associative, so you can write `x ↦ y → M` (which can also be abbreviated as `x y ↦ M`), and has tightness −ω.  Application `M N` is implemented specially since an ordinary notation cannot have two variables next to each other without a symbol in between, but it behaves as though it is left-associative with tightness +ω.  (In particular, a nonassociative prefix notation of tightness +ω, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  However, there are no such notations yet.)
+We have already mentioned the right-associative function-type notation `A → B`; this has tightness 0.  Function abstraction `x ↦ M` is also right-associative, so you can write `x ↦ y ↦ M` (which can also be abbreviated as `x y ↦ M`), and has tightness −ω.  Application `M N` is implemented specially since an ordinary notation cannot have two variables next to each other without a symbol in between, but it behaves as though it is left-associative with tightness +ω.  (In particular, a nonassociative prefix notation of tightness +ω, say `@`, will bind tighter than application, so that `@ f x` parses as `(@ f) x`.  However, there are no such notations yet.)
 
 In addition, parentheses `( M )` are defined as an outfix notation, hence with effective tightness +ω.  This emphasizes that the "internal" locations of any notation (those with notation symbols on both sides) behave as if surrounded by parentheses; in particular, notations of any tightness, even −ω, can appear therein without further parenthesization.  Tightness and associativity only control what other notations can appear in the "external" locations that are delimited by a notation symbol on one side only.
 
@@ -291,7 +386,7 @@ More precisely, there are two namespaces at any time: the "import" namespace, wh
 
 By contrast, when in interactive mode or executing a command-line `-e` string, all definitions from all files and strings that were explicitly specified previously on the command line are available, even if not exported.  This does not carry over transitively to files imported by them.  Standard input (indicated by `-` on the command line) is treated as an ordinary file; thus it must import any other files it wants to use, but its definitions are automatically available in `-e` strings and interactive mode.
 
-No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both `b.ny` and `c.ny` import `d.ny`, and `a.ny` imports both `b.ny` and `c.ny`, any effectual commands like `echo` in `d.ny` will only happen once, there will only be one copy of the definitions from `d.ny` in the namespace of `a.ny`, and the definitions from `b.ny` and `c.ny` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is `narya one.ny two.ny` but `one.ny` imports `two.ny`, then `two.ny` will be executed during `one.ny` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was alread yexecuted.
+No file will be executed more than once during a single run, even if it is imported by multiple other files.  Thus, if both `b.ny` and `c.ny` import `d.ny`, and `a.ny` imports both `b.ny` and `c.ny`, any effectual commands like `echo` in `d.ny` will only happen once, there will only be one copy of the definitions from `d.ny` in the namespace of `a.ny`, and the definitions from `b.ny` and `c.ny` are compatible.  Circular imports are not allowed (and are checked for).  The order of execution is as specified on the command-line, with depth-first traversal of import statements as they are encountered.  Thus, for instance, if the command-line is `narya one.ny two.ny` but `one.ny` imports `two.ny`, then `two.ny` will be executed during `one.ny` whenever that import statement is encountered, and then skipped when we get to it on the command-line since it was already executed.
 
 
 ### Import modifiers
@@ -345,7 +440,7 @@ The `notations` namespace is not otherwise special: you can put constants in it 
 
 For example, you can avoid making any imported notations available by using the modifier `except notations`, or you can import only the notations and no definitions with `only notations`.  Or you can import only a few particular notations with a modifier like `in notations union (only plus; only times)`.  In particular, if you import an entire file qualified such as `import "arith" | renaming . arith`, then a notation such as `notations.plus` in `"arith.ny"` will be renamed to `arith.notations.plus`, which is not in the `notations` namespace and thus will not be available to the parser.  To import all the constants qualified but make all the notations available, write `import "arith" | seq (renaming . arith; renaming arith.notations notations)`.  (This is probably a good candidate to have an abbreviated version.)
 
-The `notations` namespace can also contain sub-namespaces: if you write `notation 1 nat.plus` then it will go in the namespace as `notations.nat.plus`.  Then by importing with `in notations only nat` you can get all the notations in that namespace such as `notations.nat.plus` and `notations.nat.times`, but no other notations from the imported file.  Thus, notation namespaces act somewhat like Coq's [notation scopes](https://coq.inria.fr/doc/V8.18.0/refman/user-extensions/syntax-extensions.html#notation-scopes), although they can only be opened globally and not locally to part of a term.
+The `notations` namespace can also contain sub-namespaces: if you write `notation 1 nat.plus` then it will go in the namespace as `notations.nat.plus`.  Then by importing with `in notations only nat` you can get all the notations in that namespace such as `notations.nat.plus` and `notations.nat.times`, but no other notations from the imported file.  Thus, notation namespaces act somewhat like Rocq's [notation scopes](https://coq.inria.fr/doc/V8.18.0/refman/user-extensions/syntax-extensions.html#notation-scopes), although they can only be opened globally and not locally to part of a term.
 
 
 ### Compilation
@@ -460,11 +555,21 @@ When Narya reaches the end of a file (or command-line `-e` string) in which any 
 
 Generally the purpose of leaving a hole is to see its displayed type and context, making it easier to *fill* the hole by a term.  The most straightforward way to fill a hole is to edit the source code to replace the `?` by a term (perhaps containing other holes) and reload the file.  In interactive mode, if you just entered a command containing a hole, you can `undo 1` to cancel the original command containing the hole, press Up-arrow or Meta+P to recover it in the history, edit it to replace the `?`, and re-execute it.  And in ProofGeneral mode, you can use `C-c C-u` or `C-c RET` to retract the hole-creating command (along with any commands after it) and edit it (or just start editing it and it will auto-retract), and then re-process it with `C-c C-n`.
 
-It is also possible to fill a hole *without* retracting the command or any other commands after it.  In ProofGeneral mode, if you position the cursor over a hole (perhaps using `C-c C-j` and `C-c C-k` to move between holes) and type `C-c C-SPC`, ProofGeneral will prompt you for a term with which to solve the hole.  If this term does successfully solve the hole, it will be inserted to replace the `?` in the buffer, without retracting the original command or anything after it.  (Currently, extra parentheses will always be inserted around the new term to ensure that it parses in its new location; eventually they will only be inserted if necessary.)  This enables you to process a bunch of commands containing holes, some of which might be slow to run, and then progressively work on filling the holes in any desired order without having to retract and re-process anything.
+It is also possible to fill a hole *without* retracting the command or any other commands after it.  In ProofGeneral mode, if you position the cursor over a hole (perhaps using `C-c C-j` and `C-c C-k` to move between holes) and type `C-c C-SPC`, ProofGeneral will prompt you for a term with which to solve the hole.  If this term does successfully solve the hole, it will be inserted to replace the `?` in the buffer, without retracting the original command or anything after it.  This enables you to process a bunch of commands containing holes, some of which might be slow to run, and then progressively work on filling the holes in any desired order without having to retract and re-process anything.  Of course, the term that you fill a hole with contain other holes.
 
-Of course, the term that you fill a hole with contain other holes.  The term solving a hole is parsed and typechecked *in the context where the hole was created*.  Thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
+The term solving a hole is parsed and typechecked *in the context where the hole was created*.  Thus it can refer by name to variables that were in the context at that point (like `X` above) and constants that were defined at that point, and use notations that were in effect at that point, but not constants or notations that were defined later.
 
 You can also solve a hole directly in interactive mode with the command `solve`, identifying a particular hole by its number as in `solve 0 ≔ X`.  (This is also the command issued by ProofGeneral under the hood when you use `C-c C-SPC`.)  But identifying a hole by number is too brittle to use in a file, so this command is only allowed in interactive mode.
+
+Solving a hole cannot be "undone" by Narya; it happens "outside the timestream", effectively altering a previously executed command rather than executing a new one, and does not affect the sequence of commands available to be undone.  This should be intuitive in ProofGeneral, where solving a hole does not change the processed region or insert any commands in the buffer, and a subsequent "undo" (`C-c C-u`) acts on the most recently processed command *in the buffer* whether or not that was the command containing the solved hole.
+
+Along the same lines, undoing commands in ProofGeneral does not affect the replacement of holes by the terms that solve them.  Thus, if you process a command containing a hole, solve the hole, and then undo the command, the term with which you solved the hole remains in the buffer in place of the original `?`.  Therefore, if you then re-process the command, the solving term will be used where there used to be a hole, without creating a hole at all.  For purposes of later commands, this *should* be entirely equivalent to continuing on with a filled hole, but it is not *literally* identical in Narya's internals, so bugs may exist; if you find one, please report it.
+
+On the other hand, solving a hole changes the text of the Emacs buffer, and therefore it *can* be un-done with *Emacs's* `undo` command (generally bound to `C-/`, `C-_`, and `C-x u`), removing the inserted term and replacing the original `?`.  Since the "solve" command cannot be undone by Narya, if you undo it in Emacs there is no consistent thing that Narya can do with the command containing that hole.  Thus, in this case the Narya ProofGeneral mode automatically also retracts the processed region past the command containing the hole.
+
+By default, when filling a hole interactively with ProofGeneral, the term you enter is automatically reformatted.  In particular, line breaks and indenting spaces are inserted in (what Narya thinks are) appropriate places (and removed from what it thinks are inappropriate places), and ASCII operators such as `->` and `|->` are replaced by their Unicode equivalents such as → and ↦.  Unfortunately, at present the solving term is reformatted entirely on its own without reference to the command in which it appears, so after it is inserted the overall command may still be badly formatted, especially if you inserted a case tree structure such as `match`.  Currently the only solution to this is to retract the command after solving the hole and then re-process it to reformat it.
+
+As with reformatting of commands and source files, reformatting of hole-solving terms is affected by the command-line flags `-unicode` and `-ascii` (print operators as → or `->`, respectively).  You can also turn off solve-reformatting entirely by setting the Emacs customization variable `narya-reformat-holes` to `nil`.  However, if you don't like the way Narya reformats your terms, I would appreciate it if you give me feedback about it rather than (or, at least, in addition to) turning it off.
 
 If you have forgotten the context and type of a hole that were displayed when it was created, you can re-display them in interactive mode with the command `show hole HOLE` which displays the context and type of a specific open hole by number, or `show holes` which displays the context and type of all the currently open holes.  In ProofGeneral mode the key command `C-c C-?` issues `show holes`, while `C-c C-t` issues `show hole` with the hole number inferred automatically from the cursor position (which must be over an open hole).  You can move between the existing holes with `C-c C-j` (next hole) and `C-c C-k` (previous hole).
 
@@ -777,20 +882,9 @@ Constructors check rather than synthesizing.  As usual with checking terms, one 
 Constructors must always be applied to all of their arguments.  For instance, one cannot write `cons. x : List A → List A`.  You have to η-expand it: `(xs ↦ cons. x xs) : List A → List A`.  This might be improved in future.
 
 
-### Numeral and list notations
+### Numeral notations
 
 Natural number literals such as `0`, `7`, and `23` are expanded at parse time into applications of the constructors `suc.` and `zero.`.  There is no built-in datatype with these constructors, but of course the user can define `ℕ` as above, in which case for instance `3 : ℕ` is equivalent to `suc. (suc. (suc. zero.))`.  But numerals will also typecheck at any other datatype having constructors of the same name.
-
-There is a similar syntax for lists that expands to applications of the constructors `nil.` and `cons.`: a list like `[> x, y, z >]` expands to `cons. x (cons. y (cons. z nil.))`.  Thus this typechecks at `List A`, as defined above, if `x`, `y`, and `z` belong to `A`.
-
-The arrows `>` in the notation indicate that this is a "forwards" list.  There is a dual notation `[< x, y, z <]` for backwards lists that expands to `snoc. (snoc. (snoc. emp. x) y) z`, which therefore typechecks at a type of [backwards lists](https://github.com/RedPRL/ocaml-bwd) defined as
-```
-def Bwd (A:Type) : Type ≔ data [
-| emp.
-| snoc. (xs : Bwd A) (x : A)
-]
-```
-(Since `[` and `]` are always their own tokens, it is also possible to put spaces in these notations, such as `[ > 1, 2, 3 > ]`, but this is not recommended.)  This notation for lists is tentative and may change.  Eventually, this sort of "folding" notation may also be user-definable.
 
 ### Matching
 
@@ -1527,13 +1621,13 @@ There are many ways in which a type theory can be "higher-dimensional", by which
 
 ### Identity/bridge types of canonical types
 
-Every type `A` has a binary identity/bridge type denoted `Id A x y`, and each term `x:A` has a reflexivity term `refl x : Id A x x`.  (The argument of `refl` must synthesize.)  There is no "transport" for these types (hence "bridge" is really a more appropriate name).  But they are "observational" in the sense that the identity/bridge type of a canonical type is another canonical type of the same sort.
+Every type `A` has a binary identity/bridge type denoted `Id A x y`, and each term `x:A` has a reflexivity term `refl x : Id A x x`.  (The argument of `refl` must synthesize.)  There is no built-in "transport" for these types (hence "bridge" is really a more appropriate name).  But they are "observational" in the sense that the identity/bridge type of a canonical type is another canonical type of the same sort.
 
 For example, `Id (A → B) f g` is a function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`.  In particular, `refl f` is a function of a type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (f x₁)`, witnessing that all functions preserve "equalities" or "relatedness".  Thus the operation traditionally denoted `ap` in homotopy type theory is just `refl` applied to a function (although since the argument of `refl` must synthesize, if the function is an abstraction it must be ascribed).  Similarly, `Id (A × B) u v` is a type of pairs of identities, so if we have `p : Id A (u .fst) (v .fst)` and `q : Id B (u .snd) (v .snd)` we can form `(p,q) : Id (A × B) u v`, and so on for other record types, datatypes, and codatatypes.
 
 However, in Narya `Id (A → B) f g` does not *reduce* to the *ordinary* function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)`: instead it simply *behaves* like it, in the sense that its elements can be applied like functions and we can define elements of its as abstractions.  This should be compared with how `Covec A 2` doesn't reduce to `A × (A × ⊤)` but behaves like it in terms of what its elements are and what we can do with them.  In particular, `Id (A → B) f g` and `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → Id B (f x₀) (g x₁)` are definitionally isomorphic, with the functions in both directions being η-expansions `f ↦ (x₀ x₁ x₂ ↦ f x₀ x₁ x₂)`.  For most purposes this behavior is just as good as a reduction, and it retains more information about the type, which, as before, is useful for many purposes.  (In fact, with our current understanding, it appears to be *essential* for Narya's normalization and typechecking algorithms.)
 
-The same is true for other canonical types, e.g. `Id (A × B) u v` does not reduce to `Id A (u .fst) (v .fst) × Id B (u .snd) (v .snd)`, but it is *a* record type that is definitionally isomorphic to it.  Similarly, identity types of codatatypes behave like types of bisimulations: `Id (Stream A) s t` is a codatatype that behaves as if it were defined by
+The same is true for other canonical types, e.g. `Id (A × B) u v` does not reduce to `Id A (u .fst) (v .fst) × Id B (u .snd) (v .snd)`, but it is *a* record type, with fields named `fst` and `snd`, that is definitionally isomorphic to it by η-expansions.  Similarly, identity types of codatatypes behave like types of bisimulations: `Id (Stream A) s t` is a codatatype that behaves as if it were defined by
 ```
 codata [
 | _ .head : Id A (s .head) (t .head)
@@ -1559,6 +1653,8 @@ According to internal parametricity, we morally think of `Id Type A B` as being 
 
 The first is literally true: given `R : Id Type A B` and `a:A`, `b:B` we have `R a b : Type`.  We refer to this as *instantiating* the higher-dimensional type `R`.  In fact, `Id A x y` itself is an instantiation, as we have `Id A : Id Type A A`, which moreover is really just a notational variant of `refl A`.
 
+However, unlike a true function `A → B → Type`, an element of `Id Type A B` cannot be "partially applied": you cannot write `Id A a`.  But of course, you can η-expand it and write `x ↦ Id A a x`.  (If there is demand, we might implement an automatic η-expansion of the former to the latter.)
+
 For the second there is another wrinkle: we can define elements of `Id Type A B` by abstracting, but the body of the abstraction must be a *newly declared canonical type* rather than a pre-existing one.  This also seems to be essential to deal with symmetries (see below) in the normalization and typechecking algorithm.  Moreover, the current implementation allows this body to be a *record type* or *codatatype*, but not a *datatype*, and it does not permit other case tree operations in between such as pattern-matching.
 
 For record types, there is a syntax that reflects this restriction: instead of the expected `x y ↦ sig (⋯)` we write `sig x y ↦ (⋯)`, explicitly binding all the boundary variables as part of the record type syntax.  For example, here is the universal 1-dimensional record type, traditionally called "Gel":
@@ -1567,12 +1663,12 @@ def Gel (A B : Type) (R : A → B → Type) : Id Type A B ≔ sig a b ↦ ( unge
 ```
 For codatatypes, we simply use the ordinary syntax, but the "self" variable automatically becomes a cube variable of the appropriate dimension (see below).
 
-We plan to lift this restriction in the future, but in practice it is not very onerous.  For most applications, the above "Gel" record type can simply be defined once and used everywhere, rather than declaring new higher-dimensional types all the time.  Note that because record-types satisfy η-conversion, `Gel A B R a b` is definitionally isomorphic to `R a b`.  Thus, `Id Type A B` contains `A → B → Type` as a "retract up to definitional isomorphism".  This appears to be sufficient for all applications of internal parametricity.  (`Id Type` does not itself satisfy any η-conversion rule.)
+We may allow more flexibility in the future, but in practice the current restrictions do not seem very onerous.  For most applications, the above "Gel" record type can simply be defined once and used everywhere, rather than declaring new higher-dimensional types all the time.  Note that because record-types satisfy η-conversion, `Gel A B R a b` is definitionally isomorphic to `R a b`.  Thus, `Id Type A B` contains `A → B → Type` as a "retract up to definitional isomorphism".  This appears to be sufficient for all applications of internal parametricity.  (`Id Type` does not itself satisfy any η-conversion rule.)
 
 
 ### Heterogeneous identity/bridge types
 
-If `B : A → Type`, then `refl B x₀ x₁ x₂ : Id Type (B x₀) (B x₁)`.  Thus, given `y₀ : B x₀` and `y₁ : B x₁`, we can instantiate this identification at them to obtain a type `refl B x₀ x₁ x₂ y₀ y₁`. of *heterogeneous* identifications/bridges relating `y₀` and `y₁` "along" or "over" `x₂`.
+If `B : A → Type`, then `refl B x₀ x₁ x₂ : Id Type (B x₀) (B x₁)`.  Thus, given `y₀ : B x₀` and `y₁ : B x₁`, we can instantiate this identification at them to obtain a type `refl B x₀ x₁ x₂ y₀ y₁`. of *heterogeneous* identifications/bridges relating `y₀` and `y₁` "along" or "over" `x₂`.  Since `Id` is a notational variant of `refl`, this type can also be written suggestively as `Id B x₀ x₁ x₂ y₀ y₁`.
 
 Such heterogeneous identity/bridge types are used in the computation (up to definitional isomorphism) of identity/bridge types of *dependent* function types.  Specifically, `Id ((x:A) → B x) f g` acts like a function-type `(x₀ x₁ : A) (x₂ : Id A x₀ x₁) → refl B x₀ x₁ x₂ (f x₀) (g x₁)`.  They also appear in identity/bridge types of other canonical types, such as when one field of a record type depends on previous ones.  For instance, `Id (Σ A B) u v` behaves like a record type
 ```
@@ -1605,7 +1701,7 @@ B₂ : refl Π A₀ A₁ A₂ (x₀ ↦ Type) (x₁ ↦ Type) (x₀ x₁ x₂ �
 In particular, this is what Narya uses when printing higher-dimensional function-types (although it also uses cube variables, see below).
 
 
-### Higher-dimensional cubes and degeneracies
+### Higher-dimensional cubes
 
 Iterating `Id` or `refl` multiple times produces higher-dimensional cube types and cubes.  For instance, since `Id A` acts like a function `A → A → Type`, *its* identity type or reflexivity type `Id (Id A)` acts as a function-type
 ```
@@ -1613,24 +1709,91 @@ Iterating `Id` or `refl` multiple times produces higher-dimensional cube types a
   → (x₁₀ : A) (x₁₁ : A) (x₁₂ : Id A x₁₀ x₁₁)
   → (x₂₀ : Id A x₀₀ x₁₀) (x₂₁ : Id A x₀₁ x₁₁) → Type
 ```
-We can view this as assigning to any boundary for a 2-dimensional square a type of fillers for that square.  Similarly, `Id (Id (Id A))` yields a type of 3-dumensional cubes, and so on.
+We can view this as assigning to any boundary for a 2-dimensional square a type of fillers for that square.  Similarly, `Id (Id (Id A))` yields a type of 3-dumensional cubes, and so on.  Likewise, iterating `refl` on functions acts on these cubes: if `f : A → B`, then
+```
+refl (refl f) : Id A a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁
+  → Id B (f a₀₀) (f a₀₁) (refl f a₀₀ a₀₁ a₀₂) (f a₁₀) (f a₁₁) (refl f a₁₀ a₁₁ a₁₂)
+          (refl f a₀₀ a₁₀ a₂₀) (refl f a₀₁ a₁₁ a₂₁)
+```
 
-There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions.  Like `refl`, if the argument of `sym` synthesizes, then it synthesizes a symmetrized type; but in this case the argument must synthesize a "2-dimensional" type.  (The need to be able to "detect" 2-dimensionality here is roughly what imposes the requirements on our normalization/typechecking algorithm mentioned above.)  In addition, unlike `refl`, an application of `sym` can also check if its argument does, since the type it is checked against can be "unsymmetrized" to obtain the necessary type for its argument to check against.
+More generally, just as any "1-dimensional type" `A₂ : Id Type A₀ A₁` can be instantiated at endpoints `a₀:A₀` and `a₁:A₁` to produce an ordinary (0-dimensional) type `A₂ a₀ a₁ : Type`, any element `A₂₂ : Id (Id Type) A₀₀ A₀₁ A₀₂ A₁₀ A₁₁ A₁₂ A₂₀ A₂₁` can be instantiated at a "heterogeneous square boundary" consisting of
+```
+a₀₀ : A₀₀
+a₀₁ : A₀₁
+a₀₂ : A₀₂ a₀₀ a₀₁
+a₁₀ : A₁₀
+a₁₁ : A₁₁
+a₁₂ : A₁₂ a₁₀ a₁₁
+a₂₀ : A₂₀ a₀₀ a₁₀
+a₂₁ : A₂₁ a₀₁ a₁₁
+```
+to obtain an ordinary 0-dimensional type `A₂₂ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁` whose elements are "heterogeneous squares".
 
-Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies: `M⁽¹ᵉ²⁾` or `M^(1e2)` where the superscript represents the degeneracy, with `e` denoting a degenerate dimension and nonzero digits denoting a permutation.  (The `e` stands for "equality", since our `Id` is eventually intended to be the identity type of Higher Observational Type Theory.)  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and letters with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.  This notation can always synthesize if `M` does, while like `sym` it can also check if the degeneracy is a "pure permutation", consisting only of digits without any `e`s.
+We mentioned above that a 1-dimensional type cannot be "partially instantiated" such as `Id A a₀`.  A higher-dimensional type *can* be partially instantiated, but not arbitrarily: you must give exactly enough arguments to reduce it to a type of some specific lower dimension.  For a 2-dimensional type such as `A₂₂` above, this means that in addition to its full 0-dimensional instantiations such as `A₂₂ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁`, it has partial 1-dimensional instantiations such as
+```
+A₂₂ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ : Id Type (A₂₀ a₀₀ a₁₀) (A₂₁ a₀₁ a₁₁)
+```
+Note that this has exactly the right type that it can be *further* instantiated by `a₂₀ a₂₁` to produce a 0-dimensional type.  In fact, the fundamental operation is actually a "partial instantiation" that reduces the dimension by one; a "full instantiation" is just a sequence of these.
 
-Degeneracies can be extended by identities on the right.  For instance, the two degeneracies taking a 1-dimensional object to a 2-dimensional one are denoted `1e` and `e1`, and of these `e1` can be written as simply `e` and coincides with ordinary `refl` applied to an object that happens to be 1-dimensional.
 
-Degeneracy operations are functorial.  For pure symmetries, this means composing permutations.  For instance, the "Yang-Baxter equation" holds, equating `M⁽²¹³⁾⁽¹³²⁾⁽²¹³⁾` with `M⁽¹³²⁾⁽²¹³⁾⁽¹³²⁾`, as both reduce to `M⁽³²¹⁾`.  Reflexivities also compose with permutations in a fairly straightforward way, e.g. `M⁽ᵉ¹⁾⁽²¹⁾` reduces to `M^⁽¹ᵉ⁾`.
+### Symmetries and degeneracies
 
-The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to higher degeneracies, with one exception.  Ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `1e`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.
+There is a symmetry operation `sym` that acts on at-least-two dimensional cubes, swapping or transposing the last two dimensions.  Like `refl`, if the argument of `sym` synthesizes, then the `sym` synthesizes a symmetrized type; but in this case the argument must synthesize a "2-dimensional" type.  (The need to be able to "detect" 2-dimensionality here is roughly what imposes the requirements on our normalization/typechecking algorithm mentioned above.)  In addition, unlike `refl`, an application of `sym` can also check if its argument does, since the type it is checked against can be "unsymmetrized" to obtain the necessary type for its argument to check against.
 
-For instance, `Gel A B R` is a 1-dimensional type, belonging to `Id Type A B`.  Thus, we can form the 2-dimensional type `(Gel A B R)⁽¹ᵉ⁾`, and instantiate it using `a₂ : Id A a₀ a₁` and `b₂ : Id B b₀ b₁` and `r₀ : R a₀ b₀` and `r₁ : R a₁ b₁` to get a 0-dimensional type `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂`.  But this type is not canonical, and in particular not a record type; in particular given `M : (Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` we cannot write `M .ungel`.  However, we have `sym M : (Gel A B R)⁽ᵉ¹⁾ a₀ a₁ a₂ b₀ b₁ b₂ (r₀,) (r₁,)`, which doesn't permute the intrinsic dimension `1` with the degenerate dimension `e` and *is* therefore a record type, and so we can write `sym M .ungel`, which has type `Id R a₀ a₁ a₂ b₀ b₁ b₂ r₀ r₁`.  In addition, since `(Gel A B R)⁽¹ᵉ⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` is *isomorphic* to this record type, it also satisfies an eta-rule: two of its terms `M` and `N` are definitionally equal as soon as `sym M .ungel` and `sym N .ungel` are.
+Combining versions of `refl` and `sym` yields arbitrary higher-dimensional "degeneracies" (from the BCH cube category).  There is also a generic syntax for such degeneracies, for example `M⁽²ᵉ¹⁾` or `M^(2e1)` where the superscript represents the degeneracy, with `e` denoting a degenerate dimension and nonzero digits denoting a permutation.  (The `e` stands for "equality", since our `Id` is eventually intended to be the identity type of Higher Observational Type Theory.)  In the unlikely event you are working with dimensions greater than nine, you can separate multi-digit numbers and letters with a hyphen, e.g. `M⁽¹⁻²⁻³⁻⁴⁻⁵⁻⁶⁻⁷⁻⁸⁻⁹⁻¹⁰⁾` or `M^(0-1-2-3-4-5-6-7-8-9-10)`.  This notation can always synthesize if `M` does, while like `sym` it can also check if the degeneracy is a "pure permutation", consisting only of digits without any `e`s.
+
+Degeneracies can be extended by identities on the left and remain the same operation.  For instance, the two degeneracies taking a 1-dimensional object to a 2-dimensional one are denoted `1e` and `e1`, and of these `1e` can be written as simply `e` and coincides with ordinary `refl` applied to an object that happens to be 1-dimensional.  Similarly, the basic symmetry `sym` of a 3-dimensional object actually acts on the last two dimensions, so it coincides with the superscripted operation `132`.
+
+A mnemonic for the names of permutation operators is that the permutation numbers indicate the motion of arguments.  For instance, if we have a 3-dimensional cube
+```
+a222 : Id (Id (Id A))
+  a000 a001 a002 a010 a011 a012 a020 a021 a022
+  a100 a101 a102 a110 a111 a112 a120 a121 a122
+  a200 a201 a202 a210 a211 a212 a220 a221
+```
+then to work out the boundary of a permuted cube such as `a222⁽³¹²⁾`, consider the motion of the "axes" `a001`, `a010`, and `a100`.  The permutation notation `(312)` denotes the permutation sending 1 to 3, sending 2 to 1, and sending 3 to 2.  Therefore, the first axis `a001` moves to the position previously occupied by the third axis `a100`, the second axis `a010` moves to the position previously occupied by the first axis `a001`, and the third axis `a100` moves to the position previously occupied by the second axis `a010`.  This determines the motion of the other boundary faces (although not which of them end up symmetrized):
+```
+a222⁽³¹²⁾ : A⁽ᵉᵉᵉ⁾
+  a000 a010 a020 a100 a110 a120 a200 a210 a220
+  a001 a011 a021 a101 a111 a121 a201 a211 a221
+  a002 a012 (sym a022) a102 a112 (sym a122) (sym a202) (sym a212)
+```
+
+Degeneracy operations are functorial.  For pure symmetries, this means composing permutations.  For instance, the "Yang-Baxter equation" holds, equating `M⁽²¹³⁾⁽¹³²⁾⁽²¹³⁾` with `M⁽¹³²⁾⁽²¹³⁾⁽¹³²⁾`, as both reduce to `M⁽³²¹⁾`.  Reflexivities also compose with permutations in a fairly straightforward way, e.g. `M⁽¹ᵉ⁾⁽²¹⁾` reduces to `M^⁽ᵉ¹⁾`.
+
+The principle that the identity/bridge types of a canonical type are again canonical types of the same sort applies also to symmetries and higher degeneracies of such types, with one exception.  To explain the exception, observe that ordinary canonical types are "intrinsically" 0-dimensional, and therefore any operations on them reduce to a "pure degeneracy" consisting entirely of `e`s, e.g. `M⁽ᵉᵉ⁾⁽²¹⁾` reduces to simply `M⁽ᵉᵉ⁾`.  These pure degeneracies of canonical types are again canonical types of the same form, as discussed for `Id` and `refl` above.  However, an intrinsically higher-dimensional canonical type like `Gel` admits some degeneracies that permute the intrinsic dimension with some of the additional dimensions; the simplest of these is `1e`.  These degeneracies of a higher-dimensional canonical type are *not* any longer canonical; but they are isomorphic to a canonical type by the action of a pure symmetry.
+
+For instance, `Gel A B R` is a 1-dimensional type, belonging to `Id Type A B`.  Thus, we can form the 2-dimensional type `(Gel A B R)⁽ᵉ¹⁾`, and instantiate it using `a₂ : Id A a₀ a₁` and `b₂ : Id B b₀ b₁` and `r₀ : R a₀ b₀` and `r₁ : R a₁ b₁` to get a 0-dimensional type `(Gel A B R)⁽ᵉ¹⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂`.  But this type is not canonical, and in particular not a record type; in particular given `M : (Gel A B R)⁽ᵉ¹⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` we cannot write `M .ungel`.  However, we have `sym M : (Gel A B R)⁽¹ᵉ⁾ a₀ a₁ a₂ b₀ b₁ b₂ (r₀,) (r₁,)`, which doesn't permute the intrinsic dimension `1` with the degenerate dimension `e` and *is* therefore a record type, and so we can write `sym M .ungel`, which has type `Id R a₀ a₁ a₂ b₀ b₁ b₂ r₀ r₁`.  In addition, since `(Gel A B R)⁽ᵉ¹⁾ a₀ b₀ (r₀,) a₁ b₁ (r₁,) a₂ b₂` is *isomorphic* to this record type, it also satisfies an eta-rule: two of its terms `M` and `N` are definitionally equal as soon as `sym M .ungel` and `sym N .ungel` are.
+
+
+### Implicit boundaries
+
+Until now we have been writing all the arguments of higher-dimensional types and functions explicitly.  There are times when this is necessary, but it is clear that in many cases it is redundant.  For instance, in `refl f a₀ a₁ a₂`, since the type of `a₂` must be `Id A a₀ a₁`, if we know this type (that is, if `a₂` synthesizes) then `a₀` and `a₁` are uniquely determined.
+
+In general, this is the sort of issue that implicit arguments and higher-order unification are designed to deal with.  Narya does not yet have either of these features in general, but it does have a specialized version that essentially uses bidirectional typechecking to synthesize the redundant parts of boundaries in higher-dimensional function applications and type instantiations.  This feature is currently off by default; it can be turned on with the two commands
+```
+option function boundaries ≔ implicit
+option type boundaries ≔ implicit
+```
+(and back off again with the similar `≔ explicit` commands).
+
+When *function* boundaries are implicit, a higher-dimensional function application takes only *one* argument, the top-dimensional one; thus instead of `refl f a₀ a₁ a₂` you can (and must) write `refl f a₂`, and instead of `refl (refl f) a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁ a₂₂` you can (and must) write `refl f a₂₂`.  It is possible to give the implicit arguments explicitly by surrounding them with curly braces, as in `refl f {a₀} {a₁} a₂`, but if you do this you must give *all* of them explicitly; there are no half measures.  The main reason you might need to do this is if `a₂` is a term that doesn't synthesize, since in that case `refl f a₂` won't be able to infer the boundaries `a₀` and `a₁`.
+
+When *type* boundaries are implicit, a full instantiation of a higher-dimensional type takes only the *highest-dimensional* arguments.  For ordinary 1-dimensional identity types, this changes nothing, since both arguments `a₀` and `a₁` of `Id A a₀ a₁` are 0-dimensional and that is the highest dimension of any argument.  But for squares, instead of `Id (Id A) a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a₁₂ a₂₀ a₂₁` you can (and must) write `Id (Id A) a₀₂ a₁₂ a₂₀ a₂₁` since these are the four 1-dimensional arguments; the 0-dimensional ones are inferred from their boundaries (which are required to match up correctly where they overlap).  And you can of course give them explicitly with `Id (Id A) {a₀₀} {a₀₁} a₀₂ {a₁₀} {a₁₁} a₁₂ a₂₀ a₂₁`.  In this case there are some half measures: if you give any lower-dimensional argument explicitly you must give all the arguments in that "block" explictly, but you can omit those in other blocks; for instance you can write `Id (Id A) {a₀₀} {a₀₁} a₀₂ a₁₂ a₂₀ a₂₁` or `Id (Id A) a₀₂ {a₁₀} {a₁₁} a₁₂ a₂₀ a₂₁`.
+
+Normally, when boundaries are implicit, Narya also *prints* higher-dimensional function applications and type instantiations with the lower-dimensional boundaries omitted.  However, you can tell it to print these arguments explicitly with the commands
+```
+display function boundaries ≔ on
+display type boundaries ≔ on
+```
+(and switch back with `≔ off`).  These commands are not available in source files, since they should not be un-done; they can be given in interactive mode, or in ProofGeneral with `C-c C-v`, or you can use the corresponding command-line flags such as `-show-function-boundaries`.  When these options are `on` *and* implicitness for the relevant kinds of boundaries is also on, Narya prints *all* the lower-dimensional arguments explicitly, with curly braces around them.  There are no half measures here, for functions or for types.  In the future, we may implement a way to switch on such display for some constants and/or variables but not others.
+
+In addition, even when printing implicit boundaries is off, Narya attempts to be smart and print those boundaries when it thinks that they would be necessary in order to re-parse the printed term, because the corresponding explicit argument isn't synthesizing.  In this case it can do half measures, the way you can when writing type boundaries: the implicit arguments in each "block" are printed only if the primary argument of that block is nonsynthesizing.
 
 
 ### Cubes of variables
 
-Since there is no unifier and no implicit arguments yet, all the arguments of higher-dimensional cubes and functions must be given explicitly.  However, there is a shorthand syntax for higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M` (or `x |=> M` in ASCII).  This binds `x` as a "family" or "cube" of variables whose names are suffixed with face names in ternary notation: `x.0` and `x.1` and `x.2`, or in higher dimensions `x.00` through `x.22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`", but rather there are really *three different variables* that just happen to have the names `x.0` and `x.1` and `x.2`.  (There is no potential for collision with user-defined names, since ordinary local variable names cannot contain internal periods.  Of course, `x.0` can shadow a global definition of a constant `0` in namespace `x`.)
+Implicitness of arguments to higher-dimensional *applications* has no bearing on higher-dimensional *abstractions*: the "implicit arguments" still must be named in an abstraction in the usual way, regardless of whether implicitness is on or not.  (This will also be Narya's approach to implicit arguments more generally.)  However, there is a different shorthand syntax for higher-dimensional abstractions: instead of `x₀ x₁ x₂ ↦ M` you can write `x ⤇ M` (or `x |=> M` in ASCII).  This binds `x` as a "family" or "cube" of variables whose names are suffixed with face names in ternary notation: `x.0` and `x.1` and `x.2`, or in higher dimensions `x.00` through `x.22` and so on.  (The dimension is inferred from the type at which the abstraction is checked.)  Note that this is a *purely syntactic* abbreviation: there is no object "`x`", but rather there are really *three different variables* that just happen to have the names `x.0` and `x.1` and `x.2`.  (There is no potential for collision with user-defined names, since ordinary local variable names cannot contain internal periods.  Of course, `x.0` can shadow a global definition of a constant `0` in namespace `x`.)
 
 These "cube variables" also appear automatically when matching against a higher-dimensional version of a datatype.  For instance, we can do an encode-decode proof for the natural numbers by matching directly on `Id ℕ` (using pattern-matching abstractions):
 ```
@@ -1650,7 +1813,7 @@ def encode (m n : ℕ) : Id ℕ m n → code m n ≔
 [ zero. ↦ ()
 | suc. p ↦ (_ ≔ encode p.0 p.1 p.2)]
 ```
-Here in the definition of `encode`, the pattern variable `p` of the `suc.` branch is automatically made into a 1-dimensional cube of variables since we are matching against an element of `Id ℕ`, so in the body we can refer to `p.0`, `p.1`, and `p.2`.  In the future, we may implement a dual syntax for simultaneously *applying* a function to a whole cube of variables of this sort as well.
+Here in the definition of `encode`, the pattern variable `p` of the `suc.` branch is automatically made into a 1-dimensional cube of variables since we are matching against an element of `Id ℕ`, so in the body we can refer to `p.0`, `p.1`, and `p.2`.  In the future, we may implement a dual syntax for simultaneously *applying* a higher-dimensional function to a whole cube of variables of this sort as well, although of course if implicit application is on you can just write `refl f x.2` and so on.
 
 Similarly, when defining a codatatype lying in a higher universe, the "self" variable automatically becomes a cube variable, so that the boundary of the type is accessible through its faces.  For instance, here is a codatatype version of Gel:
 ```
@@ -1682,13 +1845,155 @@ The combination `-arity 1 -direction d -external` is a version of [displayed typ
 
 ### Higher datatypes and codatatypes
 
-There are many possible kinds of datatypes and codatatypes that make use of higher-dimensional structure.  Narya does not yet implement Higher Inductive Types, in which the output of a constructor can be a higher-dimensional version of the datatype, nor the dual sort of "higher coinductive type" in which the *input* of a method is a higher-dimensional version of the codatatype.  However, it does permit the *displayed coinductive types* of dTT and their generalization to other kinds of parametricity, in which the *output* of a corecursive *method* is a higher-dimensional version of the codatatype.  This permits, for example, the definition of the type of semi-simplicial types from the dTT paper:
+There are many possible kinds of datatypes and codatatypes that make use of higher-dimensional structure.
+
+
+#### Displayed coinductive types
+
+In the *displayed coinductive types* of dTT, the *output* of a corecursive method is a higher-dimensional version of the codatatype.  One of the most basic examples is the definition of the type of semi-simplicial types from the dTT paper:
 ```
 def SST : Type ≔ codata [
 | X .z : Type
 | X .s : (X .z) → SST⁽ᵈ⁾ X
 ]
 ```
+Narya permits displayed coinductives and their generalization to other kinds of parametricity.  Some examples can be found in the test directory `test/black/dtt.t`.
+
+
+#### Higher coinductive types
+
+By a "higher coinductive type" we mean a codatatype in which the *input* of a method is a higher-dimensional version of itself, dually to how a "higher inductive type" has constructors whose *output* is a higher-dimensional version of itself.  The simplest example of a higher coinductive type is the "amazing right adjoint" of the identity type.  Applied to a concrete type like `ℕ`, this has the Narya syntax:
+```
+def √ℕ : Type ≔ codata [
+| x .root.e : ℕ
+]
+```
+Recall that a field name cannot contain internal periods.  This may appear to be an exception, but in fact the real name of the field here is actually just `root`.  The suffix `e` is a marker indicating that it is a 1-dimensional field (when `e` is the direction letter, as in the default configuration).  The argument `x` of this field is therefore a 1-dimensional "cube variable", as we can see by leaving a hole instead:
+```
+def √ℕ : Type ≔ codata [
+| x .root.e : ?
+]
+
+ ￫ info[I0100]
+ ￮ hole ?0 generated:
+   
+   x.0 : √ℕ
+   x.1 : √ℕ
+   x.2 : refl √ℕ x.0 x.1
+   ----------------------------------------------------------------------
+   Type
+```
+Unsurprisingly, therefore, the field `root` can only be projected out of a higher-dimensional inhabitant of `√ℕ`.  If we try to project it out of an ordinary element we get an error:
+```
+axiom x : √ℕ
+echo x .root
+
+ ￫ error[E0801]
+ 1 | x .root
+   ^ codata type √A has no field named root
+```
+The syntax for using a higher field is different from the syntax for defining it, however.  In the simplest case, when projecting from a 1-dimensional element, we replace the suffix `e` by `1`:
+```
+axiom x : √ℕ
+axiom y : √ℕ
+axiom z : Id √ℕ x y
+echo z .root.1
+
+z .root.1
+  : ℕ
+```
+Just as the higher-dimensional versions of an ordinary codatatype inherit fields of the same name, the same is true for higher codatatypes, but with a twist.  Namely, a 1-dimensional field like `root` induces *two* fields that can be projected out of a 2-dimensional version of `√ℕ`, corresponding to the two directions of a square, and these are distinguished by different numerical suffixes.  For example, if we have
+```
+x22 : √ℕ⁽ᵉᵉ⁾ x00 x01 x02 x10 x11 x12 x20 x21
+```
+with `x00` through `x21` of appropriate types, then the two projectable fields of `x22` and their types are
+```
+x22 .root.1 : refl A (x20 .root.1) (x21 .root.1)
+x22 .root.2 : refl A (x02 .root.1) (x12 .root.1)
+```
+Unsurprisingly, these two fields are related by symmetry: `x22 .root.2` is equal to `(sym x22) .root.1` and vice versa.  To implement this equality, in fact `x22 .root.2` computes to `(sym x22) .root.1`.  (I don't know of a principled reason for a computation of this sort to go in one direction rather than the other; the present direction was just easier to implement.)  Recall also that `sym x⁽ᵉᵉ⁾ = x⁽ᵉᵉ⁾`, from which it follows that `x⁽ᵉᵉ⁾ .root.1 = x⁽ᵉᵉ⁾ .root.2`.
+
+In general, a 1-dimensional field like `root` induces *n* fields of an *n*-dimenional version of a higher codatatype, distinguished by numerical suffixes from 1 to *n*.  A 2-dimensional field, defined in the `codata` declaration as `.field.ee`, induces (*n*)(*n*-1) fields of the *n*-dimensional version of the type, distinguished by numerical suffixes consisting of pairs of digits each from 1 to *n*.  For instance, when *n*=3 the six fields are `.field.12`, `.field.13`, `.field.23`, `.field.21`, `.field.32`, and `.field.31`.  As in the 1-dimensional case, all six of these fields are permuted by the symmetry operations acting on the object being projected, and to implement this equality all six of them compute to `.field.12` of a symmetrized input.
+
+If any of the numbers goes above `9`, then the suffix can start instead with `..` and the numbers be separated by additional periods.  In other words, `.field.12` is equivalent to `.field..1.2` but in the latter notation `1` and `2` can also be multi-digit numbers.  Whereas, the twelfth field of a 12-dimensional version of a higher codatatype induced by a 1-dimensional field can be written `.field..12`.
+
+When typechecking the type of a higher field in a `codata` definition, not only the argument variable but also all the *parameters in the context* are made higher-dimensional.  This is why we only defined `√ℕ` for a fixed constant type `ℕ`: if we tried to define it with a parameter we would have trouble:
+```
+def √ (A : Type) : Type ≔ codata [
+| x .root.e : ?
+]
+
+ ￫ info[I0100]
+ ￮ hole ?0 generated:
+   
+   A.0 : Type
+   A.1 : Type
+   A.2 : refl Type A.0 A.1
+   x.0 : √ A.0
+   x.1 : √ A.1
+   x.2 : refl √ A.0 A.1 A.2 x.0 x.1
+   ----------------------------------------------------------------------
+   Type
+```
+So we can't write `A` in this hole, since that would be interpreted as `A.2`, which is not a (0-dimensional) type until it is instantiated with elements of `A.0` and `A.1`.  Thus we see that `√` is not fully internalizable, as usual for an "amazing right adjoint".
+
+This degeneration of the context is essential, however, for arguably the most important example of a higher coinductive type, namely the definition of fibrancy in Higher Observational Type Theory as encoded in a substrate of internal binary parametricity.  This can be written in Narya as follows:
+```
+def isFibrant (A : Type) : Type ≔ codata [
+| x .trr.e : A.0 → A.1
+| x .trl.e : A.1 → A.0
+| x .liftr.e : (a₀ : A.0) → A.2 a₀ (x.2 .trr.1 a₀)
+| x .liftl.e : (a₁ : A.1) → A.2 (x.2 .trl.1 a₁) a₁
+| x .id.e : (a₀ : A.0) (a₁ : A.1) → isFibrant (A.2 a₀ a₁)
+]
+```
+All five methods are 1-dimensional, so their types are defined in a higher-dimensional context consisting of
+```
+   A.0 : Type
+   A.1 : Type
+   A.2 : Id Type A.0 A.1
+   x.0 : isFibrant A.0
+   x.1 : isFibrant A.1
+   x.2 : refl isFibrant A.0 A.1 A.2 x.0 x.1
+```
+In other words, the behavior of fibrancy only becomes visible once we have not just one fibrant type, but an equality between fibrant types (including their witnesses of fibrancy).  Given this, the fields `trr` and `trl` say that we can transport elements back and forth across such an equality, while the fields `liftr` and `liftl` give "path lifting" operations that "equate" each point to its transported version, heterogeneously along the family `A`.  Finally, the last field `id` says corecursively that the (heterogeneous) identity types of a fibrant type are again fibrant.  Taken together, this suffices to construct all the higher groupoid structure in homotopy type theory.  Some examples can be found in `test/black/hott.t`, including the proof that standard types inherit fibrancy, and that univalence holds.
+
+When comatching against a higher coinductive type, the context is also degenerated when defining values for the higher fields.  For instance:
+```
+def t (x:A) : √ℕ ≔ [
+| .root.e ↦ ?
+]
+
+ ￫ info[I0100]
+ ￮ hole ?0 generated:
+   
+   x.0 : ℕ
+   x.1 : ℕ
+   x.2 : refl ℕ x.0 x.1
+   ----------------------------------------------------------------------
+   ℕ
+```
+If comatching against a higher-dimensional version of a higher coinductive type, you must give a clause for all instances of each field whose dimensions may be only *partially* specified.  For instance:
+```
+def f : Id √ℕ n₀ n₁ ≔ [
+| .root.e ↦ ?
+| .root.1 ↦ ?
+]
+
+ ￫ info[I3003]
+ ￮ hole ?0:
+   
+   ----------------------------------------------------------------------
+   refl ℕ (refl n₀ .root.1) (refl n₁ .root.1)
+
+ ￫ info[I3003]
+ ￮ hole ?1:
+   
+   ----------------------------------------------------------------------
+   ℕ
+```
+In other words, `Id √ℕ n₀ n₁` behaves like a higher coinductive type itself, which has one *ordinary* field `root.1` and one *higher* (1-dimensional) field `root.e`.  Similarly, instances of `Id (Id √ℕ)` are higher coinductive types with two ordinary fields `root.1` and `root.2` and one higher field `root.e`, and so on.
+
 
 ### Parametrically discrete types
 

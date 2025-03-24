@@ -172,6 +172,6 @@
 
   $ narya -dtt mutual.ny
    ￫ error[E3002]
-   ￮ file $TESTCASE_ROOT/mutual.ny contains open holes
+   ￮ file mutual.ny contains open holes
   
   [1]

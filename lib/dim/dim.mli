@@ -16,9 +16,16 @@ module Endpoints : sig
   val run :
     arity:int -> refl_char:char -> refl_names:string list -> internal:bool -> (unit -> 'a) -> 'a
 
+  val uniq : 'l1 len -> 'l2 len -> ('l1, 'l2) Eq.t
+  val len : 'l len -> 'l N.t
   val wrapped : unit -> wrapped
   val internal : unit -> bool
 end
+
+type _ is_singleton
+type _ is_suc = Is_suc : 'n D.t * ('n, 'one, 'm) D.plus * 'one is_singleton -> 'm is_suc
+
+val suc_pos : 'n D.pos -> 'n is_suc
 
 type any_dim = Any : 'n D.t -> any_dim
 
@@ -45,6 +52,7 @@ val deg_plus_deg :
 val plus_deg :
   'm D.t -> ('m, 'n, 'mn) D.plus -> ('m, 'l, 'ml) D.plus -> ('l, 'n) deg -> ('ml, 'mn) deg
 
+val swap_deg : ('m, 'n, 'mn) D.plus -> ('n, 'm, 'nm) D.plus -> ('mn, 'nm) deg
 val is_id_deg : ('m, 'n) deg -> ('m, 'n) Eq.t option
 val pos_deg : 'n D.pos -> ('m, 'n) deg -> 'm D.pos
 val deg_equiv : ('m, 'n) deg -> ('k, 'l) deg -> unit option
@@ -75,7 +83,7 @@ type (_, _) deg_extending =
 
 val comp_deg_extending : ('m, 'n) deg -> ('k, 'l) deg -> ('k, 'n) deg_extending
 
-type any_deg = Any : ('m, 'n) deg -> any_deg
+type any_deg = Any_deg : ('m, 'n) deg -> any_deg
 type _ deg_to = To : ('m, 'n) deg -> 'm deg_to
 
 val string_of_deg : ('a, 'b) deg -> string
@@ -216,6 +224,7 @@ val tface_plus :
 type ('m, 'n) pface = ('m, D.zero, 'n, 'n) tface
 
 val pface_of_sface : ('m, 'n) sface -> [ `Proper of ('m, 'n) pface | `Id of ('m, 'n) Eq.t ]
+val pface_plus : ('k, 'm) pface -> ('m, 'n, 'mn) D.plus -> ('k, 'n, 'kn) D.plus -> ('kn, 'mn) pface
 
 val sface_plus_tface :
   ('k, 'm) sface ->
@@ -247,6 +256,15 @@ type (_, _, _) pface_of_plus =
 
 val pface_of_plus : ('m, 'n, 'k, 'nk) tface -> ('m, 'n, 'k) pface_of_plus
 
+val singleton_tface :
+  ('m, 'n, 'k, 'nk) tface -> 'k is_singleton -> 'l Endpoints.len -> ('m, 'n) sface * 'l N.index
+
+val is_codim1 : ('m, 'n, 'k, 'nk) tface -> unit option
+
+type (_, _, _) tface_of = Tface_of : ('m, 'n, 'k, 'nk) tface -> ('n, 'k, 'nk) tface_of
+
+val codim1_envelope : ('m, 'n, 'k, 'nk) tface -> ('n, 'k, 'nk) tface_of
+
 module Tube (F : Fam2) : sig
   module C : module type of Cube (F)
 
@@ -258,6 +276,21 @@ module Tube (F : Fam2) : sig
 
   val pboundary :
     ('m, 'k, 'mk) D.plus -> ('k, 'l, 'kl) D.plus -> ('m, 'kl, 'mkl, 'b) t -> ('mk, 'l, 'mkl, 'b) t
+
+  val of_cube_bwv :
+    'n D.t ->
+    'k is_singleton ->
+    ('n, 'k, 'nk) D.plus ->
+    'l Endpoints.len ->
+    (('n, 'b) C.t, 'l) Bwv.t ->
+    ('n, 'k, 'nk, 'b) t
+
+  val to_cube_bwv :
+    'k is_singleton ->
+    ('n, 'k, 'nk) D.plus ->
+    'l Endpoints.len ->
+    ('n, 'k, 'nk, 'b) t ->
+    (('n, 'b) C.t, 'l) Bwv.t
 
   val plus : ('m, 'k, 'mk, 'b) t -> ('m, 'k, 'mk) D.plus
   val inst : ('m, 'k, 'mk, 'b) t -> 'k D.t
@@ -493,6 +526,16 @@ val id_ins : 'a D.t -> ('a, 'b, 'ab) D.plus -> ('ab, 'a, 'b) insertion
 val dom_ins : ('a, 'b, 'c) insertion -> 'a D.t
 val cod_left_ins : ('a, 'b, 'c) insertion -> 'b D.t
 val cod_right_ins : ('a, 'b, 'c) insertion -> 'c D.t
+val equal_ins : ('a1, 'b1, 'c1) insertion -> ('a2, 'b2, 'c2) insertion -> unit option
+
+val plus_ins :
+  'a D.t ->
+  ('a, 'b, 'ab) D.plus ->
+  ('a, 'c, 'ac) D.plus ->
+  ('b, 'c, 'd) insertion ->
+  ('ab, 'ac, 'd) insertion
+
+val ins_of_plus : 'a D.t -> ('a, 'b, 'ab) D.plus -> ('ab, 'a, 'b) insertion
 val deg_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) deg
 val deg_of_ins : ('a, 'b, 'c) insertion -> 'a deg_to
 val perm_of_ins_plus : ('a, 'b, 'c) insertion -> ('b, 'c, 'bc) D.plus -> ('a, 'bc) perm
@@ -511,9 +554,322 @@ type (_, _, _) insfact_comp =
 
 val insfact_comp : ('nk, 'n, 'k) insertion -> ('a, 'b) deg -> ('n, 'k, 'a) insfact_comp
 
+type (_, _, _) deg_lift_ins =
+  | Deg_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) deg -> ('m, 'k, 'nk) deg_lift_ins
+
+val deg_lift_ins : ('m, 'n) deg -> ('nk, 'n, 'k) insertion -> ('m, 'k, 'nk) deg_lift_ins
+
+type (_, _, _) sface_lift_ins =
+  | Sface_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) sface -> ('m, 'k, 'nk) sface_lift_ins
+
+val sface_lift_ins : ('m, 'n) sface -> ('nk, 'n, 'k) insertion -> ('m, 'k, 'nk) sface_lift_ins
+
+type (_, _, _) pface_lift_ins =
+  | Pface_lift_ins : ('mk, 'm, 'k) insertion * ('mk, 'nk) pface -> ('m, 'k, 'nk) pface_lift_ins
+
+val pface_lift_ins : ('m, 'n) pface -> ('nk, 'n, 'k) insertion -> ('m, 'k, 'nk) pface_lift_ins
+
+type _ ins_of = Ins_of : ('ab, 'a, 'b) insertion -> 'ab ins_of
+
+val ins_of_ints : 'ab D.t -> int list -> 'ab ins_of option
+val ints_of_ins : ('ab, 'a, 'b) insertion -> int list
+val string_of_ins_ints : int list -> string
+val string_of_ins : ('ab, 'a, 'b) insertion -> string
+
+type any_ins = Any_ins : ('a, 'b, 'c) insertion -> any_ins
+
+val all_ins_of : 'ab D.t -> 'ab ins_of Seq.t
+
+module Insmap (F : Fam) : sig
+  type (_, _, _) t
+  type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
+
+  val find :
+    ('evaluation, 'shared, 'intrinsic) insertion -> ('evaluation, 'intrinsic, 'v) t -> 'v F.t
+
+  val set :
+    ('evaluation, 'shared, 'intrinsic) insertion ->
+    'v F.t ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val find_singleton : ('evaluation, 'intrinsic, 'v) t -> 'v F.t option
+
+  type ('evaluation, 'intrinsic, 'v) builder = {
+    build : 'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'v F.t;
+  }
+
+  val build :
+    'evaluation D.t ->
+    'intrinsic D.t ->
+    ('evaluation, 'intrinsic, 'v) builder ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val singleton : 'v F.t -> ('evaluation, D.zero, 'v) t
+
+  module Heter : sig
+    type _ hft = [] : nil hft | ( :: ) : 'v F.t * 'vs hft -> ('v, 'vs) cons hft
+
+    type (_, _, _) ht =
+      | [] : ('e, 'i, nil) ht
+      | ( :: ) : ('e, 'i, 'v) t * ('e, 'i, 'vs) ht -> ('e, 'i, ('v, 'vs) cons) ht
+  end
+
+  module Applicatic : functor (M : Applicative.Plain) -> sig
+    type ('evaluation, 'intrinsic, 'vs, 'ws) pmapperM = {
+      map :
+        'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'vs Heter.hft -> 'ws Heter.hft M.t;
+    }
+
+    val pmapM :
+      'a D.t ->
+      ('a, 'b, ('c, 'd) cons, 'e) pmapperM ->
+      ('a, 'b, ('c, 'd) cons) Heter.ht ->
+      'e Tlist.t ->
+      ('a, 'b, 'e) Heter.ht M.t
+
+    type ('evaluation, 'intrinsic, 'vs, 'w) mmapperM = {
+      map : 'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'vs Heter.hft -> 'w F.t M.t;
+    }
+
+    val mmapM :
+      'a D.t ->
+      ('a, 'b, ('c, 'd) cons, 'e) mmapperM ->
+      ('a, 'b, ('c, 'd) cons) Heter.ht ->
+      ('a, 'b, 'e) t M.t
+
+    type ('evaluation, 'intrinsic, 'vs) miteratorM = {
+      it : 'shared. ('evaluation, 'shared, 'intrinsic) insertion -> 'vs Heter.hft -> unit M.t;
+    }
+
+    val miterM :
+      'a D.t -> ('a, 'b, ('c, 'd) cons) miteratorM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> unit M.t
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
+  end
+
+  module IdM : module type of Monadic (Monad.Identity)
+
+  val pmap :
+    'a D.t ->
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.pmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    'e Tlist.t ->
+    ('a, 'b, 'e) Heter.ht IdM.A.t
+
+  val mmap :
+    'a D.t ->
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.mmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    ('a, 'b, 'e) t IdM.A.t
+
+  val miter :
+    'a D.t ->
+    ('a, 'b, ('c, 'd) cons) IdM.miteratorM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    unit IdM.A.t
+end
+
+module InsmapOf : module type of Insmap (struct
+  type 'b t = 'b
+end)
+
+type (_, _, _) shuffle
+
+val plus_of_shuffle : ('a, 'b, 'c) shuffle -> ('a, 'b, 'c) D.plus
+val deg_of_shuffle : ('a, 'b, 'c) shuffle -> ('a, 'b, 'ab) D.plus -> ('c, 'ab) deg
+val perm_of_shuffle : ('a, 'b, 'c) shuffle -> ('a, 'b, 'ab) D.plus -> ('c, 'ab) perm
+val left_shuffle : ('a, 'b, 'c) shuffle -> 'a D.t
+val right_shuffle : ('a, 'b, 'c) shuffle -> 'b D.t
+val out_shuffle : ('a, 'b, 'c) shuffle -> 'c D.t
+val shuffle_zero : 'a D.t -> ('a, D.zero, 'a) shuffle
+val zero_shuffle : 'a D.t -> (D.zero, 'a, 'a) shuffle
+val eq_of_zero_shuffle : (D.zero, 'a, 'b) shuffle -> ('a, 'b) Eq.t
+
+type (_, _) shuffle_right = Of_right : ('a, 'b, 'c) shuffle -> ('b, 'c) shuffle_right
+
+val all_shuffles_right : 'b D.t -> 'c D.t -> ('b, 'c) shuffle_right Seq.t
+
+type (_, _, _) pbij =
+  | Pbij :
+      ('evaluation, 'result, 'shared) insertion * ('remaining, 'shared, 'intrinsic) shuffle
+      -> ('evaluation, 'intrinsic, 'remaining) pbij
+
+val dom_pbij : ('e, 'i, 'r) pbij -> 'e D.t
+val cod_pbij : ('e, 'i, 'r) pbij -> 'i D.t
+val remaining : ('e, 'i, 'r) pbij -> 'r D.t
+val pbij_of_ins : ('a, 'b, 'c) insertion -> ('a, 'c, D.zero) pbij
+
+type _ pbij_of = Pbij_of : ('evaluation, 'intrinsic, 'remaining) pbij -> 'evaluation pbij_of
+
+val pbij_of_int_strings : 'e D.t -> [ `Int of int | `Str of string ] list -> 'e pbij_of option
+val pbij_of_strings : 'e D.t -> string list -> 'e pbij_of option
+val int_strings_of_pbij : ('n, 'i, 'r) pbij -> [ `Int of int | `Str of string ] list
+val strings_of_pbij : ('n, 'i, 'r) pbij -> string list
+val string_of_pbij : ('n, 'i, 'r) pbij -> string
+
+type (_, _) pbij_between =
+  | Pbij_between :
+      ('evaluation, 'intrinsic, 'remaining) pbij
+      -> ('evaluation, 'intrinsic) pbij_between
+
+val all_pbij_between :
+  'evaluation D.t -> 'intrinsic D.t -> ('evaluation, 'intrinsic) pbij_between Seq.t
+
+type (_, _, _) deg_comp_ins =
+  | Deg_comp_ins :
+      ('evaluation, 'result, 'shared) insertion
+      * ('remaining, 'shared, 'intrinsic) shuffle
+      * ('old_result, 'result) deg
+      -> ('evaluation, 'old_result, 'intrinsic) deg_comp_ins
+
+val deg_comp_ins : ('m, 'n) deg -> ('m, 'res, 'i) insertion -> ('n, 'res, 'i) deg_comp_ins
+
+type (_, _, _, _) deg_comp_pbij =
+  | Deg_comp_pbij :
+      ('evaluation, 'result, 'shared) insertion
+      * ('remaining, 'shared, 'intrinsic) shuffle
+      * ('old_result, 'result) deg
+      * (('remaining, D.zero) Eq.t -> ('r, D.zero) Eq.t)
+      -> ('evaluation, 'old_result, 'intrinsic, 'r) deg_comp_pbij
+
+val deg_comp_pbij :
+  ('m, 'n) deg ->
+  ('m, 'res, 'sh) insertion ->
+  ('rem, 'sh, 'i) shuffle ->
+  ('n, 'res, 'i, 'rem) deg_comp_pbij
+
+type (_, _, _, _) unplus_ins =
+  | Unplus_ins :
+      ('n, 's, 'h) insertion
+      * ('r, 'h, 'i) shuffle
+      * ('m, 't, 'r) insertion
+      * ('t, 'n, 'tn) D.plus
+      * ('tn, 'olds, 'h) insertion
+      -> ('m, 'n, 'olds, 'i) unplus_ins
+
+val unplus_ins :
+  'm D.t -> ('m, 'n, 'mn) D.plus -> ('mn, 's, 'i) insertion -> ('m, 'n, 's, 'i) unplus_ins
+
+type (_, _, _, _, _, _) unplus_pbij =
+  | Unplus_pbij :
+      ('n, 'news, 'newh) insertion
+      * ('r, 'newh, 'i) shuffle
+      * ('oldr, 'newr, 'r) shuffle
+      * ('m, 't, 'newr) insertion
+      * ('t, 'n, 'tn) D.plus
+      * ('tn, 'olds, 'newh) insertion
+      -> ('m, 'n, 'olds, 'oldr, 'h, 'i) unplus_pbij
+
+val unplus_pbij :
+  'm D.t ->
+  ('m, 'n, 'mn) D.plus ->
+  ('mn, 's, 'h) insertion ->
+  ('r, 'h, 'i) shuffle ->
+  ('m, 'n, 's, 'r, 'h, 'i) unplus_pbij
+
+val ins_plus_of_pbij :
+  ('n, 's, 'h) insertion -> ('r, 'h, 'i) shuffle -> ('r, 'n, 'rn) D.plus -> ('rn, 's, 'i) insertion
+
+module Pbijmap : functor (F : Fam2) -> sig
+  type ('evaluation, 'intrinsic, 'v) t
+
+  val intrinsic : ('evaluation, 'intrinsic, 'v) t -> 'intrinsic D.t
+
+  type (_, _) wrapped = Wrap : ('evaluation, 'intrinsic, 'v) t -> ('evaluation, 'v) wrapped
+
+  val find :
+    ('evaluation, 'intrinsic, 'remaining) pbij ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    ('remaining, 'v) F.t
+
+  val set :
+    ('evaluation, 'intrinsic, 'remaining) pbij ->
+    ('remaining, 'v) F.t ->
+    ('evaluation, 'intrinsic, 'v) t ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val find_singleton : ('evaluation, 'intrinsic, 'v) t -> (D.zero, 'v) F.t option
+
+  type ('evaluation, 'intrinsic, 'v) builder = {
+    build : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'v) F.t;
+  }
+
+  val build :
+    'evaluation D.t ->
+    'intrinsic D.t ->
+    ('evaluation, 'intrinsic, 'v) builder ->
+    ('evaluation, 'intrinsic, 'v) t
+
+  val singleton : 'evaluation D.t -> (D.zero, 'v) F.t -> ('evaluation, D.zero, 'v) t
+
+  module Heter : sig
+    type (_, _) hft =
+      | [] : ('a, nil) hft
+      | ( :: ) : ('a, 'v) F.t * ('a, 'vs) hft -> ('a, ('v, 'vs) cons) hft
+
+    type (_, _, _) ht =
+      | [] : ('e, 'i, nil) ht
+      | ( :: ) : ('e, 'i, 'v) t * ('e, 'i, 'vs) ht -> ('e, 'i, ('v, 'vs) cons) ht
+  end
+
+  module Applicatic : functor (M : Applicative.Plain) -> sig
+    type ('evaluation, 'intrinsic, 'vs, 'ws) pmapperM = {
+      map : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'vs) Heter.hft -> ('r, 'ws) Heter.hft M.t;
+    }
+
+    val pmapM :
+      ('a, 'b, ('c, 'd) cons, 'e) pmapperM ->
+      ('a, 'b, ('c, 'd) cons) Heter.ht ->
+      'e Tlist.t ->
+      ('a, 'b, 'e) Heter.ht M.t
+
+    type ('evaluation, 'intrinsic, 'vs, 'w) mmapperM = {
+      map : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'vs) Heter.hft -> ('r, 'w) F.t M.t;
+    }
+
+    val mmapM :
+      ('a, 'b, ('c, 'd) cons, 'e) mmapperM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> ('a, 'b, 'e) t M.t
+
+    type ('evaluation, 'intrinsic, 'vs) miteratorM = {
+      it : 'r. ('evaluation, 'intrinsic, 'r) pbij -> ('r, 'vs) Heter.hft -> unit M.t;
+    }
+
+    val miterM : ('a, 'b, ('c, 'd) cons) miteratorM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> unit M.t
+  end
+
+  module Monadic (M : Monad.Plain) : sig
+    module A : module type of Applicative.OfMonad (M)
+    include module type of Applicatic (A)
+  end
+
+  module IdM : module type of Monadic (Monad.Identity)
+
+  val pmap :
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.pmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    'e Tlist.t ->
+    ('a, 'b, 'e) Heter.ht IdM.A.t
+
+  val mmap :
+    ('a, 'b, ('c, 'd) cons, 'e) IdM.mmapperM ->
+    ('a, 'b, ('c, 'd) cons) Heter.ht ->
+    ('a, 'b, 'e) t IdM.A.t
+
+  val miter :
+    ('a, 'b, ('c, 'd) cons) IdM.miteratorM -> ('a, 'b, ('c, 'd) cons) Heter.ht -> unit IdM.A.t
+end
+
+module PbijmapOf : module type of Pbijmap (struct
+  type ('a, 'b) t = 'b
+end)
+
 module Plusmap : sig
-  module OfDom : module type of Tbwd.Of (D)
-  module OfCod : module type of Tbwd.Of (D) with type 'a t = 'a OfDom.t
+  module OfDom : module type of Word.Make (D)
+  module OfCod : module type of Word.Make (D) with type 'a t = 'a OfDom.t
 
   type ('a, 'b, 'c) t =
     | Map_emp : ('p, emp, emp) t
@@ -553,16 +909,9 @@ module Plusmap : sig
   val zerol : 'bs OfDom.t -> (D.zero, 'bs, 'bs) t
   end
 
-(*  *)
-type one
-
-val one : one D.t
-
-type _ is_suc = Is_suc : 'n D.t * ('n, one, 'm) D.plus -> 'm is_suc
-
-val suc_pos : 'n D.pos -> 'n is_suc
+(* *)
 val deg_of_name : string -> any_deg option
 val name_of_deg : ('a, 'b) deg -> string option
 
-(*  *)
+(* *)
 val locking : ('a, 'b) deg -> bool

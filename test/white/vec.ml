@@ -119,7 +119,9 @@ let () =
       "A m n k xs ys zs ↦ Vec_ind A (m xs ↦ Id (Vec A) (%s (%s m n) k) (%s m (%s n k)) (%s m n k) (%s A (%s m n) k (%s A m n xs ys) zs) (%s A m (%s n k) xs (%s A n k ys zs))) (refl (%s A n k ys zs)) (m x xs IH ↦ cons. (%s m n k) (refl x) IH) m xs"
       lp lp lp lp lpa cc lp cc cc lp cc cc lpa in
 
-  let concatassoc = check rconcatassoc concatassoc_ty (* And similarly right unital. *) in
+  let concatassoc =
+    check rconcatassoc concatassoc_ty
+    (* And similarly right unital. *) in
 
   let rconcatru_ty =
     Printf.sprintf

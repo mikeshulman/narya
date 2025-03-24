@@ -1,7 +1,6 @@
 open Util
 open Core
 open Parser
-open Syntax
 open Value
 open Norm
 open Asai.Range
@@ -17,7 +16,7 @@ let context = ref ectx
 let parse_term : type n. (string option, n) Bwv.t -> string -> n Raw.check located =
  fun names tm ->
   let p = Parse.Term.parse (`String { content = tm; title = Some "user-supplied term" }) in
-  let (Term tm) = Parse.Term.final p in
+  let (Wrap tm) = Parse.Term.final p in
   Postprocess.process names tm
 
 let synth (tm : string) : kinetic value * kinetic value =

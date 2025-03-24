@@ -1,6 +1,5 @@
-open Syntax
-open Value
 open Term
+open Value
 open Status
 open Reporter
 

@@ -14,7 +14,7 @@ let () =
         (Mapsto, []);
         (Ident [ "C0" ], []);
         (RParen, []);
-        (Field "d", []);
+        (Field ("d", []), []);
       ])
 
 let () =

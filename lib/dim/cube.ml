@@ -33,8 +33,7 @@ module Cube (F : Fam2) = struct
 
   (* A strict face is an index into a face tree.  *)
 
-  let rec gfind :
-      type m n k km nm b.
+  let rec gfind : type m n k km nm b.
       (km, nm, b) gt -> (k, m, km) D.plus -> (n, m, nm) D.plus -> (k, km) sface -> (n, b) F.t =
    fun tr km nm d ->
     match (tr, d) with
@@ -140,8 +139,7 @@ module Cube (F : Fam2) = struct
       | [] -> []
       | x :: xs -> Leaf x :: leaf xs
 
-    let rec branch :
-        type l m n bs hs.
+    let rec branch : type l m n bs hs.
         l Endpoints.len ->
         (m, n, bs, hs) hgts ->
         (hs, l) Bwv.Heter.ht ->
@@ -173,8 +171,7 @@ module Cube (F : Fam2) = struct
     }
 
     (* Finally, here is the generic traversal of a gt. *)
-    let rec gpmapM :
-        type k m km n b bs cs l.
+    let rec gpmapM : type k m km n b bs cs l.
         (k, m, km) D.plus ->
         (l, m, n) D.plus ->
         (k, l) bwsface ->
@@ -204,8 +201,7 @@ module Cube (F : Fam2) = struct
           Heter.branch l newhs newends newmid
 
     (* And the actual one for a t, which we can henceforth restrict our attention to. *)
-    let pmapM :
-        type n b bs cs.
+    let pmapM : type n b bs cs.
         (n, (b, bs) cons, cs) pmapperM ->
         (n, n, (b, bs) cons) Heter.hgt ->
         cs Tlist.t ->
@@ -219,8 +215,7 @@ module Cube (F : Fam2) = struct
       map : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> ('m, 'c) F.t M.t;
     }
 
-    let mmapM :
-        type n b bs c.
+    let mmapM : type n b bs c.
         (n, (b, bs) cons, c) mmapperM -> (n, n, (b, bs) cons) Heter.hgt -> (n, c) t M.t =
      fun g xs ->
       let+ [ ys ] =
@@ -237,8 +232,8 @@ module Cube (F : Fam2) = struct
 
     type ('n, 'bs) miteratorM = { it : 'm. ('m, 'n) sface -> ('m, 'bs) Heter.hft -> unit M.t }
 
-    let miterM :
-        type n b bs. (n, (b, bs) cons) miteratorM -> (n, n, (b, bs) cons) Heter.hgt -> unit M.t =
+    let miterM : type n b bs.
+        (n, (b, bs) cons) miteratorM -> (n, n, (b, bs) cons) Heter.hgt -> unit M.t =
      fun g xs ->
       let+ [] =
         pmapM
@@ -255,8 +250,7 @@ module Cube (F : Fam2) = struct
 
     type ('n, 'b) builderM = { build : 'm. ('m, 'n) sface -> ('m, 'b) F.t M.t }
 
-    let rec gbuildM :
-        type k m mk l ml b.
+    let rec gbuildM : type k m mk l ml b.
         m D.t ->
         (m, k, mk) D.plus ->
         (m, l, ml) D.plus ->
@@ -293,21 +287,19 @@ module Cube (F : Fam2) = struct
 
   module IdM = Monadic (Monad.Identity)
 
-  let pmap :
-      type n b bs cs.
+  let pmap : type n b bs cs.
       (n, (b, bs) cons, cs) IdM.pmapperM ->
       (n, n, (b, bs) cons) Heter.hgt ->
       cs Tlist.t ->
       (n, n, cs) Heter.hgt =
    fun g xs ys -> IdM.pmapM { map = (fun fa x -> g.map fa x) } xs ys
 
-  let mmap :
-      type n b bs c. (n, (b, bs) cons, c) IdM.mmapperM -> (n, n, (b, bs) cons) Heter.hgt -> (n, c) t
-      =
+  let mmap : type n b bs c.
+      (n, (b, bs) cons, c) IdM.mmapperM -> (n, n, (b, bs) cons) Heter.hgt -> (n, c) t =
    fun g xs -> IdM.mmapM { map = (fun fa x -> g.map fa x) } xs
 
-  let miter :
-      type n b bs. (n, (b, bs) cons) IdM.miteratorM -> (n, n, (b, bs) cons) Heter.hgt -> unit =
+  let miter : type n b bs.
+      (n, (b, bs) cons) IdM.miteratorM -> (n, n, (b, bs) cons) Heter.hgt -> unit =
    fun g xs -> IdM.miterM { it = (fun fa x -> g.it fa x) } xs
 
   let build : type n b. n D.t -> (n, b) IdM.builderM -> (n, b) t =
@@ -336,8 +328,7 @@ module CubeOf = struct
         let (Suc n12') = N.plus_suc n12 in
         Branch (l, Bwv.map (fun t -> lift n12' t) ends, lift n12 mid)
 
-  let rec lower :
-      type m k n1 n2 n12 b.
+  let rec lower : type m k n1 n2 n12 b.
       (m, k, n1) D.plus -> (n1, n2, n12) D.plus -> (m, n12, b) gt -> (m, n1, b) gt =
    fun mk n12 tr ->
     match (tr, n12) with

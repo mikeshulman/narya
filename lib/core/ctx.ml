@@ -6,7 +6,6 @@ open Tbwd
 open Dim
 open Dimbwd
 open Reporter
-open Syntax
 open Term
 open Value
 
@@ -83,10 +82,6 @@ let all_free : type n. (n, Binding.t) CubeOf.t -> bool =
   let open CubeOf.Monadic (Monad.Maybe) in
   Option.is_some (mmapM { map = (fun _ [ x ] -> Option.map (fun _ -> ()) (Binding.level x)) } [ b ])
 
-type (_, _) has_fields =
-  | No_fields : ('m, N.zero) has_fields
-  | Has_fields : (D.zero, 'f2) has_fields
-
 (* A context is a list of "entries", which can be either visible or invisible in the raw world.  An (f,n) entry contains f raw variables and an n-dimensional cube of checked variables. *)
 type (_, _) entry =
   (* Add a cube of internal variables that are visible to the parser as a list of cubes of variables, the list-of-cubes being obtained by decomposing the dimension as a sum.  Note that the division into a cube and non-cube part, and the sum of dimensions, are only relevant for looking up *raw* indices: they are invisible to the checked world, whose indices store the total face of mn. *)
@@ -98,7 +93,7 @@ type (_, _) entry =
       bindings : ('mn, Binding.t) CubeOf.t;
       (* While typechecking a record, we expose the "self" variable as a list of "illusory" variables, visible only to raw terms, that are substituted at typechecking time with the fields of self. *)
       hasfields : ('m, 'f2) has_fields;
-      fields : (Field.t * string, 'f2) Bwv.t;
+      fields : (D.zero Field.t * string, 'f2) Bwv.t;
       fplus : ('f1, 'f2, 'f) N.plus;
     }
       -> ('f, 'mn) entry
@@ -127,8 +122,7 @@ module Ordered = struct
     (* A locked context permits no access to the variables behind it. *)
     | Lock : ('a, 'b) t -> ('a, 'b) t
 
-  let vis :
-      type a b f af m n mn.
+  let vis : type a b f af m n mn.
       (a, b) t ->
       m D.t ->
       (m, n, mn) D.plus ->
@@ -142,18 +136,17 @@ module Ordered = struct
         Vis { dim; plusdim; vars; bindings; hasfields = No_fields; fields = Emp; fplus = Zero },
         af )
 
-  let cube_vis :
-      type a b n. (a, b) t -> string option -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
+  let cube_vis : type a b n.
+      (a, b) t -> string option -> (n, Binding.t) CubeOf.t -> (a N.suc, (b, n) snoc) t =
    fun ctx x vars ->
     let m = CubeOf.dim vars in
     vis ctx m (D.plus_zero m) (NICubeOf.singleton x) vars (Suc Zero)
 
-  let vis_fields :
-      type a b f1 f2 f af n.
+  let vis_fields : type a b f1 f2 f af n.
       (a, b) t ->
       (N.zero, n, string option, f1) NICubeOf.t ->
       (n, Binding.t) CubeOf.t ->
-      (Field.t * string, f2) Bwv.t ->
+      (D.zero Field.t * string, f2) Bwv.t ->
       (f1, f2, f) N.plus ->
       (a, f, af) N.plus ->
       (af, (b, n) snoc) t =
@@ -208,8 +201,7 @@ module Ordered = struct
     | Found : level option * normal * ('b, 'n) snoc index -> ('a, 'right, 'b, 'n) lookup
 
   (* This function is called on every step of that iteration through a cube.  It appears that we have to define it with an explicit type signature in order for it to end up sufficiently polymorphic. *)
-  let lookup_folder :
-      type left right l m n mn a b.
+  let lookup_folder : type left right l m n mn a b.
       m D.t ->
       (m, n, mn) D.plus ->
       (mn, Binding.t) CubeOf.t ->
@@ -233,12 +225,11 @@ module Ordered = struct
         | Neq -> fatal (Invalid_variable_face (D.zero, fa)))
 
   (* The lookup function iterates through entries. *)
-  let rec lookup :
-      type a b.
+  let rec lookup : type a b.
       (a, b) t ->
       a Raw.index ->
       (* We return either an ordinary variable or an illusory field-access variable. *)
-      [ `Var of level option * normal * b index | `Field of level * normal * Field.t ] =
+      [ `Var of level option * normal * b index | `Field of level * normal * D.zero Field.t ] =
    fun ctx k ->
     match (ctx, k) with
     | Emp, _ -> .
@@ -246,13 +237,13 @@ module Ordered = struct
     | Lock _, _ -> fatal Locked_variable
 
   (* For each entry, we iterate through the list of fields or the cube of names, as appropriate. *)
-  and lookup_entry :
-      type a b f af n.
+  and lookup_entry : type a b f af n.
       (a, b) t ->
       (f, n) entry ->
       (a, f, af) N.plus ->
       af Raw.index ->
-      [ `Var of level option * normal * (b, n) snoc index | `Field of level * normal * Field.t ] =
+      [ `Var of level option * normal * (b, n) snoc index
+      | `Field of level * normal * D.zero Field.t ] =
    fun ctx e pf k ->
     let pop = function
       | `Var (i, x, Index (v, fa)) -> `Var (i, x, Index (Later v, fa))
@@ -292,8 +283,8 @@ module Ordered = struct
     | Snoc (ctx, Invis bindings, _) -> find_level_in_cube ctx bindings i
     | Lock ctx -> find_level ctx i
 
-  and find_level_in_cube :
-      type a b n. (a, b) t -> (n, Binding.t) CubeOf.t -> level -> (b, n) snoc index option =
+  and find_level_in_cube : type a b n.
+      (a, b) t -> (n, Binding.t) CubeOf.t -> level -> (b, n) snoc index option =
    fun ctx vars i ->
     let open CubeOf.Monadic (Monad.State (struct
       type t = (b, n) snoc index option
@@ -329,8 +320,7 @@ module Ordered = struct
     | Lock ctx -> env ctx
 
   (* Extend a context by one new variable, without a value but with an assigned type. *)
-  let ext :
-      type a b.
+  let ext : type a b.
       (a, b) t -> string option -> kinetic value -> (a N.suc, (b, D.zero) snoc) t * Binding.t =
    fun ctx x ty ->
     let n = length ctx in
@@ -338,8 +328,8 @@ module Ordered = struct
     (cube_vis ctx x (CubeOf.singleton b), b)
 
   (* Extend a context by one new variable with an assigned value. *)
-  let ext_let :
-      type a b. (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t * Binding.t =
+  let ext_let : type a b.
+      (a, b) t -> string option -> normal -> (a N.suc, (b, D.zero) snoc) t * Binding.t =
    fun ctx x v ->
     let b = Binding.make None v in
     (cube_vis ctx x (CubeOf.singleton b), b)

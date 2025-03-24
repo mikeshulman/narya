@@ -2,7 +2,6 @@ open Bwd
 open Util
 open Tbwd
 open Dim
-open Syntax
 open Term
 open Value
 
@@ -13,12 +12,13 @@ open Value
 
    We parametrize this "status" datatype over the energy of the term (kinetic or potential), since only potential terms have any status to remember.  This implies that status also serves the purpose of recording which kind of term we are checking, so we don't need to pass that around separately. *)
 type _ potential_head =
-  | Constant : Constant.t -> emp potential_head
-  | Meta : ('x, 'a, potential) Meta.t * (D.zero, 'a) env -> 'a potential_head
+  (* For typechecking higher coinductive types and higher coinduction, we allow a nonzero dimension. *)
+  | Constant : Constant.t * 'n D.t -> emp potential_head
+  | Meta : ('x, 'a, potential) Meta.t * ('n, 'a) env -> 'a potential_head
 
-let head_of_potential : type a s. a potential_head -> Value.head = function
-  | Constant name -> Const { name; ins = ins_zero D.zero }
-  | Meta (meta, env) -> Meta { meta; env; ins = ins_zero D.zero }
+let head_of_potential : type a. a potential_head -> Value.head = function
+  | Constant (name, n) -> Const { name; ins = ins_zero n }
+  | Meta (meta, env) -> Meta { meta; env; ins = ins_zero (dim_env env) }
 
 type (_, _) status =
   | Kinetic : [ `Let | `Nolet ] -> ('b, kinetic) status

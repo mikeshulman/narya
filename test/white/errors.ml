@@ -1,3 +1,4 @@
+open Dim
 open Testutil.Mcp
 
 let () =
@@ -38,8 +39,9 @@ let () =
   let () = unsynth ~print:() "x y {` unterminated block comment" ~code:Parse_error in
   let () = unsynth ~print:() "f (x" ~code:Parse_error in
   let () = unsynth ~print:() ".fst x" ~code:Parse_error in
-  let () = unsynth ~print:() "x .fs.t y" ~code:(Invalid_field ".fs.t") in
-  let () = unsynth ~print:() "f (con.str. x)" ~code:(Invalid_constr "con.str.") in
+  let () = unsynth ~print:() "x |-> x .fs.t y" ~code:(Invalid_field ".fs.t") in
+  let () =
+    unsynth ~print:() "f (con.str. x)" ~code:(Unimplemented "higher constructors: con.str.") in
   let () =
     unsynth ~print:() "x |-> f 0.1.2 x"
       ~code:(Unbound_variable ("0.1.2", [ ([ "0" ], [ "1"; "2" ]) ])) in
@@ -49,9 +51,7 @@ let () =
   let () = unsynth ~print:() "↦ x" ~code:Parse_error in
   let () = unsynth ~print:() "(f x) y ↦ z" ~code:Parse_error in
   let () = unsynth ~print:() "_" ~code:(Unimplemented "unification arguments") in
-  let () =
-    unsynth ~print:() "a ↦ ( fst ≔ a, fst ≔ a )"
-      ~code:(Duplicate_field_in_tuple (Core.Field.intern "fst")) in
+  let () = unsynth ~print:() "a ↦ ( fst ≔ a, fst ≔ a )" ~code:(Duplicate_field_in_tuple "fst") in
   let () = unsynth ~print:() "( (x) ≔ a )" ~code:Invalid_field_in_tuple in
   let () = unsynth ~print:() "[ _ ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
   let () = unsynth ~print:() "[ (x) ↦ a ]" ~code:(Nonsynthesizing "top-level unsynth") in
@@ -66,8 +66,8 @@ let () =
   let bb = assume "B" atou in
   let sigab = check "Σ A B" uu in
   let () =
-    uncheck ~print:() "( fst ≔ a )" sigab ~code:(Missing_field_in_tuple (Core.Field.intern "snd"))
-  in
+    uncheck ~print:() "( fst ≔ a )" sigab
+      ~code:(Missing_field_in_tuple (Core.Field.intern "snd" D.zero, None)) in
   let () = uncheck ~print:() "( fst ≔ a )" aa ~short:"E0900" in
   let nat = check "ℕ" uu in
   let () = uncheck ~print:() "( fst ≔ a )" nat ~short:"E0900" in
@@ -130,7 +130,7 @@ let () =
   let gg' = assume "gg'" symr2ty in
   let _ =
     unsynth ~print:() "gg' .ungel"
-      ~code:(No_such_field (`Degenerated_record, Core.Field.intern_ori "ungel")) in
+      ~code:(No_such_field (`Degenerated_record Eta, `Strings ("ungel", []))) in
 
   (* Cube variables *)
   let () = uncheck ~print:() "x ↦ x.0" atoa ~short:"E0506" in

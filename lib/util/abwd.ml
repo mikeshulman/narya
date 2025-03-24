@@ -60,4 +60,12 @@ let rec find_opt_and_update_key (oldkey : 'k) (newkey : 'k) (map : ('k, 'a) t) =
       | Some (v, newmap) -> Some (v, Snoc (newmap, (x, y)))
       | None -> if x = oldkey then Some (y, Snoc (map, (newkey, y))) else None)
 
+let rec find_opt_and_update (oldkey : 'k) (newkey : 'k) (upd : 'a -> 'a) (map : ('k, 'a) t) =
+  match map with
+  | Emp -> None
+  | Snoc (map, (x, y)) -> (
+      match find_opt_and_update oldkey newkey upd map with
+      | Some (v, newmap) -> Some (v, Snoc (newmap, (x, y)))
+      | None -> if x = oldkey then Some (y, Snoc (map, (newkey, upd y))) else None)
+
 let bindings (map : ('k, 'a) t) = Bwd.to_list map

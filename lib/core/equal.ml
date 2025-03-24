@@ -1,7 +1,7 @@
 open Util
 open Reporter
 open Dim
-open Syntax
+open Term
 open Value
 open Domvars
 open Norm
@@ -38,16 +38,30 @@ module Equal = struct
         (* If both terms have the given pi-type, then when applied to variables of the domains, they will both have the computed output-type, so we can recurse back to eta-expanding equality at that type. *)
         equal_at (ctx + 1) (apply_term x newargs) (apply_term y newargs) output
     (* Codatatypes (without eta) don't need to be dealt with here, even though structs can't be compared synthesizingly, since codatatypes aren't actually inhabited by (kinetic) structs, only neutral terms that are equal to potential structs.  In the case of record types with eta, if there is a nonidentity insertion outside, then the type isn't actually a record type, *but* it still has an eta-rule since it is *isomorphic* to a record type!  Thus, instead of checking whether the insertion is the identity, we apply its inverse permutation to the terms being compared.  And because we pass off to 'field' and 'tyof_field', we don't need to make explicit use of any of the other data here. *)
-    | Canonical (_, Codata { eta = Eta; fields; ins; _ }, _) ->
-        let (Perm_to p) = perm_of_ins ins in
-        let pinv = deg_of_perm (perm_inv p) in
-        let x, y, ty = (act_value x pinv, act_value y pinv, gact_ty None ty pinv) in
-        (* Now we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particular field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This latter is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.) *)
-        BwdM.miterM
-          (fun [ (fld, _) ] ->
-            equal_at ctx (field_term x fld) (field_term y fld) (tyof_field (Ok x) ty fld))
-          [ fields ]
-    (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative, so we don't need a clause for it. *)
+    | Canonical
+        (type mn)
+        (( _,
+           Codata (type m n c a et) ({ eta; fields; ins; _ } : (mn, m, n, c, a, et) codata_args),
+           _ ) :
+          head * mn canonical * (D.zero, mn, mn, normal) TubeOf.t) -> (
+        match eta with
+        | Eta ->
+            let (Perm_to p) = perm_of_ins ins in
+            let pinv = deg_of_perm (perm_inv p) in
+            let x, y, ty = (act_value x pinv, act_value y pinv, gact_ty None ty pinv) in
+            (* Now we take the projections and compare them at appropriate types.  It suffices to use the fields of x when computing the types of the fields, since we proceed to check the fields for equality *in order* and thus by the time we are checking equality of any particular field of x and y, the previous fields of x and y are already known to be equal, and the type of the current field can only depend on these.  (This latter is a semantic constraint on the kinds of generalized records that can sensibly admit eta-conversion.)  In addition, records with eta cannot have higher fields, so as field insertion it suffices to use ins_zero on the substitution dimension. *)
+            let fldins = ins_zero (cod_left_ins ins) in
+            BwdM.miterM
+              (fun [
+                     CodatafieldAbwd.Entry
+                       (type i)
+                       ((fld, Lower _) : i Field.t * (i, a * n * has_eta) Codatafield.t);
+                   ] ->
+                equal_at ctx (field_term x fld fldins) (field_term y fld fldins)
+                  (tyof_field (Ok x) ty fld ~shuf:Trivial fldins))
+              [ fields ]
+        (* At a codatatype without eta, there are no kinetic structs, only comatches, and those are not compared componentwise, only as neutrals, since they are generative. *)
+        | Noeta -> equal_val ctx x y)
     (* At a higher-dimensional version of a discrete datatype, any two terms are equal.  Note that we do not check here whether discreteness is on: that affects datatypes when they are *defined*, not when they are used. *)
     | Canonical (_, Data { dim; discrete = `Yes; _ }, _) when is_pos dim -> return ()
     (* At an ordinary datatype, two constructors are equal if they are instances of the same constructor, with the same dimension and arguments.  We handle these cases here because we can use the datatype information to give types to the arguments of the constructor. *)
@@ -214,11 +228,12 @@ module Equal = struct
         | Neq ->
             fatal
               (Dimension_mismatch ("application in equality-check", CubeOf.dim a1, CubeOf.dim a2)))
-    | Field f1, Field f2 -> guard (f1 = f2)
+    | Field (f1, _), Field (f2, _) ->
+        (* The 'plus' parts must automatically be equal if the fields are equal and well-typed. *)
+        guard (Field.equal f1 f2)
     | _, _ -> fail
 
-  and equal_at_tel :
-      type n a b ab.
+  and equal_at_tel : type n a b ab.
       int ->
       (n, a) env ->
       kinetic value list ->
@@ -268,20 +283,20 @@ module Equal = struct
           xs ys tys tyargs
     | _ -> fatal (Anomaly "length mismatch in equal_at_tel")
 
-  and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.t -> unit option =
+  and equal_env : type a b n. int -> (n, b) env -> (n, b) env -> (a, b) termctx -> unit option =
    fun lvl env1 env2 (Permute (_, envctx)) -> equal_ordered_env lvl env1 env2 envctx
 
-  and equal_ordered_env :
-      type a b n. int -> (n, b) env -> (n, b) env -> (a, b) Termctx.Ordered.t -> unit option =
+  and equal_ordered_env : type a b n.
+      int -> (n, b) env -> (n, b) env -> (a, b) ordered_termctx -> unit option =
    fun lvl env1 env2 envctx ->
     (* Copied from readback_ordered_env *)
     match envctx with
     | Emp -> Some ()
     | Lock envctx -> equal_ordered_env lvl env1 env2 envctx
-    | Snoc (envctx, entry, _) -> (
+    | Ext (envctx, entry, _) -> (
         let open Monad.Ops (Monad.Maybe) in
         let open CubeOf.Monadic (Monad.Maybe) in
-        let (Plus mk) = D.plus (Termctx.dim_entry entry) in
+        let (Plus mk) = D.plus (dim_entry entry) in
         let (Looked_up { act = act1; op = Op (fc1, fd1); entry = xs1 }) =
           lookup_cube env1 mk Now (id_op (dim_env env1)) in
         let xs1 = act_cube { act = act1 } (CubeOf.subcube fc1 xs1) fd1 in

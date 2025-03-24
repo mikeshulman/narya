@@ -42,15 +42,13 @@ let rec bwsface_of_bwtface : type m n k nk. (m, n, k, nk) bwtface -> (m, nk) bws
   | REnd (e, d) -> End (e, d)
   | RMid d -> Mid (bwsface_of_bwtface d)
 
-let bwtface_rend :
-    type l m k. l Endpoints.t -> (m, D.zero, k, k) bwtface -> (m, D.zero, k D.suc, k D.suc) bwtface
-    =
+let bwtface_rend : type l m k.
+    l Endpoints.t -> (m, D.zero, k, k) bwtface -> (m, D.zero, k D.suc, k D.suc) bwtface =
  fun e d -> REnd (e, bwsface_of_bwtface d)
 
 (* Converting a backwards tube face to a forwards one.  This requires three helper functions. *)
 
-let rec tface_of_bw_r :
-    type m1 m2 m n k1 k2 k nk1 nk.
+let rec tface_of_bw_r : type m1 m2 m n k1 k2 k nk1 nk.
     (m1, m2, m) D.plus ->
     (k1, k2, k) D.plus ->
     (nk1, k2, nk) D.plus ->
@@ -68,8 +66,7 @@ let rec tface_of_bw_r :
   | End (e, bf) -> tface_of_bw_r m12 (D.suc_plus k12) (D.suc_plus nk12) (tface_end f e) bf
   | Mid bf -> tface_of_bw_r (D.suc_plus m12) (D.suc_plus k12) (D.suc_plus nk12) (Mid f) bf
 
-let rec tface_of_bw_lt :
-    type m1 m2 m n k1 k2 k nk nk1.
+let rec tface_of_bw_lt : type m1 m2 m n k1 k2 k nk nk1.
     (m1, m2, m) D.plus ->
     (k1, k2, k) D.plus ->
     (nk1, k2, nk) D.plus ->
@@ -83,8 +80,7 @@ let rec tface_of_bw_lt :
   | RMid bf ->
       tface_of_bw_lt (D.suc_plus m12) (D.suc_plus k12) (D.suc_plus n12k) (Suc nk12) (Mid f) bf
 
-let rec tface_of_bw_ls :
-    type m1 m2 m n1 n2 k n nk nk2.
+let rec tface_of_bw_ls : type m1 m2 m n1 n2 k n nk nk2.
     (m1, m2, m) D.plus ->
     (n1, n2, n) D.plus ->
     (n1, nk2, nk) D.plus ->

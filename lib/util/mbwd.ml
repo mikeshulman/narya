@@ -35,8 +35,7 @@ end
 module Applicatic (M : Applicative.Plain) = struct
   open Applicative.Ops (M)
 
-  let rec pmapM :
-      type x xs ys.
+  let rec pmapM : type x xs ys.
       ((x, xs) cons Hlist.t -> ys Hlist.t M.t) ->
       (x, xs) cons Heter.ht ->
       ys Tlist.t ->
@@ -74,8 +73,7 @@ module Monadic (M : Monad.Plain) = struct
   include Applicatic (A)
 end
 
-let pmap :
-    type x xs ys.
+let pmap : type x xs ys.
     ((x, xs) cons Hlist.t -> ys Hlist.t) -> (x, xs) cons Heter.ht -> ys Tlist.t -> ys Heter.ht =
  fun f xss ys ->
   let open Monadic (Monad.Identity) in
@@ -90,6 +88,8 @@ let mmap : type x xs y. ((x, xs) cons Hlist.t -> y) -> (x, xs) cons Heter.ht -> 
  fun f xs ->
   let open Monadic (Monad.Identity) in
   mmapM f xs
+
+let map : type x y. (x -> y) -> x Bwd.t -> y Bwd.t = fun f xs -> mmap (fun [ x ] -> f x) [ xs ]
 
 let fwd_nth_opt : type a. a Bwd.t -> int -> a option =
  fun xs i ->

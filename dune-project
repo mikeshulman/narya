@@ -15,5 +15,6 @@
     lwt
     lambda-term
     fmlib
-    fileutils))
+    fileutils
+    pprint))
 (generate_opam_files)

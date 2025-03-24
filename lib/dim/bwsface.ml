@@ -27,8 +27,7 @@ let rec cod_bwsface : type m n. (m, n) bwsface -> n D.t = function
 
 let sface_of_bw : type m n. (m, n) bwsface -> (m, n) sface =
  fun bf ->
-  let rec sface_of_bw_onto :
-      type k l m n km ln.
+  let rec sface_of_bw_onto : type k l m n km ln.
       (k, m, km) D.plus -> (l, n, ln) D.plus -> (k, l) sface -> (m, n) bwsface -> (km, ln) sface =
    fun km ln f bf ->
     match bf with

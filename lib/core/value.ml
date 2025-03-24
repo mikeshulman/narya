@@ -2,247 +2,9 @@ open Bwd
 open Util
 open Tbwd
 open Dim
+open Dimbwd
 include Energy
-
-(* ******************** Names ******************** *)
-
-(* An element of "mn variables" is an mn-dimensional cube of variables where mn = m + n and the user specified names for n dimensions, with the other m dimensions being named with face suffixes.  *)
-type _ variables =
-  | Variables :
-      'm D.t * ('m, 'n, 'mn) D.plus * (N.zero, 'n, string option, 'f) NICubeOf.t
-      -> 'mn variables
-
-type any_variables = Any : 'n variables -> any_variables
-
-let dim_variables : type m. m variables -> m D.t = function
-  | Variables (m, mn, _) -> D.plus_out m mn
-
-let singleton_variables : type m. m D.t -> string option -> m variables =
- fun m x -> Variables (m, D.plus_zero m, NICubeOf.singleton x)
-
-(* ******************** Typechecked terms ******************** *)
-
-(* Typechecked, but unevaluated, terms.  Use De Bruijn indices that are intrinsically well-scoped by hctxs, but are no longer separated into synthesizing and checking; hence without type ascriptions.  Note that extending an hctx by a dimension 'k means adding a whole cube of new variables, which are indexed by the position of that dimension together with a strict face of it.  (At user-level, those variables may all be accessed as faces of one "cube variable", or they may have independent names, but internally there is no difference.)
-
-   Incorporates information appropriate to the internal syntax that is constructed during typechecking, e.g. applications and abstractions are grouped by a dimension, since this can be inferred during typechecking, from the synthesized type of a function being applied and from the pi-type the lambda is being checked against, respectively.  Similarly, we have instantiations of higher-dimensional types obtained by applying them to a tube of boundary terms.
-
-   Typechecking of user syntax still produces only unary pi-types and zero-dimensional universes, but we include arbitrary-dimensional ones here so that they can also be the output of readback from internal values.  We likewise include arbitrary degeneracy actions, since these can appear in readback. *)
-
-(* The codomain of a higher-dimensional pi-type is a cube of terms with bound variables whose number varies with the face of the cube.  We can enforce this with a parametrized instance of Cube, but it has to be defined recursively with term using a recursive module (like BindCube in Value; see there for more commentary). *)
-module rec Term : sig
-  module CodFam : sig
-    type ('k, 'a) t = (('a, 'k) snoc, kinetic) Term.term
-  end
-
-  module CodCube : module type of Cube (CodFam)
-
-  type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
-
-  type (_, _) term =
-    | Var : 'a index -> ('a, kinetic) term
-    | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
-    | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
-    | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
-    | UU : 'n D.t -> ('a, kinetic) term
-    | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
-    | Pi :
-        string option * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
-        -> ('a, kinetic) term
-    | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
-    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
-    | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
-    | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
-    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
-    | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t * 's energy
-        -> ('a, 's) term
-    | Match : {
-        tm : ('a, kinetic) term;
-        dim : 'n D.t;
-        branches : ('a, 'n) branch Constr.Map.t;
-      }
-        -> ('a, potential) term
-    | Realize : ('a, kinetic) term -> ('a, potential) term
-    | Canonical : 'a canonical -> ('a, potential) term
-
-  and (_, _) branch =
-    | Branch :
-        ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
-        -> ('a, 'n) branch
-    | Refute
-
-  and _ canonical =
-    | Data : {
-        indices : 'i Fwn.t;
-        constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
-        discrete : [ `Yes | `Maybe | `No ];
-      }
-        -> 'a canonical
-    | Codata : {
-        eta : potential eta;
-        opacity : opacity;
-        dim : 'n D.t;
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
-      }
-        -> 'a canonical
-
-  and (_, _) dataconstr =
-    | Dataconstr : {
-        args : ('p, 'a, 'pa) tel;
-        indices : (('pa, kinetic) term, 'i) Vec.t;
-      }
-        -> ('p, 'i) dataconstr
-
-  and ('a, 'b, 'ab) tel =
-    | Emp : ('a, Fwn.zero, 'a) tel
-    | Ext :
-        string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
-        -> ('a, 'b Fwn.suc, 'ab) tel
-
-  and (_, _, _) env =
-    | Emp : 'n D.t -> ('a, 'n, emp) env
-    | Ext :
-        ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
-        -> ('a, 'n, ('b, 'k) snoc) env
-end = struct
-  module CodFam = struct
-    type ('k, 'a) t = (('a, 'k) snoc, kinetic) Term.term
-  end
-
-  module CodCube = Cube (CodFam)
-
-  (* A typechecked De Bruijn index is a well-scoped natural number together with a definite strict face (the top face, if none was supplied explicitly).  Unlike a raw De Bruijn index, the scoping is by a tbwd rather than a type-level nat.  This allows the face to also be well-scoped: its codomain must be the dimension appearing in the hctx at that position.  And since we already have defined Tbwd.insert, we can re-use that instead of re-defining this inductively. *)
-  type _ index = Index : ('a, 'n, 'b) Tbwd.insert * ('k, 'n) sface -> 'b index
-
-  type (_, _) term =
-    (* Most term-formers only appear in kinetic (ordinary) terms. *)
-    | Var : 'a index -> ('a, kinetic) term
-    | Const : Constant.t -> ('a, kinetic) term
-    | Meta : ('x, 'b, 'l) Meta.t * 's energy -> ('b, 's) term
-    (* Normally, checked metavariables don't require an environment attached, but they do when they arise by readback from a value metavariable. *)
-    | MetaEnv : ('x, 'b, 's) Meta.t * ('a, 'n, 'b) env -> ('a, kinetic) term
-    | Field : ('a, kinetic) term * Field.t -> ('a, kinetic) term
-    | UU : 'n D.t -> ('a, kinetic) term
-    | Inst : ('a, kinetic) term * ('m, 'n, 'mn, ('a, kinetic) term) TubeOf.t -> ('a, kinetic) term
-    (* Since the user doesn't write higher-dimensional pi-types explicitly, there is always only one variable name in a pi-type. *)
-    | Pi :
-        string option * ('n, ('a, kinetic) term) CubeOf.t * ('n, 'a) CodCube.t
-        -> ('a, kinetic) term
-    | App : ('a, kinetic) term * ('n, ('a, kinetic) term) CubeOf.t -> ('a, kinetic) term
-    | Constr : Constr.t * 'n D.t * ('n, ('a, kinetic) term) CubeOf.t list -> ('a, kinetic) term
-    | Act : ('a, kinetic) term * ('m, 'n) deg -> ('a, kinetic) term
-    (* The term being bound in a 'let' is always kinetic.  Thus, if the supplied bound term is potential, the "bound term" here must be the metavariable whose value is set to that term rather than to the (potential) term itself.  We don't need a term-level "letrec" since recursion is implemented in the typechecker by creating a new global metavariable. *)
-    | Let : string option * ('a, kinetic) term * (('a, D.zero) snoc, 's) term -> ('a, 's) term
-    (* Abstractions and structs can appear in any kind of term.  The dimension 'n is the substitution dimension of the type being checked against (function-type or codata/record).  *)
-    | Lam : 'n variables * (('a, 'n) snoc, 's) Term.term -> ('a, 's) term
-    | Struct :
-        's eta * 'n D.t * (Field.t, ('a, 's) term * [ `Labeled | `Unlabeled ]) Abwd.t * 's energy
-        -> ('a, 's) term
-    (* Matches can only appear in non-kinetic terms.  The dimension 'n is the substitution dimension of the type of the variable being matched against. *)
-    | Match : {
-        tm : ('a, kinetic) term;
-        dim : 'n D.t;
-        branches : ('a, 'n) branch Constr.Map.t;
-      }
-        -> ('a, potential) term
-    (* A potential term is "realized" by kinetic terms, or canonical types, at its leaves. *)
-    | Realize : ('a, kinetic) term -> ('a, potential) term
-    | Canonical : 'a canonical -> ('a, potential) term
-
-  (* A branch of a match binds a number of new variables.  If it is a higher-dimensional match, then each of those "variables" is actually a full cube of variables.  In addition, its context must be permuted to put those new variables before the existing variables that are now defined in terms of them. *)
-  and (_, _) branch =
-    | Branch :
-        ('a, 'b, 'n, 'ab) Tbwd.snocs * ('c, 'ab) Tbwd.permute * ('c, potential) term
-        -> ('a, 'n) branch
-    (* A branch that was refuted during typechecking doesn't need a body to compute with, but we still mark its presence as a signal that it should be stuck (this can occur when normalizing in an inconsistent context). *)
-    | Refute
-
-  (* A canonical type is either a datatype or a codatatype/record. *)
-  and _ canonical =
-    (* A datatype stores its family of constructors, and also its number of indices.  (The former is not determined in the latter if there happen to be zero constructors). *)
-    | Data : {
-        indices : 'i Fwn.t;
-        constrs : (Constr.t, ('a, 'i) dataconstr) Abwd.t;
-        discrete : [ `Yes | `Maybe | `No ];
-      }
-        -> 'a canonical
-    (* A codatatype has an eta flag, an intrinsic dimension (like Gel), and a family of fields, each with a type that depends on one additional variable belonging to the codatatype itself (usually by way of its previous fields). *)
-    | Codata : {
-        eta : potential eta;
-        opacity : opacity;
-        dim : 'n D.t;
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
-      }
-        -> 'a canonical
-
-  (* A datatype constructor has a telescope of arguments and a list of index values depending on those arguments. *)
-  and (_, _) dataconstr =
-    | Dataconstr : {
-        args : ('p, 'a, 'pa) tel;
-        indices : (('pa, kinetic) term, 'i) Vec.t;
-      }
-        -> ('p, 'i) dataconstr
-
-  (* A telescope is a list of types, each dependent on the previous ones.  Note that 'a and 'ab are lists of dimensions, but 'b is just a forwards natural number counting the number of *zero-dimensional* variables added to 'a to get 'ab.  *)
-  and ('a, 'b, 'ab) tel =
-    | Emp : ('a, Fwn.zero, 'a) tel
-    | Ext :
-        string option * ('a, kinetic) term * (('a, D.zero) snoc, 'b, 'ab) tel
-        -> ('a, 'b Fwn.suc, 'ab) tel
-
-  (* A version of an environment (see below) that involves terms rather than values.  Used mainly when reading back metavariables. *)
-  and (_, _, _) env =
-    | Emp : 'n D.t -> ('a, 'n, emp) env
-    | Ext :
-        ('a, 'n, 'b) env * ('n, 'k, 'nk) D.plus * ('nk, ('a, kinetic) term) CubeOf.t
-        -> ('a, 'n, ('b, 'k) snoc) env
-end
-
 open Term
-
-(* Find the name of the (n+1)st abstracted variable, where n is the length of a supplied argument list.  Doesn't "look through" branches or cobranches or into leaves. *)
-let rec nth_var : type a b s. (a, s) term -> b Bwd.t -> any_variables option =
- fun tr args ->
-  match tr with
-  | Lam (x, body) -> (
-      match args with
-      | Emp -> Some (Any x)
-      | Snoc (args, _) -> nth_var body args)
-  | _ -> None
-
-let pi x dom cod = Pi (x, CubeOf.singleton dom, CodCube.singleton cod)
-let app fn arg = App (fn, CubeOf.singleton arg)
-let apps fn args = List.fold_left app fn args
-let constr name args = Constr (name, D.zero, List.map CubeOf.singleton args)
-
-module Telescope = struct
-  type ('a, 'b, 'ab) t = ('a, 'b, 'ab) Term.tel
-
-  let rec length : type a b ab. (a, b, ab) t -> b Fwn.t = function
-    | Emp -> Zero
-    | Ext (_, _, tel) -> Suc (length tel)
-
-  let rec pis : type a b ab. (a, b, ab) t -> (ab, kinetic) term -> (a, kinetic) term =
-   fun doms cod ->
-    match doms with
-    | Emp -> cod
-    | Ext (x, dom, doms) -> pi x dom (pis doms cod)
-
-  let rec lams : type a b ab. (a, b, ab) t -> (ab, kinetic) term -> (a, kinetic) term =
-   fun doms body ->
-    match doms with
-    | Emp -> body
-    | Ext (x, _, doms) -> Lam (singleton_variables D.zero x, lams doms body)
-
-  let rec snocs : type a b ab. (a, b, ab) t -> (a, b, D.zero, ab) Tbwd.snocs = function
-    | Emp -> Zero
-    | Ext (_, _, tel) -> Suc (snocs tel)
-end
-
-let rec dim_term_env : type a n b. (a, n, b) env -> n D.t = function
-  | Emp n -> n
-  | Ext (e, _, _) -> dim_term_env e
 
 (* ******************** Values ******************** *)
 
@@ -260,6 +22,25 @@ module rec Value : sig
 
   module BindCube : module type of Cube (BindFam)
 
+  module Structfield : sig
+    type (_, _) t =
+      (* We remember which fields are labeled, for readback purposes, and we store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
+      | Lower : 's Value.lazy_eval * [ `Labeled | `Unlabeled ] -> (D.zero, 'n * 's * 'et) t
+      (* In the higher case, they are always labeled.  There are multiple values are indexed by insertions, regarded as partial bijections with zero remaining dimensions; the 'evaluation dimension is the substitution dimension 'n and the 'intrinsic dimension is associated to the field.  We also store the original terms as a closure, since they may be needed to evaluate fields of degeneracies. *)
+      | Higher : ('m, 'n, 'mn, 'p, 'i, 'a) higher_data -> ('i, 'p * potential * no_eta) t
+
+    and ('m, 'n, 'mn, 'p, 'i, 'a) higher_data = {
+      vals : ('p, 'i, potential Value.lazy_eval option) InsmapOf.t;
+      intrinsic : 'i D.t;
+      plusdim : ('m, 'n, 'mn) D.plus;
+      env : ('m, 'a) Value.env;
+      deg : ('p, 'mn) deg;
+      terms : ('n, 'i, 'a) PlusPbijmap.t;
+    }
+  end
+
+  module StructfieldAbwd : module type of Field.Abwd (Structfield)
+
   type head =
     | Var : { level : level; deg : ('m, 'n) deg } -> head
     | Const : { name : Constant.t; ins : ('a, 'b, 'c) insertion } -> head
@@ -270,8 +51,11 @@ module rec Value : sig
       }
         -> head
 
-  and 'n arg = Arg of ('n, normal) CubeOf.t | Field of Field.t
-  and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
+  and app = App : 'n arg * ('nk, 'n, 'k) insertion -> app
+
+  and 'n arg =
+    | Arg : ('n, normal) CubeOf.t -> 'n arg
+    | Field : 'i Field.t * ('t, 'i, 'n) D.plus -> 't arg
 
   and (_, _) binder =
     | Bind : {
@@ -297,11 +81,7 @@ module rec Value : sig
         -> kinetic value
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     | Lam : 'k variables * ('k, 's) binder -> 's value
-    | Struct :
-        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t
-        * ('m, 'n, 'k) insertion
-        * 's energy
-        -> 's value
+    | Struct : ('p * 's * 'et) StructfieldAbwd.t * ('pk, 'p, 'k) insertion * 's energy -> 's value
 
   and _ evaluation =
     | Val : 's value -> 's evaluation
@@ -311,14 +91,7 @@ module rec Value : sig
 
   and _ canonical =
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
-    | Codata : {
-        eta : potential eta;
-        opacity : opacity;
-        env : ('m, 'a) env;
-        ins : ('mn, 'm, 'n) insertion;
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
-      }
-        -> 'mn canonical
+    | Codata : ('mn, 'm, 'n, 'c, 'a, 'et) codata_args -> 'mn canonical
 
   and ('m, 'j, 'ij) data_args = {
     dim : 'm D.t;
@@ -326,6 +99,15 @@ module rec Value : sig
     indices : (('m, normal) CubeOf.t, 'j, 'ij) Fillvec.t;
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
     discrete : [ `Yes | `Maybe | `No ];
+  }
+
+  and ('mn, 'm, 'n, 'c, 'a, 'et) codata_args = {
+    eta : (potential, 'et) eta;
+    opacity : opacity;
+    env : ('m, 'a) env;
+    termctx : ('c, ('a, 'n) snoc) termctx option Lazy.t;
+    ins : ('mn, 'm, 'n) insertion;
+    fields : ('a * 'n * 'et) Term.CodatafieldAbwd.t;
   }
 
   and (_, _) dataconstr =
@@ -350,6 +132,7 @@ module rec Value : sig
         -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
+    | Shift : ('mn, 'b) env * ('m, 'n, 'mn) D.plus * ('n, 'b, 'nb) Plusmap.t -> ('m, 'nb) env
 
   and 's lazy_state =
     | Deferred_eval :
@@ -367,6 +150,25 @@ end = struct
 
   module BindCube = Cube (BindFam)
 
+  module Structfield = struct
+    type (_, _) t =
+      (* We remember which fields are labeled, for readback purposes, and we store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
+      | Lower : 's Value.lazy_eval * [ `Labeled | `Unlabeled ] -> (D.zero, 'n * 's * 'et) t
+      (* In the higher case, they are always labeled.  There are multiple values are indexed by insertions, regarded as partial bijections with zero remaining dimensions; the 'evaluation dimension is the substitution dimension 'n and the 'intrinsic dimension is associated to the field.  We also store the original terms as a closure, since they may be needed to evaluate fields of degeneracies. *)
+      | Higher : ('m, 'n, 'mn, 'p, 'i, 'a) higher_data -> ('i, 'p * potential * no_eta) t
+
+    and ('m, 'n, 'mn, 'p, 'i, 'a) higher_data = {
+      vals : ('p, 'i, potential Value.lazy_eval option) InsmapOf.t;
+      intrinsic : 'i D.t;
+      plusdim : ('m, 'n, 'mn) D.plus;
+      env : ('m, 'a) Value.env;
+      deg : ('p, 'mn) deg;
+      terms : ('n, 'i, 'a) PlusPbijmap.t;
+    }
+  end
+
+  module StructfieldAbwd = Field.Abwd (Structfield)
+
   (* The head of an elimination spine is a variable, a constant, or a substituted metavariable.  *)
   type head =
     (* A variable is determined by a De Bruijn LEVEL, and stores a neutral degeneracy applied to it. *)
@@ -382,12 +184,12 @@ end = struct
         -> head
 
   (* An application contains the data of an n-dimensional argument and its boundary, together with a neutral insertion applied outside that can't be pushed in.  This represents the *argument list* of a single application, not the function.  Thus, an application spine will be a head together with a list of apps. *)
-  and 'n arg =
-    | Arg of ('n, normal) CubeOf.t
-    (* Fields don't store the dimension explicitly; the same field name is used at all dimensions.  But the dimension is implicitly stored in the insertion that appears on an "app". *)
-    | Field of Field.t
+  and app = App : 'n arg * ('nk, 'n, 'k) insertion -> app
 
-  and app = App : 'n arg * ('m, 'n, 'k) insertion -> app
+  and 'n arg =
+    | Arg : ('n, normal) CubeOf.t -> 'n arg
+    (* For a higher field with ('n, 't, 'i) insertion, the actual evaluation dimension is 'n, but the result dimension is only 't.  So the dimension of the arg is 't, since that's the output dimension that a degeneracy acting on could be pushed through.  However, since a degeneracy of dimension up to 'n can act on the inside, we can push in the whole insertion and store only a plus outside. *)
+    | Field : 'i Field.t * ('t, 'i, 'n) D.plus -> 't arg
 
   (* Lambdas and Pis both bind a variable, along with its dependencies.  These are recorded as defunctionalized closures.  Since they are produced by higher-dimensional substitutions and operator actions, the dimension of the binder can be different than the dimension of the environment that closes its body.  Accordingly, in addition to the environment and degeneracy to close its body, we store information about how to map the eventual arguments into the bound variables in the body.  *)
   and (_, _) binder =
@@ -425,12 +227,8 @@ end = struct
     | Constr : Constr.t * 'n D.t * ('n, kinetic value) CubeOf.t list -> kinetic value
     (* Lambda-abstractions are never types, so they can never be nontrivially instantiated.  Thus we may as well make them values directly. *)
     | Lam : 'k variables * ('k, 's) binder -> 's value
-    (* The same is true for anonymous structs.  These have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel (here 'k would be the Gel dimension).  We also remember which fields are labeled, for readback purposes.  We store the value of each field lazily, so that corecursive definitions don't try to compute an entire infinite structure.  And since in the non-kinetic case, evaluation can produce more data than just a term (e.g. whether a case tree has yet reached a leaf), what we store lazily is the result of evaluation. *)
-    | Struct :
-        (Field.t, 's lazy_eval * [ `Labeled | `Unlabeled ]) Abwd.t
-        * ('m, 'n, 'k) insertion
-        * 's energy
-        -> 's value
+    (* The same is true for anonymous structs.  They have to store an insertion outside, like an application, to deal with higher-dimensional record types like Gel.  Here 'k is the Gel dimension, with 'n the substitution dimension and 'nk the total dimension. *)
+    | Struct : ('p * 's * 'et) StructfieldAbwd.t * ('pk, 'p, 'k) insertion * 's energy -> 's value
 
   (* This is the result of evaluating a term with a given kind of energy.  Evaluating a kinetic term just produces a (kinetic) value, whereas evaluating a potential term might be a potential value (waiting for more arguments), or else the information that the case tree has reached a leaf and the resulting kinetic value or canonical type, or else the information that the case tree is permanently stuck.  *)
   and _ evaluation =
@@ -440,20 +238,12 @@ end = struct
     | Unrealized : potential evaluation
     | Canonical : 'm canonical -> potential evaluation
 
-  (* A canonical type value is either a datatype or a codatatype/record. *)
+  (* A canonical type value is either a datatype or a codatatype/record.  It is parametrized by its dimension as a type, which might be larger than its evaluation dimension if it has an intrinsic dimension (e.g. Gel). *)
   and _ canonical =
     (* We define a named record type to encapsulate the arguments of Data, rather than using an inline one, so that we can bind its existential variables (https://discuss.ocaml.org/t/annotating-by-an-existential-type/14721).  See the definition below. *)
     | Data : ('m, 'j, 'ij) data_args -> 'm canonical
-    (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms produces the data of a binder, so we can think of this as a family of binders,  one for each field, that share the same environment and insertion. *)
-    | Codata : {
-        eta : potential eta;
-        opacity : opacity;
-        env : ('m, 'a) env;
-        ins : ('mn, 'm, 'n) insertion;
-        (* TODO: When it's used, this should really be a forwards list.  But it's naturally constructed backwards, and it has to be used *as* it's being constructed when typechecking the later terms. *)
-        fields : (Field.t, (('a, 'n) snoc, kinetic) term) Abwd.t;
-      }
-        -> 'mn canonical
+    (* A codatatype value has an eta flag, an environment that it was evaluated at, an insertion that relates its intrinsic dimension (such as for Gel) to the dimension it was evaluated at, and its fields as unevaluted terms that depend on one additional variable belonging to the codatatype itself (usually through its previous fields).  Note that combining env, ins, and any of the field terms in a *lower* codatafield produces the data of a binder; so in the absence of higher codatatypes we can think of this as a family of binders, one for each field, that share the same environment and insertion.  (But with higher fields this is no longer the case, as the context of the types gets degenerated by their dimension.) *)
+    | Codata : ('mn, 'm, 'n, 'c, 'a, 'et) codata_args -> 'mn canonical
 
   (* A datatype value stores: *)
   and ('m, 'j, 'ij) data_args = {
@@ -467,6 +257,15 @@ end = struct
     constrs : (Constr.t, ('m, 'ij) dataconstr) Abwd.t;
     (* Whether it is discrete.  The value `Maybe means that it could be discrete based on its own parameters, indices, and constructor arguments, but either is waiting for its mutual companions to be typechecked, or at least one of them failed to be discrete.  Thus for equality-testing purposes, `Maybe is treated like `No. *)
     discrete : [ `Yes | `Maybe | `No ];
+  }
+
+  and ('mn, 'm, 'n, 'c, 'a, 'et) codata_args = {
+    eta : (potential, 'et) eta;
+    opacity : opacity;
+    env : ('m, 'a) env;
+    termctx : ('c, ('a, 'n) snoc) termctx option Lazy.t;
+    ins : ('mn, 'm, 'n) insertion;
+    fields : ('a * 'n * 'et) Term.CodatafieldAbwd.t;
   }
 
   (* Each constructor stores the telescope of types of its arguments, as a closure, and the index values as function values taking its arguments. *)
@@ -497,6 +296,8 @@ end = struct
         -> ('n, ('b, 'k) snoc) env
     | Act : ('n, 'b) env * ('m, 'n) op -> ('m, 'b) env
     | Permute : ('a, 'b) Tbwd.permute * ('n, 'b) env -> ('n, 'a) env
+    (* Adding a dimension 'n to all the dimensions in a dimension list 'b is the power/cotensor in the dimension-enriched category of contexts.  Shifting an environment (substitution) implements its universal property: an (m+n)-dimensional substitution with codomain b is equivalent to an m-dimensional substitution with codomain n+b. *)
+    | Shift : ('mn, 'b) env * ('m, 'n, 'mn) D.plus * ('n, 'b, 'nb) Plusmap.t -> ('m, 'nb) env
 
   (* An 's lazy_eval behaves from the outside like an 's evaluation Lazy.t.  But internally, in addition to being able to store an arbitrary thunk, it can also store a term and an environment in which to evaluate it (plus an outer insertion that can't be pushed into the environment).  This allows it to accept degeneracy actions and incorporate them into the environment, so that when it's eventually forced the term only has to be traversed once.  It can also accumulate degeneracies on an arbitrary thunk (which could, of course, be a constant value that was already forced, but now is deferred again until it's done accumulating degeneracy actions).  Both kinds of deferred values can also store more arguments and field projections for it to be applied to; this is only used in glued evaluation. *)
   and 's lazy_state =
@@ -509,7 +310,7 @@ end = struct
   and 's lazy_eval = 's lazy_state ref
 end
 
-open Value
+include Value
 
 type any_canonical = Any : 'm canonical -> any_canonical
 
@@ -520,6 +321,7 @@ let rec dim_env : type n b. (n, b) env -> n D.t = function
   | LazyExt (e, _, _) -> dim_env e
   | Act (_, op) -> dom_op op
   | Permute (_, e) -> dim_env e
+  | Shift (e, mn, _) -> D.plus_left mn (dim_env e)
 
 (* And likewise every binder *)
 let dim_binder : type m s. (m, s) binder -> m D.t = function
@@ -530,12 +332,17 @@ let dim_canonical : type m. m canonical -> m D.t = function
   | Codata { ins; _ } -> dom_ins ins
 
 (* The length of an environment is a tbwd of dimensions. *)
-let rec length_env : type n b. (n, b) env -> b Plusmap.OfDom.t = function
-  | Emp _ -> Of_emp
-  | Ext (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
-  | LazyExt (env, nk, _) -> Of_snoc (length_env env, D.plus_right nk)
+let rec length_env : type n b. (n, b) env -> b Dbwd.t = function
+  | Emp _ -> Word Zero
+  | Ext (env, nk, _) ->
+      let (Word le) = length_env env in
+      Word (Suc (le, D.plus_right nk))
+  | LazyExt (env, nk, _) ->
+      let (Word le) = length_env env in
+      Word (Suc (le, D.plus_right nk))
   | Act (env, _) -> length_env env
   | Permute (p, env) -> Plusmap.OfDom.permute p (length_env env)
+  | Shift (env, mn, nb) -> Plusmap.out (D.plus_right mn) (length_env env) nb
 
 (* Smart constructor that composes actions and cancels identities *)
 let rec act_env : type m n b. (n, b) env -> (m, n) op -> (m, b) env =
@@ -564,13 +371,7 @@ let apply_lazy : type n s. s lazy_eval -> (n, normal) CubeOf.t -> s lazy_eval =
   | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, xs)))
   | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, xs)))
 
-let field_lazy : type s. s lazy_eval -> Field.t -> s lazy_eval =
- fun lev fld ->
-  let fld = App (Field fld, ins_zero D.zero) in
-  match !lev with
-  | Deferred_eval (env, tm, ins, apps) -> ref (Deferred_eval (env, tm, ins, Snoc (apps, fld)))
-  | Deferred (tm, ins, apps) -> ref (Deferred (tm, ins, Snoc (apps, fld)))
-  | Ready tm -> ref (Deferred ((fun () -> tm), id_deg D.zero, Snoc (Emp, fld)))
+(* We defer "field_lazy" to act.ml, since it requires pushing a permutation inside the apps. *)
 
 (* Given a De Bruijn level and a type, build the variable of that level having that type. *)
 let var : level -> kinetic value -> kinetic value =
@@ -583,8 +384,8 @@ let var : level -> kinetic value -> kinetic value =
 let val_of_norm_cube : type n. (n, normal) CubeOf.t -> (n, kinetic value) CubeOf.t =
  fun arg -> CubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
-let val_of_norm_tube :
-    type n k nk. (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
+let val_of_norm_tube : type n k nk.
+    (n, k, nk, normal) TubeOf.t -> (n, k, nk, kinetic value) TubeOf.t =
  fun arg -> TubeOf.mmap { map = (fun _ [ { tm; ty = _ } ] -> tm) } [ arg ]
 
 (* Remove an entry from an environment *)
@@ -600,6 +401,9 @@ let rec remove_env : type a k b n. (n, b) env -> (a, k, b) Tbwd.insert -> (n, a)
   | LazyExt (env, nk, xs), Later v -> LazyExt (remove_env env v, nk, xs)
   | Ext (env, _, _), Now -> env
   | LazyExt (env, _, _), Now -> env
+  | Shift (env, mn, nb), _ ->
+      let (Unmap_insert (_, v', na)) = Plusmap.unmap_insert v nb in
+      Shift (remove_env env v', mn, na)
 
 (* The universe of any dimension belongs to an instantiation of itself.  Note that the result is not itself a type (i.e. in the 0-dimensional universe) unless n=0. *)
 let rec universe : type n. n D.t -> kinetic value = fun n -> Uninst (UU n, lazy (universe_ty n))

@@ -22,7 +22,9 @@ module Energy = struct
 end
 
 (* Structs can have or lack eta-conversion, but the only kinetic ones are the ones with eta (records). *)
-type _ eta = Eta : 's eta | Noeta : potential eta
+type has_eta = private Dummy_haseta
+type no_eta = private Dummy_noeta
+type (_, _) eta = Eta : ('s, has_eta) eta | Noeta : (potential, no_eta) eta
 
 (* Opacity of a record type governs whether eta-expansion happens on readback for display. *)
 type opacity =

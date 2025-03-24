@@ -2,6 +2,12 @@
 
 type zero = private Dummy_zero
 type 'n suc = private Dummy_suc
+type one = zero suc
+type two = one suc
+type three = two suc
+type four = three suc
+type five = four suc
+type six = five suc
 
 (* We can add a backwards nat to a forwards nat and get a backwards one.  This is the length-level analogue of appending a forward list on the end of a backwards one.  *)
 
@@ -15,8 +21,6 @@ let zero : zero t = Zero
 
 let suc : type n. n t -> n suc t = function
   | n -> Suc n
-
-type one = zero suc
 
 let one : one t = suc zero
 
@@ -53,6 +57,13 @@ let rec suc_bplus_eq_suc : type a b ab. (a, b, ab) bplus -> (a N.suc, b, ab N.su
 let bplus_suc_eq_suc : type a b ab. (a, b, ab) bplus -> (a, b suc, ab N.suc) bplus =
  fun ab -> Suc (suc_bplus_eq_suc ab)
 
+let rec insert_bplus : type a asuc b ab asucb.
+    (a, asuc) N.insert -> (a, b, ab) bplus -> (asuc, b, asucb) bplus -> (ab, asucb) N.insert =
+ fun i ab asucb ->
+  match (ab, asucb) with
+  | Zero, Zero -> i
+  | Suc ab, Suc asucb -> insert_bplus (Later i) ab asucb
+
 (* We can also get a forwards one as the result.  This is the length-level analogue of prepending a backwards list on the front of a forwards one.  *)
 type (_, _, _) fplus =
   | Zero : (N.zero, 'a, 'a) fplus
@@ -83,8 +94,7 @@ let rec fplus : type a b. a N.t -> (a, b) has_fplus = function
       Fplus (Suc ab)
 
 (* These two kinds of addition associate with addition of backwards nats.  Here a, b, ab, and abc are backwards, while c and bc are forwards. *)
-let rec bfplus_assocr :
-    type a b ab c bc abc.
+let rec bfplus_assocr : type a b ab c bc abc.
     (a, b, ab) N.plus -> (b, c, bc) fplus -> (ab, c, abc) bplus -> (a, bc, abc) bplus =
  fun ab bc abc ->
   match (ab, bc) with
@@ -120,8 +130,7 @@ let rec suc_plus : type a b ab. (a, b suc, ab) plus -> (a suc, b, ab) plus = fun
   | Zero -> Suc Zero
   | Suc ab -> Suc (suc_plus ab)
 
-let rec plus_assocl :
-    type m n mn p np mnp.
+let rec plus_assocl : type m n mn p np mnp.
     (m, n, mn) plus -> (n, p, np) plus -> (m, np, mnp) plus -> (mn, p, mnp) plus =
  fun mn np m_np ->
   match mn with
@@ -132,8 +141,7 @@ let rec plus_assocl :
       let (Suc m_np) = m_np in
       Suc (plus_assocl mn np m_np)
 
-let rec plus_assocr :
-    type m n mn p np mnp.
+let rec plus_assocr : type m n mn p np mnp.
     (m, n, mn) plus -> (n, p, np) plus -> (mn, p, mnp) plus -> (m, np, mnp) plus =
  fun mn np mn_p ->
   match mn with
@@ -148,8 +156,8 @@ let rec plus_assocr :
 type (_, _, _, _) plus_assocrr =
   | Plus_assocrr : ('b, 'c, 'bc) plus * ('a, 'bc, 'abc) plus -> ('a, 'b, 'c, 'abc) plus_assocrr
 
-let rec plus_assocrr :
-    type a b c ab abc. (a, b, ab) plus -> (ab, c, abc) plus -> (a, b, c, abc) plus_assocrr =
+let rec plus_assocrr : type a b c ab abc.
+    (a, b, ab) plus -> (ab, c, abc) plus -> (a, b, c, abc) plus_assocrr =
  fun ab ab_c ->
   match ab with
   | Zero -> Plus_assocrr (ab_c, Zero)
@@ -159,8 +167,7 @@ let rec plus_assocrr :
       Plus_assocrr (bc, Suc a_bc)
 
 (* This associates with bplus and fplus too.  Here a is backwards, while b, c, ab, bc, and abc are forwards. *)
-let rec fbplus_assocl :
-    type a b ab c bc abc.
+let rec fbplus_assocl : type a b ab c bc abc.
     (a, b, ab) fplus -> (b, c, bc) plus -> (a, bc, abc) fplus -> (ab, c, abc) plus =
  fun ab bc abc ->
   match (ab, abc) with

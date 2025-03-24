@@ -153,8 +153,7 @@ end
 module Applicatic (M : Applicative.Plain) = struct
   open Applicative.Ops (M)
 
-  let rec pmapM :
-      type x xs ys n.
+  let rec pmapM : type x xs ys n.
       ((x, xs) cons hlist -> ys hlist M.t) ->
       ((x, xs) cons, n) Heter.ht ->
       ys Tlist.t ->
@@ -168,8 +167,8 @@ module Applicatic (M : Applicative.Plain) = struct
 
   (* With specializations to simple arity possibly-monadic maps and iterators.  *)
 
-  let miterM :
-      type x xs n. ((x, xs) cons hlist -> unit M.t) -> ((x, xs) cons, n) Heter.ht -> unit M.t =
+  let miterM : type x xs n.
+      ((x, xs) cons hlist -> unit M.t) -> ((x, xs) cons, n) Heter.ht -> unit M.t =
    fun f xss ->
     let+ [] =
       pmapM
@@ -179,8 +178,8 @@ module Applicatic (M : Applicative.Plain) = struct
         xss Nil in
     ()
 
-  let mmapM :
-      type x xs y n. ((x, xs) cons hlist -> y M.t) -> ((x, xs) cons, n) Heter.ht -> (y, n) t M.t =
+  let mmapM : type x xs y n.
+      ((x, xs) cons hlist -> y M.t) -> ((x, xs) cons, n) Heter.ht -> (y, n) t M.t =
    fun f xss ->
     let+ [ ys ] =
       pmapM
@@ -196,6 +195,29 @@ module Applicatic (M : Applicative.Plain) = struct
   let mapM2 : type x y z n. (x -> y -> z M.t) -> (x, n) t -> (y, n) t -> (z, n) t M.t =
    fun f xs ys -> mmapM (fun [ x; y ] -> f x y) [ xs; ys ]
 
+  let mapM1_2 : type x y z n. (x -> (y * z) M.t) -> (x, n) t -> ((y, n) t * (z, n) t) M.t =
+   fun f xs ->
+    let open Applicative.Ops (M) in
+    let+ [ ys; zs ] =
+      pmapM
+        (fun [ x ] ->
+          let+ y, z = f x in
+          [ y; z ])
+        [ xs ] (Cons (Cons Nil)) in
+    (ys, zs)
+
+  let mapM1_3 : type x y z w n.
+      (x -> (y * z * w) M.t) -> (x, n) t -> ((y, n) t * (z, n) t * (w, n) t) M.t =
+   fun f xs ->
+    let open Applicative.Ops (M) in
+    let+ [ ys; zs; ws ] =
+      pmapM
+        (fun [ x ] ->
+          let+ y, z, w = f x in
+          [ y; z; w ])
+        [ xs ] (Cons (Cons (Cons Nil))) in
+    (ys, zs, ws)
+
   let iterM : type x n. (x -> unit M.t) -> (x, n) t -> unit M.t =
    fun f xs -> miterM (fun [ x ] -> f x) [ xs ]
 
@@ -208,8 +230,7 @@ module Monadic (M : Monad.Plain) = struct
   include Applicatic (A)
 end
 
-let pmap :
-    type x xs ys n.
+let pmap : type x xs ys n.
     ((x, xs) cons hlist -> ys hlist) -> ((x, xs) cons, n) Heter.ht -> ys Tlist.t -> (ys, n) Heter.ht
     =
  fun f xss ys ->
@@ -249,8 +270,7 @@ let rec all_indices : type n. n N.t -> (n N.index, n) t = function
 (* Searching *)
 
 (* Find an element in one Bwv satisfying a predicate, if one exists, and return a function of the element and length of the remaining vector at the same (backwards) index of another, possibly longer, Bwv. *)
-let rec find2l :
-    type m n mn a b c.
+let rec find2l : type m n mn a b c.
     (m, n, mn) N.plus -> (a -> bool) -> (int -> b -> c) -> (a, n) t -> (b, mn) t -> c option =
  fun mn p f xs ys ->
   match (mn, xs, ys) with
@@ -318,8 +338,7 @@ let rec fold_left2 : type n a b c. (a -> b -> c -> a) -> a -> (b, n) t -> (c, n)
 
 type ('a, 'b) fold_left_mapper = { fold : 'n. ('a, 'n) t -> 'b -> 'a }
 
-let rec fold_left_map_append :
-    type m n mn a b.
+let rec fold_left_map_append : type m n mn a b.
     (m, n, mn) N.plus -> (a, b) fold_left_mapper -> (a, m) t -> (b, n) t -> (a, mn) t =
  fun mn f start xs ->
   match (mn, xs) with
@@ -330,8 +349,7 @@ let rec fold_left_map_append :
 
 type ('a, 'b, 'c) fold_left2_mapper = { fold : 'n. ('a, 'n) t -> 'b -> 'c -> 'a }
 
-let rec fold_left2_map_append :
-    type m n mn a b c.
+let rec fold_left2_map_append : type m n mn a b c.
     (m, n, mn) N.plus ->
     (a, b, c) fold_left2_mapper ->
     (a, m) t ->
@@ -345,8 +363,7 @@ let rec fold_left2_map_append :
       let zs = fold_left2_map_append mn f start xs ys in
       Snoc (zs, f.fold zs x y)
 
-let rec fold_left_bind_append :
-    type k m n mn k_mn a c.
+let rec fold_left_bind_append : type k m n mn k_mn a c.
     (m, n, mn) N.times ->
     (k, mn, k_mn) N.plus ->
     (a, c) fold_left_mapper ->
@@ -367,8 +384,7 @@ type ('a, 'b, 'c, 'm) fold_left2_bind_appender = {
   append : 'n 'nm. ('n, 'm, 'nm) N.plus -> ('a, 'n) t -> 'b -> 'c -> ('a, 'nm) t;
 }
 
-let rec fold_left2_bind_append :
-    type k m n mn k_mn a b c.
+let rec fold_left2_bind_append : type k m n mn k_mn a b c.
     (m, n, mn) N.times ->
     (k, mn, k_mn) N.plus ->
     (a, k) t ->
@@ -390,8 +406,7 @@ type ('a, 'b, 'c, 'd, 'm) fold_left2_bind_append_mapper = {
   append : 'n 'nm. ('n, 'm, 'nm) N.plus -> ('a, 'n) t -> 'b -> 'c -> ('a, 'nm) t * 'd;
 }
 
-let rec fold_left2_bind_append_map :
-    type k m n mn k_mn a b c d.
+let rec fold_left2_bind_append_map : type k m n mn k_mn a b c d.
     (m, n, mn) N.times ->
     (k, mn, k_mn) N.plus ->
     (a, k) t ->

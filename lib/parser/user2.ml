@@ -96,7 +96,7 @@ let make_user : User.prenotation -> User.notation =
                     | _ -> pp_term x in
                   let rest, ws = go false pat obs in
                   (xdoc ^^ pp_ws br xws ^^ rest, ws)
-              | _ -> fatal (Anomaly "invalid notation arguments") in
+              | _ -> fatal (Anomaly ("invalid notation arguments for user notation: " ^ name)) in
             (* Note the choice here.  "group" means that the whole notation, including associative repetitions, must all fit on one line or all be broken.  Where it is broken depends on the space arguments in the notation, which specify where there are spaces and where breaks are allowed.  "align" says that if it is broken, later lines will line up below the starting point. *)
             let doc, ws = go true pattern obs in
             (align (group doc), ws));

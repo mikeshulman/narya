@@ -14,7 +14,7 @@ open Range
 open Readback
 module StringMap = Map.Make (String)
 
-(* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, and the rest. *)
+(* If the head of an application spine is a constant or constructor, and it has an associated notation, and there are enough of the supplied arguments to instantiate the notation, split off that many arguments and return the notation, those arguments permuted to match the order of the pattern variables in the notation, the symbols to intersperse with them, and the remaining arguments. *)
 let get_notation head args =
   let open Monad.Ops (Monad.Maybe) in
   let* { key = _; notn; pat_vars; val_vars; inner_symbols } =

@@ -301,7 +301,7 @@ handling in Proof General."
     (ansi-color-apply-on-region start (point))))
 
 ;; Easy configuration
-(proof-easy-config 
+(proof-easy-config
  ;; The two names below should be the same as in proof-site.el
  'narya "Narya"      
  proof-prog-name                       "narya"
@@ -314,7 +314,9 @@ handling in Proof General."
  ;; Syntax and font-lock
  proof-script-syntax-table-entries     narya-mode-syntax-table-entries
  proof-script-font-lock-keywords       narya-script-font-lock-keywords
+ proof-goals-syntax-table-entries      narya-mode-syntax-table-entries
  proof-goals-font-lock-keywords        narya-script-font-lock-keywords
+ proof-response-syntax-table-entries   narya-mode-syntax-table-entries
  proof-response-font-lock-keywords     narya-script-font-lock-keywords
  
  ;; Comment syntax

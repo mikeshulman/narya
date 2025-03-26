@@ -19,6 +19,13 @@ include Status
 
 let discard : type a. a -> unit = fun _ -> ()
 
+module OracleData = struct
+  type question = Ask : ('a, 'b) Ctx.t * ('b, 's) term -> question
+  type answer = (unit, Code.t) Result.t
+end
+
+module Oracle = Query.Make (OracleData)
+
 (* Check that a given value is a zero-dimensional type family (something where an indexed datatype could live) and return the length of its domain telescope (the number of indices).  Unfortunately I don't see an easy way to do this without essentially going through all the same steps of extending the context that we would do to check something at that type family.  Also check whether all of its domain types are either discrete or belong to the given set of constants. *)
 let rec typefam : type a b.
     ?discrete:unit Constant.Map.t -> (a, b) Ctx.t -> kinetic value -> int * bool =
@@ -535,7 +542,12 @@ let rec check : type a b s.
                       if passthru then go (Snoc (errs, d)) alts else fatal_diagnostic d)
                   @@ fun () -> check ?discrete status ctx (locate_opt tm.loc alt) ty
               | _ -> go errs alts) in
-        go Emp alts in
+        go Emp alts
+    | Oracle tm, _ -> (
+        let ctm = check status ctx tm ty in
+        match Oracle.ask (Ask (ctx, ctm)) with
+        | Ok () -> ctm
+        | Error err -> fatal err) in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx tm;
   Annotate.ty ctx ty;

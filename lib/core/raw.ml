@@ -171,6 +171,8 @@ module Make (I : Indices) = struct
     | First :
         ([ `Data of Constr.t list | `Codata of string list | `Any ] * 'a check * bool) list
         -> 'a check
+    (* Check a term, but then verify its correctness with an external oracle. *)
+    | Oracle : 'a check located -> 'a check
 
   (* The location of the namevec is that of the whole pattern. *)
   and _ branch = Branch : ('a, 'b, 'ab) Namevec.t located * 'ab check located -> 'a branch
@@ -332,7 +334,7 @@ module Resolve (R : Resolver) = struct
           | Right x -> x)
       | First tms ->
           First (List.map (fun (t, x, b) -> (t, (check ctx (locate_opt tm.loc x)).value, b)) tms)
-    in
+      | Oracle tm -> Oracle (check ctx tm) in
     let newtm = locate_opt tm.loc newtm in
     R.visit ctx newtm;
     newtm

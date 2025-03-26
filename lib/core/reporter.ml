@@ -199,6 +199,7 @@ module Code = struct
     | Accumulated : string * t Asai.Diagnostic.t Bwd.t -> t
     | No_holes_allowed : [ `Command of string | `File of string ] -> t
     | Cyclic_term : t
+    | Oracle_failed : t
 
   (* If an error is encountered during printing a term, we (meaning the function 'printer' to be defined in Parser.Unparse) call the function supplied by this reader effect and print it as "_UNPRINTABLE".  Usually this is a bug, but sometimes it can happen normally, particularly when accumulating errors: a term involved in a later error might be unprintable due to a previous error.  We make this a reader that supplies a function so that the function can be called at the point of *performing* the effect.  Thus, if we are not in the middle of displaying another message, there can be an outer handler for this effect that supplies the function "fatal", which is called at the point of performing the effect and is therefore inside any inner Reporter.run wrappers rather than the outermost one that just Exits. *)
   module PrintingErrorData = struct
@@ -340,6 +341,7 @@ module Code = struct
     | Wrong_dimension_of_field _ -> Error
     | Invalid_field_suffix _ -> Error
     | Cyclic_term -> Error
+    | Oracle_failed -> Error
 
   (** A short, concise, ideally Google-able string representation for each message code. *)
   let short_code : t -> string = function
@@ -478,6 +480,8 @@ module Code = struct
     | Not_enough_to_undo -> "E2500"
     (* section *)
     | No_such_section -> "E2600"
+    (* oracles *)
+    | Oracle_failed -> "E3000"
     (* Interactive proof *)
     | Open_holes _ -> "W3000"
     | No_such_hole _ -> "E3001"
@@ -850,7 +854,8 @@ module Code = struct
           | `Command cmd -> textf "command '%s' cannot contain holes" cmd
           | `File file -> textf "imported file '%s' cannot contain holes" file)
       | Ill_scoped_connection -> text "ill-scoped connection"
-      | Cyclic_term -> text "cycle in graphical term" in
+      | Cyclic_term -> text "cycle in graphical term"
+      | Oracle_failed -> text "oracle failed" in
     match !printing_errors with
     | Emp -> msg
     | Snoc _ ->

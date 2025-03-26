@@ -65,6 +65,7 @@ exception Exit
 
 (* This function is called to wrap whatever "interactive mode" is implemented by the caller.  It sets up the environment and all the effect handlers based on the global flags, loads all the files and strings specified in the global flags, and then runs the callback. *)
 let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
+  Check.Oracle.run ~ask:(fun _ -> Ok ()) @@ fun () ->
   Lexer.Specials.run ?onechar_ops ?ascii_symbols @@ fun () ->
   Parser.Unparse.install ();
   Parser.Scope.Mod.run @@ fun () ->

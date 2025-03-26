@@ -833,20 +833,23 @@ let rec process_tuple : type n.
   | _ -> invalid "tuple"
 
 let rec pp_tuple_fields first prews accum obs : document * Whitespace.t list =
+  let prews =
+    match Display.spacing () with
+    | `Wide -> optional (pp_ws `Break) prews
+    | `Narrow -> optional (pp_ws `Cut) prews in
   match obs with
   (* No more terms.  This includes empty tuples.  (Empty tuples can't contain a comma.) *)
-  | [ Token (RParen, wsrparen) ] ->
-      (accum ^^ optional (pp_ws `Break) prews ^^ Token.pp RParen, wsrparen)
+  | [ Token (RParen, wsrparen) ] -> (accum ^^ prews ^^ Token.pp RParen, wsrparen)
   (* Last term, without a trailing comma.  Don't add one. *)
   | [ Term tm; Token (RParen, wsrparen) ] ->
       let itm, ptm, wtm = pp_case `Trivial tm in
       let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ Token.pp RParen in
-      (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
+      (accum ^^ prews ^^ doc, wsrparen)
   (* Last term, with an unnecessary trailing comma (that is, not a 1-tuple or the entry is labeled).  Remove it, but keep its whitespace. *)
   | [ Term tm; Token (Op ",", wscomma); Token (RParen, wsrparen) ] when not first ->
       let itm, ptm, wtm = pp_case `Trivial tm in
       let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ pp_ws `None wscomma ^^ Token.pp RParen in
-      (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
+      (accum ^^ prews ^^ doc, wsrparen)
   | [
    Term ({ value = Notn ((Coloneq, _), _); _ } as tm);
    Token (Op ",", wscomma);
@@ -854,19 +857,19 @@ let rec pp_tuple_fields first prews accum obs : document * Whitespace.t list =
   ] ->
       let itm, ptm, wtm = pp_case `Trivial tm in
       let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ pp_ws `None wscomma ^^ Token.pp RParen in
-      (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
+      (accum ^^ prews ^^ doc, wsrparen)
   (* Last term, with a necessary trailing comma.  Keep it. *)
   | [ Term tm; Token (Op ",", wscomma); Token (RParen, wsrparen) ] ->
       let itm, ptm, wtm = pp_case `Trivial tm in
       let doc =
         itm ^^ ptm ^^ pp_ws `None wtm ^^ Token.pp (Op ",") ^^ pp_ws `None wscomma ^^ Token.pp RParen
       in
-      (accum ^^ optional (pp_ws `Break) prews ^^ doc, wsrparen)
+      (accum ^^ prews ^^ doc, wsrparen)
   (* Non-last term, with a comma after it.  Keep the comma, of course. *)
   | Term tm :: Token (Op ",", wscomma) :: obs ->
       let itm, ptm, wtm = pp_case `Trivial tm in
       let doc = itm ^^ ptm ^^ pp_ws `None wtm ^^ Token.pp (Op ",") in
-      pp_tuple_fields false (Some wscomma) (accum ^^ optional (pp_ws `Break) prews ^^ doc) obs
+      pp_tuple_fields false (Some wscomma) (accum ^^ prews ^^ doc) obs
   | _ -> invalid "tuple"
 
 let pp_tuple_term obs =

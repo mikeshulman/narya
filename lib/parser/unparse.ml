@@ -88,7 +88,6 @@ let unparse_notation : type left tight right lt ls rt rs.
  fun notn args inner_symbols li ri ->
   let t = tightness notn in
   (* Based on the fixity of the notation, we have to extract the first and/or last argument to treat differently.  In each case except for outfix, we also have to test whether the notation fits in the given tightness interval, and if not, parenthesize it. *)
-  (* TODO: I think we need to store the Pattern or something like it so that we can put the tokens in the unparsed inner. *)
   match (left notn, right notn) with
   | Open _, Open _ -> (
       match List_extra.split_last args with
@@ -254,7 +253,11 @@ let rec unparse : type n lt ls rt rs s.
  fun vars tm li ri ->
   match tm with
   | Var x -> unlocated (Ident (Names.lookup vars x, []))
-  | Const c -> unlocated (Ident (Scope.name_of c, []))
+  | Const c -> (
+      match Situation.Current.unparse (`Constant c) with
+      | Some { key = _; notn = Wrap notn; pat_vars = []; val_vars = []; inner_symbols } ->
+          unparse_notation notn [] inner_symbols li ri
+      | _ -> unlocated (Ident (Scope.name_of c, [])))
   | Meta (v, _) ->
       unlocated (Ident ([ (if Display.metas () == `Numbered then Meta.name v else "?") ], []))
   (* NB: We don't currently print the arguments of a metavariable. *)

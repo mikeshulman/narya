@@ -481,9 +481,14 @@ let rec check : type a b s.
                     (* We build the implicit application term and its type. *)
                     let new_sfn = locate_opt fn.loc (Term.App (sfn, CubeOf.singleton cty)) in
                     let new_sty = tyof_app cods tyargs (CubeOf.singleton ty) in
-                    (* And then proceed applying to the rest of the arguments. *)
-                    let args = List.map (fun (l, x) -> (l, x, locate_opt None `Explicit)) args in
-                    let stm, sty = synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args in
+                    (* And then proceed applying to the rest of the arguments, if any. *)
+                    let stm, sty =
+                      match args with
+                      | _ :: _ ->
+                          let args =
+                            List.map (fun (l, x) -> (l, x, locate_opt None `Explicit)) args in
+                          synth_apps (Kinetic `Nolet) ctx new_sfn new_sty fn args
+                      | _ -> (new_sfn.value, new_sty) in
                     (* Then we have to check that the resulting type of the whole application agrees with the one we're checking against. *)
                     equal_val (Ctx.length ctx) sty ty
                     <|> Unequal_synthesized_type

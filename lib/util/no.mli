@@ -6,12 +6,28 @@ type 'a minus
 type minus_omega
 type plus_omega
 type _ t
+type one = zero plus
+type two = one plus
+type three = two plus
+type four = three plus
+type five = four plus
+type six = five plus
+type seven = six plus
+type eight = seven plus
+type minus_one = zero minus
+type minus_two = minus_one minus
 
 val zero : zero t
-val one : zero plus t
-val minus_one : zero minus t
-val two : zero plus plus t
-val minus_two : zero minus minus t
+val one : one t
+val two : two t
+val three : three t
+val four : four t
+val five : five t
+val six : six t
+val seven : seven t
+val eight : eight t
+val minus_one : minus_one t
+val minus_two : minus_two t
 val minus_omega : minus_omega t
 val plus_omega : plus_omega t
 

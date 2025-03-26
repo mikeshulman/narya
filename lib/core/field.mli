@@ -20,7 +20,7 @@ type or_index = Name : raw -> or_index | Index : int -> or_index
 val to_string_ori : or_index -> string
 val intern_ori : string -> or_index
 
-module Abwd : (F : Fam2) -> sig
+module Abwd : functor (F : Fam2) -> sig
   type 'a entry = Entry : ('i t * ('i, 'a) F.t) -> 'a entry
   type 'a t = 'a entry Bwd.t
 

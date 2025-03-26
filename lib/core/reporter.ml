@@ -200,15 +200,15 @@ module Code = struct
     | No_holes_allowed : [ `Command of string | `File of string ] -> t
     | Cyclic_term : t
 
-  (* If an error is encountered during printing a term, we perform this effect and print it as "_UNPRINTABLE".  Usually this is a bug, but sometimes it can happen normally, particularly when accumulating errors: a term involved in a later error might be unprintable due to a previous error.  *)
-  module PrintingError = State.Make (struct
-    type nonrec t = t option
-  end)
+  (* If an error is encountered during printing a term, we (meaning the function 'printer' to be defined in Parser.Unparse) call the function supplied by this reader effect and print it as "_UNPRINTABLE".  Usually this is a bug, but sometimes it can happen normally, particularly when accumulating errors: a term involved in a later error might be unprintable due to a previous error.  We make this a reader that supplies a function so that the function can be called at the point of *performing* the effect.  Thus, if we are not in the middle of displaying another message, there can be an outer handler for this effect that supplies the function "fatal", which is called at the point of performing the effect and is therefore inside any inner Reporter.run wrappers rather than the outermost one that just Exits. *)
+  module PrintingErrorData = struct
+    type nonrec t = t -> unit
+  end
+
+  module PrintingError = Algaeff.Reader.Make (PrintingErrorData)
 
   let () =
-    PrintingError.register_printer (function
-      | `Get -> Some "unhandled PrintingError.get effect"
-      | `Set _ -> Some "unhandled PrintingError.set effect")
+    PrintingError.register_printer (function `Read -> Some "unhandled PrintingError.read effect")
 
   (** The default severity of messages with a particular message code. *)
   let default_severity : t -> Asai.Diagnostic.severity = function
@@ -503,366 +503,360 @@ module Code = struct
     | Show _ -> "I9999"
 
   let default_text (err : t) : text =
-    let msg, printing_error =
-      PrintingError.run ~init:None @@ fun () ->
-      let msg =
-        match err with
-        | Accumulated _ -> text "anomaly: multiple accumulated errors"
-        | Parse_error -> text "parse error"
-        | Encoding_error -> text "UTF-8 encoding error"
-        | Parsing_ambiguity str -> textf "potential parsing ambiguity: %s" str
-        | Invalid_variable str -> textf "invalid local variable name: %s" (String.concat "." str)
-        | Invalid_field str -> textf "invalid field name: %s" str
-        | Invalid_constr str -> textf "invalid constructor name: %s" str
-        | Invalid_numeral str -> textf "invalid numeral: %s" str
-        | Invalid_degeneracy str ->
-            if str = "" then text "missing degeneracy" else textf "invalid degeneracy: %s" str
-        | Invalid_variable_face (k, fa) ->
-            textf "invalid face: variable of dimension %s has no face '%s'" (string_of_dim0 k)
-              (string_of_sface fa)
-        | No_relative_precedence (n1, n2) ->
-            textf
-              "notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
-              n1 n2
-        | Not_enough_lambdas n ->
-            textf "not enough non-cube variables for higher-dimensional abstraction: need %d more" n
-        | Not_enough_arguments_to_function ->
-            text "not enough arguments for a higher-dimensional function application"
-        | Not_enough_arguments_to_instantiation ->
-            text "not enough arguments to instantiate a higher-dimensional type"
-        | Type_not_fully_instantiated (str, n) ->
-            textf "type not fully instantiated in %s (need %s more dimensions)" str
-              (string_of_dim0 n)
-        | Instantiating_zero_dimensional_type ty ->
-            textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
-              (print ty)
-        | Unequal_synthesized_type { got; expected; which } ->
-            textf
-              "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a%a@]"
-              pp_printed (print got) pp_printed (print expected)
-              (pp_print_option
-                 ~none:(fun _ () -> ())
-                 (fun ppf which -> fprintf ppf "@ (hint: %s boundaries are explicit)" which))
-              which
-        | Unequal_synthesized_boundary { face; got; expected } ->
-            textf
-              "@[<hv 0>the %s-boundary synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
-              (string_of_sface face) pp_printed (print got) pp_printed (print expected)
-        | Checking_tuple_at_degenerated_record r ->
-            textf "can't check a tuple against a record %a with a nonidentity degeneracy applied"
-              pp_printed (print r)
-        | Comatching_at_degenerated_codata r ->
-            textf "can't comatch against a codatatype %a with a nonidentity degeneracy applied"
-              pp_printed (print r)
-        | Missing_field_in_tuple (f, _) ->
-            textf "record field '%s' missing in tuple" (Field.to_string f)
-        | Missing_method_in_comatch (f, p) ->
-            textf "codata method '%s%s' missing in comatch" (Field.to_string f)
-              (Option.fold ~none:"" ~some:string_of_pbij p)
-        | Extra_field_in_tuple f -> (
+    (* We notice printing errors that occur while formatting this message, and later report them as part of the message. *)
+    let printing_errors = ref Emp in
+    let msg =
+      PrintingError.run ~env:(fun d -> printing_errors := Snoc (!printing_errors, d)) @@ fun () ->
+      match err with
+      | Accumulated _ -> text "anomaly: multiple accumulated errors"
+      | Parse_error -> text "parse error"
+      | Encoding_error -> text "UTF-8 encoding error"
+      | Parsing_ambiguity str -> textf "potential parsing ambiguity: %s" str
+      | Invalid_variable str -> textf "invalid local variable name: %s" (String.concat "." str)
+      | Invalid_field str -> textf "invalid field name: %s" str
+      | Invalid_constr str -> textf "invalid constructor name: %s" str
+      | Invalid_numeral str -> textf "invalid numeral: %s" str
+      | Invalid_degeneracy str ->
+          if str = "" then text "missing degeneracy" else textf "invalid degeneracy: %s" str
+      | Invalid_variable_face (k, fa) ->
+          textf "invalid face: variable of dimension %s has no face '%s'" (string_of_dim0 k)
+            (string_of_sface fa)
+      | No_relative_precedence (n1, n2) ->
+          textf
+            "notations \"%s\" and \"%s\" have no relative precedence or associativity; they can only be combined with parentheses"
+            n1 n2
+      | Not_enough_lambdas n ->
+          textf "not enough non-cube variables for higher-dimensional abstraction: need %d more" n
+      | Not_enough_arguments_to_function ->
+          text "not enough arguments for a higher-dimensional function application"
+      | Not_enough_arguments_to_instantiation ->
+          text "not enough arguments to instantiate a higher-dimensional type"
+      | Type_not_fully_instantiated (str, n) ->
+          textf "type not fully instantiated in %s (need %s more dimensions)" str (string_of_dim0 n)
+      | Instantiating_zero_dimensional_type ty ->
+          textf "@[<hv 0>can't apply/instantiate a zero-dimensional type@;<1 2>%a@]" pp_printed
+            (print ty)
+      | Unequal_synthesized_type { got; expected; which } ->
+          textf
+            "@[<hv 0>term synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a%a@]"
+            pp_printed (print got) pp_printed (print expected)
+            (pp_print_option
+               ~none:(fun _ () -> ())
+               (fun ppf which -> fprintf ppf "@ (hint: %s boundaries are explicit)" which))
+            which
+      | Unequal_synthesized_boundary { face; got; expected } ->
+          textf
+            "@[<hv 0>the %s-boundary synthesized type@;<1 2>%a@ but is being checked against type@;<1 2>%a@]"
+            (string_of_sface face) pp_printed (print got) pp_printed (print expected)
+      | Checking_tuple_at_degenerated_record r ->
+          textf "can't check a tuple against a record %a with a nonidentity degeneracy applied"
+            pp_printed (print r)
+      | Comatching_at_degenerated_codata r ->
+          textf "can't comatch against a codatatype %a with a nonidentity degeneracy applied"
+            pp_printed (print r)
+      | Missing_field_in_tuple (f, _) ->
+          textf "record field '%s' missing in tuple" (Field.to_string f)
+      | Missing_method_in_comatch (f, p) ->
+          textf "codata method '%s%s' missing in comatch" (Field.to_string f)
+            (Option.fold ~none:"" ~some:string_of_pbij p)
+      | Extra_field_in_tuple f -> (
+          match f with
+          | Some f -> textf "field '%s' in tuple doesn't occur in record type" f
+          | None -> text "too many un-labeled fields in tuple")
+      | Extra_method_in_comatch (f, p) ->
+          textf "method '%s' in comatch doesn't occur in codata type" (Field.strings_to_string f p)
+      | Invalid_field_in_tuple -> text "invalid field in tuple"
+      | Invalid_method_in_comatch -> text "invalid method in comatch"
+      | Duplicate_field_in_tuple f -> textf "record field '%s' appears more than once in tuple" f
+      | Duplicate_method_in_comatch (f, p) ->
+          textf "method '%s' appears more than once in comatch" (Field.strings_to_string f p)
+      | Missing_constructor_in_match c ->
+          textf "missing match clause for constructor %s" (Constr.to_string c)
+      | Unnamed_variable_in_match -> text "unnamed match variable"
+      | Checking_lambda_at_nonfunction ty ->
+          textf "@[<hv 0>checking abstraction against non-function type@;<1 2>%a@]" pp_printed
+            (print ty)
+      | Checking_tuple_at_nonrecord ty ->
+          textf "@[<hv 0>checking tuple against non-record type@;<1 2>%a@]" pp_printed (print ty)
+      | Choice_mismatch ty ->
+          textf "@[<hv 0>multi-choice term doesn't match type@;<1 2>%a@]" pp_printed (print ty)
+      | Comatching_at_noncodata ty ->
+          textf "@[<hv 0>checking comatch against non-codata type@;<1 2>%a@]" pp_printed (print ty)
+      | No_such_constructor (d, c) -> (
+          match d with
+          | `Data d ->
+              textf "datatype %a has no constructor named %s" pp_printed (print d)
+                (Constr.to_string c)
+          | `Nondata d ->
+              textf "non-datatype %a has no constructor named %s" pp_printed (print d)
+                (Constr.to_string c)
+          | `Other ty ->
+              textf "@[<hv 0>non-datatype@;<1 2>%a@ has no constructor named %s@]" pp_printed
+                (print ty) (Constr.to_string c))
+      | Wrong_number_of_arguments_to_constructor (c, n) ->
+          if n > 0 then
+            textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
+          else
+            textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c)
+              (abs n)
+      | No_such_field (d, f) -> (
+          let f =
             match f with
-            | Some f -> textf "field '%s' in tuple doesn't occur in record type" f
-            | None -> text "too many un-labeled fields in tuple")
-        | Extra_method_in_comatch (f, p) ->
-            textf "method '%s' in comatch doesn't occur in codata type"
-              (Field.strings_to_string f p)
-        | Invalid_field_in_tuple -> text "invalid field in tuple"
-        | Invalid_method_in_comatch -> text "invalid method in comatch"
-        | Duplicate_field_in_tuple f -> textf "record field '%s' appears more than once in tuple" f
-        | Duplicate_method_in_comatch (f, p) ->
-            textf "method '%s' appears more than once in comatch" (Field.strings_to_string f p)
-        | Missing_constructor_in_match c ->
-            textf "missing match clause for constructor %s" (Constr.to_string c)
-        | Unnamed_variable_in_match -> text "unnamed match variable"
-        | Checking_lambda_at_nonfunction ty ->
-            textf "@[<hv 0>checking abstraction against non-function type@;<1 2>%a@]" pp_printed
-              (print ty)
-        | Checking_tuple_at_nonrecord ty ->
-            textf "@[<hv 0>checking tuple against non-record type@;<1 2>%a@]" pp_printed (print ty)
-        | Choice_mismatch ty ->
-            textf "@[<hv 0>multi-choice term doesn't match type@;<1 2>%a@]" pp_printed (print ty)
-        | Comatching_at_noncodata ty ->
-            textf "@[<hv 0>checking comatch against non-codata type@;<1 2>%a@]" pp_printed
-              (print ty)
-        | No_such_constructor (d, c) -> (
-            match d with
-            | `Data d ->
-                textf "datatype %a has no constructor named %s" pp_printed (print d)
-                  (Constr.to_string c)
-            | `Nondata d ->
-                textf "non-datatype %a has no constructor named %s" pp_printed (print d)
-                  (Constr.to_string c)
-            | `Other ty ->
-                textf "@[<hv 0>non-datatype@;<1 2>%a@ has no constructor named %s@]" pp_printed
-                  (print ty) (Constr.to_string c))
-        | Wrong_number_of_arguments_to_constructor (c, n) ->
-            if n > 0 then
-              textf "too many arguments to constructor %s (%d extra)" (Constr.to_string c) n
-            else
-              textf "not enough arguments to constructor %s (need %d more)" (Constr.to_string c)
-                (abs n)
-        | No_such_field (d, f) -> (
-            let f =
-              match f with
-              | `Ins (f, p) -> Field.to_string f ^ string_of_ins p
-              | `Pbij (f, p) -> Field.to_string f ^ string_of_pbij p
-              | `Strings (str, ints) -> str ^ string_of_ins_ints ints
-              | `Int n -> string_of_int n in
-            match d with
-            | `Record (eta, d) ->
-                textf "%s type %a has no field named %s" (record_or_codata eta) pp_printed (print d)
-                  f
-            | `Nonrecord d ->
-                textf "non-record/codata type %a has no field named %s" pp_printed (print d) f
-            | `Other -> textf "term has no field named %s" f
-            | `Degenerated_record eta ->
-                let rc = record_or_codata eta in
-                textf
-                  "%s type with a nonidentity degeneracy applied is no longer a %s, hence has no field named %s"
-                  rc rc f)
-        | Wrong_dimension_of_field (ty, f, intrinsic, used) ->
-            let f =
-              match f with
-              | `Strings (str, ints) -> str ^ string_of_ins_ints ints
-              | `Int n -> string_of_int n in
-            textf "field %s of type %a has intrinsic dimension %s, can't be used at %s" f pp_printed
-              (print ty) (string_of_dim0 intrinsic) (string_of_dim0 used)
-        | Invalid_field_suffix (ty, f, p, evaldim) ->
-            textf "invalid suffix %s for field %s of %s-dimensional type %a" (string_of_ins_ints p)
-              f (string_of_dim0 evaldim) pp_printed (print ty)
-        | Missing_instantiation_constructor (exp, got) ->
-            let pp_got =
-              match got with
-              | `Nonconstr tm -> print tm
-              | `Constr c -> print (PConstr c) in
-            fun ppf ->
-              fprintf ppf
-                "@[<hv 0>instantiation arguments of datatype must be matching constructors:@ expected@;<1 2>%s@ but got@;<1 2>"
-                (Constr.to_string exp);
-              pp_printed ppf pp_got;
-              pp_close_box ppf ()
-        | Unequal_indices (t1, t2) ->
-            textf
-              "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
-              pp_printed (print t1) pp_printed (print t2)
-        | Unbound_variable (c, alt) -> (
-            match alt with
-            | [] -> textf "unbound variable: %s" c
-            (* | [ (parts, fields) ] ->
+            | `Ins (f, p) -> Field.to_string f ^ string_of_ins p
+            | `Pbij (f, p) -> Field.to_string f ^ string_of_pbij p
+            | `Strings (str, ints) -> str ^ string_of_ins_ints ints
+            | `Int n -> string_of_int n in
+          match d with
+          | `Record (eta, d) ->
+              textf "%s type %a has no field named %s" (record_or_codata eta) pp_printed (print d) f
+          | `Nonrecord d ->
+              textf "non-record/codata type %a has no field named %s" pp_printed (print d) f
+          | `Other -> textf "term has no field named %s" f
+          | `Degenerated_record eta ->
+              let rc = record_or_codata eta in
+              textf
+                "%s type with a nonidentity degeneracy applied is no longer a %s, hence has no field named %s"
+                rc rc f)
+      | Wrong_dimension_of_field (ty, f, intrinsic, used) ->
+          let f =
+            match f with
+            | `Strings (str, ints) -> str ^ string_of_ins_ints ints
+            | `Int n -> string_of_int n in
+          textf "field %s of type %a has intrinsic dimension %s, can't be used at %s" f pp_printed
+            (print ty) (string_of_dim0 intrinsic) (string_of_dim0 used)
+      | Invalid_field_suffix (ty, f, p, evaldim) ->
+          textf "invalid suffix %s for field %s of %s-dimensional type %a" (string_of_ins_ints p) f
+            (string_of_dim0 evaldim) pp_printed (print ty)
+      | Missing_instantiation_constructor (exp, got) ->
+          let pp_got =
+            match got with
+            | `Nonconstr tm -> print tm
+            | `Constr c -> print (PConstr c) in
+          fun ppf ->
+            fprintf ppf
+              "@[<hv 0>instantiation arguments of datatype must be matching constructors:@ expected@;<1 2>%s@ but got@;<1 2>"
+              (Constr.to_string exp);
+            pp_printed ppf pp_got;
+            pp_close_box ppf ()
+      | Unequal_indices (t1, t2) ->
+          textf
+            "@[<hv 0>index@;<1 2>%a@ of constructor application doesn't match the corresponding index@;<1 2>%a@ of datatype instance@]"
+            pp_printed (print t1) pp_printed (print t2)
+      | Unbound_variable (c, alt) -> (
+          match alt with
+          | [] -> textf "unbound variable: %s" c
+          (* | [ (parts, fields) ] ->
                    textf "unbound variable: %s (hint: did you mean %s .%s ?)" c (String.concat "." parts)
                      (String.concat " ." fields) *)
-            | _ ->
-                textf "@[<v 0>unbound variable: %s (hint: did you mean one of:@;<1 2>%a@ ?)@]" c
-                  (pp_print_list
-                     ~pp_sep:(fun ppf () -> pp_print_break ppf 1 2)
-                     (fun ppf (p, f) ->
-                       pp_print_string ppf (String.concat "." p);
-                       pp_print_string ppf " .";
-                       pp_print_list
-                         ~pp_sep:(fun ppf () -> pp_print_string ppf " .")
-                         pp_print_string ppf f))
-                  alt)
-        (* The difference between "unbound variable" and "undefined constant" is that "undefined constant" is a BUG: it means a constant name was found in Scope, but its definition is missing from Global.  "Unbound variable" is the user error of writing a name that's NEITHER a local variable nor a constant in scope. *)
-        | Undefined_constant c -> textf "undefined constant: %a" pp_printed (print c)
-        | Undefined_metavariable v -> textf "undefined metavariable: %a" pp_printed (print v)
-        | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
-        | Low_dimensional_argument_of_degeneracy (deg, dim) ->
-            textf "argument of degeneracy '%s' must have dimension at least %s" deg
-              (string_of_dim0 dim)
-        | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
-        | Applying_nonfunction_nontype (tm, ty) ->
-            textf
-              "@[<hv 0>attempt to apply/instantiate@;<1 2>%a@ of type@;<1 2>%a@ which is not a function-type or universe@]"
-              pp_printed (print tm) pp_printed (print ty)
-        | Unexpected_implicitness (i, str) ->
-            textf "unexpected %s argument: %s"
-              (match i with
-              | `Implicit -> "implicit"
-              | `Explicit -> "explicit")
-              str
-        | Insufficient_dimension { needed; got; which } ->
-            textf
-              "@[<hv 0>insufficient dimension of primary argument for higher-dimensional application:@ %s does not factor through %s@ (hint: %s boundaries are implicit)"
-              (string_of_dim0 got) (string_of_dim0 needed) which
-        | Unimplemented str -> textf "%s not yet implemented" str
-        | Matching_datatype_has_degeneracy ty ->
-            textf
-              "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"
-              pp_printed (print ty)
-        | Wrong_number_of_arguments_to_pattern (c, n) ->
-            if n > 0 then
-              textf "too many arguments to constructor %s in match pattern (%d extra)"
-                (Constr.to_string c) n
-            else
-              textf "not enough arguments to constructor %s in match pattern (need %d more)"
-                (Constr.to_string c) (abs n)
-        | Wrong_number_of_arguments_to_motive n ->
-            textf "wrong number of arguments for match motive: should be %d" n
-        | No_such_constructor_in_match (d, c) ->
-            textf "datatype %a being matched against has no constructor %s" pp_printed (print d)
-              (Constr.to_string c)
-        | Duplicate_constructor_in_match c ->
-            textf "constructor %s appears twice in match" (Constr.to_string c)
-        | Matching_on_nondatatype ty ->
-            textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
-              (print ty)
-        | Matching_wont_refine (msg, Some d) ->
-            textf "@[<hv 0>match will not refine the goal or context (%s):@;<1 2>%a@]" msg
-              pp_printed (print d)
-        | Matching_wont_refine (msg, None) ->
-            textf "match will not refine the goal or context (%s)" msg
-        | Dimension_mismatch (op, a, b) ->
-            textf "dimension mismatch in %s (%s ≠ %s)" op (string_of_dim0 a) (string_of_dim0 b)
-        | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
-        | Anomaly str -> textf "anomaly: %s" str
-        | No_such_level i ->
-            textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
-        | Name_already_defined name ->
-            textf "name already defined: %a" pp_printed (print (PString name))
-        | Invalid_constant_name name ->
-            textf "invalid constant name: %a" pp_printed (print (PString name))
-        | Too_many_commands -> text "too many commands: enter one at a time"
-        | Fixity_mismatch ->
-            text
-              "notation command doesn't match pattern (tightness must be omitted only for outfix notations)"
-        | Invalid_notation_pattern str -> textf "invalid notation pattern: %s" str
-        | Invalid_tightness str -> textf "invalid tightness: %s" str
-        | Invalid_notation_symbol str -> textf "invalid notation symbol: %s" str
-        | Invalid_notation_head str -> textf "invalid notation head: %s" str
-        | Duplicate_notation_variable x -> textf "duplicate notation variable: '%s'" x
-        | Unused_notation_variable x -> textf "unused notation variable: '%s'" x
-        | Notation_variable_used_twice x -> textf "notation variable '%s' used twice" x
-        | Unbound_variable_in_notation xs ->
-            textf "unbound variable(s) in notation definition: %s" (String.concat ", " xs)
-        | Head_already_has_notation name ->
-            textf "replacing printing notation for %s (previous notation will still be parseable)"
-              name
-        | Constant_assumed (name, h) ->
-            if h > 1 then textf "axiom %a assumed, containing %d holes" pp_printed (print name) h
-            else if h = 1 then textf "axiom %a assumed, containing 1 hole" pp_printed (print name)
-            else textf "axiom %a assumed" pp_printed (print name)
-        | Constant_defined (names, discrete, h) -> (
-            let discrete = if discrete then "discrete " else "" in
-            match names with
-            | [] -> textf "anomaly: no constant defined"
-            | [ name ] ->
-                if h > 1 then
-                  textf "%sconstant %a defined, containing %d holes" discrete pp_printed
-                    (print name) h
-                else if h = 1 then
-                  textf "%sconstant %a defined, containing 1 hole" discrete pp_printed (print name)
-                else textf "%sconstant %a defined" discrete pp_printed (print name)
-            | _ ->
-                (if h > 1 then
-                   textf "@[<v 2>%sconstants defined mutually, containing %d holes:@,%a@]" discrete
-                     h
-                 else if h = 1 then
-                   textf "@[<v 2>%sconstants defined mutually, containing 1 hole:@,%a@]" discrete
-                 else textf "@[<v 2>%sconstants defined mutually:@,%a@]" discrete)
-                  (fun ppf names -> pp_print_list (fun ppf name -> pp_printed ppf name) ppf names)
-                  (List.map (fun name -> print name) names))
-        | Notation_defined name -> textf "notation %s defined" name
-        | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
-        | Comment_end_in_string ->
-            text "comment-end sequence `} in quoted string: cannot be commented out"
-        | Checking_canonical_at_nonuniverse (tm, ty) ->
-            textf "checking %s at non-universe %a" tm pp_printed (print ty)
-        | Bare_case_tree_construct str ->
-            textf "%s encountered outside case tree, wrapping in implicit let-binding" str
-        | Duplicate_method_in_codata fld ->
-            textf "duplicate method in codatatype: %s" (Field.to_string fld)
-        | Duplicate_field_in_record fld ->
-            textf "duplicate field in record type: %s" (Field.to_string fld)
-        | Duplicate_constructor_in_data c ->
-            textf "duplicate constructor in datatype: %s" (Constr.to_string c)
-        | Wrong_boundary_of_record n ->
-            if n > 0 then
-              textf "too many variables in boundary of higher-dimensional record (%d extra)" n
-            else
-              textf "not enough variables in boundary of higher-dimensional record (need %d more)"
-                (abs n)
-        | Invalid_constructor_type c ->
-            textf "invalid type for constructor %s: must be current datatype instance"
-              (Constr.to_string c)
-        | Missing_constructor_type c ->
-            textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
-        | Locked_variable -> text "variable locked behind external degeneracy"
-        | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
-        | Hole (n, ty) -> textf "@[<v 0>hole %s:@,%a@]" n pp_printed (print ty)
-        | No_open_holes -> text "no open holes"
-        | Open_holes n ->
-            if n = 1 then text "there is 1 open hole" else textf "there are %d open holes" n
-        | Open_holes_remaining src -> (
-            match src with
-            | `File name -> textf "file %s contains open holes" name
-            | `Stdin -> textf "stdin contains open holes"
-            | `String -> textf "command-line exec string contains open holes")
-        | Quit (Some src) -> textf "execution of %s terminated by quit" src
-        | Quit None -> text "execution terminated by quit"
-        | Synthesizing_recursion c ->
-            textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
-        | Invalid_synthesized_type (str, ty) ->
-            textf "type %a synthesized by %s is invalid for entire term" pp_printed (print ty) str
-        | Unrecognized_attribute -> textf "unrecognized attribute"
-        | Invalid_degeneracy_action (str, nk, n) ->
-            textf
-              "invalid degeneracy action on %s: dimension '%s' doesn't factor through codomain '%s'"
-              str (string_of_dim0 nk) (string_of_dim0 n)
-        | Wrong_number_of_patterns -> text "wrong number of patterns for match"
-        | Inconsistent_patterns -> text "inconsistent patterns in match"
-        | Overlapping_patterns -> text "overlapping patterns in match"
-        | No_remaining_patterns -> text "no remaining patterns while parsing match"
-        | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
-        | Duplicate_pattern_variable x ->
-            textf "variable name '%s' used more than once in match patterns" x
-        | Type_expected (str, got) ->
-            textf "expected type while %s, got %a" str pp_printed (print got)
-        | Circular_import files ->
-            textf "circular imports:@,@[<v 2>%a@]"
-              (pp_print_list
-                 ~pp_sep:(fun ppf () ->
-                   pp_print_cut ppf ();
-                   pp_print_string ppf "imports ")
-                 pp_print_string)
-              files
-        | Loading_file file -> textf "loading file: %s" file
-        | File_loaded (file, `Compiled) -> textf "file loaded: %s (compiled)" file
-        | File_loaded (file, `Source) -> textf "file loaded: %s (source)" file
-        | Library_has_extension file -> textf "putative library name '%s' has extension" file
-        | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
-        | No_such_file file -> textf "error opening file: %s" file
-        | Incompatible_flags (file, flags) ->
-            textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
-        | Actions_in_compiled_file file ->
-            textf "not re-executing echo/synth/show commands when loading compiled file %s" file
-        | No_such_hole i -> textf "no open hole numbered %d" i
-        | Hole_solved h ->
-            if h > 1 then textf "hole solved, containing %d new holes" h
-            else if h = 1 then text "hole solved, containing 1 new hole"
-            else text "hole solved"
-        | Forbidden_interactive_command cmd ->
-            textf "command '%s' only allowed in interactive mode" cmd
-        | Not_enough_to_undo -> text "not enough commands to undo"
-        | Commands_undone n ->
-            if n = 1 then text "1 command undone" else textf "%d commands undone" n
-        | Section_opened prefix -> textf "section %s opened" (String.concat "." prefix)
-        | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
-        | Display_set (setting, str) -> textf "display set %s to %s" setting str
-        | Option_set (setting, str) -> textf "option set %s to %s" setting str
-        | No_such_section -> text "no section here to end"
-        | Break -> text "user interrupt"
-        | No_holes_allowed str -> (
-            match str with
-            | `Command cmd -> textf "command '%s' cannot contain holes" cmd
-            | `File file -> textf "imported file '%s' cannot contain holes" file)
-        | Ill_scoped_connection -> text "ill-scoped connection"
-        | Cyclic_term -> text "cycle in graphical term" in
-      (msg, PrintingError.get ()) in
-    match printing_error with
-    | None -> msg
-    | Some _ ->
+          | _ ->
+              textf "@[<v 0>unbound variable: %s (hint: did you mean one of:@;<1 2>%a@ ?)@]" c
+                (pp_print_list
+                   ~pp_sep:(fun ppf () -> pp_print_break ppf 1 2)
+                   (fun ppf (p, f) ->
+                     pp_print_string ppf (String.concat "." p);
+                     pp_print_string ppf " .";
+                     pp_print_list
+                       ~pp_sep:(fun ppf () -> pp_print_string ppf " .")
+                       pp_print_string ppf f))
+                alt)
+      (* The difference between "unbound variable" and "undefined constant" is that "undefined constant" is a BUG: it means a constant name was found in Scope, but its definition is missing from Global.  "Unbound variable" is the user error of writing a name that's NEITHER a local variable nor a constant in scope. *)
+      | Undefined_constant c -> textf "undefined constant: %a" pp_printed (print c)
+      | Undefined_metavariable v -> textf "undefined metavariable: %a" pp_printed (print v)
+      | Nonsynthesizing pos -> textf "non-synthesizing term in synthesizing position (%s)" pos
+      | Low_dimensional_argument_of_degeneracy (deg, dim) ->
+          textf "argument of degeneracy '%s' must have dimension at least %s" deg
+            (string_of_dim0 dim)
+      | Missing_argument_of_degeneracy deg -> textf "missing argument for degeneracy %s" deg
+      | Applying_nonfunction_nontype (tm, ty) ->
+          textf
+            "@[<hv 0>attempt to apply/instantiate@;<1 2>%a@ of type@;<1 2>%a@ which is not a function-type or universe@]"
+            pp_printed (print tm) pp_printed (print ty)
+      | Unexpected_implicitness (i, str) ->
+          textf "unexpected %s argument: %s"
+            (match i with
+            | `Implicit -> "implicit"
+            | `Explicit -> "explicit")
+            str
+      | Insufficient_dimension { needed; got; which } ->
+          textf
+            "@[<hv 0>insufficient dimension of primary argument for higher-dimensional application:@ %s does not factor through %s@ (hint: %s boundaries are implicit)"
+            (string_of_dim0 got) (string_of_dim0 needed) which
+      | Unimplemented str -> textf "%s not yet implemented" str
+      | Matching_datatype_has_degeneracy ty ->
+          textf
+            "@[<hv 0>can't match on element of datatype@;<1 2>%a@ that has a degeneracy applied@]"
+            pp_printed (print ty)
+      | Wrong_number_of_arguments_to_pattern (c, n) ->
+          if n > 0 then
+            textf "too many arguments to constructor %s in match pattern (%d extra)"
+              (Constr.to_string c) n
+          else
+            textf "not enough arguments to constructor %s in match pattern (need %d more)"
+              (Constr.to_string c) (abs n)
+      | Wrong_number_of_arguments_to_motive n ->
+          textf "wrong number of arguments for match motive: should be %d" n
+      | No_such_constructor_in_match (d, c) ->
+          textf "datatype %a being matched against has no constructor %s" pp_printed (print d)
+            (Constr.to_string c)
+      | Duplicate_constructor_in_match c ->
+          textf "constructor %s appears twice in match" (Constr.to_string c)
+      | Matching_on_nondatatype ty ->
+          textf "@[<hv 0>can't match on variable belonging to non-datatype@;<1 2>%a@]" pp_printed
+            (print ty)
+      | Matching_wont_refine (msg, Some d) ->
+          textf "@[<hv 0>match will not refine the goal or context (%s):@;<1 2>%a@]" msg pp_printed
+            (print d)
+      | Matching_wont_refine (msg, None) ->
+          textf "match will not refine the goal or context (%s)" msg
+      | Dimension_mismatch (op, a, b) ->
+          textf "dimension mismatch in %s (%s ≠ %s)" op (string_of_dim0 a) (string_of_dim0 b)
+      | Unsupported_numeral n -> textf "unsupported numeral: %a" Q.pp_print n
+      | Anomaly str -> textf "anomaly: %s" str
+      | No_such_level i -> textf "@[<hov 2>no level variable@ %a@ in context@]" pp_printed (print i)
+      | Name_already_defined name ->
+          textf "name already defined: %a" pp_printed (print (PString name))
+      | Invalid_constant_name name ->
+          textf "invalid constant name: %a" pp_printed (print (PString name))
+      | Too_many_commands -> text "too many commands: enter one at a time"
+      | Fixity_mismatch ->
+          text
+            "notation command doesn't match pattern (tightness must be omitted only for outfix notations)"
+      | Invalid_notation_pattern str -> textf "invalid notation pattern: %s" str
+      | Invalid_tightness str -> textf "invalid tightness: %s" str
+      | Invalid_notation_symbol str -> textf "invalid notation symbol: %s" str
+      | Invalid_notation_head str -> textf "invalid notation head: %s" str
+      | Duplicate_notation_variable x -> textf "duplicate notation variable: '%s'" x
+      | Unused_notation_variable x -> textf "unused notation variable: '%s'" x
+      | Notation_variable_used_twice x -> textf "notation variable '%s' used twice" x
+      | Unbound_variable_in_notation xs ->
+          textf "unbound variable(s) in notation definition: %s" (String.concat ", " xs)
+      | Head_already_has_notation name ->
+          textf "replacing printing notation for %s (previous notation will still be parseable)"
+            name
+      | Constant_assumed (name, h) ->
+          if h > 1 then textf "axiom %a assumed, containing %d holes" pp_printed (print name) h
+          else if h = 1 then textf "axiom %a assumed, containing 1 hole" pp_printed (print name)
+          else textf "axiom %a assumed" pp_printed (print name)
+      | Constant_defined (names, discrete, h) -> (
+          let discrete = if discrete then "discrete " else "" in
+          match names with
+          | [] -> textf "anomaly: no constant defined"
+          | [ name ] ->
+              if h > 1 then
+                textf "%sconstant %a defined, containing %d holes" discrete pp_printed (print name)
+                  h
+              else if h = 1 then
+                textf "%sconstant %a defined, containing 1 hole" discrete pp_printed (print name)
+              else textf "%sconstant %a defined" discrete pp_printed (print name)
+          | _ ->
+              (if h > 1 then
+                 textf "@[<v 2>%sconstants defined mutually, containing %d holes:@,%a@]" discrete h
+               else if h = 1 then
+                 textf "@[<v 2>%sconstants defined mutually, containing 1 hole:@,%a@]" discrete
+               else textf "@[<v 2>%sconstants defined mutually:@,%a@]" discrete)
+                (fun ppf names -> pp_print_list (fun ppf name -> pp_printed ppf name) ppf names)
+                (List.map (fun name -> print name) names))
+      | Notation_defined name -> textf "notation %s defined" name
+      | Show (str, x) -> textf "%s: %a" str pp_printed (print x)
+      | Comment_end_in_string ->
+          text "comment-end sequence `} in quoted string: cannot be commented out"
+      | Checking_canonical_at_nonuniverse (tm, ty) ->
+          textf "checking %s at non-universe %a" tm pp_printed (print ty)
+      | Bare_case_tree_construct str ->
+          textf "%s encountered outside case tree, wrapping in implicit let-binding" str
+      | Duplicate_method_in_codata fld ->
+          textf "duplicate method in codatatype: %s" (Field.to_string fld)
+      | Duplicate_field_in_record fld ->
+          textf "duplicate field in record type: %s" (Field.to_string fld)
+      | Duplicate_constructor_in_data c ->
+          textf "duplicate constructor in datatype: %s" (Constr.to_string c)
+      | Wrong_boundary_of_record n ->
+          if n > 0 then
+            textf "too many variables in boundary of higher-dimensional record (%d extra)" n
+          else
+            textf "not enough variables in boundary of higher-dimensional record (need %d more)"
+              (abs n)
+      | Invalid_constructor_type c ->
+          textf "invalid type for constructor %s: must be current datatype instance"
+            (Constr.to_string c)
+      | Missing_constructor_type c ->
+          textf "missing type for constructor %s of indexed datatype" (Constr.to_string c)
+      | Locked_variable -> text "variable locked behind external degeneracy"
+      | Locked_axiom a -> textf "axiom %a locked behind external degeneracy" pp_printed (print a)
+      | Hole (n, ty) -> textf "@[<v 0>hole %s:@,%a@]" n pp_printed (print ty)
+      | No_open_holes -> text "no open holes"
+      | Open_holes n ->
+          if n = 1 then text "there is 1 open hole" else textf "there are %d open holes" n
+      | Open_holes_remaining src -> (
+          match src with
+          | `File name -> textf "file %s contains open holes" name
+          | `Stdin -> textf "stdin contains open holes"
+          | `String -> textf "command-line exec string contains open holes")
+      | Quit (Some src) -> textf "execution of %s terminated by quit" src
+      | Quit None -> text "execution terminated by quit"
+      | Synthesizing_recursion c ->
+          textf "for '%a' to be recursive, it must have a declared type" pp_printed (print c)
+      | Invalid_synthesized_type (str, ty) ->
+          textf "type %a synthesized by %s is invalid for entire term" pp_printed (print ty) str
+      | Unrecognized_attribute -> textf "unrecognized attribute"
+      | Invalid_degeneracy_action (str, nk, n) ->
+          textf
+            "invalid degeneracy action on %s: dimension '%s' doesn't factor through codomain '%s'"
+            str (string_of_dim0 nk) (string_of_dim0 n)
+      | Wrong_number_of_patterns -> text "wrong number of patterns for match"
+      | Inconsistent_patterns -> text "inconsistent patterns in match"
+      | Overlapping_patterns -> text "overlapping patterns in match"
+      | No_remaining_patterns -> text "no remaining patterns while parsing match"
+      | Invalid_refutation -> text "invalid refutation: no discriminee has an empty type"
+      | Duplicate_pattern_variable x ->
+          textf "variable name '%s' used more than once in match patterns" x
+      | Type_expected (str, got) ->
+          textf "expected type while %s, got %a" str pp_printed (print got)
+      | Circular_import files ->
+          textf "circular imports:@,@[<v 2>%a@]"
+            (pp_print_list
+               ~pp_sep:(fun ppf () ->
+                 pp_print_cut ppf ();
+                 pp_print_string ppf "imports ")
+               pp_print_string)
+            files
+      | Loading_file file -> textf "loading file: %s" file
+      | File_loaded (file, `Compiled) -> textf "file loaded: %s (compiled)" file
+      | File_loaded (file, `Source) -> textf "file loaded: %s (source)" file
+      | Library_has_extension file -> textf "putative library name '%s' has extension" file
+      | Invalid_filename file -> textf "filename '%s' does not have 'ny' extension" file
+      | No_such_file file -> textf "error opening file: %s" file
+      | Incompatible_flags (file, flags) ->
+          textf "file '%s' was compiled with incompatible flags %s, recompiling" file flags
+      | Actions_in_compiled_file file ->
+          textf "not re-executing echo/synth/show commands when loading compiled file %s" file
+      | No_such_hole i -> textf "no open hole numbered %d" i
+      | Hole_solved h ->
+          if h > 1 then textf "hole solved, containing %d new holes" h
+          else if h = 1 then text "hole solved, containing 1 new hole"
+          else text "hole solved"
+      | Forbidden_interactive_command cmd ->
+          textf "command '%s' only allowed in interactive mode" cmd
+      | Not_enough_to_undo -> text "not enough commands to undo"
+      | Commands_undone n -> if n = 1 then text "1 command undone" else textf "%d commands undone" n
+      | Section_opened prefix -> textf "section %s opened" (String.concat "." prefix)
+      | Section_closed prefix -> textf "section %s closed" (String.concat "." prefix)
+      | Display_set (setting, str) -> textf "display set %s to %s" setting str
+      | Option_set (setting, str) -> textf "option set %s to %s" setting str
+      | No_such_section -> text "no section here to end"
+      | Break -> text "user interrupt"
+      | No_holes_allowed str -> (
+          match str with
+          | `Command cmd -> textf "command '%s' cannot contain holes" cmd
+          | `File file -> textf "imported file '%s' cannot contain holes" file)
+      | Ill_scoped_connection -> text "ill-scoped connection"
+      | Cyclic_term -> text "cycle in graphical term" in
+    match !printing_errors with
+    | Emp -> msg
+    | Snoc _ ->
+        (* We could report the actual error messages encountered, but we aren't doing that right now. *)
         textf
-          "@[<v 0>%t@;@;(displaying this error encountered a term that is unprintable,@ probably due to previous errors.@ If there are no other errors, this is probably a bug.)@]"
+          "@[<v 0>%t@;@;(displaying this error encountered one or more terms that are unprintable,@ probably due to previous errors.@ If there are no other errors, this is probably a bug.)@]"
           msg
 end
 

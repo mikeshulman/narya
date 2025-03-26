@@ -103,6 +103,8 @@ let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
       Reporter.display ?use_ansi ~output:stderr d;
       raise Exit)
   @@ fun () ->
+  (* Printing errors that happen outside of any other error should be reported as fatal errors on their own. *)
+  Reporter.Code.PrintingError.run ~env:(fun d -> fatal d) @@ fun () ->
   (* The initial namespace for all compilation units. *)
   Compunit.Current.run ~env:Compunit.basic @@ fun () ->
   let top_files =

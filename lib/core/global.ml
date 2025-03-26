@@ -307,6 +307,11 @@ end
 
 module HolePos = State.Make (HoleState)
 
+let () =
+  HolePos.register_printer (function
+    | `Get -> Some "unhandled Global.HolePos get effect"
+    | `Set _ -> Some "unhandled Global.HolePos set effect")
+
 (* Notify the user about currently created holes and add them to the global list. *)
 let do_holes make_msg =
   let d = S.get () in

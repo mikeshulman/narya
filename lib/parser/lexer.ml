@@ -211,6 +211,9 @@ let other_char : string t =
   let* c = ucharp (fun x -> not (Array.mem x (specials ()))) "alphanumeric or unicode" in
   return (Utf8.Encoder.to_internal c)
 
+let is_numeral =
+  List.for_all (fun s -> String.for_all (fun c -> String.exists (fun x -> x = c) "0123456789") s)
+
 (* Once we have an identifier string, we inspect it and divide into cases to make a Token.t.  We take a range so that we can immediately report invalid field, constructor, and numeral names with a position. *)
 let canonicalize (rng : Position.range) : string -> Token.t t = function
   | "let" -> return Let
@@ -243,25 +246,34 @@ let canonicalize (rng : Position.range) : string -> Token.t t = function
   | s -> (
       let parts = String.split_on_char '.' s in
       let bwdparts = Bwd.of_list parts in
-      match (parts, bwdparts) with
-      | [], _ -> fatal (Anomaly "canonicalizing empty string")
-      (* Can't both start and end with a . *)
-      | "" :: _, Snoc (_, "") -> fatal ~loc:(Range.convert rng) Parse_error
-      (* Starting with a . makes a field.  If there is only a primary name, it's a lower field. *)
-      | [ ""; field ], _ -> return (Field (field, []))
-      (* Otherwise, if the primary field name is followed by a "..", then the remaining sections are the parts. *)
-      | "" :: field :: "" :: pbij, _ -> return (Field (field, pbij))
-      (* Otherwise, there is only one remaining section allowed, and it is split into characters to make the remaining sections. *)
-      | [ ""; field; pbij ], _ ->
-          return (Field (field, String.fold_right (fun c s -> String.make 1 c :: s) pbij []))
-      | "" :: _ :: _ :: _ :: _, _ -> fatal ~loc:(Range.convert rng) Parse_error
-      (* Ending with a . (and containing no internal .s) makes a constr *)
-      | _, Snoc (Snoc (Emp, constr), "") -> return (Constr constr)
-      | _, Snoc (_, "") ->
-          fatal ~loc:(Range.convert rng) (Unimplemented ("higher constructors: " ^ s))
-      (* Otherwise, all the parts must be identifiers. *)
-      | parts, _ when List.for_all ok_ident parts -> return (Ident parts)
-      | _, _ -> fatal ~loc:(Range.convert rng) Parse_error)
+      (* Only allow names starting with digits if the flag says so *)
+      if
+        (not (Specials.digit_vars ()))
+        && (not (is_numeral parts))
+        && List.exists
+             (fun s -> String.length s > 0 && String.exists (fun x -> x = s.[0]) "0123456789")
+             parts
+      then fatal Parse_error
+      else
+        match (parts, bwdparts) with
+        | [], _ -> fatal (Anomaly "canonicalizing empty string")
+        (* Can't both start and end with a . *)
+        | "" :: _, Snoc (_, "") -> fatal ~loc:(Range.convert rng) Parse_error
+        (* Starting with a . makes a field.  If there is only a primary name, it's a lower field. *)
+        | [ ""; field ], _ -> return (Field (field, []))
+        (* Otherwise, if the primary field name is followed by a "..", then the remaining sections are the parts. *)
+        | "" :: field :: "" :: pbij, _ -> return (Field (field, pbij))
+        (* Otherwise, there is only one remaining section allowed, and it is split into characters to make the remaining sections. *)
+        | [ ""; field; pbij ], _ ->
+            return (Field (field, String.fold_right (fun c s -> String.make 1 c :: s) pbij []))
+        | "" :: _ :: _ :: _ :: _, _ -> fatal ~loc:(Range.convert rng) Parse_error
+        (* Ending with a . (and containing no internal .s) makes a constr *)
+        | _, Snoc (Snoc (Emp, constr), "") -> return (Constr constr)
+        | _, Snoc (_, "") ->
+            fatal ~loc:(Range.convert rng) (Unimplemented ("higher constructors: " ^ s))
+        (* Otherwise, all the parts must be identifiers. *)
+        | parts, _ when List.for_all ok_ident parts -> return (Ident parts)
+        | _, _ -> fatal ~loc:(Range.convert rng) Parse_error)
 
 (* An identifier is a list of one or more other characters, canonicalized. *)
 let other : Token.t t =

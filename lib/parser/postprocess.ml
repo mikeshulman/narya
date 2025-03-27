@@ -42,18 +42,9 @@ let process_ident ctx loc parts =
   let open Monad.Ops (Monad.Maybe) in
   (* A numeral is an ident whose pieces are composed entirely of digits.  Of course if there are more than two parts it's not a *valid* numeral, but we don't allow it as another kind of token either. *)
   if List.is_empty parts then fatal (Anomaly "empty ident")
-  else if
-    List.for_all
-      (fun s -> String.for_all (fun c -> String.exists (fun x -> x = c) "0123456789") s)
-      parts
-  then
+  else if Lexer.is_numeral parts then
     try process_numeral loc (Q.of_string (String.concat "." parts))
     with Invalid_argument _ -> fatal (Invalid_numeral (String.concat "." parts))
-    (* Only allow names starting with digits if the flag says so *)
-  else if
-    (not (Lexer.Specials.digit_vars ()))
-    && List.exists (fun s -> String.exists (fun x -> x = s.[0]) "0123456789") parts
-  then fatal Parse_error
   else
     match
       match parts with

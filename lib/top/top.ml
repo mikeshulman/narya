@@ -64,9 +64,9 @@ let set_refls str =
 exception Exit
 
 (* This function is called to wrap whatever "interactive mode" is implemented by the caller.  It sets up the environment and all the effect handlers based on the global flags, loads all the files and strings specified in the global flags, and then runs the callback. *)
-let run_top ?use_ansi ?onechar_ops ?ascii_symbols f =
+let run_top ?use_ansi ?onechar_ops ?digit_vars ?ascii_symbols f =
   Check.Oracle.run ~ask:(fun _ -> Ok ()) @@ fun () ->
-  Lexer.Specials.run ?onechar_ops ?ascii_symbols @@ fun () ->
+  Lexer.Specials.run ?onechar_ops ?ascii_symbols ?digit_vars @@ fun () ->
   Parser.Unparse.install ();
   Parser.Scope.Mod.run @@ fun () ->
   History.run_empty @@ fun () ->
@@ -194,11 +194,11 @@ module Pauseable (R : Signatures.Type) = struct
     with Halt -> cont := None
 
   (* We initialize the setup by calling run_top inside the effect handler. *)
-  let init ?use_ansi ?onechar_ops ?ascii_symbols f =
+  let init ?use_ansi ?onechar_ops ?digit_vars ?ascii_symbols f =
     (* First we discontinue any existing continuation, to avoid leaks. *)
     halt ();
     try_with
-      (fun () -> run_top ?use_ansi ?onechar_ops ?ascii_symbols @@ fun () -> corun_top f)
+      (fun () -> run_top ?use_ansi ?onechar_ops ?digit_vars ?ascii_symbols @@ fun () -> corun_top f)
       () { effc }
 
   (* After startup, the caller calls "next" with a callback to be executed inside the run_top handlers and return a value. *)

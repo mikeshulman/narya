@@ -42,9 +42,7 @@ let () =
   let () = unsynth ~print:() "x |-> x .fs.t y" ~code:(Invalid_field ".fs.t") in
   let () =
     unsynth ~print:() "f (con.str. x)" ~code:(Unimplemented "higher constructors: con.str.") in
-  let () =
-    unsynth ~print:() "x |-> f 0.1.2 x"
-      ~code:(Unbound_variable ("0.1.2", [ ([ "0" ], [ "1"; "2" ]) ])) in
+  let () = unsynth ~print:() "x |-> f 0.1.2 x" ~code:(Invalid_numeral "0.1.2") in
   let () = unsynth ~print:() "let x.y ≔ z in w" ~code:(Invalid_variable [ "x"; "y" ]) in
   let () = unsynth ~print:() "x.y ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in
   let () = unsynth ~print:() "a x.y b ↦ z" ~code:(Invalid_variable [ "x"; "y" ]) in

@@ -40,34 +40,46 @@ let process_numeral loc (n : Q.t) =
 (* Process a bare identifier, resolving it into either a variable, a cube variable with face, a constant, a numeral, or a degeneracy name (the latter being an error since it isn't applied to anything). *)
 let process_ident ctx loc parts =
   let open Monad.Ops (Monad.Maybe) in
-  match
-    match parts with
-    | [ x ] ->
-        let* _, n = Bwv.find_opt (fun y -> y = Some x) ctx in
-        Some (Synth (Var (n, None)))
-    | [ x; face ] ->
-        let* _, v = Bwv.find_opt (fun y -> y = Some x) ctx in
-        let* fa = sface_of_string face in
-        return (Synth (Var (v, Some fa)))
-    | _ -> None
-  with
-  | Some tm -> { value = tm; loc }
-  | None -> (
-      match Scope.lookup parts with
-      | Some c -> { value = Synth (Const c); loc }
-      | None -> (
-          match parts with
-          | [] -> fatal (Anomaly "empty ident")
-          | [ str ] when Option.is_some (deg_of_name str) ->
-              fatal (Missing_argument_of_degeneracy str)
-          | _ -> (
-              try process_numeral loc (Q.of_string (String.concat "." parts))
-              with Invalid_argument _ -> fatal (Unbound_variable (String.concat "." parts, [])))))
+  (* A numeral is an ident whose pieces are composed entirely of digits.  Of course if there are more than two parts it's not a *valid* numeral, but we don't allow it as another kind of token either. *)
+  if List.is_empty parts then fatal (Anomaly "empty ident")
+  else if
+    List.for_all
+      (fun s -> String.for_all (fun c -> String.exists (fun x -> x = c) "0123456789") s)
+      parts
+  then
+    try process_numeral loc (Q.of_string (String.concat "." parts))
+    with Invalid_argument _ -> fatal (Invalid_numeral (String.concat "." parts))
+    (* Only allow names starting with digits if the flag says so *)
+  else if
+    (not (Lexer.Specials.digit_vars ()))
+    && List.exists (fun s -> String.exists (fun x -> x = s.[0]) "0123456789") parts
+  then fatal Parse_error
+  else
+    match
+      match parts with
+      | [ x ] ->
+          let* _, n = Bwv.find_opt (fun y -> y = Some x) ctx in
+          return (Synth (Var (n, None)))
+      | [ x; face ] ->
+          let* _, v = Bwv.find_opt (fun y -> y = Some x) ctx in
+          let* fa = sface_of_string face in
+          return (Synth (Var (v, Some fa)))
+      | _ -> None
+    with
+    | Some tm -> { value = tm; loc }
+    | None -> (
+        match Scope.lookup parts with
+        | Some c -> { value = Synth (Const c); loc }
+        | None -> (
+            match parts with
+            | [ str ] when Option.is_some (deg_of_name str) ->
+                fatal (Missing_argument_of_degeneracy str)
+            | _ -> fatal (Unbound_variable (String.concat "." parts, []))))
 
 (* If an identifier doesn't resolve, we check whether the user might have meant to project one or more fields from a shorter identifier, and give them a hint that field projections require spaces. *)
 let rec detect_spaceless_fields ctx loc (bwd_parts : string Bwd.t) fields found =
   match bwd_parts with
-  | Emp -> found
+  | Emp | Snoc (Emp, _) -> found
   | Snoc (bwd_parts, fld) ->
       Reporter.try_with
         (fun () ->

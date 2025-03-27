@@ -145,10 +145,10 @@ nest `}
 →  B x"
   in
 
-  (* Identifiers can contain or be digits.  In the latter case, they shadow numerals. *)
+  (* Identifiers can start with digits, but not be only digits. *)
   let atoa, _ = synth "A → A" in
   let _ = check "0a ↦ 0a" atoa in
-  let _ = check "0 ↦ 0" atoa in
+  let () = uncheck "0 ↦ 0" atoa in
 
   (* Local variables, constructors, and fields can't contain periods *)
   let () = unparse "x.x ↦ x.x" in

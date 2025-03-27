@@ -115,20 +115,26 @@ module Specials = struct
     |]
 
   module Data = struct
-    type t = { onechar_ops : (int * Token.t) Array.t; ascii_symbols : char Array.t }
+    type t = {
+      onechar_ops : (int * Token.t) Array.t;
+      ascii_symbols : char Array.t;
+      digit_vars : bool;
+    }
   end
 
   module R = Algaeff.Reader.Make (Data)
 
   let () = R.register_printer (function `Read -> Some "unhandled Lexer.Specials read effect")
 
-  let run ?(onechar_ops = Array.of_list []) ?(ascii_symbols = Array.of_list []) f =
+  let run ?(onechar_ops = Array.of_list []) ?(ascii_symbols = Array.of_list []) ?(digit_vars = true)
+      f =
     let onechar_ops = Array.append default_onechar_ops onechar_ops in
     let ascii_symbols = Array.append default_ascii_symbols ascii_symbols in
-    R.run ~env:{ onechar_ops; ascii_symbols } f
+    R.run ~env:{ onechar_ops; ascii_symbols; digit_vars } f
 
   let onechar_ops () = (R.read ()).onechar_ops
   let ascii_symbols () = (R.read ()).ascii_symbols
+  let digit_vars () = (R.read ()).digit_vars
 end
 
 let onechar_uchars () = Array.map (fun c -> Uchar.of_int (fst c)) (Specials.onechar_ops ())
@@ -154,11 +160,6 @@ let ascii_op : Token.t t =
   | ":" -> return Colon
   | "..." -> return Ellipsis
   | _ -> return (Op op)
-
-(* A numeral is a string composed entirely of digits and periods (and not starting or ending with a period, but that's taken care of later in "canonicalize".  Of course if there is more than one period it's not a *valid* numeral, but we don't allow it as another kind of token either. *)
-let digits_dot = "0123456789."
-let is_digit_or_dot c = String.exists (fun x -> x = c) digits_dot
-let is_numeral s = String.for_all is_digit_or_dot s
 
 (* A Unicode superscript is a string of Unicode superscript numbers and letters between superscript parentheses.  We don't ever want to fail lexing, so any string starting with a superscript left parenthesis that *doesn't* look like this, or a superscript right parenthesis occurring before a superscript left parenthesis, is lexed as an "invalid superscript". *)
 let utf8_superscript =

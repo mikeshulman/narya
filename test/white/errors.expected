@@ -96,12 +96,10 @@
  1 | f (con.str. x)
    ^ higher constructors: con.str. not yet implemented
 
- ￫ error[E0300]
+ ￫ error[E0205]
  ￭ user-supplied term
  1 | x |-> f 0.1.2 x
-   ^ unbound variable: 0.1.2 (hint: did you mean one of:
-       0 .1 .2
-     ?)
+   ^ invalid numeral: 0.1.2
 
  ￫ error[E0202]
  ￭ user-supplied term

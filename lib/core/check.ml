@@ -20,7 +20,7 @@ include Status
 let discard : type a. a -> unit = fun _ -> ()
 
 module OracleData = struct
-  type question = Ask : ('a, 'b) Ctx.t * ('b, 's) term -> question
+  type question = Ask : ('a, 'b) Ctx.t * kinetic value -> question
   type answer = (unit, Code.t) Result.t
 end
 
@@ -544,9 +544,13 @@ let rec check : type a b s.
               | _ -> go errs alts) in
         go Emp alts
     | Oracle tm, _ -> (
-        let ctm = check status ctx tm ty in
-        match Oracle.ask (Ask (ctx, ctm)) with
-        | Ok () -> ctm
+        let ctm = check (Kinetic `Nolet) ctx tm ty in
+        let etm = eval_term (Ctx.env ctx) ctm in
+        match Oracle.ask (Ask (ctx, etm)) with
+        | Ok () -> (
+            match status with
+            | Kinetic _ -> ctm
+            | Potential _ -> Realize ctm)
         | Error err -> fatal err) in
   with_loc tm.loc @@ fun () ->
   Annotate.ctx status ctx tm;
